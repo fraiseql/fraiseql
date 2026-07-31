@@ -5,6 +5,7 @@ use fraiseql_core::federation::{
     mutation_query_builder::{build_insert_query, build_update_query},
     types::FederationMetadata,
 };
+use fraiseql_db::DatabaseType;
 use serde_json::json;
 
 use super::common;
@@ -19,7 +20,8 @@ fn test_mutation_entity_not_found() {
     });
 
     // Query builds successfully but returns error when executed against DB
-    let query = build_update_query("User", &variables, &metadata).unwrap();
+    let query =
+        build_update_query(DatabaseType::PostgreSQL, "User", &variables, &metadata).unwrap();
     assert!(
         query.contains("WHERE \"id\" = 'nonexistent_user'"),
         "Expected quoted column in: {query}"
@@ -36,7 +38,8 @@ fn test_mutation_invalid_field_value() {
         "metadata": { "nested": "object" }  // Invalid for SQL
     });
 
-    let result = build_insert_query("User", &invalid_variables, &metadata);
+    let result =
+        build_insert_query(DatabaseType::PostgreSQL, "User", &invalid_variables, &metadata);
     // Should error because objects cannot convert to SQL literals
     assert!(result.is_err(), "expected Err for nested object variable, got: {result:?}");
 }
@@ -50,7 +53,7 @@ fn test_mutation_missing_required_fields() {
         "name": "Updated Name"
     });
 
-    let result = build_update_query("User", &missing_key, &metadata);
+    let result = build_update_query(DatabaseType::PostgreSQL, "User", &missing_key, &metadata);
     assert!(result.is_err(), "expected Err for missing key field, got: {result:?}");
     assert!(result.unwrap_err().to_string().contains("missing"));
 }

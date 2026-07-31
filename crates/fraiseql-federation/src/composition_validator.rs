@@ -299,54 +299,81 @@ impl CrossSubgraphValidator {
         }
     }
 
-    /// Validate @key directives are consistent across subgraphs
+    /// Validate @key directives are consistent across subgraphs (#728).
     ///
-    /// Ensures that all @extends definitions of a type use the same @key as the primary definition.
+    /// Enforces the module's documented rule on both sides it can drift:
+    /// - **primary vs primary** — two subgraphs each *primarily* defining the same type must
+    ///   declare the same set of `@key`s (previously the first-seen key silently won and the
+    ///   disagreement passed);
+    /// - **extension vs primary** — every `@key` on an `@extends` definition must be one the
+    ///   primary declares. ANY declared primary key is acceptable (previously only `keys.first()`
+    ///   was compared, falsely rejecting an extension keyed on the second declared key).
     fn validate_key_consistency(&self) -> Result<(), Vec<CompositionError>> {
         let mut errors = Vec::new();
-        let mut type_keys: HashMap<String, Vec<String>> = HashMap::new();
+        // Every declared primary key set per type, order-insensitive.
+        let mut type_keys: HashMap<String, Vec<Vec<String>>> = HashMap::new();
 
-        // Collect all @key definitions per type (from primary definitions only)
+        // Collect all @key definitions per type (from primary definitions only),
+        // erroring when a second primary disagrees with the first.
         for (sg_name, metadata) in &self.subgraphs {
             for ftype in &metadata.types {
-                if !ftype.is_extends {
-                    // Primary definition of this type
-                    if let Some(key_directive) = ftype.keys.first() {
-                        type_keys
-                            .entry(ftype.name.clone())
-                            .or_insert_with(|| key_directive.fields.clone());
-                        debug!(
-                            "Found primary definition of {} in {} with @key({})",
-                            ftype.name,
-                            sg_name,
-                            key_directive.fields.join(",")
-                        );
-                    }
+                if ftype.is_extends || ftype.keys.is_empty() {
+                    continue;
+                }
+                let declared: Vec<Vec<String>> =
+                    ftype.keys.iter().map(|k| k.fields.clone()).collect();
+                debug!(
+                    "Found primary definition of {} in {} with {} @key(s)",
+                    ftype.name,
+                    sg_name,
+                    declared.len()
+                );
+                match type_keys.entry(ftype.name.clone()) {
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        entry.insert(declared);
+                    },
+                    std::collections::hash_map::Entry::Occupied(entry) => {
+                        let existing = entry.get();
+                        let agrees = declared.len() == existing.len()
+                            && declared.iter().all(|k| existing.contains(k));
+                        if !agrees {
+                            warn!(
+                                "Primary @key disagreement for {} in {}: {:?} vs {:?}",
+                                ftype.name, sg_name, existing, declared
+                            );
+                            errors.push(CompositionError::KeyMismatch {
+                                typename: ftype.name.clone(),
+                                key_a:    existing.first().cloned().unwrap_or_default(),
+                                key_b:    declared.first().cloned().unwrap_or_default(),
+                            });
+                        }
+                    },
                 }
             }
         }
 
-        // Validate all extensions have same keys as primary
+        // Validate every extension key matches one of the primary's declared keys.
         for (sg_name, metadata) in &self.subgraphs {
             for ftype in &metadata.types {
-                if ftype.is_extends {
-                    // Extended definition - must match primary key
-                    if let Some(primary_key) = type_keys.get(&ftype.name) {
-                        if let Some(key_directive) = ftype.keys.first() {
-                            if &key_directive.fields != primary_key {
-                                warn!(
-                                    "Key mismatch for {} in {}: expected @key({}), found @key({})",
-                                    ftype.name,
-                                    sg_name,
-                                    primary_key.join(","),
-                                    key_directive.fields.join(",")
-                                );
-                                errors.push(CompositionError::KeyMismatch {
-                                    typename: ftype.name.clone(),
-                                    key_a:    primary_key.clone(),
-                                    key_b:    key_directive.fields.clone(),
-                                });
-                            }
+                if !ftype.is_extends {
+                    continue;
+                }
+                if let Some(primary_keys) = type_keys.get(&ftype.name) {
+                    for key_directive in &ftype.keys {
+                        if !primary_keys.contains(&key_directive.fields) {
+                            warn!(
+                                "Key mismatch for {} in {}: @key({}) is not one of the \
+                                 primary's declared keys {:?}",
+                                ftype.name,
+                                sg_name,
+                                key_directive.fields.join(","),
+                                primary_keys
+                            );
+                            errors.push(CompositionError::KeyMismatch {
+                                typename: ftype.name.clone(),
+                                key_a:    primary_keys.first().cloned().unwrap_or_default(),
+                                key_b:    key_directive.fields.clone(),
+                            });
                         }
                     }
                 }
@@ -377,19 +404,30 @@ impl CrossSubgraphValidator {
             }
         }
 
-        // Check external field declarations don't conflict
+        // Check external field declarations don't conflict: each @external
+        // field must have EXACTLY one owning (primary) subgraph — zero owners
+        // means nobody serves it, more than one means ownership is ambiguous
+        // (#728: the multiple-owners half was documented and Display-formatted
+        // but never actually constructed).
         for (_sg_name, metadata) in &self.subgraphs {
             for ftype in &metadata.types {
                 if ftype.is_extends {
                     for external_field in &ftype.external_fields {
                         let field_key = format!("{}.{}", ftype.name, external_field);
 
-                        // External field must have exactly one owner
-                        let owners = field_owners.get(&field_key);
-                        if owners.is_none() {
-                            errors.push(CompositionError::ExternalFieldNoOwner {
-                                field: field_key.clone(),
-                            });
+                        match field_owners.get(&field_key) {
+                            None => {
+                                errors.push(CompositionError::ExternalFieldNoOwner {
+                                    field: field_key.clone(),
+                                });
+                            },
+                            Some(owners) if owners.len() > 1 => {
+                                errors.push(CompositionError::ExternalFieldMultipleOwners {
+                                    field:  field_key.clone(),
+                                    owners: owners.clone(),
+                                });
+                            },
+                            Some(_) => {},
                         }
                     }
                 }
@@ -493,7 +531,10 @@ impl CrossSubgraphValidator {
         let mut errors = Vec::new();
         let mut field_shareable: HashMap<String, HashMap<String, bool>> = HashMap::new();
 
-        // Collect shareable status per field
+        // Collect shareable status per field. Type-level @shareable makes every
+        // field of that type shareable in that subgraph (#728:
+        // `type_shareable` was previously ignored here, so a type-level
+        // declaration falsely conflicted with a peer's field-level one).
         for (sg_name, metadata) in &self.subgraphs {
             for ftype in &metadata.types {
                 for (field_name, directives) in &ftype.field_directives {
@@ -501,7 +542,7 @@ impl CrossSubgraphValidator {
                     field_shareable
                         .entry(field_key)
                         .or_default()
-                        .insert(sg_name.clone(), directives.shareable);
+                        .insert(sg_name.clone(), directives.shareable || ftype.type_shareable);
                 }
             }
         }

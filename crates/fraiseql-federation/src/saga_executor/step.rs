@@ -39,6 +39,10 @@ impl SagaExecutor {
         // no name fall back to the mutation-kind verb (`create`), which the
         // name-driven `determine_mutation_type` also resolves for the local path.
         let op_name = step.mutation_name.as_deref().unwrap_or_else(|| step.mutation_type.as_str());
+        // The step's persisted id is its idempotency key: stable across retries,
+        // timeouts, and crash-recovery replays from another process, so every
+        // attempt at this logical mutation is deduplicable by the receiver (#747).
+        let idempotency_key = step.id.to_string();
         let started = std::time::Instant::now();
         let outcome = match remote {
             None => {
@@ -54,6 +58,7 @@ impl SagaExecutor {
                         op_name,
                         &step.variables,
                         mutation_executor.metadata(),
+                        Some(&idempotency_key),
                     )
                     .await
             },

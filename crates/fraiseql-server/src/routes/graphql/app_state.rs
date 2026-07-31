@@ -183,7 +183,19 @@ pub struct AppState<A: DatabaseAdapter> {
     /// active subscriptions re-derive their row-visibility conditions against
     /// the current policies — re-scoped in place, or terminated when the new
     /// policy refuses (fail-closed).
-    pub policy_reload: Arc<tokio::sync::watch::Sender<u64>>,
+    pub policy_reload:     Arc<tokio::sync::watch::Sender<u64>>,
+    /// Idempotency store for the GraphQL mutation path (#747).
+    ///
+    /// A POST mutation carrying an `Idempotency-Key` header is deduplicated
+    /// against it: a repeat of an already-executed mutation replays the stored
+    /// response instead of executing again. This is the receiving half of the
+    /// saga at-least-once dispatch contract — a peer coordinator retries
+    /// ambiguous failures (timeouts, connection resets) under the same key, and
+    /// this store is what turns those retries into one logical effect.
+    /// In-memory with TTL expiry: replicas do not share it, so a load balancer
+    /// that re-routes a retry to another replica re-executes (document
+    /// `Idempotency-Key` affinity or use sticky routing for saga peers).
+    pub idempotency_store: Arc<dyn crate::routes::idempotency::IdempotencyStore>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -245,6 +257,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             revocation_manager: None,
             started_at: std::time::Instant::now(),
             policy_reload: Arc::new(tokio::sync::watch::channel(0).0),
+            idempotency_store: crate::routes::idempotency::create_store(
+                crate::routes::idempotency::GRAPHQL_IDEMPOTENCY_TTL_SECS,
+            ),
         }
     }
 

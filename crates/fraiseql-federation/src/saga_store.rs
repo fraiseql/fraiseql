@@ -232,6 +232,34 @@ impl StepState {
     }
 }
 
+/// The legal predecessor states for a step transition **into** `to`.
+///
+/// This is the step state machine, enforced atomically inside
+/// [`PostgresSagaStore::update_saga_step_state`]'s `UPDATE … WHERE state =
+/// ANY(...)`:
+///
+/// ```text
+/// Pending ──> Executing ──> Completed ──> Compensated
+///     (initial)   ^  │
+///                 │  └────> Failed ──┘ (Failed → Executing = retry re-drive)
+/// ```
+///
+/// The transitions this machine makes unrepresentable are the recovery
+/// double-execution class (#744): `Completed → Executing` (re-driving a
+/// committed mutation) and any transition out of `Compensated` (re-driving or
+/// re-rolling-back an undone step). `Executing → Executing` is allowed so a
+/// crash-left in-doubt step can be re-driven (at-least-once, deduplicated by
+/// its idempotency key); `Pending` is initial-only and is never re-entered.
+#[must_use]
+pub const fn step_transition_sources(to: &StepState) -> &'static [StepState] {
+    match to {
+        StepState::Pending => &[],
+        StepState::Executing => &[StepState::Pending, StepState::Executing, StepState::Failed],
+        StepState::Completed | StepState::Failed => &[StepState::Executing],
+        StepState::Compensated => &[StepState::Completed],
+    }
+}
+
 /// The kind of GraphQL mutation a saga step executes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -330,6 +358,14 @@ pub struct SagaStep {
     pub order:                  usize,
     /// Subgraph service name that owns this step.
     pub subgraph:               String,
+    /// Whether this step was created to execute on a **remote** peer subgraph.
+    ///
+    /// Recorded at creation time by the coordinator (its subgraph registry knew
+    /// the peer), so dispatch honesty survives a crash: a remote step replayed by
+    /// a process without the registry **fails loud** instead of silently falling
+    /// through to the local SQL adapter and writing another service's data into
+    /// the local database (#766). `false` = the step runs on the local adapter.
+    pub remote:                 bool,
     /// Kind of mutation this step performs.
     pub mutation_type:          MutationType,
     /// Full GraphQL mutation operation name (e.g. `createOrder`), if known. The
@@ -363,6 +399,15 @@ pub struct SagaStep {
     /// NULL column (pre-migration rows or steps created without any) loads as an
     /// empty vector. See [`RequiredField`].
     pub required_fields:        Vec<RequiredField>,
+    /// The recorded error of this step's **most recent failed rollback
+    /// attempt**, if any (#767).
+    ///
+    /// Written by the compensator when a step's inverse mutation fails (or the
+    /// step has no registered compensation), and cleared when a later attempt
+    /// succeeds (the step then transitions to `Compensated`). This is what lets
+    /// `get_compensation_status` report recorded reality — which steps failed
+    /// to roll back and why — instead of inferring an answer.
+    pub compensation_error:     Option<String>,
 }
 
 /// A crash-recovery record for a saga that could not complete normally.
@@ -536,7 +581,9 @@ impl PostgresSagaStore {
                 ADD COLUMN IF NOT EXISTS compensation_mutation TEXT,
                 ADD COLUMN IF NOT EXISTS compensation_variables JSONB,
                 ADD COLUMN IF NOT EXISTS mutation_name TEXT,
-                ADD COLUMN IF NOT EXISTS required_fields JSONB
+                ADD COLUMN IF NOT EXISTS required_fields JSONB,
+                ADD COLUMN IF NOT EXISTS remote BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS compensation_error TEXT
             ",
             &[],
         )
@@ -697,6 +744,7 @@ impl PostgresSagaStore {
             #[allow(clippy::cast_sign_loss)] // Reason: step_order is always non-negative from DB
             order: row.get::<_, i32>(2) as usize,
             subgraph: row.get(3),
+            remote: row.get(15),
             mutation_type,
             mutation_name: row.get(13),
             typename: row.get(5),
@@ -708,6 +756,7 @@ impl PostgresSagaStore {
             compensation_mutation: row.get(11),
             compensation_variables: row.get(12),
             required_fields,
+            compensation_error: row.get(16),
         })
     }
 
@@ -839,7 +888,7 @@ impl PostgresSagaStore {
 
         let row = conn
             .query_opt(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name, fss.required_fields
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name, fss.required_fields, fss.remote, fss.compensation_error
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fss.id = $1",
@@ -860,7 +909,7 @@ impl PostgresSagaStore {
 
         let rows = conn
             .query(
-                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name, fss.required_fields
+                "SELECT fss.id, fs.id as saga_id, fss.step_number, fss.subgraph, fss.mutation_type, fss.typename, fss.variables, fss.state, fss.result, fss.started_at, fss.completed_at, fss.compensation_mutation, fss.compensation_variables, fss.mutation_name, fss.required_fields, fss.remote, fss.compensation_error
                  FROM tb_federation_saga_steps fss
                  INNER JOIN tb_federation_sagas fs ON fss.saga_pk_ = fs.pk_
                  WHERE fs.id = $1
@@ -877,11 +926,19 @@ impl PostgresSagaStore {
     /// Terminal states (Completed, Failed, Compensated) automatically receive
     /// `completed_at` timestamp.
     ///
+    /// Transitions are **validated atomically**: the `UPDATE` only matches when
+    /// the persisted state is a legal predecessor of `state`
+    /// ([`step_transition_sources`]), so `Completed → Executing` — the write that
+    /// let crash recovery re-execute a committed mutation (#744) — is rejected
+    /// with [`SagaStoreError::InvalidStateTransition`] no matter which code path
+    /// attempts it, including a second concurrent driver.
+    ///
     /// # Errors
     ///
-    /// Returns [`SagaStoreError::StepNotFound`] if no step with `step_id` exists
-    /// (the `UPDATE` matched zero rows, M-saga-rowcounts), or
-    /// [`SagaStoreError::Database`] if the update fails.
+    /// Returns [`SagaStoreError::StepNotFound`] if no step with `step_id` exists,
+    /// [`SagaStoreError::InvalidStateTransition`] if the persisted state does not
+    /// allow the requested transition, or [`SagaStoreError::Database`] if the
+    /// update fails.
     pub async fn update_saga_step_state(&self, step_id: Uuid, state: &StepState) -> Result<()> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
@@ -894,17 +951,61 @@ impl PostgresSagaStore {
                 None
             };
 
+        // Legal-predecessor filter in the WHERE clause: the transition check and
+        // the write are one atomic statement, so two racing drivers cannot
+        // interleave a read-then-write around each other.
+        let allowed: Vec<&str> =
+            step_transition_sources(state).iter().map(|s| s.as_str()).collect();
         let affected = conn
             .execute(
-                "UPDATE tb_federation_saga_steps SET state = $1, completed_at = $2, updated_at = $3 WHERE id = $4",
-                &[&state_str, &completed_at, &now, &step_id],
+                "UPDATE tb_federation_saga_steps SET state = $1, completed_at = $2, updated_at = $3 WHERE id = $4 AND state = ANY($5)",
+                &[&state_str, &completed_at, &now, &step_id, &allowed],
             )
             .await?;
 
         if affected == 0 {
-            return Err(SagaStoreError::StepNotFound(step_id));
+            // Distinguish a missing step from an illegal transition.
+            let row = conn
+                .query_opt("SELECT state FROM tb_federation_saga_steps WHERE id = $1", &[&step_id])
+                .await?;
+            return match row {
+                None => Err(SagaStoreError::StepNotFound(step_id)),
+                Some(row) => Err(SagaStoreError::InvalidStateTransition {
+                    from: row.get::<_, String>(0),
+                    to:   state_str.to_string(),
+                }),
+            };
         }
 
+        Ok(())
+    }
+
+    /// Record the outcome of a rollback attempt on a step (#767).
+    ///
+    /// A failed attempt stores its error (`Some(error)`); a successful one
+    /// clears it (`None`) — the step's transition to `Compensated` carries the
+    /// success itself. `get_compensation_status` reads this column, so a
+    /// rollback failure is *recorded state*, never an inference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaStoreError::StepNotFound`] if no step with `step_id`
+    /// exists, or [`SagaStoreError::Database`] if the update fails.
+    pub async fn record_step_compensation_error(
+        &self,
+        step_id: Uuid,
+        error: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.pool.get().await?;
+        let affected = conn
+            .execute(
+                "UPDATE tb_federation_saga_steps SET compensation_error = $1, updated_at = $2 WHERE id = $3",
+                &[&error, &chrono::Utc::now(), &step_id],
+            )
+            .await?;
+        if affected == 0 {
+            return Err(SagaStoreError::StepNotFound(step_id));
+        }
         Ok(())
     }
 
@@ -946,14 +1047,18 @@ impl PostgresSagaStore {
         // compensation_mutation / compensation_variables / mutation_name /
         // required_fields are part of the immutable step definition, so — like
         // variables/subgraph — they are written on INSERT but not touched by the
-        // ON CONFLICT update path (which only advances runtime state/result/completed_at).
+        // ON CONFLICT update path. `state` is deliberately NOT updated on
+        // conflict either: every step state change must go through
+        // `update_saga_step_state`, whose legal-transition guard is what makes
+        // `Completed → Executing` unrepresentable (#744) — an unguarded upsert
+        // would be a second write path around that guard.
         let affected = conn
             .execute(
-                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at, compensation_mutation, compensation_variables, mutation_name, required_fields)
-             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                "INSERT INTO tb_federation_saga_steps (id, saga_pk_, step_number, subgraph, mutation_type, typename, variables, state, result, started_at, completed_at, created_at, updated_at, compensation_mutation, compensation_variables, mutation_name, required_fields, remote)
+             SELECT $1, fs.pk_, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
              FROM tb_federation_sagas fs
              WHERE fs.id = $2
-             ON CONFLICT (id) DO UPDATE SET state = $8, result = $9, completed_at = $11, updated_at = $13",
+             ON CONFLICT (id) DO UPDATE SET result = $9, completed_at = $11, updated_at = $13",
                 &[
                     &step.id,
                     &step.saga_id,  // Used in subquery to find saga_pk_
@@ -972,6 +1077,7 @@ impl PostgresSagaStore {
                     &step.compensation_variables,
                     &step.mutation_name,
                     &required_fields,
+                    &step.remote,
                 ],
             )
             .await?;
@@ -1026,14 +1132,20 @@ impl PostgresSagaStore {
         let recovery_id = Uuid::new_v4();
         let now = chrono::Utc::now();
 
-        // Use subquery to convert saga natural key to surrogate key
+        // Use subquery to convert saga natural key to surrogate key. The row's
+        // attempt_count is the real running count — one more than the highest
+        // recorded attempt — so `get_recovery_attempts` (MAX) reports genuine
+        // attempts and a max-attempts cap is enforceable (#785; previously every
+        // row was inserted with attempt_count = 0 and the trace was fiction).
         let affected = conn
             .execute(
                 "INSERT INTO tb_federation_saga_recovery (id, saga_pk_, recovery_type, attempted_at, attempt_count)
-             SELECT $1, fs.pk_, $3, $4, $5
+             SELECT $1, fs.pk_, $3, $4,
+                    COALESCE((SELECT MAX(r.attempt_count) FROM tb_federation_saga_recovery r
+                              WHERE r.saga_pk_ = fs.pk_), 0) + 1
              FROM tb_federation_sagas fs
              WHERE fs.id = $2",
-                &[&recovery_id, &saga_id, &reason, &now, &0i32],
+                &[&recovery_id, &saga_id, &reason, &now],
             )
             .await?;
 
@@ -1044,13 +1156,34 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Find all pending sagas (not yet started)
+    /// Find pending sagas (never started) that have been pending for longer
+    /// than `older_than_secs`.
+    ///
+    /// The age gate exists for the same reason as `claim_stuck_sagas`'
+    /// staleness threshold (#745): a coordinator that has just persisted a saga
+    /// is about to execute it, and the recovery loop re-driving that saga in
+    /// the `create_saga` → `execute_saga` window would run it concurrently with
+    /// its creator. Only a saga that has sat `Pending` past the threshold is
+    /// genuinely orphaned.
     ///
     /// # Errors
     ///
     /// Returns `SagaStoreError::Database` if the query fails.
-    pub async fn find_pending_sagas(&self) -> Result<Vec<Saga>> {
-        self.load_sagas_by_state(&SagaState::Pending).await
+    pub async fn find_pending_sagas(&self, older_than_secs: i64) -> Result<Vec<Saga>> {
+        let conn = self.pool.get().await?;
+        let stale_before = chrono::Utc::now() - chrono::Duration::seconds(older_than_secs);
+        let state_str = SagaState::Pending.as_str();
+
+        let rows = conn
+            .query(
+                "SELECT id, state, created_at, completed_at, metadata FROM tb_federation_sagas
+                 WHERE state = $1 AND updated_at < $2
+                 ORDER BY created_at DESC",
+                &[&state_str, &stale_before],
+            )
+            .await?;
+
+        rows.iter().map(Self::map_saga_row).collect()
     }
 
     /// Clear recovery record for a saga
@@ -1265,6 +1398,13 @@ impl PostgresSagaStore {
     /// Atomically claim up to `limit` stuck (`Executing`) sagas for recovery,
     /// leasing each to `worker_id` for `lease_secs` seconds.
     ///
+    /// **Stuck means stale, not merely executing** (#745): only sagas whose
+    /// `updated_at` is older than `stuck_after_secs` are claimable. A live
+    /// forward drive heartbeats the saga row on every step transition
+    /// ([`Self::touch_saga`] via the executor), so an actively-executing saga is
+    /// never claimed and concurrently re-driven by the recovery loop; a crashed
+    /// one stops heart-beating and becomes claimable once the threshold passes.
+    ///
     /// Concurrency-safe by design: the claim is a single `UPDATE … WHERE pk_ IN
     /// (SELECT … FOR UPDATE SKIP LOCKED)` statement, so two recovery workers running
     /// this at the same time claim **disjoint** sets of sagas and never
@@ -1282,10 +1422,12 @@ impl PostgresSagaStore {
         worker_id: Uuid,
         lease_secs: i64,
         limit: i64,
+        stuck_after_secs: i64,
     ) -> Result<Vec<Saga>> {
         let conn = self.pool.get().await?;
         let now = chrono::Utc::now();
         let lease_expiry = now + chrono::Duration::seconds(lease_secs);
+        let stale_before = now - chrono::Duration::seconds(stuck_after_secs);
         let state_str = SagaState::Executing.as_str();
 
         let rows = conn
@@ -1295,17 +1437,79 @@ impl PostgresSagaStore {
                  WHERE pk_ IN (
                      SELECT pk_ FROM tb_federation_sagas
                      WHERE state = $4
+                       AND updated_at < $6
                        AND (recovery_lease_expires_at IS NULL OR recovery_lease_expires_at < $3)
                      ORDER BY created_at
                      LIMIT $5
                      FOR UPDATE SKIP LOCKED
                  )
                  RETURNING id, state, created_at, completed_at, metadata",
-                &[&worker_id, &lease_expiry, &now, &state_str, &limit],
+                &[
+                    &worker_id,
+                    &lease_expiry,
+                    &now,
+                    &state_str,
+                    &limit,
+                    &stale_before,
+                ],
             )
             .await?;
 
         rows.iter().map(Self::map_saga_row).collect()
+    }
+
+    /// Heartbeat a saga row: bump `updated_at` to now.
+    ///
+    /// The forward executor calls this on every step transition so a live saga's
+    /// row keeps moving — which is exactly what keeps [`Self::claim_stuck_sagas`]
+    /// (staleness-gated, #745) from claiming a saga that is actively executing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaStoreError::SagaNotFound`] if no saga with `saga_id` exists,
+    /// or [`SagaStoreError::Database`] if the update fails.
+    pub async fn touch_saga(&self, saga_id: Uuid) -> Result<()> {
+        let conn = self.pool.get().await?;
+        let now = chrono::Utc::now();
+        let affected = conn
+            .execute(
+                "UPDATE tb_federation_sagas SET updated_at = $1 WHERE id = $2",
+                &[&now, &saga_id],
+            )
+            .await?;
+        if affected == 0 {
+            return Err(SagaStoreError::SagaNotFound(saga_id));
+        }
+        Ok(())
+    }
+
+    /// Park a saga for manual recovery: push its recovery lease far into the
+    /// future so the recovery loop stops re-claiming it.
+    ///
+    /// Used when automatic recovery cannot proceed safely — the saga exceeded the
+    /// configured recovery attempts, or a remote-subgraph step cannot be
+    /// re-driven on this worker's transport (#766). The saga's state is left
+    /// untouched (still in-doubt, never fabricated terminal); an operator
+    /// resolves it and may clear the lease to hand it back to automation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SagaStoreError::SagaNotFound`] if no saga with `saga_id` exists,
+    /// or [`SagaStoreError::Database`] if the update fails.
+    pub async fn park_saga_for_manual_recovery(&self, saga_id: Uuid) -> Result<()> {
+        let conn = self.pool.get().await?;
+        let affected = conn
+            .execute(
+                "UPDATE tb_federation_sagas
+                 SET recovery_worker_id = NULL, recovery_lease_expires_at = 'infinity', updated_at = $1
+                 WHERE id = $2",
+                &[&chrono::Utc::now(), &saga_id],
+            )
+            .await?;
+        if affected == 0 {
+            return Err(SagaStoreError::SagaNotFound(saga_id));
+        }
+        Ok(())
     }
 }
 

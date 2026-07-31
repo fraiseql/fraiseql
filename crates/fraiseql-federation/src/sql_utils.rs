@@ -18,30 +18,55 @@ pub fn is_safe_sql_identifier(name: &str) -> bool {
         && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-/// Convert a JSON value to a SQL literal representation.
+/// Convert a JSON value to a SQL literal representation — **dialect-aware**
+/// (#728).
 ///
 /// Handles all JSON types and applies proper SQL escaping:
-/// - Strings: wrapped in quotes with single quotes doubled (PostgreSQL style)
+/// - Strings: wrapped in quotes with single quotes doubled
 /// - Numbers: converted to string without quotes
 /// - Booleans: converted to "true" or "false"
 /// - Null: converted to "NULL"
 /// - Arrays/Objects: returns error
 ///
+/// Quote doubling is only sound on dialects that never treat backslash as a
+/// string escape: PostgreSQL (`standard_conforming_strings=on`, the default
+/// since 9.1), SQLite, and SQL Server. MySQL's **default** mode does interpret
+/// backslash escapes, and whether it does is a per-connection server setting
+/// this helper cannot observe — so any escaping it picked could be wrong
+/// (injectably wrong) on the other mode. MySQL and unrecognised dialects are
+/// therefore refused loud; the federation mutation builders should move to
+/// bind parameters to support them (the `_entities` read path already did).
+///
 /// # Errors
 ///
 /// Returns [`FraiseQLError::Validation`] if `value` is a JSON array or object,
-/// which cannot be represented as a scalar SQL literal.
+/// which cannot be represented as a scalar SQL literal, or if `db_type`'s
+/// string-literal escaping rules are not soundly supported (MySQL).
 ///
 /// # Examples
 ///
 /// ```text
 /// // Illustrative — see unit tests below for runnable examples.
-/// value_to_sql_literal(&json!("test")) // produces "'test'"
-/// value_to_sql_literal(&json!("O'Brien")) // produces "'O''Brien'"
-/// value_to_sql_literal(&json!(123)) // produces "123"
-/// value_to_sql_literal(&json!(null)) // produces "NULL"
+/// value_to_sql_literal(DatabaseType::PostgreSQL, &json!("test")) // produces "'test'"
+/// value_to_sql_literal(DatabaseType::PostgreSQL, &json!("O'Brien")) // produces "'O''Brien'"
+/// value_to_sql_literal(DatabaseType::MySQL, &json!("x")) // Err — escaping mode unknowable
 /// ```
-pub fn value_to_sql_literal(value: &Value) -> Result<String> {
+pub fn value_to_sql_literal(db_type: DatabaseType, value: &Value) -> Result<String> {
+    // Allow-list, not deny-list: an unknown future dialect fails loud instead
+    // of inheriting escaping rules that were never checked against it.
+    if !matches!(
+        db_type,
+        DatabaseType::PostgreSQL | DatabaseType::SQLite | DatabaseType::SQLServer
+    ) {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "SQL literal building is not supported for {db_type:?}: its string-escaping \
+                 mode (e.g. MySQL backslash escapes) is connection-dependent, so quote \
+                 doubling could produce a wrong literal; use bind parameters instead"
+            ),
+            path:    None,
+        });
+    }
     match value {
         Value::String(s) => {
             // Single-quote-doubling for the literal-building used by the federation

@@ -12,7 +12,7 @@ pub mod cache_control;
 pub mod embedding;
 pub mod export_config;
 pub mod handler;
-pub mod idempotency;
+pub use super::idempotency;
 pub mod openapi;
 pub mod params;
 pub mod resource;

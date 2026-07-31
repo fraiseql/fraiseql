@@ -99,6 +99,7 @@ mod wired {
             saga_id:                Uuid::new_v4(),
             order:                  0,
             subgraph:               "orders".to_string(),
+            remote:                 false,
             mutation_type:          MutationType::Create,
             mutation_name:          Some("createOrder".to_string()),
             typename:               "Order".to_string(),
@@ -110,6 +111,7 @@ mod wired {
             compensation_mutation:  Some("deleteOrder".to_string()),
             compensation_variables: Some(json!({"id": "o1"})),
             required_fields:        Vec::new(),
+            compensation_error:     None,
         }
     }
 

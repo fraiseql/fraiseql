@@ -103,6 +103,24 @@ pub struct RecoveryConfig {
     ///
     /// Sagas older than this duration are considered stale and eligible for cleanup.
     pub stale_age_hours:         i64,
+    /// How long a saga's row must sit untouched before it counts as **stuck**
+    /// (#745).
+    ///
+    /// A live forward drive heartbeats the saga row on every step transition, so
+    /// only a saga whose `updated_at` is older than this threshold — i.e. one
+    /// whose driver stopped moving it — is claimable by the recovery loop. Set it
+    /// comfortably above the longest expected single-step duration (a slow step
+    /// stalls the heartbeat for its whole dispatch); the default is 5 minutes.
+    /// The same threshold gates pending-saga pickup, so a saga in its creator's
+    /// `create_saga` → `execute_saga` window is not re-driven concurrently.
+    pub stuck_threshold:         Duration,
+    /// Maximum automatic recovery attempts per saga before it is **parked** for
+    /// manual recovery (#785).
+    ///
+    /// Each recovery replay records a genuine attempt count; once a saga has
+    /// been attempted this many times it is parked (its lease pushed to
+    /// infinity) instead of being retried forever, and an operator resolves it.
+    pub max_recovery_attempts:   u32,
 }
 
 impl Default for RecoveryConfig {
@@ -111,6 +129,8 @@ impl Default for RecoveryConfig {
             check_interval:          Duration::from_secs(5),
             max_sagas_per_iteration: 50,
             stale_age_hours:         24,
+            stuck_threshold:         Duration::from_secs(300),
+            max_recovery_attempts:   5,
         }
     }
 }
@@ -156,6 +176,22 @@ pub struct SagaRecoveryManager {
     config:  RecoveryConfig,
     running: Arc<AtomicBool>,
     stats:   Arc<Mutex<RecoveryStats>>,
+    routing: Option<RecoveryRouting>,
+}
+
+/// The remote-dispatch transport a recovery worker replays remote steps on:
+/// the same registry/client/resolver triple the originating coordinator held.
+///
+/// Without it, a recovery worker refuses to replay any saga containing a
+/// remote step (#766) — it parks the saga for manual recovery rather than
+/// silently executing another service's mutation against the local database.
+pub struct RecoveryRouting {
+    /// Registered remote peers: subgraph name → validated base URL.
+    pub subgraph_urls:   std::collections::HashMap<String, reqwest::Url>,
+    /// HTTP client for remote step dispatch.
+    pub http_client:     crate::mutation_http_client::HttpMutationClient,
+    /// Entity resolver for cross-subgraph `@requires` pre-fetch, if configured.
+    pub entity_resolver: Option<crate::http_resolver::HttpEntityResolver>,
 }
 
 impl SagaRecoveryManager {
@@ -181,7 +217,21 @@ impl SagaRecoveryManager {
             config,
             running: Arc::new(AtomicBool::new(false)),
             stats: Arc::new(Mutex::new(RecoveryStats::default())),
+            routing: None,
         }
+    }
+
+    /// Give this recovery worker the remote-dispatch transport (builder).
+    ///
+    /// With routing, a claimed saga's remote steps are re-driven over HTTPS to
+    /// their registered peer — the same transport the originating coordinator
+    /// used. Without it, any saga containing a remote step is **parked for
+    /// manual recovery** instead of replayed: replaying it here would silently
+    /// execute the remote mutation against the local database (#766).
+    #[must_use]
+    pub fn with_routing(mut self, routing: RecoveryRouting) -> Self {
+        self.routing = Some(routing);
+        self
     }
 
     /// Check if background loop is running
@@ -256,20 +306,25 @@ impl SagaRecoveryManager {
 }
 
 /// Crash-recovery driver: claim stuck sagas under a lease via `SELECT … FOR UPDATE
-/// SKIP LOCKED` and replay them through [`SagaExecutor::execute_saga`]. Recovery replay
-/// is local-only — it passes no subgraph registry / HTTP client — so re-driving a
-/// crash-interrupted *remote* step is deferred (documented on `recover_one`).
+/// SKIP LOCKED` and replay them through [`SagaExecutor::execute_saga`]. Remote steps
+/// are replayed on the transport configured via [`SagaRecoveryManager::with_routing`];
+/// without routing, a saga containing a remote step is parked for manual recovery
+/// rather than replayed against the local adapter (#766).
 impl SagaRecoveryManager {
     /// Run one recovery tick: find crash-interrupted sagas and re-drive each to
     /// a terminal state.
     ///
     /// Stuck sagas (left [`SagaState::Executing`](crate::saga_store::SagaState)
-    /// by a crash, bounded by `max_sagas_per_iteration`) and pending sagas
+    /// by a crash — **stale** past `stuck_threshold`, never merely executing,
+    /// #745 — bounded by `max_sagas_per_iteration`) and stale pending sagas
     /// (never started) are each recorded for recovery and replayed through
-    /// [`SagaExecutor::execute_saga`]. The tick is **resilient**: a single
-    /// saga's replay error is logged and counted (`stats.errors`) but never
-    /// aborts the iteration — the remaining sagas are still processed. Finally
-    /// terminal sagas past the stale threshold are cleaned up.
+    /// [`SagaExecutor::execute_saga`]. Replay of a `Completed` step is a
+    /// synthesized skip (#744); a saga whose remote steps this worker cannot
+    /// reach, or that exhausted `max_recovery_attempts`, is parked for manual
+    /// recovery. The tick is **resilient**: a single saga's replay error is
+    /// logged and counted (`stats.errors`) but never aborts the iteration — the
+    /// remaining sagas are still processed. Finally terminal sagas past the
+    /// stale threshold are cleaned up.
     ///
     /// # Arguments
     ///
@@ -291,7 +346,8 @@ impl SagaRecoveryManager {
     ) -> SagaStoreResult<()> {
         let saga_executor = SagaExecutor::with_store(Arc::clone(&self.store));
 
-        // Stuck = sagas a crash left Executing. Claim up to
+        // Stuck = sagas a crash left Executing AND whose row has gone stale
+        // (their driver stopped heart-beating it, #745). Claim up to
         // `max_sagas_per_iteration` of them under a fresh per-iteration worker id
         // and a lease, so two recovery workers ticking at once claim disjoint
         // sets and never double-drive a saga (FOR UPDATE SKIP LOCKED). The lease
@@ -303,11 +359,13 @@ impl SagaRecoveryManager {
             i64::try_from(self.config.check_interval.as_secs().saturating_mul(10).max(60))
                 .unwrap_or(i64::MAX);
         let limit = i64::from(self.config.max_sagas_per_iteration);
-        let stuck = self.store.claim_stuck_sagas(worker_id, lease_secs, limit).await?;
+        let stuck_secs = i64::try_from(self.config.stuck_threshold.as_secs()).unwrap_or(i64::MAX);
+        let stuck = self.store.claim_stuck_sagas(worker_id, lease_secs, limit, stuck_secs).await?;
         let executing_found = u64::try_from(stuck.len()).unwrap_or(u64::MAX);
 
-        // Pending = sagas that were persisted but never started executing.
-        let pending = self.store.find_pending_sagas().await?;
+        // Pending = sagas that were persisted but never started executing, past
+        // the same staleness gate (a fresh Pending saga is its creator's to run).
+        let pending = self.store.find_pending_sagas(stuck_secs).await?;
 
         let mut processed: u64 = 0;
         let mut errors: u64 = 0;
@@ -351,28 +409,78 @@ impl SagaRecoveryManager {
 
     /// Record a recovery attempt for `saga` and replay its forward execution.
     ///
-    /// Persists a crash-recovery record (`mark_saga_for_recovery`) for the audit
-    /// trail, logs the attempt, then drives the saga through
+    /// Guards before any replay:
+    /// - a saga past `max_recovery_attempts` is **parked** for manual recovery (its lease pushed to
+    ///   infinity) instead of retried forever (#785);
+    /// - a saga containing a remote step this worker has no transport for is parked too — replaying
+    ///   it would execute the remote mutation against the local database (#766). Configure
+    ///   [`Self::with_routing`] to re-drive remote steps on their real transport.
+    ///
+    /// Then persists a crash-recovery record (`mark_saga_for_recovery`, a real
+    /// incrementing attempt count) and drives the saga through
     /// [`SagaExecutor::execute_saga`], which transitions it to a terminal
-    /// `Completed`/`Failed` state.
+    /// `Completed`/`Failed` state (skipping already-`Completed` steps, #744).
     async fn recover_one<A: DatabaseAdapter>(
         &self,
         saga_executor: &SagaExecutor,
         executor: &FederationMutationExecutor<A>,
         saga: &Saga,
     ) -> SagaStoreResult<()> {
+        // Attempt cap: park rather than retry a poison saga forever (#785).
+        let prior_attempts =
+            u32::try_from(self.store.get_recovery_attempts(saga.id).await?).unwrap_or(u32::MAX);
+        if prior_attempts >= self.config.max_recovery_attempts {
+            self.store.park_saga_for_manual_recovery(saga.id).await?;
+            return Err(SagaStoreError::Database(format!(
+                "saga {} exceeded max_recovery_attempts ({}); parked for manual recovery",
+                saga.id, self.config.max_recovery_attempts
+            )));
+        }
+
+        // Transport pre-flight (#766): every remote step still ahead of us must
+        // be reachable on THIS worker's routing, or the saga must not be
+        // replayed at all — an unreachable remote step must fail loud here, not
+        // fall through to the local SQL adapter mid-replay.
+        let steps = self.store.load_saga_steps(saga.id).await?;
+        let unreachable: Vec<&str> = steps
+            .iter()
+            .filter(|step| {
+                step.remote
+                    && !matches!(
+                        step.state,
+                        crate::saga_store::StepState::Completed
+                            | crate::saga_store::StepState::Compensated
+                    )
+                    && !self
+                        .routing
+                        .as_ref()
+                        .is_some_and(|r| r.subgraph_urls.contains_key(&step.subgraph))
+            })
+            .map(|step| step.subgraph.as_str())
+            .collect();
+        if !unreachable.is_empty() {
+            self.store.park_saga_for_manual_recovery(saga.id).await?;
+            return Err(SagaStoreError::Database(format!(
+                "saga {} has remote steps on subgraph(s) {:?} but this recovery worker has no \
+                 transport for them; parked for manual recovery (configure \
+                 SagaRecoveryManager::with_routing to re-drive remote steps)",
+                saga.id, unreachable
+            )));
+        }
+
         self.store.mark_saga_for_recovery(saga.id, "auto-recovery").await?;
 
         let attempt = u32::try_from(self.store.get_recovery_attempts(saga.id).await?).unwrap_or(0);
         info!("{}", recovery::recovery_log_line(saga.id, attempt));
 
-        // Recovery replays through the local dispatch path only: crash recovery
-        // re-drives steps against the local SQL adapter (remote saga recovery is
-        // future work), so no subgraph registry / HTTP client / @requires entity
-        // resolver is passed.
-        saga_executor
-            .execute_saga(saga.id, executor, &std::collections::HashMap::new(), None, None)
-            .await?;
+        // Replay on the same routing the forward drive would use: remote steps
+        // go to their registered peer over the configured client; local steps
+        // run on the local SQL adapter.
+        let empty = std::collections::HashMap::new();
+        let (urls, client, resolver) = self.routing.as_ref().map_or((&empty, None, None), |r| {
+            (&r.subgraph_urls, Some(&r.http_client), r.entity_resolver.as_ref())
+        });
+        saga_executor.execute_saga(saga.id, executor, urls, client, resolver).await?;
         Ok(())
     }
 

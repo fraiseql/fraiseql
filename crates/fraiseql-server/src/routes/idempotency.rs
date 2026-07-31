@@ -188,7 +188,6 @@ impl IdempotencyStore for InMemoryIdempotencyStore {
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "redis-idempotency")]
-#[path = "redis_store.rs"]
 mod redis_store;
 
 #[cfg(feature = "redis-idempotency")]
@@ -277,6 +276,15 @@ impl ScopedIdempotencyKey {
         &self.0
     }
 }
+
+/// TTL for the GraphQL mutation path's idempotency store (#747): 24 hours.
+///
+/// Sized to the saga crash-recovery window, not the transport-retry window: a
+/// coordinator's in-flight retries land within seconds, but a crash-left saga is
+/// only re-driven once it passes the recovery staleness threshold, and its
+/// re-dispatch of an in-doubt step can arrive hours after the original attempt.
+/// The stored entry must still be there for that replay to deduplicate.
+pub const GRAPHQL_IDEMPOTENCY_TTL_SECS: u64 = 86_400;
 
 /// Create a default idempotency store from REST config values.
 ///

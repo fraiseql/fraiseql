@@ -13,6 +13,7 @@ fn step(order: usize, state: StepState, compensation_mutation: Option<&str>) -> 
         saga_id: Uuid::new_v4(),
         order,
         subgraph: "orders".to_string(),
+        remote: false,
         mutation_type: MutationType::Create,
         mutation_name: None,
         typename: "Order".to_string(),
@@ -24,6 +25,7 @@ fn step(order: usize, state: StepState, compensation_mutation: Option<&str>) -> 
         compensation_mutation: compensation_mutation.map(ToString::to_string),
         compensation_variables: None,
         required_fields: Vec::new(),
+        compensation_error: None,
     }
 }
 

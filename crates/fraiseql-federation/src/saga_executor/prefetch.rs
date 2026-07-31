@@ -58,6 +58,25 @@ fn extract_field(entity: &Value, field_path: &str) -> Option<Value> {
     }
 }
 
+/// Render a (possibly dotted) required-field path as a **valid** `_entities`
+/// selection: `"price"` → `"price"`, `"dimensions.weight"` →
+/// `"dimensions { weight }"` (#765).
+///
+/// A dotted path only exists when its first segment is an object field, and the
+/// GraphQL spec makes selecting a composite field without a subselection a
+/// validation error — so the previous first-segment-only selection
+/// (`… on Product { dimensions }`) was rejected by every spec-compliant
+/// subgraph, and documented dotted-path `@requires` support could never
+/// succeed against one.
+fn nested_selection(field_path: &str) -> String {
+    let mut segments = field_path.split('.').rev();
+    let mut selection = segments.next().unwrap_or(field_path).to_string();
+    for segment in segments {
+        selection = format!("{segment} {{ {selection} }}");
+    }
+    selection
+}
+
 /// Merge a fetched value into the mutation variables object under `target_var`.
 ///
 /// Fails if `variables` is not a JSON object (mutation variables always are); the
@@ -119,10 +138,10 @@ pub(super) async fn resolve_required_fields(
         })?;
 
         let representation = build_representation(&required.typename, &required.key)?;
-        // The `_entities` selection requests the first path segment; the full dotted
-        // path is traversed on the returned entity.
-        let selected = required.field_path.split('.').next().unwrap_or(&required.field_path);
-        let selection = FieldSelection::new(vec![selected.to_string()]);
+        // The `_entities` selection renders the full dotted path as a nested
+        // subselection (#765) — a bare composite field is invalid GraphQL. The
+        // dotted path is then traversed on the returned entity.
+        let selection = FieldSelection::new(vec![nested_selection(&required.field_path)]);
 
         let resolved = resolver
             .resolve_entities(url.as_str(), std::slice::from_ref(&representation), &selection)

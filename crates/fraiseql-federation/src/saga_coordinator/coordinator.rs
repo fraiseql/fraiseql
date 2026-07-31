@@ -24,7 +24,7 @@ use crate::{
     http_resolver::{HttpClientConfig, HttpEntityResolver},
     mutation_executor::FederationMutationExecutor,
     mutation_http_client::{HttpMutationClient, HttpMutationConfig},
-    saga_compensator::SagaCompensator,
+    saga_compensator::{CompensationStatus, SagaCompensator},
     saga_executor::{RetryPolicy, SagaExecutor},
     saga_store::{
         PostgresSagaStore, Result as SagaStoreResult, Saga, SagaState, SagaStep as StoreSagaStep,
@@ -310,6 +310,13 @@ impl SagaCoordinator {
                 // Coordinator steps are 1-indexed (validated); the store is 0-based.
                 order: (step.number as usize).saturating_sub(1),
                 subgraph: step.subgraph.clone(),
+                // Record the step's transport intent at creation, while the
+                // registry that knows it is at hand: a step bound for a
+                // registered remote peer stays remote forever, so a later
+                // replay without this registry fails loud instead of silently
+                // executing the remote mutation against the local database
+                // (#766).
+                remote: self.subgraph_urls.contains_key(&step.subgraph),
                 mutation_type,
                 // Persist the full operation name (e.g. `createOrder`) alongside the
                 // coarse kind so remote dispatch sends the real name, not the verb.
@@ -325,6 +332,7 @@ impl SagaCoordinator {
                 // Persist the step's @requires specs so the forward phase can
                 // pre-fetch and merge them into the mutation variables.
                 required_fields: step.required_fields.clone(),
+                compensation_error: None,
             };
             self.store.save_saga_step(&store_step).await?;
         }
@@ -380,15 +388,20 @@ impl SagaCoordinator {
             });
         }
 
-        let error = results.iter().find(|r| !r.success).and_then(|r| r.error.clone());
+        let mut error = results.iter().find(|r| !r.success).and_then(|r| r.error.clone());
 
         // The strategy governs rollback: Automatic compensates the completed steps
         // immediately; Manual leaves the saga Failed for an operator to trigger
-        // compensation explicitly. A rollback that did not run is never reported.
+        // compensation explicitly. `compensated` reports what the rollback
+        // actually achieved (#746): only a fully-successful compensation — every
+        // completed step rolled back — is `true`. A partial rollback surfaces
+        // its failed step numbers in the error instead of being upgraded to a
+        // fabricated success.
         let compensated = match self.strategy {
             CompensationStrategy::Automatic => {
                 warn!(saga_id = %saga_id, "Saga failed; compensating completed steps");
-                self.compensator
+                let compensation = self
+                    .compensator
                     .compensate_saga(
                         saga_id,
                         mutation_executor,
@@ -396,7 +409,23 @@ impl SagaCoordinator {
                         self.http_client.as_ref(),
                     )
                     .await?;
-                true
+                let fully = compensation.status == CompensationStatus::Compensated;
+                if !fully {
+                    warn!(
+                        saga_id = %saga_id,
+                        failed_steps = ?compensation.failed_steps,
+                        "Compensation incomplete; NOT reporting the saga as rolled back"
+                    );
+                    let detail = format!(
+                        "compensation incomplete: step(s) {:?} not rolled back",
+                        compensation.failed_steps
+                    );
+                    error = Some(match error {
+                        Some(e) => format!("{e}; {detail}"),
+                        None => detail,
+                    });
+                }
+                fully
             },
             CompensationStrategy::Manual => {
                 warn!(
@@ -460,9 +489,13 @@ impl SagaCoordinator {
     /// Refuses to cancel a saga already in a terminal state
     /// (`coordination::saga_state_is_terminal`). Any completed steps are
     /// compensated *before* the saga is marked `Cancelled`, so the `Cancelled`
-    /// transition is the last, authoritative write; `compensated` reflects whether a
-    /// rollback actually ran (a saga with nothing completed reports false, never a
-    /// fabricated rollback).
+    /// transition is the last, authoritative write — and it is only written when
+    /// that rollback **fully succeeded** (#746). `Cancelled` is documented as
+    /// "any completed steps were rolled back", so a partial rollback leaves the
+    /// saga `Failed` (as the compensator recorded), reports
+    /// `compensated: false`, and names the un-rolled-back steps in the error —
+    /// the un-compensated work stays visible for repair instead of being sealed
+    /// under a terminal state that recovery ignores.
     ///
     /// # Errors
     ///
@@ -498,10 +531,11 @@ impl SagaCoordinator {
             u32::try_from(steps.iter().filter(|s| s.state == StepState::Completed).count())
                 .unwrap_or(u32::MAX);
 
-        // Roll back completed work before the Cancelled transition: the compensator
-        // drives the saga through Compensating, so Cancelled must be written last.
+        // Roll back completed work before any Cancelled transition. The
+        // returned CompensationResult decides what happens next (#746).
         let compensated = if completed_steps > 0 {
-            self.compensator
+            let compensation = self
+                .compensator
                 .compensate_saga(
                     saga_id,
                     mutation_executor,
@@ -509,6 +543,30 @@ impl SagaCoordinator {
                     self.http_client.as_ref(),
                 )
                 .await?;
+            if compensation.status != CompensationStatus::Compensated {
+                // The rollback is incomplete: the compensator left the saga
+                // Failed with the failure recorded per step. Writing Cancelled
+                // over that would assert a rollback that did not happen and
+                // permanently orphan the completed work (recovery ignores
+                // Cancelled) — so the cancel stops here, honestly.
+                warn!(
+                    saga_id = %saga_id,
+                    failed_steps = ?compensation.failed_steps,
+                    "Cancel aborted: compensation incomplete; saga left Failed for repair"
+                );
+                return Ok(SagaResult {
+                    saga_id,
+                    state: SagaState::Failed,
+                    completed_steps,
+                    total_steps,
+                    error: Some(format!(
+                        "cancel aborted: step(s) {:?} could not be rolled back; the saga is \
+                         left Failed with the un-compensated work recorded",
+                        compensation.failed_steps
+                    )),
+                    compensated: false,
+                });
+            }
             true
         } else {
             false

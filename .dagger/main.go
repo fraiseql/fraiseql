@@ -427,6 +427,12 @@ func (m *FraiseqlCi) Test(
 		// tenant fail-closed gate on the live /ws path.
 		"echo '### cargo test -p fraiseql-server subscription test binaries (SYNC:SERVER_FEATURES; not covered by --lib) — P18 verification gate'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test subscription_ws_e2e_test --test subscription_protocol_test --test subscription_integration_test --test subscription_forwarder_integration_test --test graphql_ws_row_visibility_pin_test --test subscription_lifecycle_ws_test",
+		// P19 (#747): the GraphQL Idempotency-Key receiver contract — a saga
+		// peer's at-least-once retries deduplicate to one logical effect.
+		// Docker-free (mock adapter), but a tests/* binary no other invocation
+		// reaches (fraiseql-server is excluded from the workspace sweep).
+		"echo '### cargo test -p fraiseql-server graphql idempotency binary (SYNC:SERVER_FEATURES; not covered by --lib) — P19 #747 receiver gate'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test graphql_idempotency_e2e_test",
 		// The #612-M config-coverage manifest gate ('every ServerConfig leaf has a
 		// named consumer'). Another test binary no leg had ever run — it caught
 		// P18's new `subscription_auth_recheck_secs` key only in a LOCAL full test

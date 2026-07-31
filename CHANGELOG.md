@@ -7,7 +7,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **Saga store and recovery API (P19, #744 #745 #766 #767 #785).**
+  `PostgresSagaStore::claim_stuck_sagas` takes a `stuck_after_secs` staleness threshold and
+  `find_pending_sagas` an `older_than_secs` age gate; `RecoveryConfig` gains
+  `stuck_threshold` (default 5 min) and `max_recovery_attempts` (default 5); `SagaStep`
+  gains `remote: bool` (set at creation from the coordinator's registry) and
+  `compensation_error: Option<String>` (the recorded outcome of the last rollback
+  attempt). `update_saga_step_state` now **validates transitions atomically** — illegal
+  writes (e.g. `Completed → Executing`, anything out of `Compensated`) return
+  `InvalidStateTransition` — and `save_saga_step`'s upsert no longer rewrites `state`
+  (state changes must go through the guarded method). `SagaRecoveryManager::with_routing`
+  (new `RecoveryRouting`) carries the subgraph registry/HTTP client/entity resolver so
+  recovery can re-drive remote steps on their real transport.
+- **`HttpMutationClient::execute_mutation` takes an `idempotency_key: Option<&str>`**
+  parameter, sent as the `Idempotency-Key` header on every attempt (#747). Saga steps pass
+  their persisted step id; compensations a derived `<step-id>:compensate` key.
+- **Federation mutation literal building is dialect-aware (#728).**
+  `value_to_sql_literal` and `build_insert_query`/`build_update_query`/`build_delete_query`
+  take a `DatabaseType`; MySQL (whose backslash-escaping mode is connection-dependent and
+  unobservable here) is refused loud instead of mis-escaped.
+- **Federation `_entities` wrappers error on resolution failure (#764).**
+  `batch_load_entities`, `batch_load_entities_with_tracing` and
+  `batch_load_entities_enforced` now return `Err` when any typename batch failed, instead
+  of returning `Ok` with all-`None` entities and discarding the errors.
+- **Placeholder federation APIs removed or made loud (#785).**
+  `FederationResolver::get_or_determine_strategy`, its `strategy_cache` field and the
+  `types::ResolutionStrategy` enum are **removed** (the strategy was a hardcoded
+  `http://localhost:4000` / nonexistent `<Type>_federation_view`).
+  `FederationMutationExecutor::execute_extended_mutation` now always returns an error
+  pointing at the real remote-dispatch path (`HttpMutationClient` / saga steps) instead of
+  fabricating a success response that no subgraph ever saw.
+- **`SagaCoordinator::cancel_saga` no longer writes `Cancelled` over un-compensated work
+  (#746).** When the rollback is incomplete the saga is left `Failed` (as the compensator
+  recorded), the result reports `compensated: false` and names the un-rolled-back steps.
+- **`fraiseql federation check --against` semantics (#820).** `@override(from:)` references
+  are validated against the supergraph's declared roster (`federation.subgraphs`) — not
+  harvested from its `override_from` annotations — and reported as *unchecked* when no
+  roster exists; the blanket "Composition check passed" claim is gone.
+
 ### Fixed
+
+- **Saga crash recovery no longer re-executes committed work (#744).** Forward replay
+  skips steps already `Completed` (their persisted result stands in); a `Compensated`
+  step in a forward drive fails loud. The store's new transition guard makes the
+  double-execution write (`Completed → Executing`) unrepresentable on every code path,
+  including a second concurrent driver.
+- **The recovery loop no longer claims actively-executing sagas (#745).** "Stuck" now
+  means *stale*: a live forward drive heartbeats the saga row on every step transition,
+  and only sagas untouched past `RecoveryConfig::stuck_threshold` are claimable — so a
+  saga mid-flight is never concurrently re-driven by a recovery tick. The same age gate
+  covers pending-saga pickup (a saga in its creator's `create_saga` → `execute_saga`
+  window is not stolen).
+- **Saga mutation dispatch is deduplicable (#747).** Every remote dispatch carries a
+  stable `Idempotency-Key` (the persisted step id) across retries, timeouts and
+  crash-recovery replays, and the FraiseQL server now honours it on the GraphQL mutation
+  path: a repeat with the same body replays the stored response (one logical effect), a
+  repeat with a different body is HTTP 409, queries ignore the header. Documented for
+  non-FraiseQL subgraph authors in the saga guide.
+- **Recovery never replays a remote-subgraph step against the local database (#766).**
+  A step bound for a registered remote peer is persisted as `remote`; forward execution
+  fails it loud when no transport is configured, and a recovery worker without routing
+  **parks the saga for manual recovery** (state untouched, lease pushed to infinity)
+  instead of silently executing another service's mutation locally. With
+  `SagaRecoveryManager::with_routing`, remote steps re-drive over HTTPS correctly.
+- **`compensated: true` is only reported for a rollback that fully happened (#746).**
+  Both coordinator call sites now read the `CompensationResult` they used to discard;
+  partial rollback surfaces the failed step numbers in the result error.
+- **`get_compensation_status` reads recorded state (#767).** Rollback outcomes are
+  persisted per step (`Compensated` transition on success, a recorded
+  `compensation_error` on failure), the magic-key sniffing of forward payloads is gone,
+  `failed_steps` is real, `PartiallyCompensated` is reachable, step numbers are 1-indexed
+  like every other API, and a saga with no compensation evidence reports `None` rather
+  than a fabricated verdict. Mid-flight compensation reports the new
+  `CompensationStatus::InProgress`.
+- **Federation `_entities` database errors surface as errors (#764).** A failed batch is a
+  GraphQL error response, never `data: [null, …]` — a `null` entity now always means
+  "not found", and a router can distinguish a database outage from missing data.
+- **Dotted `@requires` paths build valid `_entities` selections (#765).**
+  `dimensions.weight` now renders `dimensions { weight }` (an object field with a
+  subselection) instead of a bare composite-field leaf that every spec-compliant subgraph
+  rejects — documented dotted-path support works against Apollo-class peers.
+- **The composition validator enforces its documented rules (#728).**
+  `ExternalFieldMultipleOwners` is actually raised; two subgraphs *primarily* defining the
+  same type with different `@key`s conflict; an extension keyed on **any** of the
+  primary's declared keys is accepted (not just the first); and type-level `@shareable`
+  counts in field-sharing consistency.
+- **`fraiseql federation check --against` genuinely compares (#820).** `@key` agreement,
+  field sharing (the `INVALID_FIELD_SHARING` class that shipped as #698) and `@override`
+  roster references are checked and can fail; the success message states exactly what ran
+  and defers final authority to the gateway composer. `composable: true` is never
+  fabricated for a comparison that did not run.
+- **Recovery attempts are genuinely counted and capped (#785).** Each recovery record
+  carries a real incrementing attempt count (previously hardcoded 0 forever), and a saga
+  past `max_recovery_attempts` is parked for manual recovery instead of being retried
+  forever while its recovery rows grow without bound.
 
 - **A live subscription's authorization now holds for the life of the stream (#771).** The
   principal was validated once at the WebSocket upgrade and then trusted forever: an

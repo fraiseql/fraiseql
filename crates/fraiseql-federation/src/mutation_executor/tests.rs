@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+use fraiseql_db::DatabaseType;
+
 use super::*;
 
 #[test]
@@ -110,7 +112,7 @@ fn recased_keys_produce_snake_case_insert_columns() {
         &serde_json::json!({ "id": "s1", "s3Key": "b", "dns1Id": "d" }),
         true,
     );
-    let sql = build_insert_query("Server", &vars, &meta).unwrap();
+    let sql = build_insert_query(DatabaseType::PostgreSQL, "Server", &vars, &meta).unwrap();
     assert!(sql.contains("\"s3_key\""), "insert column must be snake_case: {sql}");
     assert!(sql.contains("\"dns_1_id\""), "insert column must be snake_case: {sql}");
     assert!(!sql.contains("\"s3Key\""), "camelCase column must not survive: {sql}");
@@ -125,8 +127,40 @@ fn recased_keys_fix_update_set_and_key_lookup() {
     // the SET column casing and the WHERE-key lookup.
     let meta = make_metadata("Server", "dns_1_id");
     let vars = canonicalize_input_keys(&serde_json::json!({ "dns1Id": "k1", "s3Key": "b" }), true);
-    let sql = build_update_query("Server", &vars, &meta).unwrap();
+    let sql = build_update_query(DatabaseType::PostgreSQL, "Server", &vars, &meta).unwrap();
     assert!(sql.contains("\"s3_key\""), "SET column must be snake_case: {sql}");
     assert!(sql.contains("WHERE \"dns_1_id\""), "WHERE key column must be snake_case: {sql}");
     assert!(!sql.contains("\"dns1Id\""), "camelCase must not survive: {sql}");
+}
+
+/// #785 — `execute_extended_mutation` must fail loud, never fabricate the
+/// success it used to (echoing the input with `_remote_execution: true`
+/// without contacting any subgraph). The real cross-subgraph mutation path is
+/// `HttpMutationClient` / a saga step with the owning subgraph registered.
+#[tokio::test]
+async fn extended_mutation_fails_loud_instead_of_fabricating_success() {
+    use std::sync::Arc;
+
+    use fraiseql_db::SqliteAdapter;
+
+    let adapter = Arc::new(SqliteAdapter::with_pool_config("sqlite::memory:", 1, 1).await.unwrap());
+    let executor = FederationMutationExecutor::new(
+        adapter,
+        crate::types::FederationMetadata::default(),
+        false,
+    );
+
+    let err = executor
+        .execute_extended_mutation("Order", "updateOrder", &serde_json::json!({"id": "o1"}))
+        .await
+        .expect_err("an unimplemented remote propagation must be an error, not an echo");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("not") && msg.contains("implemented"),
+        "the error says the path is unimplemented: {msg}"
+    );
+    assert!(
+        msg.contains("HttpMutationClient"),
+        "the error points at the real remote-dispatch path: {msg}"
+    );
 }

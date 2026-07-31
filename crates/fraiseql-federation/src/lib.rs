@@ -120,7 +120,9 @@ pub use saga_coordinator::{
 #[cfg(feature = "saga")]
 pub use saga_executor::{ExecutionState, RetryPolicy, SagaExecutor, StepExecutionResult};
 #[cfg(feature = "saga")]
-pub use saga_recovery_manager::{RecoveryConfig, RecoveryStats, SagaRecoveryManager};
+pub use saga_recovery_manager::{
+    RecoveryConfig, RecoveryRouting, RecoveryStats, SagaRecoveryManager,
+};
 #[cfg(feature = "saga")]
 pub use saga_store::{
     MutationType, PostgresSagaStore, RequiredField, Saga, SagaRecovery, SagaState, SagaStep,

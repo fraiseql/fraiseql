@@ -186,6 +186,10 @@ pub enum CompensationStatus {
     PartiallyCompensated,
     /// Compensation phase failed completely (manual intervention may be needed)
     CompensationFailed,
+    /// The compensation phase is still running (the saga is `Compensating`);
+    /// the reported step results are the evidence recorded so far, not a final
+    /// verdict (#767).
+    InProgress,
 }
 
 /// Complete compensation result for a saga
@@ -251,102 +255,96 @@ impl SagaCompensator {
         self.store.is_some()
     }
 
-    /// Get compensation status for a saga
+    /// Get compensation status for a saga, **read from recorded state** (#767).
     ///
-    /// Retrieves the current compensation state without triggering new compensation.
-    /// Useful for monitoring and recovery operations.
+    /// Every entry is persisted evidence, never an inference:
+    /// - a step in [`StepState::Compensated`] is a recorded successful rollback;
+    /// - a step with a recorded `compensation_error` is a recorded failed rollback (it appears in
+    ///   `failed_steps`, 1-indexed like every other step-number API);
+    /// - a saga with **no** recorded compensation evidence was never in a compensation phase →
+    ///   `Ok(None)`. In particular, a forward payload that happens to contain keys like `deleted`
+    ///   is *forward* data and is never interpreted as a rollback.
+    ///
+    /// The status derives from the evidence: all recorded attempts succeeded →
+    /// [`CompensationStatus::Compensated`]; some succeeded and some failed →
+    /// [`CompensationStatus::PartiallyCompensated`]; all failed →
+    /// [`CompensationStatus::CompensationFailed`]. A saga still
+    /// [`SagaState::Compensating`] reports the evidence recorded so far.
     ///
     /// # Arguments
     ///
     /// * `saga_id` - ID of saga
     ///
-    /// # Returns
-    ///
-    /// Current `CompensationResult` if saga is or was in compensation phase
-    ///
     /// # Errors
     ///
-    /// Returns `SagaStoreError` if saga not found
-    ///
-    /// # Example
-    ///
-    /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
-    /// // See: tests/integration/ for runnable examples.
-    /// let result = compensator.get_compensation_status(saga_id).await?;
-    /// println!("Compensation status: {:?}", result.status);
-    /// ```
+    /// Returns any store error encountered while loading the saga or its steps.
     pub async fn get_compensation_status(
         &self,
         saga_id: Uuid,
     ) -> SagaStoreResult<Option<CompensationResult>> {
         debug!(saga_id = %saga_id, "Compensation status queried");
 
-        // Load saga and steps to build compensation status
-
-        // If no store available, return None
         let Some(store) = &self.store else {
             debug!(saga_id = %saga_id, "No saga store available - returning None");
             return Ok(None);
         };
 
-        // Load saga to check if it's in compensation-related state
-        let saga = store.load_saga(saga_id).await.map_err(|e| {
-            debug!(saga_id = %saga_id, error = ?e, "Failed to load saga for compensation status");
-            e
-        })?;
-
-        let Some(saga_data) = saga else {
+        let Some(saga) = store.load_saga(saga_id).await? else {
             return Ok(None);
         };
 
-        // Only return compensation results for sagas that have been compensated
-        if saga_data.state != SagaState::Compensated
-            && saga_data.state != SagaState::Compensating
-            && saga_data.state != SagaState::Failed
-        {
-            return Ok(None);
-        }
+        let mut steps = store.load_saga_steps(saga_id).await?;
+        steps.sort_by_key(|step| step.order);
 
-        // Load all steps to build compensation results
-        let steps = store.load_saga_steps(saga_id).await.map_err(|e| {
-            debug!(saga_id = %saga_id, error = ?e, "Failed to load saga steps for compensation status");
-            e
-        })?;
-
-        // Build results for completed steps (which have compensation data in their results)
-        let mut step_results = vec![];
-        let failed_steps = vec![];
-
-        for step in steps.iter().filter(|s| s.state == StepState::Completed) {
-            // Check if the result contains compensation data (has "deleted" or "confirmation_id")
-            let has_compensation = step
-                .result
-                .as_ref()
-                .is_some_and(|r| r.get("deleted").is_some() || r.get("confirmation_id").is_some());
-
-            if has_compensation {
-                let success = true;
-                #[allow(clippy::cast_possible_truncation)]
-                // Reason: step count is bounded well below u32::MAX
-                let step_number = step.order as u32;
+        let mut step_results = Vec::new();
+        let mut failed_steps = Vec::new();
+        for step in &steps {
+            let step_number = u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
+            if step.state == StepState::Compensated {
                 step_results.push(CompensationStepResult {
                     step_number,
-                    success,
-                    data: step.result.clone(),
+                    success: true,
+                    // No inverse-mutation payload is persisted; the recorded
+                    // Compensated transition is the evidence. The forward
+                    // payload is NOT echoed here — it is not rollback data.
+                    data: None,
                     error: None,
+                    duration_ms: 0,
+                });
+            } else if let Some(error) = &step.compensation_error {
+                failed_steps.push(step_number);
+                step_results.push(CompensationStepResult {
+                    step_number,
+                    success: false,
+                    data: None,
+                    error: Some(error.clone()),
                     duration_ms: 0,
                 });
             }
         }
 
-        // Determine status based on saga state and failed steps
-        let status = if saga_data.state == SagaState::Compensated {
+        // No recorded evidence and not mid-compensation → the saga was never in
+        // a compensation phase; there is no status to report.
+        if step_results.is_empty() && saga.state != SagaState::Compensating {
+            return Ok(None);
+        }
+
+        let succeeded = step_results.iter().any(|r| r.success);
+        let status = if saga.state == SagaState::Compensating {
+            // Mid-flight: whatever is recorded so far is not a final verdict.
+            CompensationStatus::InProgress
+        } else if failed_steps.is_empty() {
             CompensationStatus::Compensated
-        } else if !failed_steps.is_empty() {
+        } else if succeeded {
             CompensationStatus::PartiallyCompensated
         } else {
             CompensationStatus::CompensationFailed
+        };
+
+        let error = if failed_steps.is_empty() {
+            None
+        } else {
+            Some(format!("{} step(s) could not be compensated", failed_steps.len()))
         };
 
         let result = CompensationResult {
@@ -355,7 +353,7 @@ impl SagaCompensator {
             step_results,
             failed_steps,
             total_duration_ms: 0,
-            error: None,
+            error,
         };
 
         debug!(saga_id = %saga_id, status = ?result.status, "Compensation status retrieved");
@@ -412,6 +410,11 @@ impl SagaCompensator {
         // fall back to the forward variables when none were registered.
         let variables = step.compensation_variables.as_ref().unwrap_or(&step.variables);
 
+        // The compensation is its own logical mutation, distinct from the forward
+        // step, so it carries its own stable idempotency key derived from the
+        // step id (#747): a retried or crash-replayed rollback deduplicates,
+        // and can never collide with the forward dispatch's key.
+        let idempotency_key = format!("{}:compensate", step.id);
         let started = std::time::Instant::now();
         let outcome = match remote {
             None => {
@@ -427,6 +430,7 @@ impl SagaCompensator {
                         mutation,
                         variables,
                         mutation_executor.metadata(),
+                        Some(&idempotency_key),
                     )
                     .await
             },
@@ -473,11 +477,21 @@ impl SagaCompensator {
 
         let result = Self::dispatch_compensation(mutation_executor, step, remote).await;
 
-        // Persist the rollback only when the inverse mutation actually ran: a
-        // successful compensation transitions the step Compensated; a failed one
-        // leaves it Completed for a later best-effort retry.
+        // Persist the rollback outcome either way (#767): a successful
+        // compensation transitions the step Compensated (and clears any earlier
+        // recorded failure); a failed one leaves the step Completed for a later
+        // best-effort retry and records WHY, so the status API reports recorded
+        // reality rather than inferring one.
         if result.success {
             store.update_saga_step_state(step.id, &StepState::Compensated).await?;
+            store.record_step_compensation_error(step.id, None).await?;
+        } else {
+            store
+                .record_step_compensation_error(
+                    step.id,
+                    Some(result.error.as_deref().unwrap_or("compensation failed")),
+                )
+                .await?;
         }
 
         Ok(result)

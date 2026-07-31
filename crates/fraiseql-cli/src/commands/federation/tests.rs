@@ -319,11 +319,16 @@ mod check_tests {
             }
         });
 
-        // Supergraph with no subgraph named "nonexistent-service"
+        // Supergraph whose declared roster does NOT include "nonexistent-service"
+        // (#820: the roster is what @override references are checked against; a
+        // supergraph with no roster at all yields a warning, not a guess).
         let supergraph = json!({
             "federation": {
                 "enabled": true,
                 "version": "v2",
+                "subgraphs": [
+                    {"name": "pricing", "url": "https://pricing.internal/graphql"}
+                ],
                 "types": []
             }
         });
@@ -341,7 +346,7 @@ mod check_tests {
             result
                 .errors
                 .iter()
-                .any(|e| e.contains("nonexistent-service") && e.contains("unknown")),
+                .any(|e| e.contains("nonexistent-service") && e.contains("roster")),
             "Expected unknown subgraph error: {:?}",
             result.errors
         );
@@ -772,5 +777,180 @@ mod check_tests {
         let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
         assert_eq!(parsed["status"], "success");
         assert_eq!(parsed["data"]["type_count"], 1);
+    }
+
+    // ── #820 — `--against` must genuinely compare, and never fabricate a pass ──
+
+    /// #820.A — a subgraph that genuinely conflicts with the supergraph (a
+    /// different primary `@key`, plus a non-`@shareable` field both sides
+    /// define) must FAIL the check. Today nothing is compared and the command
+    /// reports `composable: true` with "Composition check … passed".
+    #[test]
+    fn test_check_against_genuinely_conflicting_supergraph_fails() {
+        let local = json!({
+            "federation": {
+                "enabled": true,
+                "version": "v2",
+                "types": [
+                    {
+                        "name": "Order",
+                        "keys": [{"fields": ["id"], "resolvable": true}],
+                        "is_extends": false,
+                        "external_fields": [],
+                        "shareable_fields": [],
+                        "inaccessible_fields": [],
+                        "field_directives": {"id": {}, "total": {}}
+                    }
+                ]
+            }
+        });
+        // The supergraph declares Order keyed by orderNumber and itself owns a
+        // non-shareable `total` — a real composeServices run rejects this pair
+        // with a key mismatch + INVALID_FIELD_SHARING.
+        let supergraph = json!({
+            "federation": {
+                "enabled": true,
+                "version": "v2",
+                "types": [
+                    {
+                        "name": "Order",
+                        "keys": [{"fields": ["orderNumber"], "resolvable": true}],
+                        "is_extends": false,
+                        "external_fields": [],
+                        "shareable_fields": [],
+                        "inaccessible_fields": [],
+                        "field_directives": {"orderNumber": {}, "total": {}}
+                    }
+                ]
+            }
+        });
+
+        let dir = tempfile::tempdir().unwrap();
+        let local_path = dir.path().join("local.compiled.json");
+        let super_path = dir.path().join("supergraph.json");
+        fs::write(&local_path, serde_json::to_string_pretty(&local).unwrap()).unwrap();
+        fs::write(&super_path, serde_json::to_string_pretty(&supergraph).unwrap()).unwrap();
+
+        let result =
+            run(local_path.to_str().unwrap(), Some(super_path.to_str().unwrap()), false).unwrap();
+        assert_eq!(
+            result.status, "validation-failed",
+            "a genuinely conflicting pair must fail, never report composable: {result:?}"
+        );
+        assert!(
+            result.errors.iter().any(|e| e.contains("key")),
+            "the @key disagreement must be reported: {:?}",
+            result.errors
+        );
+        assert!(
+            result.errors.iter().any(|e| e.contains("shareable")),
+            "the non-shareable field defined on both sides must be reported: {:?}",
+            result.errors
+        );
+    }
+
+    /// #820.B — a legitimate `@override(from: "accounts")` against a
+    /// supergraph whose roster DECLARES `accounts` must pass. Today the roster
+    /// (`federation.subgraphs`) is ignored — names are harvested from the
+    /// supergraph's own `override_from` annotations (the empty set for any
+    /// real supergraph) — so the valid override is falsely rejected.
+    #[test]
+    fn test_check_against_supergraph_roster_accepts_valid_override() {
+        let local = json!({
+            "federation": {
+                "enabled": true,
+                "version": "v2",
+                "types": [
+                    {
+                        "name": "Order",
+                        "keys": [{"fields": ["id"], "resolvable": true}],
+                        "is_extends": false,
+                        "external_fields": [],
+                        "shareable_fields": [],
+                        "inaccessible_fields": [],
+                        "field_directives": {
+                            "id": {},
+                            "total": {"override_from": "accounts"}
+                        }
+                    }
+                ]
+            }
+        });
+        let supergraph = json!({
+            "federation": {
+                "enabled": true,
+                "version": "v2",
+                "subgraphs": [
+                    {"name": "accounts", "url": "https://accounts.internal/graphql"},
+                    {"name": "orders", "url": "https://orders.internal/graphql"}
+                ],
+                "types": []
+            }
+        });
+
+        let dir = tempfile::tempdir().unwrap();
+        let local_path = dir.path().join("local.compiled.json");
+        let super_path = dir.path().join("supergraph.json");
+        fs::write(&local_path, serde_json::to_string_pretty(&local).unwrap()).unwrap();
+        fs::write(&super_path, serde_json::to_string_pretty(&supergraph).unwrap()).unwrap();
+
+        let result =
+            run(local_path.to_str().unwrap(), Some(super_path.to_str().unwrap()), false).unwrap();
+        assert_eq!(
+            result.status, "success",
+            "an @override naming a rostered subgraph is legitimate: {result:?}"
+        );
+    }
+
+    /// #820.C — the check must never claim more than it did: the success
+    /// message states the comparison's scope and that authoritative
+    /// composition happens in the gateway composer, instead of the blanket
+    /// "Composition check … passed" a no-op used to emit.
+    #[test]
+    fn test_check_against_success_message_is_scoped_not_blanket() {
+        let local = json!({
+            "federation": {
+                "enabled": true,
+                "version": "v2",
+                "types": [
+                    {
+                        "name": "Order",
+                        "keys": [{"fields": ["id"], "resolvable": true}],
+                        "is_extends": false,
+                        "external_fields": [],
+                        "shareable_fields": [],
+                        "inaccessible_fields": [],
+                        "field_directives": {"id": {}}
+                    }
+                ]
+            }
+        });
+        let supergraph = json!({
+            "federation": {"enabled": true, "version": "v2", "types": []}
+        });
+
+        let dir = tempfile::tempdir().unwrap();
+        let local_path = dir.path().join("local.compiled.json");
+        let super_path = dir.path().join("supergraph.json");
+        fs::write(&local_path, serde_json::to_string_pretty(&local).unwrap()).unwrap();
+        fs::write(&super_path, serde_json::to_string_pretty(&supergraph).unwrap()).unwrap();
+
+        let result =
+            run(local_path.to_str().unwrap(), Some(super_path.to_str().unwrap()), false).unwrap();
+        assert_eq!(result.status, "success", "nothing conflicts here: {result:?}");
+        assert!(
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.contains("Composition check") && w.contains("passed")),
+            "the blanket 'Composition check passed' claim must be gone: {:?}",
+            result.warnings
+        );
+        assert!(
+            result.warnings.iter().any(|w| w.contains("gateway composer")),
+            "the message must state that authoritative composition is the gateway \
+             composer's job: {:?}",
+            result.warnings
+        );
     }
 }

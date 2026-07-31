@@ -173,7 +173,17 @@ impl HttpMutationClient {
         })
     }
 
-    /// Execute a mutation on a remote subgraph
+    /// Execute a mutation on a remote subgraph.
+    ///
+    /// `idempotency_key` — a stable, attempt-independent token for this logical
+    /// mutation, sent as the `Idempotency-Key` header on **every** attempt
+    /// (including retries after ambiguous failures such as a timeout or a
+    /// connection reset after the request was sent). Dispatch is at-least-once:
+    /// the receiving subgraph deduplicates on the key, which is what turns
+    /// "retried" into "exactly-once effect" (#747). Saga steps pass their
+    /// persisted step id, so even a retry from a different process after a crash
+    /// carries the same key. `None` omits the header (non-saga callers that
+    /// manage retries themselves).
     ///
     /// # Errors
     ///
@@ -186,6 +196,7 @@ impl HttpMutationClient {
         mutation_name: &str,
         variables: &Value,
         metadata: &FederationMetadata,
+        idempotency_key: Option<&str>,
     ) -> Result<Value> {
         // SECURITY: Validate URL before any network contact to prevent SSRF.
         // Static scheme/host/literal-IP check, then the DNS-rebinding guard —
@@ -215,7 +226,8 @@ impl HttpMutationClient {
         let query = self.build_mutation_query(typename, mutation_name, variables, fed_type)?;
 
         // Execute with retry
-        let response = self.execute_with_retry(client, subgraph_url, &query).await?;
+        let response =
+            self.execute_with_retry(client, subgraph_url, &query, idempotency_key).await?;
 
         // Parse and return response
         self.parse_response(response, mutation_name)
@@ -303,12 +315,18 @@ impl HttpMutationClient {
         Ok(format!("({})", var_defs.join(", ")))
     }
 
-    /// Execute request with retry logic
+    /// Execute request with retry logic.
+    ///
+    /// Every attempt — first try and retries alike — carries the same
+    /// `Idempotency-Key` header (when a key is provided), so a receiver can
+    /// recognise a re-sent mutation after an ambiguous failure and deduplicate
+    /// it (#747).
     async fn execute_with_retry(
         &self,
         client: &reqwest::Client,
         url: &str,
         request: &GraphQLRequest,
+        idempotency_key: Option<&str>,
     ) -> Result<GraphQLResponse> {
         let mut attempts = 0;
         let mut last_error = None;
@@ -316,7 +334,11 @@ impl HttpMutationClient {
         while attempts < self.config.max_retries {
             attempts += 1;
 
-            match client.post(url).json(request).send().await {
+            let mut builder = client.post(url).json(request);
+            if let Some(key) = idempotency_key {
+                builder = builder.header("Idempotency-Key", key);
+            }
+            match builder.send().await {
                 Ok(response) if response.status().is_success() => {
                     let body_bytes =
                         response.bytes().await.map_err(|e| FraiseQLError::Internal {

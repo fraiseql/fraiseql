@@ -194,7 +194,7 @@ async fn mutation_response_oversized_is_rejected() {
         variables: json!({}),
     };
     let reqwest_client = reqwest::Client::new();
-    let result = client.execute_with_retry(&reqwest_client, &url, &request).await;
+    let result = client.execute_with_retry(&reqwest_client, &url, &request, None).await;
 
     assert!(result.is_err(), "oversized mutation response must be rejected");
     let msg = result.unwrap_err().to_string();
@@ -226,7 +226,7 @@ async fn mutation_response_within_limit_is_parsed() {
         variables: json!({}),
     };
     let reqwest_client = reqwest::Client::new();
-    let result = client.execute_with_retry(&reqwest_client, &url, &request).await;
+    let result = client.execute_with_retry(&reqwest_client, &url, &request, None).await;
 
     assert!(result.is_ok(), "valid mutation response must be accepted: {result:?}");
     assert!(result.unwrap().data.is_some());
@@ -260,6 +260,7 @@ async fn mutation_client_validation_rejects_http_url() {
             "updateUser",
             &json!({ "id": "1" }),
             &metadata,
+            None,
         )
         .await;
     assert!(result.is_err(), "http:// subgraph mutation must be rejected: {result:?}");

@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use fraiseql_db::DatabaseType;
 use serde_json::json;
 
 use super::*;
@@ -30,7 +31,7 @@ fn make_metadata(typename: &str, key_field: &str) -> FederationMetadata {
 fn test_build_update_query() {
     let meta = make_metadata("Order", "id");
     let vars = json!({ "id": "42", "status": "shipped" });
-    let sql = build_update_query("Order", &vars, &meta).unwrap();
+    let sql = build_update_query(DatabaseType::PostgreSQL, "Order", &vars, &meta).unwrap();
     assert!(sql.contains("UPDATE"), "missing UPDATE keyword: {sql}");
     assert!(sql.contains("\"order\""), "table name must be quoted: {sql}");
     assert!(sql.contains("SET"), "missing SET clause: {sql}");
@@ -40,7 +41,8 @@ fn test_build_update_query() {
 
     // Single-quote escaping in values
     let vars_with_apostrophe = json!({ "id": "1", "name": "O'Brien" });
-    let sql2 = build_update_query("Order", &vars_with_apostrophe, &meta).unwrap();
+    let sql2 = build_update_query(DatabaseType::PostgreSQL, "Order", &vars_with_apostrophe, &meta)
+        .unwrap();
     assert!(sql2.contains("O''Brien"), "apostrophe must be escaped: {sql2}");
 }
 
@@ -48,7 +50,7 @@ fn test_build_update_query() {
 fn test_build_insert_query() {
     let meta = make_metadata("Group", "id");
     let vars = json!({ "id": "7", "name": "Admins" });
-    let sql = build_insert_query("Group", &vars, &meta).unwrap();
+    let sql = build_insert_query(DatabaseType::PostgreSQL, "Group", &vars, &meta).unwrap();
     assert!(sql.contains("INSERT INTO"), "missing INSERT INTO: {sql}");
     assert!(sql.contains("\"group\""), "table name must be quoted: {sql}");
     assert!(sql.contains("VALUES"), "missing VALUES clause: {sql}");
@@ -57,7 +59,8 @@ fn test_build_insert_query() {
 
     // Single-quote escaping in values
     let vars_apostrophe = json!({ "id": "2", "label": "O'Hara's Team" });
-    let sql2 = build_insert_query("Group", &vars_apostrophe, &meta).unwrap();
+    let sql2 =
+        build_insert_query(DatabaseType::PostgreSQL, "Group", &vars_apostrophe, &meta).unwrap();
     assert!(sql2.contains("O''Hara''s Team"), "apostrophe must be escaped: {sql2}");
 }
 
@@ -65,7 +68,7 @@ fn test_build_insert_query() {
 fn test_build_delete_query() {
     let meta = make_metadata("User", "id");
     let vars = json!({ "id": "99" });
-    let sql = build_delete_query("User", &vars, &meta).unwrap();
+    let sql = build_delete_query(DatabaseType::PostgreSQL, "User", &vars, &meta).unwrap();
     assert!(sql.contains("DELETE FROM"), "missing DELETE FROM: {sql}");
     assert!(sql.contains("\"user\""), "table name must be quoted: {sql}");
     assert!(sql.contains("WHERE"), "missing WHERE clause: {sql}");
@@ -75,22 +78,26 @@ fn test_build_delete_query() {
 
 #[test]
 fn test_value_to_sql_literal_string() {
-    let result = value_to_sql_literal(&Value::String("John".to_string())).unwrap();
+    let result =
+        value_to_sql_literal(DatabaseType::PostgreSQL, &Value::String("John".to_string())).unwrap();
     assert_eq!(result, "'John'");
 
     // Test SQL injection prevention
-    let result = value_to_sql_literal(&Value::String("O'Brien".to_string())).unwrap();
+    let result =
+        value_to_sql_literal(DatabaseType::PostgreSQL, &Value::String("O'Brien".to_string()))
+            .unwrap();
     assert_eq!(result, "'O''Brien'");
 }
 
 #[test]
 fn test_value_to_sql_literal_number() {
-    let result = value_to_sql_literal(&Value::Number(123.into())).unwrap();
+    let result =
+        value_to_sql_literal(DatabaseType::PostgreSQL, &Value::Number(123.into())).unwrap();
     assert_eq!(result, "123");
 }
 
 #[test]
 fn test_value_to_sql_literal_null() {
-    let result = value_to_sql_literal(&Value::Null).unwrap();
+    let result = value_to_sql_literal(DatabaseType::PostgreSQL, &Value::Null).unwrap();
     assert_eq!(result, "NULL");
 }

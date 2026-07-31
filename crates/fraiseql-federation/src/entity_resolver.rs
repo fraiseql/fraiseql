@@ -259,7 +259,9 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
-/// Returns `FraiseQLError` if the database query fails.
+/// Returns `FraiseQLError::Database` if any typename batch failed to resolve
+/// (#764) — a database failure is an **error**, never `data: [null, …]`; a
+/// `None` entity in a successful result means "not found", nothing else.
 pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
@@ -275,7 +277,21 @@ pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
         trace_context,
     )
     .await?;
-    Ok(result.entities)
+    propagate_batch_errors(result)
+}
+
+/// Convert a resolution outcome into the public wrapper contract (#764): any
+/// recorded batch error becomes an `Err`, so a database outage can never be
+/// served to the router as a successful `data: [null, …]` partial response.
+fn propagate_batch_errors(result: EntityResolutionMetrics) -> Result<Vec<Option<Value>>> {
+    if result.errors.is_empty() {
+        Ok(result.entities)
+    } else {
+        Err(FraiseQLError::Database {
+            message:   format!("federation entity resolution failed: {}", result.errors.join("; ")),
+            sql_state: None,
+        })
+    }
 }
 
 /// Batch load entities applying per-row enforcement (Phase 03 C1b/R1 follow-up).
@@ -317,7 +333,7 @@ pub async fn batch_load_entities_enforced<A: DatabaseAdapter>(
         session_vars,
     )
     .await?;
-    Ok(result.entities)
+    propagate_batch_errors(result)
 }
 
 /// Batch load entities with full metrics for observability.

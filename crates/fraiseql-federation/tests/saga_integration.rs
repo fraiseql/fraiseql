@@ -109,6 +109,7 @@ mod wired_pg {
             saga_id,
             order,
             subgraph: "orders".to_string(),
+            remote: false,
             mutation_type: mt,
             mutation_name: None,
             typename: typename.to_string(),
@@ -120,6 +121,7 @@ mod wired_pg {
             compensation_mutation: None,
             compensation_variables: None,
             required_fields: Vec::new(),
+            compensation_error: None,
         }
     }
 
@@ -402,10 +404,13 @@ mod wired_pg {
         step.compensation_variables = Some(json!({"id": id_a}));
         store.save_saga_step(&step).await.unwrap();
 
-        // Run the forward create so the row actually exists, then mark Completed.
+        // Run the forward create so the row actually exists, then mark Completed
+        // via the legal Pending → Executing → Completed chain (the store rejects
+        // transition shortcuts since #744).
         let forward = SagaExecutor::with_store(Arc::clone(&store));
         let fwd = forward.execute_step(&executor, &step).await;
         assert!(fwd.success, "forward create must succeed: {fwd:?}");
+        store.update_saga_step_state(step.id, &StepState::Executing).await.unwrap();
         store.update_saga_step_state(step.id, &StepState::Completed).await.unwrap();
 
         // Compensate the single step.
@@ -661,6 +666,20 @@ mod recovery_pg {
         }
     }
 
+    /// Backdate a saga's `updated_at` so it reads as genuinely stale: a crashed
+    /// driver stopped heart-beating the row, which is what makes the saga
+    /// claimable under `claim_stuck_sagas`' staleness threshold (#745).
+    async fn backdate_saga(url: &str, saga_id: Uuid) {
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "UPDATE tb_federation_sagas SET updated_at = NOW() - INTERVAL '1 hour' \
+                 WHERE id = '{saga_id}'"
+            ))
+            .await
+            .unwrap();
+    }
+
     fn pending_step(
         saga_id: Uuid,
         order: usize,
@@ -673,6 +692,7 @@ mod recovery_pg {
             saga_id,
             order,
             subgraph: "orders".to_string(),
+            remote: false,
             mutation_type: mt,
             mutation_name: None,
             typename: typename.to_string(),
@@ -684,6 +704,7 @@ mod recovery_pg {
             compensation_mutation: None,
             compensation_variables: None,
             required_fields: Vec::new(),
+            compensation_error: None,
         }
     }
 
@@ -703,6 +724,7 @@ mod recovery_pg {
         // A saga left Executing with a single un-run step whose Create will succeed.
         let saga_id = Uuid::new_v4();
         store.save_saga(&stuck_saga(saga_id)).await.unwrap();
+        backdate_saga(&url, saga_id).await;
         let entity_id = format!("r-{}", Uuid::new_v4());
         store
             .save_saga_step(&pending_step(
@@ -769,6 +791,7 @@ mod recovery_pg {
         // saga ends Failed (a bad per-saga outcome, but not an infrastructure error).
         let failing_id = Uuid::new_v4();
         store.save_saga(&stuck_saga(failing_id)).await.unwrap();
+        backdate_saga(&url, failing_id).await;
         store
             .save_saga_step(&pending_step(
                 failing_id,
@@ -783,6 +806,7 @@ mod recovery_pg {
         // Saga 2: a clean Create that will complete on replay.
         let ok_id = Uuid::new_v4();
         store.save_saga(&stuck_saga(ok_id)).await.unwrap();
+        backdate_saga(&url, ok_id).await;
         let entity_id = format!("ok-{}", Uuid::new_v4());
         store
             .save_saga_step(&pending_step(
@@ -836,6 +860,7 @@ mod recovery_pg {
         // Seed the stuck saga before starting so the first tick can pick it up.
         let saga_id = Uuid::new_v4();
         store.save_saga(&stuck_saga(saga_id)).await.unwrap();
+        backdate_saga(&url, saga_id).await;
         let entity_id = format!("bg-{}", Uuid::new_v4());
         store
             .save_saga_step(&pending_step(
@@ -850,9 +875,8 @@ mod recovery_pg {
 
         // A short interval keeps the test fast (default is 5s).
         let config = RecoveryConfig {
-            check_interval:          Duration::from_millis(150),
-            max_sagas_per_iteration: 50,
-            stale_age_hours:         24,
+            check_interval: Duration::from_millis(150),
+            ..RecoveryConfig::default()
         };
         let manager = Arc::new(SagaRecoveryManager::new(Arc::clone(&store), config));
 
@@ -893,9 +917,8 @@ mod recovery_pg {
         let store = Arc::new(store);
 
         let config = RecoveryConfig {
-            check_interval:          Duration::from_millis(150),
-            max_sagas_per_iteration: 50,
-            stale_age_hours:         24,
+            check_interval: Duration::from_millis(150),
+            ..RecoveryConfig::default()
         };
         let manager = Arc::new(SagaRecoveryManager::new(Arc::clone(&store), config));
         let executor = Arc::new(executor);
@@ -937,8 +960,8 @@ mod recovery_pg {
 
         // Two workers claim concurrently with a generous limit + lease.
         let (a, b) = tokio::join!(
-            store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000),
-            store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000),
+            store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000, 0),
+            store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000, 0),
         );
         let set_a: std::collections::HashSet<Uuid> = a.unwrap().into_iter().map(|s| s.id).collect();
         let set_b: std::collections::HashSet<Uuid> = b.unwrap().into_iter().map(|s| s.id).collect();
@@ -974,11 +997,11 @@ mod recovery_pg {
         store.save_saga(&stuck_saga(id)).await.unwrap();
 
         // Worker A claims it under a long lease.
-        let claimed_a = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000).await.unwrap();
+        let claimed_a = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000, 0).await.unwrap();
         assert!(claimed_a.iter().any(|s| s.id == id), "worker A claims the stuck saga");
 
         // Worker B cannot re-claim it while A's lease is live.
-        let claimed_b = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000).await.unwrap();
+        let claimed_b = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000, 0).await.unwrap();
         assert!(!claimed_b.iter().any(|s| s.id == id), "a live lease blocks re-claim");
 
         // Expire the lease directly; worker B can then reclaim it.
@@ -989,7 +1012,7 @@ mod recovery_pg {
             ))
             .await
             .unwrap();
-        let claimed_c = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000).await.unwrap();
+        let claimed_c = store.claim_stuck_sagas(Uuid::new_v4(), 300, 1000, 0).await.unwrap();
         assert!(claimed_c.iter().any(|s| s.id == id), "an expired lease is reclaimable");
 
         store.delete_saga(id).await.unwrap();
@@ -1015,6 +1038,7 @@ mod recovery_pg {
         let ids: Vec<Uuid> = (0..4).map(|_| Uuid::new_v4()).collect();
         for (i, id) in ids.iter().enumerate() {
             store.save_saga(&stuck_saga(*id)).await.unwrap();
+            backdate_saga(&url, *id).await;
             store
                 .save_saga_step(&pending_step(
                     *id,
@@ -2060,6 +2084,1065 @@ mod prefetch_pg {
             Some("99"),
             "the fetched @requires value was merged into the mutation: {:?}",
             rows[0]
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+}
+
+// ── Recovery safety (P19: #744 #745 #747 #766) ────
+//
+// The chaos-shaped contract for crash recovery: replay must be exactly-once for
+// committed work, a live saga must never be claimed by the recovery loop, an
+// ambiguous (timed-out) dispatch must not duplicate its logical effect, and a
+// remote-subgraph step must never be replayed against the local SQL adapter.
+// Ignored by default — they need a live PostgreSQL via `DATABASE_URL` plus the
+// `test-utils` loopback builders; the CI postgres integration leg runs them with
+// `--features saga,test-utils --include-ignored --test-threads=1`.
+
+#[cfg(all(feature = "saga", feature = "test-utils"))]
+mod recovery_safety_pg {
+    use std::sync::Arc;
+
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_federation::{
+        CompensationStrategy, FederatedType, FederationMetadata, FederationMutationExecutor,
+        HttpMutationConfig, KeyDirective, MutationType, PostgresSagaStore, RecoveryConfig,
+        RetryPolicy, Saga, SagaCoordinator, SagaCoordinatorStep, SagaRecoveryManager, SagaState,
+        SagaStep, StepState,
+    };
+    use serde_json::json;
+    use uuid::Uuid;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    fn database_url() -> Option<String> {
+        std::env::var("DATABASE_URL").ok()
+    }
+
+    fn unique_typename() -> String {
+        format!("sagarecov{}", Uuid::new_v4().simple())
+    }
+
+    fn entity_metadata(typename: &str) -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                typename.to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    async fn setup(
+        url: &str,
+        typename: &str,
+    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+        let store = PostgresSagaStore::new(url).await.unwrap();
+        store.migrate_schema().await.unwrap();
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .await
+            .unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
+            ))
+            .await
+            .unwrap();
+        let executor =
+            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        (store, executor)
+    }
+
+    /// Backdate a saga's `updated_at` so it is genuinely stale: a crash-left saga
+    /// stopped touching its row, which is what makes it claimable once
+    /// `claim_stuck_sagas` enforces a staleness threshold.
+    async fn backdate_saga(url: &str, saga_id: Uuid) {
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "UPDATE tb_federation_sagas SET updated_at = NOW() - INTERVAL '1 hour' \
+                 WHERE id = '{saga_id}'"
+            ))
+            .await
+            .unwrap();
+    }
+
+    const fn count_rows(rows: &[std::collections::HashMap<String, serde_json::Value>]) -> usize {
+        rows.len()
+    }
+
+    /// A GraphQL success payload `{"data": {"<op>": {"__typename", "id"}}}` with a
+    /// runtime op key (`json!` treats bare identifiers as literal keys).
+    fn op_response(op: &str, typename: &str, id: &str) -> serde_json::Value {
+        let mut entity = serde_json::Map::new();
+        entity.insert("__typename".to_string(), json!(typename));
+        entity.insert("id".to_string(), json!(id));
+        let mut data = serde_json::Map::new();
+        data.insert(op.to_string(), serde_json::Value::Object(entity));
+        json!({ "data": serde_json::Value::Object(data) })
+    }
+
+    /// #744 — forward replay executes committed work exactly once. A saga crashed
+    /// after steps 1–2 committed (rows in the table, steps `Completed`, saga left
+    /// `Executing`); recovery must drive only step 3, leave steps 1–2 untouched,
+    /// and finish the saga `Completed`. Today `execute_saga` re-marks every step
+    /// `Executing` and re-dispatches it: the re-INSERT hits the primary key, the
+    /// step is rewritten `Completed → Failed`, and the saga ends `Failed` with the
+    /// committed work re-executed.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn recovery_replay_skips_committed_steps() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let table = typename.to_lowercase();
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+
+        // The saga: 3 create-steps; steps 0 and 1 committed before the crash.
+        let saga_id = Uuid::new_v4();
+        store
+            .save_saga(&Saga {
+                id:           saga_id,
+                state:        SagaState::Pending,
+                created_at:   chrono::Utc::now(),
+                completed_at: None,
+                metadata:     None,
+            })
+            .await
+            .unwrap();
+
+        let mut step_ids = Vec::new();
+        for (order, id_val) in [(0usize, "a1"), (1, "a2"), (2, "a3")] {
+            let step = SagaStep {
+                id: Uuid::new_v4(),
+                saga_id,
+                order,
+                subgraph: "orders".to_string(),
+                remote: false,
+                mutation_type: MutationType::Create,
+                mutation_name: Some(format!("create{typename}")),
+                typename: typename.clone(),
+                variables: json!({"id": id_val, "total": "10"}),
+                state: StepState::Pending,
+                result: None,
+                started_at: None,
+                completed_at: None,
+                compensation_mutation: None,
+                compensation_variables: None,
+                required_fields: Vec::new(),
+                compensation_error: None,
+            };
+            store.save_saga_step(&step).await.unwrap();
+            step_ids.push(step.id);
+        }
+
+        // Simulate the crash: steps 1–2 committed their rows and were persisted
+        // Completed (result included, via the legal Pending → Executing →
+        // Completed chain); the saga row was left Executing.
+        for (i, id_val) in [(0usize, "a1"), (1, "a2")] {
+            adapter
+                .execute_raw_query(&format!(
+                    "INSERT INTO \"{table}\" (id, total) VALUES ('{id_val}', '10')"
+                ))
+                .await
+                .unwrap();
+            store
+                .update_saga_step_result(step_ids[i], &json!({"id": id_val, "total": "10"}))
+                .await
+                .unwrap();
+            store.update_saga_step_state(step_ids[i], &StepState::Executing).await.unwrap();
+            store.update_saga_step_state(step_ids[i], &StepState::Completed).await.unwrap();
+        }
+        store.update_saga_state(saga_id, &SagaState::Executing).await.unwrap();
+        backdate_saga(&url, saga_id).await;
+
+        let manager = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
+        manager.run_iteration(&executor).await.unwrap();
+
+        // Exactly-once: each committed entity still exists exactly once…
+        for id_val in ["a1", "a2"] {
+            let rows = adapter
+                .execute_raw_query(&format!("SELECT id FROM \"{table}\" WHERE id = '{id_val}'"))
+                .await
+                .unwrap();
+            assert_eq!(
+                count_rows(&rows),
+                1,
+                "committed step '{id_val}' must not re-execute on recovery"
+            );
+        }
+        // …its step row never left Completed…
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        assert_eq!(
+            steps[0].state,
+            StepState::Completed,
+            "a Completed step must stay Completed through replay: {steps:?}"
+        );
+        assert_eq!(
+            steps[1].state,
+            StepState::Completed,
+            "a Completed step must stay Completed through replay: {steps:?}"
+        );
+        // …the pending step 3 ran…
+        let rows = adapter
+            .execute_raw_query(&format!("SELECT id FROM \"{table}\" WHERE id = 'a3'"))
+            .await
+            .unwrap();
+        assert_eq!(count_rows(&rows), 1, "the interrupted step must be driven to completion");
+        assert_eq!(steps[2].state, StepState::Completed, "step 3 completes: {steps:?}");
+        // …and the saga finished Completed, not Failed-on-duplicate.
+        let saga = store.load_saga(saga_id).await.unwrap().unwrap();
+        assert_eq!(
+            saga.state,
+            SagaState::Completed,
+            "recovery of a half-committed saga must complete it exactly once"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #745 — the recovery loop must not claim a saga that is actively executing.
+    /// A coordinator drives a saga whose remote step is slow (in flight on a mock
+    /// peer); a recovery tick fires mid-flight. `claim_stuck_sagas` has no
+    /// staleness threshold and the forward path holds no lease, so today the tick
+    /// claims the live saga and re-drives it concurrently — with an empty subgraph
+    /// registry, i.e. against the local database.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "requires DATABASE_URL (Postgres saga store) + loopback wiremock"]
+    async fn recovery_does_not_claim_actively_executing_saga() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let table = typename.to_lowercase();
+
+        // The peer answers the create after 2s — long enough for a recovery tick
+        // to fire while the step is genuinely in flight.
+        let create_op = format!("create{typename}");
+        let remote_id = format!("live-{}", Uuid::new_v4());
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(op_response(&create_op, &typename, &remote_id))
+                    .set_delay(std::time::Duration::from_secs(2)),
+            )
+            .mount(&server)
+            .await;
+
+        let peer_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Manual)
+            .with_http_client_for_test(HttpMutationConfig {
+                timeout_ms: 10_000,
+                ..HttpMutationConfig::default()
+            })
+            .unwrap()
+            .with_subgraph_unchecked("payments", peer_url);
+
+        let step = SagaCoordinatorStep::new(
+            1,
+            "payments",
+            typename.as_str(),
+            create_op.clone(),
+            json!({"id": remote_id, "total": "42"}),
+            String::new(),
+            json!({}),
+        );
+        let saga_id = coordinator.create_saga(vec![step]).await.unwrap();
+
+        // Drive the saga on a background task; tick recovery while it is in flight.
+        let coordinator = Arc::new(coordinator);
+        let drive = {
+            let coordinator = Arc::clone(&coordinator);
+            let executor = executor.clone();
+            tokio::spawn(async move { coordinator.execute_saga(saga_id, &executor).await })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+
+        let manager = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
+        manager.run_iteration(&executor).await.unwrap();
+        let stats = manager.get_stats();
+
+        let result = drive.await.unwrap().unwrap();
+        assert_eq!(result.state, SagaState::Completed, "the live drive completes: {result:?}");
+
+        // The recovery tick must have left the live saga alone…
+        assert_eq!(
+            stats.executing_sagas_found, 0,
+            "a saga that is actively executing must not be claimed as stuck"
+        );
+        // …the peer saw exactly one dispatch…
+        let posts = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path() == "/graphql")
+            .count();
+        assert_eq!(posts, 1, "one live drive → exactly one dispatch, no concurrent re-drive");
+        // …and nothing was ever written to the local database (the recovery
+        // replay would have dispatched the remote step against the local table).
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        let rows = adapter.execute_raw_query(&format!("SELECT id FROM \"{table}\"")).await.unwrap();
+        assert_eq!(count_rows(&rows), 0, "no concurrent local re-drive of the remote step");
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #747 — an ambiguous (timed-out) dispatch must not duplicate the logical
+    /// effect. The first attempt is received by the peer but answers slowly; the
+    /// step times out, retries, and the second attempt succeeds. Every attempt must
+    /// carry the same idempotency key so the receiver can deduplicate: the number
+    /// of distinct logical effects — attempts not sharing a prior attempt's key —
+    /// must be exactly one. Today no key is sent at all, so the two byte-identical
+    /// requests are two indistinguishable charges.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "requires DATABASE_URL (Postgres saga store) + loopback wiremock"]
+    async fn timed_out_dispatch_retries_with_same_idempotency_key() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let create_op = format!("create{typename}");
+        let remote_id = format!("chg-{}", Uuid::new_v4());
+        let server = MockServer::start().await;
+        // First attempt: the peer receives the mutation (i.e. may well commit it)
+        // but answers after the step timeout. Second attempt: immediate success.
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(op_response(&create_op, &typename, &remote_id))
+                    .set_delay(std::time::Duration::from_millis(1500)),
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(op_response(&create_op, &typename, &remote_id)),
+            )
+            .mount(&server)
+            .await;
+
+        let peer_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Manual)
+            .with_retry_policy(RetryPolicy {
+                max_retries:     1,
+                base_delay_ms:   0,
+                step_timeout_ms: Some(500),
+            })
+            .with_http_client_for_test(HttpMutationConfig::default())
+            .unwrap()
+            .with_subgraph_unchecked("payments", peer_url);
+
+        let step = SagaCoordinatorStep::new(
+            1,
+            "payments",
+            typename.as_str(),
+            create_op.clone(),
+            json!({"id": remote_id, "total": "99"}),
+            String::new(),
+            json!({}),
+        );
+        let saga_id = coordinator.create_saga(vec![step]).await.unwrap();
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+        assert_eq!(result.state, SagaState::Completed, "the retry succeeds: {result:?}");
+
+        // Both attempts reached the peer…
+        let requests = server.received_requests().await.unwrap();
+        let posts: Vec<_> = requests.iter().filter(|r| r.url.path() == "/graphql").collect();
+        assert_eq!(posts.len(), 2, "timeout then retry → two attempts on the wire");
+
+        // …and each carried the same per-step idempotency key, so a receiver can
+        // recognise attempt 2 as a retry of attempt 1 (one logical effect).
+        let keys: Vec<Option<String>> = posts
+            .iter()
+            .map(|r| {
+                r.headers
+                    .get("idempotency-key")
+                    .map(|v| v.to_str().unwrap_or_default().to_string())
+            })
+            .collect();
+        assert!(
+            keys.iter().all(|k| k.as_deref().is_some_and(|k| !k.is_empty())),
+            "every dispatch attempt must carry an Idempotency-Key header; got {keys:?}"
+        );
+        let distinct: std::collections::HashSet<_> = keys.iter().flatten().collect();
+        assert_eq!(
+            distinct.len(),
+            1,
+            "retries of one step must reuse one idempotency key (one logical effect); \
+             got {keys:?}"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #766 — recovery must never replay a remote-subgraph step against the local
+    /// SQL adapter. A saga whose only step targets the registered remote subgraph
+    /// "shipping" crashes before execution; the recovery loop (which carries no
+    /// subgraph registry) claims it. Today the step silently falls through to
+    /// `execute_local_mutation`: the shipment is `INSERT`ed into the local table,
+    /// the saga is marked Completed, and the real shipping service never hears of
+    /// it. Recovery must instead fail loud and write nothing.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "requires DATABASE_URL (Postgres saga store) + loopback wiremock"]
+    async fn recovery_never_replays_remote_step_locally() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+        let table = typename.to_lowercase();
+
+        // The remote peer exists (and must receive nothing during this recovery).
+        let server = MockServer::start().await;
+        let peer_url = reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap();
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Manual)
+            .with_http_client_for_test(HttpMutationConfig::default())
+            .unwrap()
+            .with_subgraph_unchecked("shipping", peer_url);
+
+        let remote_id = format!("ship-{}", Uuid::new_v4());
+        let step = SagaCoordinatorStep::new(
+            1,
+            "shipping",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": remote_id, "total": "7"}),
+            String::new(),
+            json!({}),
+        );
+        let saga_id = coordinator.create_saga(vec![step]).await.unwrap();
+
+        // Crash before execution: the saga is left Executing with its remote step
+        // still Pending, and goes stale.
+        store.update_saga_state(saga_id, &SagaState::Executing).await.unwrap();
+        backdate_saga(&url, saga_id).await;
+
+        // The recovery loop has no registry/client for "shipping".
+        let manager = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
+        manager.run_iteration(&executor).await.unwrap();
+
+        // The remote peer received nothing (no transport was configured)…
+        let posts = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path() == "/graphql")
+            .count();
+        assert_eq!(posts, 0, "recovery without a transport cannot reach the peer");
+        // …the shipment was NOT written to the local database…
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        let rows = adapter.execute_raw_query(&format!("SELECT id FROM \"{table}\"")).await.unwrap();
+        assert_eq!(
+            count_rows(&rows),
+            0,
+            "a remote-subgraph step must never be replayed against the local database"
+        );
+        // …and the saga was not fabricated to a happy terminal state: it stays
+        // in-doubt (still Executing, leased) for an operator or a routed recovery.
+        let saga = store.load_saga(saga_id).await.unwrap().unwrap();
+        assert_ne!(
+            saga.state,
+            SagaState::Completed,
+            "an unreplayable remote step must not produce a Completed saga"
+        );
+        let steps = store.load_saga_steps(saga_id).await.unwrap();
+        assert_ne!(
+            steps[0].state,
+            StepState::Completed,
+            "the remote step never ran, so it must not be Completed: {steps:?}"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #744 (backstop) — the store itself rejects the transition that made
+    /// recovery double-execution possible: `Completed -> Executing` (and any
+    /// transition out of `Compensated`) is refused atomically in the UPDATE,
+    /// no matter which code path attempts it.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn store_rejects_reexecuting_a_completed_step() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let saga_id = Uuid::new_v4();
+        store
+            .save_saga(&Saga {
+                id:           saga_id,
+                state:        SagaState::Pending,
+                created_at:   chrono::Utc::now(),
+                completed_at: None,
+                metadata:     None,
+            })
+            .await
+            .unwrap();
+        let step = SagaStep {
+            id: Uuid::new_v4(),
+            saga_id,
+            order: 0,
+            subgraph: "orders".to_string(),
+            remote: false,
+            mutation_type: MutationType::Create,
+            mutation_name: None,
+            typename: typename.clone(),
+            variables: serde_json::json!({"id": "g1"}),
+            state: StepState::Pending,
+            result: None,
+            started_at: None,
+            completed_at: None,
+            compensation_mutation: None,
+            compensation_variables: None,
+            required_fields: Vec::new(),
+            compensation_error: None,
+        };
+        store.save_saga_step(&step).await.unwrap();
+
+        // Legal chain up to Completed…
+        store.update_saga_step_state(step.id, &StepState::Executing).await.unwrap();
+        store.update_saga_step_state(step.id, &StepState::Completed).await.unwrap();
+
+        // …then the forbidden re-execution write must be refused by the store.
+        let err = store
+            .update_saga_step_state(step.id, &StepState::Executing)
+            .await
+            .expect_err("Completed -> Executing is the double-execution write; it must be refused");
+        assert!(
+            matches!(err, fraiseql_federation::SagaStoreError::InvalidStateTransition { .. }),
+            "the refusal is a typed InvalidStateTransition: {err:?}"
+        );
+        // The step is untouched.
+        let reloaded = store.load_saga_step(step.id).await.unwrap().unwrap();
+        assert_eq!(reloaded.state, StepState::Completed);
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #785 — recovery attempts are genuinely counted. Every recovery record
+    /// used to be inserted with `attempt_count = 0`, so the audit trail always
+    /// read "attempt 0" and no retry cap was enforceable.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn recovery_attempts_are_really_counted() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let saga_id = Uuid::new_v4();
+        store
+            .save_saga(&Saga {
+                id:           saga_id,
+                state:        SagaState::Executing,
+                created_at:   chrono::Utc::now(),
+                completed_at: None,
+                metadata:     None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(store.get_recovery_attempts(saga_id).await.unwrap(), 0);
+        store.mark_saga_for_recovery(saga_id, "auto-recovery").await.unwrap();
+        assert_eq!(
+            store.get_recovery_attempts(saga_id).await.unwrap(),
+            1,
+            "the first recovery attempt must be recorded as attempt 1, not 0"
+        );
+        store.mark_saga_for_recovery(saga_id, "auto-recovery").await.unwrap();
+        assert_eq!(
+            store.get_recovery_attempts(saga_id).await.unwrap(),
+            2,
+            "attempts must accumulate — this is what makes a retry cap enforceable"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #785 — a poison saga is parked after `max_recovery_attempts` instead of
+    /// being re-claimed and retried forever while its recovery rows grow
+    /// without bound. Parking leaves the saga's state untouched (in-doubt,
+    /// never fabricated terminal) and pushes its lease out of automation's
+    /// reach.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn poison_saga_is_parked_after_max_attempts() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let saga_id = Uuid::new_v4();
+        store
+            .save_saga(&Saga {
+                id:           saga_id,
+                state:        SagaState::Executing,
+                created_at:   chrono::Utc::now(),
+                completed_at: None,
+                metadata:     None,
+            })
+            .await
+            .unwrap();
+        // The saga already burned the whole default attempt budget.
+        for _ in 0..5 {
+            store.mark_saga_for_recovery(saga_id, "auto-recovery").await.unwrap();
+        }
+        backdate_saga(&url, saga_id).await;
+
+        let manager = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
+        manager.run_iteration(&executor).await.unwrap();
+
+        // Not driven (state untouched, no sixth attempt recorded), and the
+        // parking is an error the operator can see in stats.
+        let saga = store.load_saga(saga_id).await.unwrap().unwrap();
+        assert_eq!(saga.state, SagaState::Executing, "parking must not fabricate a terminal state");
+        assert_eq!(
+            store.get_recovery_attempts(saga_id).await.unwrap(),
+            5,
+            "a parked saga is not retried — no further attempt is recorded"
+        );
+        assert!(manager.get_stats().errors >= 1, "parking is surfaced in stats.errors");
+
+        // Parked = out of automation's reach: another tick claims nothing.
+        let manager2 = SagaRecoveryManager::new(Arc::clone(&store), RecoveryConfig::default());
+        manager2.run_iteration(&executor).await.unwrap();
+        assert_eq!(
+            store.get_recovery_attempts(saga_id).await.unwrap(),
+            5,
+            "a parked saga must not be re-claimed by later ticks"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+}
+
+// ── Compensation honesty (P19: #746 #767) ────
+//
+// The compensator itself reports honestly; these tests pin the layers ABOVE it:
+// the coordinator must not discard the CompensationResult (#746), and the
+// status API must read recorded state rather than fabricate one (#767).
+
+#[cfg(feature = "saga")]
+mod compensation_honesty_pg {
+    use std::sync::Arc;
+
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_federation::{
+        CompensationStatus, CompensationStrategy, FederatedType, FederationMetadata,
+        FederationMutationExecutor, KeyDirective, MutationType, PostgresSagaStore, Saga,
+        SagaCompensator, SagaCoordinator, SagaCoordinatorStep, SagaExecutor, SagaState, SagaStep,
+        StepState,
+    };
+    use serde_json::json;
+    use uuid::Uuid;
+
+    fn database_url() -> Option<String> {
+        std::env::var("DATABASE_URL").ok()
+    }
+
+    fn unique_typename() -> String {
+        format!("sagacomp{}", Uuid::new_v4().simple())
+    }
+
+    fn entity_metadata(typename: &str) -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                typename.to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    async fn setup(
+        url: &str,
+        typename: &str,
+    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+        let store = PostgresSagaStore::new(url).await.unwrap();
+        store.migrate_schema().await.unwrap();
+        let adapter = PostgresAdapter::new(url).await.unwrap();
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .await
+            .unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
+            ))
+            .await
+            .unwrap();
+        let executor =
+            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        (store, executor)
+    }
+
+    /// #746 (cancel path) — cancelling a saga whose completed step cannot be
+    /// rolled back must say so: `compensated: false`, no terminal `Cancelled`
+    /// write over un-compensated work, and the failed step surfaced. Today
+    /// `cancel_saga` discards the `CompensationResult`, hardcodes
+    /// `compensated: true`, and stamps `Cancelled` over the `Failed` state the
+    /// compensator just recorded — permanently orphaning the un-rolled-back
+    /// mutation (recovery ignores `Cancelled`).
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn cancel_saga_with_unrollbackable_step_reports_honestly() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+
+        // Step 1 has NO registered compensation (empty string → None); step 2
+        // never runs. The saga is cancelled mid-flight with step 1 committed.
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let step1 = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": id_a, "total": "10"}),
+            String::new(),
+            json!({}),
+        );
+        let step2 = SagaCoordinatorStep::new(
+            2,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": format!("b-{}", Uuid::new_v4()), "total": "20"}),
+            String::new(),
+            json!({}),
+        );
+        let step1_id = step1.id;
+        let saga_id = coordinator.create_saga(vec![step1, step2]).await.unwrap();
+
+        // Drive the saga mid-flight: saga Executing, step 1 committed.
+        let table = typename.to_lowercase();
+        let adapter = PostgresAdapter::new(&url).await.unwrap();
+        adapter
+            .execute_raw_query(&format!(
+                "INSERT INTO \"{table}\" (id, total) VALUES ('{id_a}', '10')"
+            ))
+            .await
+            .unwrap();
+        store.update_saga_state(saga_id, &SagaState::Executing).await.unwrap();
+        store.update_saga_step_state(step1_id, &StepState::Executing).await.unwrap();
+        store.update_saga_step_state(step1_id, &StepState::Completed).await.unwrap();
+
+        let result = coordinator.cancel_saga(saga_id, &executor).await.unwrap();
+
+        // The rollback did not happen — the result must say so…
+        assert!(
+            !result.compensated,
+            "step 1 has no compensation; reporting compensated=true fabricates a rollback: \
+             {result:?}"
+        );
+        assert_ne!(
+            result.state,
+            SagaState::Cancelled,
+            "Cancelled asserts 'completed steps were rolled back' — which is false here: \
+             {result:?}"
+        );
+        assert!(
+            result.error.as_deref().is_some_and(|e| e.contains('1')),
+            "the un-rolled-back step must be surfaced in the error: {result:?}"
+        );
+        // …and the persisted state must keep the saga reachable for manual
+        // repair (Cancelled is terminal and recovery ignores it).
+        let saga = store.load_saga(saga_id).await.unwrap().unwrap();
+        assert_ne!(
+            saga.state,
+            SagaState::Cancelled,
+            "un-compensated work must never be sealed under Cancelled"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #746 (execute path) — a failed saga whose automatic compensation only
+    /// partially succeeded must report `compensated: false`. Today the
+    /// `Automatic` arm discards the `CompensationResult` and hardcodes `true`,
+    /// so the caller is told the rollback happened even when zero steps rolled
+    /// back.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn execute_saga_automatic_reports_partial_compensation() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Automatic);
+
+        // Step 1 completes but is NOT compensatable; step 2 fails (update of a
+        // missing row) and triggers automatic compensation.
+        let id_a = format!("a-{}", Uuid::new_v4());
+        let step1 = SagaCoordinatorStep::new(
+            1,
+            "orders",
+            typename.as_str(),
+            format!("create{typename}"),
+            json!({"id": id_a, "total": "10"}),
+            String::new(),
+            json!({}),
+        );
+        let step2 = SagaCoordinatorStep::new(
+            2,
+            "orders",
+            typename.as_str(),
+            format!("update{typename}"),
+            json!({"id": "missing-row", "total": "20"}),
+            String::new(),
+            json!({}),
+        );
+        let saga_id = coordinator.create_saga(vec![step1, step2]).await.unwrap();
+
+        let result = coordinator.execute_saga(saga_id, &executor).await.unwrap();
+
+        assert_eq!(result.state, SagaState::Failed, "step 2 fails the saga: {result:?}");
+        assert!(
+            !result.compensated,
+            "step 1 was not rolled back (no compensation registered); compensated=true is a \
+             fabricated rollback: {result:?}"
+        );
+        assert!(
+            result.error.as_deref().is_some_and(|e| e.contains("compensat")),
+            "the incomplete rollback must be surfaced in the error: {result:?}"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #767 — the status API reads *recorded* compensation state. After a real
+    /// partial rollback (steps 1–2 compensated, step 3's inverse failed), the
+    /// status must be `PartiallyCompensated` with `failed_steps = [3]` and
+    /// 1-indexed step numbers. Today `failed_steps` is hardcoded empty (the
+    /// `PartiallyCompensated` branch is unreachable), the answer is inferred by
+    /// sniffing forward payloads for magic keys, and step numbers are 0-indexed.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn get_compensation_status_reads_recorded_state() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let coordinator = SagaCoordinator::new(Arc::clone(&store), CompensationStrategy::Manual);
+
+        // Steps 1–2 carry a working delete-compensation; step 3 has none, so
+        // its rollback fails while 1–2 succeed → a genuine partial rollback.
+        let ids: Vec<String> = (0..3).map(|i| format!("s{i}-{}", Uuid::new_v4())).collect();
+        let mut steps = Vec::new();
+        for (i, id) in ids.iter().enumerate() {
+            let compensation = if i < 2 {
+                format!("delete{typename}")
+            } else {
+                String::new()
+            };
+            let comp_vars = if i < 2 { json!({"id": id}) } else { json!({}) };
+            steps.push(SagaCoordinatorStep::new(
+                u32::try_from(i + 1).unwrap(),
+                "orders",
+                typename.as_str(),
+                format!("create{typename}"),
+                json!({"id": id, "total": "1"}),
+                compensation,
+                comp_vars,
+            ));
+        }
+        let saga_id = coordinator.create_saga(steps).await.unwrap();
+
+        // Forward-drive all three to Completed, then roll back.
+        SagaExecutor::with_store(Arc::clone(&store))
+            .execute_saga(saga_id, &executor, &std::collections::HashMap::new(), None, None)
+            .await
+            .unwrap();
+        let compensator = SagaCompensator::with_store(Arc::clone(&store));
+        let comp = compensator
+            .compensate_saga(saga_id, &executor, &std::collections::HashMap::new(), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            comp.status,
+            CompensationStatus::PartiallyCompensated,
+            "precondition: the rollback is genuinely partial: {comp:?}"
+        );
+
+        // The status API must report the same recorded reality.
+        let status = compensator
+            .get_compensation_status(saga_id)
+            .await
+            .unwrap()
+            .expect("a saga with recorded compensation state must report it");
+        assert_eq!(
+            status.status,
+            CompensationStatus::PartiallyCompensated,
+            "recorded state says partial; the API must not collapse it: {status:?}"
+        );
+        assert_eq!(
+            status.failed_steps,
+            vec![3],
+            "step 3's inverse failed and must be named (1-indexed): {status:?}"
+        );
+        let succeeded: Vec<u32> = status
+            .step_results
+            .iter()
+            .filter(|r| r.success)
+            .map(|r| r.step_number)
+            .collect();
+        assert_eq!(
+            succeeded,
+            vec![1, 2],
+            "steps 1 and 2 rolled back (1-indexed step numbers): {status:?}"
+        );
+        let failed_result = status
+            .step_results
+            .iter()
+            .find(|r| r.step_number == 3)
+            .expect("step 3's failed rollback appears in step_results");
+        assert!(!failed_result.success, "step 3's rollback failed: {status:?}");
+        assert!(
+            failed_result.error.is_some(),
+            "the failed rollback carries its recorded error: {status:?}"
+        );
+
+        store.delete_saga(saga_id).await.unwrap();
+    }
+
+    /// #767 (magic keys) — a forward payload that happens to contain a
+    /// `deleted` column (e.g. a soft-delete flag from `RETURNING *`) must not
+    /// be reported as a successful compensation. A failed saga with **no**
+    /// compensation evidence was never in a compensation phase → `None`.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn get_compensation_status_does_not_sniff_forward_payloads() {
+        let Some(url) = database_url() else {
+            eprintln!("DATABASE_URL not set; skipping");
+            return;
+        };
+        let typename = unique_typename();
+        let (store, _executor) = setup(&url, &typename).await;
+        let store = Arc::new(store);
+
+        let saga_id = Uuid::new_v4();
+        store
+            .save_saga(&Saga {
+                id:           saga_id,
+                state:        SagaState::Pending,
+                created_at:   chrono::Utc::now(),
+                completed_at: None,
+                metadata:     None,
+            })
+            .await
+            .unwrap();
+        let step = SagaStep {
+            id: Uuid::new_v4(),
+            saga_id,
+            order: 0,
+            subgraph: "orders".to_string(),
+            remote: false,
+            mutation_type: MutationType::Create,
+            mutation_name: None,
+            typename: typename.clone(),
+            variables: json!({"id": "x1"}),
+            state: StepState::Pending,
+            result: None,
+            started_at: None,
+            completed_at: None,
+            compensation_mutation: None,
+            compensation_variables: None,
+            required_fields: Vec::new(),
+            compensation_error: None,
+        };
+        store.save_saga_step(&step).await.unwrap();
+
+        // The forward payload legitimately contains a `deleted` soft-delete
+        // flag — bait for the magic-key sniffer.
+        store
+            .update_saga_step_result(step.id, &json!({"id": "x1", "deleted": false}))
+            .await
+            .unwrap();
+        store.update_saga_step_state(step.id, &StepState::Executing).await.unwrap();
+        store.update_saga_step_state(step.id, &StepState::Completed).await.unwrap();
+        store.update_saga_state(saga_id, &SagaState::Failed).await.unwrap();
+
+        let status = SagaCompensator::with_store(Arc::clone(&store))
+            .get_compensation_status(saga_id)
+            .await
+            .unwrap();
+        assert!(
+            status.is_none(),
+            "no compensation ever ran — reporting anything (let alone a success inferred \
+             from a forward payload's 'deleted' key) fabricates a rollback: {status:?}"
         );
 
         store.delete_saga(saga_id).await.unwrap();

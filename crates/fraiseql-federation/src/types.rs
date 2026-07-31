@@ -324,51 +324,6 @@ impl EntityRepresentation {
     }
 }
 
-/// Resolution strategy for entity
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum ResolutionStrategy {
-    /// Entity is owned by this subgraph, resolve locally
-    Local {
-        /// View or table name to query
-        view_name:   String,
-        /// Columns that form the key
-        key_columns: Vec<String>,
-    },
-
-    /// Resolve via direct database connection to another subgraph
-    DirectDatabase {
-        /// Connection string or identifier
-        connection_string: String,
-        /// Key columns for WHERE clause
-        key_columns:       Vec<String>,
-    },
-
-    /// Resolve via HTTP to external subgraph
-    Http {
-        /// URL of the remote subgraph's GraphQL endpoint
-        subgraph_url: String,
-    },
-}
-
-impl std::fmt::Display for ResolutionStrategy {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ResolutionStrategy::Local { view_name, .. } => {
-                write!(f, "Local({})", view_name)
-            },
-            ResolutionStrategy::DirectDatabase {
-                connection_string, ..
-            } => {
-                write!(f, "DirectDB({})", connection_string)
-            },
-            ResolutionStrategy::Http { subgraph_url } => {
-                write!(f, "Http({})", subgraph_url)
-            },
-        }
-    }
-}
-
 /// Backing relation (and optional jsonb projection column) for a federation
 /// entity type, derived from the compiled schema's backing query (#504).
 ///
@@ -393,9 +348,6 @@ pub struct FederationResolver {
     /// Federation metadata for the schema
     pub metadata: FederationMetadata,
 
-    /// Cached resolution strategies
-    pub strategy_cache: std::sync::Mutex<HashMap<String, ResolutionStrategy>>,
-
     /// Backing [`EntitySource`] per entity type name, e.g.
     /// `{"Organization": EntitySource { relation: "v_organization", jsonb_column: Some("data")
     /// }}`.
@@ -415,7 +367,6 @@ impl FederationResolver {
     pub fn new(metadata: FederationMetadata) -> Self {
         Self {
             metadata,
-            strategy_cache: std::sync::Mutex::new(HashMap::new()),
             entity_sources: HashMap::new(),
         }
     }
@@ -427,56 +378,6 @@ impl FederationResolver {
     pub fn with_entity_sources(mut self, entity_sources: HashMap<String, EntitySource>) -> Self {
         self.entity_sources = entity_sources;
         self
-    }
-
-    /// Get or determine resolution strategy for type.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Internal` if the strategy cache lock is poisoned, or
-    /// `FraiseQLError::Validation` if the type is not found in federation metadata.
-    pub fn get_or_determine_strategy(&self, typename: &str) -> Result<ResolutionStrategy> {
-        // Check cache
-        {
-            let cache = self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some(strategy) = cache.get(typename) {
-                return Ok(strategy.clone());
-            }
-        }
-
-        // Find type metadata
-        let fed_type =
-            self.metadata.types.iter().find(|t| t.name == typename).ok_or_else(|| {
-                FraiseQLError::Validation {
-                    message: format!("Type {typename} not found in federation metadata"),
-                    path:    None,
-                }
-            })?;
-
-        // Determine strategy
-        let strategy = if fed_type.is_extends {
-            // Extended type - needs external resolution
-            // For now, default to HTTP (will be improved in next cycle)
-            ResolutionStrategy::Http {
-                subgraph_url: "http://localhost:4000".to_string(),
-            }
-        } else {
-            // Owned type - resolve locally
-            let key_cols = fed_type.keys.first().map(|k| k.fields.clone()).unwrap_or_default();
-
-            ResolutionStrategy::Local {
-                view_name:   format!("{}_federation_view", typename),
-                key_columns: key_cols,
-            }
-        };
-
-        // Cache the strategy
-        {
-            let mut cache = self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
-            cache.insert(typename.to_string(), strategy.clone());
-        }
-
-        Ok(strategy)
     }
 }
 

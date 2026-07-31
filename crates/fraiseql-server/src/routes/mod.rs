@@ -12,6 +12,10 @@ pub mod auth;
 pub mod functions;
 pub mod graphql;
 pub mod health;
+// Shared Idempotency-Key store: used by the REST write surface and by the
+// GraphQL mutation path (saga peers deduplicate at-least-once dispatch on the
+// key their coordinator sends, #747), so it lives above both transports.
+pub mod idempotency;
 pub mod introspection;
 pub mod jwks_admin;
 pub mod metrics;

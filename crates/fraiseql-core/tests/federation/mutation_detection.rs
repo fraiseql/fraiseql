@@ -6,6 +6,7 @@ use fraiseql_core::federation::{
     mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},
     types::FederationMetadata,
 };
+use fraiseql_db::DatabaseType;
 use serde_json::json;
 
 use super::common;
@@ -49,7 +50,8 @@ fn test_mutation_with_variables() {
         "name": "Test User"
     });
 
-    let update_query = build_update_query("User", &variables, &metadata).unwrap();
+    let update_query =
+        build_update_query(DatabaseType::PostgreSQL, "User", &variables, &metadata).unwrap();
     assert!(
         update_query.contains("UPDATE \"user\""),
         "Expected quoted table name in: {update_query}"
@@ -60,14 +62,16 @@ fn test_mutation_with_variables() {
         "Expected quoted column in: {update_query}"
     );
 
-    let insert_query = build_insert_query("User", &variables, &metadata).unwrap();
+    let insert_query =
+        build_insert_query(DatabaseType::PostgreSQL, "User", &variables, &metadata).unwrap();
     assert!(
         insert_query.contains("INSERT INTO \"user\""),
         "Expected quoted table name in: {insert_query}"
     );
     assert!(insert_query.contains("VALUES"));
 
-    let delete_query = build_delete_query("User", &variables, &metadata).unwrap();
+    let delete_query =
+        build_delete_query(DatabaseType::PostgreSQL, "User", &variables, &metadata).unwrap();
     assert!(
         delete_query.contains("DELETE FROM \"user\""),
         "Expected quoted table name in: {delete_query}"
@@ -87,7 +91,7 @@ fn test_mutation_variable_validation() {
         "email": "test@example.com"
     });
 
-    let result = build_update_query("User", &missing_key, &metadata);
+    let result = build_update_query(DatabaseType::PostgreSQL, "User", &missing_key, &metadata);
     assert!(
         result.is_err(),
         "expected Err for missing key field in variable validation, got: {result:?}"
@@ -104,7 +108,8 @@ fn test_mutation_input_type_coercion() {
         "active": true
     });
 
-    let update_query = build_update_query("Order", &variables, &metadata).unwrap();
+    let update_query =
+        build_update_query(DatabaseType::PostgreSQL, "Order", &variables, &metadata).unwrap();
     // Identifiers are double-quoted, numbers/booleans are not
     assert!(
         update_query.contains("WHERE \"order_id\" = 789"),
