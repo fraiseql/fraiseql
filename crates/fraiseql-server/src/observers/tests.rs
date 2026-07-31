@@ -505,9 +505,9 @@ mod retry_config_backoff_wire {
 mod action_type_dispatch {
     //! #612 item 10: action types the runtime cannot dispatch are rejected at
     //! create/update (400) rather than accepted (201) then silently skipped.
+    //! Since #632 every current DTO type has a real dispatcher; the gate stays
+    //! for future variants.
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use axum::http::StatusCode;
 
     use super::super::{ActionConfig, handlers::reject_undispatchable_actions};
 
@@ -534,26 +534,40 @@ mod action_type_dispatch {
         }
     }
 
+    /// #632: the runtime now has real `database` and `log` dispatchers, so the
+    /// admin API must accept those action types again (the #612-era 400 was the
+    /// stopgap for "created then silently skipped at load").
     #[test]
-    fn database_and_log_are_not_dispatchable() {
+    fn database_and_log_are_dispatchable_since_632() {
         for json in [
             serde_json::json!({ "type": "database", "function_name": "fn_notify" }),
             serde_json::json!({ "type": "log", "message_template": "m" }),
         ] {
             let a = action(json);
-            assert!(!a.is_runtime_dispatchable(), "{} has no runtime dispatcher", a.type_name());
+            assert!(
+                a.is_runtime_dispatchable(),
+                "{} has a real runtime dispatcher since #632",
+                a.type_name()
+            );
         }
     }
 
     #[test]
-    fn reject_helper_returns_400_for_a_database_action() {
-        let actions = vec![action(serde_json::json!({
-            "type": "database",
-            "function_name": "fn_notify"
-        }))];
-        let resp =
-            reject_undispatchable_actions(&actions).expect("a database action must be rejected");
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    fn reject_helper_passes_database_and_log_actions_since_632() {
+        let actions = vec![
+            action(serde_json::json!({
+                "type": "database",
+                "function_name": "fn_notify"
+            })),
+            action(serde_json::json!({
+                "type": "log",
+                "message_template": "order {{ id }} changed"
+            })),
+        ];
+        assert!(
+            reject_undispatchable_actions(&actions).is_none(),
+            "#632: database/log actions have real dispatchers and must be accepted"
+        );
     }
 
     #[test]

@@ -134,37 +134,51 @@ pub fn validate_nats_url(url: &str) -> crate::error::Result<()> {
 #[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod ssrf_tests {
     use super::*;
+    use crate::ssrf_test_env::with_ssrf_env_cleared;
 
     // Coverage retained when the drifted `dispatch.rs` copy was deleted and the
     // webhook dispatch path converged onto this canonical guard.
+    //
+    // Every rejection assertion goes through `with_ssrf_env_cleared`: the guard
+    // reads `FRAISEQL_OBSERVERS_ALLOW_INSECURE` from the process environment on
+    // every call, and other test modules set it inside `temp_env` closures that
+    // run concurrently with this binary — a bare call can observe the bypass
+    // active and watch its rejection assertion fail (see `ssrf_test_env`).
 
     #[test]
     fn rejects_localhost_dot_prefix_alias() {
-        // `localhost.evil.com` and similar `localhost.` prefix aliases must be
-        // rejected — this check existed only in the deleted dispatch.rs copy.
-        let result = validate_outbound_url("https://localhost.evil.com/hook");
-        assert!(
-            result.is_err(),
-            "localhost.evil.com must be rejected as a loopback alias: {result:?}"
-        );
+        with_ssrf_env_cleared(|| {
+            // `localhost.evil.com` and similar `localhost.` prefix aliases must
+            // be rejected — this check existed only in the deleted dispatch.rs
+            // copy.
+            let result = validate_outbound_url("https://localhost.evil.com/hook");
+            assert!(
+                result.is_err(),
+                "localhost.evil.com must be rejected as a loopback alias: {result:?}"
+            );
+        });
     }
 
     #[test]
     fn rejects_localhost_suffix_and_bare() {
-        assert!(validate_outbound_url("https://localhost/hook").is_err());
-        assert!(validate_outbound_url("https://api.localhost/hook").is_err());
+        with_ssrf_env_cleared(|| {
+            assert!(validate_outbound_url("https://localhost/hook").is_err());
+            assert!(validate_outbound_url("https://api.localhost/hook").is_err());
+        });
     }
 
     #[test]
     fn rejects_zero_network_range() {
-        // 0.0.0.0/8 "this network" — the dispatch.rs copy blocked the whole /8
-        // via `o[0] == 0`; the canonical guard previously only blocked the exact
-        // 0.0.0.0 address.
-        assert!(validate_outbound_url("https://0.0.0.0/hook").is_err());
-        assert!(
-            validate_outbound_url("https://0.1.2.3/hook").is_err(),
-            "0.0.0.0/8 range must be blocked, not just the unspecified address"
-        );
+        with_ssrf_env_cleared(|| {
+            // 0.0.0.0/8 "this network" — the dispatch.rs copy blocked the whole
+            // /8 via `o[0] == 0`; the canonical guard previously only blocked
+            // the exact 0.0.0.0 address.
+            assert!(validate_outbound_url("https://0.0.0.0/hook").is_err());
+            assert!(
+                validate_outbound_url("https://0.1.2.3/hook").is_err(),
+                "0.0.0.0/8 range must be blocked, not just the unspecified address"
+            );
+        });
     }
 
     #[test]
@@ -175,11 +189,13 @@ mod ssrf_tests {
 
     #[test]
     fn rejects_private_and_loopback_ips() {
-        assert!(validate_outbound_url("https://127.0.0.1/hook").is_err());
-        assert!(validate_outbound_url("https://10.0.0.1/hook").is_err());
-        assert!(validate_outbound_url("https://192.168.1.1/hook").is_err());
-        assert!(validate_outbound_url("https://169.254.169.254/hook").is_err());
-        assert!(validate_outbound_url("https://[::1]/hook").is_err());
+        with_ssrf_env_cleared(|| {
+            assert!(validate_outbound_url("https://127.0.0.1/hook").is_err());
+            assert!(validate_outbound_url("https://10.0.0.1/hook").is_err());
+            assert!(validate_outbound_url("https://192.168.1.1/hook").is_err());
+            assert!(validate_outbound_url("https://169.254.169.254/hook").is_err());
+            assert!(validate_outbound_url("https://[::1]/hook").is_err());
+        });
     }
 }
 

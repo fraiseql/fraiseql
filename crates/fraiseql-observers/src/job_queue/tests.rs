@@ -1,9 +1,18 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports
 
+/// A minimal event fixture — jobs carry the full triggering event (#844).
+fn test_event() -> crate::event::EntityEvent {
+    crate::event::EntityEvent::new(
+        crate::event::EventKind::Created,
+        "Order".to_string(),
+        uuid::Uuid::new_v4(),
+        serde_json::json!({"id": "order-1", "status": "new"}),
+    )
+}
+
 #[cfg(test)]
 mod job_queue_tests {
-    use uuid::Uuid;
 
     use crate::{config::ActionConfig, job_queue::*};
 
@@ -27,15 +36,15 @@ mod job_queue_tests {
 
     #[test]
     fn test_job_creation() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
 
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let job = Job::new(event.clone(), action, 3, crate::config::BackoffStrategy::Exponential);
 
-        assert_eq!(job.event_id, event_id);
+        assert_eq!(job.event.id, event.id);
         assert_eq!(job.attempt, 1);
         assert_eq!(job.max_attempts, 3);
         assert_eq!(job.state, JobState::Pending);
@@ -45,13 +54,13 @@ mod job_queue_tests {
 
     #[test]
     fn test_job_can_retry() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
 
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let job = Job::new(event, action, 3, crate::config::BackoffStrategy::Exponential);
 
         assert!(job.can_retry());
 
@@ -62,13 +71,13 @@ mod job_queue_tests {
 
     #[test]
     fn test_job_mark_completed() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
 
-        let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let mut job = Job::new(event, action, 3, crate::config::BackoffStrategy::Exponential);
 
         job.mark_completed();
 
@@ -80,13 +89,13 @@ mod job_queue_tests {
 
     #[test]
     fn test_job_mark_failed_with_retry() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
 
-        let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let mut job = Job::new(event, action, 3, crate::config::BackoffStrategy::Exponential);
 
         job.mark_failed("connection timeout".to_string());
 
@@ -99,13 +108,13 @@ mod job_queue_tests {
 
     #[test]
     fn test_job_mark_failed_exhausted() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
 
-        let mut job = Job::new(event_id, action, 2, crate::config::BackoffStrategy::Exponential);
+        let mut job = Job::new(event, action, 2, crate::config::BackoffStrategy::Exponential);
         job.attempt = 2;
 
         job.mark_failed("connection timeout".to_string());
@@ -116,13 +125,13 @@ mod job_queue_tests {
 
     #[test]
     fn test_job_mark_dead_lettered() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
 
-        let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let mut job = Job::new(event, action, 3, crate::config::BackoffStrategy::Exponential);
 
         job.mark_dead_lettered("invalid configuration".to_string());
 
@@ -132,29 +141,29 @@ mod job_queue_tests {
 
     #[test]
     fn test_job_serialization() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
 
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let job = Job::new(event, action, 3, crate::config::BackoffStrategy::Exponential);
 
         let json = serde_json::to_string(&job).expect("serialization failed");
         let deserialized: Job = serde_json::from_str(&json).expect("deserialization failed");
 
         assert_eq!(job.id, deserialized.id);
-        assert_eq!(job.event_id, deserialized.event_id);
+        assert_eq!(job.event.id, deserialized.event.id);
         assert_eq!(job.attempt, deserialized.attempt);
         assert_eq!(job.state, deserialized.state);
     }
 
     #[test]
     fn test_job_action_type() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
 
         let job_cache = Job::new(
-            event_id,
+            event.clone(),
             ActionConfig::Cache {
                 key_pattern: "test:*".to_string(),
                 action:      "invalidate".to_string(),
@@ -165,7 +174,7 @@ mod job_queue_tests {
         assert_eq!(job_cache.action_type(), "cache");
 
         let job_webhook = Job::new(
-            event_id,
+            event,
             ActionConfig::Webhook {
                 url:                Some("http://example.com".to_string()),
                 url_env:            None,
@@ -334,11 +343,287 @@ mod dlq_tests {
 
 #[cfg(feature = "queue")]
 mod executor_tests {
-    #[test]
-    fn test_executor_creation() {
-        // Note: This test doesn't require actual queue/executor connections
-        // It just verifies the struct can be created with proper defaults
-        // Actual execution tests would require integration with real queue and executor
+    use std::{collections::HashMap, sync::Arc, time::Duration};
+
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+
+    use crate::{
+        config::BackoffStrategy,
+        executor::ObserverExecutor,
+        insecure_guard::ALLOW_INSECURE_ENV,
+        job_queue::{
+            Job, JobState,
+            executor::JobExecutor,
+            traits::{JobQueue, MockJobQueue},
+        },
+        matcher::EventMatcher,
+        testing::mocks::MockDeadLetterQueue,
+    };
+
+    /// A webhook job pointing at the given URL, carrying the test event.
+    fn webhook_job(url: &str, max_attempts: u32) -> Job {
+        let action = serde_json::from_value(serde_json::json!({
+            "type": "webhook",
+            "url": url,
+        }))
+        .expect("valid webhook action");
+        Job::with_config(
+            super::test_event(),
+            action,
+            max_attempts,
+            BackoffStrategy::Fixed,
+            10, // initial_delay_ms — keep retries fast in tests
+            50, // max_delay_ms
+        )
+    }
+
+    fn bare_observer_executor() -> Arc<ObserverExecutor> {
+        Arc::new(ObserverExecutor::new(
+            EventMatcher::build(HashMap::new()).expect("empty matcher"),
+            Arc::new(MockDeadLetterQueue::new()),
+        ))
+    }
+
+    /// Poll `probe` every 50 ms until it returns true or `deadline` elapses.
+    async fn wait_until<F, Fut>(deadline: Duration, mut probe: F) -> bool
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = bool>,
+    {
+        let start = tokio::time::Instant::now();
+        while start.elapsed() < deadline {
+            if probe().await {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        false
+    }
+
+    /// #844 headline: a dequeued job must actually dispatch its action before
+    /// being acknowledged. The placeholder `timeout_job_execution` returned
+    /// `Ok(())` without ever calling the executor, so the job was reported
+    /// executed (log + metric + acknowledge) while no request was sent.
+    #[tokio::test]
+    async fn executed_job_dispatches_the_action_before_acknowledge() {
+        temp_env::async_with_vars(
+            // wiremock binds 127.0.0.1; the SSRF bypass is honoured only in a
+            // declared development environment (#836).
+            [
+                (ALLOW_INSECURE_ENV, Some("true")),
+                ("FRAISEQL_ENV", Some("development")),
+            ],
+            async {
+                let server = MockServer::start().await;
+                Mock::given(method("POST"))
+                    .respond_with(ResponseTemplate::new(200))
+                    .mount(&server)
+                    .await;
+
+                let queue = Arc::new(MockJobQueue::new());
+                let job = webhook_job(&server.uri(), 3);
+                let job_id = job.id;
+                queue.enqueue(job).await.expect("enqueue");
+
+                let worker = JobExecutor::new(
+                    Arc::clone(&queue) as Arc<dyn JobQueue>,
+                    bare_observer_executor(),
+                    1,  // concurrency
+                    10, // batch_size
+                    5,  // job_timeout_secs
+                )
+                .with_poll_interval(50);
+                let handle = tokio::spawn(async move { worker.run().await });
+
+                // Wait for the job to reach a terminal state.
+                let done = wait_until(Duration::from_secs(10), || {
+                    let queue = Arc::clone(&queue);
+                    async move {
+                        queue
+                            .get_status(job_id)
+                            .await
+                            .expect("status")
+                            .is_some_and(JobState::is_terminal)
+                    }
+                })
+                .await;
+                handle.abort();
+                assert!(done, "job never reached a terminal state");
+
+                let requests = server.received_requests().await.expect("recorded requests");
+                assert_eq!(
+                    requests.len(),
+                    1,
+                    "#844: the worker acknowledged the job without dispatching its action \
+                     ({} requests received)",
+                    requests.len()
+                );
+                assert_eq!(
+                    queue.get_status(job_id).await.expect("status"),
+                    Some(JobState::Completed),
+                    "dispatched job should be acknowledged as completed"
+                );
+            },
+        )
+        .await;
+    }
+
+    /// #844: a job whose execution exceeds `job_timeout_secs` must be recorded
+    /// as failed and retried per policy — never reported executed, never
+    /// silently destroyed. Exhausted retries land it in the DLQ with one
+    /// attempt record per real attempt (the old error path called
+    /// `mark_failed` twice per failure, double-incrementing `attempt`).
+    #[tokio::test]
+    async fn job_exceeding_timeout_is_retried_then_dead_lettered() {
+        temp_env::async_with_vars(
+            [
+                (ALLOW_INSECURE_ENV, Some("true")),
+                ("FRAISEQL_ENV", Some("development")),
+            ],
+            async {
+                let server = MockServer::start().await;
+                Mock::given(method("POST"))
+                    .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
+                    .mount(&server)
+                    .await;
+
+                let queue = Arc::new(MockJobQueue::new());
+                let job = webhook_job(&server.uri(), 2);
+                let job_id = job.id;
+                queue.enqueue(job).await.expect("enqueue");
+
+                let worker = JobExecutor::new(
+                    Arc::clone(&queue) as Arc<dyn JobQueue>,
+                    bare_observer_executor(),
+                    1,
+                    10,
+                    1, // job_timeout_secs — far below the 30 s response delay
+                )
+                .with_poll_interval(50);
+                let handle = tokio::spawn(async move { worker.run().await });
+
+                let dead_lettered = wait_until(Duration::from_secs(15), || {
+                    let queue = Arc::clone(&queue);
+                    async move { queue.dlq_size().await.expect("dlq size") == 1 }
+                })
+                .await;
+                handle.abort();
+
+                assert!(
+                    dead_lettered,
+                    "#844: timed-out job never reached the DLQ (status: {:?}) — \
+                     reported executed and destroyed instead",
+                    queue.get_status(job_id).await.expect("status")
+                );
+
+                let dlq_jobs = queue.dlq_jobs();
+                assert_eq!(dlq_jobs.len(), 1, "exactly one dead-lettered job");
+                let failed = &dlq_jobs[0];
+                assert_eq!(
+                    failed.attempt, 2,
+                    "attempt must advance once per real attempt (double mark_failed inflates it)"
+                );
+                assert_eq!(
+                    failed.attempts.len(),
+                    2,
+                    "one attempt record per real attempt, got {:?}",
+                    failed.attempts
+                );
+                assert_ne!(
+                    queue.get_status(job_id).await.expect("status"),
+                    Some(JobState::Completed),
+                    "a timed-out job must never be reported executed"
+                );
+            },
+        )
+        .await;
+    }
+
+    /// #844 end-to-end on the real Redis queue: after retries exhaust, the job
+    /// payload must still exist in Redis (DLQ + `job:{uuid}` key + status hash)
+    /// — the placeholder path instead acknowledged it, which `DEL`s the only
+    /// copy of the payload.
+    #[tokio::test]
+    #[ignore = "requires Redis (REDIS_URL)"]
+    async fn redis_timed_out_job_is_dead_lettered_never_destroyed() {
+        let redis_url =
+            std::env::var("REDIS_URL").expect("REDIS_URL must be set for --ignored redis tests");
+
+        temp_env::async_with_vars(
+            [
+                (ALLOW_INSECURE_ENV, Some("true")),
+                ("FRAISEQL_ENV", Some("development")),
+            ],
+            async {
+                use crate::job_queue::redis::RedisJobQueue;
+
+                let client = redis::Client::open(redis_url.as_str()).expect("redis client");
+                let mut conn =
+                    redis::aio::ConnectionManager::new(client).await.expect("redis connection");
+
+                // Clear this queue's fixed keyspace so prior runs cannot leak in.
+                redis::cmd("DEL")
+                    .arg(RedisJobQueue::pending_key())
+                    .arg(RedisJobQueue::processing_key())
+                    .arg(RedisJobQueue::dlq_key())
+                    .arg(RedisJobQueue::status_key())
+                    .query_async::<()>(&mut conn)
+                    .await
+                    .expect("clear queue keys");
+
+                let server = MockServer::start().await;
+                Mock::given(method("POST"))
+                    .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
+                    .mount(&server)
+                    .await;
+
+                let queue = Arc::new(RedisJobQueue::new(conn.clone()));
+                let job = webhook_job(&server.uri(), 2);
+                let job_id = job.id;
+                queue.enqueue(job).await.expect("enqueue");
+
+                let worker = JobExecutor::new(
+                    Arc::clone(&queue) as Arc<dyn JobQueue>,
+                    bare_observer_executor(),
+                    1,
+                    10,
+                    1,
+                )
+                .with_poll_interval(50);
+                let handle = tokio::spawn(async move { worker.run().await });
+
+                let dead_lettered = wait_until(Duration::from_secs(15), || {
+                    let queue = Arc::clone(&queue);
+                    async move { queue.dlq_size().await.expect("dlq size") == 1 }
+                })
+                .await;
+                handle.abort();
+
+                assert!(
+                    dead_lettered,
+                    "#844: timed-out job never reached the Redis DLQ — acknowledged \
+                     (payload DELeted) instead"
+                );
+
+                // The job payload must survive: `acknowledge` DELs it, `fail` keeps it.
+                let payload: Option<String> = redis::cmd("GET")
+                    .arg(RedisJobQueue::job_key(job_id))
+                    .query_async(&mut conn)
+                    .await
+                    .expect("GET job payload");
+                let payload = payload
+                    .expect("#844: job payload was destroyed (DELeted) despite never executing");
+                let stored: Job = serde_json::from_str(&payload).expect("job deserializes");
+                assert_eq!(stored.attempt, 2, "attempt advances once per real attempt");
+                assert_eq!(stored.state, JobState::Failed);
+                assert_eq!(
+                    queue.get_status(job_id).await.expect("status"),
+                    Some(JobState::DeadLettered),
+                    "status hash must record dead_lettered"
+                );
+            },
+        )
+        .await;
     }
 
     #[test]
@@ -388,18 +673,18 @@ mod redis_tests {
 
     #[test]
     fn test_job_serialization_for_redis() {
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let job = Job::new(event, action, 3, crate::config::BackoffStrategy::Exponential);
 
         let json = serde_json::to_string(&job).expect("serialization failed");
         let deserialized: Job = serde_json::from_str(&json).expect("deserialization failed");
 
         assert_eq!(job.id, deserialized.id);
-        assert_eq!(job.event_id, deserialized.event_id);
+        assert_eq!(job.event.id, deserialized.event.id);
         assert_eq!(job.attempt, deserialized.attempt);
     }
 
@@ -417,7 +702,6 @@ mod redis_tests {
 
 #[cfg(test)]
 mod traits_tests {
-    use uuid::Uuid;
 
     use crate::{
         config::ActionConfig,
@@ -427,12 +711,12 @@ mod traits_tests {
     #[tokio::test]
     async fn test_mock_queue_enqueue() {
         let queue = MockJobQueue::new();
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let job = Job::new(event.clone(), action, 3, crate::config::BackoffStrategy::Exponential);
         let job_id = job.id;
 
         queue.enqueue(job).await.expect("enqueue failed");
@@ -447,12 +731,12 @@ mod traits_tests {
     #[tokio::test]
     async fn test_mock_queue_dequeue() {
         let queue = MockJobQueue::new();
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let job = Job::new(event.clone(), action, 3, crate::config::BackoffStrategy::Exponential);
 
         queue.enqueue(job).await.expect("enqueue failed");
 
@@ -464,12 +748,12 @@ mod traits_tests {
     #[tokio::test]
     async fn test_mock_queue_acknowledge() {
         let queue = MockJobQueue::new();
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let job = Job::new(event.clone(), action, 3, crate::config::BackoffStrategy::Exponential);
 
         queue.enqueue(job).await.expect("enqueue failed");
         let jobs = queue.dequeue(10, 60).await.expect("dequeue failed");
@@ -487,12 +771,13 @@ mod traits_tests {
     #[tokio::test]
     async fn test_mock_queue_fail_with_retry() {
         let queue = MockJobQueue::new();
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
-        let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
+        let mut job =
+            Job::new(event.clone(), action, 3, crate::config::BackoffStrategy::Exponential);
 
         queue.enqueue(job.clone()).await.expect("enqueue failed");
         queue
@@ -508,12 +793,13 @@ mod traits_tests {
     #[tokio::test]
     async fn test_mock_queue_dlq() {
         let queue = MockJobQueue::new();
-        let event_id = Uuid::new_v4();
+        let event = super::test_event();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
             action:      "invalidate".to_string(),
         };
-        let mut job = Job::new(event_id, action, 1, crate::config::BackoffStrategy::Exponential);
+        let mut job =
+            Job::new(event.clone(), action, 1, crate::config::BackoffStrategy::Exponential);
 
         queue.enqueue(job.clone()).await.expect("enqueue failed");
         queue.fail(&mut job, "permanent error".to_string()).await.expect("fail failed");

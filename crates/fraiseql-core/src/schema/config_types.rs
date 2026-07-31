@@ -255,7 +255,16 @@ impl Default for EnterpriseSecurityConfig {
 }
 
 /// Observers/event system configuration.
+///
+/// Deliberately carries **no** handler definitions (#631): runtime observers
+/// have exactly one source of truth — the `tb_observer` table and the admin
+/// observer API. Compiled handler declarations (TOML `[[observers.handlers]]`,
+/// SDK-authored `observers_config.handlers`) are rejected at compile time
+/// rather than carried as decoration the runtime never reads.
+/// `deny_unknown_fields` makes a hand-edited compiled schema that smuggles a
+/// `handlers` array fail loudly at load instead of deserializing minus the key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ObserversConfig {
     /// Enable observers system.
     #[serde(default)]
@@ -267,9 +276,6 @@ pub struct ObserversConfig {
     pub redis_url: Option<String>,
     /// NATS connection URL.
     pub nats_url:  Option<String>,
-    /// Event handlers.
-    #[serde(default)]
-    pub handlers:  Vec<EventHandler>,
 }
 
 fn default_backend() -> String {
@@ -283,32 +289,8 @@ impl Default for ObserversConfig {
             backend:   default_backend(),
             redis_url: None,
             nats_url:  None,
-            handlers:  Vec::new(),
         }
     }
-}
-
-/// Event handler configuration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EventHandler {
-    /// Handler name.
-    pub name:             String,
-    /// Event type (e.g., "User.created", "Order.updated").
-    pub event:            String,
-    /// Action: slack, email, sms, webhook, push, log.
-    pub action:           String,
-    /// Webhook URL (for webhook action).
-    pub webhook_url:      Option<String>,
-    /// Slack channel (for slack action).
-    pub slack_channel:    Option<String>,
-    /// Email recipients (for email action).
-    pub email_recipients: Option<Vec<String>>,
-    /// Phone numbers (for sms action).
-    pub phone_numbers:    Option<Vec<String>>,
-    /// Push notification target (for push action).
-    pub push_target:      Option<String>,
-    /// Rate limit in seconds between notifications.
-    pub rate_limit:       Option<u32>,
 }
 
 /// Configuration for exposing the observer entity-change log as queryable GraphQL types.

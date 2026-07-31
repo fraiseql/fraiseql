@@ -675,6 +675,71 @@ fn sdk_authored_observers_fail_the_compile_rather_than_vanishing() {
     );
 }
 
+/// #631: `observers_config.handlers` arriving through the seam must fail the compile too.
+///
+/// The TOML path already bails on a non-empty `[[observers.handlers]]` (#612), but an
+/// SDK-authored `schema.json` carries `observers_config` straight through the P14
+/// pass-through seam — bypassing the TOML validator — and the handlers landed in the
+/// compiled schema as decoration the runtime never reads. `tb_observer` / the admin API is
+/// the single observer concept by decision (#631); every compiled-handler route must be
+/// rejected with a message that names it.
+#[test]
+fn sdk_authored_observers_config_handlers_fail_the_compile_rather_than_vanishing() {
+    let corpus = json!({
+        "types": [
+            {"name": "Order", "sql_source": "v_order",
+             "fields": [{"name": "id", "type": "ID", "nullable": false}]}
+        ],
+        "queries": [
+            {"name": "orders", "return_type": "Order", "returns_list": true,
+             "sql_source": "v_order"}
+        ],
+        "observers_config": {
+            "enabled": true,
+            "backend": "redis",
+            "handlers": [
+                {"name": "notify", "event": "Order.created", "action": "webhook",
+                 "webhook_url": "https://example.test/hook"}
+            ]
+        }
+    });
+
+    let intermediate: IntermediateSchema =
+        serde_json::from_value(corpus).expect("observers_config must still deserialize");
+    let err = SchemaConverter::convert(intermediate).expect_err(
+        "#631: observers_config.handlers has no runtime consumer and must not compile silently",
+    );
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("tb_observer") || msg.contains("/api/observers"),
+        "the refusal must name the supported mechanism so the author can act on it; got: {msg}"
+    );
+}
+
+/// #631 companion: an *empty* `handlers` array is inert boilerplate, not a declaration —
+/// it must not fail the compile (the CLI's own TOML path and older SDK exporters emit it).
+#[test]
+fn empty_observers_config_handlers_still_compile() {
+    let corpus = json!({
+        "types": [
+            {"name": "Order", "sql_source": "v_order",
+             "fields": [{"name": "id", "type": "ID", "nullable": false}]}
+        ],
+        "queries": [
+            {"name": "orders", "return_type": "Order", "returns_list": true,
+             "sql_source": "v_order"}
+        ],
+        "observers_config": {"enabled": true, "backend": "redis", "handlers": []}
+    });
+
+    let intermediate: IntermediateSchema =
+        serde_json::from_value(corpus).expect("observers_config must deserialize");
+    let compiled = compile(intermediate);
+    let cfg = compiled.observers_config.expect("observers_config must survive the seam");
+    assert!(cfg.enabled, "enabled flag must pass through");
+}
+
 // ===========================================================================
 // #780 — `[grpc]` has a producer
 // ===========================================================================

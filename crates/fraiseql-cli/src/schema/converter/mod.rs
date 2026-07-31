@@ -280,9 +280,37 @@ impl SchemaConverter {
                 .context("security: invalid JSON structure")?,
             observers_config: intermediate
                 .observers_config
-                .map(serde_json::from_value)
-                .transpose()
-                .context("observers_config: invalid JSON structure")?,
+                .map(|mut oc| {
+                    // #631: `handlers` reaching this seam (SDK-authored
+                    // `observers_config.handlers`, bypassing the TOML
+                    // validator's #612 bail) must fail the compile, not land in
+                    // the compiled schema as decoration the runtime never
+                    // reads. tb_observer / the admin API is the single observer
+                    // concept. An EMPTY array is inert boilerplate some
+                    // exporters emit — strip it so `deny_unknown_fields` on the
+                    // compiled type does not reject it.
+                    match oc.get("handlers").and_then(serde_json::Value::as_array) {
+                        Some(handlers) if !handlers.is_empty() => {
+                            anyhow::bail!(
+                                "observers_config declares {} handler(s), but compiled \
+                                 handlers are not a runtime concept (#631): the runtime \
+                                 loads observers only from the `tb_observer` table and the \
+                                 admin API. Define them in `tb_observer` or via \
+                                 `POST /api/observers`, and remove `handlers` from the \
+                                 authored schema.",
+                                handlers.len()
+                            );
+                        },
+                        Some(_) => {
+                            if let Some(map) = oc.as_object_mut() {
+                                map.remove("handlers");
+                            }
+                        },
+                        None => {},
+                    }
+                    serde_json::from_value(oc).context("observers_config: invalid JSON structure")
+                })
+                .transpose()?,
             subscriptions_config: intermediate.subscriptions_config, /* Subscriptions config from
                                                                       * TOML */
             validation_config: intermediate.validation_config, // Validation limits from TOML

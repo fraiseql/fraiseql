@@ -32,8 +32,9 @@
 //!
 //! - **Flexible Actions**: Webhook, email, Slack, SMS, push notifications, cache invalidation,
 //!   search indexing
-//! - **Conditions**: DSL for conditional action execution (e.g., `status_changed_to('shipped') &&
-//!   total > 100`)
+//! - **Conditions**: DSL for conditional action execution (e.g., `field_changed_to('status',
+//!   'shipped') && total > 100`; `field_changed*` requires the producing mutation to set
+//!   `changelog_pre_image = true`)
 //! - **Reliability**: Retry logic with exponential/linear/fixed backoff
 //! - **Dead Letter Queue**: Failed actions stored for manual retry
 //! - **Backpressure**: Configurable overflow policies (drop, block, drop-oldest)

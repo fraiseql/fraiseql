@@ -1299,6 +1299,12 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		"echo '### integration: redis (core APQ + observers queue/lease + #428 cache-invalidation) — Dagger-bound redis+postgres'",
 		"cargo test -p fraiseql-core --features redis-apq --lib redis -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease' --lib -- --ignored --test-threads=1",
+		// #844: the job-queue worker's dispatch/timeout/DLQ tests. The mock-queue
+		// tests are NOT #[ignore]d (no external service) but compile only with the
+		// `queue` feature, which no workspace-level step enables — without this
+		// line they run in no leg. The #[ignore]d redis variant runs in the
+		// `--ignored` line above.
+		"cargo test -p fraiseql-observers --features queue --lib job_queue -- --test-threads=1",
 		// #428: real cache-invalidation transport. The pure glob/escaping unit
 		// tests run non-ignored (the `--ignored` lib line above skips them); the
 		// integration binary seeds the bound Redis and asserts real UNLINKs
@@ -1314,6 +1320,12 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("TEST_DATABASE_URL", dbURL).
 		WithEnvVariable("REDIS_URL", redisURL).
+		// The #844 job-queue tests dispatch real webhooks to an in-process
+		// wiremock on 127.0.0.1, which the SSRF guard blocks. The bypass is
+		// honoured only outside a production environment, and an *unset*
+		// FRAISEQL_ENV reads as production (#816) — both vars are required.
+		WithEnvVariable("FRAISEQL_ENV", "development").
+		WithEnvVariable("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -1644,6 +1656,11 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'postgres,nats' --test bridge_integration -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-server --features observers-nats --test observer_runtime_integration_test -- --ignored --test-threads=1",
+		// #928: the observer E2E suite. It had never run in any leg — none of its
+		// tests constructed a runtime, so all 8 waited for webhooks nothing could
+		// send. Repaired in P17 (each test drives a real ObserverRuntime); gated
+		// here so it can never silently die again.
+		"cargo test -p fraiseql-server --features observers --test observer_e2e_test -- --ignored --test-threads=1",
 		// #349 email happy-path: send through lettre to the bound MailHog sink and
 		// assert the message arrived (real SMTP wire format, not a stub).
 		"cargo test -p fraiseql-observers --test smtp_integration -- --ignored --test-threads=1",

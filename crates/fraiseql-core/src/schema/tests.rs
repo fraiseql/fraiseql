@@ -1454,7 +1454,20 @@ fn test_observers_config_default() {
     let config = ObserversConfig::default();
     assert!(!config.enabled);
     assert_eq!(config.backend, "redis");
-    assert!(config.handlers.is_empty());
+}
+
+/// #631: the compiled schema cannot represent handler declarations — runtime
+/// observers come only from `tb_observer` / the admin API. A schema that
+/// smuggles a `handlers` array must fail to load, not deserialize minus the key.
+#[test]
+fn test_observers_config_rejects_handlers_key() {
+    let err = serde_json::from_value::<ObserversConfig>(serde_json::json!({
+        "enabled": true,
+        "backend": "redis",
+        "handlers": [{"name": "n", "event": "e", "action": "webhook"}]
+    }))
+    .expect_err("a handlers key must be rejected, not silently dropped");
+    assert!(err.to_string().contains("handlers"), "error must name the offending key: {err}");
 }
 
 #[test]

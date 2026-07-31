@@ -127,10 +127,11 @@ impl QueuedObserverExecutor {
                 }
             }
 
-            // Queue actions for this observer
+            // Queue actions for this observer. The job carries the full event
+            // — it is the action's payload at dispatch time (#844).
             for action in &observer.actions {
                 let job = Job::with_config(
-                    event.id,
+                    event.clone(),
                     action.clone(),
                     observer.retry.max_attempts,
                     observer.retry.backoff_strategy,

@@ -260,10 +260,16 @@ mysql = ["fraiseql-core/mysql"]
 sqlite = ["fraiseql-core/sqlite"]
 sqlserver = ["fraiseql-core/sqlserver"]
 # Observer system for reactive business logic
-observers = ["fraiseql-observers"]
+# checkpoint is not optional for the server: the change-log runtime restores a
+# durable cursor at start so a restart never replays the change log (#805).
+observers = ["fraiseql-observers", "fraiseql-observers/checkpoint"]
 # observers-enterprise: high-availability features for multi-instance deployments.
 # Not a paid/commercial tier — the name reflects production HA requirements.
-observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
+# observers-metrics (#634): compile the fraiseql-observers prometheus registry
+# and bridge it into the server's /metrics scrape (the two metrics ecosystems
+# are otherwise disjoint and observer series never reached the exporter).
+observers-metrics = ["observers", "fraiseql-observers/metrics"]
+observers-enterprise = ["observers", "observers-metrics", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
 # REST idempotency backed by Redis for multi-replica deployments

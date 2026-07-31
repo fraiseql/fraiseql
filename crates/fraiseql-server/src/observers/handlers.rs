@@ -17,9 +17,10 @@ use crate::extractors::OptionalSecurityContext;
 
 /// Reject observer actions whose `type` the runtime cannot dispatch (#612 item 10).
 ///
-/// `database`/`log` actions are accepted by the DTO shape but have no runtime
-/// dispatcher, so before this check a create returned 201 and the observer was
-/// then silently warn-and-skipped at load ("success then nothing"). Returns a
+/// Every current DTO action type has a real dispatcher since #632; this gate
+/// stays so that any future variant added to the DTO before its runtime
+/// dispatcher exists is rejected at create time instead of returning 201 and
+/// being silently warn-and-skipped at load ("success then nothing"). Returns a
 /// `400` response naming the offending type and the supported set, or `None`
 /// when every action is dispatchable.
 pub(super) fn reject_undispatchable_actions(actions: &[ActionConfig]) -> Option<Response> {
@@ -29,9 +30,7 @@ pub(super) fn reject_undispatchable_actions(actions: &[ActionConfig]) -> Option<
             Json(serde_json::json!({
                 "error": format!(
                     "Observer action type '{}' has no runtime dispatcher: the observer would be \
-                     created and then silently skipped at load. Supported action types: {}. \
-                     Database/log dispatchers are tracked in \
-                     https://github.com/fraiseql/fraiseql/issues/632.",
+                     created and then silently skipped at load. Supported action types: {}.",
                     action.type_name(),
                     ActionConfig::RUNTIME_DISPATCHABLE_TYPES.join(", ")
                 )

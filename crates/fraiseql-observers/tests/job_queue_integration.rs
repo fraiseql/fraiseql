@@ -25,6 +25,16 @@ use fraiseql_observers::{
 };
 use uuid::Uuid;
 
+/// Jobs carry the full triggering event (#844) — a minimal fixture.
+fn test_event() -> fraiseql_observers::event::EntityEvent {
+    fraiseql_observers::event::EntityEvent::new(
+        fraiseql_observers::event::EventKind::Created,
+        "Order".to_string(),
+        Uuid::new_v4(),
+        serde_json::json!({"id": "order-1"}),
+    )
+}
+
 // ============================================================================
 // Integration Test 1: JobQueueConfig Validation
 // ============================================================================
@@ -107,9 +117,8 @@ fn test_job_queue_config_empty_url() -> Result<()> {
 
 #[test]
 fn test_job_creation_with_fixed_backoff() -> Result<()> {
-    let event_id = Uuid::new_v4();
     let job = Job::with_config(
-        event_id,
+        test_event(),
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
@@ -136,7 +145,7 @@ fn test_job_creation_with_fixed_backoff() -> Result<()> {
 #[test]
 fn test_job_creation_with_linear_backoff() -> Result<()> {
     let job = Job::with_config(
-        Uuid::new_v4(),
+        test_event(),
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
@@ -161,7 +170,7 @@ fn test_job_creation_with_linear_backoff() -> Result<()> {
 #[test]
 fn test_job_creation_with_exponential_backoff() -> Result<()> {
     let job = Job::with_config(
-        Uuid::new_v4(),
+        test_event(),
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
@@ -189,7 +198,7 @@ fn test_job_creation_with_exponential_backoff() -> Result<()> {
 #[test]
 fn test_job_retry_counting() -> Result<()> {
     let mut job = Job::with_config(
-        Uuid::new_v4(),
+        test_event(),
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
@@ -235,7 +244,7 @@ fn test_job_retry_counting() -> Result<()> {
 #[test]
 fn test_job_with_webhook_action() -> Result<()> {
     let job = Job::with_config(
-        Uuid::new_v4(),
+        test_event(),
         ActionConfig::Webhook {
             url:                Some("http://api.example.com/webhooks/event".to_string()),
             url_env:            None,
@@ -263,7 +272,7 @@ fn test_job_with_webhook_action() -> Result<()> {
 #[test]
 fn test_job_with_slack_action() -> Result<()> {
     let job = Job::with_config(
-        Uuid::new_v4(),
+        test_event(),
         ActionConfig::Slack {
             webhook_url:      Some("https://hooks.slack.com/services/T00/B00/XX".to_string()),
             webhook_url_env:  None,
@@ -284,7 +293,7 @@ fn test_job_with_slack_action() -> Result<()> {
 #[test]
 fn test_job_with_email_action() -> Result<()> {
     let job = Job::with_config(
-        Uuid::new_v4(),
+        test_event(),
         ActionConfig::Email {
             to:               Some("admin@example.com".to_string()),
             to_template:      None,
@@ -354,7 +363,7 @@ fn test_backoff_strategies() -> Result<()> {
 
     for (name, strategy) in strategies {
         let _job = Job::with_config(
-            Uuid::new_v4(),
+            test_event(),
             ActionConfig::Webhook {
                 url:                Some("http://example.com/webhook".to_string()),
                 url_env:            None,
@@ -383,7 +392,7 @@ fn test_backoff_strategies() -> Result<()> {
 fn test_job_lifecycle() -> Result<()> {
     // Create initial job
     let mut job = Job::with_config(
-        Uuid::new_v4(),
+        test_event(),
         ActionConfig::Webhook {
             url:                Some("http://example.com/webhook".to_string()),
             url_env:            None,
@@ -463,7 +472,7 @@ fn test_job_config_combinations() -> Result<()> {
         for retry_count in &retry_counts {
             for strategy in &backoff_strategies {
                 let job = Job::with_config(
-                    Uuid::new_v4(),
+                    test_event(),
                     action.clone(),
                     *retry_count,
                     *strategy,

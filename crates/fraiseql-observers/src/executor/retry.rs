@@ -254,6 +254,15 @@ impl ObserverExecutor {
     /// - Skips malformed entries and continues processing
     /// - Continues indefinitely until listener stops or error occurs
     ///
+    /// # Checkpointing is the caller's job (#805)
+    ///
+    /// This loop advances only the listener's **in-memory** cursor. The caller
+    /// owns restart recovery: restore a persisted cursor before constructing
+    /// the listener (`CheckpointStore::load` +
+    /// `ChangeLogListenerConfig::with_resume_from`) and persist
+    /// `listener.checkpoint()` after processed batches — otherwise every
+    /// process start replays the entire change log.
+    ///
     /// **Requires the `postgres` Cargo feature.**
     ///
     /// # Errors

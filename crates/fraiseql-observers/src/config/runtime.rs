@@ -452,6 +452,37 @@ pub enum ActionConfig {
         /// Action: "invalidate" or "refresh"
         action:      String,
     },
+
+    /// Call a PostgreSQL function with the triggering event (#632).
+    ///
+    /// Contract: the function receives **one** `jsonb` argument, the envelope
+    /// `{"event": <EntityEvent>, "params": <params or null>}`, and its return
+    /// value is discarded. Field names mirror the admin-API DTO
+    /// (`fraiseql-server`'s `ActionConfig::Database`), which persists into
+    /// `tb_observer.actions` and is deserialized here at runtime load.
+    Database {
+        /// Name of the PostgreSQL function to invoke — a plain or
+        /// schema-qualified SQL identifier (`fn_notify` / `app.fn_notify`).
+        function_name: String,
+        /// Optional static JSON parameters passed inside the envelope.
+        #[serde(default)]
+        params:        Option<serde_json::Value>,
+    },
+
+    /// Emit a structured log line for the triggering event (#632).
+    Log {
+        /// Log level: `trace`, `debug`, `info`, `warn`, or `error`.
+        #[serde(default = "default_log_level")]
+        level:            String,
+        /// Message template; `{{ field }}` placeholders substitute from
+        /// `event.data`, as in the Slack message template.
+        message_template: String,
+    },
+}
+
+/// Default level for a [`ActionConfig::Log`] action.
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 impl ActionConfig {
@@ -466,6 +497,8 @@ impl ActionConfig {
             Self::Push { .. } => "push",
             Self::Search { .. } => "search",
             Self::Cache { .. } => "cache",
+            Self::Database { .. } => "database",
+            Self::Log { .. } => "log",
         }
     }
 
@@ -581,6 +614,43 @@ impl ActionConfig {
                 }
                 Ok(())
             },
+            // #632: a real PostgreSQL-function dispatcher. The function name is
+            // interpolated into SQL, so it must be a strict (optionally
+            // schema-qualified) identifier — anything else is rejected here and
+            // again at dispatch (belt-and-suspenders against injection through
+            // operator-editable `tb_observer.actions`).
+            Self::Database { function_name, .. } => {
+                if !is_sql_function_identifier(function_name) {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: format!(
+                            "Database action function_name {function_name:?} is not a plain or \
+                             schema-qualified SQL identifier ([A-Za-z_][A-Za-z0-9_]*, optionally \
+                             'schema.name')"
+                        ),
+                    });
+                }
+                Ok(())
+            },
+            // #632: a real structured-log dispatcher.
+            Self::Log {
+                level,
+                message_template,
+            } => {
+                if !matches!(level.as_str(), "trace" | "debug" | "info" | "warn" | "error") {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: format!(
+                            "Log action level {level:?} is not one of trace, debug, info, warn, \
+                             error"
+                        ),
+                    });
+                }
+                if message_template.is_empty() {
+                    return Err(ObserverError::InvalidActionConfig {
+                        reason: "Log action requires a non-empty 'message_template'".to_string(),
+                    });
+                }
+                Ok(())
+            },
             // Not implemented: no real transport is wired for these action types.
             // They previously fabricated `success: true` at dispatch and sent
             // nothing (H24). Reject them at config-load time so a misconfigured
@@ -592,6 +662,23 @@ impl ActionConfig {
                 })
             },
         }
+    }
+}
+
+/// Whether `name` is a plain or schema-qualified SQL identifier
+/// (`[A-Za-z_][A-Za-z0-9_]*`, optionally `schema.name`) — the only shapes the
+/// `database` action will interpolate into SQL (#632).
+fn is_sql_function_identifier(name: &str) -> bool {
+    fn is_ident(part: &str) -> bool {
+        let mut chars = part.chars();
+        chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+    }
+    let mut parts = name.split('.');
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some(only), None, _) => is_ident(only),
+        (Some(schema), Some(func), None) => is_ident(schema) && is_ident(func),
+        _ => false,
     }
 }
 

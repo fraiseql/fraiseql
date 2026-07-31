@@ -21,6 +21,9 @@ use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ActionExecutionDetail, ChangeLogListener,
     ChangeLogListenerConfig, EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy,
     InMemoryTransport, ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
+    checkpoint::{
+        CheckpointState as ObserverCheckpointState, CheckpointStore, PostgresCheckpointStore,
+    },
     config::{EmailSmtpConfig, TransportConfig, TransportKind},
     transport::{EventFilter, EventTransport},
 };
@@ -144,6 +147,16 @@ pub struct ObserverRuntimeConfig {
     /// `[observers.runtime].log_payloads`. Large payloads are truncated to a
     /// marker regardless.
     pub log_payloads: bool,
+
+    /// Stable identity for the change-log cursor in `observer_checkpoints`
+    /// (#805).
+    ///
+    /// The persisted checkpoint is keyed on this — one logical consumer of
+    /// `core.tb_entity_change_log` — so a restarted runtime resumes from the
+    /// last processed row instead of replaying the entire change log. All
+    /// replicas of one deployment share this identity (they are the same
+    /// logical consumer). Default: `"change_log"`.
+    pub listener_id: String,
 }
 
 impl ObserverRuntimeConfig {
@@ -161,6 +174,7 @@ impl ObserverRuntimeConfig {
             transport: TransportConfig::default(),
             email: None,
             log_payloads: false,
+            listener_id: "change_log".to_string(),
         }
     }
 
@@ -211,6 +225,13 @@ impl ObserverRuntimeConfig {
     #[must_use]
     pub const fn with_log_payloads(mut self, log_payloads: bool) -> Self {
         self.log_payloads = log_payloads;
+        self
+    }
+
+    /// Set the stable checkpoint identity for the change-log cursor (#805).
+    #[must_use]
+    pub fn with_listener_id(mut self, listener_id: impl Into<String>) -> Self {
+        self.listener_id = listener_id.into();
         self
     }
 }
@@ -450,7 +471,10 @@ impl ObserverRuntime {
                 self.dlq.clone(),
                 self.config.email.as_ref(),
             )
-            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?,
+            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
+            // #632: wire the pool so `database` actions call their PostgreSQL
+            // function for real instead of failing "no pool wired".
+            .with_database_pool(self.config.pool.clone()),
         );
 
         // Store in shared references for hot reload
@@ -467,10 +491,49 @@ impl ObserverRuntime {
         // fully-populated generation — never a half-built state.
         self.entity_type_index.store(Arc::new(entity_type_index));
 
+        // #805: restore the durable cursor before constructing the listener.
+        // Without this every process start seeds the cursor at 0 and re-fires
+        // every historical observer action in the change log. A fresh database
+        // gets the idempotent checkpoint DDL applied on the first load failure;
+        // a failure after that is real and fails start() loudly.
+        let checkpoint_store = PostgresCheckpointStore::new(self.config.pool.clone());
+        let restored = if let Ok(state) = checkpoint_store.load(&self.config.listener_id).await {
+            state
+        } else {
+            {
+                sqlx::raw_sql(fraiseql_observers::checkpoint::migration_sql())
+                    .execute(&self.config.pool)
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "observer checkpoint table is missing and could not be created \
+                             (apply fraiseql-observers migration 02_create_observer_checkpoints.sql): {e}"
+                        ))
+                    })?;
+                checkpoint_store.load(&self.config.listener_id).await.map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "failed to load observer checkpoint for listener '{}': {e}",
+                        self.config.listener_id
+                    ))
+                })?
+            }
+        };
+        if let Some(state) = &restored {
+            info!(
+                listener_id = %self.config.listener_id,
+                resume_from = state.last_processed_id,
+                "Restored observer change-log checkpoint; resuming (no replay)"
+            );
+            self.last_checkpoint.store(state.last_processed_id, Ordering::Relaxed);
+        }
+
         // Create change log listener
-        let listener_config = ChangeLogListenerConfig::new(self.config.pool.clone())
+        let mut listener_config = ChangeLogListenerConfig::new(self.config.pool.clone())
             .with_poll_interval(self.config.poll_interval_ms)
             .with_batch_size(self.config.batch_size);
+        if let Some(state) = &restored {
+            listener_config = listener_config.with_resume_from(state.last_processed_id);
+        }
 
         // Create shutdown channel
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
@@ -484,6 +547,10 @@ impl ObserverRuntime {
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         let pool = self.config.pool.clone();
         let log_payloads = self.config.log_payloads;
+        let listener_id = self.config.listener_id.clone();
+        // Cumulative dispatched-event count carried across restarts via the
+        // checkpoint row (#805).
+        let mut checkpoint_event_count = restored.as_ref().map_or(0, |s| s.event_count);
         // #366: the after:capture dispatch hook, if the functions subsystem wired one.
         let capture_dispatch = self.capture_dispatch.clone();
 
@@ -603,35 +670,30 @@ impl ObserverRuntime {
                                     }
                                 }
 
-                                // Update checkpoint (in-memory and database)
+                                // Advance the durable cursor (#805): persisted
+                                // AFTER the batch's actions were dispatched,
+                                // under the stable listener identity — never the
+                                // entity type of whatever row came last. This is
+                                // at-least-once delivery with a replay window of
+                                // one batch; payloads carry the change-log row
+                                // UUID as the dedup key.
                                 if let Some(last_entry) = entries.last() {
                                     last_checkpoint.store(last_entry.id, Ordering::Relaxed);
+                                    checkpoint_event_count += entries.len();
 
-                                    // Persist checkpoint to database
-                                    // Use entity_type as listener_id for now
-                                    let listener_id = last_entry.object_type.clone();
-                                    let batch_count = i32::try_from(entries.len()).unwrap_or(i32::MAX);
-
-                                    match sqlx::query(
-                                        "INSERT INTO observer_checkpoints
-                                         (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
-                                         VALUES ($1, $2, NOW(), $3, $4, NOW())
-                                         ON CONFLICT (listener_id)
-                                         DO UPDATE SET
-                                            last_processed_id = $2,
-                                            last_processed_at = NOW(),
-                                            batch_size = $3,
-                                            event_count = observer_checkpoints.event_count + $4,
-                                            updated_at = NOW()"
-                                    )
-                                    .bind(&listener_id)
-                                    .bind(last_entry.id)
-                                    .bind(batch_count)
-                                    .bind(batch_count)
-                                    .execute(&pool)
-                                    .await {
-                                        Ok(_) => {
-                                            info!("Checkpoint saved: listener_id={}, last_id={}", listener_id, last_entry.id);
+                                    let state = ObserverCheckpointState {
+                                        listener_id: listener_id.clone(),
+                                        last_processed_id: last_entry.id,
+                                        last_processed_at: chrono::Utc::now(),
+                                        batch_size: entries.len(),
+                                        event_count: checkpoint_event_count,
+                                    };
+                                    match checkpoint_store.save(&listener_id, &state).await {
+                                        Ok(()) => {
+                                            debug!(
+                                                "Checkpoint saved: listener_id={}, last_id={}",
+                                                listener_id, last_entry.id
+                                            );
                                         }
                                         Err(e) => {
                                             error!("Failed to save checkpoint: {}", e);
@@ -739,7 +801,10 @@ impl ObserverRuntime {
                 self.dlq.clone(),
                 self.config.email.as_ref(),
             )
-            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?,
+            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
+            // #632: wire the pool so `database` actions call their PostgreSQL
+            // function for real instead of failing "no pool wired".
+            .with_database_pool(self.config.pool.clone()),
         );
         {
             let mut m = self.matcher.write().await;
@@ -944,7 +1009,9 @@ impl ObserverRuntime {
                 self.dlq.clone(),
                 self.config.email.as_ref(),
             )
-            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?,
+            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
+            // #632: keep the database pool wired across hot reloads.
+            .with_database_pool(self.config.pool.clone()),
         );
 
         // Atomic swap - write locks block readers briefly

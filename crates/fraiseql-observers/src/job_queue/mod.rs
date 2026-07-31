@@ -34,7 +34,7 @@ use uuid::Uuid;
 
 // Re-export public types
 pub use self::traits::{JobQueue, JobQueueError};
-use crate::config::ActionConfig;
+use crate::{config::ActionConfig, event::EntityEvent};
 
 /// Job state enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,8 +86,12 @@ pub struct Job {
     /// Unique job ID (for tracking)
     pub id: Uuid,
 
-    /// Link to the originating event
-    pub event_id: Uuid,
+    /// The originating event — the action's payload (#844).
+    ///
+    /// The worker dispatches `action` against this event. A bare event id is
+    /// not enough: by the time the job is dequeued, the triggering event is no
+    /// longer in memory and nothing else durably stores it.
+    pub event: EntityEvent,
 
     /// Action to execute
     pub action: ActionConfig,
@@ -128,14 +132,14 @@ impl Job {
     /// Create a new job with default retry configuration
     #[must_use]
     pub fn new(
-        event_id: Uuid,
+        event: EntityEvent,
         action: ActionConfig,
         max_attempts: u32,
         backoff_strategy: crate::config::BackoffStrategy,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
-            event_id,
+            event,
             action,
             created_at: Utc::now(),
             attempt: 1,
@@ -153,14 +157,14 @@ impl Job {
     /// Create a new job with explicit retry configuration
     #[must_use]
     pub fn with_config(
-        event_id: Uuid,
+        event: EntityEvent,
         action: ActionConfig,
         max_attempts: u32,
         backoff_strategy: crate::config::BackoffStrategy,
         initial_delay_ms: u64,
         max_delay_ms: u64,
     ) -> Self {
-        let mut job = Self::new(event_id, action, max_attempts, backoff_strategy);
+        let mut job = Self::new(event, action, max_attempts, backoff_strategy);
         job.initial_delay_ms = initial_delay_ms;
         job.max_delay_ms = max_delay_ms;
         job
@@ -201,6 +205,17 @@ impl Job {
         }
     }
 
+    /// Consume the remaining retry budget so the next [`Self::mark_failed`]
+    /// (called inside [`JobQueue::fail`]) routes the job to the DLQ instead of
+    /// re-enqueueing it.
+    ///
+    /// Used for permanent (non-transient) errors: retrying an action that
+    /// failed permanently would re-fail identically, so the job goes straight
+    /// to the dead-letter queue — recorded, never destroyed (#844).
+    pub const fn exhaust_retry_budget(&mut self) {
+        self.attempt = self.max_attempts;
+    }
+
     /// Mark the job as dead lettered
     pub fn mark_dead_lettered(&mut self, reason: String) {
         self.state = JobState::DeadLettered;
@@ -215,15 +230,7 @@ impl Job {
     /// Get the action type for this job
     #[must_use]
     pub const fn action_type(&self) -> &str {
-        match &self.action {
-            ActionConfig::Webhook { .. } => "webhook",
-            ActionConfig::Slack { .. } => "slack",
-            ActionConfig::Email { .. } => "email",
-            ActionConfig::Sms { .. } => "sms",
-            ActionConfig::Push { .. } => "push",
-            ActionConfig::Search { .. } => "search",
-            ActionConfig::Cache { .. } => "cache",
-        }
+        self.action.action_type()
     }
 }
 

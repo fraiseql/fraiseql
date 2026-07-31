@@ -1,7 +1,11 @@
-//! Automatic failover management for multi-listener setup.
+//! **Process-local** failover between listeners registered in one process.
 //!
-//! Detects listener failures and triggers automatic failover to healthy listeners,
-//! maintaining checkpoint consistency and preventing data loss.
+//! Built entirely on [`super::MultiListenerCoordinator`],
+//! which is process-local bookkeeping (#872): failure detection reads local
+//! heartbeats and "failover" re-elects a leader among this process's own
+//! listeners. It provides no cross-process coordination — for that, use the
+//! advisory lease ([`CheckpointLease`](super::CheckpointLease)) plus the
+//! durable cursor in [`crate::checkpoint`].
 
 use std::{
     sync::{
