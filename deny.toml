@@ -11,6 +11,9 @@
 # Re-evaluate by: 2026-10-01
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
 # Re-evaluate by: 2026-12-01 — migrate off graphql-parser if still blocked.
+# - wasmtime 44  — RUSTSEC-2026-0222 patched lines (46.0.2/47.0.3) require Rust 1.94;
+# workspace MSRV is 1.92. Blocked on the MSRV raise (#933).
+# Re-evaluate by: 2026-10-01
 #
 # See docs/dependency-risk-policy.md for the full acceptance policy.
 
@@ -22,6 +25,14 @@ ignore = [
   # Mitigation: mysql feature is non-default; TLS termination at load balancer layer.
   # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status; escalate if still blocked.
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path; deadline 2026-10-01"},
+  # wasmtime: type-index confusion between multiple Engines in one process
+  # (GHSA-hgjw-h833-99q9). Every patched line (46.0.2 / 47.0.3) requires Rust 1.94 via
+  # cranelift 0.133+, above the workspace MSRV of 1.92, so the bump is blocked on the
+  # next MSRV raise (#933). Exposure: fraiseql-functions (optional runtime-wasm)
+  # constructs a single wasmtime Engine per WasmRuntime and guest values never cross
+  # Engine instances — the cross-engine confusion has no in-repo trigger path.
+  # deadline: 2026-10-01 — raise MSRV to 1.94 and bump wasmtime/wasmtime-wasi to >= 46.0.2.
+  {id = "RUSTSEC-2026-0222", reason = "wasmtime cross-Engine type confusion; fix requires Rust 1.94 (> MSRV 1.92); single-Engine usage, no cross-engine value flow; bump tracked in #933, deadline 2026-10-01"},
   # rustls-pemfile: blocked on upstream bollard migration from pem 0.x to rustls-pem.
   # Re-evaluated 2026-07-02: rustls-pemfile 2.2.0 is a DEV-dependency only (fraiseql-wire
   # test deps / bollard test infra) — no production runtime exposure; low-severity
