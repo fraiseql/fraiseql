@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"sync"
 )
 
@@ -417,56 +418,69 @@ func GetSchema() Schema {
 
 	schema := Schema{}
 
-	// Convert maps to slices
-	for _, typeDef := range reg.types {
-		schema.Types = append(schema.Types, typeDef)
+	// Convert maps to slices, in sorted-name order (#929). The registries are
+	// maps and Go randomizes map iteration, so an unsorted export changed from
+	// run to run — two builds of the same schema produced different artifacts.
+	for _, name := range sortedKeys(reg.types) {
+		schema.Types = append(schema.Types, reg.types[name])
 	}
 
-	for _, enumDef := range reg.enums {
-		schema.Enums = append(schema.Enums, enumDef)
+	for _, name := range sortedKeys(reg.enums) {
+		schema.Enums = append(schema.Enums, reg.enums[name])
 	}
 
-	for _, inputDef := range reg.inputTypes {
-		schema.InputTypes = append(schema.InputTypes, inputDef)
+	for _, name := range sortedKeys(reg.inputTypes) {
+		schema.InputTypes = append(schema.InputTypes, reg.inputTypes[name])
 	}
 
-	for _, queryDef := range reg.queries {
-		schema.Queries = append(schema.Queries, queryDef)
+	for _, name := range sortedKeys(reg.queries) {
+		schema.Queries = append(schema.Queries, reg.queries[name])
 	}
 
-	for _, mutationDef := range reg.mutations {
-		schema.Mutations = append(schema.Mutations, mutationDef)
+	for _, name := range sortedKeys(reg.mutations) {
+		schema.Mutations = append(schema.Mutations, reg.mutations[name])
 	}
 
-	for _, subscriptionDef := range reg.subscriptions {
-		schema.Subscriptions = append(schema.Subscriptions, subscriptionDef)
+	for _, name := range sortedKeys(reg.subscriptions) {
+		schema.Subscriptions = append(schema.Subscriptions, reg.subscriptions[name])
 	}
 
-	for _, factTable := range reg.factTables {
-		schema.FactTables = append(schema.FactTables, factTable)
+	for _, name := range sortedKeys(reg.factTables) {
+		schema.FactTables = append(schema.FactTables, reg.factTables[name])
 	}
 
-	for _, aggregateQuery := range reg.aggregateQueries {
-		schema.AggregateQueries = append(schema.AggregateQueries, aggregateQuery)
+	for _, name := range sortedKeys(reg.aggregateQueries) {
+		schema.AggregateQueries = append(schema.AggregateQueries, reg.aggregateQueries[name])
 	}
 
-	for _, observer := range reg.observers {
-		schema.Observers = append(schema.Observers, observer)
+	for _, name := range sortedKeys(reg.observers) {
+		schema.Observers = append(schema.Observers, reg.observers[name])
 	}
 
 	if reg.injectDefaults != nil {
 		schema.InjectDefaults = reg.injectDefaults
 	}
 
-	// Include custom scalars
+	// Include custom scalars (sorted for the same reproducibility contract)
 	customScalars := GetAllCustomScalars()
-	for name := range customScalars {
+	for _, name := range sortedKeys(customScalars) {
 		schema.CustomScalars = append(schema.CustomScalars, map[string]interface{}{
 			"name": name,
 		})
 	}
 
 	return schema
+}
+
+// sortedKeys returns the map's keys in ascending order — the reproducible-export
+// contract for every registry category (#929).
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // GetSchemaJSON returns the schema as JSON bytes
@@ -506,14 +520,20 @@ func ClearRegistry() {
 }
 
 // Enum registers a GraphQL enum type with the schema registry.
-// The values map keys are the enum member names (e.g., "DAY", "WEEK").
-func Enum(name string, values map[string]string) {
+//
+// Members are exported in the order given (#929). The previous signature took a
+// map[string]string, which had two defects: Go randomizes map iteration, so the
+// exported member order changed from run to run (two builds of the same schema
+// produced different artifacts, and the SDK conformance gate was a coin flip);
+// and the map's values were silently dropped — only the keys were ever
+// exported, so any name→value mapping an author wrote did nothing.
+func Enum(name string, members ...string) {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
-	enumValues := make([]EnumValueDefinition, 0, len(values))
-	for memberName := range values {
+	enumValues := make([]EnumValueDefinition, 0, len(members))
+	for _, memberName := range members {
 		enumValues = append(enumValues, EnumValueDefinition{Name: memberName})
 	}
 
