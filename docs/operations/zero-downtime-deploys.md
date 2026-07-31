@@ -193,11 +193,12 @@ Two consequences for operators:
   WebSocket). FraiseQL does not migrate a live subscription from a v1 process to a v2 process
   — that per-instance affinity is what keeps subscriptions deterministic.
 
-> **Known gap.** On shutdown the server does not send a protocol-level `Complete`/close frame
-> with a "server draining, please reconnect" reason to each active subscription; the socket
-> simply closes. A graceful per-subscription close on drain is a possible future enhancement.
-> It does not affect correctness — a reconnecting client re-subscribes cleanly — only the
-> tidiness of the client-side signal.
+> **Graceful drain (#571).** When graceful shutdown begins, every active subscription
+> receives a protocol-level `Complete` frame per operation, and the socket then closes with
+> code **1001 (Going Away)**. A client can therefore distinguish a deliberate drain (clean
+> end-of-stream: reconnect and re-subscribe) from a network fault. Reconnect-and-resubscribe
+> remains the client's responsibility — FraiseQL does not migrate a live subscription
+> between processes.
 
 ---
 

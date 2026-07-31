@@ -257,6 +257,8 @@ pub use fraiseql_error::{GraphQLError, GraphQLErrorLocation as ErrorLocation};
 pub enum CloseCode {
     /// Normal closure.
     Normal               = 1000,
+    /// Server going away (drain/shutdown, RFC 6455 §7.4.1).
+    GoingAway            = 1001,
     /// Client violated protocol.
     ProtocolError        = 1002,
     /// Internal server error.
@@ -285,6 +287,7 @@ impl CloseCode {
     pub const fn reason(self) -> &'static str {
         match self {
             Self::Normal => "Normal closure",
+            Self::GoingAway => "Server shutting down",
             Self::ProtocolError => "Protocol error",
             Self::InternalError => "Internal server error",
             Self::ConnectionInitTimeout => "Connection initialization timeout",

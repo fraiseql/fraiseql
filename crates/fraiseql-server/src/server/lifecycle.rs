@@ -614,9 +614,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             // Wrap the user-supplied shutdown future so we can also stop observer runtime
             #[cfg(feature = "observers")]
             let observer_runtime = self.observer_runtime.clone();
+            let subscription_drain = std::sync::Arc::clone(&self.subscription_drain);
 
             let shutdown_with_cleanup = async move {
                 shutdown.await;
+                // #571: signal live subscription connections FIRST, so they can send
+                // their Complete/close frames while the graceful-shutdown window is
+                // still open.
+                let _ = subscription_drain.send(true);
                 #[cfg(feature = "observers")]
                 if let Some(ref runtime) = observer_runtime {
                     info!("Shutting down observer runtime");
@@ -644,8 +649,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // HTTP-only server (when arrow feature not enabled)
         #[cfg(not(feature = "arrow"))]
         {
+            // #571: signal live subscription connections as soon as shutdown fires,
+            // so they can send their Complete/close frames while the
+            // graceful-shutdown window is still open.
+            let subscription_drain = std::sync::Arc::clone(&self.subscription_drain);
+            let shutdown_with_drain = async move {
+                shutdown.await;
+                let _ = subscription_drain.send(true);
+            };
             axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-                .with_graceful_shutdown(shutdown)
+                .with_graceful_shutdown(shutdown_with_drain)
                 .await
                 .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
 
@@ -708,8 +721,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self.provision_persistent_schemas().await?;
 
         let (app, _app_state) = self.build_router();
+        // #571: drain live subscription connections here too, so the in-process
+        // test harness exercises the same graceful teardown as production.
+        let subscription_drain = std::sync::Arc::clone(&self.subscription_drain);
+        let shutdown_with_drain = async move {
+            shutdown.await;
+            let _ = subscription_drain.send(true);
+        };
         axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-            .with_graceful_shutdown(shutdown)
+            .with_graceful_shutdown(shutdown_with_drain)
             .await
             .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
         // Abort and await any lifecycle tasks spawned during construction

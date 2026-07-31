@@ -441,6 +441,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             executor,
             subscription_manager,
             subscription_lifecycle: Arc::new(crate::subscriptions::NoopLifecycle),
+            subscription_drain: Arc::new(tokio::sync::watch::channel(false).0),
             max_subscriptions_per_connection: None,
             oidc_validator,
             hs256_auth,

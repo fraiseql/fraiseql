@@ -16,7 +16,7 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
+use fraiseql_core::runtime::subscription::{ChangeSpineEnvelope, SubscriptionOperation};
 use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ActionExecutionDetail, ChangeLogListener,
     ChangeLogListenerConfig, EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy,
@@ -1138,11 +1138,16 @@ async fn process_entity_event(
             }
 
             // Forward processed event to EventBridge for GraphQL subscription delivery.
-            if let Some(sender) = bridge_sender {
+            // Only real entity changes are subscriber-visible (#773): `Custom` — the
+            // Debezium `'r'` snapshot/read/no-op row — maps to `None` and is never
+            // forwarded, so it cannot be fabricated into a phantom `Create`.
+            if let (Some(sender), Some(operation)) =
+                (bridge_sender, subscription_operation_for(event.event_type))
+            {
                 let mut bridge_event = BridgeEntityEvent::new(
                     &event.entity_type,
                     event.entity_id.to_string(),
-                    event.event_type.as_str(),
+                    operation,
                     event.data.clone(),
                 );
                 // Propagate tenant_id for multi-tenant filtering.
@@ -1163,9 +1168,7 @@ async fn process_entity_event(
                 if !envelope.is_empty() {
                     bridge_event = bridge_event.with_change_spine(envelope);
                 }
-                if let Err(e) = sender.try_send(bridge_event) {
-                    warn!("Failed to forward event {} to EventBridge: {}", event.id, e);
-                }
+                forward_to_bridge(sender, bridge_event, &event.id.to_string()).await;
             }
         },
         Err(e) => {
@@ -1197,6 +1200,44 @@ async fn process_entity_event(
                 }
             }
         },
+    }
+}
+
+/// The subscriber-visible operation for an observer event kind (#773).
+///
+/// An **exhaustive** match over the closed [`EventKind`]: `Custom` (the Debezium
+/// `'r'` snapshot/read/no-op row) is `None` — filtered before the subscription
+/// bridge, never defaulted to `Create`. Adding an `EventKind` variant is a
+/// compile error here instead of a silent fall-through.
+pub(crate) const fn subscription_operation_for(
+    kind: fraiseql_observers::EventKind,
+) -> Option<SubscriptionOperation> {
+    use fraiseql_observers::EventKind;
+    match kind {
+        EventKind::Created => Some(SubscriptionOperation::Create),
+        EventKind::Updated => Some(SubscriptionOperation::Update),
+        EventKind::Deleted => Some(SubscriptionOperation::Delete),
+        EventKind::Custom => None,
+    }
+}
+
+/// Forward one subscriber-visible event into the `EventBridge` channel.
+///
+/// **Bounded, awaited send (#772):** when the bridge channel is full this waits until
+/// the bridge loop drains a slot — upstream backpressure — instead of dropping the
+/// event for every subscriber with only a `warn!` (the old `try_send`). Stalling here
+/// stalls the change-log loop, which is the correct failure mode: the change log is
+/// durable and its checkpoint only advances after the batch completes, so a slow
+/// bridge delays delivery rather than losing events. `Err` means the bridge task is
+/// gone (receiver dropped) — nothing can be delivered to subscriptions at all; logged
+/// loudly as an error, not a debug-level shrug.
+async fn forward_to_bridge(
+    sender: &mpsc::Sender<BridgeEntityEvent>,
+    bridge_event: BridgeEntityEvent,
+    event_id: &str,
+) {
+    if let Err(e) = sender.send(bridge_event).await {
+        error!("EventBridge task is gone; event {event_id} not forwarded to subscriptions: {e}");
     }
 }
 

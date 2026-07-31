@@ -25,7 +25,7 @@ use defaults::{
     default_max_request_body_bytes, default_metrics_json_path, default_metrics_path,
     default_playground_path, default_pool_max_size, default_pool_min_size, default_pool_timeout,
     default_readiness_path, default_schema_path, default_shutdown_timeout_secs,
-    default_subscription_path,
+    default_subscription_auth_recheck_secs, default_subscription_path,
 };
 use fraiseql_core::security::OidcConfig;
 pub use hs256::Hs256Config;
@@ -280,6 +280,19 @@ pub struct ServerConfig {
     /// `introspection_require_auth` for backwards compatibility.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscription_require_auth: Option<bool>,
+
+    /// How often (seconds) a live `WebSocket` subscription re-checks its principal's
+    /// authorization — token expiry and, when a revocation store is configured,
+    /// revocation (#771). Default: 30.
+    ///
+    /// A JWT is validated once at the upgrade; without this re-check an expired or
+    /// revoked token would keep receiving policy-scoped events until the client
+    /// disconnects. The check is cheap (a clock comparison, plus one revocation-store
+    /// lookup per interval — never a round-trip to the `IdP`). Token expiry is
+    /// additionally enforced on every event delivery regardless of this interval.
+    /// `0` disables the periodic re-check (the per-delivery expiry check remains).
+    #[serde(default = "defaults::default_subscription_auth_recheck_secs")]
+    pub subscription_auth_recheck_secs: u64,
 
     /// Require authentication for design audit API endpoints (default: true).
     ///
@@ -919,6 +932,7 @@ impl Default for ServerConfig {
             schema_export_require_auth: None, // Falls back to introspection_require_auth
             playground_require_auth: None, // Falls back to introspection_require_auth
             subscription_require_auth: None, // Falls back to introspection_require_auth
+            subscription_auth_recheck_secs: default_subscription_auth_recheck_secs(),
             design_api_require_auth: true, // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),

@@ -96,6 +96,11 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) executor: Arc<Executor<A>>,
     pub(super) subscription_manager: Arc<SubscriptionManager>,
     pub(super) subscription_lifecycle: Arc<dyn crate::subscriptions::SubscriptionLifecycle>,
+    /// #571: drain signal for live `WebSocket` subscription connections. Flipped to
+    /// `true` when graceful shutdown begins; every connection then sends a
+    /// `Complete` frame per active operation and closes with 1001 (Going Away),
+    /// so a rolling deploy ends streams cleanly instead of aborting them.
+    pub(super) subscription_drain: Arc<tokio::sync::watch::Sender<bool>>,
     pub(super) max_subscriptions_per_connection: Option<u32>,
     pub(super) oidc_validator: Option<Arc<OidcValidator>>,
     /// Local HS256 JWT validator (alternative to `oidc_validator`).

@@ -85,6 +85,23 @@ pub struct AuthUser(pub AuthenticatedUser);
 #[derive(Clone, Debug)]
 pub struct SessionJti(pub Option<String>);
 
+/// Request extension carrying the revocation-relevant claims (`jti` + `iat`) of the
+/// validated bearer token.
+///
+/// Populated by [`oidc_auth_middleware`] alongside [`SessionJti`]. Long-lived streams
+/// (the `/ws` subscription handler) hold onto this so they can re-run the revocation
+/// check mid-stream (#771): `jti` drives the single-token check, `iat` drives the
+/// per-user `revoke-all` epoch check. Absent on requests that did not authenticate
+/// with a JWT (anonymous or service-account principals), which is exactly the signal
+/// that no revocation re-check applies.
+#[derive(Clone, Debug)]
+pub struct SessionTokenClaims {
+    /// The token's `jti` (JWT ID) claim, if present.
+    pub jti: Option<String>,
+    /// The token's `iat` (issued-at, unix seconds) claim, if present.
+    pub iat: Option<i64>,
+}
+
 /// Minimal JWT payload deserializer used to extract the revocation-relevant claims
 /// (`jti` and `iat`) from an already-validated bearer token. The validator has performed
 /// the heavy integrity checks; this struct only pulls out the per-token identifier and
@@ -124,14 +141,14 @@ fn revocation_rejected_response(rejection: &TokenRejection) -> Response {
 /// Decodes `jti`/`iat` from the token (safe via `insecure_decode` — `validate_token` has
 /// already verified signature/expiry/audience) and, when a revocation manager is present,
 /// rejects the request if the token's `jti` is revoked or its `iat` predates the user's
-/// `revoke-all` epoch. Returns the decoded `jti` (for `SessionJti`) on success, or a 401
-/// response to short-circuit the request. With no revocation manager it is a pure
-/// `jti`-decode (preserving prior behaviour).
+/// `revoke-all` epoch. Returns the decoded claims (for `SessionJti` /
+/// [`SessionTokenClaims`]) on success, or a 401 response to short-circuit the request.
+/// With no revocation manager it is a pure claims-decode (preserving prior behaviour).
 async fn check_revocation(
     auth_state: &OidcAuthState,
     user: &AuthenticatedUser,
     token: &str,
-) -> Result<Option<String>, Response> {
+) -> Result<SessionTokenClaims, Response> {
     let claims = jsonwebtoken::dangerous::insecure_decode::<RevocationClaims>(token)
         .ok()
         .map(|d| d.claims);
@@ -151,7 +168,7 @@ async fn check_revocation(
         }
     }
 
-    Ok(jti)
+    Ok(SessionTokenClaims { jti, iat })
 }
 
 /// Extract the bearer token from a raw `Cookie` header value.
@@ -259,12 +276,14 @@ pub async fn oidc_auth_middleware(
                     // surface the `jti` claim for downstream handlers that need to revoke
                     // the caller's current session.  `check_revocation` re-decodes the
                     // already-validated token (safe via `insecure_decode`).
-                    let jti = match check_revocation(&auth_state, &user, &token).await {
-                        Ok(jti) => jti,
+                    let claims = match check_revocation(&auth_state, &user, &token).await {
+                        Ok(claims) => claims,
                         Err(response) => return response,
                     };
                     request.extensions_mut().insert(AuthUser(user));
-                    request.extensions_mut().insert(SessionJti(jti));
+                    request.extensions_mut().insert(SessionJti(claims.jti.clone()));
+                    // #771: long-lived streams re-run the revocation check mid-stream.
+                    request.extensions_mut().insert(claims);
                     next.run(request).await
                 },
                 Err(e) => {
@@ -361,12 +380,14 @@ async fn authenticate_required(
         Ok(user) => {
             // Enforce token revocation on the admin/required planes too — a revoked token
             // must be rejected everywhere, not only on the data plane.
-            let jti = match check_revocation(auth_state, &user, &token).await {
-                Ok(jti) => jti,
+            let claims = match check_revocation(auth_state, &user, &token).await {
+                Ok(claims) => claims,
                 Err(response) => return Err(response),
             };
             request.extensions_mut().insert(AuthUser(user.clone()));
-            request.extensions_mut().insert(SessionJti(jti));
+            request.extensions_mut().insert(SessionJti(claims.jti.clone()));
+            // #771: long-lived streams re-run the revocation check mid-stream.
+            request.extensions_mut().insert(claims);
             Ok(user)
         },
         Err(e) => {
@@ -514,10 +535,11 @@ mod revocation_tests {
     #[tokio::test]
     async fn no_manager_is_a_noop_passthrough() {
         let state = OidcAuthState::new(validator());
-        let jti = check_revocation(&state, &user("alice"), &token(Some("j1"), Some(1000)))
+        let claims = check_revocation(&state, &user("alice"), &token(Some("j1"), Some(1000)))
             .await
-            .expect("with no revocation manager the check is a pure jti decode");
-        assert_eq!(jti.as_deref(), Some("j1"));
+            .expect("with no revocation manager the check is a pure claims decode");
+        assert_eq!(claims.jti.as_deref(), Some("j1"));
+        assert_eq!(claims.iat, Some(1000));
     }
 
     #[tokio::test]

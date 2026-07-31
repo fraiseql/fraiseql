@@ -270,8 +270,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // #611: a live policy source so a hot-reload's subscription_policy change reaches
         // NEW subscriptions on the next subscribe, not only on restart. It reads the same
         // reload-aware executor ArcSwap the query plane swaps in `AppState::reload_schema`;
-        // the mount-time `subscription_policies` above stays as the fallback. Already-connected
-        // subscriptions keep their subscribe-time boundary until reconnect (layer-2, deferred).
+        // the mount-time `subscription_policies` above stays as the fallback. Already-
+        // connected subscriptions re-derive on the `policy_reload` bump below (layer-2).
         let executor_swap = state.executor.clone();
         let live_subscription_policies: crate::routes::subscriptions::LiveSubscriptionPolicies =
             Arc::new(move || {
@@ -292,8 +292,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_subscription_policies(subscription_policies)
             // #611: read live policies per new subscription so a hot-reload applies promptly.
             .with_live_subscription_policies(Some(live_subscription_policies))
+            // #611 (layer 2): notify already-connected subscriptions on hot-reload so
+            // they re-derive against the new policies or are terminated fail-closed.
+            .with_policy_reload(Some(state.subscribe_policy_reload()))
+            // #571: complete + close live streams gracefully when shutdown begins.
+            .with_drain_signal(Some(self.subscription_drain.subscribe()))
             // ADR-0018: let a service account authenticate the /ws upgrade with its secret.
             .with_service_account_authenticator(state.service_account_authenticator.clone())
+            // #771: authorization for the life of the stream — periodic expiry +
+            // revocation re-check, driven by the same revocation manager the HTTP
+            // middleware consults.
+            .with_revocation_manager(state.revocation_manager.clone())
+            .with_auth_recheck_interval(std::time::Duration::from_secs(
+                self.config.subscription_auth_recheck_secs,
+            ))
             // M-tenant-ws-suspended: reject subscribes / pause delivery for a
             // suspended tenant, mirroring the GraphQL data plane's 503.
             .with_tenant_status_source(

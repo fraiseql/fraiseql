@@ -1320,3 +1320,54 @@ mod protocol_tests {
         assert!(json.contains("TEST_ERROR"));
     }
 }
+
+/// #611 (hot-reload, layer 2): a live subscription's server-owned RLS conditions can
+/// be swapped in place, and delivery matching honours the new boundary on the very
+/// next event — no reconnect required.
+#[test]
+fn update_rls_conditions_applies_to_the_next_delivered_event() {
+    let schema = Arc::new(create_test_schema());
+    let manager = SubscriptionManager::new(schema);
+
+    let sub_id = manager
+        .subscribe_with_rls(
+            "OrderCreated",
+            serde_json::json!({}),
+            serde_json::json!({}),
+            "conn-611",
+            vec![("owner_id".to_string(), serde_json::json!("alice"))],
+        )
+        .unwrap();
+
+    let bob_event = || {
+        SubscriptionEvent::new(
+            "Order",
+            "order-1",
+            SubscriptionOperation::Create,
+            serde_json::json!({"id": "order-1", "owner_id": "bob"}),
+        )
+    };
+
+    // Scoped to alice: bob's row must not match.
+    assert_eq!(manager.publish_event(bob_event()), 0, "alice-scoped sub must not see bob's row");
+
+    // The policy behind the subscription changes (hot-reload): re-derive to bob.
+    manager
+        .update_rls_conditions(sub_id, vec![("owner_id".to_string(), serde_json::json!("bob"))])
+        .unwrap();
+    assert_eq!(
+        manager.publish_event(bob_event()),
+        1,
+        "the swapped-in conditions must apply to the next event"
+    );
+}
+
+/// #611: updating a subscription that no longer exists reports `NotActive` so the
+/// caller can treat it as already-gone instead of silently succeeding.
+#[test]
+fn update_rls_conditions_on_a_gone_subscription_is_an_error() {
+    let schema = Arc::new(create_test_schema());
+    let manager = SubscriptionManager::new(schema);
+    let result = manager.update_rls_conditions(SubscriptionId::new(), vec![]);
+    assert!(matches!(result, Err(SubscriptionError::NotActive(_))));
+}

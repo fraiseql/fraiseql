@@ -786,6 +786,42 @@ mod app_state_tests {
         assert!(reload_called.load(std::sync::atomic::Ordering::Relaxed));
     }
 
+    /// #611 (layer 2): a successful hot-reload must bump the policy-reload
+    /// generation, so live `/ws` connections re-derive their row-visibility
+    /// conditions. A no-op reload (same schema hash) must NOT bump it.
+    #[tokio::test]
+    async fn test_reload_schema_bumps_policy_reload_generation() {
+        let adapter = Arc::new(StubAdapter);
+        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let dir = tempfile::tempdir().unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state = AppState::new(executor).with_reload_config(
+            schema_path.clone(),
+            adapter,
+            Some(Arc::new(Executor::with_config)),
+        );
+        let rx = state.subscribe_policy_reload();
+        assert!(!rx.has_changed().unwrap(), "no bump before any reload");
+
+        // Same-hash reload: no-op, no bump.
+        let same_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
+        std::fs::write(&schema_path, &same_json).unwrap();
+        state.reload_schema(&schema_path).await.unwrap();
+        assert!(!rx.has_changed().unwrap(), "a same-hash no-op reload must not bump");
+
+        // Real reload: bump.
+        let mut new_schema = CompiledSchema::default();
+        new_schema
+            .queries
+            .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
+        std::fs::write(&schema_path, serde_json::to_string(&new_schema).unwrap()).unwrap();
+        state.reload_schema(&schema_path).await.unwrap();
+        assert!(
+            rx.has_changed().unwrap(),
+            "a successful executor swap must bump the policy-reload generation (#611)"
+        );
+    }
+
     #[tokio::test]
     async fn test_reload_same_hash_skips_on_schema_reload() {
         let adapter = Arc::new(TrackingAdapter::new());

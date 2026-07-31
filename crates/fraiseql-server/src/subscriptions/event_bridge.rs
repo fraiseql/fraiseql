@@ -66,8 +66,14 @@ pub struct EntityEvent {
     /// Entity ID (primary key)
     pub entity_id: String,
 
-    /// Operation type ("INSERT", "UPDATE", "DELETE")
-    pub operation: String,
+    /// The subscriber-visible operation.
+    ///
+    /// A **closed** enum on purpose (#773): the producer decides Create/Update/Delete
+    /// at the forward site with an exhaustive match over the observer `EventKind`, so a
+    /// snapshot/no-op row (Debezium `'r'`, surfaced as `EventKind::Custom`) can never
+    /// reach the bridge and be fabricated into a phantom `Create`. There is no unknown
+    /// string to mis-parse here.
+    pub operation: SubscriptionOperation,
 
     /// Entity data as JSON
     pub data: serde_json::Value,
@@ -90,13 +96,13 @@ impl EntityEvent {
     pub fn new(
         entity_type: impl Into<String>,
         entity_id: impl Into<String>,
-        operation: impl Into<String>,
+        operation: SubscriptionOperation,
         data: serde_json::Value,
     ) -> Self {
         Self {
             entity_type: entity_type.into(),
             entity_id: entity_id.into(),
-            operation: operation.into(),
+            operation,
             data,
             old_data: None,
             tenant_id: None,
@@ -158,23 +164,12 @@ impl EventBridge {
     }
 
     /// Convert `EntityEvent` to `SubscriptionEvent`
+    #[must_use]
     pub fn convert_event(entity_event: EntityEvent) -> SubscriptionEvent {
-        // Convert operation string to SubscriptionOperation
-        let operation = match entity_event.operation.to_uppercase().as_str() {
-            "INSERT" => SubscriptionOperation::Create,
-            "UPDATE" => SubscriptionOperation::Update,
-            "DELETE" => SubscriptionOperation::Delete,
-            _ => {
-                // Default to Create for unknown operations
-                debug!("Unknown operation: {}, defaulting to Create", entity_event.operation);
-                SubscriptionOperation::Create
-            },
-        };
-
         let mut event = SubscriptionEvent::new(
             entity_event.entity_type,
             entity_event.entity_id,
-            operation,
+            entity_event.operation,
             entity_event.data,
         );
 

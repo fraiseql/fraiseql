@@ -174,6 +174,16 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Unix epoch*, so a freshly-booted server claimed roughly 1.8 billion seconds
     /// of uptime. A real instant is the only way to answer the question asked.
     pub started_at: std::time::Instant,
+
+    /// #611 (layer 2): schema hot-reload signal for live subscriptions.
+    ///
+    /// Bumped by [`swap_in_schema`](Self::reload_schema) on every successful
+    /// executor swap. The `/ws` mount subscribes each connection to it (via
+    /// [`subscribe_policy_reload`](Self::subscribe_policy_reload)); on a bump,
+    /// active subscriptions re-derive their row-visibility conditions against
+    /// the current policies — re-scoped in place, or terminated when the new
+    /// policy refuses (fail-closed).
+    pub policy_reload: Arc<tokio::sync::watch::Sender<u64>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -234,7 +244,16 @@ impl<A: DatabaseAdapter> AppState<A> {
             identity_resolver: None,
             revocation_manager: None,
             started_at: std::time::Instant::now(),
+            policy_reload: Arc::new(tokio::sync::watch::channel(0).0),
         }
+    }
+
+    /// Subscribe to the schema hot-reload signal (#611 layer 2). Each live
+    /// `/ws` connection holds one receiver; a bump makes it re-derive its
+    /// active subscriptions' row-visibility conditions.
+    #[must_use]
+    pub fn subscribe_policy_reload(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.policy_reload.subscribe()
     }
 
     /// Attach the token revocation manager so the admin revoke endpoint can use it.
@@ -543,6 +562,13 @@ impl<A: DatabaseAdapter> AppState<A> {
             cache.clear();
         }
 
+        // #611 (layer 2): tell live subscription connections the schema changed, so
+        // they re-derive their row-visibility conditions against the new policies
+        // (re-scope in place, or terminate fail-closed). Bumped on every successful
+        // swap — connections with no policy-declaring subscriptions re-derive for
+        // free (the policy lookup short-circuits).
+        self.policy_reload.send_modify(|generation| *generation += 1);
+
         info!("Schema executor swapped successfully");
 
         Ok(())
@@ -764,12 +790,11 @@ impl<A: DatabaseAdapter> AppState<A> {
 /// Warn (loudly) when a schema hot-reload changes the subscription row-visibility
 /// policies (#596/#611).
 ///
-/// As of #611 layer-1, **new** subscriptions read the live policies (the `/ws` handler
-/// resolves them from the reload-aware executor `ArcSwap`), so a reloaded change reaches
-/// them on the next subscribe. **Already-connected** subscriptions keep their subscribe-time
-/// boundary until they reconnect — this warning makes that window operator-visible so a
-/// reconnect can be forced. Mid-stream re-derivation of live subscriptions is layer-2
-/// (deferred; #611).
+/// **New** subscriptions read the live policies (the `/ws` handler resolves them from
+/// the reload-aware executor `ArcSwap`, #611 layer-1), and **already-connected**
+/// subscriptions re-derive against them on the [`AppState::policy_reload`] bump (#611
+/// layer-2) — re-scoped in place, or terminated fail-closed. This warning simply makes
+/// a policy-changing reload visible in the operator's log next to the swap itself.
 fn warn_on_subscription_policy_reload(
     old_schema: &CompiledSchema,
     new_schema: &CompiledSchema,
@@ -781,10 +806,10 @@ fn warn_on_subscription_policy_reload(
         warn!(
             old = old_policies.len(),
             new = new_policies.len(),
-            "SECURITY: schema reload changes subscription row-visibility policies. NEW \
-             subscriptions pick up the change immediately (#611 layer-1); ALREADY-CONNECTED \
-             subscriptions keep their subscribe-time boundary until they reconnect. Force a \
-             reconnect (or restart) to apply the change to existing streams."
+            "SECURITY: schema reload changes subscription row-visibility policies. New \
+             subscriptions pick up the change immediately; already-connected subscriptions \
+             re-derive on the reload signal — re-scoped in place, or terminated fail-closed \
+             (#611)."
         );
     }
     changed

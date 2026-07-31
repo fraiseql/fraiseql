@@ -9,6 +9,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A live subscription's authorization now holds for the life of the stream (#771).** The
+  principal was validated once at the WebSocket upgrade and then trusted forever: an
+  expired or revoked JWT kept its RLS-scoped subscriptions and kept receiving row data
+  until the client itself disconnected (the in-code A44 TODO). The connection now
+  re-checks token expiry and — when a revocation store is configured — revocation on a
+  configurable interval (`subscription_auth_recheck_secs`, default 30), consults the
+  revocation store (never the IdP) on that hot path, and additionally refuses every event
+  delivery on an expired token. A failed check closes the socket with **4401
+  Unauthorized**. Pinned over real WebSockets for the expired-at-delivery,
+  idle-expired-stream, and revoked-mid-stream (`revoke-all`) paths.
+- **Subscription event loss is no longer silent (#772).** Two seams dropped events without
+  telling anyone: the observer runtime forwarded CDC events into the `EventBridge` with a
+  non-blocking `try_send` (a full channel dropped the event for **every** subscriber, warn
+  only), and a connection whose broadcast receiver lagged skipped events with a warn and
+  kept streaming. The bridge forward is now a **bounded, awaited send** — a full channel
+  applies backpressure to the durable change-log loop (whose checkpoint only advances
+  after the batch completes) instead of dropping. Broadcast lag now terminates every
+  operation on the affected connection with an explicit **`EVENTS_LAGGED`** error frame —
+  a documented resync signal (re-subscribe, then re-query) — so a client can always
+  distinguish "nothing happened" from "events were dropped".
+- **CDC snapshot rows are no longer delivered as phantom `created` events (#773).** The
+  `EventBridge` defaulted every unknown operation string to `Create`, so Debezium `'r'`
+  (snapshot/read) change-log rows — surfaced as `CUSTOM` — were broadcast to
+  `*Created`-topic subscribers as newly created entities; a snapshot of 10,000 existing
+  rows became 10,000 spurious creation notifications. The bridge event's operation is now
+  the closed `SubscriptionOperation` enum decided at the forward site by an exhaustive
+  match over the (now closed) observer `EventKind`: real changes map 1:1, `Custom` is
+  filtered, and an unrecognised `modification_type` in the change log is **rejected and
+  logged** (the row is skipped, loudly) instead of silently defaulted to a no-op.
+- **Row-visibility policy hot-reloads now reach already-connected subscriptions (#611).**
+  A `subscription_policy` added or tightened by a schema hot-reload only applied to new
+  subscriptions; existing connections kept their subscribe-time boundary until restart — a
+  fail-open window. Every successful executor swap now bumps a reload signal; each live
+  connection re-derives its active operations against the current policies with the same
+  fail-closed derivation used at subscribe time: still-authorized subscriptions are
+  re-scoped **in place** (effective from the next event), and subscriptions the new policy
+  refuses are terminated with a `SUBSCRIPTION_REFUSED` error frame.
+
+### Added
+
+- **Graceful subscription drain on shutdown (#571).** When graceful shutdown begins, every
+  active subscription receives a per-operation `Complete` frame and the socket closes with
+  **1001 (Going Away)**, so clients see a clean end-of-stream during a rolling deploy
+  instead of a transport-level abort indistinguishable from a network fault.
+- **`subscription_auth_recheck_secs`** server config key (default 30): how often a live
+  subscription re-checks its principal's expiry/revocation (#771). `0` disables the
+  periodic check; per-delivery expiry enforcement remains.
+
+### Breaking
+
+- **`fraiseql-server`'s bridge `EntityEvent.operation` is now `SubscriptionOperation`**
+  (was a free-form `String`), and `fraiseql-observers`' `EventKind` is a **closed enum**
+  (no longer `#[non_exhaustive]`), so the subscription forward mapping is an exhaustive
+  match and an unmapped variant is a compile error instead of a silent fall-through
+  (#773).
+- **Unknown `modification_type` verbs in `tb_entity_change_log` are rejected.**
+  `INSERT`/`UPDATE`/`DELETE` and the explicit no-op verbs `CUSTOM`/`NOOP`/`READ` remain
+  valid; anything else now errors at conversion (the row is skipped and logged, the
+  checkpoint still advances) instead of being silently treated as a no-op (#773).
+
 - **A restart no longer replays the entire change log (#805).** The observer runtime wrote
   a checkpoint after every batch but nothing ever read it back — and the row was keyed on
   the entity type of whatever row happened to be last in the batch, so there was no global
