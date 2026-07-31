@@ -163,8 +163,8 @@ pub struct SubscriptionState {
     /// **current** schema's policies, so a policy added or tightened by a hot-reload takes
     /// effect on the next subscribe rather than only on restart. `None` falls back to the
     /// mount-time `subscription_policies` snapshot — the behavior tests and hosts that do
-    /// not wire a live source keep. Already-connected subscriptions keep their subscribe-time
-    /// boundary until they reconnect (layer-2, deferred; #611).
+    /// not wire a live source keep. Already-connected subscriptions are handled by
+    /// [`policy_reload`](Self::policy_reload) (layer-2).
     pub live_subscription_policies: Option<LiveSubscriptionPolicies>,
     /// Enriched-identity resolver (#539). When set, the connection's `SecurityContext`
     /// is enriched at subscribe time (only for policy-declaring subscriptions) so the
@@ -177,6 +177,33 @@ pub struct SubscriptionState {
     /// uses — so a service principal can hold a policy-scoped subscription.
     pub service_account_authenticator:
         Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
+    /// #611 (layer 2): hot-reload signal for row-visibility policies. Each bump of
+    /// the watched generation makes every live connection re-derive the RLS
+    /// conditions of its active subscriptions against the **current** policies
+    /// (via [`live_subscription_policies`](Self::live_subscription_policies)):
+    /// a subscription whose re-derivation refuses (fail-closed) is terminated
+    /// with an error frame; one that re-derives is re-scoped in place. `None`
+    /// leaves already-connected subscriptions on their subscribe-time boundary
+    /// until they reconnect.
+    pub policy_reload: Option<tokio::sync::watch::Receiver<u64>>,
+    /// #571: server drain signal. When the watched value flips to `true`, every
+    /// connection sends a graphql-transport-ws `Complete` frame per active
+    /// operation and closes the socket with 1001 (Going Away), so clients see a
+    /// clean end-of-stream during a rolling deploy instead of a transport-level
+    /// abort. `None` keeps the abrupt-close behaviour (test harnesses).
+    pub drain: Option<tokio::sync::watch::Receiver<bool>>,
+    /// Token revocation manager (#771). When set, the periodic mid-stream
+    /// authorization re-check also consults the revocation store, so revoking a
+    /// token (or `revoke-all` for a user) terminates that user's live
+    /// subscriptions within one [`auth_recheck_interval`](Self::auth_recheck_interval)
+    /// instead of streaming until the client disconnects. `None` limits the
+    /// re-check to token expiry.
+    pub revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    /// How often the mid-stream authorization re-check runs (#771). Token expiry
+    /// is additionally enforced on every event delivery, so this interval only
+    /// bounds how long an idle expired stream, or a revoked-but-unexpired one,
+    /// can stay open. `Duration::ZERO` disables the periodic check.
+    pub auth_recheck_interval: Duration,
 }
 
 impl SubscriptionState {
@@ -196,7 +223,53 @@ impl SubscriptionState {
             #[cfg(feature = "auth")]
             identity_resolver: None,
             service_account_authenticator: None,
+            policy_reload: None,
+            drain: None,
+            revocation_manager: None,
+            auth_recheck_interval: Duration::from_secs(
+                crate::server_config::defaults::default_subscription_auth_recheck_secs(),
+            ),
         }
+    }
+
+    /// Install the hot-reload policy signal (#611 layer 2). Each bump of the
+    /// watched generation makes live connections re-derive (or terminate) their
+    /// active subscriptions against the current row-visibility policies.
+    #[must_use]
+    pub fn with_policy_reload(
+        mut self,
+        policy_reload: Option<tokio::sync::watch::Receiver<u64>>,
+    ) -> Self {
+        self.policy_reload = policy_reload;
+        self
+    }
+
+    /// Install the server drain signal (#571). When it flips to `true`, live
+    /// connections complete their operations and close gracefully (1001).
+    #[must_use]
+    pub fn with_drain_signal(mut self, drain: Option<tokio::sync::watch::Receiver<bool>>) -> Self {
+        self.drain = drain;
+        self
+    }
+
+    /// Install the token revocation manager (#771) consulted by the periodic
+    /// mid-stream authorization re-check. `None` limits the re-check to expiry.
+    #[must_use]
+    pub fn with_revocation_manager(
+        mut self,
+        manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    ) -> Self {
+        self.revocation_manager = manager;
+        self
+    }
+
+    /// Set how often the mid-stream authorization re-check runs (#771).
+    /// `Duration::ZERO` disables the periodic check (per-delivery expiry
+    /// enforcement remains).
+    #[must_use]
+    pub const fn with_auth_recheck_interval(mut self, interval: Duration) -> Self {
+        self.auth_recheck_interval = interval;
+        self
     }
 
     /// Install the per-subscription row-visibility policies (#596). Typically built by
@@ -402,6 +475,85 @@ fn derive_policy_conditions(
     }
 }
 
+/// The per-connection authorization guard for a long-lived stream (#771).
+///
+/// A subscription's principal is validated once at the upgrade and then held for an
+/// unbounded duration; this guard is what keeps that trust honest. It is re-checked
+/// periodically (every [`SubscriptionState::auth_recheck_interval`]) and — for expiry
+/// — on every event delivery:
+///
+/// - **Expiry** is a clock comparison against the principal's `expires_at` (the JWT `exp` claim;
+///   service-account principals carry their mint-time ceiling).
+/// - **Revocation** consults the configured revocation store (never the `IdP`) with the token's
+///   `jti`/`iat` claims, exactly like the HTTP middleware does at request time. It applies only to
+///   JWT principals (the claims extension is the marker); a store outage follows the manager's
+///   configured fail-open/fail-closed posture.
+///
+/// Any failure terminates the connection with close code 4401.
+struct StreamAuthGuard {
+    /// When the principal's token expires. `None` for anonymous connections.
+    expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// The principal's subject, for the revocation `revoke-all` epoch check.
+    sub:        Option<String>,
+    /// The validated bearer token's `jti`/`iat` claims. `None` when the
+    /// connection did not authenticate with a JWT — which also disables the
+    /// revocation re-check for it.
+    claims:     Option<crate::middleware::oidc_auth::SessionTokenClaims>,
+    /// The revocation store to consult, when configured.
+    revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+}
+
+impl StreamAuthGuard {
+    fn new(
+        principal: Option<&SecurityContext>,
+        claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
+        revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    ) -> Self {
+        Self {
+            expires_at: principal.map(|p| p.expires_at),
+            sub: principal.map(|p| p.user_id.to_string()),
+            // Revocation is a JWT concern: without decoded token claims there is
+            // no jti/iat to check (anonymous or service-account connection).
+            revocation: if claims.is_some() { revocation } else { None },
+            claims,
+        }
+    }
+
+    /// Whether any mid-stream re-check applies to this connection.
+    const fn applies(&self) -> bool {
+        self.expires_at.is_some()
+    }
+
+    /// Cheap per-delivery check: has the principal's token expired?
+    fn expired(&self) -> bool {
+        self.expires_at.is_some_and(|exp| exp <= chrono::Utc::now())
+    }
+
+    /// The periodic re-check: expiry plus revocation. Returns the close reason
+    /// when the connection must be terminated.
+    async fn check(&self) -> Result<(), &'static str> {
+        if self.expired() {
+            return Err("Token expired");
+        }
+        if let (Some(revocation), Some(sub), Some(claims)) =
+            (self.revocation.as_ref(), self.sub.as_deref(), self.claims.as_ref())
+        {
+            use crate::token_revocation::TokenRejection;
+            match revocation.check_token(claims.jti.as_deref(), sub, claims.iat).await {
+                Ok(()) => {},
+                Err(TokenRejection::Revoked) => return Err("Token revoked"),
+                Err(TokenRejection::MissingJti) => return Err("Token lacks required jti claim"),
+                // The manager already applied its fail-open posture internally; an
+                // error here means fail-closed is configured — terminate.
+                Err(TokenRejection::StoreUnavailable) => {
+                    return Err("Revocation store unavailable");
+                },
+            }
+        }
+        Ok(())
+    }
+}
+
 /// `WebSocket` upgrade handler for subscriptions.
 ///
 /// Negotiates the `WebSocket` sub-protocol from the `Sec-WebSocket-Protocol`
@@ -411,6 +563,7 @@ fn derive_policy_conditions(
 pub async fn subscription_handler(
     headers: HeaderMap,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
+    token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
     ws: WebSocketUpgrade,
     State(state): State<SubscriptionState>,
 ) -> impl IntoResponse {
@@ -464,7 +617,14 @@ pub async fn subscription_handler(
 
     ws.protocols([protocol.as_str()])
         .on_upgrade(move |socket| {
-            handle_subscription_connection(socket, state, protocol, tenant_id, security_context)
+            handle_subscription_connection(
+                socket,
+                state,
+                protocol,
+                tenant_id,
+                security_context,
+                token_claims.map(|axum::Extension(claims)| claims),
+            )
         })
         .into_response()
 }
@@ -499,6 +659,7 @@ async fn handle_subscription_connection(
     protocol: WsProtocol,
     tenant_id: Option<String>,
     principal: Option<SecurityContext>,
+    token_claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
 ) {
     let connection_id = uuid::Uuid::new_v4().to_string();
     let codec = ProtocolCodec::new(protocol);
@@ -582,8 +743,17 @@ async fn handle_subscription_connection(
         },
     };
 
-    // Track active operations (operation_id -> subscription_id)
-    let mut active_operations: HashMap<String, SubscriptionId> = HashMap::new();
+    // Track active operations (operation_id -> subscription id + name)
+    let mut active_operations: HashMap<String, ActiveOperation> = HashMap::new();
+
+    // #611 (layer 2): watch for hot-reloaded row-visibility policies. On each bump,
+    // every active operation re-derives its conditions against the current policies —
+    // re-scoped in place, or terminated when the new policy refuses (fail-closed).
+    let mut policy_reload = state.policy_reload.clone();
+
+    // #571: watch for server drain. On the signal, complete every active operation
+    // and close gracefully instead of letting the shutdown abort the socket.
+    let mut drain = state.drain.clone();
 
     // Remote subscription message output channel.
     //
@@ -599,23 +769,19 @@ async fn handle_subscription_connection(
     let mut ping_interval = tokio::time::interval(PING_INTERVAL);
     ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-    // A44 — Token expiry re-check on long-lived subscriptions.
-    //
-    // JWTs validated at ConnectionInit may expire while the WebSocket is open.
-    // The check below should be added when the auth layer surfaces expiry data:
-    //
-    //   1. At ConnectionInit, extract the `exp` claim from the JWT and store it: `let
-    //      token_expires_at: Option<std::time::Instant> = extract_exp(&init_payload);`
-    //
-    //   2. In the select! loop (before processing each client message or broadcast event), check
-    //      expiry: ```rust,ignore if token_expires_at.is_some_and(|exp| std::time::Instant::now()
-    //      >= exp) { warn!(connection_id = %connection_id, "Token expired; closing WebSocket"); let
-    //      _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame { code:
-    //      CloseCode::Unauthorized.code(), reason: "Token expired".into(), }))).await; break; } ```
-    //
-    // This requires the lifecycle `on_connect` hook or the JWT middleware to return
-    // the expiry time, which is not yet threaded through `SubscriptionState`.
-    // Tracked as A44 in the remediation plan.
+    // #771 (was A44): authorization for the life of the stream. The principal was
+    // validated once at the upgrade; this guard re-checks token expiry (and, when a
+    // revocation store is configured, revocation) periodically, and expiry again on
+    // every event delivery. A failed check closes the socket with 4401.
+    let auth_guard =
+        StreamAuthGuard::new(principal.as_ref(), token_claims, state.revocation_manager.clone());
+    let auth_recheck_enabled = auth_guard.applies() && !state.auth_recheck_interval.is_zero();
+    let mut auth_recheck =
+        tokio::time::interval(state.auth_recheck_interval.max(Duration::from_millis(1)));
+    auth_recheck.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // The first `interval` tick fires immediately; consume it so the branch below
+    // only fires after a full interval has elapsed (the token was just validated).
+    auth_recheck.tick().await;
 
     // Main message loop
     loop {
@@ -662,9 +828,88 @@ async fn handle_subscription_connection(
                 }
             }
 
+            draining = drain_signalled(&mut drain), if drain.is_some() => {
+                if draining {
+                    // #571: graceful drain — complete every active operation, then
+                    // close with 1001 (Going Away) so clients see a clean
+                    // end-of-stream rather than a transport abort.
+                    info!(
+                        connection_id = %connection_id,
+                        active_operations = active_operations.len(),
+                        "Server draining; completing active subscriptions"
+                    );
+                    for (op_id, op) in active_operations.drain() {
+                        let complete = ServerMessage::complete(&op_id);
+                        if let Err(e) = send_server_message(&codec, &mut sender, complete).await {
+                            debug!(connection_id = %connection_id, error = %e, "Could not send Complete during drain");
+                        }
+                        if let Err(e) = state.manager.unsubscribe(op.subscription_id) {
+                            debug!(connection_id = %connection_id, operation_id = %op_id, error = %e, "Failed to unsubscribe during drain");
+                        }
+                        state.lifecycle.on_unsubscribe(&op_id, &connection_id).await;
+                    }
+                    // Best-effort: the connection is being terminated either way.
+                    let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                        code: CloseCode::GoingAway.code(),
+                        reason: CloseCode::GoingAway.reason().into(),
+                    }))).await;
+                    break;
+                }
+                // Sender gone without signalling: stop watching, keep serving.
+                drain = None;
+            }
+
+            changed = policy_watch_changed(&mut policy_reload), if policy_reload.is_some() => {
+                if changed {
+                    rederive_operations_after_policy_reload(
+                        &state,
+                        &codec,
+                        &mut sender,
+                        &mut active_operations,
+                        &connection_id,
+                        principal.as_ref(),
+                    ).await;
+                } else {
+                    // Sender gone (state torn down): stop watching, keep serving.
+                    policy_reload = None;
+                }
+            }
+
+            _ = auth_recheck.tick(), if auth_recheck_enabled => {
+                // #771: periodic mid-stream authorization re-check. Bounds how long
+                // an idle expired stream, or a revoked-but-unexpired one, stays open.
+                if let Err(reason) = auth_guard.check().await {
+                    warn!(
+                        connection_id = %connection_id,
+                        reason,
+                        "Mid-stream authorization re-check failed; closing WebSocket"
+                    );
+                    // Best-effort: the connection is being terminated either way.
+                    let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                        code: CloseCode::Unauthorized.code(),
+                        reason: reason.into(),
+                    }))).await;
+                    break;
+                }
+            }
+
             event = event_receiver.recv() => {
                 match event {
                     Ok(payload) => {
+                        // #771: never deliver an event on an expired token, regardless
+                        // of where the periodic re-check is in its interval.
+                        if auth_guard.expired() {
+                            warn!(
+                                connection_id = %connection_id,
+                                "Token expired at delivery time; closing WebSocket"
+                            );
+                            // Best-effort: the connection is being terminated either way.
+                            let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                                code: CloseCode::Unauthorized.code(),
+                                reason: "Token expired".into(),
+                            }))).await;
+                            break;
+                        }
                         // Defense-in-depth tenant guard: when both the connection and the
                         // event carry an explicit tenant_id they must agree. Primary
                         // isolation is already guaranteed by subscription_id UUIDs, but
@@ -690,7 +935,7 @@ async fn handle_subscription_connection(
                         if tenant_matches && tenant_active {
                             if let Some((op_id, _)) = active_operations
                                 .iter()
-                                .find(|(_, sub_id)| **sub_id == payload.subscription_id)
+                                .find(|(_, op)| op.subscription_id == payload.subscription_id)
                             {
                                 let msg = create_next_message(op_id, &payload);
                                 if send_server_message(&codec, &mut sender, msg).await.is_err() {
@@ -701,7 +946,28 @@ async fn handle_subscription_connection(
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
-                        warn!(connection_id = %connection_id, lagged = n, "Event receiver lagged");
+                        // #772: this connection's receiver fell behind the broadcast
+                        // channel and events for its own subscriptions were skipped. A
+                        // client that is not told cannot distinguish "nothing happened"
+                        // from "events were dropped" — for a change-feed that is silent
+                        // data loss. Terminate every active operation with an explicit
+                        // EVENTS_LAGGED error so the client knows it must re-subscribe
+                        // and re-query to resynchronize.
+                        warn!(
+                            connection_id = %connection_id,
+                            lagged = n,
+                            active_operations = active_operations.len(),
+                            "Event receiver lagged; terminating operations with EVENTS_LAGGED"
+                        );
+                        terminate_operations_after_lag(
+                            &state,
+                            &codec,
+                            &mut sender,
+                            &mut active_operations,
+                            &connection_id,
+                            n,
+                        )
+                        .await;
                     }
                     Err(broadcast::error::RecvError::Closed) => {
                         error!(connection_id = %connection_id, "Event channel closed");
@@ -738,6 +1004,100 @@ async fn handle_subscription_connection(
     info!(connection_id = %connection_id, "WebSocket connection closed");
 }
 
+/// A live operation on a connection: the manager-side subscription id plus the
+/// subscription field name it was established for (needed to re-derive its
+/// row-visibility conditions on a policy hot-reload, #611).
+struct ActiveOperation {
+    subscription_id:   SubscriptionId,
+    subscription_name: String,
+}
+
+/// Wait for the next policy-reload signal (#611). Returns `true` when the
+/// generation changed, `false` when the sender is gone. Pends forever when no
+/// watch is installed, so the `select!` branch never fires.
+async fn policy_watch_changed(rx: &mut Option<tokio::sync::watch::Receiver<u64>>) -> bool {
+    match rx {
+        Some(rx) => rx.changed().await.is_ok(),
+        None => std::future::pending().await,
+    }
+}
+
+/// Wait for the server drain signal (#571). Returns `true` once draining is
+/// signalled, `false` when the sender is gone without ever signalling. Pends
+/// forever when no watch is installed.
+async fn drain_signalled(rx: &mut Option<tokio::sync::watch::Receiver<bool>>) -> bool {
+    match rx {
+        Some(rx) => {
+            // `wait_for` also observes a value set before this connection started
+            // watching (a connection opened mid-drain still drains promptly).
+            rx.wait_for(|draining| *draining).await.is_ok()
+        },
+        None => std::future::pending().await,
+    }
+}
+
+/// Re-derive every active operation's row-visibility conditions after a policy
+/// hot-reload (#611, layer 2).
+///
+/// For each operation, the current policies (via the live source) are re-derived
+/// with the connection's principal — the same fail-closed path used at subscribe
+/// time. An operation whose derivation still succeeds is re-scoped **in place**
+/// (the manager swaps its conditions, effective from the next event); one whose
+/// derivation now refuses is terminated with a `SUBSCRIPTION_REFUSED` error frame
+/// and unsubscribed, so a tightened policy can never be outlived by a
+/// pre-reload connection.
+async fn rederive_operations_after_policy_reload(
+    state: &SubscriptionState,
+    codec: &ProtocolCodec,
+    sender: &mut futures::stream::SplitSink<WebSocket, Message>,
+    active_operations: &mut HashMap<String, ActiveOperation>,
+    connection_id: &str,
+    principal: Option<&SecurityContext>,
+) {
+    let ops: Vec<(String, SubscriptionId, String)> = active_operations
+        .iter()
+        .map(|(op_id, op)| (op_id.clone(), op.subscription_id, op.subscription_name.clone()))
+        .collect();
+
+    for (op_id, sub_id, name) in ops {
+        match resolve_subscription_rls(state, &name, principal).await {
+            Ok(conditions) => {
+                // Re-scope in place; `NotActive` means the op raced a disconnect.
+                if let Err(e) = state.manager.update_rls_conditions(sub_id, conditions) {
+                    debug!(
+                        connection_id = %connection_id,
+                        operation_id = %op_id,
+                        error = %e,
+                        "Subscription gone during policy re-derivation"
+                    );
+                    active_operations.remove(&op_id);
+                }
+            },
+            Err(reason) => {
+                warn!(
+                    connection_id = %connection_id,
+                    operation_id = %op_id,
+                    subscription = %name,
+                    "Hot-reloaded row-visibility policy refused an active subscription \
+                     (fail-closed); terminating the operation"
+                );
+                active_operations.remove(&op_id);
+                let error = ServerMessage::error(
+                    &op_id,
+                    vec![GraphQLError::with_code(reason, "SUBSCRIPTION_REFUSED")],
+                );
+                if let Err(e) = send_server_message(codec, sender, error).await {
+                    debug!(connection_id = %connection_id, error = %e, "Could not send policy refusal to client");
+                }
+                if let Err(e) = state.manager.unsubscribe(sub_id) {
+                    debug!(connection_id = %connection_id, operation_id = %op_id, error = %e, "Failed to unsubscribe policy-refused operation");
+                }
+                state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
+            },
+        }
+    }
+}
+
 /// Handle a client message.
 ///
 /// Returns `Ok(())` on success, or `Err(CloseCode)` if the connection should be closed.
@@ -751,7 +1111,7 @@ async fn handle_client_message(
     connection_id: &str,
     state: &SubscriptionState,
     codec: &ProtocolCodec,
-    active_operations: &mut HashMap<String, SubscriptionId>,
+    active_operations: &mut HashMap<String, ActiveOperation>,
     remote_msg_tx: tokio::sync::mpsc::Sender<ServerMessage>,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
     tenant_id: Option<&str>,
@@ -1063,7 +1423,13 @@ async fn handle_client_message(
                 rls_conditions,
             ) {
                 Ok(sub_id) => {
-                    active_operations.insert(op_id.clone(), sub_id);
+                    active_operations.insert(
+                        op_id.clone(),
+                        ActiveOperation {
+                            subscription_id:   sub_id,
+                            subscription_name: subscription_name.clone(),
+                        },
+                    );
                     WS_SUBSCRIPTIONS_ACCEPTED.fetch_add(1, Ordering::Relaxed);
                     info!(
                         connection_id = %connection_id,
@@ -1090,8 +1456,8 @@ async fn handle_client_message(
                 CloseCode::ProtocolError
             })?;
 
-            if let Some(sub_id) = active_operations.remove(&op_id) {
-                if let Err(e) = state.manager.unsubscribe(sub_id) {
+            if let Some(op) = active_operations.remove(&op_id) {
+                if let Err(e) = state.manager.unsubscribe(op.subscription_id) {
                     warn!(connection_id = %connection_id, operation_id = %op_id, error = %e, "Failed to unsubscribe; subscription may be leaked");
                 }
                 state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
@@ -1118,6 +1484,44 @@ async fn handle_client_message(
     }
 
     Ok(())
+}
+
+/// Terminate every active operation on a connection whose broadcast receiver
+/// lagged (#772).
+///
+/// Broadcast lag means events for this connection's own subscriptions were
+/// skipped; the stream can no longer be trusted as a complete change-feed. Each
+/// operation receives a terminal `error` frame with the `EVENTS_LAGGED` code (a
+/// documented resync signal: re-subscribe, then re-query for the missed state)
+/// and is unsubscribed server-side. The connection itself stays open so the
+/// client can re-subscribe immediately.
+async fn terminate_operations_after_lag(
+    state: &SubscriptionState,
+    codec: &ProtocolCodec,
+    sender: &mut futures::stream::SplitSink<WebSocket, Message>,
+    active_operations: &mut HashMap<String, ActiveOperation>,
+    connection_id: &str,
+    lagged: u64,
+) {
+    for (op_id, op) in active_operations.drain() {
+        let error = ServerMessage::error(
+            &op_id,
+            vec![GraphQLError::with_code(
+                format!(
+                    "Event stream lagged: {lagged} events were dropped for this connection. \
+                     Re-subscribe and re-query to resynchronize."
+                ),
+                "EVENTS_LAGGED",
+            )],
+        );
+        if let Err(e) = send_server_message(codec, sender, error).await {
+            debug!(connection_id = %connection_id, error = %e, "Could not send EVENTS_LAGGED to client");
+        }
+        if let Err(e) = state.manager.unsubscribe(op.subscription_id) {
+            warn!(connection_id = %connection_id, operation_id = %op_id, error = %e, "Failed to unsubscribe lagged operation");
+        }
+        state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
+    }
 }
 
 /// Send a server message through the codec, handling protocol translation.

@@ -33,6 +33,10 @@ const MANIFEST: &[(&str, &str)] = &[
     ("readiness_path", "readiness endpoint path"),
     ("introspection_path", "introspection endpoint path"),
     ("subscription_path", "subscription (WS) route path"),
+    (
+        "subscription_auth_recheck_secs",
+        "mount_subscriptions → SubscriptionState.auth_recheck_interval (#771 mid-stream re-check)",
+    ),
     ("playground_path", "GraphQL playground path"),
     ("playground_enabled", "playground toggle"),
     ("playground_tool", "playground UI selection (GraphiQL/…)"),

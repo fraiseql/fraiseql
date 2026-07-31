@@ -4,10 +4,15 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// The type of database event that triggered the observer
+/// The type of database event that triggered the observer.
+///
+/// Deliberately a **closed** enum (no `#[non_exhaustive]`): consumers that route
+/// on the event kind — in particular the GraphQL subscription bridge, which must
+/// never fabricate a `Create` from a snapshot/no-op row (#773) — are required to
+/// match exhaustively, so adding a variant is a compile error at every mapping
+/// site instead of a silent fall-through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
-#[non_exhaustive]
 pub enum EventKind {
     /// Entity was created
     #[serde(rename = "INSERT")]

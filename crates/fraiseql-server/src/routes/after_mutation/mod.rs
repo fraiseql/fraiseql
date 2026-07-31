@@ -227,9 +227,10 @@ pub fn observer_event_to_capture(
         ObserverEventKind::Created => EventKind::Insert,
         ObserverEventKind::Updated => EventKind::Update,
         ObserverEventKind::Deleted => EventKind::Delete,
-        // A non-DML custom event (or any future kind) has no insert/update/delete
-        // semantics — no after:capture entity event.
-        _ => return None,
+        // A non-DML custom event has no insert/update/delete semantics — no
+        // after:capture entity event. `EventKind` is a closed enum (#773), so a
+        // future variant is a compile error here, never a silent fall-through.
+        ObserverEventKind::Custom => return None,
     };
     let (old, new) = match event_kind {
         EventKind::Delete => (Some(event.data.clone()), None),

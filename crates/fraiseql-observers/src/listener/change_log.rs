@@ -217,19 +217,23 @@ impl ChangeLogEntry {
     /// The change-log contract stores the verb in `modification_type` and the
     /// after-image in `object_data` (NOT a `{op, before, after}` envelope), so the
     /// op is mapped from the verb: `INSERT`→`'c'`, `UPDATE`→`'u'`, `DELETE`→`'d'`,
-    /// and anything else (e.g. `CUSTOM`/`NOOP`) → `'r'`.
+    /// and the explicit no-op verbs `CUSTOM`/`NOOP`/`READ` → `'r'`.
     ///
     /// # Errors
     ///
-    /// Infallible today (any verb maps to a code); kept returning [`Result`] so
-    /// callers and a future strict mode need not change.
+    /// Returns [`ObserverError::TemplateRenderingFailed`] for any other verb: an
+    /// unrecognised `modification_type` is producer contract drift and must be
+    /// rejected loudly, not silently defaulted to a no-op (#773).
     pub fn debezium_operation(&self) -> Result<char> {
-        Ok(match self.modification_type.to_uppercase().as_str() {
-            "INSERT" => 'c',
-            "UPDATE" => 'u',
-            "DELETE" => 'd',
-            _ => 'r',
-        })
+        match self.modification_type.to_uppercase().as_str() {
+            "INSERT" => Ok('c'),
+            "UPDATE" => Ok('u'),
+            "DELETE" => Ok('d'),
+            "CUSTOM" | "NOOP" | "READ" => Ok('r'),
+            other => Err(ObserverError::TemplateRenderingFailed {
+                reason: format!("Unknown modification_type: {other}"),
+            }),
+        }
     }
 
     /// The entity's **after** state — the `object_data` column directly (the

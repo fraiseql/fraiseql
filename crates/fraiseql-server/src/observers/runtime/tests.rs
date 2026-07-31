@@ -377,3 +377,110 @@ mod log_payload_truncation {
         assert!(out.get("blob").is_none());
     }
 }
+
+/// #773: the subscription forward site must never fabricate subscriber-visible
+/// events from non-change rows. `EventKind::Custom` — how a Debezium `'r'`
+/// (snapshot/read/no-op) change-log row surfaces here — maps to `None` and is
+/// filtered before the `EventBridge`; the three real changes map 1:1. The match
+/// inside `subscription_operation_for` is exhaustive over the closed `EventKind`,
+/// so an unmapped variant is a compile error, not a runtime default.
+mod subscription_forwarding {
+    use fraiseql_core::runtime::subscription::SubscriptionOperation;
+    use fraiseql_observers::EventKind;
+
+    use super::super::subscription_operation_for;
+
+    #[test]
+    fn custom_events_are_not_forwarded_to_subscribers() {
+        assert_eq!(
+            subscription_operation_for(EventKind::Custom),
+            None,
+            "a snapshot/read/no-op row must never become a subscriber-visible event (#773)"
+        );
+    }
+
+    #[test]
+    fn real_changes_map_one_to_one() {
+        assert_eq!(
+            subscription_operation_for(EventKind::Created),
+            Some(SubscriptionOperation::Create)
+        );
+        assert_eq!(
+            subscription_operation_for(EventKind::Updated),
+            Some(SubscriptionOperation::Update)
+        );
+        assert_eq!(
+            subscription_operation_for(EventKind::Deleted),
+            Some(SubscriptionOperation::Delete)
+        );
+    }
+}
+
+/// #772: the change-log → `EventBridge` seam must not silently lose events under
+/// backpressure. The forward is a bounded, awaited send: a full channel makes the
+/// producer wait (upstream backpressure against the durable change log) instead of
+/// dropping the event for every subscriber with only a `warn!`.
+mod bridge_backpressure {
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        runtime::subscription::{SubscriptionManager, SubscriptionOperation},
+        schema::{CompiledSchema, SubscriptionDefinition},
+    };
+
+    use super::super::forward_to_bridge;
+    use crate::subscriptions::{EntityEvent, EventBridge, EventBridgeConfig};
+
+    /// A burst far beyond the bridge channel capacity: every event must reach the
+    /// subscriber. On a current-thread runtime the producer loop gets no yield
+    /// points unless the send awaits, so the old `try_send` deterministically
+    /// dropped everything past the channel capacity.
+    #[tokio::test]
+    async fn burst_beyond_bridge_capacity_loses_no_events() {
+        const BURST: usize = 200;
+
+        let mut schema = CompiledSchema::new();
+        schema.subscriptions.push(SubscriptionDefinition::new("orderChanged", "Order"));
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
+        manager
+            .subscribe("orderChanged", serde_json::json!({}), serde_json::json!({}), "conn-1")
+            .expect("subscribe");
+        let mut rx = manager.receiver();
+
+        let bridge = EventBridge::new(
+            Arc::clone(&manager),
+            EventBridgeConfig::new().with_channel_capacity(2),
+        );
+        let sender = bridge.sender();
+        let handle = bridge.spawn();
+
+        for i in 0..BURST {
+            let event = EntityEvent::new(
+                "Order",
+                format!("order_{i}"),
+                SubscriptionOperation::Create,
+                serde_json::json!({"id": format!("order_{i}")}),
+            );
+            forward_to_bridge(&sender, event, &format!("evt-{i}")).await;
+        }
+
+        let mut delivered = 0_usize;
+        while delivered < BURST {
+            match tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await {
+                Ok(result) => {
+                    let _payload = result.expect("broadcast receiver must stay healthy");
+                    delivered += 1;
+                },
+                Err(_) => break, // no more events coming
+            }
+        }
+
+        assert_eq!(
+            delivered, BURST,
+            "every event in the burst must reach the subscriber — a full bridge channel \
+             must apply backpressure, never silently drop (#772)"
+        );
+
+        handle.abort();
+    }
+}

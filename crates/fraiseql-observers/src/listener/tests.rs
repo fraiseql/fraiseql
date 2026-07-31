@@ -58,6 +58,71 @@ mod change_log_tests {
         assert_eq!(entry.debezium_operation().unwrap(), 'c');
     }
 
+    // #773: an unrecognised modification_type must be rejected, not silently
+    // defaulted to 'r' (read/noop) — a producer typo or contract drift must be
+    // loud, not become an invisible no-op event.
+    #[test]
+    fn unknown_modification_type_is_rejected_not_defaulted() {
+        let entry = ChangeLogEntry {
+            id:                   1,
+            pk_entity_change_log: "uuid".to_string(),
+            fk_customer_org:      "org".to_string(),
+            tenant_id:            None,
+            duration_ms:          None,
+            seq:                  None,
+            actor_type:           None,
+            acting_for:           None,
+            schema_version:       None,
+            fk_contact:           None,
+            object_type:          "Order".to_string(),
+            object_id:            Uuid::new_v4().to_string(),
+            modification_type:    "GARBAGE".to_string(),
+            change_status:        "success".to_string(),
+            object_data:          json!({ "id": "order-id" }),
+            object_data_before:   None,
+            extra_metadata:       None,
+            created_at:           "2026-01-22T10:00:00Z".to_string(),
+        };
+
+        assert!(
+            entry.debezium_operation().is_err(),
+            "an unknown modification_type must be an error, not a silent 'r' default (#773)"
+        );
+        assert!(
+            entry.to_entity_event().is_err(),
+            "to_entity_event must refuse a row with an unknown modification_type (#773)"
+        );
+    }
+
+    // #773: the documented no-op verbs still map to 'r' (read/noop) — rejecting the
+    // unknown must not break the explicit CUSTOM/NOOP/READ contract.
+    #[test]
+    fn documented_noop_verbs_still_map_to_r() {
+        for verb in ["CUSTOM", "NOOP", "READ"] {
+            let entry = ChangeLogEntry {
+                id:                   1,
+                pk_entity_change_log: "uuid".to_string(),
+                fk_customer_org:      "org".to_string(),
+                tenant_id:            None,
+                duration_ms:          None,
+                seq:                  None,
+                actor_type:           None,
+                acting_for:           None,
+                schema_version:       None,
+                fk_contact:           None,
+                object_type:          "Order".to_string(),
+                object_id:            Uuid::new_v4().to_string(),
+                modification_type:    verb.to_string(),
+                change_status:        "success".to_string(),
+                object_data:          json!({ "id": "order-id" }),
+                object_data_before:   None,
+                extra_metadata:       None,
+                created_at:           "2026-01-22T10:00:00Z".to_string(),
+            };
+            assert_eq!(entry.debezium_operation().unwrap(), 'r', "verb {verb} must map to 'r'");
+        }
+    }
+
     #[test]
     fn test_change_log_entry_after_values() {
         let entry = ChangeLogEntry {

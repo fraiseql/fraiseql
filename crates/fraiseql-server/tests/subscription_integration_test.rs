@@ -240,7 +240,7 @@ fn test_entity_event_conversion() {
     let entity_event = EntityEvent::new(
         "Order",
         "order_123",
-        "INSERT",
+        SubscriptionOperation::Create,
         json!({
             "id": "order_123",
             "amount": 100.0
@@ -249,7 +249,7 @@ fn test_entity_event_conversion() {
 
     assert_eq!(entity_event.entity_type, "Order");
     assert_eq!(entity_event.entity_id, "order_123");
-    assert_eq!(entity_event.operation, "INSERT");
+    assert_eq!(entity_event.operation, SubscriptionOperation::Create);
 }
 
 /// Test 13: Event routing to subscription manager
@@ -266,7 +266,7 @@ async fn test_event_routing_to_manager() {
     let entity_event = EntityEvent::new(
         "Order",
         "order_123",
-        "INSERT",
+        SubscriptionOperation::Create,
         json!({"id": "order_123", "status": "pending"}),
     );
 
@@ -309,9 +309,19 @@ fn test_filtering_by_entity_type() {
     // Verify bridge supports sending different entity types
     let sender = bridge.get_sender();
 
-    let order_event = EntityEvent::new("Order", "order_123", "INSERT", json!({"id": "order_123"}));
+    let order_event = EntityEvent::new(
+        "Order",
+        "order_123",
+        SubscriptionOperation::Create,
+        json!({"id": "order_123"}),
+    );
 
-    let user_event = EntityEvent::new("User", "user_123", "INSERT", json!({"id": "user_123"}));
+    let user_event = EntityEvent::new(
+        "User",
+        "user_123",
+        SubscriptionOperation::Create,
+        json!({"id": "user_123"}),
+    );
 
     // Both should send successfully through the bridge
     sender
@@ -426,7 +436,12 @@ async fn test_websocket_end_to_end_delivery() {
     let sender = bridge.get_sender();
 
     // Simulate a database event being sent through EventBridge
-    let entity_event = EntityEvent::new("Order", "order_123", "INSERT", json!({"id": "order_123"}));
+    let entity_event = EntityEvent::new(
+        "Order",
+        "order_123",
+        SubscriptionOperation::Create,
+        json!({"id": "order_123"}),
+    );
 
     let result = sender.try_send(entity_event);
     result.unwrap_or_else(|e| panic!("expected Ok from try_send: {e}"));
@@ -471,7 +486,7 @@ fn test_subscription_projection_filters() {
     let event = EntityEvent::new(
         "Order",
         "order_123",
-        "INSERT",
+        SubscriptionOperation::Create,
         json!({
             "id": "order_123",
             "status": "pending",
@@ -499,7 +514,12 @@ async fn test_concurrent_client_subscriptions() {
     let handle1 = {
         let sender = sender.clone();
         tokio::spawn(async move {
-            let event = EntityEvent::new("Order", "order_1", "INSERT", json!({"id": "order_1"}));
+            let event = EntityEvent::new(
+                "Order",
+                "order_1",
+                SubscriptionOperation::Create,
+                json!({"id": "order_1"}),
+            );
             sender.try_send(event).ok()
         })
     };
@@ -507,7 +527,12 @@ async fn test_concurrent_client_subscriptions() {
     let handle2 = {
         let sender = sender.clone();
         tokio::spawn(async move {
-            let event = EntityEvent::new("Order", "order_2", "INSERT", json!({"id": "order_2"}));
+            let event = EntityEvent::new(
+                "Order",
+                "order_2",
+                SubscriptionOperation::Create,
+                json!({"id": "order_2"}),
+            );
             sender.try_send(event).ok()
         })
     };

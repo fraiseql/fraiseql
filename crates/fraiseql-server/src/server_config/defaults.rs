@@ -92,6 +92,11 @@ pub fn default_subscription_path() -> String {
     "/ws".to_string()
 }
 
+/// How often a live subscription re-checks token expiry/revocation (#771).
+pub const fn default_subscription_auth_recheck_secs() -> u64 {
+    30
+}
+
 pub const fn default_pool_min_size() -> usize {
     5
 }

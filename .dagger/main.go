@@ -417,6 +417,24 @@ func (m *FraiseqlCi) Test(
 		// suite needs a database and runs in the integration leg instead.
 		"echo '### cargo test -p fraiseql-server mcp test binaries (SYNC:SERVER_FEATURES; not covered by --lib)'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test mcp_transport_safety_test --test mcp_e2e_test --test mcp_integration_test",
+		// The subscription test binaries (P18 verification gate). Docker-free —
+		// in-memory schema + manager over real TCP WebSockets. Like the MCP
+		// binaries above, none of these had ever run in ANY CI leg (`--lib`
+		// does not reach `tests/*`), which is how the #771/#772/#773 lifecycle
+		// gaps shipped. `subscription_lifecycle_ws_test` pins mid-stream
+		// expiry/revocation (#771), loud broadcast lag (#772), hot-reload
+		// policy propagation (#611), graceful drain (#571), and the #758
+		// tenant fail-closed gate on the live /ws path.
+		"echo '### cargo test -p fraiseql-server subscription test binaries (SYNC:SERVER_FEATURES; not covered by --lib) — P18 verification gate'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test subscription_ws_e2e_test --test subscription_protocol_test --test subscription_integration_test --test subscription_forwarder_integration_test --test graphql_ws_row_visibility_pin_test --test subscription_lifecycle_ws_test",
+		// The #612-M config-coverage manifest gate ('every ServerConfig leaf has a
+		// named consumer'). Another test binary no leg had ever run — it caught
+		// P18's new `subscription_auth_recheck_secs` key only in a LOCAL full test
+		// run. It needs the export/sources/inbound features on top of
+		// SYNC:SERVER_FEATURES so every feature-gated manifest entry matches a
+		// real leaf.
+		"echo '### cargo test -p fraiseql-server config coverage manifest (not covered by --lib)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email' --test config_coverage_manifest_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
 		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
 		// and run in the integration legs; `--features cli` pulls in the CLI
@@ -939,6 +957,14 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server --features mcp --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",
+		// P18 verification gate (PG half): the FULL subscription delivery path —
+		// tb_entity_change_log row → observer runtime loop → EventBridge → manager
+		// → real WebSocket client. Proves a CUSTOM/Debezium-'r' snapshot row is
+		// never delivered as a phantom create (#773) and a burst beyond the bridge
+		// capacity is delivered completely (#772). --test-threads=1: the tests
+		// share the observer schema DDL.
+		"echo '### P18: subscription pipeline e2e (change log → runtime → bridge → /ws)'",
+		"cargo test -p fraiseql-server --features observers --test subscription_pipeline_e2e_pg -- --include-ignored --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",
 	}, "\n")
 

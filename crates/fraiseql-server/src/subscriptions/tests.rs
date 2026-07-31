@@ -28,7 +28,7 @@ mod event_bridge_tests {
         let entity_event = EntityEvent::new(
             "Order",
             "order_123",
-            "INSERT",
+            SubscriptionOperation::Create,
             serde_json::json!({
                 "id": "order_123",
                 "status": "pending"
@@ -47,7 +47,7 @@ mod event_bridge_tests {
         let entity_event = EntityEvent::new(
             "Order",
             "order_123",
-            "UPDATE",
+            SubscriptionOperation::Update,
             serde_json::json!({
                 "id": "order_123",
                 "status": "shipped"
@@ -64,7 +64,7 @@ mod event_bridge_tests {
         let entity_event = EntityEvent::new(
             "Order",
             "order_123",
-            "DELETE",
+            SubscriptionOperation::Delete,
             serde_json::json!({
                 "id": "order_123"
             }),
@@ -80,7 +80,7 @@ mod event_bridge_tests {
         let entity_event = EntityEvent::new(
             "Order",
             "order_123",
-            "UPDATE",
+            SubscriptionOperation::Update,
             serde_json::json!({
                 "id": "order_123",
                 "status": "shipped"
@@ -114,7 +114,7 @@ mod event_bridge_tests {
         let entity_event = EntityEvent::new(
             "Order",
             "order_123",
-            "UPDATE",
+            SubscriptionOperation::Update,
             serde_json::json!({ "id": "order_123" }),
         )
         .with_change_spine(envelope.clone());
@@ -159,7 +159,7 @@ mod event_bridge_tests {
             let event = EntityEvent::new(
                 "Order",
                 format!("order_{i}"),
-                "INSERT",
+                SubscriptionOperation::Create,
                 serde_json::json!({"id": format!("order_{i}"), "total": 99.95}),
             );
             sender.send(event).await.expect("channel should be open");
@@ -196,20 +196,46 @@ mod event_bridge_tests {
     // whose live-path conversion tests must survive.)
     #[test]
     fn convert_event_preserves_tenant_id() {
-        let entity_event =
-            EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}))
-                .with_tenant_id("org_42");
+        let entity_event = EntityEvent::new(
+            "Order",
+            "order_1",
+            SubscriptionOperation::Create,
+            serde_json::json!({"id": "order_1"}),
+        )
+        .with_tenant_id("org_42");
 
         let sub_event = EventBridge::convert_event(entity_event);
         assert_eq!(sub_event.tenant_id.as_deref(), Some("org_42"));
         assert_eq!(sub_event.entity_type, "Order");
     }
 
+    // #773: the bridge can no longer fabricate a Create from an unknown operation
+    // string — `EntityEvent.operation` is the closed `SubscriptionOperation` enum, so
+    // there is no string to mis-parse. The producer-side filtering (observer
+    // `EventKind::Custom`, i.e. a Debezium 'r' snapshot/read row, is never forwarded)
+    // is asserted in `observers::runtime::tests::custom_events_are_not_forwarded_to_subscribers`.
+    #[test]
+    fn convert_event_carries_the_producer_decided_operation_verbatim() {
+        for op in [
+            SubscriptionOperation::Create,
+            SubscriptionOperation::Update,
+            SubscriptionOperation::Delete,
+        ] {
+            let entity_event =
+                EntityEvent::new("Order", "order_1", op, serde_json::json!({"id": "order_1"}));
+            assert_eq!(EventBridge::convert_event(entity_event).operation, op);
+        }
+    }
+
     #[test]
     fn convert_event_without_tenant_id_passes_through_as_none() {
         // No source tenant → `None` (event delivered to all subscribers, not scoped).
-        let entity_event =
-            EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}));
+        let entity_event = EntityEvent::new(
+            "Order",
+            "order_1",
+            SubscriptionOperation::Create,
+            serde_json::json!({"id": "order_1"}),
+        );
 
         let sub_event = EventBridge::convert_event(entity_event);
         assert!(sub_event.tenant_id.is_none());

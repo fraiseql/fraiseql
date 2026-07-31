@@ -286,6 +286,32 @@ impl SubscriptionManager {
         self.subscriptions.get(&id).map(|r| r.clone())
     }
 
+    /// Replace the server-owned RLS conditions of a live subscription (#611).
+    ///
+    /// Used when a schema hot-reload changes the row-visibility policy behind an
+    /// already-connected subscription: the transport re-derives the conditions
+    /// from the new policy and swaps them in, so the tightened boundary applies
+    /// to the next delivered event without waiting for a reconnect. Delivery
+    /// matching reads the conditions per event, so the swap takes effect
+    /// immediately and atomically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubscriptionError::NotActive`] when the subscription no longer
+    /// exists (e.g. it raced a disconnect) — callers treat that as already gone.
+    pub fn update_rls_conditions(
+        &self,
+        id: SubscriptionId,
+        rls_conditions: Vec<(String, serde_json::Value)>,
+    ) -> Result<(), SubscriptionError> {
+        let mut subscription = self
+            .subscriptions
+            .get_mut(&id)
+            .ok_or_else(|| SubscriptionError::NotActive(id.to_string()))?;
+        subscription.rls_conditions = rls_conditions;
+        Ok(())
+    }
+
     /// Get all active subscriptions for a connection.
     #[must_use]
     pub fn get_connection_subscriptions(&self, connection_id: &str) -> Vec<ActiveSubscription> {
