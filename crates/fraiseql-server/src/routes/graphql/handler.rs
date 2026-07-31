@@ -355,6 +355,48 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 ))
             })?;
 
+    // ── Idempotency (#747) ───────────────────────────────────────────────────
+    // A mutation carrying an `Idempotency-Key` header executes at most once per
+    // key: a repeat with the same body replays the stored response, a repeat
+    // with a different body is a 409 conflict. This is the receiving half of
+    // the saga at-least-once dispatch contract — a peer coordinator re-sends a
+    // step's mutation under the same key after an ambiguous failure (timeout,
+    // connection reset after send) or a crash-recovery replay, and this check
+    // is what turns those re-sends into one logical effect. Scoped by tenant so
+    // keys can never replay across tenants; mutations only arrive via POST (the
+    // GET handler rejects them).
+    let idempotency_key = if detect_mutation_name(&query).is_some() {
+        headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(|client_key| {
+            let scope = crate::routes::idempotency::IdempotencyScope {
+                tenant: tenant_key.clone(),
+                method: "POST".to_string(),
+                path:   "/graphql".to_string(),
+            };
+            let body_hash = crate::routes::idempotency::hash_body(&serde_json::json!({
+                "query": query,
+                "variables": request.variables,
+                "operationName": request.operation_name,
+            }));
+            (scope.key(client_key), body_hash)
+        })
+    } else {
+        None
+    };
+    if let Some((ref key, body_hash)) = idempotency_key {
+        match state.idempotency_store.check(key, body_hash).await {
+            crate::routes::idempotency::IdempotencyCheck::Replay(stored) => {
+                debug!("Replaying stored response for repeated Idempotency-Key mutation");
+                return Ok(GraphQLResponse {
+                    body: stored.body.unwrap_or(serde_json::Value::Null),
+                });
+            },
+            crate::routes::idempotency::IdempotencyCheck::Conflict => {
+                return Err(ErrorResponse::from_error(GraphQLError::idempotency_conflict()));
+            },
+            crate::routes::idempotency::IdempotencyCheck::New => {},
+        }
+    }
+
     let variables =
         Box::pin(stages::run_before_mutation_hooks(&state, &query, request.variables)).await?;
 
@@ -513,6 +555,24 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 );
             }
         }
+    }
+
+    // Idempotency (#747): persist the successful response so a re-send of the
+    // same mutation under the same key replays it instead of executing again.
+    // Only success is stored — a failed mutation stays retryable under its key.
+    if let Some((key, body_hash)) = idempotency_key {
+        state
+            .idempotency_store
+            .store(
+                key,
+                body_hash,
+                crate::routes::idempotency::StoredResponse {
+                    status:  200,
+                    headers: Vec::new(),
+                    body:    Some(response_json.clone()),
+                },
+            )
+            .await;
     }
 
     Ok(GraphQLResponse {

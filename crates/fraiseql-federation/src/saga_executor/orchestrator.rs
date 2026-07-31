@@ -75,6 +75,37 @@ impl SagaExecutor {
 
         let mut results = Vec::with_capacity(steps.len());
         for step in &steps {
+            let step_number = u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
+
+            // Replay safety (#744): a step that already Completed committed its
+            // mutation — recovery must never re-execute it. Its persisted result
+            // stands in as this drive's result so `saga_state_for` still sees
+            // every step. A Compensated step in a forward drive means the saga
+            // is (or was) rolling back; forward-driving it would re-apply undone
+            // work, so that fails loud instead.
+            match step.state {
+                StepState::Completed => {
+                    results.push(StepExecutionResult {
+                        step_number,
+                        success: true,
+                        data: step.result.clone(),
+                        error: None,
+                        duration_ms: 0,
+                    });
+                    continue;
+                },
+                StepState::Compensated => {
+                    return Err(SagaStoreError::InvalidStateTransition {
+                        from: StepState::Compensated.as_str().to_string(),
+                        to:   StepState::Executing.as_str().to_string(),
+                    });
+                },
+                StepState::Pending | StepState::Executing | StepState::Failed => {},
+            }
+
+            // Heartbeat: a live drive keeps the saga row moving so the
+            // staleness-gated recovery claim (#745) never mistakes it for stuck.
+            store.touch_saga(saga_id).await?;
             store.update_saga_step_state(step.id, &StepState::Executing).await?;
 
             // Route to the remote HTTP client only when a client is configured
@@ -84,6 +115,29 @@ impl SagaExecutor {
                 http_client,
                 subgraph_urls,
             );
+
+            // Dispatch honesty (#766): a step recorded as remote at creation must
+            // never fall through to the local SQL adapter — a worker without the
+            // peer's transport (no client, or the subgraph not registered) fails
+            // the step loud instead of writing another service's data locally.
+            if step.remote && remote.is_none() {
+                let error = format!(
+                    "step {step_number} targets remote subgraph '{}' but this worker has no \
+                     transport for it (HTTP client and subgraph registration required); refusing \
+                     to execute it against the local database",
+                    step.subgraph
+                );
+                let result = StepExecutionResult {
+                    step_number,
+                    success: false,
+                    data: None,
+                    error: Some(error),
+                    duration_ms: 0,
+                };
+                store.update_saga_step_state(step.id, &StepState::Failed).await?;
+                results.push(result);
+                break;
+            }
 
             // Pre-fetch @requires fields (if any) and dispatch with the merged
             // variables. An unresolved required field fails the step BEFORE its
@@ -107,11 +161,7 @@ impl SagaExecutor {
                         merged.variables = merged_variables;
                         self.dispatch_step_with_retry(mutation_executor, &merged, remote).await
                     },
-                    Err(error) => {
-                        let step_number =
-                            u32::try_from(step.order).unwrap_or(u32::MAX).saturating_add(1);
-                        prefetch::prefetch_failure(step_number, &error)
-                    },
+                    Err(error) => prefetch::prefetch_failure(step_number, &error),
                 }
             };
 

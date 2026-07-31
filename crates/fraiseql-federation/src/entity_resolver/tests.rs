@@ -106,40 +106,6 @@ fn test_multi_key_deduplicate() {
     assert_eq!(deduped.len(), 2, "should deduplicate identical multi-key reps");
 }
 
-#[test]
-fn test_override_field_included_in_local_resolution() {
-    // A field with @override(from: "old") must be resolved locally — the subgraph
-    // owns it. Verify that FederationResolver classifies the type as Local (not Http).
-    use crate::types::{FederatedType, FederationMetadata, KeyDirective};
-
-    let mut product = FederatedType::new("Product".to_string());
-    product.keys = vec![KeyDirective {
-        fields:     vec!["sku".to_string()],
-        resolvable: true,
-    }];
-    product.set_field_directives(
-        "price".to_string(),
-        crate::types::FieldFederationDirectives::new()
-            .with_override_from("old-pricing".to_string()),
-    );
-
-    let metadata = FederationMetadata {
-        enabled: true,
-        version: "v2".to_string(),
-        types: vec![product],
-        remote_subscription_fields: std::collections::HashMap::new(),
-    };
-
-    let resolver = crate::types::FederationResolver::new(metadata);
-    let strategy = resolver.get_or_determine_strategy("Product").unwrap();
-
-    // Product is NOT an extended type, so it resolves locally
-    assert!(
-        matches!(strategy, crate::types::ResolutionStrategy::Local { .. }),
-        "Type with @override must resolve locally, got: {strategy}"
-    );
-}
-
 // ── H31: `_entities` ordering must follow input position, not group order ──────
 
 /// Build a bare representation carrying only a typename (key fields are
@@ -188,4 +154,78 @@ fn entities_scattered_back_to_input_order_for_interleaved_typenames() {
         "Product#1 must land at its input index, not be displaced by User#2"
     );
     assert_eq!(out[2], Some(json!({"id": "U2"})));
+}
+
+/// #764 — a database failure while resolving an `_entities` batch must surface
+/// as an **error**, never as `data: [null, …]`. The SQLite adapter has no
+/// backing table for the type, so the batch query genuinely fails; the public
+/// wrappers must propagate that instead of dropping it into all-`None`
+/// entities (a router then merges nulls and nothing signals the outage).
+#[tokio::test]
+async fn database_errors_are_errors_not_null_entities() {
+    use fraiseql_db::SqliteAdapter;
+
+    use crate::types::{FederatedType, FederationMetadata};
+
+    let adapter = Arc::new(SqliteAdapter::with_pool_config("sqlite::memory:", 1, 1).await.unwrap());
+
+    let metadata = FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types: vec![FederatedType {
+            name:                "Product".to_string(),
+            keys:                vec![crate::types::KeyDirective {
+                fields:     vec!["id".to_string()],
+                resolvable: true,
+            }],
+            is_extends:          false,
+            external_fields:     Vec::new(),
+            shareable_fields:    Vec::new(),
+            inaccessible_fields: Vec::new(),
+            field_directives:    HashMap::new(),
+            type_shareable:      false,
+        }],
+        remote_subscription_fields: HashMap::new(),
+    };
+    let fed_resolver = FederationResolver::new(metadata);
+
+    let rep = EntityRepresentation {
+        typename:   "Product".to_string(),
+        key_fields: {
+            let mut m = HashMap::new();
+            m.insert("id".to_string(), json!("p1"));
+            m
+        },
+        all_fields: {
+            let mut m = HashMap::new();
+            m.insert("id".to_string(), json!("p1"));
+            m
+        },
+    };
+    let selection = crate::selection_parser::FieldSelection::new(vec!["id".to_string()]);
+
+    let enforced = batch_load_entities_enforced(
+        std::slice::from_ref(&rep),
+        &fed_resolver,
+        Arc::clone(&adapter),
+        &selection,
+        None,
+        &HashMap::new(),
+        &[],
+    )
+    .await;
+    assert!(
+        enforced.is_err(),
+        "a failed batch must be an Err, not Ok([None]) — the router cannot tell a \
+         database outage from 'entity does not exist': {enforced:?}"
+    );
+
+    let plain = batch_load_entities(
+        std::slice::from_ref(&rep),
+        &fed_resolver,
+        Arc::clone(&adapter),
+        &selection,
+    )
+    .await;
+    assert!(plain.is_err(), "the non-enforced wrapper must propagate too: {plain:?}");
 }

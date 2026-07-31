@@ -144,22 +144,61 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
+## Idempotency Contract (remote subgraphs)
+
+Saga step dispatch is **at-least-once**: a step timeout drops the in-flight
+request client-side (the peer may still commit it), transport retries re-send
+after ambiguous failures, and crash recovery can re-dispatch an in-doubt step
+from another process. Every remote dispatch therefore carries an
+`Idempotency-Key` header — the persisted step id, stable across retries,
+timeouts and recovery replays (a compensation carries its own derived key,
+`<step-id>:compensate`) — and **the receiving subgraph must deduplicate on
+it**. A token the receiver ignores buys nothing: without deduplication a
+retried `chargeCard` charges twice.
+
+- **FraiseQL peers** deduplicate automatically: the `/graphql` endpoint
+  executes a mutation carrying an `Idempotency-Key` at most once per key
+  (repeat with the same body → the stored response is replayed; same key with
+  a different body → HTTP 409). The store is per-replica and TTL-bound
+  (24 h, sized to the crash-recovery window) — behind a load balancer, use
+  key-affine or sticky routing so a retry lands on the replica that stored
+  the first attempt.
+- **Non-FraiseQL peers** (Apollo Server, etc.) must implement the same
+  semantics: treat `Idempotency-Key` as the logical-mutation identity, store
+  the first response, and replay it for repeats.
+
 ## Recovery on Restart
 
 Saga state is durable. `SagaRecoveryManager::run_iteration` /
 `start_background_loop` (the `saga` feature) re-drive sagas that a crash or restart
 left in-flight:
 
-1. Each tick **claims** stuck (`Executing`) and pending sagas atomically via
-   `UPDATE … WHERE pk_ IN (SELECT … FOR UPDATE SKIP LOCKED)`, leasing each to the
-   recovering worker — so two recovery workers (or a worker racing a live coordinator)
-   claim **disjoint** sets and never double-drive the same saga.
+1. Each tick **claims** stuck sagas atomically via `UPDATE … WHERE pk_ IN
+   (SELECT … FOR UPDATE SKIP LOCKED)`, leasing each to the recovering worker — so
+   two recovery workers claim **disjoint** sets and never double-drive the same
+   saga. *Stuck means stale, not merely executing*: a live forward drive
+   heartbeats the saga row on every step transition, and only a saga untouched
+   for `RecoveryConfig::stuck_threshold` (default 5 min — set it above your
+   longest single-step duration) is claimable, so the recovery loop never
+   re-drives a saga concurrently with its live coordinator. The same staleness
+   gate applies to pending-saga pickup.
 2. Claimed sagas are replayed through `execute_saga` to a terminal
-   `Completed`/`Failed` state; a crashed worker's lease lapses and its claims become
-   reclaimable.
-3. Terminal, stale sagas are cleaned up.
+   `Completed`/`Failed` state — **skipping steps already `Completed`** (a
+   committed mutation is never re-executed; its persisted result stands in) —
+   and a crashed worker's lease lapses so its claims become reclaimable.
+3. **Remote steps replay on their real transport, or not at all.** Give the
+   recovery manager the coordinator's routing
+   (`SagaRecoveryManager::with_routing`) to re-drive remote steps over HTTPS;
+   without it, a saga containing a remote step is *parked for manual recovery*
+   rather than silently executed against the local database.
+4. A saga that exceeds `RecoveryConfig::max_recovery_attempts` (default 5,
+   genuinely counted per attempt) is parked instead of retried forever. A
+   parked saga keeps its in-doubt state; clear its recovery lease to hand it
+   back to automation after fixing the cause.
+5. Terminal, stale sagas are cleaned up.
 
-No manual intervention is required for crash recovery.
+No manual intervention is required for ordinary crash recovery; parked sagas
+are the deliberate exception.
 
 ## Observability
 

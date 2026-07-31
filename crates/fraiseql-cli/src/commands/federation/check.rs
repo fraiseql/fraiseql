@@ -251,25 +251,66 @@ fn collect_known_fields(fed_type: &serde_json::Value) -> std::collections::HashS
     known
 }
 
-/// Collect known subgraph names from `@override(from:)` annotations in the schema.
-fn known_subgraph_names_from_metadata(
-    schema: &serde_json::Value,
-) -> std::collections::HashSet<String> {
-    let mut names = std::collections::HashSet::new();
-    if let Some(types) = schema.pointer("/federation/types").and_then(|v| v.as_array()) {
-        for fed_type in types {
-            if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object()) {
-                for directive in directives.values() {
-                    if let Some(from) = directive.get("override_from").and_then(|v| v.as_str()) {
-                        if !from.is_empty() {
-                            names.insert(from.to_string());
-                        }
-                    }
-                }
-            }
+/// Collect the supergraph's declared subgraph roster (`federation.subgraphs`,
+/// an array of objects with a `name`).
+///
+/// Returns `None` when the supergraph carries no roster — which means
+/// `@override(from:)` references CANNOT be validated and must be warned about,
+/// never guessed at. (#820: names used to be harvested from the supergraph's
+/// own `override_from` annotations — the empty set for any real supergraph —
+/// so every legitimate override was reported as referencing an unknown
+/// subgraph.)
+fn supergraph_roster(schema: &serde_json::Value) -> Option<std::collections::HashSet<String>> {
+    let subgraphs = schema.pointer("/federation/subgraphs")?.as_array()?;
+    Some(
+        subgraphs
+            .iter()
+            .filter_map(|sg| sg.get("name").and_then(|n| n.as_str()))
+            .map(ToString::to_string)
+            .collect(),
+    )
+}
+
+/// Whether `field` is shareable on this federation type entry: field-level
+/// `@shareable` (directive or `shareable_fields`), or type-level `@shareable`.
+fn field_is_shareable(fed_type: &serde_json::Value, field: &str) -> bool {
+    if fed_type.get("type_shareable").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return true;
+    }
+    if let Some(fields) = fed_type.get("shareable_fields").and_then(|v| v.as_array()) {
+        if fields.iter().any(|f| f.as_str() == Some(field)) {
+            return true;
         }
     }
-    names
+    fed_type
+        .pointer(&format!("/field_directives/{field}/shareable"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Whether `field` is declared `@external` on this type entry (a reference to
+/// another subgraph's field, not a second definition of it).
+fn field_is_external(fed_type: &serde_json::Value, field: &str) -> bool {
+    fed_type
+        .get("external_fields")
+        .and_then(|v| v.as_array())
+        .is_some_and(|fields| fields.iter().any(|f| f.as_str() == Some(field)))
+}
+
+/// The `@key` field-sets declared on a type entry.
+fn declared_keys(fed_type: &serde_json::Value) -> Vec<Vec<String>> {
+    fed_type
+        .get("keys")
+        .and_then(|v| v.as_array())
+        .map(|keys| {
+            keys.iter()
+                .filter_map(|k| k.get("fields").and_then(|f| f.as_array()))
+                .map(|fields| {
+                    fields.iter().filter_map(|f| f.as_str()).map(ToString::to_string).collect()
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Validate that `@requires` field references exist on the type.
@@ -352,7 +393,22 @@ fn check_root_field_inaccessibility(schema: &serde_json::Value) -> Vec<String> {
     warns
 }
 
-/// Validate local subgraph against a supergraph schema.
+/// Validate local subgraph against a supergraph schema (#820).
+///
+/// Genuinely compares the two — it never reports a check it did not run:
+/// - **`@key` agreement**: every `@key` the local subgraph declares on a type the supergraph also
+///   carries must be one of the supergraph's declared keys for that type.
+/// - **field sharing**: a field defined by both sides must be `@shareable` on both (or
+///   `@external`/`@override` on the local side) — the `INVALID_FIELD_SHARING` class that shipped as
+///   #698.
+/// - **`@override(from:)` references**: validated against the supergraph's declared roster
+///   (`federation.subgraphs`); when the supergraph carries no roster this is explicitly reported as
+///   unchecked, never guessed from `override_from` annotations (which made every legitimate
+///   override fail).
+///
+/// The success message states this scope and defers final authority to the
+/// gateway composer — `composable: true` is never fabricated for a comparison
+/// that did not run.
 ///
 /// Returns `Ok(warnings)` on success, `Err(errors)` on composition failure.
 fn validate_against_supergraph(
@@ -378,10 +434,18 @@ fn validate_against_supergraph(
         return Err(vec!["Supergraph schema has no federation metadata".to_string()]);
     }
 
-    // Collect known subgraph names from the supergraph
-    let supergraph_subgraph_names = known_subgraph_names_from_metadata(&supergraph);
+    let roster = supergraph_roster(&supergraph);
 
-    // Validate @override(from:) references in local schema
+    // Index the supergraph's types by name for the structural comparison.
+    let empty = Vec::new();
+    let supergraph_types: std::collections::HashMap<&str, &serde_json::Value> = supergraph
+        .pointer("/federation/types")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&empty)
+        .iter()
+        .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(|n| (n, t)))
+        .collect();
+
     let local_content = fs::read_to_string(local_path)
         .map_err(|e| vec![format!("Failed to re-read local schema: {e}")])?;
     let local_schema: serde_json::Value = serde_json::from_str(&local_content)
@@ -390,18 +454,73 @@ fn validate_against_supergraph(
     if let Some(types) = local_schema.pointer("/federation/types").and_then(|v| v.as_array()) {
         for fed_type in types {
             let name = fed_type.get("name").and_then(|v| v.as_str()).unwrap_or("<unknown>");
+            let super_type = supergraph_types.get(name);
+
+            // @key agreement with the supergraph's declaration of the same type.
+            if let Some(super_type) = super_type {
+                let super_keys = declared_keys(super_type);
+                if !super_keys.is_empty() {
+                    for local_key in declared_keys(fed_type) {
+                        if !super_keys.contains(&local_key) {
+                            errs.push(format!(
+                                "Type '{name}': local @key(fields: \"{}\") is not one of the \
+                                 supergraph's declared keys for this type ({:?})",
+                                local_key.join(" "),
+                                super_keys.iter().map(|k| k.join(" ")).collect::<Vec<_>>()
+                            ));
+                        }
+                    }
+                }
+            }
+
             if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object()) {
                 for (field_name, directive) in directives {
+                    // @override(from:) roster validation.
                     if let Some(override_from) =
                         directive.get("override_from").and_then(|v| v.as_str())
                     {
-                        if !override_from.is_empty()
-                            && !supergraph_subgraph_names.contains(override_from)
+                        if !override_from.is_empty() {
+                            match &roster {
+                                Some(names) if !names.contains(override_from) => {
+                                    errs.push(format!(
+                                        "Type '{name}' field '{field_name}': \
+                                         @override(from: \"{override_from}\") references \
+                                         subgraph '{override_from}', which is not in the \
+                                         supergraph's declared roster"
+                                    ));
+                                },
+                                Some(_) => {},
+                                None => {
+                                    warnings.push(format!(
+                                        "Type '{name}' field '{field_name}': \
+                                         @override(from: \"{override_from}\") could not be \
+                                         checked — the supergraph declares no subgraph roster \
+                                         (federation.subgraphs)"
+                                    ));
+                                },
+                            }
+                        }
+                        // An @override field is taken over, not shared — skip
+                        // the field-sharing check for it.
+                        continue;
+                    }
+
+                    // Field sharing: a field both sides define must be
+                    // shareable on both, unless the local side merely
+                    // references it (@external).
+                    if let Some(super_type) = super_type {
+                        let super_has_field = super_type
+                            .pointer(&format!("/field_directives/{field_name}"))
+                            .is_some();
+                        if super_has_field
+                            && !field_is_external(fed_type, field_name)
+                            && !(field_is_shareable(fed_type, field_name)
+                                && field_is_shareable(super_type, field_name))
                         {
                             errs.push(format!(
-                                "Type '{name}' field '{field_name}': \
-                                 @override(from: \"{override_from}\") references unknown \
-                                 subgraph '{override_from}'"
+                                "Type '{name}' field '{field_name}': defined by both this \
+                                 subgraph and the supergraph but not @shareable on both \
+                                 sides (INVALID_FIELD_SHARING)"
                             ));
                         }
                     }
@@ -414,7 +533,13 @@ fn validate_against_supergraph(
         return Err(errs);
     }
 
-    warnings.push(format!("Composition check against '{supergraph_path}' passed"));
+    // State exactly what ran; authoritative composition is the gateway
+    // composer's job and this check never claims otherwise (#820).
+    warnings.push(format!(
+        "Compared against '{supergraph_path}': @key agreement, field sharing, and \
+         @override roster references. Authoritative composition (satisfiability, full \
+         directive semantics) is performed by the gateway composer"
+    ));
 
     Ok(warnings)
 }

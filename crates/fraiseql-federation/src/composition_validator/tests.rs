@@ -157,3 +157,155 @@ fn test_override_field_conflict_detected() {
         errors
     );
 }
+
+// ── #728 — the validator must enforce its documented rules ────
+
+fn metadata_for(types: Vec<FederatedType>) -> FederationMetadata {
+    FederationMetadata {
+        enabled: true,
+        version: "v2".to_string(),
+        types,
+        remote_subscription_fields: HashMap::new(),
+    }
+}
+
+/// #728.1 — an `@external` field whose owner set has more than one primary
+/// definition must be rejected (`ExternalFieldMultipleOwners` was defined and
+/// Display-formatted but never constructed).
+#[test]
+fn external_field_owned_by_multiple_subgraphs_is_detected() {
+    use crate::types::{FieldFederationDirectives, KeyDirective};
+
+    let key = vec![KeyDirective {
+        fields:     vec!["id".to_string()],
+        resolvable: true,
+    }];
+
+    // Two subgraphs BOTH define User.email as a primary (non-external) field.
+    let mut owner_a = FederatedType::new("User".to_string());
+    owner_a.keys = key.clone();
+    owner_a.set_field_directives("email".to_string(), FieldFederationDirectives::new());
+    let mut owner_b = FederatedType::new("User".to_string());
+    owner_b.keys = key.clone();
+    owner_b.set_field_directives("email".to_string(), FieldFederationDirectives::new());
+
+    // A third subgraph references it as @external.
+    let mut extender = FederatedType::new("User".to_string());
+    extender.is_extends = true;
+    extender.keys = key;
+    extender.external_fields = vec!["email".to_string()];
+
+    let validator = CrossSubgraphValidator::new(vec![
+        ("users".to_string(), metadata_for(vec![owner_a])),
+        ("accounts".to_string(), metadata_for(vec![owner_b])),
+        ("reviews".to_string(), metadata_for(vec![extender])),
+    ]);
+    let errors = validator
+        .validate_consistency()
+        .expect_err("an @external field with two owners must be rejected");
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, CompositionError::ExternalFieldMultipleOwners { .. })),
+        "expected ExternalFieldMultipleOwners, got: {errors:?}"
+    );
+}
+
+/// #728.2 — two subgraphs each *primarily* defining the same type with
+/// different `@key`s must conflict (`or_insert_with` silently kept the
+/// first-seen key and let the disagreement pass).
+#[test]
+fn two_primary_definitions_with_different_keys_conflict() {
+    use crate::types::KeyDirective;
+
+    let mut primary_a = FederatedType::new("Order".to_string());
+    primary_a.keys = vec![KeyDirective {
+        fields:     vec!["id".to_string()],
+        resolvable: true,
+    }];
+    let mut primary_b = FederatedType::new("Order".to_string());
+    primary_b.keys = vec![KeyDirective {
+        fields:     vec!["orderNumber".to_string()],
+        resolvable: true,
+    }];
+
+    let validator = CrossSubgraphValidator::new(vec![
+        ("orders".to_string(), metadata_for(vec![primary_a])),
+        ("billing".to_string(), metadata_for(vec![primary_b])),
+    ]);
+    let errors = validator
+        .validate_consistency()
+        .expect_err("two primaries disagreeing on @key must be rejected");
+    assert!(
+        errors.iter().any(|e| matches!(e, CompositionError::KeyMismatch { .. })),
+        "expected KeyMismatch, got: {errors:?}"
+    );
+}
+
+/// #728.2b — a type may declare multiple `@key`s; an extension matching ANY of
+/// them is valid (only `keys.first()` was compared, so an extension using the
+/// second declared key was falsely rejected).
+#[test]
+fn extension_matching_any_declared_primary_key_is_valid() {
+    use crate::types::KeyDirective;
+
+    let mut primary = FederatedType::new("Product".to_string());
+    primary.keys = vec![
+        KeyDirective {
+            fields:     vec!["id".to_string()],
+            resolvable: true,
+        },
+        KeyDirective {
+            fields:     vec!["sku".to_string()],
+            resolvable: true,
+        },
+    ];
+    let mut extension = FederatedType::new("Product".to_string());
+    extension.is_extends = true;
+    extension.keys = vec![KeyDirective {
+        fields:     vec!["sku".to_string()],
+        resolvable: true,
+    }];
+
+    let validator = CrossSubgraphValidator::new(vec![
+        ("catalog".to_string(), metadata_for(vec![primary])),
+        ("reviews".to_string(), metadata_for(vec![extension])),
+    ]);
+    assert!(
+        validator.validate_consistency().is_ok(),
+        "an extension keyed on any of the primary's declared @keys is valid"
+    );
+}
+
+/// #728.3 — type-level `@shareable` covers every field of the type; a peer
+/// marking one of those fields shareable at field level is consistent, not a
+/// conflict (`type_shareable` was ignored by `validate_shareable_consistency`).
+#[test]
+fn type_level_shareable_satisfies_field_level_shareable_peer() {
+    use crate::types::{FieldFederationDirectives, KeyDirective};
+
+    let key = vec![KeyDirective {
+        fields:     vec!["id".to_string()],
+        resolvable: true,
+    }];
+
+    // Subgraph A: the whole type is @shareable (fields carry no field-level flag).
+    let mut type_a = FederatedType::new("Money".to_string());
+    type_a.keys = key.clone();
+    type_a.type_shareable = true;
+    type_a.set_field_directives("amount".to_string(), FieldFederationDirectives::new());
+
+    // Subgraph B: the same field marked @shareable at field level.
+    let mut type_b = FederatedType::new("Money".to_string());
+    type_b.keys = key;
+    type_b.set_field_directives("amount".to_string(), FieldFederationDirectives::new().shareable());
+
+    let validator = CrossSubgraphValidator::new(vec![
+        ("pricing".to_string(), metadata_for(vec![type_a])),
+        ("billing".to_string(), metadata_for(vec![type_b])),
+    ]);
+    assert!(
+        validator.validate_consistency().is_ok(),
+        "type-level @shareable covers the field; this is consistent, not a conflict"
+    );
+}

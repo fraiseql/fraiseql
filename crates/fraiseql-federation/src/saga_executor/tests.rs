@@ -73,6 +73,7 @@ mod wired {
             saga_id: Uuid::new_v4(),
             order: 0,
             subgraph: "orders".to_string(),
+            remote: false,
             mutation_type,
             mutation_name: None,
             typename: "Order".to_string(),
@@ -84,6 +85,7 @@ mod wired {
             compensation_mutation: None,
             compensation_variables: None,
             required_fields: Vec::new(),
+            compensation_error: None,
         }
     }
 

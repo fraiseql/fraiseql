@@ -82,3 +82,64 @@ fn prefetch_failure_is_failed_step_with_message() {
     assert!(result.data.is_none(), "a failed step fabricates no result data");
     assert_eq!(result.duration_ms, 0, "the mutation never ran");
 }
+
+/// #765 — a dotted `@requires` path must produce a **valid** `_entities`
+/// selection: `dimensions.weight` selects the object field with a subselection
+/// (`dimensions { weight }`), never the bare composite field (which every
+/// spec-compliant GraphQL server rejects with "must have a selection of
+/// subfields" — so documented dotted-path support could never work against an
+/// Apollo-class subgraph).
+#[tokio::test]
+async fn dotted_requires_path_requests_nested_subselection() {
+    use std::collections::HashMap;
+
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    use crate::{
+        http_resolver::{HttpClientConfig, HttpEntityResolver},
+        saga_store::RequiredField,
+    };
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/graphql"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {"_entities": [
+                {"__typename": "Product", "dimensions": {"weight": 2.5}}
+            ]}
+        })))
+        .mount(&server)
+        .await;
+
+    let resolver = HttpEntityResolver::new_for_test(HttpClientConfig::default()).unwrap();
+    let mut urls = HashMap::new();
+    urls.insert(
+        "catalog".to_string(),
+        reqwest::Url::parse(&format!("{}/graphql", server.uri())).unwrap(),
+    );
+    let required = vec![RequiredField {
+        subgraph:   "catalog".to_string(),
+        typename:   "Product".to_string(),
+        key:        json!({"id": "p1"}),
+        field_path: "dimensions.weight".to_string(),
+        target_var: "weight".to_string(),
+    }];
+
+    let merged = super::resolve_required_fields(&required, &json!({}), Some(&resolver), &urls)
+        .await
+        .unwrap();
+    assert_eq!(merged["weight"], json!(2.5), "the nested value is extracted and merged");
+
+    // The wire-level selection must be spec-valid GraphQL.
+    let requests = server.received_requests().await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+    let query = body["query"].as_str().unwrap();
+    assert!(
+        query.contains("dimensions { weight }"),
+        "an object field needs a subselection — a bare 'dimensions' leaf is invalid \
+         GraphQL against any spec-compliant subgraph; got: {query}"
+    );
+}

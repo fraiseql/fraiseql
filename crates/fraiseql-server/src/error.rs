@@ -290,6 +290,13 @@ impl GraphQLError {
         Self::new(message, ErrorCode::DatabaseError)
     }
 
+    /// Idempotency conflict (#747): an `Idempotency-Key` was reused with a
+    /// different request body. Maps to HTTP 409 Conflict.
+    #[must_use]
+    pub fn idempotency_conflict() -> Self {
+        Self::new("Idempotency-Key reused with a different request body", ErrorCode::Conflict)
+    }
+
     /// Internal server error - unexpected conditions.
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::InternalServerError)

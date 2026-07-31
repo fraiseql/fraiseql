@@ -3,7 +3,7 @@
 //! Constructs UPDATE, INSERT, and DELETE queries from GraphQL mutations
 //! with parameter validation and SQL injection prevention.
 
-use fraiseql_db::quote_postgres_identifier;
+use fraiseql_db::{DatabaseType, quote_postgres_identifier};
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
 
@@ -32,6 +32,7 @@ fn quote_table_name(typename: &str) -> String {
 /// Returns `FraiseQLError::Validation` if the type is not found in metadata, variables are
 /// not a JSON object, the key field is missing, or no non-key fields are provided.
 pub fn build_update_query(
+    db_type: DatabaseType,
     typename: &str,
     variables: &Value,
     metadata: &FederationMetadata,
@@ -58,7 +59,7 @@ pub fn build_update_query(
     let mut set_clauses = Vec::new();
     for (field, value) in vars {
         if field != key_field {
-            let value_str = value_to_sql_literal(value)?;
+            let value_str = value_to_sql_literal(db_type, value)?;
             set_clauses.push(format!("{} = {}", quote_postgres_identifier(field), value_str));
         }
     }
@@ -70,7 +71,7 @@ pub fn build_update_query(
         });
     }
 
-    let key_value_str = value_to_sql_literal(key_value)?;
+    let key_value_str = value_to_sql_literal(db_type, key_value)?;
 
     // `RETURNING *` so the executor reads the mutated row back instead of echoing
     // the input, and can detect a 0-row UPDATE (absent entity) (#430).
@@ -95,6 +96,7 @@ pub fn build_update_query(
 ///
 /// Returns `FraiseQLError::Validation` if variables are not a JSON object or are empty.
 pub fn build_insert_query(
+    db_type: DatabaseType,
     typename: &str,
     variables: &Value,
     _metadata: &FederationMetadata,
@@ -122,7 +124,7 @@ pub fn build_insert_query(
                     message: format!("Field '{}' missing in variables", col),
                     path:    None,
                 })
-                .and_then(value_to_sql_literal)
+                .and_then(|v| value_to_sql_literal(db_type, v))
         })
         .collect();
 
@@ -154,6 +156,7 @@ pub fn build_insert_query(
 /// Returns `FraiseQLError::Validation` if the type is not found in metadata, variables are
 /// not a JSON object, or the key field is missing.
 pub fn build_delete_query(
+    db_type: DatabaseType,
     typename: &str,
     variables: &Value,
     metadata: &FederationMetadata,
@@ -174,7 +177,7 @@ pub fn build_delete_query(
         path:    None,
     })?;
 
-    let key_value_str = value_to_sql_literal(key_value)?;
+    let key_value_str = value_to_sql_literal(db_type, key_value)?;
 
     // `RETURNING *` so the executor returns the row that was deleted and can
     // detect a 0-row DELETE (absent entity) (#430).

@@ -191,10 +191,20 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
         let variables = &recased;
 
         // Build and execute SQL based on mutation type
+        // The literal builder is dialect-aware (#728): it refuses dialects whose
+        // string-escaping rules it cannot apply soundly (MySQL) instead of
+        // emitting a wrong literal.
+        let db_type = self.adapter.database_type();
         let sql = match mutation_type {
-            MutationType::Create => build_insert_query(typename, variables, &self.metadata)?,
-            MutationType::Update => build_update_query(typename, variables, &self.metadata)?,
-            MutationType::Delete => build_delete_query(typename, variables, &self.metadata)?,
+            MutationType::Create => {
+                build_insert_query(db_type, typename, variables, &self.metadata)?
+            },
+            MutationType::Update => {
+                build_update_query(db_type, typename, variables, &self.metadata)?
+            },
+            MutationType::Delete => {
+                build_delete_query(db_type, typename, variables, &self.metadata)?
+            },
         };
 
         // Execute the mutation and read the affected row back (RETURNING *).
@@ -222,70 +232,36 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
         Ok(build_entity_response(typename, row))
     }
 
-    /// Execute a mutation on an extended (non-owned) entity.
+    /// Execute a mutation on an extended (non-owned) entity — **not
+    /// implemented**, and honest about it (#785).
     ///
-    /// Extended mutations are propagated to the authoritative subgraph that owns the entity.
-    /// Currently returns a mock response. Remote subgraph communication via HTTP is not yet
-    /// implemented.
-    ///
-    /// # Arguments
-    ///
-    /// * `typename` - The entity type name being mutated
-    /// * `mutation_name` - The mutation operation name
-    /// * `variables` - Mutation variables/input
-    ///
-    /// # Returns
-    ///
-    /// Federation-formatted response with:
-    /// - `__typename`: The entity type
-    /// - Key fields and mutated fields from variables
-    /// - Mutation status indicator
-    ///
-    /// In full implementation, would:
-    /// 1. Find the authoritative subgraph for the entity from federation metadata
-    /// 2. Build GraphQL mutation query with proper field selection
-    /// 3. Execute via HTTP to remote subgraph
-    /// 4. Return the mutation response with resolved entity fields
+    /// This method used to fabricate success: it echoed the input variables
+    /// back with `_remote_execution: true` without contacting any subgraph, so
+    /// a caller believed the owning service applied a write it never heard of.
+    /// It now fails loud. Real cross-subgraph mutation propagation exists —
+    /// register the owning subgraph on a [`crate::SagaCoordinator`] (or use
+    /// [`crate::HttpMutationClient`] directly), which dispatches the mutation
+    /// over HTTPS with SSRF validation and an idempotency key.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` if the variables are not a JSON object.
+    /// Always returns [`fraiseql_error::FraiseQLError::Internal`].
     pub async fn execute_extended_mutation(
         &self,
         typename: &str,
         mutation_name: &str,
-        variables: &Value,
+        _variables: &Value,
     ) -> Result<Value> {
-        // Build response entity with key fields and updated values
-        let mut response = serde_json::Map::new();
-        response.insert("__typename".to_string(), Value::String(typename.to_string()));
-
-        // Add key fields from metadata if available
-        if let Some(fed_type) = self.metadata.types.iter().find(|t| t.name == typename) {
-            if let Some(key_directive) = fed_type.keys.first() {
-                for key_field in &key_directive.fields {
-                    if let Some(value) = variables.get(key_field) {
-                        response.insert(key_field.clone(), value.clone());
-                    }
-                }
-            }
-        }
-
-        // Add all variables to response (represents updated fields)
-        if let Some(obj) = variables.as_object() {
-            for (field, value) in obj {
-                response.insert(field.clone(), value.clone());
-            }
-        }
-
-        // Add mutation metadata
-        response.insert("_mutation".to_string(), Value::String(mutation_name.to_string()));
-        response.insert(
-            "_remote_execution".to_string(),
-            Value::Bool(true), // Indicates this would be executed on remote subgraph
-        );
-
-        Ok(Value::Object(response))
+        Err(fraiseql_error::FraiseQLError::Internal {
+            message: format!(
+                "extended mutation '{mutation_name}' on non-owned entity '{typename}' is not \
+                 implemented on this executor; dispatch it to the owning subgraph via \
+                 HttpMutationClient (or a SagaCoordinator step with the subgraph registered) \
+                 instead — this API previously fabricated a success response without \
+                 contacting any subgraph"
+            ),
+            source:  None,
+        })
     }
 }
 

@@ -8,11 +8,9 @@ mod federation {
     mod requires_edge_cases;
     mod requires_enforcement;
 
-    // Mutation operations (48 tests)
-    mod mutation_cross_graph;
+    // Mutation operations
     mod mutation_detection;
     mod mutation_error;
-    mod mutation_extended;
     mod mutation_local;
     mod mutation_response;
 
