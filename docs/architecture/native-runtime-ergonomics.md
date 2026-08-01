@@ -100,10 +100,7 @@ stable, not experimental. Every gap the beta migration surfaced (below) is
    dropped at the type level), so there is nothing for a guest to do with a
    `sending_address` field — and eager resolution would add a per-invocation DB hit
    to functions that never send. `auth_context` still carries the login `email` /
-   `display_name` unchanged. **Non-PostgreSQL note:** the DB-backed resolver runs on
-   the PostgreSQL-only identity primitive; MySQL/SQLite deployments dispatch
-   functions with the `LoginEmailSender` default (`from` = the authenticated
-   `email`).
+   `display_name` unchanged.
 
 4. **Host-provided idempotency token — DELIVERED.** The guest no longer has to
    hand-derive a deterministic key. The host exposes a per-dispatch idempotency

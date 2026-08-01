@@ -70,7 +70,7 @@ pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
     let adapter = executor.adapter();
     let db_type = adapter.database_type();
 
-    let stats_available = !matches!(db_type, DatabaseType::SQLite);
+    let stats_available = matches!(db_type, DatabaseType::PostgreSQL);
 
     let entries = adapter
         .query_stats(limit)
@@ -78,7 +78,7 @@ pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
         .map_err(|e| ApiError::internal_error(format!("Failed to fetch query stats: {e}")))?;
 
     let message = if !stats_available {
-        Some("Query stats are not supported by SQLite".to_string())
+        Some(format!("Query stats are not supported by {db_type}"))
     } else if entries.is_empty() {
         Some(
             "No query stats recorded yet (extension may not be installed or no queries executed)"

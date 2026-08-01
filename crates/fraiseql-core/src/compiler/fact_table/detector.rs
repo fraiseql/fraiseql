@@ -200,9 +200,6 @@ impl FactTableDetector {
     fn parse_sql_type(type_name: &str, db_type: DatabaseType) -> SqlType {
         match db_type {
             DatabaseType::PostgreSQL => SqlType::from_str_postgres(type_name),
-            DatabaseType::MySQL => SqlType::from_str_mysql(type_name),
-            DatabaseType::SQLite => SqlType::from_str_sqlite(type_name),
-            DatabaseType::SQLServer => SqlType::from_str_sqlserver(type_name),
         }
     }
 
@@ -382,18 +379,6 @@ impl FactTableDetector {
                         column_name.to_string()
                     }
                 }
-            },
-            DatabaseType::MySQL => {
-                // MySQL: JSON_EXTRACT(column, '$.path.to.key')
-                format!("JSON_UNQUOTE(JSON_EXTRACT({}, '$.{}')", column_name, path)
-            },
-            DatabaseType::SQLite => {
-                // SQLite: json_extract(column, '$.path.to.key')
-                format!("json_extract({}, '$.{}')", column_name, path)
-            },
-            DatabaseType::SQLServer => {
-                // SQL Server: JSON_VALUE(column, '$.path.to.key')
-                format!("JSON_VALUE({}, '$.{}')", column_name, path)
             },
         }
     }

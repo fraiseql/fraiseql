@@ -84,8 +84,8 @@ Placement: schema `core` (matches the existing reader and the
 | `object_data` | `JSONB` | `jsonb` | entity payload | executor |
 | `updated_fields` | `TEXT[]` | `_text` | envelope (`MutationResponse.updated_fields`) | executor |
 | `cascade` | `JSONB` | `jsonb` | envelope (graphql-cascade) | executor |
-| `duration_ms` | `INTEGER` | `int4` | **perf #392** (slowest-mutation ordering) | executor (PG) |
-| `started_at` | `TIMESTAMPTZ` | `timestamptz` | **perf #392** (duration basis) | executor (PG) |
+| `duration_ms` | `INTEGER` | `int4` | **perf #392** (slowest-mutation ordering) | executor |
+| `started_at` | `TIMESTAMPTZ` | `timestamptz` | **perf #392** (duration basis) | executor |
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | `timestamptz` | perf + reader | always |
 | `commit_time` | `TIMESTAMPTZ` | `timestamptz` | envelope (durable ordering) | executor |
 | `seq` | `BIGINT` | `int8` | envelope (monotonic order; dedup on `(object_type, seq)`) | sequence default |
@@ -124,8 +124,8 @@ them:
   Stamped *explicitly* at write time so out-of-session consumers (the change-log
   poller, the NATS bridge) re-authorize fan-out without reconstructing tenant
   identity
-  from connection state — tenant identity is not portable across isolation
-  models (PG `search_path` / MySQL current-DB / MSSQL `SESSION_CONTEXT`).
+  from connection state — tenant identity is not recoverable from connection
+  state (schema-mode tenancy lives in the PG `search_path`).
 
 The executor parses `SecurityContext.tenant_id` with `Uuid::parse_str(…).ok()`;
 a non-UUID tenant leaves the column `NULL` and **never** aborts the mutation —
@@ -190,40 +190,17 @@ Writes every request-scoped column: identity + change columns, `duration_ms`,
 `trace_context`, `updated_fields`, `cascade`, and the `duration_calc_version`
 marker. `schema_version` is the per-deployment constant — the compiled schema's
 content hash — not a request value, so it is the same on every row this
-deployment writes. On PostgreSQL the write is the in-transaction
+deployment writes. The write is the in-transaction
 `MATERIALIZED` CTE in the adapter
 (`crates/fraiseql-db/src/postgres/adapter/database.rs`), prepared once and cached
 (`prepare_cached`) so the per-mutation cost is dominated by index maintenance,
 not statement re-parse.
 
-**MySQL and SQL Server** write the same outbox row, but the portable way: they
-cannot reference a `CALL`/`EXEC` result set in a following `INSERT … SELECT`, so
-the adapter opens a transaction, runs the procedure, parses the
-`app.mutation_response` row in Rust, and INSERTs the outbox row
-([`build_changelog_insert_sql`]) on the same connection before commit — atomic
-with the mutation (a raised procedure or a failed INSERT rolls back both). On
-these two dialects `duration_ms` / `started_at` are legitimately **NULL** (no
-request-scoped DB clock). Dialect notes the wiring surfaced:
-
-- **MySQL** runs the `CALL` over sqlx's **binary** protocol (`sqlx::query`): the
-  text-protocol `raw_sql` cannot form a `Send` future over a `&mut MySqlConnection`,
-  which the connection-affine transaction requires. A binary `CALL` result set's
-  columns are addressable only **by ordinal**, not by name.
-- **SQL Server** wraps the work in `SET XACT_ABORT ON; BEGIN TRAN … COMMIT`, so any
-  runtime error dooms and rolls back the whole transaction (and leaves no open
-  transaction on the pooled connection).
-- The portable INSERT **quotes column identifiers per dialect** (`` `cascade` `` /
-  `[cascade]` / `"cascade"`) because `cascade` is a reserved keyword in MySQL and
-  SQL Server.
-
 ### Cooperative external producer (ETL / jobs / sister services)
 
 Supplies the identity + change columns it can know by value — `object_type`,
 `modification_type`, `object_id`, `tenant_id`, `object_data`,
-`updated_fields`, `cascade` — and lets the table's `seq` default fire. The
-portable, fully-parameterized INSERT for non-PostgreSQL dialects is
-[`fraiseql_db::changelog::build_changelog_insert_sql`] over
-[`fraiseql_db::changelog::CHANGELOG_PORTABLE_INSERT_COLUMNS`].
+`updated_fields`, `cascade` — and lets the table's `seq` default fire.
 
 For these rows **`duration_ms` and `started_at` are legitimately `NULL`** —
 there is no FraiseQL request context to measure. This is expected, not
@@ -343,7 +320,7 @@ own role; grant it `BYPASSRLS` or run it as a tenant with `fraiseql.tenant_id` s
 > CI's `fraiseql_test` superuser bypasses RLS automatically, which is why the
 > isolation test (`crates/fraiseql-observers/tests/rls_isolation.rs`) runs its
 > assertions under a dedicated `NOBYPASSRLS` role — a superuser would mask the
-> policy entirely. MySQL / SQL Server change-log isolation is a tracked follow-up.
+> policy entirely.
 
 ---
 
@@ -359,8 +336,6 @@ own role; grant it `BYPASSRLS` or run it as a tenant with `fraiseql.tenant_id` s
   contract.
 - **#382 CDC broker fan-out** — drains this executor-written outbox
   (`FOR UPDATE SKIP LOCKED`); no WAL needed.
-- **#374 multi-DB parity** — the outbox is a plain INSERT → portable across
-  PG/MySQL/SQLite/MSSQL.
 - **#366 external-write capture** — a shipped, suppressible PL/pgSQL fallback
   trigger (`core.fn_entity_change_log_capture`) writes a contract-conforming row
   for an *uncooperative external write* (raw psql / migration / third-party tool)
@@ -380,13 +355,12 @@ own role; grant it `BYPASSRLS` or run it as a tenant with `fraiseql.tenant_id` s
   (`{version, trace_id, parent_id, trace_flags}`) plus the `tracestate` header
   when present — so a change-log row carries enough to re-propagate / reconstruct
   the distributed trace, not just link to it. Both are parsed from the request
-  headers onto the `SecurityContext` and written on every dialect (`trace_context`
-  as JSONB on PostgreSQL, JSON / `NVARCHAR(MAX)` on MySQL / SQL Server); both are
-  NULL for a request with no valid trace context, never aborting the mutation.
+  headers onto the `SecurityContext` and written (`trace_context` as JSONB); both
+  are NULL for a request with no valid trace context, never aborting the mutation.
 - **#377/#378 schema versioning / zero-downtime replay** — the `schema_version`
   column is **populated**: the executor stamps the compiled schema's content hash
   (`CompiledSchema::content_hash()`, a per-deployment constant precomputed once on
-  the `ExecutorContext`) on every outbox row, on every dialect, so a row records
+  the `ExecutorContext`) on every outbox row, so a row records
   which deployment produced it. #378 (DLQ replay / zero-downtime deploys) reads it
   to reject a row replayed under a different schema rather than corrupt data. It is
   the same content hash that keys the query cache, the `/health` schema digest, and
@@ -427,13 +401,12 @@ scan without parsing prose:
 
 ## Open follow-ups
 
-The contract foundation is complete: the executor in-transaction write
-(PostgreSQL / MySQL / SQL Server), multi-DB portability, the reader projection
-(the poller surfaces `tenant_id` / `duration_ms` / `seq` top-level on the
-`EntityEvent`), the SDK `changelog=False` opt-out, the `doctor` drift check, and
-the #390 actor-model stamp (`actor_type` / `acting_for`) have all shipped. No
-tracked follow-ups remain for the contract itself; new work arrives via its
-downstream consumers (#392 / #382 / #374 / #377 / #375).
+The contract foundation is complete: the executor in-transaction write, the
+reader projection (the poller surfaces `tenant_id` / `duration_ms` / `seq`
+top-level on the `EntityEvent`), the SDK `changelog=False` opt-out, the `doctor`
+drift check, and the #390 actor-model stamp (`actor_type` / `acting_for`) have
+all shipped. No tracked follow-ups remain for the contract itself; new work
+arrives via its downstream consumers (#392 / #382 / #377 / #375).
 
 The **broader #390 surface** — beyond the audit/change-log stamp this slice
 delivers — remains follow-up work: the RBAC policy DSL gaining `actor_type`
@@ -444,13 +417,11 @@ Postgres-backed tenant audit log (only the in-memory log exists today).
 
 ## Anchor paths
 
-- Contract DDL: `crates/fraiseql-observers/migrations/08_create_entity_change_log_contract.sql`
-  (MySQL `09_*`, MSSQL `10_*`).
+- Contract DDL: `crates/fraiseql-observers/migrations/08_create_entity_change_log_contract.sql`.
 - Column set (single source of truth): `fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT`
   (+ `entity_change_log_contract_sql()`).
 - `duration_ms` + markers: `fraiseql_db::changelog` (`duration_ms_sql`,
   `STARTED_AT_VAR`, `DURATION_CALC_VERSION`).
-- Portable INSERT: `fraiseql_db::changelog::{build_changelog_insert_sql, CHANGELOG_PORTABLE_INSERT_COLUMNS}`.
 - Executor in-txn write: `crates/fraiseql-db/src/postgres/adapter/database.rs`.
 - Reader / poller: `crates/fraiseql-observers/src/listener/change_log.rs`.
 - Drift check: `crates/fraiseql-cli/src/commands/doctor.rs` (`fraiseql doctor --against-db`).

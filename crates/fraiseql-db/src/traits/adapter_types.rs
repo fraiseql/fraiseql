@@ -80,24 +80,6 @@ impl DatabaseCapabilities {
                 requires_custom_collation: false,
                 recommended_collation:     Some("icu"),
             },
-            DatabaseType::MySQL => Self {
-                database_type:             db_type,
-                supports_locale_collation: false,
-                requires_custom_collation: false,
-                recommended_collation:     Some("utf8mb4_unicode_ci"),
-            },
-            DatabaseType::SQLite => Self {
-                database_type:             db_type,
-                supports_locale_collation: false,
-                requires_custom_collation: true,
-                recommended_collation:     Some("NOCASE"),
-            },
-            DatabaseType::SQLServer => Self {
-                database_type:             db_type,
-                supports_locale_collation: true,
-                requires_custom_collation: false,
-                recommended_collation:     Some("Latin1_General_100_CI_AI_SC_UTF8"),
-            },
         }
     }
 
@@ -106,18 +88,15 @@ impl DatabaseCapabilities {
     pub const fn collation_strategy(&self) -> &'static str {
         match self.database_type {
             DatabaseType::PostgreSQL => "ICU collations (locale-specific)",
-            DatabaseType::MySQL => "UTF8MB4 collations (general)",
-            DatabaseType::SQLite => "NOCASE (limited)",
-            DatabaseType::SQLServer => "Language-specific collations",
         }
     }
 }
 
 /// Strategy used by an adapter for executing mutations.
 ///
-/// Adapters that use stored database functions (PostgreSQL, MySQL, SQL Server) use
-/// `FunctionCall`. Adapters that generate INSERT/UPDATE/DELETE SQL directly (SQLite)
-/// use `DirectSql`.
+/// The PostgreSQL adapter uses stored database functions (`FunctionCall`).
+/// `DirectSql` remains for adapters that generate INSERT/UPDATE/DELETE SQL
+/// directly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MutationStrategy {

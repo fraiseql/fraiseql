@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **FraiseQL is PostgreSQL-only: the MySQL, SQLite and SQL Server backends were removed
+  (P22, #374 #721 #799 #829 #830 #831 #832 #833 #834 #870).** Three audit passes found
+  the non-PostgreSQL paths had never been executed against a real database, and the
+  defects were not marginal: every field-projected query failed on MySQL and SQLite (a
+  PostgreSQL-only `jsonb_build_object` projection was spliced into their SQL, #799);
+  MySQL boolean equality never matched `true` while `neq: true` matched everything
+  (#831); MySQL numeric comparison rounded to an integer, so `19.99` and `20.4` compared
+  equal (#830); boolean `ORDER BY` collapsed every sort key to 0 (#829); cursor-paginated
+  sorts were silently dropped (#832); a client-controlled `where` field name could break
+  out of a MySQL string literal (#833); and a multi-argument SQLite `DELETE` applied only
+  the first filter, widening the delete (#834). Supporting them properly means three more
+  per-dialect integration matrices in CI forever, against a design that is
+  PostgreSQL-shaped throughout (Trinity views, JSONB `data` columns, RLS tenancy,
+  `LISTEN/NOTIFY` subscriptions, WAL-based CDC).
+
+  **Removed:** the `mysql`, `sqlite`, `sqlserver`, `mssql`, `test-mysql`,
+  `test-sqlserver`, `multi-db` and `all-db` Cargo features on every crate; `MySqlAdapter`
+  / `SqliteAdapter` / `SqlServerAdapter` and their introspectors; `MySqlDialect` /
+  `SqliteDialect` / `SqlServerDialect`; `MySqlProjectionGenerator` /
+  `SqliteProjectionGenerator`; the `quote_mysql_identifier` / `quote_sqlite_identifier` /
+  `quote_sqlserver_identifier` and `escape_mysql_json_path` / `escape_sqlite_json_path` /
+  `escape_sqlserver_json_path` helpers; the observers' MySQL and MSSQL NATS bridges; and
+  the `MySQL`, `SQLite` and `SQLServer` variants of `DatabaseType`, which now has one
+  variant. `DialectCapabilityGuard` and its `Feature` matrix are gone too — three audit
+  passes confirmed the guard was never called from any production path.
+
+  **Migration:** move to PostgreSQL 14+. A `mysql://`, `sqlite://` or `sqlserver://`
+  database URL is now refused at startup by both `fraiseql-server` and `fraiseql run`,
+  with an error naming the removal — it is never silently downgraded. A
+  `[collation.database_overrides.mysql|sqlite|sqlserver]` config table now fails to parse
+  (`deny_unknown_fields`) rather than being silently ignored. Because the removed
+  backends returned wrong results on filters, sorts and projections rather than working,
+  treat data from such a deployment as suspect rather than as a baseline to reproduce.
+  See `docs/database-compatibility.md`.
+
+- **`where` field names are validated at the parse boundary (#833).** A `where` key
+  outside the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*` — a quote, a backslash,
+  a leading digit — is now rejected with a `Validation` error instead of being
+  interpolated into SQL. This is the same rule `orderBy` already enforced, and it is kept
+  after the de-scope because it protects PostgreSQL too. A client sending such a key
+  previously reached SQL generation; it now gets an error.
+
 - **CDC drain redesign (P20, #797 #814 #815).** `core.tb_cdc_sink_state` gains a
   `lease_expires_at` column and an `in_flight` status (idempotent `ADD COLUMN IF NOT
   EXISTS` migration; re-run `outbox_sink_state_migration_sql`). The enqueue cursor is now

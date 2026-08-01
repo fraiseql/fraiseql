@@ -130,20 +130,7 @@ impl OrderByClause {
     ///
     /// Returns `FraiseQLError::Validation` if the field contains invalid characters.
     pub fn validate_field_name(field: &str) -> Result<()> {
-        let mut chars = field.chars();
-        let first_ok = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
-        let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
-        if first_ok && rest_ok {
-            Ok(())
-        } else {
-            Err(FraiseQLError::Validation {
-                message: format!(
-                    "orderBy field name '{field}' contains invalid characters; \
-                     only [_A-Za-z][_0-9A-Za-z]* is allowed"
-                ),
-                path:    None,
-            })
-        }
+        crate::utils::validate_graphql_identifier(field, "orderBy")
     }
 
     /// Parse `orderBy` from a GraphQL variables JSON value.

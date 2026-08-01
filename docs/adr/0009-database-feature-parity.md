@@ -1,6 +1,13 @@
 # ADR-0009: Asymmetric Database Feature Parity
 
-## Status: Accepted
+## Status: Superseded (2026-08-01)
+
+> **Superseded by the G2 decision (2026-08-01, [#374](https://github.com/fraiseql/fraiseql/issues/374)).**
+> FraiseQL is PostgreSQL-only as of v2.15.0: the MySQL, SQLite and SQL Server
+> adapters were removed. This ADR is retained as the historical record of the
+> multi-backend design it documents. See
+> [`docs/database-compatibility.md`](../database-compatibility.md).
+
 
 ## Context
 

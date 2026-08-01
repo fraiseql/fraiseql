@@ -1,8 +1,8 @@
 //! SQL dialect abstractions for WHERE clause generation.
 //!
-//! This module defines the [`SqlDialect`] trait and provides four dialect
-//! implementations: [`PostgresDialect`], [`MySqlDialect`], [`SqliteDialect`],
-//! and [`SqlServerDialect`].
+//! This module defines the [`SqlDialect`] trait and its PostgreSQL
+//! implementation, [`PostgresDialect`] (the non-PostgreSQL dialects were
+//! removed — G2 decision on #374).
 //!
 //! The generic [`GenericWhereGenerator`] is parameterised over any type that
 //! implements `SqlDialect`, so dialect-specific primitives (identifier quoting,
@@ -16,14 +16,7 @@
 pub mod capability;
 pub mod trait_def;
 
-mod mysql;
 mod postgres;
-mod sqlite;
-mod sqlserver;
 
-pub use capability::{DialectCapabilityGuard, Feature};
-pub use mysql::MySqlDialect;
 pub use postgres::PostgresDialect;
-pub use sqlite::SqliteDialect;
-pub use sqlserver::SqlServerDialect;
 pub use trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};

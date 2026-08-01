@@ -2,16 +2,13 @@
 
 use fraiseql_error::{FraiseQLError, Result};
 
-use super::{PostgresAdapter, escape_jsonb_key};
+use super::PostgresAdapter;
 use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
     postgres::where_generator::PostgresWhereGenerator,
     traits::{CursorValue, RelayDatabaseAdapter, RelayPageResult},
-    types::{
-        QueryParam,
-        sql_hints::{OrderByClause, OrderDirection},
-    },
+    types::{DatabaseType, QueryParam, sql_hints::OrderByClause},
     where_clause::WhereClause,
 };
 
@@ -208,22 +205,17 @@ impl PostgresAdapter {
         //
         // Custom sort columns first, then cursor column as tiebreaker for stable
         // keyset pagination.
-        let order_sql = if let Some(clauses) = order_by {
-            let mut parts: Vec<String> = clauses
-                .iter()
-                .map(|c| {
-                    let dir = match c.direction {
-                        OrderDirection::Asc => "ASC",
-                        OrderDirection::Desc => "DESC",
-                    };
-                    // escape_jsonb_key is defense-in-depth: field names are already
-                    // validated as GraphQL identifiers (which cannot contain `'`).
-                    format!("data->>'{field}' {dir}", field = escape_jsonb_key(&c.field))
-                })
-                .collect();
+        // Rendered by the SAME helper the offset path uses (#832): it converts
+        // the camelCase GraphQL field name to its snake_case JSONB storage key,
+        // applies the declared type's cast, and prefers a native column. The
+        // hand-rolled builder that used to live here did none of that, so a
+        // relay `orderBy` extracted a key that does not exist — NULL on every
+        // row, every row tied, sort silently dropped.
+        let order_sql = if let Some(columns) =
+            crate::order_by::render_order_by_columns(order_by, DatabaseType::PostgreSQL)?
+        {
             let primary_dir = if forward { "ASC" } else { "DESC" };
-            parts.push(format!("{quoted_col} {primary_dir}"));
-            format!(" ORDER BY {}", parts.join(", "))
+            format!(" ORDER BY {columns}, {quoted_col} {primary_dir}")
         } else {
             let dir = if forward { "ASC" } else { "DESC" };
             format!(" ORDER BY {quoted_col} {dir}")

@@ -224,55 +224,6 @@ fn test_sql_generation_postgres() {
 }
 
 #[test]
-fn test_temporal_bucket_sql_generation() {
-    use fraiseql_core::{compiler::aggregation::AggregationPlanner, db::types::DatabaseType};
-
-    let metadata = create_test_metadata();
-    let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
-        where_clause: None,
-        group_by:     vec![GroupBySelection::TemporalBucket {
-            column: "occurred_at".to_string(),
-            bucket: TemporalBucket::Day,
-            alias:  "day".to_string(),
-        }],
-        aggregates:   vec![AggregateSelection::Count {
-            alias: "count".to_string(),
-        }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
-    };
-
-    let plan = AggregationPlanner::plan(request, metadata).unwrap();
-
-    // Test PostgreSQL SQL generation
-    let pg_generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_sql = pg_generator.generate_parameterized(&plan).unwrap();
-    assert!(pg_sql.sql.contains("DATE_TRUNC('day', occurred_at)"));
-
-    // Test MySQL SQL generation
-    let mysql_generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_sql = mysql_generator.generate_parameterized(&plan).unwrap();
-    assert!(mysql_sql.sql.contains("DATE_FORMAT(occurred_at"));
-
-    // Test SQLite SQL generation
-    let sqlite_generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sqlite_sql = sqlite_generator.generate_parameterized(&plan).unwrap();
-    assert!(sqlite_sql.sql.contains("strftime"));
-
-    // Test SQL Server SQL generation
-    let sqlserver_generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let sqlserver_sql = sqlserver_generator.generate_parameterized(&plan).unwrap();
-    assert!(sqlserver_sql.sql.contains("CAST(occurred_at AS DATE)"));
-}
-
-// ============================================================================
-// Result Projection Tests
-// ============================================================================
-
-#[test]
 fn test_result_projection() {
     use std::collections::HashMap;
 

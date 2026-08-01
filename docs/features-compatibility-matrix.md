@@ -29,15 +29,11 @@ fraiseql (umbrella)
 | Feature | Default | Description | Activates |
 |---------|---------|-------------|-----------|
 | `postgres` | yes | PostgreSQL backend | `fraiseql-core/postgres` |
-| `mysql` | no | MySQL backend | `fraiseql-core/mysql` |
-| `sqlite` | no | SQLite backend | `fraiseql-core/sqlite` |
-| `sqlserver` | no | SQL Server backend | `fraiseql-core/sqlserver` |
 | `server` | no | HTTP server | `dep:fraiseql-server` |
 | `cli` | no | CLI binary | `dep:fraiseql-cli` |
 | `observers` | no | Observer system | `dep:fraiseql-observers`, `fraiseql-server?/observers` |
 | `arrow` | no | Arrow Flight | `dep:fraiseql-arrow`, `fraiseql-core/arrow`, `server` |
 | `wire` | no | Wire protocol streaming | `dep:fraiseql-wire`, `fraiseql-core/wire-backend` |
-| `full` | no | All optional components | `server`, `observers`, `arrow`, `wire`, `postgres`, `mysql`, `sqlite`, `cli` |
 | `minimal` | no | Core only, no backends | (empty) |
 
 ### fraiseql-core
@@ -45,9 +41,6 @@ fraiseql (umbrella)
 | Feature | Default | Description | Activates |
 |---------|---------|-------------|-----------|
 | `postgres` | yes | PostgreSQL backend | `fraiseql-db/postgres` |
-| `mysql` | no | MySQL backend | `fraiseql-db/mysql` |
-| `sqlite` | no | SQLite backend | `fraiseql-db/sqlite` |
-| `sqlserver` | no | SQL Server backend | `fraiseql-db/sqlserver` |
 | `rich-filters` | yes | Rich scalar type filters (44 types) | `fraiseql-db/rich-filters` |
 | `arrow` | no | Arrow RecordBatch conversion | `dep:arrow`, `dep:arrow-array` |
 | `kafka` | no | Kafka integration | `dep:rdkafka` |
@@ -56,8 +49,6 @@ fraiseql (umbrella)
 | `wire-backend` | no | Wire protocol backend | `fraiseql-db/wire-backend` |
 | `test-utils` | no | Expose ManualClock for dependents | (empty) |
 | `test-postgres` | no | PostgreSQL integration tests | `fraiseql-db/test-postgres` |
-| `test-mysql` | no | MySQL integration tests | `mysql`, `fraiseql-db/test-mysql` |
-| `test-sqlserver` | no | SQL Server integration tests | `sqlserver`, `fraiseql-db/test-sqlserver` |
 
 ### fraiseql-server
 
@@ -87,14 +78,9 @@ fraiseql (umbrella)
 | Feature | Default | Description | Activates |
 |---------|---------|-------------|-----------|
 | `postgres` | yes | PostgreSQL adapter | (empty) |
-| `mysql` | no | MySQL adapter | `sqlx/mysql` |
-| `sqlite` | no | SQLite adapter | `sqlx/sqlite` |
-| `sqlserver` | no | SQL Server adapter | `dep:tiberius`, `dep:bb8`, `dep:bb8-tiberius` |
 | `rich-filters` | no | Rich scalar type filters | (empty) |
 | `wire-backend` | no | Wire protocol backend | `dep:fraiseql-wire` |
 | `test-postgres` | no | PostgreSQL integration tests | (empty) |
-| `test-mysql` | no | MySQL integration tests | `mysql` |
-| `test-sqlserver` | no | SQL Server integration tests | `sqlserver` |
 
 ### fraiseql-error
 
@@ -114,9 +100,6 @@ fraiseql (umbrella)
 | Feature | Default | Description | Activates |
 |---------|---------|-------------|-----------|
 | `postgres` | yes | PostgreSQL backend | `sqlx/postgres` |
-| `mysql` | no | MySQL backend | `sqlx/mysql` |
-| `sqlite` | no | SQLite backend | `sqlx/sqlite` |
-| `mssql` | no | SQL Server backend | `dep:tiberius`, `dep:tokio-util`, `dep:bb8`, `dep:bb8-tiberius` |
 | `nats` | no | NATS messaging | `dep:async-nats` |
 | `arrow` | no | Arrow integration | `dep:fraiseql-arrow`, `dep:arrow` |
 | `analytics` | no | Analytics via Arrow | `arrow` |
@@ -129,8 +112,6 @@ fraiseql (umbrella)
 | `metrics` | no | Prometheus metrics | `dep:prometheus` |
 | `cli` | no | CLI interface | `dep:clap`, `dep:colored`, `dep:tabwriter` |
 | `enterprise` | no | HA feature bundle | `checkpoint`, `dedup`, `caching`, `queue`, `search`, `metrics` |
-| `multi-db` | no | PostgreSQL + MySQL | `postgres`, `mysql` |
-| `all-db` | no | All SQL backends | `postgres`, `mysql`, `mssql` |
 | `testing` | no | Test helpers | (empty) |
 
 ### fraiseql-arrow
@@ -166,9 +147,6 @@ fraiseql (umbrella)
 | Feature | Default | Description | Activates |
 |---------|---------|-------------|-----------|
 | `postgres` | yes | PostgreSQL metadata store | (empty) |
-| `mysql` | no | MySQL metadata store | (empty) |
-| `sqlite` | no | SQLite metadata store | (empty) |
-| `sqlserver` | no | SQL Server metadata store | (empty) |
 | `aws-s3` | no | Amazon S3 backend | `dep:aws-sdk-s3`, `dep:aws-config` |
 | `gcs` | no | Google Cloud Storage backend | `dep:jsonwebtoken`, `dep:reqwest` |
 | `azure-blob` | no | Azure Blob Storage backend | `dep:reqwest`, `dep:hmac` |
@@ -200,12 +178,10 @@ No feature flags defined. Internal crate (`publish = false`).
 
 ## Database Backend Support by Crate
 
-| Crate | PostgreSQL | MySQL | SQLite | SQL Server |
 |-------|:----------:|:-----:|:------:|:----------:|
 | fraiseql-db | yes (default) | opt-in | opt-in | opt-in |
 | fraiseql-core | yes (default) | opt-in | opt-in | opt-in |
 | fraiseql (umbrella) | yes (default) | opt-in | opt-in | opt-in |
-| fraiseql-observers | yes (default) | opt-in | opt-in | opt-in (as `mssql`) |
 | fraiseql-server | PostgreSQL always compiled in via `fraiseql-core` | -- | -- | -- |
 | fraiseql-wire | PostgreSQL only | -- | -- | -- |
 | fraiseql-arrow | via `fraiseql-core` | via `fraiseql-core` | via `fraiseql-core` | via `fraiseql-core` |
@@ -218,17 +194,10 @@ No feature flags defined. Internal crate (`publish = false`).
 |---|---|
 | `fraiseql/arrow` | `fraiseql/server`, `fraiseql-core/arrow` |
 | `fraiseql/wire` | `fraiseql-core/wire-backend` |
-| `fraiseql/full` | `server`, `observers`, `arrow`, `wire`, `postgres`, `mysql`, `sqlite`, `cli` |
 | `fraiseql-server/observers-enterprise` | `observers`, `fraiseql-observers/enterprise`, `fraiseql-observers/nats` |
 | `fraiseql-server/observers-nats` | `observers`, `fraiseql-observers/nats` |
 | `fraiseql-server/redis-pkce` | `auth`, `fraiseql-auth/redis-pkce` |
 | `fraiseql-observers/enterprise` | `checkpoint`, `dedup`, `caching`, `queue`, `search`, `metrics` |
-| `fraiseql-observers/all-db` | `postgres`, `mysql`, `mssql` |
-| `fraiseql-core/test-mysql` | `mysql`, `fraiseql-db/test-mysql` |
-| `fraiseql-core/test-sqlserver` | `sqlserver`, `fraiseql-db/test-sqlserver` |
-| `fraiseql-db/sqlserver` | `dep:tiberius`, `dep:bb8`, `dep:bb8-tiberius` |
-| `fraiseql-db/mysql` | `sqlx/mysql` |
-| `fraiseql-db/sqlite` | `sqlx/sqlite` |
 
 ## Known Constraints and Incompatibilities
 
@@ -236,18 +205,14 @@ No feature flags defined. Internal crate (`publish = false`).
 
 2. **`fraiseql-server` always includes PostgreSQL.** The dependency on `fraiseql-core` is declared with `features = ["postgres", "schema-lint"]`. There is no way to build `fraiseql-server` without PostgreSQL support.
 
-3. **`fraiseql-auth` and `fraiseql-webhooks` are PostgreSQL-only.** Both hardcode `sqlx` with the `postgres` feature. They cannot be used with MySQL, SQLite, or SQL Server databases.
+3. **`fraiseql-auth` and `fraiseql-webhooks` are PostgreSQL-backed.** Both hardcode `sqlx` with the `postgres` feature.
 
 4. **`fraiseql-wire` is PostgreSQL-only.** It implements the PostgreSQL wire protocol and has no support for other databases.
 
-5. **`fraiseql-observers` uses `mssql` for SQL Server** (not `sqlserver`). This differs from the naming convention used in `fraiseql-db` and `fraiseql-core`, which use `sqlserver`.
 
-6. **`fraiseql/full` does not include `sqlserver`.** The `full` feature bundle includes `postgres`, `mysql`, and `sqlite` but omits `sqlserver`.
 
-7. **`fraiseql-observers/all-db` does not include `sqlite`.** It bundles `postgres`, `mysql`, and `mssql` only.
+5. **Redis features are independent per subsystem.** `redis-apq` (APQ cache), `redis-pkce` (PKCE state), `redis-rate-limiting` (rate limiting), and observer `caching`/`dedup`/`queue` each bring their own Redis dependency. They do not share a single feature gate.
 
-8. **Redis features are independent per subsystem.** `redis-apq` (APQ cache), `redis-pkce` (PKCE state), `redis-rate-limiting` (rate limiting), and observer `caching`/`dedup`/`queue` each bring their own Redis dependency. They do not share a single feature gate.
+6. **`arrow` in `fraiseql` (umbrella) implies `server`.** You cannot use Arrow Flight without the HTTP server.
 
-9. **`arrow` in `fraiseql` (umbrella) implies `server`.** You cannot use Arrow Flight without the HTTP server.
-
-10. **`fraiseql-cli/run-server`** pulls in the full `fraiseql-server` crate. Without it, the CLI only provides compilation and linting tools.
+7. **`fraiseql-cli/run-server`** pulls in the full `fraiseql-server` crate. Without it, the CLI only provides compilation and linting tools.

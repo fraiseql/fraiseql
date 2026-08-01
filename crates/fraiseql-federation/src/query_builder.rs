@@ -39,7 +39,6 @@ fn key_match_expr(field: &str, db_type: DatabaseType, jsonb_column: Option<&str>
         },
         None => match db_type {
             DatabaseType::PostgreSQL => format!("{field}::text"),
-            _ => field.to_string(),
         },
     }
 }

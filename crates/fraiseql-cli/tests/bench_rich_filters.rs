@@ -256,16 +256,15 @@ fn bench_database_template_access() {
     let iterations = 10000;
 
     for _ in 0..iterations {
-        for db in &["postgres", "mysql", "sqlite", "sqlserver"] {
-            let _ = operators
-                .get("domainEq")
-                .and_then(|op| op.as_object())
-                .and_then(|obj| obj.get(*db));
-        }
+        let _ = operators
+            .get("domainEq")
+            .and_then(|op| op.as_object())
+            .and_then(|obj| obj.get("postgres"));
     }
 
     let elapsed = start.elapsed();
-    let avg_ns = elapsed.as_nanos() as f64 / (f64::from(iterations) * 4.0);
+    // One template lookup per iteration (PostgreSQL-only since G2, #374).
+    let avg_ns = elapsed.as_nanos() as f64 / f64::from(iterations);
 
     println!("Database template access:");
     println!("  Iterations: {}", iterations);
@@ -392,10 +391,8 @@ fn bench_full_operator_traversal() {
             if let Some(operators) = metadata.get("operators").and_then(|o| o.as_object()) {
                 for (_op_name, templates) in operators {
                     if let Some(db_templates) = templates.as_object() {
-                        for db in &["postgres", "mysql", "sqlite", "sqlserver"] {
-                            if db_templates.contains_key(*db) {
-                                count += 1;
-                            }
+                        if db_templates.contains_key("postgres") {
+                            count += 1;
                         }
                     }
                 }
@@ -408,8 +405,10 @@ fn bench_full_operator_traversal() {
     println!("Full operator traversal:");
     println!("  Time: {:?}", elapsed);
     println!("  Total operators found: {}", count);
-    println!("  Expected: 49 types × ~4-10 operators × 4 databases");
+    println!("  Expected: 49 types × ~4-10 operators × 1 database (PostgreSQL)");
 
-    // Rough sanity check (49 types, average 4 operators per type, 4 databases = ~784 operators)
-    assert!(count > 100, "Should find many operators (found {})", count);
+    // Rough sanity check. The threshold was 100 when templates were emitted for
+    // four dialects; PostgreSQL-only (G2, #374) divides the count by four, so 25
+    // preserves the original margin rather than being tuned to today's number.
+    assert!(count > 25, "Should find many operators (found {})", count);
 }

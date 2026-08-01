@@ -26,7 +26,7 @@ FraiseQL v2 achieves four goals simultaneously:
 │  fraiseql-core/           Pure GraphQL execution engine     │
 │  ├── schema/              Compiled schema representation    │
 │  ├── runtime/             Executor<DatabaseAdapter>         │
-│  ├── db/                  Multi-database support            │
+│  ├── db/                  PostgreSQL adapter                │
 │  └── graphql/             Query parsing & projection        │
 └─────────────────────────────────────────────────────────────┘
 
@@ -54,7 +54,7 @@ FraiseQL v2 achieves four goals simultaneously:
 │  ├── Event listener: PostgreSQL NOTIFY → conditions → acts  │
 │  ├── Actions: webhook, email, Slack, cache-invalidate       │
 │  ├── Delivery: retry with backoff, dead letter queue, dedup │
-│  ├── Transports: in-memory, NATS, PG NOTIFY, MySQL/MSSQL   │
+│  ├── Transports: in-memory, NATS, PG NOTIFY                │
 │  ├── Job queue: persistent async jobs (Redis or PG)         │
 │  ├── High availability: multi-listener with lease mgmt      │
 │  └── CLI: observer management (80+ commands)                │
@@ -124,17 +124,14 @@ pub trait DatabaseAdapter: Send + Sync {
     fn pool_metrics(&self) -> PoolMetrics;
 }
 
-// Implementations
+// Implementation (PostgreSQL is the only production adapter;
+// test mocks implement the same trait)
 impl DatabaseAdapter for PostgresAdapter { ... }
-impl DatabaseAdapter for MysqlAdapter { ... }
-impl DatabaseAdapter for SqliteAdapter { ... }
-impl DatabaseAdapter for MssqlAdapter { ... }
 ```
 
 **Benefits:**
 
 - ✅ Easy to mock for testing (no external services needed)
-- ✅ Swappable implementations (Postgres → MySQL without code changes)
 - ✅ Clear contracts (trait defines the interface)
 - ✅ Type-generic code (`Server<A: DatabaseAdapter>`)
 
@@ -161,11 +158,8 @@ arrow = ["fraiseql-arrow", "tonic", "arrow"]
 metrics = ["prometheus"]
 wire = ["fraiseql-wire", "tokio-postgres"]
 
-# Database backends
+# Database backend
 postgres = ["sqlx/postgres"]
-mysql = ["sqlx/mysql"]
-sqlite = ["sqlx/sqlite"]
-mssql = ["tiberius"]
 ```
 
 **Usage:**
@@ -626,7 +620,7 @@ extends to all query paths.
 
 ```rust
 // Same: Database-centric approach
-// Difference: Multi-database, compiled execution
+// Difference: Compiled execution, no runtime schema introspection
 ```
 
 ### From Apollo Server
@@ -640,52 +634,12 @@ extends to all query paths.
 
 ## Common Patterns
 
-### Database Backend Capability Matrix
+### Database Backend
 
-| Backend | Queries | Mutations | Relay Pagination |
-|---------|---------|-----------|-----------------|
-| PostgreSQL | ✅ | ✅ | ✅ |
-| MySQL | ✅ | ✅ | ✅ |
-| SQL Server | ✅ | ✅ | ✅ |
-| SQLite | ✅ | ⚠️ Insert/Delete | ❌ |
-
-SQLite executes direct-SQL **Insert** and **Delete** mutations through the executor
-(`MutationStrategy::DirectSql`, generating `INSERT … RETURNING *` / `DELETE … RETURNING *`).
-**Update** and stored-procedure (`fn_*`) mutations are **not** supported on SQLite — the server
-rejects schemas declaring them at startup (`url_guard::guard_sqlite_mutations`). Relay
-pagination, JSONB fact tables, and LISTEN/NOTIFY subscriptions are also unavailable on SQLite.
-Recommended for local development and testing.
-
-> **Note**: the core crate also exposes a compile-time-checked `execute_mutation()` API bounded
-> on the `SupportsMutations` marker trait; the always-available `execute()` entry point accepts
-> raw GraphQL strings and dispatches by the adapter's `mutation_strategy()` at runtime.
-
-### Adding a New Database Backend
-
-1. Implement `DatabaseAdapter` trait
-2. Add feature flag
-3. Add tests
-4. Update docs
-
-```rust
-// 1. Implement trait
-pub struct MyDatabaseAdapter { ... }
-
-#[async_trait]
-impl DatabaseAdapter for MyDatabaseAdapter {
-    async fn execute_where_query(...) -> Result<Vec<JsonbValue>> {
-        // Your implementation
-    }
-    // ... other trait methods
-}
-
-// 2. Add feature
-[features]
-mydb = ["mydatabase-driver"]
-
-// 3. Test
-cargo test --features mydb
-```
+PostgreSQL 14+ is the only supported backend: queries, mutations (direct-SQL and
+stored-procedure `fn_*`), Relay pagination, JSONB fact tables, and LISTEN/NOTIFY
+subscriptions are all available. Non-PostgreSQL adapters were removed in v2.15.0 —
+see [Database Compatibility](../database-compatibility.md) for the record.
 
 ### Adding Optional Middleware
 
@@ -875,4 +829,4 @@ The layered optionality pattern allows users to start minimal and grow as needed
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
 **Unsafe Code**: Zero (forbidden at compile time)
 
-**See also**: [Database Compatibility Matrix](../database-compatibility.md) for per-operation dialect support across PostgreSQL, MySQL, SQL Server, and SQLite.
+**See also**: [Database Compatibility](../database-compatibility.md) — PostgreSQL is the only supported backend (non-PostgreSQL adapters were removed in v2.15.0).

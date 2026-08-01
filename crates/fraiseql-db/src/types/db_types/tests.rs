@@ -3,9 +3,6 @@ use super::*;
 #[test]
 fn test_database_type_as_str() {
     assert_eq!(DatabaseType::PostgreSQL.as_str(), "postgresql");
-    assert_eq!(DatabaseType::MySQL.as_str(), "mysql");
-    assert_eq!(DatabaseType::SQLite.as_str(), "sqlite");
-    assert_eq!(DatabaseType::SQLServer.as_str(), "sqlserver");
 }
 
 #[test]

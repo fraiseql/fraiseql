@@ -54,23 +54,3 @@ fn test_postgres_collation_config_default_uses_icu() {
     assert!(config.use_icu, "PostgreSQL default collation should use ICU");
     assert_eq!(config.provider, "icu");
 }
-
-#[test]
-fn test_mysql_collation_config_default_charset() {
-    let config = MySqlCollationConfig::default();
-    assert_eq!(config.charset, "utf8mb4");
-    assert_eq!(config.suffix, "_unicode_ci");
-}
-
-#[test]
-fn test_sqlite_collation_config_default_nocase() {
-    let config = SqliteCollationConfig::default();
-    assert!(config.use_nocase, "SQLite default collation should use NOCASE");
-}
-
-#[test]
-fn test_sqlserver_collation_config_default_case_and_accent_insensitive() {
-    let config = SqlServerCollationConfig::default();
-    assert!(config.case_insensitive);
-    assert!(config.accent_insensitive);
-}

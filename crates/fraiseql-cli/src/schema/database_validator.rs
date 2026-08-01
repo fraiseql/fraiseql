@@ -272,11 +272,6 @@ pub(crate) fn is_json_type(data_type: &str, db_type: DatabaseType) -> bool {
     let lower = data_type.to_lowercase();
     match db_type {
         DatabaseType::PostgreSQL => lower == "jsonb" || lower == "json",
-        DatabaseType::MySQL => lower == "json",
-        DatabaseType::SQLite => lower.contains("json"),
-        // SQL Server has no native JSON type — always attempt JSON
-        // validation for the configured jsonb_column
-        DatabaseType::SQLServer => true,
     }
 }
 
@@ -750,27 +745,12 @@ async fn validate_json_keys(
 pub enum AnyIntrospector {
     /// `PostgreSQL` introspector.
     Postgres(fraiseql_core::db::PostgresIntrospector),
-    #[cfg(feature = "mysql")]
-    /// MySQL introspector.
-    MySql(fraiseql_core::db::MySqlIntrospector),
-    #[cfg(feature = "sqlite")]
-    /// SQLite introspector.
-    Sqlite(fraiseql_core::db::SqliteIntrospector),
-    #[cfg(feature = "sqlserver")]
-    /// SQL Server introspector.
-    SqlServer(fraiseql_core::db::SqlServerIntrospector),
 }
 
 impl DatabaseIntrospector for AnyIntrospector {
     async fn list_fact_tables(&self) -> fraiseql_core::Result<Vec<String>> {
         match self {
             Self::Postgres(i) => i.list_fact_tables().await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.list_fact_tables().await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.list_fact_tables().await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.list_fact_tables().await,
         }
     }
 
@@ -780,36 +760,18 @@ impl DatabaseIntrospector for AnyIntrospector {
     ) -> fraiseql_core::Result<Vec<(String, String, bool)>> {
         match self {
             Self::Postgres(i) => i.get_columns(table_name).await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.get_columns(table_name).await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.get_columns(table_name).await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.get_columns(table_name).await,
         }
     }
 
     async fn get_indexed_columns(&self, table_name: &str) -> fraiseql_core::Result<Vec<String>> {
         match self {
             Self::Postgres(i) => i.get_indexed_columns(table_name).await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.get_indexed_columns(table_name).await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.get_indexed_columns(table_name).await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.get_indexed_columns(table_name).await,
         }
     }
 
     fn database_type(&self) -> DatabaseType {
         match self {
             Self::Postgres(i) => i.database_type(),
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.database_type(),
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.database_type(),
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.database_type(),
         }
     }
 
@@ -820,24 +782,12 @@ impl DatabaseIntrospector for AnyIntrospector {
     ) -> fraiseql_core::Result<Option<serde_json::Value>> {
         match self {
             Self::Postgres(i) => i.get_sample_jsonb(table_name, column_name).await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.get_sample_jsonb(table_name, column_name).await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.get_sample_jsonb(table_name, column_name).await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.get_sample_jsonb(table_name, column_name).await,
         }
     }
 
     async fn list_relations(&self) -> fraiseql_core::Result<Vec<fraiseql_core::db::RelationInfo>> {
         match self {
             Self::Postgres(i) => i.list_relations().await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.list_relations().await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.list_relations().await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.list_relations().await,
         }
     }
 
@@ -849,12 +799,6 @@ impl DatabaseIntrospector for AnyIntrospector {
     ) -> fraiseql_core::Result<Vec<serde_json::Value>> {
         match self {
             Self::Postgres(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
         }
     }
 
@@ -867,12 +811,6 @@ impl DatabaseIntrospector for AnyIntrospector {
         // actually used — otherwise every variant would return `None`.
         match self {
             Self::Postgres(i) => i.function_exists(schema, name).await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.function_exists(schema, name).await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.function_exists(schema, name).await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.function_exists(schema, name).await,
         }
     }
 
@@ -883,12 +821,6 @@ impl DatabaseIntrospector for AnyIntrospector {
     ) -> fraiseql_core::Result<Option<bool>> {
         match self {
             Self::Postgres(i) => i.qualified_relation_exists(schema, name).await,
-            #[cfg(feature = "mysql")]
-            Self::MySql(i) => i.qualified_relation_exists(schema, name).await,
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite(i) => i.qualified_relation_exists(schema, name).await,
-            #[cfg(feature = "sqlserver")]
-            Self::SqlServer(i) => i.qualified_relation_exists(schema, name).await,
         }
     }
 }
@@ -920,67 +852,20 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
             .map_err(|e| anyhow::anyhow!("Failed to create PostgreSQL pool: {e}"))?;
 
         Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
-    } else if db_url.starts_with("mysql") || db_url.starts_with("mariadb") {
-        #[cfg(feature = "mysql")]
-        {
-            use sqlx::mysql::MySqlPool;
-
-            let pool = MySqlPool::connect(db_url)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create MySQL pool: {e}"))?;
-
-            Ok(AnyIntrospector::MySql(fraiseql_core::db::MySqlIntrospector::new(pool)))
-        }
-        #[cfg(not(feature = "mysql"))]
-        {
-            anyhow::bail!("MySQL support not compiled in. Rebuild with `--features mysql`.")
-        }
-    } else if db_url.starts_with("sqlite")
+    } else if db_url.starts_with("mysql")
+        || db_url.starts_with("mariadb")
+        || db_url.starts_with("sqlite")
+        || db_url.starts_with("mssql")
+        || db_url.starts_with("server=")
         || std::path::Path::new(db_url)
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("db") || ext.eq_ignore_ascii_case("sqlite"))
     {
-        #[cfg(feature = "sqlite")]
-        {
-            use sqlx::sqlite::SqlitePool;
-
-            let pool = SqlitePool::connect(db_url)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create SQLite pool: {e}"))?;
-
-            Ok(AnyIntrospector::Sqlite(fraiseql_core::db::SqliteIntrospector::new(pool)))
-        }
-        #[cfg(not(feature = "sqlite"))]
-        {
-            anyhow::bail!("SQLite support not compiled in. Rebuild with `--features sqlite`.")
-        }
-    } else if db_url.starts_with("mssql") || db_url.starts_with("server=") {
-        #[cfg(feature = "sqlserver")]
-        {
-            use bb8::Pool;
-            use bb8_tiberius::ConnectionManager;
-            use tiberius::Config;
-
-            let config = Config::from_ado_string(db_url).map_err(|e| {
-                anyhow::anyhow!("Failed to parse SQL Server connection string: {e}")
-            })?;
-            let mgr = ConnectionManager::build(config).map_err(|e| {
-                anyhow::anyhow!("Failed to build SQL Server connection manager: {e}")
-            })?;
-            let pool = Pool::builder()
-                .max_size(2)
-                .build(mgr)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create SQL Server pool: {e}"))?;
-
-            Ok(AnyIntrospector::SqlServer(fraiseql_core::db::SqlServerIntrospector::new(pool)))
-        }
-        #[cfg(not(feature = "sqlserver"))]
-        {
-            anyhow::bail!(
-                "SQL Server support not compiled in. Rebuild with `--features sqlserver`."
-            )
-        }
+        anyhow::bail!(
+            "This database URL targets an engine whose support was removed: FraiseQL is \
+             PostgreSQL-only (G2 decision on #374; the non-PostgreSQL dialects were never \
+             production-correct, see #721/#799). Use a postgresql:// URL."
+        )
     } else {
         anyhow::bail!("Unrecognized database URL scheme: {db_url}")
     }

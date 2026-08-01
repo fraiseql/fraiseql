@@ -1,332 +1,76 @@
-# Database Compatibility Matrix
-
-FraiseQL v2 supports four database backends with different levels of feature coverage.
-PostgreSQL is the primary target; other backends are supported on a best-effort basis.
-
-> **Cargo feature flags** for enabling each backend are documented separately in
-> [`docs/features-compatibility-matrix.md`](features-compatibility-matrix.md).
-> This document covers **SQL-level operation support** per dialect.
-
-## Feature Matrix
-
-| Feature | PostgreSQL | MySQL | SQL Server | SQLite |
-|---------|:----------:|:-----:|:----------:|:------:|
-| **SELECT queries** | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Mutations** (`fn_*` stored functions) | ✅ | ✅ | ✅ | ❌ |
-| **Mutations** (direct-SQL Insert/Delete) | — | — | — | ✅ |
-| **Relay (keyset pagination, forward)** | ✅ v2.0 | ✅ v2.1 | ✅ v2.0 | ❌ |
-| **Relay (backward pagination)** | ✅ | ✅ | ✅ v2.1 | ❌ |
-| **Aggregate queries** | ✅ | ✅ | ✅ | ✅ limited |
-| **Window functions** | ✅ Full | ⚠️ Partial | ⚠️ Partial | ❌ |
-| **Fact table queries (JSONB)** | ✅ | ❌ | ❌ | ❌ |
-| **Subscriptions (LISTEN/NOTIFY)** | ✅ | ❌ | ❌ | ❌ |
-| **Field-level encryption** | ❌¹ | ❌¹ | ❌¹ | ❌¹ |
-| **APQ (in-memory)** | ✅ | ✅ | ✅ | ✅ |
-| **APQ (Redis-backed)** | ✅ | ✅ | ✅ | ✅ |
-| **Row-level security** | ✅ Native RLS | ✅ SQL WHERE | ✅ SQL WHERE | ✅ SQL WHERE |
-| **`execute_function_call`** | ✅ | ✅ | ✅ | ❌ |
-| **Federation support** | ✅ | ✅ | ✅ | ❌ |
-| **Wire protocol streaming** | ✅ fraiseql-wire | ❌ | ❌ | ❌ |
-| **Arrow Flight** | ✅ fraiseql-arrow | ❌ | ❌ | ❌ |
-| **Cross-database parity tests** | ✅ | ✅ | ✅ | — |
-
-**Legend**:
-
-- ✅ Fully supported
-- ✅ v2.1 — Added in v2.1
-- ⚠️ Partial/limited support (see notes below)
-- ❌ Not supported — explicit `FraiseQLError::Unsupported` returned at runtime
-- ¹ Field-level at-rest encryption is **not implemented** on any backend: the write path is a no-op and the server refuses to boot if a field is marked for encryption. Encrypt at the database/storage layer instead.
-
----
-
-## Notes Per Feature
-
-### Mutations
-
-Mutations run via one of two strategies, chosen per adapter:
-
-- **Stored-procedure (`MutationStrategy::FunctionCall`)** — PostgreSQL, MySQL, and SQL Server
-  call `fn_*` database functions.
-- **Direct-SQL (`MutationStrategy::DirectSql`)** — SQLite generates `INSERT … RETURNING *` and
-  `DELETE … RETURNING *` from the mutation contract.
-
-So **SQLite supports Insert and Delete mutations** through the executor. **Update** and
-stored-procedure (`fn_*`) mutations are **not** supported on SQLite: the server rejects schemas
-declaring an Update or custom mutation at startup (`url_guard::guard_sqlite_mutations`). Use a
-`postgresql://` / `mysql://` / `sqlserver://` URL for those.
-
-### Relay Pagination
-
-- **MySQL**: Added in v2.1. Uses `CHAR(36)` for UUID cursors and `JSON_UNQUOTE(JSON_EXTRACT)` for sort columns.
-- **SQL Server**: Forward pagination uses `OFFSET/FETCH NEXT`. Backward pagination uses an
-  inner DESC subquery with outer re-sort (fixed in v2.1).
-- **SQLite**: No implementation. Relay queries return `FraiseQLError::Unsupported`.
-
-### Window Functions
-
-PostgreSQL supports the full WINDOW clause including `FILTER (WHERE ...)` on aggregates
-and all frame specifications.
-
-MySQL 8+ supports window functions but lacks the `FILTER` clause and has limitations
-with `ROWS BETWEEN` in some configurations.
-
-SQL Server supports most window functions but has `ROWS vs RANGE` differences and some
-version constraints on `PERCENT_RANK`.
-
-See [`docs/modules/window-functions.md`](modules/window-functions.md) for the per-function
-dialect support table.
-
-### Fact Table Queries
-
-Fact tables (`tf_*`) use JSONB columns for flexible dimension storage. This is a
-PostgreSQL-only data type. MySQL and SQL Server do not support fact table queries.
-
-A MySQL-compatible approach using `JSON_EXTRACT` paths is planned for a future release.
-
-See [`docs/modules/fact-table.md`](modules/fact-table.md) for the design rationale.
-
-### Subscriptions
-
-GraphQL subscriptions use PostgreSQL's `LISTEN/NOTIFY` mechanism. This is
-PostgreSQL-specific. No equivalent is implemented for MySQL, SQL Server, or SQLite.
-
-### Wire Protocol Streaming
-
-`fraiseql-wire` is a custom streaming protocol built on top of PostgreSQL's wire protocol.
-It is not portable to other databases by design.
-
-### SQLite Scope
-
-SQLite is supported for **local development and testing** only. It implements full SELECT
-queries and direct-SQL Insert/Delete mutations, but not Update / stored-procedure (`fn_*`)
-mutations, JSONB (fact tables), or LISTEN/NOTIFY (subscriptions). Do not deploy SQLite in
-production.
-
----
-
-## Per-Operation Dialect Feature Matrix
-
-The following sections detail which SQL operations each dialect supports, with exact
-syntax differences and known limitations.
-
-### WHERE Operators
-
-#### Comparison and Containment
-
-| Operator | PostgreSQL | MySQL | SQL Server | SQLite |
-|----------|:----------:|:-----:|:----------:|:------:|
-| `Eq` (`=`) | ✅ | ✅ | ✅ | ✅ |
-| `Neq` (`!=` / `<>`) | ✅ `!=` | ✅ `!=` | ✅ `<>` | ✅ `!=` |
-| `Gt` / `Gte` / `Lt` / `Lte` | ✅ | ✅ | ✅ | ✅ |
-| `In` / `Nin` (NOT IN) | ✅ | ✅ | ✅ | ✅ |
-| `IsNull` / `IsNotNull` | ✅ | ✅ | ✅ | ✅ |
-
-Comparison operands are cast to the **declared field type** before comparison, so a
-`DateTime` range filter compares instants and a `Numeric` filter compares numbers —
-a JSON extraction is `text`, and comparing it as text gives the wrong answer for every
-type but strings, UUIDs and enums.
-
-#### String Matching
-
-| Operator | PostgreSQL | MySQL | SQL Server | SQLite |
-|----------|:----------:|:-----:|:----------:|:------:|
-| `Contains` (LIKE `%v%`) | ✅ | ✅ | ✅ | ✅ |
-| `Icontains` | ✅ ILIKE | ✅ LIKE¹ | ✅ COLLATE CI_AI | ✅ LIKE¹ |
-| `Startswith` / `Endswith` | ✅ | ✅ | ✅ | ✅ |
-| `Istartswith` / `Iendswith` | ✅ ILIKE | ✅ LIKE¹ | ✅ COLLATE CI_AI | ✅ LIKE¹ |
-| `Like` / `Nlike` | ✅ | ✅ | ✅ | ✅ |
-| `Ilike` / `Nilike` | ✅ ILIKE | ✅ LIKE¹ | ✅ COLLATE CI_AI | ✅ LIKE¹ |
-| `Regex` (`~`) | ✅ `~` | ✅ REGEXP | ❌ | ❌ |
-| `Iregex` (`~*`) | ✅ `~*` | ❌ | ❌ | ❌ |
-| `Nregex` (`!~`) | ✅ `!~` | ✅ NOT REGEXP | ❌ | ❌ |
-| `Niregex` (`!~*`) | ✅ `!~*` | ❌ | ❌ | ❌ |
-
-¹ MySQL with `utf8mb4_unicode_ci` and SQLite LIKE are case-insensitive by default.
-
-`Contains` / `Startswith` / `Endswith` (and their case-insensitive forms) escape `%`, `_`
-and `\` in the needle so they match literally. SQLite and SQL Server have no default LIKE
-escape character, so their renderings carry an explicit `ESCAPE '\'`.
-
-#### JSON / Array Operators
-
-| Operator | PostgreSQL | MySQL | SQL Server | SQLite |
-|----------|:----------:|:-----:|:----------:|:------:|
-| `ArrayContains` | ✅ `@>` | ✅ `JSON_CONTAINS()` | ✅ `EXISTS(OPENJSON)` | ✅ `EXISTS(json_each)` |
-| `ArrayContainedBy` | ✅ `<@` | ❌ | ❌ | ❌ |
-| `ArrayOverlaps` | ✅ `&&` | ✅ `JSON_OVERLAPS()` | ❌ | ❌ |
-| `LenEq/Gt/Lt/Gte/Lte/Neq` | ✅ `jsonb_array_length()` | ❌ | ❌ | ❌ |
-| `StrictlyContains` (JSONB `@>`) | ✅ | ❌ | ❌ | ❌ |
-
-#### Domain-Specific Operators (PostgreSQL Only)
-
-| Category | Operators | PostgreSQL | Others |
-|----------|-----------|:----------:|:------:|
-| **pgvector** | `CosineDistance`, `L2Distance`, `L1Distance`, `HammingDistance`, `InnerProduct`, `JaccardDistance` | ✅ | ❌ |
-| **Network (INET/CIDR)** | `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsPublic`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `Overlaps` | ✅ | ❌ |
-| **LTree** | `AncestorOf`, `DescendantOf`, `MatchesLquery`, `MatchesLtxtquery`, `MatchesAnyLquery`, `DepthEq/Neq/Gt/Gte/Lt/Lte`, `Lca` | ✅ | ❌ |
-| **Rich filters** | `EmailDomainEq`, `EmailDomainIn`, `EmailDomainEndswith`, `EmailLocalPartStartswith`, `VinWmiEq`, `IbanCountryEq` | ✅ | ❌ planned |
-
-### Pagination
-
-| Feature | PostgreSQL | MySQL | SQL Server | SQLite |
-|---------|:----------:|:-----:|:----------:|:------:|
-| LIMIT/OFFSET | ✅ `LIMIT n OFFSET m` | ✅ `LIMIT n OFFSET m` | ✅ `OFFSET m ROWS FETCH NEXT n ROWS ONLY` | ✅ `LIMIT n OFFSET m` |
-| Relay keyset (forward) | ✅ | ✅ | ✅ | ❌ |
-| Relay keyset (backward) | ✅ | ✅ | ✅ | ❌ |
-| Cursor types | Int64, UUID | Int64, UUID | Int64, UUID | — |
-
-### Mutations
-
-| Feature | PostgreSQL | MySQL | SQL Server | SQLite |
-|---------|:----------:|:-----:|:----------:|:------:|
-| Stored-function (`fn_*`) mutations | ✅ | ✅ | ✅ | ❌¹ |
-| Function call syntax | `SELECT * FROM fn($1,$2)` | `SELECT * FROM fn(?,?)` | `SELECT * FROM fn(@p1,@p2)` | ❌ (uses direct SQL) |
-| Direct-SQL Insert/Delete | — | — | — | ✅ `INSERT/DELETE … RETURNING *` |
-| Returns `mutation_response` | ✅ | ✅ | ✅ | ✅ (reshaped) |
-| Mutation timing injection | ✅ session var | ❌ | ❌ | — |
-
-¹ SQLite executes **Insert** and **Delete** mutations via the direct-SQL strategy. Only
-**Update** and custom / stored-procedure (`fn_*`) mutations are unsupported on SQLite: those
-produce a compile-time warning from `fraiseql compile` and are rejected at server startup
-(`url_guard::guard_sqlite_mutations`).
-
-### Window Functions
-
-All four dialects use standard `OVER (PARTITION BY ... ORDER BY ...)` syntax for the
-core window functions. The differences are in advanced frame clauses.
-
-| Function | PostgreSQL | MySQL 8.0+ | SQL Server | SQLite 3.25+ |
-|----------|:----------:|:----------:|:----------:|:------------:|
-| `ROW_NUMBER()` | ✅ | ✅ | ✅ | ❌¹ |
-| `RANK()` | ✅ | ✅ | ✅ | ❌¹ |
-| `DENSE_RANK()` | ✅ | ✅ | ✅ | ❌¹ |
-| `LAG()` / `LEAD()` | ✅ | ✅ | ✅ | ❌¹ |
-| `NTILE()` | ✅ | ✅ | ✅ | ❌¹ |
-| `PERCENT_RANK()` | ✅ | ✅ | ⚠️ version-dependent | ❌¹ |
-| `CUME_DIST()` | ✅ | ✅ | ✅ | ❌¹ |
-| Frame: `ROWS BETWEEN` | ✅ | ✅ | ✅ | ❌¹ |
-| Frame: `EXCLUDE CURRENT ROW` | ✅ | ❌ | ❌ | ❌ |
-| `FILTER (WHERE ...)` on aggregates | ✅ | ❌ | ❌ | ❌ |
-| STDDEV/VARIANCE in window context | ✅ | ❌ | ✅ | ❌ |
-
-¹ SQLite 3.25+ supports window functions natively, but FraiseQL does not generate
-window function SQL for the SQLite dialect. Window queries return `FraiseQLError::Unsupported`.
-
-### JSON Operations
-
-Each dialect uses different syntax for JSON extraction and type coercion:
-
-| Operation | PostgreSQL | MySQL | SQL Server | SQLite |
-|-----------|-----------|-------|-----------|--------|
-| **Extract scalar** | `data->>'field'` | `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))` | `JSON_VALUE(data, '$.field')` | `json_extract(data, '$.field')` |
-| **Nested path** | `data->'a'->'b'->>'c'` | `JSON_UNQUOTE(JSON_EXTRACT(data, '$.a.b.c'))` | `JSON_VALUE(data, '$.a.b.c')` | `json_extract(data, '$.a.b.c')` |
-| **Array length** | `jsonb_array_length(expr)` | `JSON_LENGTH(expr)` | `(SELECT COUNT(*) FROM OPENJSON(expr))` | `json_array_length(expr)` |
-| **Numeric cast** | `(expr)::numeric` | `CAST(expr AS DECIMAL)` | `CAST(expr AS FLOAT)` | `CAST(expr AS REAL)` |
-| **Parameter cast** | `($1::text)::numeric` | implicit | implicit | implicit |
-
-### Full-Text Search
-
-| Variant | PostgreSQL | MySQL | SQL Server | SQLite |
-|---------|-----------|-------|-----------|--------|
-| **Matches** (full query syntax) | `to_tsvector(col) @@ to_tsquery($1)` | `MATCH(col) AGAINST(? IN NATURAL LANGUAGE MODE)` | `CONTAINS(col, @p1)` | ❌ |
-| **PlainQuery** (word-level) | `to_tsvector(col) @@ plainto_tsquery($1)` | `MATCH(col) AGAINST(? IN BOOLEAN MODE)` | `CONTAINS(col, @p1)` | ❌ |
-| **PhraseQuery** (exact phrase) | `to_tsvector(col) @@ phraseto_tsquery($1)` | `MATCH(col) AGAINST(? IN NATURAL LANGUAGE MODE)` | `FREETEXT(col, @p1)` | ❌ |
-| **WebsearchQuery** (Google-like) | `to_tsvector(col) @@ websearch_to_tsquery($1)` | ❌ | ❌ | ❌ |
-| **Variants available** | 4 | 3 | 2 | 0 |
-| **Index requirement** | `GIN` on `tsvector` column | `FULLTEXT` index | `FULLTEXT` index | — |
-
-### Aggregate Functions
-
-| Function | PostgreSQL | MySQL | SQL Server | SQLite |
-|----------|-----------|-------|-----------|--------|
-| `COUNT` / `SUM` / `AVG` / `MIN` / `MAX` | ✅ | ✅ | ✅ | ✅ |
-| `STDDEV_SAMP` | ✅ `STDDEV_SAMP()` | ✅ `STDDEV_SAMP()` | ✅ `STDEV()` | ❌ returns NULL |
-| `VAR_SAMP` | ✅ `VAR_SAMP()` | ✅ `VAR_SAMP()` | ✅ `VAR()` | ❌ returns NULL |
-| `STRING_AGG` | ✅ `STRING_AGG(col, sep)` | ✅ `GROUP_CONCAT(col SEPARATOR sep)` | ✅ `STRING_AGG(CAST(col AS NVARCHAR(MAX)), sep)` | ✅ `GROUP_CONCAT(col, sep)` |
-| `ARRAY_AGG` | ✅ `ARRAY_AGG(col)` | ✅ `JSON_ARRAYAGG(col)` | ⚠️ emulated¹ | ⚠️ emulated² |
-| `BOOL_AND` | ✅ `BOOL_AND(col)` | ❌ | ❌ | ❌ |
-| `BOOL_OR` | ✅ `BOOL_OR(col)` | ❌ | ❌ | ❌ |
-
-¹ SQL Server emulates `ARRAY_AGG` via `'[' + STRING_AGG('"' + CAST(col AS NVARCHAR(MAX)) + '"', ',') + ']'`.
-² SQLite emulates `ARRAY_AGG` via `'[' || GROUP_CONCAT('"' || col || '"', ',') || ']'`.
-
-### Common Table Expressions (CTEs)
-
-| Feature | PostgreSQL | MySQL 8.0+ | SQL Server | SQLite 3.8.3+ |
-|---------|:----------:|:----------:|:----------:|:-------------:|
-| Basic CTE (`WITH ... AS`) | ✅ | ✅ | ✅ | ✅ |
-| Recursive CTE (`WITH RECURSIVE`) | ✅ | ✅ | ✅ | ✅ |
-| Multiple CTEs | ✅ | ✅ | ✅ | ✅ |
-
-All four dialects use identical `WITH RECURSIVE` syntax for recursive CTEs.
-
-### Advanced Features
-
-| Feature | PostgreSQL | MySQL | SQL Server | SQLite |
-|---------|:----------:|:-----:|:----------:|:------:|
-| **Advisory locks** | ✅ `pg_try_advisory_lock()` | ❌ | ❌ | ❌ |
-| **Row-level security** | ✅ Native `CREATE POLICY` | ⚠️ WHERE injection | ⚠️ WHERE injection | ⚠️ WHERE injection |
-| **Field-level encryption** | ❌ not implemented | ❌ not implemented | ❌ not implemented | ❌ not implemented |
-| **Connection pooling** | ✅ `deadpool-postgres` (default: 25) | ✅ `sqlx` (default: 10) | ✅ `bb8` + `tiberius` (default: 10) | ✅ `sqlx` (default: 5) |
-| **Upsert** | ✅ | ✅ | ✅ | ✅ |
-| **EXPLAIN support** | ✅ `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` | ❌ | ❌ | ❌ |
-
-### SQL Syntax Differences
-
-These low-level dialect differences are handled automatically by FraiseQL's SQL generation
-layer. They are documented here for debugging and troubleshooting.
-
-| Syntax element | PostgreSQL | MySQL | SQL Server | SQLite |
-|----------------|-----------|-------|-----------|--------|
-| **Identifier quoting** | `"col"` | `` `col` `` | `[col]` | `"col"` |
-| **Placeholders** | `$1, $2, $3` | `?, ?, ?` | `@p1, @p2, @p3` | `?, ?, ?` |
-| **String concatenation** | `\|\|` | `CONCAT()` | `+` | `\|\|` |
-| **Always-true literal** | `TRUE` | `TRUE` | `1=1` | `1=1` |
-| **Always-false literal** | `FALSE` | `FALSE` | `1=0` | `1=0` |
-| **Case-sensitive LIKE** | `LIKE` (default) | `LIKE BINARY` | `LIKE ... COLLATE Latin1_General_CS_AS` | N/A |
-| **Case-insensitive LIKE** | `ILIKE` | `LIKE` (default) | `LIKE ... COLLATE Latin1_General_CI_AI` | `LIKE` (default) |
-
----
-
-## Runtime Behavior for Unsupported Features
-
-When a query uses a feature that the target dialect does not support, FraiseQL returns a
-structured error rather than silently degrading.
-
-| Error scenario | Error type | HTTP status |
-|---------------|-----------|:-----------:|
-| Mutation on SQLite | `FraiseQLError::Unsupported` | 501 |
-| Relay pagination on SQLite | `FraiseQLError::Unsupported` | 501 |
-| Window function on SQLite | `FraiseQLError::Unsupported` | 501 |
-| FTS on SQLite | `FraiseQLError::Unsupported` | 501 |
-| `WebsearchQuery` on MySQL/SQL Server | `FraiseQLError::Unsupported` | 501 |
-| `ArrayContainedBy` on non-PostgreSQL | `FraiseQLError::Unsupported` | 501 |
-| pgvector/INET/LTree on non-PostgreSQL | `FraiseQLError::Unsupported` | 501 |
-| Rich filter operators on non-PostgreSQL | `FraiseQLError::Validation` | 400 |
-
-The `SupportsMutations` and `RelayDatabaseAdapter` traits enforce compile-time boundaries:
-adapters that do not implement these traits cannot be used with mutation or relay code paths.
-The SQLite adapter deliberately omits both trait implementations.
-
----
-
-## Choosing a Database
-
-| Use case | Recommended database |
-|----------|---------------------|
-| Production with full feature set | PostgreSQL |
-| Enterprise / SQL Server shops | SQL Server (most features) |
-| MySQL-only environments | MySQL (no fact tables or subscriptions) |
-| Local development, no mutations | SQLite |
-| Streaming analytics | PostgreSQL + fraiseql-wire |
-
----
-
-## Related
-
-- [`docs/features-compatibility-matrix.md`](features-compatibility-matrix.md) — Cargo feature flags and crate-level backend support
-- [`docs/adr/0009-database-feature-parity.md`](adr/0009-database-feature-parity.md) — Decision record for asymmetric feature parity
-- [`docs/modules/window-functions.md`](modules/window-functions.md) — Window function dialect details
-- [`docs/modules/fact-table.md`](modules/fact-table.md) — Fact table design
-- [`docs/adr/0002-database-driver-choices.md`](adr/0002-database-driver-choices.md) — Driver selection rationale
+# Database Compatibility
+
+**FraiseQL supports PostgreSQL. It does not support MySQL, SQLite or SQL Server.**
+
+MySQL, SQLite and SQL Server adapters were removed in v2.15.0. This page records
+what was removed, why, and what to do if you were relying on it.
+
+## Supported
+
+| Backend | Status |
+|---------|--------|
+| PostgreSQL 14+ | Supported — the only backend |
+
+A `mysql://`, `sqlite://` or `sqlserver://` database URL is refused at startup
+with an explanatory error, in both `fraiseql-server` and `fraiseql run`. It is
+not silently downgraded and it does not reach a driver.
+
+## Why they were removed
+
+Three audit passes over `fraiseql-db` found the non-PostgreSQL paths had never
+been executed against a real database. The evidence was not marginal:
+
+- Every field-projected query failed on MySQL and SQLite: the runtime spliced a
+  PostgreSQL-only `jsonb_build_object(...)` projection into their SQL
+  ([#799](https://github.com/fraiseql/fraiseql/issues/799)). That is the primary
+  query shape.
+- MySQL boolean equality never matched `true`, and `neq: true` matched every row
+  ([#831](https://github.com/fraiseql/fraiseql/issues/831)).
+- MySQL numeric comparison rounded to an integer, so `19.99` and `20.4` compared
+  equal ([#830](https://github.com/fraiseql/fraiseql/issues/830)).
+- Boolean `ORDER BY` on MySQL collapsed every sort key to 0
+  ([#829](https://github.com/fraiseql/fraiseql/issues/829)).
+- Cursor-paginated sorts were silently ignored
+  ([#832](https://github.com/fraiseql/fraiseql/issues/832)).
+- A client-controlled `where` field name could break out of a MySQL string
+  literal ([#833](https://github.com/fraiseql/fraiseql/issues/833)), and a
+  multi-argument SQLite `DELETE` dropped every filter after the first, widening
+  the delete ([#834](https://github.com/fraiseql/fraiseql/issues/834)).
+- Compiled dialect templates contained SQL that cannot run: `LEAST`/`GREATEST`
+  on SQLite, a literal `*` in a SQL Server `LIKE`, TLD arithmetic that returns
+  the wrong substring ([#721](https://github.com/fraiseql/fraiseql/issues/721)).
+
+Fixing all of that means maintaining three more per-dialect integration matrices
+in CI forever, and gating every future SQL change on all four. FraiseQL's design
+is PostgreSQL-shaped throughout — the Trinity view model, JSONB `data` columns,
+RLS-based tenancy, `LISTEN/NOTIFY` subscriptions, WAL-based CDC — so the other
+three could only ever have offered the commodity query surface. Advertising
+support that fails on the primary query shape, while shipping two security
+defects, is worse than not offering it.
+
+Both security defects are resolved: `#834` left with the SQLite adapter, and
+`#833`'s fix — validating `where` field names against the GraphQL identifier
+pattern at the parse boundary, the same rule `orderBy` already enforced — was
+kept, because it protects PostgreSQL too.
+
+## If you were using a non-PostgreSQL backend
+
+Migrate to PostgreSQL. Given the defects above, a deployment on MySQL, SQLite or
+SQL Server was returning wrong results on filters, sorts and projections rather
+than working, so treat the data as suspect rather than as a baseline to
+reproduce.
+
+The following are gone: the `mysql`, `sqlite` and `sqlserver` Cargo features on
+every crate; `MySqlAdapter` / `SqliteAdapter` / `SqlServerAdapter` and their
+introspectors; the `MySqlDialect` / `SqliteDialect` / `SqlServerDialect`
+implementations; the per-dialect projection generators; the `MySQL`, `SQLite`
+and `SQLServer` variants of `DatabaseType`; and the `[collation.database_overrides.*]`
+config tables for those engines — a config still carrying one now fails to parse
+rather than being silently ignored.
+
+## PostgreSQL requirements
+
+- PostgreSQL 14 or newer.
+- The `pg_stat_statements` extension for `/api/v1/query-stats` (optional).
+- Views projecting a non-NULL JSONB `data` column — see
+  [the architecture overview](architecture/overview.md).

@@ -114,14 +114,8 @@ pub fn extract_dimension_paths(
 The sampler walks the JSON structure recursively with a **max depth of 3** to avoid
 infinite recursion on circular or deeply nested structures.
 
-For each key found, it generates a database-specific extraction expression:
-
-| Database | Generated expression |
-|----------|---------------------|
-| PostgreSQL | `dimensions->>'category'` |
-| MySQL | `JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))` |
-| SQLite | `json_extract(dimensions, '$.category')` |
-| SQL Server | `JSON_VALUE(dimensions, '$.category')` |
+For each key found, it generates a PostgreSQL extraction expression, e.g.
+`dimensions->>'category'`.
 
 ### Data type inference
 
@@ -179,20 +173,11 @@ This can yield 10–20× faster temporal aggregations on large tables.
 
 ---
 
-## Cross-Database Support
+## Database Requirements
 
-Fact tables require JSONB (PostgreSQL-native binary JSON). MySQL, SQL Server, and SQLite
-use `JSON` or text columns without JSONB operators.
-
-| Database | Status | Notes |
-|----------|--------|-------|
-| PostgreSQL | ✅ Full | Native JSONB operators, fastest path |
-| MySQL | ❌ Not supported | JSON_EXTRACT works but JSONB operators absent |
-| SQL Server | ❌ Not supported | JSON_VALUE available but no JSONB aggregation |
-| SQLite | ❌ Not supported | json_extract works but limited aggregation support |
-
-A MySQL-compatible path would use `JSON_EXTRACT` with explicit dimension path declarations
-(no sampling). This is in the planned roadmap. See `docs/adr/0009-database-feature-parity.md`.
+Fact tables require JSONB (PostgreSQL-native binary JSON): dimension extraction uses
+the `->>` operator and aggregation relies on native JSONB operator support. PostgreSQL
+is the only supported backend (see [database-compatibility.md](../database-compatibility.md)).
 
 ---
 

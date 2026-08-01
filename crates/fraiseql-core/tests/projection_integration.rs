@@ -9,9 +9,7 @@
 
 use fraiseql_core::{
     db::{
-        projection_generator::{
-            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
-        },
+        projection_generator::PostgresProjectionGenerator,
         types::{DatabaseType, JsonbValue},
     },
     runtime::ResultProjector,
@@ -54,39 +52,6 @@ fn test_postgres_projection_complete_flow() {
     assert!(select.contains("FROM \"users\""));
 }
 
-/// Test MySQL projection SQL generation
-#[test]
-fn test_mysql_projection_complete_flow() {
-    let generator = MySqlProjectionGenerator::new();
-    let fields = vec!["id".to_string(), "email".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-
-    // Verify structure
-    assert!(sql.contains("JSON_OBJECT("));
-    assert!(sql.contains("JSON_EXTRACT("));
-    assert!(sql.contains("'id'"));
-    assert!(sql.contains("'email'"));
-    assert!(sql.contains("`data`"));
-}
-
-/// Test SQLite projection SQL generation
-#[test]
-fn test_sqlite_projection_complete_flow() {
-    let generator = SqliteProjectionGenerator::new();
-    let fields = vec!["id".to_string(), "active".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-
-    // Verify structure
-    assert!(sql.contains("json_object("));
-    assert!(sql.contains("json_extract("));
-    assert!(sql.contains("'id'"));
-    assert!(sql.contains("'active'"));
-    assert!(sql.contains("\"data\""));
-}
-
-/// Test `ResultProjector` with `__typename` addition
 #[test]
 fn test_result_projector_add_typename() {
     let projector = ResultProjector::new(vec!["id".to_string()]);
@@ -173,44 +138,6 @@ fn test_result_projector_projects_multiple_fields() {
 }
 
 /// Test that custom column names work across all databases
-#[test]
-fn test_projection_custom_column_names() {
-    let pg = PostgresProjectionGenerator::with_column("metadata");
-    let mysql = MySqlProjectionGenerator::with_column("metadata");
-    let sqlite = SqliteProjectionGenerator::with_column("metadata");
-
-    let fields = vec!["id".to_string()];
-
-    let pg_sql = pg.generate_projection_sql(&fields).unwrap();
-    let mysql_sql = mysql.generate_projection_sql(&fields).unwrap();
-    let sqlite_sql = sqlite.generate_projection_sql(&fields).unwrap();
-
-    // Verify custom column name is used
-    assert!(pg_sql.contains("\"metadata\""));
-    assert!(mysql_sql.contains("`metadata`"));
-    assert!(sqlite_sql.contains("\"metadata\""));
-}
-
-/// Test that empty field list returns passthrough
-#[test]
-fn test_projection_empty_fields_passthrough() {
-    let pg = PostgresProjectionGenerator::new();
-    let mysql = MySqlProjectionGenerator::new();
-    let sqlite = SqliteProjectionGenerator::new();
-
-    let empty_fields: Vec<String> = vec![];
-
-    let pg_sql = pg.generate_projection_sql(&empty_fields).unwrap();
-    let mysql_sql = mysql.generate_projection_sql(&empty_fields).unwrap();
-    let sqlite_sql = sqlite.generate_projection_sql(&empty_fields).unwrap();
-
-    // With no fields, should return column reference only
-    assert_eq!(pg_sql, "\"data\"");
-    assert_eq!(mysql_sql, "`data`");
-    assert_eq!(sqlite_sql, "\"data\"");
-}
-
-/// Test that generators handle special characters in field names correctly
 #[test]
 fn test_identifier_handling() {
     // Test that valid identifiers work correctly in projection SQL
@@ -387,25 +314,6 @@ fn test_projection_with_many_fields() {
 }
 
 /// Test that database-specific SQL has correct syntax
-#[test]
-fn test_database_specific_syntax() {
-    let fields = vec!["id".to_string(), "status".to_string()];
-
-    let pg_sql = PostgresProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
-    let mysql_sql = MySqlProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
-    let sqlite_sql = SqliteProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
-
-    // PostgreSQL uses ->> operator
-    assert!(pg_sql.contains("->>'"));
-
-    // MySQL uses JSON_EXTRACT
-    assert!(mysql_sql.contains("JSON_EXTRACT"));
-
-    // SQLite uses json_extract
-    assert!(sqlite_sql.contains("json_extract"));
-}
-
-/// Test projection result projection for list vs single
 #[test]
 fn test_result_projector_list_vs_single() {
     let projector = ResultProjector::new(vec!["id".to_string()]);

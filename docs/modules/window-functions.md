@@ -78,59 +78,41 @@ pub struct SelectColumn {
 
 - Measure name not found on table
 - Dimension path not found in JSONB schema
-- Window function not supported on target database dialect
 
-### Stage 3: `WindowSqlGenerator` (database-specific)
+### Stage 3: `WindowSqlGenerator`
 
-Converts the execution plan into a dialect-correct SQL string. The generator is the
-only place where database differences are handled.
+Converts the execution plan into a PostgreSQL SQL string. The generator is the
+only place where SQL text is produced.
 
 ---
 
 ## Supported Function Categories
 
+All functions below are supported — PostgreSQL implements the full window-function
+surface.
+
 ### 1. Ranking Functions (no field reference required)
 
-| Function | PostgreSQL | MySQL 8+ | SQL Server | SQLite |
-|----------|:----------:|:--------:|:----------:|:------:|
-| `ROW_NUMBER()` | ✅ | ✅ | ✅ | ✅ |
-| `RANK()` | ✅ | ✅ | ✅ | ✅ |
-| `DENSE_RANK()` | ✅ | ✅ | ✅ | ✅ |
-| `NTILE(n)` | ✅ | ✅ | ✅ | ✅ |
-| `PERCENT_RANK()` | ✅ | ❌ | ✅ | ❌ |
-| `CUME_DIST()` | ✅ | ❌ | ✅ | ❌ |
+`ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `NTILE(n)`, `PERCENT_RANK()`, `CUME_DIST()`
 
 ### 2. Value Functions (require a field reference)
 
-| Function | PostgreSQL | MySQL 8+ | SQL Server | SQLite |
-|----------|:----------:|:--------:|:----------:|:------:|
-| `LAG(field, offset, default)` | ✅ | ✅ | ✅ | ✅ |
-| `LEAD(field, offset, default)` | ✅ | ✅ | ✅ | ✅ |
-| `FIRST_VALUE(field)` | ✅ | ✅ | ✅ | ✅ |
-| `LAST_VALUE(field)` | ✅ | ✅ | ✅ | ✅ |
-| `NTH_VALUE(field, n)` | ✅ | ✅ | ✅ | ✅ |
+`LAG(field, offset, default)`, `LEAD(field, offset, default)`, `FIRST_VALUE(field)`,
+`LAST_VALUE(field)`, `NTH_VALUE(field, n)`
 
 ### 3. Aggregate-as-Window Functions
 
-| Function | PostgreSQL | MySQL 8+ | SQL Server | SQLite |
-|----------|:----------:|:--------:|:----------:|:------:|
-| `SUM(measure) OVER (...)` | ✅ | ✅ | ✅ | ✅ |
-| `AVG(measure) OVER (...)` | ✅ | ✅ | ✅ | ⚠️ |
-| `COUNT(*) OVER (...)` | ✅ | ✅ | ✅ | ✅ |
-| `MIN(measure) OVER (...)` | ✅ | ✅ | ✅ | ⚠️ |
-| `MAX(measure) OVER (...)` | ✅ | ✅ | ✅ | ⚠️ |
-| `STDDEV(measure) OVER (...)` | ✅ | ❌ | ✅ | ❌ |
-| `VARIANCE(measure) OVER (...)` | ✅ | ❌ | ✅ | ❌ |
+`SUM(measure) OVER (...)`, `AVG(measure) OVER (...)`, `COUNT(*) OVER (...)`,
+`MIN(measure) OVER (...)`, `MAX(measure) OVER (...)`, `STDDEV(measure) OVER (...)`,
+`VARIANCE(measure) OVER (...)`
 
 ---
 
-## Database Dialect Differences
+## PostgreSQL Feature Surface
 
-### PostgreSQL (full support)
-
-Supports all functions, all frame types (`ROWS`, `RANGE`, `GROUPS`), frame exclusion
-(`CURRENT ROW`, `GROUP`, `TIES`, `NO OTHERS`), and the `FILTER (WHERE ...)` clause
-on aggregate-as-window functions.
+PostgreSQL supports all functions, all frame types (`ROWS`, `RANGE`, `GROUPS`),
+frame exclusion (`CURRENT ROW`, `GROUP`, `TIES`, `NO OTHERS`), and the
+`FILTER (WHERE ...)` clause on aggregate-as-window functions.
 
 ```sql
 SELECT
@@ -144,43 +126,15 @@ SELECT
 FROM tf_sales;
 ```
 
-### MySQL 8+ (partial)
-
-Supports ranking and value functions, and basic aggregate-as-window. **Missing**:
-
-- `PERCENT_RANK()`, `CUME_DIST()`
-- `STDDEV()`, `VARIANCE()` OVER
-- `GROUPS` frame type (only `ROWS` and `RANGE`)
-- Frame exclusion
-
-The planner raises an error at `plan()` time if an unsupported function is requested
-for a MySQL target.
-
-### SQL Server (mostly full)
-
-Supports most functions. Frame type differences: `ROWS`/`RANGE` only (no `GROUPS`).
-Some versions lack `PERCENT_RANK`.
-
-### SQLite (very limited)
-
-Supports ranking and value functions, and basic `SUM`/`COUNT` OVER. Missing:
-
-- `PERCENT_RANK()`, `CUME_DIST()`
-- `STDDEV()`, `VARIANCE()`
-- Frame exclusion
-
-Validated at plan time; unsupported functions produce a `FraiseQLError::Unsupported`.
-
 ---
 
 ## Adding a New Window Function
 
 1. Add a variant to `WindowFunctionSpec` (semantic) and `WindowFunctionType` (low-level)
 2. Add mapping in `WindowPlanner::plan_function()` — converts Spec to Type
-3. Add per-database SQL generation in `WindowSqlGenerator::generate_function()`
-4. Add validation in each database dialect validator (MySQL/SQLite restriction lists)
-5. Add a snapshot test in `tests/sql_snapshots.rs`
-6. Add a behavioral integration test for at least PostgreSQL
+3. Add SQL generation in `WindowSqlGenerator::generate_function()`
+4. Add a snapshot test in `tests/sql_snapshots.rs`
+5. Add a behavioral integration test against PostgreSQL
 
 ---
 

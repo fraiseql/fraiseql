@@ -60,7 +60,8 @@ type featureCombo struct {
 // featureCombos is the whole matrix, ported verbatim from feature-flags.yml:
 //   - server  (18): the `feature-matrix` job — `cargo check -p fraiseql-server`,
 //     crate defaults ON, except the explicit `--no-default-features` case. 17 are
-//     ported from feature-flags.yml; `server-multidb` is added for #327 (see below).
+//     ported from feature-flags.yml; `server-default-nonwire` guards the non-wire
+//     dispatch arm (see below).
 //   - core    (7):  the `database-matrix` job — `cargo check -p fraiseql-core
 //     --no-default-features --features …`.
 //   - storage (3):  the `storage-matrix` job — `cargo check -p fraiseql-storage
@@ -101,13 +102,15 @@ var featureCombos = []featureCombo{
 	{name: "server-otel", crate: "fraiseql-server", features: []string{"tracing-opentelemetry"}},
 	{name: "server-functions-rest-testing", crate: "fraiseql-server", features: []string{"functions", "rest", "testing"}},
 	{name: "server-kitchen-sink", crate: "fraiseql-server", features: []string{"auth", "observers", "secrets", "federation"}},
-	// server-multidb covers #327's runtime URL-scheme dispatch (run_mysql/run_sqlite/
-	// run_sqlserver, the real dispatch_server arms), which is gated `not(wire-backend)`
-	// and compiled by NO other leg: preflight clippy is `--all-features` (wire ON ⇒
-	// the dispatch is cfg'd out). Defaults stay ON (auth,cli) and wire stays OFF, so
-	// the non-wire arms actually compile. check-only on purpose — clippy would drag in
-	// the pre-existing bare-`arrow` lint debt (see parity-notes.md); arrow stays out.
-	{name: "server-multidb", crate: "fraiseql-server", features: []string{"mysql", "sqlite", "sqlserver"}},
+	// server-default-nonwire covers the runtime URL-scheme dispatch (the real
+	// `dispatch_server` arm), which is gated `not(wire-backend)` and compiled by NO
+	// other leg: preflight clippy is `--all-features` (wire ON ⇒ the dispatch is
+	// cfg'd out). Defaults stay ON (auth,cli) and wire stays OFF, so the non-wire arm
+	// actually compiles. This replaced `server-multidb` when the non-PostgreSQL
+	// backends were removed (G2, #374) — the combo it guarded is still the only one
+	// that builds that arm, so it is renamed rather than deleted. check-only on
+	// purpose — clippy would drag in the pre-existing bare-`arrow` lint debt.
+	{name: "server-default-nonwire", crate: "fraiseql-server", features: []string{}},
 	// server-rest-arrow is the ONE binary feature combo no other leg builds: preflight
 	// clippy is `--all-features` (wire-backend ON ⇒ run_postgres is cfg'd out, so the
 	// arrow path never compiles), server-arrow-wire pairs arrow WITH wire-backend (same
@@ -120,9 +123,6 @@ var featureCombos = []featureCombo{
 
 	// ── core: database-matrix (cargo check -p fraiseql-core --no-default-features) ──
 	{name: "core-postgres", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres"}},
-	{name: "core-mysql", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"mysql"}},
-	{name: "core-sqlite-sqlserver", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"sqlite", "sqlserver"}},
-	{name: "core-all-backends", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres", "mysql", "sqlite", "sqlserver"}},
 	{name: "core-postgres-audit-syslog", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres", "audit-syslog"}},
 	{name: "core-postgres-audit-webhook", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres", "audit-webhook"}},
 	{name: "core-postgres-jwt-replay", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres", "jwt-replay"}},

@@ -15,7 +15,7 @@
 //! **Structural Properties (always true by construction):**
 //! - SQL projection reduces payload proportional to fields omitted
 //! - Field filtering is accurate with aliasing support
-//! - Multi-database support (PostgreSQL, MySQL, SQLite)
+//! - PostgreSQL support
 //!
 //! ## Running Tests
 //!
@@ -35,12 +35,7 @@
 use std::time::Instant;
 
 use fraiseql_core::{
-    db::{
-        projection_generator::{
-            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
-        },
-        types::JsonbValue,
-    },
+    db::{projection_generator::PostgresProjectionGenerator, types::JsonbValue},
     runtime::{FieldMapping, ResultProjector},
 };
 use serde_json::{Map, Value as JsonValue, json};
@@ -86,7 +81,7 @@ mod query_optimization_tests {
     // ============================================================================
     // Tests that SQL projection generation meets latency targets.
     // Why this matters: Sub-microsecond SQL generation keeps query planning fast.
-    // Target: PostgreSQL <8µs for 20 fields, MySQL <10µs, SQLite <10µs.
+    // Target: PostgreSQL <8µs for 20 fields.
 
     #[test]
     fn test_postgres_projection_sql_generation_small() {
@@ -129,56 +124,6 @@ mod query_optimization_tests {
             elapsed
         );
     }
-
-    #[test]
-    fn test_multi_database_projection_generation() {
-        // Verify all databases support projection SQL generation with reasonable latency
-        let postgres_gen = PostgresProjectionGenerator::new();
-        let mysql_gen = MySqlProjectionGenerator::new();
-        let sqlite_gen = SqliteProjectionGenerator::new();
-
-        let fields = vec!["id".to_string(), "name".to_string()];
-
-        let start_pg = Instant::now();
-        let pg_sql = postgres_gen.generate_projection_sql(&fields);
-        let elapsed_pg = start_pg.elapsed();
-
-        let start_mysql = Instant::now();
-        let mysql_sql = mysql_gen.generate_projection_sql(&fields);
-        let elapsed_mysql = start_mysql.elapsed();
-
-        let start_sqlite = Instant::now();
-        let sqlite_sql = sqlite_gen.generate_projection_sql(&fields);
-        let elapsed_sqlite = start_sqlite.elapsed();
-
-        let _pg =
-            pg_sql.unwrap_or_else(|e| panic!("PostgreSQL should generate projection SQL: {e}"));
-        let _mysql =
-            mysql_sql.unwrap_or_else(|e| panic!("MySQL should generate projection SQL: {e}"));
-        let _sqlite =
-            sqlite_sql.unwrap_or_else(|e| panic!("SQLite should generate projection SQL: {e}"));
-
-        // All should be reasonably fast (50ms allows for debug builds and CI load)
-        assert!(
-            elapsed_pg.as_millis() < 50,
-            "PostgreSQL generation should be fast (actual: {elapsed_pg:?})"
-        );
-        assert!(
-            elapsed_mysql.as_millis() < 50,
-            "MySQL generation should be fast (actual: {elapsed_mysql:?})"
-        );
-        assert!(
-            elapsed_sqlite.as_millis() < 50,
-            "SQLite generation should be fast (actual: {elapsed_sqlite:?})"
-        );
-    }
-
-    // ============================================================================
-    // SECTION 2: Result Projection Performance (3 tests)
-    // ============================================================================
-    // Tests result projection (client-side field filtering) performance.
-    // Why this matters: Fast field filtering on result sets maintains throughput.
-    // Target: <50µs for 1K rows with 10 fields.
 
     #[test]
     fn test_result_projection_small_dataset() {

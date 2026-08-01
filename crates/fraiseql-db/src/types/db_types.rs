@@ -8,39 +8,24 @@ use tokio_postgres::types::{IsNull, ToSql, Type};
 
 /// Database types supported by FraiseQL.
 ///
+/// FraiseQL is PostgreSQL-only: the MySQL, SQLite and SQL Server variants were
+/// removed with their adapters (G2 decision on #374 — the non-PostgreSQL
+/// dialects were never production-correct, see #721/#799). The enum is kept —
+/// rather than replaced with a unit type — so that SQL-generation seams stay
+/// explicitly tagged with the dialect they emit, and a future backend addition
+/// is a compile-time-visible change at every match site.
+///
 /// # Stability
 ///
 /// This enum is intentionally **not** `#[non_exhaustive]`. All match sites in the
 /// codebase must handle every variant explicitly, giving compile-time assurance that
-/// new database backends are fully integrated before release.
-///
-/// Adding a new variant is a **semver-breaking change** (minor version bump with
-/// migration guide), because downstream exhaustive `match` expressions will fail
-/// to compile. If you match on `DatabaseType` and want forward compatibility, add
-/// a wildcard arm:
-///
-/// ```rust
-/// # use fraiseql_db::DatabaseType;
-/// # let db_type = DatabaseType::PostgreSQL;
-/// match db_type {
-///     DatabaseType::PostgreSQL => { /* ... */ }
-///     DatabaseType::MySQL      => { /* ... */ }
-///     DatabaseType::SQLite     => { /* ... */ }
-///     DatabaseType::SQLServer  => { /* ... */ }
-///     // no wildcard needed — exhaustive by design
-/// }
-/// ```
+/// new database backends are fully integrated before release. Adding a variant is a
+/// semver-breaking change (minor version bump with migration guide).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DatabaseType {
-    /// PostgreSQL database (primary, full feature set).
+    /// PostgreSQL database (the only supported backend).
     PostgreSQL,
-    /// MySQL database (secondary support).
-    MySQL,
-    /// SQLite database (local dev, testing).
-    SQLite,
-    /// SQL Server database (enterprise).
-    SQLServer,
 }
 
 impl DatabaseType {
@@ -49,9 +34,6 @@ impl DatabaseType {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::PostgreSQL => "postgresql",
-            Self::MySQL => "mysql",
-            Self::SQLite => "sqlite",
-            Self::SQLServer => "sqlserver",
         }
     }
 }

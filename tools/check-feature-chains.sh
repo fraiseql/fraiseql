@@ -28,8 +28,6 @@ ALLOWLIST=(
     # Database backend markers — gate code in fraiseql-db, fraiseql-core, etc.
     "postgres"
     "test-postgres"
-    "test-mysql"
-    "test-sqlserver"
     # Transport markers — gate code in downstream crates
     "grpc"
     # Test/bench infrastructure — gate code via cfg(any(test, feature = "..."))

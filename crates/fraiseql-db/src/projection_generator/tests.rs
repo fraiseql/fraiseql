@@ -66,105 +66,6 @@ fn test_postgres_select_clause() {
 }
 
 #[test]
-fn test_escape_identifier_quoting() {
-    // Simple identifiers are wrapped in double-quotes.
-    assert_eq!(PostgresProjectionGenerator::escape_identifier("id"), "\"id\"");
-    assert_eq!(PostgresProjectionGenerator::escape_identifier("user_id"), "\"user_id\"");
-    // Special chars (hyphens, dots) are safe inside quotes.
-    assert_eq!(PostgresProjectionGenerator::escape_identifier("field-name"), "\"field-name\"");
-    assert_eq!(PostgresProjectionGenerator::escape_identifier("field.name"), "\"field.name\"");
-    // Double-quote chars inside the name are doubled.
-    assert_eq!(
-        PostgresProjectionGenerator::escape_identifier("col\"inject"),
-        "\"col\"\"inject\""
-    );
-}
-
-// MySQL Projection Generator Tests
-#[test]
-fn test_mysql_projection_single_field() {
-    let generator = MySqlProjectionGenerator::new();
-    let fields = vec!["id".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "JSON_OBJECT('id', JSON_EXTRACT(`data`, '$.id'))");
-}
-
-#[test]
-fn test_mysql_projection_multiple_fields() {
-    let generator = MySqlProjectionGenerator::new();
-    let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert!(sql.contains("JSON_OBJECT("));
-    assert!(sql.contains("'id', JSON_EXTRACT(`data`, '$.id')"));
-    assert!(sql.contains("'name', JSON_EXTRACT(`data`, '$.name')"));
-    assert!(sql.contains("'email', JSON_EXTRACT(`data`, '$.email')"));
-}
-
-#[test]
-fn test_mysql_projection_empty_fields() {
-    let generator = MySqlProjectionGenerator::new();
-    let fields: Vec<String> = vec![];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "`data`");
-}
-
-#[test]
-fn test_mysql_projection_custom_column() {
-    let generator = MySqlProjectionGenerator::with_column("metadata");
-    let fields = vec!["id".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "JSON_OBJECT('id', JSON_EXTRACT(`metadata`, '$.id'))");
-}
-
-// SQLite Projection Generator Tests
-#[test]
-fn test_sqlite_projection_single_field() {
-    let generator = SqliteProjectionGenerator::new();
-    let fields = vec!["id".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "json_object('id', json_extract(\"data\", '$.id'))");
-}
-
-#[test]
-fn test_sqlite_projection_multiple_fields() {
-    let generator = SqliteProjectionGenerator::new();
-    let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert!(sql.contains("json_object("));
-    assert!(sql.contains("'id', json_extract(\"data\", '$.id')"));
-    assert!(sql.contains("'name', json_extract(\"data\", '$.name')"));
-    assert!(sql.contains("'email', json_extract(\"data\", '$.email')"));
-}
-
-#[test]
-fn test_sqlite_projection_empty_fields() {
-    let generator = SqliteProjectionGenerator::new();
-    let fields: Vec<String> = vec![];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "\"data\"");
-}
-
-#[test]
-fn test_sqlite_projection_custom_column() {
-    let generator = SqliteProjectionGenerator::with_column("metadata");
-    let fields = vec!["id".to_string()];
-
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert_eq!(sql, "json_object('id', json_extract(\"metadata\", '$.id'))");
-}
-
-// ========================================================================
-// Issue #269: JSONB field extraction with snake_case/camelCase mapping
-// ========================================================================
-
-#[test]
 fn test_to_snake_case_conversion() {
     // Test camelCase to snake_case conversion
     assert_eq!(super::to_snake_case("id"), "id");
@@ -237,22 +138,6 @@ fn test_postgres_projection_rejects_field_with_semicolon() {
 }
 
 #[test]
-fn test_mysql_projection_rejects_unsafe_field_name() {
-    let generator = MySqlProjectionGenerator::new();
-    let fields = vec!["field`hack".to_string()];
-    let result = generator.generate_projection_sql(&fields);
-    assert!(result.is_err(), "Field name with backtick must be rejected");
-}
-
-#[test]
-fn test_sqlite_projection_rejects_unsafe_field_name() {
-    let generator = SqliteProjectionGenerator::new();
-    let fields = vec!["field\"inject".to_string()];
-    let result = generator.generate_projection_sql(&fields);
-    assert!(result.is_err(), "Field name with double-quote must be rejected");
-}
-
-#[test]
 fn test_validate_field_name_accepts_valid_names() {
     assert!(super::validate_field_name("id").is_ok());
     assert!(super::validate_field_name("user_id").is_ok());
@@ -270,22 +155,6 @@ fn test_validate_field_name_rejects_unsafe_chars() {
     assert!(super::validate_field_name("field;inject").is_err());
     assert!(super::validate_field_name("field\"inject").is_err());
     assert!(super::validate_field_name("field`hack").is_err());
-}
-
-#[test]
-fn test_mysql_projection_sql_contains_json_object() {
-    let generator = MySqlProjectionGenerator::new();
-    let fields = vec!["email".to_string(), "name".to_string()];
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert!(sql.starts_with("JSON_OBJECT("), "MySQL projection must start with JSON_OBJECT");
-}
-
-#[test]
-fn test_sqlite_projection_custom_column_appears_in_sql() {
-    let generator = SqliteProjectionGenerator::with_column("payload");
-    let fields = vec!["id".to_string()];
-    let sql = generator.generate_projection_sql(&fields).unwrap();
-    assert!(sql.contains("\"payload\""), "Custom column name must appear in SQLite SQL");
 }
 
 #[test]

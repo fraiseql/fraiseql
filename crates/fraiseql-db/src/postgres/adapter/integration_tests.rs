@@ -950,3 +950,106 @@ async fn row_to_map_type_conformance() {
     assert_eq!(r["c_jsonb"], json!({"k": 1}));
     assert_eq!(r["c_null"], serde_json::Value::Null);
 }
+
+// ── #832 (PostgreSQL half): relay ORDER BY must use the storage key ─────────
+//
+// The offset path renders ORDER BY through `render_order_by_columns`, which
+// converts the camelCase GraphQL field name to its snake_case JSONB storage
+// key and applies the declared type's cast. The relay path hand-built
+// `data->>'{c.field}'` from the RAW field name instead, so `orderBy:
+// {createdAt: DESC}` extracted a key that does not exist: NULL for every row,
+// all rows tie, and the page came back in primary-key order with the requested
+// sort silently dropped. It also skipped the cast, so a numeric field sorted
+// lexicographically ("9" after "10").
+
+/// Seeds a table whose JSONB `data` carries snake_case keys — the convention
+/// the projection generator, the WHERE parser and the offset ORDER BY renderer
+/// all use — and returns the view name.
+async fn setup_relay_order_fixture(adapter: &PostgresAdapter, suffix: &str) -> String {
+    let table = format!("tb_relay_order_{suffix}");
+    let view = format!("v_relay_order_{suffix}");
+    // `execute_raw_query` sends one statement per call (simple query protocol
+    // rejects the multi-statement form here), so issue them individually.
+    for stmt in [
+        format!("DROP VIEW IF EXISTS {view}"),
+        format!("DROP TABLE IF EXISTS {table}"),
+        format!("CREATE TABLE {table} (pk BIGSERIAL PRIMARY KEY, data JSONB NOT NULL)"),
+        format!(
+            "INSERT INTO {table} (data) VALUES \
+             ('{{\"id\":\"a\",\"created_at\":\"2024-01-01\",\"amount\":9}}'), \
+             ('{{\"id\":\"b\",\"created_at\":\"2024-03-01\",\"amount\":100}}'), \
+             ('{{\"id\":\"c\",\"created_at\":\"2024-02-01\",\"amount\":10}}')"
+        ),
+        format!("CREATE VIEW {view} AS SELECT pk, data FROM {table}"),
+    ] {
+        adapter.execute_raw_query(&stmt).await.expect("apply relay fixture DDL");
+    }
+    view
+}
+
+async fn drop_relay_order_fixture(adapter: &PostgresAdapter, suffix: &str) {
+    let _ = adapter
+        .execute_raw_query(&format!("DROP VIEW IF EXISTS v_relay_order_{suffix}"))
+        .await;
+    let _ = adapter
+        .execute_raw_query(&format!("DROP TABLE IF EXISTS tb_relay_order_{suffix}"))
+        .await;
+}
+
+#[tokio::test]
+async fn relay_order_by_camel_case_field_reaches_the_snake_case_storage_key() {
+    use crate::{OrderByClause, OrderDirection, traits::RelayDatabaseAdapter};
+
+    let adapter = create_test_adapter().await;
+    let view = setup_relay_order_fixture(&adapter, "camel").await;
+
+    // GraphQL sends the camelCase name; the JSONB key is `created_at`.
+    let clauses = [OrderByClause::new(
+        "createdAt".to_string(),
+        OrderDirection::Desc,
+    )];
+    let page = adapter
+        .execute_relay_page(&view, "pk", None, None, 10, true, None, Some(&clauses), false)
+        .await
+        .expect("relay page");
+
+    let ids: Vec<String> = page
+        .rows
+        .iter()
+        .map(|r| r.data["id"].as_str().unwrap_or_default().to_string())
+        .collect();
+    assert_eq!(
+        ids,
+        vec!["b", "c", "a"],
+        "newest-first by created_at; a camelCase orderBy must not be silently dropped"
+    );
+    drop_relay_order_fixture(&adapter, "camel").await;
+}
+
+#[tokio::test]
+async fn relay_order_by_numeric_field_sorts_numerically_not_lexicographically() {
+    use crate::{OrderByClause, OrderDirection, traits::RelayDatabaseAdapter};
+
+    let adapter = create_test_adapter().await;
+    let view = setup_relay_order_fixture(&adapter, "numeric").await;
+
+    // Declared Numeric → the cast must be applied, or "10" sorts before "9".
+    let mut clause = OrderByClause::new("amount".to_string(), OrderDirection::Asc);
+    clause.field_type = crate::types::sql_hints::ScalarFieldType::Numeric;
+    let page = adapter
+        .execute_relay_page(&view, "pk", None, None, 10, true, None, Some(&[clause]), false)
+        .await
+        .expect("relay page");
+
+    let amounts: Vec<i64> = page
+        .rows
+        .iter()
+        .map(|r| r.data["amount"].as_i64().unwrap_or_default())
+        .collect();
+    assert_eq!(
+        amounts,
+        vec![9, 10, 100],
+        "a Numeric orderBy must sort numerically; lexicographic order would be 10, 100, 9"
+    );
+    drop_relay_order_fixture(&adapter, "numeric").await;
+}

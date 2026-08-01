@@ -10,7 +10,7 @@ code archaeology.
 | Module | Source | Lines | Read when... |
 |--------|--------|-------|-------------|
 | [cache.md](cache.md) | `cache/adapter.rs`, `result.rs`, `key.rs` | ~3,600 | Touching query result caching, invalidation, or TTL |
-| [window-functions.md](window-functions.md) | `compiler/window_functions.rs` | ~1,926 | Adding window functions, changing SQL generation, or debugging dialect differences |
+| [window-functions.md](window-functions.md) | `compiler/window_functions.rs` | ~1,926 | Adding window functions or changing SQL generation |
 | [fact-table.md](fact-table.md) | `compiler/fact_table.rs` | ~1,771 | Touching analytics queries, fact table introspection, or JSONB dimension extraction |
 
 ## Quick Navigation
@@ -24,5 +24,3 @@ code archaeology.
 **Fact table dimensions are missing** → read [fact-table.md](fact-table.md) §"JSONB Dimension Extraction"
 
 **Fact table aggregation results are stale** → read [fact-table.md](fact-table.md) §"Aggregation Result Caching"
-
-**Window function fails on MySQL** → read [window-functions.md](window-functions.md) §"Database Dialect Differences"

@@ -560,7 +560,7 @@ FraiseQL automatically mitigates dependency failures to maintain availability.
 - **CPU**: 4 cores (2.5+ GHz modern CPU)
 - **Memory**: 16 GB RAM
 - **Storage**: 20 GB SSD (for logs, compiled schema, caching)
-- **Database**: PostgreSQL 12+ or MySQL 8.0+
+- **Database**: PostgreSQL 14+
 - **Network**: 1 Gbps connectivity to database
 
 **Recommended Production Setup** (Tier 2):

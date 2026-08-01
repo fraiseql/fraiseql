@@ -80,9 +80,9 @@ fn test_e2e_complete_compilation_pipeline() {
     }
 }
 
-/// Test: E2E SQL templates cover all databases
+/// Test: E2E SQL templates are emitted for PostgreSQL (the only backend).
 #[test]
-fn test_e2e_sql_templates_all_databases() {
+fn test_e2e_sql_templates_postgres() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
@@ -121,7 +121,6 @@ fn test_e2e_sql_templates_all_databases() {
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
 
-    let databases = vec!["postgres", "mysql", "sqlite", "sqlserver"];
     let mut total_templates = 0;
 
     // Verify all WhereInput types have SQL templates for all databases
@@ -130,23 +129,21 @@ fn test_e2e_sql_templates_all_databases() {
             if let Some(operators) = metadata.get("operators").and_then(|o| o.as_object()) {
                 for (_op_name, templates) in operators {
                     if let Some(db_templates) = templates.as_object() {
-                        for db in &databases {
-                            assert!(
-                                db_templates.contains_key(*db),
-                                "Type {} missing {} template",
-                                input_type.name,
-                                db
-                            );
-                            total_templates += 1;
-                        }
+                        assert!(
+                            db_templates.contains_key("postgres"),
+                            "Type {} missing postgres template",
+                            input_type.name
+                        );
+                        total_templates += 1;
                     }
                 }
             }
         }
     }
 
-    // Rough sanity check - should have many templates
-    assert!(total_templates > 100, "Should have many templates (found {})", total_templates);
+    // Rough sanity check. Threshold divided by four alongside the dialect count
+    // when the non-PostgreSQL backends were removed (G2, #374).
+    assert!(total_templates > 25, "Should have many templates (found {})", total_templates);
 }
 
 /// Test: E2E lookup data is comprehensive

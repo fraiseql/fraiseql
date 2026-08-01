@@ -6,7 +6,7 @@ use fraiseql_error::FraiseQLError;
 
 use super::{
     PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, SearchPath, build_where_select_sql,
-    compose_startup_options, escape_jsonb_key,
+    compose_startup_options,
 };
 
 // ── build_where_select_sql ─────────────────────────────────────────────────
@@ -26,20 +26,6 @@ fn test_build_where_select_sql_with_limit_offset() {
     assert!(sql.contains("OFFSET $2"), "expected OFFSET $2 in: {sql}");
     assert_eq!(params.len(), 2, "expected 2 params (limit + offset)");
 }
-
-#[test]
-fn test_escape_jsonb_key_no_quotes() {
-    assert_eq!(escape_jsonb_key("normal"), "normal");
-    assert_eq!(escape_jsonb_key("created_at"), "created_at");
-}
-
-#[test]
-fn test_escape_jsonb_key_doubles_single_quotes() {
-    assert_eq!(escape_jsonb_key("it's"), "it''s");
-    assert_eq!(escape_jsonb_key("a''b"), "a''''b");
-}
-
-// ── PoolPrewarmConfig struct ───────────────────────────────────────────────
 
 #[test]
 fn pool_prewarm_config_carries_all_fields() {

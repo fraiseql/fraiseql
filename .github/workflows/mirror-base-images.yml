@@ -62,7 +62,6 @@ jobs:
           docker.io/library/postgres:16|ghcr.io/fraiseql/postgres:16
           docker.io/library/redis:7-alpine|ghcr.io/fraiseql/redis:7-alpine
           docker.io/library/nats:2.10-alpine|ghcr.io/fraiseql/nats:2.10-alpine
-          docker.io/library/mysql:8.3|ghcr.io/fraiseql/mysql:8.3
           docker.io/hashicorp/vault:1.17|ghcr.io/fraiseql/vault:1.17
           docker.io/mailhog/mailhog:v1.0.1|ghcr.io/fraiseql/mailhog:v1.0.1
           docker.io/fsouza/fake-gcs-server:latest|ghcr.io/fraiseql/fake-gcs-server:latest
@@ -89,4 +88,4 @@ jobs:
           echo "Mirror complete. On FIRST publish each package is private; the Dagger"
           echo "engine pulls anonymously, so set these public once at:"
           echo "  https://github.com/orgs/fraiseql/packages?tab=packages&q=<name>"
-          echo "Packages: rust ubuntu postgres redis nats mysql vault mailhog fake-gcs-server minio"
+          echo "Packages: rust ubuntu postgres redis nats vault mailhog fake-gcs-server minio"

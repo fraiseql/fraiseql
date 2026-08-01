@@ -61,8 +61,7 @@ pub use database::{DatabaseConfig, MutationTimingConfig, SslMode};
 // Collation Configuration — re-exported from fraiseql-db
 // =============================================================================
 pub use fraiseql_db::{
-    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,
-    PostgresCollationConfig, SqlServerCollationConfig, SqliteCollationConfig,
+    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, PostgresCollationConfig,
 };
 pub use rate_limit::{PathRateLimit, RateLimitConfig, RateLimitKey};
 pub use server::CoreServerConfig;

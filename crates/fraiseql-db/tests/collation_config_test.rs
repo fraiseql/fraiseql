@@ -3,8 +3,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use fraiseql_db::{
-    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,
-    PostgresCollationConfig, SqlServerCollationConfig, SqliteCollationConfig,
+    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, PostgresCollationConfig,
 };
 
 // ---------------------------------------------------------------------------
@@ -73,10 +72,7 @@ fn collation_config_serde_with_overrides() {
         allowed_locales:    vec!["de-DE".to_string(), "en-US".to_string()],
         on_invalid_locale:  InvalidLocaleStrategy::DatabaseDefault,
         database_overrides: Some(DatabaseCollationOverrides {
-            postgres:  Some(PostgresCollationConfig::default()),
-            mysql:     None,
-            sqlite:    None,
-            sqlserver: None,
+            postgres: Some(PostgresCollationConfig::default()),
         }),
     };
 
@@ -88,7 +84,6 @@ fn collation_config_serde_with_overrides() {
     assert!(restored.database_overrides.is_some());
     let ov = restored.database_overrides.unwrap();
     assert!(ov.postgres.is_some());
-    assert!(ov.mysql.is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -137,109 +132,19 @@ fn postgres_collation_serde_round_trip() {
 }
 
 // ---------------------------------------------------------------------------
-// MySqlCollationConfig
-// ---------------------------------------------------------------------------
-
-#[test]
-fn mysql_collation_default_charset() {
-    let cfg = MySqlCollationConfig::default();
-    assert_eq!(cfg.charset, "utf8mb4");
-}
-
-#[test]
-fn mysql_collation_default_suffix_unicode() {
-    let cfg = MySqlCollationConfig::default();
-    assert!(
-        cfg.suffix.contains("unicode"),
-        "Default MySQL suffix should be unicode-based: {}",
-        cfg.suffix
-    );
-}
-
-#[test]
-fn mysql_collation_serde_round_trip() {
-    let original = MySqlCollationConfig {
-        charset: "utf8mb4".to_string(),
-        suffix:  "_0900_ai_ci".to_string(),
-    };
-    let json = serde_json::to_string(&original).unwrap();
-    let restored: MySqlCollationConfig = serde_json::from_str(&json).unwrap();
-    assert_eq!(restored.charset, "utf8mb4");
-    assert_eq!(restored.suffix, "_0900_ai_ci");
-}
-
-// ---------------------------------------------------------------------------
-// SqliteCollationConfig
-// ---------------------------------------------------------------------------
-
-#[test]
-fn sqlite_collation_default_uses_nocase() {
-    let cfg = SqliteCollationConfig::default();
-    assert!(cfg.use_nocase, "SQLite should default to NOCASE collation");
-}
-
-#[test]
-fn sqlite_collation_serde_round_trip() {
-    let original = SqliteCollationConfig { use_nocase: false };
-    let json = serde_json::to_string(&original).unwrap();
-    let restored: SqliteCollationConfig = serde_json::from_str(&json).unwrap();
-    assert!(!restored.use_nocase);
-}
-
-// ---------------------------------------------------------------------------
-// SqlServerCollationConfig
-// ---------------------------------------------------------------------------
-
-#[test]
-fn sqlserver_collation_defaults_ci_ai() {
-    let cfg = SqlServerCollationConfig::default();
-    assert!(cfg.case_insensitive, "SQL Server should default to case-insensitive");
-    assert!(cfg.accent_insensitive, "SQL Server should default to accent-insensitive");
-}
-
-#[test]
-fn sqlserver_collation_serde_round_trip() {
-    let original = SqlServerCollationConfig {
-        case_insensitive:   false,
-        accent_insensitive: true,
-    };
-    let json = serde_json::to_string(&original).unwrap();
-    let restored: SqlServerCollationConfig = serde_json::from_str(&json).unwrap();
-    assert!(!restored.case_insensitive);
-    assert!(restored.accent_insensitive);
-}
-
-// ---------------------------------------------------------------------------
 // DatabaseCollationOverrides
 // ---------------------------------------------------------------------------
 
 #[test]
-fn database_overrides_all_none_by_default_construction() {
-    let ov = DatabaseCollationOverrides {
-        postgres:  None,
-        mysql:     None,
-        sqlite:    None,
-        sqlserver: None,
-    };
+fn database_overrides_none_by_default_construction() {
+    let ov = DatabaseCollationOverrides { postgres: None };
     assert!(ov.postgres.is_none());
-    assert!(ov.mysql.is_none());
-    assert!(ov.sqlite.is_none());
-    assert!(ov.sqlserver.is_none());
 }
 
 #[test]
-fn database_overrides_partial_serde() {
-    // Only SQLite override set — others must serialize as absent (skip_serializing_if)
-    let ov = DatabaseCollationOverrides {
-        postgres:  None,
-        mysql:     None,
-        sqlite:    Some(SqliteCollationConfig::default()),
-        sqlserver: None,
-    };
+fn database_overrides_absent_serde() {
+    // Absent override must serialize as absent (skip_serializing_if)
+    let ov = DatabaseCollationOverrides { postgres: None };
     let json = serde_json::to_string(&ov).unwrap();
-
-    // "postgres", "mysql", "sqlserver" should be absent due to skip_serializing_if
     assert!(!json.contains("postgres"), "Absent postgres should not appear in JSON");
-    assert!(!json.contains("mysql"), "Absent mysql should not appear in JSON");
-    assert!(json.contains("sqlite"), "Present sqlite should appear in JSON");
 }

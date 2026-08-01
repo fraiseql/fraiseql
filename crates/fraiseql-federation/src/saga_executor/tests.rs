@@ -28,14 +28,16 @@ fn test_saga_executor_has_store_method() {
     assert!(!executor.has_store());
 }
 
-/// Forward-phase execution: `execute_step` dispatches the step's real local
-/// mutation through a `DatabaseAdapter` and reports the outcome without fabricating
-/// success. Proven here against an in-memory SQLite adapter (single connection so
-/// the schema is shared) — no external service.
+/// Step dispatch wiring. The real local-mutation forward-execution proofs
+/// (`execute_step` against a live database) live in
+/// `tests/saga_integration.rs::wired_execution_pg` — G2 removed the SQLite
+/// adapter that used to host them here. What remains in this module exercises
+/// the REMOTE dispatch paths, where the local adapter must never be touched:
+/// it is a `FailingAdapter`, so any local dispatch fails the test loudly.
 mod wired {
     use std::sync::Arc;
 
-    use fraiseql_db::sqlite::SqliteAdapter;
+    use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
     use serde_json::json;
     use uuid::Uuid;
 
@@ -89,64 +91,20 @@ mod wired {
         }
     }
 
-    /// Single-connection in-memory SQLite with an `"order"` table — the
-    /// `lowercase(typename)` table the federation mutation builder targets.
-    /// Returns the wired executor plus a handle to the same adapter so a test can
-    /// read the database back directly.
-    async fn order_table_executor()
-    -> (FederationMutationExecutor<SqliteAdapter>, Arc<SqliteAdapter>) {
-        use fraiseql_db::traits::DatabaseAdapter;
-
-        // A single connection keeps the schema visible across queries: each
-        // `sqlite::memory:` connection is otherwise a separate database.
-        let adapter =
-            Arc::new(SqliteAdapter::with_pool_config("sqlite::memory:", 1, 1).await.unwrap());
-        adapter
-            .execute_raw_query("CREATE TABLE \"order\" (id TEXT PRIMARY KEY, total TEXT)")
-            .await
-            .unwrap();
+    /// Executor over a local adapter that FAILS every operation. The tests in
+    /// this module exercise remote dispatch: the local adapter must never be
+    /// reached, and if it is, the injected failure turns the step result into
+    /// a loud test failure. The returned handle exposes `query_count()` so a
+    /// test can additionally assert zero local traffic.
+    fn order_table_executor() -> (FederationMutationExecutor<FailingAdapter>, Arc<FailingAdapter>) {
+        let adapter = Arc::new(FailingAdapter::new().fail_with_error(FailError::Database {
+            message:
+                "test bug: the local adapter must not be reached on a remote path".to_string(),
+            sql_state: None,
+        }));
         let executor =
             FederationMutationExecutor::new(Arc::clone(&adapter), order_metadata(), false);
         (executor, adapter)
-    }
-
-    #[tokio::test]
-    async fn execute_step_dispatches_real_create() {
-        use fraiseql_db::traits::DatabaseAdapter;
-
-        let executor = SagaExecutor::new();
-        let (mutation_executor, adapter) = order_table_executor().await;
-        let step = order_step(MutationType::Create, json!({"id": "o1", "total": "100"}));
-
-        let result = executor.execute_step(&mutation_executor, &step).await;
-
-        assert!(result.success, "a successful create must report success: {result:?}");
-        assert_eq!(result.step_number, 1, "0-based order maps to 1-indexed step number");
-        let data = result.data.expect("a successful step must carry the read-back entity");
-        assert_eq!(data["id"], "o1", "result must reflect the real inserted row: {data}");
-        assert_eq!(data["__typename"], "Order");
-
-        // The row really landed in the database — not a fabricated response.
-        let rows = adapter
-            .execute_raw_query("SELECT id FROM \"order\" WHERE id = 'o1'")
-            .await
-            .unwrap();
-        assert_eq!(rows.len(), 1, "the create must have persisted a real row");
-    }
-
-    #[tokio::test]
-    async fn execute_step_failed_mutation_reports_failure_not_fabricated_success() {
-        let executor = SagaExecutor::new();
-        let (mutation_executor, _adapter) = order_table_executor().await;
-        // UPDATE targeting an id that does not exist → 0 rows → NotFound. The
-        // step must report failure, never a fabricated Completed (audit H32).
-        let step = order_step(MutationType::Update, json!({"id": "missing", "total": "5"}));
-
-        let result = executor.execute_step(&mutation_executor, &step).await;
-
-        assert!(!result.success, "a 0-row update must report failure: {result:?}");
-        assert!(result.data.is_none(), "a failed step must not fabricate result data");
-        assert!(result.error.is_some(), "a failed step must carry the error: {result:?}");
     }
 
     // ── Remote step dispatch via HttpMutationClient (#429 Phase 04) ────────────
@@ -170,8 +128,6 @@ mod wired {
     /// not against the local adapter.
     #[tokio::test]
     async fn dispatch_step_remote_success_returns_mock_response() {
-        use fraiseql_db::traits::DatabaseAdapter;
-
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/graphql"))
@@ -182,7 +138,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, adapter) = order_table_executor().await;
+        let (mutation_executor, adapter) = order_table_executor();
         let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
         // Create step; the store persists only the verb, so `create` is the op name.
@@ -196,12 +152,9 @@ mod wired {
         let data = result.data.expect("a successful remote step carries the mock entity");
         assert_eq!(data["id"], "remote-1", "the remote response is returned, not a local row");
 
-        // The row must NOT exist locally — the step went over HTTP, not to SQLite.
-        let rows = adapter
-            .execute_raw_query("SELECT id FROM \"order\" WHERE id = 'remote-1'")
-            .await
-            .unwrap();
-        assert!(rows.is_empty(), "a remote step must not touch the local table");
+        // The local adapter saw zero traffic — the step went over HTTP. (Any
+        // local dispatch would also have failed loudly via the injected error.)
+        assert_eq!(adapter.query_count(), 0, "a remote step must not touch the local adapter");
     }
 
     /// A remote mock returning HTTP 500 maps to a real `success: false` step
@@ -215,7 +168,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, _adapter) = order_table_executor().await;
+        let (mutation_executor, _adapter) = order_table_executor();
         // Single attempt with a tiny delay keeps the failure test fast.
         let config = HttpMutationConfig {
             timeout_ms:     2000,
@@ -253,7 +206,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, _adapter) = order_table_executor().await;
+        let (mutation_executor, _adapter) = order_table_executor();
         let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
         let mut step = order_step(MutationType::Create, json!({"id": "o-named", "total": "9"}));
@@ -284,7 +237,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, _adapter) = order_table_executor().await;
+        let (mutation_executor, _adapter) = order_table_executor();
         let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
         // mutation_name left None → fall back to the verb.
@@ -329,7 +282,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, _adapter) = order_table_executor().await;
+        let (mutation_executor, _adapter) = order_table_executor();
         let client = single_attempt_client();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
         let step = order_step(MutationType::Create, json!({"id": "o-ok", "total": "1"}));
@@ -377,7 +330,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, _adapter) = order_table_executor().await;
+        let (mutation_executor, _adapter) = order_table_executor();
         let client = single_attempt_client();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
         let step = order_step(MutationType::Create, json!({"id": "o-retry", "total": "1"}));
@@ -414,7 +367,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, _adapter) = order_table_executor().await;
+        let (mutation_executor, _adapter) = order_table_executor();
         let client = single_attempt_client();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
         let step = order_step(MutationType::Create, json!({"id": "o-fail", "total": "1"}));
@@ -458,7 +411,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let (mutation_executor, _adapter) = order_table_executor().await;
+        let (mutation_executor, _adapter) = order_table_executor();
         let client = single_attempt_client();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
         let step = order_step(MutationType::Create, json!({"id": "o-slow", "total": "1"}));

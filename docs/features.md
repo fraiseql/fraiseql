@@ -81,15 +81,10 @@ To opt out of all defaults: `--no-default-features`.
 | Combination | CI Job / step |
 |-------------|--------------|
 | `--all-features` | `clippy`, `build`, `test`, `doc` steps |
-| `postgres,mysql,sqlite,sqlserver,rich-filters` | `build` and `test` steps (workspace) |
 | `observers-nats` | `ci-observers` — observer runtime integration |
 | `observers/caching,queue,redis-lease` | `ci-observers` — Redis-backed observer |
 | `observers/postgres,nats` | `ci-observers` — bridge integration |
 | `redis-apq` | `ci-redis` — APQ cache integration |
-| `test-postgres,test-mysql` | `ci-multi-db` — cross-database integration |
-| `test-mysql` | `ci-mysql` |
-| `sqlite` | `ci-sqlite` |
-| `test-sqlserver` | `ci-sqlserver` |
 | TLS integration | `ci-tls` — `fraiseql-wire` TLS tests |
 | Secrets/Vault | `ci-vault` — `fraiseql-server` secrets integration |
 

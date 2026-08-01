@@ -86,9 +86,6 @@ jobs:
       matrix:
         features:
           - "postgres"                              # minimal single-backend
-          - "mysql"                                 # secondary backend
-          - "sqlite,sqlserver"                      # lightweight + enterprise, no postgres
-          - "postgres,mysql,sqlite,sqlserver"        # all backends, no extras
           - "postgres,audit-syslog"                  # syslog audit backend
           - "postgres,audit-webhook"                 # webhook audit backend
           - "postgres,jwt-replay"                    # JWT replay detection (requires redis)

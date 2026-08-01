@@ -197,7 +197,7 @@ mod pool_factory_tests {
         }
 
         fn database_type(&self) -> DatabaseType {
-            DatabaseType::SQLite
+            DatabaseType::PostgreSQL
         }
 
         async fn health_check(&self) -> FraiseQLResult<()> {

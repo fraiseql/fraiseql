@@ -300,18 +300,6 @@ impl WindowFunctionPlanner {
                     ));
                 }
             }
-
-            // Validate PERCENT_RANK and CUME_DIST (not in SQLite)
-            match window.function {
-                WindowFunctionType::PercentRank | WindowFunctionType::CumeDist => {
-                    if matches!(database_target, DatabaseType::SQLite) {
-                        return Err(FraiseQLError::validation(
-                            "PERCENT_RANK and CUME_DIST not supported on SQLite",
-                        ));
-                    }
-                },
-                _ => {},
-            }
         }
 
         Ok(())

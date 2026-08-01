@@ -20,7 +20,7 @@ A CVE is accepted only when **all** of the following are true:
 
 | Advisory | Crate | Path | Mitigation | Deadline |
 |----------|-------|------|------------|---------|
-| RUSTSEC-2023-0071 | `rsa` | `sqlx-mysql` (optional `mysql` feature) | TLS at load balancer; mysql not default | 2026-10-01 |
+| RUSTSEC-2023-0071 | `rsa` | `sqlx-mysql` (lockfile-only; never compiled) | MySQL support removed in v2.15.0; crate not built into any artifact | 2026-10-01 |
 | RUSTSEC-2025-0134 | `rustls-pemfile` | `bollard` (optional Docker feature) | Blocked on bollard upstream; assess drop | 2026-07-01 |
 | RUSTSEC-2026-0098 | `rustls-webpki` | `aws-smithy-http-client` (optional `aws-s3`) | Optional feature; no default exploit path | 2026-06-15 |
 | RUSTSEC-2026-0099 | `rustls-webpki` | `aws-smithy-http-client` (optional `aws-s3`) | Same as above | 2026-06-15 |
@@ -29,21 +29,22 @@ A CVE is accepted only when **all** of the following are true:
 
 ### RUSTSEC-2023-0071 (RSA Marvin Attack)
 
-**Root cause**: `mysql_async` crate uses the `rsa` crate, which has a timing sidechannel.
+**Root cause**: `sqlx-mysql` uses the `rsa` crate, which has a timing sidechannel.
 
-**Blocked on**: `sqlx` upgrade to 0.9+ (which removes `mysql_async` or upgrades it).
-`sqlx 0.9.0-alpha.1` is available as of 2026-04-25 — monitor for stable release.
+**Status**: FraiseQL's MySQL adapter and `mysql` Cargo feature were removed in
+v2.15.0, so `sqlx-mysql` is never compiled into any FraiseQL artifact. It remains
+in `Cargo.lock` only as an unbuilt member of the sqlx workspace dependency, which
+is why the `deny.toml` acceptance entry still exists.
 
-**Mitigation**:
-
-- `mysql` feature is non-default; users must explicitly opt in
-- TLS termination at the load balancer prevents timing attacks over the wire
-- No client input reaches the RSA code path in typical deployments
+**Blocked on**: `sqlx` upgrade to 0.9+ (which drops the vulnerable path from the
+lockfile). `sqlx 0.9.0-alpha.1` is available as of 2026-04-25 — monitor for stable
+release.
 
 **Review action by 2026-10-01**:
 
 1. If `sqlx 0.9` stable is released: upgrade and remove this entry
-2. If still blocked: evaluate replacing `mysql_async` with a pure-TLS connector
+2. If still blocked: keep the acceptance — the code path is present in the
+   lockfile only and is never built
 
 ### RUSTSEC-2026-0098 / RUSTSEC-2026-0099 (rustls-webpki name constraints)
 

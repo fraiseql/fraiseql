@@ -103,42 +103,6 @@ fn test_postgres_sql_generation() {
 }
 
 #[test]
-fn test_mysql_sql_generation() {
-    let plan = create_test_plan();
-    let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = generator.generate_parameterized(&plan).unwrap();
-
-    assert!(sql.sql.contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))"));
-    assert!(sql.sql.contains("DATE_FORMAT(occurred_at"));
-    assert!(sql.sql.contains("COUNT(*)"));
-    assert!(sql.sql.contains("SUM(revenue)"));
-}
-
-#[test]
-fn test_sqlite_sql_generation() {
-    let plan = create_test_plan();
-    let generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sql = generator.generate_parameterized(&plan).unwrap();
-
-    assert!(sql.sql.contains("json_extract(dimensions, '$.category')"));
-    assert!(sql.sql.contains("strftime"));
-    assert!(sql.sql.contains("COUNT(*)"));
-    assert!(sql.sql.contains("SUM(revenue)"));
-}
-
-#[test]
-fn test_sqlserver_sql_generation() {
-    let plan = create_test_plan();
-    let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let sql = generator.generate_parameterized(&plan).unwrap();
-
-    assert!(sql.sql.contains("JSON_VALUE(dimensions, '$.category')"));
-    assert!(sql.sql.contains("CAST(occurred_at AS DATE)"));
-    assert!(sql.sql.contains("COUNT(*)"));
-    assert!(sql.sql.contains("SUM(revenue)"));
-}
-
-#[test]
 fn test_having_clause() {
     let mut plan = create_test_plan();
     plan.having_conditions = vec![ValidatedHavingCondition {
@@ -225,30 +189,6 @@ mod native_where {
     }
 
     #[test]
-    fn mysql_native_where() {
-        let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
-        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-        let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains("`customer_id` = ?"), "got: {sql}");
-    }
-
-    #[test]
-    fn sqlite_native_where() {
-        let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
-        let gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-        let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains(r#""customer_id" = ?"#), "got: {sql}");
-    }
-
-    #[test]
-    fn sqlserver_native_where() {
-        let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
-        let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-        let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains("[customer_id] = @P1"), "got: {sql}");
-    }
-
-    #[test]
     fn and_wrapping_native_field() {
         let mut plan = create_test_plan();
         plan.request.where_clause = Some(WhereClause::And(vec![
@@ -330,15 +270,6 @@ mod native_groupby {
         assert!(sql.contains("data->>'status'"), "got: {sql}");
         assert!(sql.contains("AS status"), "got: {sql}");
         assert!(sql.contains(r#""customer_id""#), "got: {sql}");
-    }
-
-    #[test]
-    fn mysql_native_groupby() {
-        let plan = plan_with_native_groupby();
-        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-        let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains("`customer_id` AS customer_id"), "got: {sql}");
-        assert!(sql.contains("GROUP BY `customer_id`"), "got: {sql}");
     }
 }
 
@@ -545,22 +476,6 @@ fn test_array_agg_postgres() {
 }
 
 #[test]
-fn test_array_agg_mysql() {
-    let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = generator.generate_array_agg_sql("product_id", None);
-    assert_eq!(sql, "JSON_ARRAYAGG(product_id)");
-}
-
-#[test]
-fn test_array_agg_sqlite() {
-    let generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sql = generator.generate_array_agg_sql("product_id", None);
-    assert!(sql.contains("GROUP_CONCAT"));
-    assert!(sql.contains("'[' ||"));
-    assert!(sql.contains("|| ']'"));
-}
-
-#[test]
 fn test_string_agg_postgres() {
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
@@ -575,31 +490,6 @@ fn test_string_agg_postgres() {
     )];
     let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
     assert_eq!(sql, "STRING_AGG(product_name, ', ' ORDER BY \"revenue\" DESC)");
-}
-
-#[test]
-fn test_string_agg_mysql() {
-    let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-
-    let order_by = vec![OrderByClause::new(
-        "revenue".to_string(),
-        OrderDirection::Desc,
-    )];
-    let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
-    assert_eq!(sql, "GROUP_CONCAT(product_name ORDER BY `revenue` DESC SEPARATOR ', ')");
-}
-
-#[test]
-fn test_string_agg_sqlserver() {
-    let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-
-    let order_by = vec![OrderByClause::new(
-        "revenue".to_string(),
-        OrderDirection::Desc,
-    )];
-    let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
-    assert!(sql.contains("STRING_AGG(CAST(product_name AS NVARCHAR(MAX)), ', ')"));
-    assert!(sql.contains("WITHIN GROUP (ORDER BY [revenue] DESC)"));
 }
 
 #[test]
@@ -633,30 +523,6 @@ fn test_bool_and_postgres() {
 
     let sql = generator.generate_bool_agg_sql("has_discount", BoolAggregateFunction::Or);
     assert_eq!(sql, "BOOL_OR(has_discount)");
-}
-
-#[test]
-fn test_bool_and_mysql() {
-    use crate::compiler::aggregate_types::BoolAggregateFunction;
-
-    let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = generator.generate_bool_agg_sql("is_active", BoolAggregateFunction::And);
-    assert_eq!(sql, "MIN(is_active) = 1");
-
-    let sql = generator.generate_bool_agg_sql("has_discount", BoolAggregateFunction::Or);
-    assert_eq!(sql, "MAX(has_discount) = 1");
-}
-
-#[test]
-fn test_bool_and_sqlserver() {
-    use crate::compiler::aggregate_types::BoolAggregateFunction;
-
-    let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let sql = generator.generate_bool_agg_sql("is_active", BoolAggregateFunction::And);
-    assert_eq!(sql, "MIN(CAST(is_active AS BIT)) = 1");
-
-    let sql = generator.generate_bool_agg_sql("has_discount", BoolAggregateFunction::Or);
-    assert_eq!(sql, "MAX(CAST(has_discount AS BIT)) = 1");
 }
 
 #[test]
@@ -722,37 +588,11 @@ fn test_having_string_value_is_bound_not_escaped() {
 }
 
 #[test]
-fn test_escape_sql_string_mysql_doubles_backslash() {
-    // MySQL treats backslash as an escape character in string literals.
-    // A bare backslash before the closing quote would consume it, breaking the SQL.
-    let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    assert_eq!(gen.escape_sql_string("test\\"), "test\\\\");
-    assert_eq!(gen.escape_sql_string("te'st"), "te''st");
-    // Backslash followed by a quote: escape backslash first (→ \\), then double the
-    // quote (→ '').  Result for te\'st is te\\''st.
-    assert_eq!(gen.escape_sql_string("te\\'st"), "te\\\\''st");
-}
-
-#[test]
 fn test_escape_sql_string_postgres_only_doubles_quote() {
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     // Backslash is not special in standard SQL string literals.
     assert_eq!(gen.escape_sql_string("test\\"), "test\\");
     assert_eq!(gen.escape_sql_string("te'st"), "te''st");
-}
-
-#[test]
-fn test_escape_sql_string_strips_null_bytes() {
-    // Null bytes are never valid in SQL string literals.
-    // PostgreSQL rejects them with "invalid byte sequence"; stripping is safer than an error.
-    let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    assert_eq!(gen.escape_sql_string("before\x00after"), "beforeafter");
-    assert_eq!(gen.escape_sql_string("\x00"), "");
-    assert_eq!(gen.escape_sql_string("no-null"), "no-null");
-
-    // Same for MySQL — null stripping happens before backslash/quote escaping.
-    let mysql = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    assert_eq!(mysql.escape_sql_string("te\x00st\\"), "test\\\\");
 }
 
 // ── jsonb_extract_sql injection tests ──────────────────────────────────────
@@ -781,38 +621,6 @@ fn test_jsonb_postgres_clean_path_unchanged() {
     assert!(sql.contains("dimensions->>'category'"), "Clean path altered: {sql}");
 }
 
-#[test]
-fn test_jsonb_mysql_single_quote_escaped() {
-    let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = gen.jsonb_extract_sql("dimensions", "user'name");
-    // MySQL JSON paths use doubled-quote escaping (''): backslash escaping is NOT used.
-    assert!(sql.contains("user''name"), "Expected doubled-quote escape in MySQL: {sql}");
-}
-
-#[test]
-fn test_jsonb_mysql_path_prefix_not_doubled() {
-    // escape_mysql_json_path already adds "$." — must not appear as "$.$.path"
-    let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = gen.jsonb_extract_sql("dimensions", "category");
-    assert!(sql.contains("$.category"), "Path prefix missing: {sql}");
-    assert!(!sql.contains("$.$."), "Double prefix detected: {sql}");
-}
-
-#[test]
-fn test_jsonb_sqlite_single_quote_escaped() {
-    let gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sql = gen.jsonb_extract_sql("dimensions", "it's");
-    // SQLite JSON paths use doubled-quote escaping (''): backslash escaping is NOT used.
-    assert!(sql.contains("it''s"), "Expected doubled-quote escape in SQLite: {sql}");
-}
-
-#[test]
-fn test_jsonb_sqlserver_single_quote_escaped() {
-    let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let sql = gen.jsonb_extract_sql("dimensions", "user'name");
-    assert!(sql.contains("user''name"), "Expected doubled quote in SQL Server: {sql}");
-}
-
 // ── STRING_AGG delimiter injection tests ───────────────────────────────────
 
 #[test]
@@ -832,35 +640,6 @@ fn test_stringagg_delimiter_injection_payload_neutralised() {
     assert!(sql.contains("''"), "single quotes must be doubled: {sql}");
     // Verify the SQL starts and ends as a valid STRING_AGG call (no injected statements).
     assert!(sql.starts_with("STRING_AGG("), "must remain a STRING_AGG call: {sql}");
-}
-
-#[test]
-fn test_stringagg_delimiter_mysql_backslash_and_quote_escaped() {
-    let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    // MySQL also escapes backslashes; a trailing backslash could consume the closing quote.
-    let sql = gen.generate_string_agg_sql("col", r"a\b", None);
-    assert!(sql.contains(r"a\\b"), "backslash must be doubled for MySQL: {sql}");
-}
-
-#[test]
-fn test_stringagg_delimiter_mysql_single_quote_escaped() {
-    let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = gen.generate_string_agg_sql("col", "O'Reilly", None);
-    assert!(sql.contains("O''Reilly"), "single quote must be doubled for MySQL: {sql}");
-}
-
-#[test]
-fn test_stringagg_delimiter_sqlite_single_quote_escaped() {
-    let gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sql = gen.generate_string_agg_sql("col", "it's", None);
-    assert!(sql.contains("it''s"), "single quote must be doubled for SQLite: {sql}");
-}
-
-#[test]
-fn test_stringagg_delimiter_sqlserver_single_quote_escaped() {
-    let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let sql = gen.generate_string_agg_sql("col", "O'Reilly", None);
-    assert!(sql.contains("O''Reilly"), "single quote must be doubled for SQL Server: {sql}");
 }
 
 #[test]
@@ -932,41 +711,6 @@ fn test_generate_parameterized_where_string_becomes_placeholder() {
     );
     assert_eq!(result.params.len(), 1);
     assert_eq!(result.params[0], serde_json::json!("test_value"));
-}
-
-#[test]
-fn test_generate_parameterized_having_string_becomes_placeholder() {
-    // MySQL: HAVING string value must become ? placeholder, not escaped inline
-    let injection = "test\\' injection";
-    // Build a base plan and then inject HAVING directly (like test_having_clause).
-    let mut plan = create_test_plan();
-    plan.having_conditions = vec![ValidatedHavingCondition {
-        aggregate: AggregateExpression::MeasureAggregate {
-            column:   "revenue".to_string(),
-            function: AggregateFunction::Sum,
-            alias:    "revenue_sum".to_string(),
-            native:   false,
-        },
-        operator:  HavingOperator::Eq,
-        value:     serde_json::json!(injection),
-    }];
-
-    let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let result = gen.generate_parameterized(&plan).unwrap();
-
-    assert!(
-        result.sql.contains("HAVING SUM(revenue) = ?"),
-        "SQL must use ? placeholder: {}",
-        result.sql
-    );
-    assert_eq!(result.params.len(), 1);
-    assert_eq!(result.params[0], serde_json::json!(injection));
-    // injection string must NOT appear verbatim in the SQL
-    assert!(
-        !result.sql.contains("injection"),
-        "Injection string must not appear in SQL: {}",
-        result.sql
-    );
 }
 
 #[test]
@@ -1049,28 +793,6 @@ fn test_parameterized_postgres_placeholder_numbering() {
     assert_eq!(result.params.len(), 2);
     assert_eq!(result.params[0], serde_json::json!(injection));
     assert_eq!(result.params[1], serde_json::json!("threshold"));
-}
-
-#[test]
-fn test_parameterized_mysql_uses_question_mark() {
-    let plan = make_string_where_plan(DatabaseType::MySQL);
-    let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let result = gen.generate_parameterized(&plan).unwrap();
-
-    assert!(result.sql.contains("WHERE status = ?"), "SQL: {}", result.sql);
-    assert_eq!(result.params.len(), 1);
-    assert_eq!(result.params[0], serde_json::json!("test_value"));
-}
-
-#[test]
-fn test_parameterized_sqlserver_uses_at_p_placeholder() {
-    let plan = make_string_where_plan(DatabaseType::SQLServer);
-    let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let result = gen.generate_parameterized(&plan).unwrap();
-
-    assert!(result.sql.contains("WHERE status = @P1"), "SQL: {}", result.sql);
-    assert_eq!(result.params.len(), 1);
-    assert_eq!(result.params[0], serde_json::json!("test_value"));
 }
 
 #[test]

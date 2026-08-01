@@ -17,9 +17,9 @@ Historical design record: [ADR-0013](../adr/0013-mutation-response-v2-schema.md)
 3. **Builder-enforced invariants.** The `succeeded × state_changed × error_class`
    truth table is checked inside `core.build_mutation_response`. Do not
    bypass the builder.
-4. **Cross-database portability.** PG uses a native enum; MySQL / SQLite /
-   SQL Server use `TEXT + CHECK` with the same value set. The Rust parser is
-   unified across adapters.
+4. **Native enum classification.** `error_class` is a native PostgreSQL enum,
+   so an out-of-set value is rejected by the database itself, not by
+   application-level parsing.
 
 ---
 

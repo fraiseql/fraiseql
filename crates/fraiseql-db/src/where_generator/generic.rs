@@ -605,14 +605,22 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             },
 
             // ── Network (INET/CIDR) ───────────────────────────────────────────
-            WhereOperator::IsIPv4 => self
-                .dialect
-                .inet_check_sql(&field_expr, "IsIPv4")
-                .map_err(|e| FraiseQLError::validation(e.to_string())),
-            WhereOperator::IsIPv6 => self
-                .dialect
-                .inet_check_sql(&field_expr, "IsIPv6")
-                .map_err(|e| FraiseQLError::validation(e.to_string())),
+            WhereOperator::IsIPv4 => {
+                // Value controls negation, like every sibling INET operator:
+                // `is_ipv4: false` asks to EXCLUDE IPv4 (#870.2).
+                let negate = value.as_bool().is_some_and(|v| !v);
+                let check_name = if negate { "IsNotIPv4" } else { "IsIPv4" };
+                self.dialect
+                    .inet_check_sql(&field_expr, check_name)
+                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            },
+            WhereOperator::IsIPv6 => {
+                let negate = value.as_bool().is_some_and(|v| !v);
+                let check_name = if negate { "IsNotIPv6" } else { "IsIPv6" };
+                self.dialect
+                    .inet_check_sql(&field_expr, check_name)
+                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            },
             WhereOperator::IsPrivate => {
                 let negate = value.as_bool().is_some_and(|v| !v);
                 let check_name = if negate { "IsPublic" } else { "IsPrivate" };

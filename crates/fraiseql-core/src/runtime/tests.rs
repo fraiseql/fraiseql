@@ -3998,46 +3998,6 @@ mod window_tests {
     }
 
     #[test]
-    fn test_sqlserver_stddev_variance() {
-        let generator = WindowSqlGenerator::new(DatabaseType::SQLServer);
-
-        let plan = WindowExecutionPlan {
-            table:        "tf_sales".to_string(),
-            select:       vec![],
-            windows:      vec![
-                WindowFunction {
-                    function:     WindowFunctionType::Stddev {
-                        field: "revenue".to_string(),
-                    },
-                    alias:        "stddev".to_string(),
-                    partition_by: vec![],
-                    order_by:     vec![],
-                    frame:        None,
-                },
-                WindowFunction {
-                    function:     WindowFunctionType::Variance {
-                        field: "revenue".to_string(),
-                    },
-                    alias:        "variance".to_string(),
-                    partition_by: vec![],
-                    order_by:     vec![],
-                    frame:        None,
-                },
-            ],
-            where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
-        };
-
-        let sql = generator.generate(&plan).unwrap();
-
-        // SQL Server uses STDEV/VAR instead of STDDEV/VARIANCE
-        assert!(sql.raw_sql.contains("STDEV(revenue)"));
-        assert!(sql.raw_sql.contains("VAR(revenue)"));
-    }
-
-    #[test]
     fn test_where_clause_uses_bind_parameters() {
         // Ensures WHERE clause is rendered with $N bind parameters (not literal values).
         // Literals would require escaping and are vulnerable to injection edge-cases;

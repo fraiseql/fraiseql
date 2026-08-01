@@ -158,5 +158,37 @@ pub fn to_snake_case(name: &str) -> String {
     result
 }
 
+/// Validate that a client-supplied field name matches the GraphQL identifier
+/// pattern `[_A-Za-z][_0-9A-Za-z]*`.
+///
+/// This is a security boundary shared by the `orderBy` and `where` parsers:
+/// field names are interpolated into SQL text (`data->>'field'`, MySQL/SQLite
+/// JSON path literals), so any character outside the GraphQL identifier set —
+/// quotes, backslashes, whitespace — must be rejected before a clause is
+/// constructed (#833).
+///
+/// `context` names the argument being validated (`"orderBy"`, `"where"`) so the
+/// error points at the offending input.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the field contains invalid characters.
+pub fn validate_graphql_identifier(field: &str, context: &str) -> fraiseql_error::Result<()> {
+    let mut chars = field.chars();
+    let first_ok = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+    let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if first_ok && rest_ok {
+        Ok(())
+    } else {
+        Err(fraiseql_error::FraiseQLError::Validation {
+            message: format!(
+                "{context} field name '{field}' contains invalid characters; \
+                 only [_A-Za-z][_0-9A-Za-z]* is allowed"
+            ),
+            path:    None,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests;

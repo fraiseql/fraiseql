@@ -168,7 +168,9 @@ impl SqlDialect for PostgresDialect {
     fn inet_check_sql(&self, lhs: &str, check_name: &str) -> Result<String, UnsupportedOperator> {
         match check_name {
             "IsIPv4" => Ok(format!("family({lhs}::inet) = 4")),
+            "IsNotIPv4" => Ok(format!("NOT (family({lhs}::inet) = 4)")),
             "IsIPv6" => Ok(format!("family({lhs}::inet) = 6")),
+            "IsNotIPv6" => Ok(format!("NOT (family({lhs}::inet) = 6)")),
             "IsPrivate" => Ok(format!(
                 "({lhs}::inet << '10.0.0.0/8'::inet OR {lhs}::inet << '172.16.0.0/12'::inet OR {lhs}::inet << '192.168.0.0/16'::inet OR {lhs}::inet << 'fc00::/7'::inet)"
             )),

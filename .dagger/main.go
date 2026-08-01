@@ -39,8 +39,8 @@ const (
 
 	// SYNC:* feature sets lifted verbatim from ci.yml's Test Suite job — keep in
 	// lockstep with the YAML (the ci.yml steps carry the same SYNC: tags).
-	coreTestFeatures   = "arrow,federation,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
-	dbTestFeatures     = "mysql,postgres,sqlite,sqlserver,wire-backend"
+	coreTestFeatures   = "arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
+	dbTestFeatures     = "postgres,wire-backend"
 	// redis-pkce + redis-rate-limiting are compiled in so the #770/#777 boot-guard
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
 	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
@@ -454,9 +454,9 @@ func (m *FraiseqlCi) Test(
 		"cargo test -p fraiseql-observers --lib --features cli",
 		// #429 wired saga forward executor: the gated path is off in the workspace
 		// run above, so run its Docker-free lib tests explicitly — the pure decision
-		// helpers and the real in-memory-SQLite `execute_step` dispatch/honest-failure
+		// helpers and the remote-dispatch/honest-failure lib tests (the real execute_step
 		// proof. The Postgres orchestration tests are #[ignore]d → integration leg.
-		"echo '### cargo test -p fraiseql-federation --lib --features saga (#429 wired forward exec; SQLite dispatch, no DB)'",
+		"echo '### cargo test -p fraiseql-federation --lib --features saga (#429 remote dispatch + honesty; execute_step PG proofs run in the postgres integration leg)'",
 		"cargo test -p fraiseql-federation --lib --features saga",
 		"echo '### cargo test --doc --all-features'",
 		// Cap doctest concurrency: `cargo test --doc` spawns one process per doctest,
@@ -535,14 +535,6 @@ const (
 	vaultBindHost = "vault"
 	vaultToken    = "fraiseql-test-token"
 
-	// mysqlImage / mysqlBindHost / mysqlRootPassword — the MySQL service (ci.yml
-	// integration-mysql). User/password/database match the Postgres ones
-	// (fraiseql_test / fraiseql_test_password / test_fraiseql), so the pg* consts
-	// are reused for the URL.
-	mysqlImage        = "ghcr.io/fraiseql/mysql:8.3"
-	mysqlBindHost     = "mysql"
-	mysqlRootPassword = "fraiseql_test_root"
-
 	// natsImage / natsBindHost — the NATS JetStream service (ci.yml integration-nats),
 	// started with `-js -m 8222`.
 	natsImage    = "ghcr.io/fraiseql/nats:2.10-alpine"
@@ -570,13 +562,6 @@ const (
 	// It enables SCRAM-SHA-256 explicitly so the wire client's auth path (and the
 	// auth/scram rejection tests) are exercised exactly as under the old testcontainer.
 	wireBindHost = "postgres-wire"
-
-	// sqlserverImage / sqlserverBindHost / sqlserverSaPassword — the SQL Server
-	// service (ci.yml integration-sqlserver). mssql has no initdb mechanism, so
-	// init.sql is applied via sqlcmd behind a readiness loop before the tests run.
-	sqlserverImage      = "mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04"
-	sqlserverBindHost   = "sqlserver"
-	sqlserverSaPassword = "FraiseQL_Test1234"
 
 	// azuriteImage / azuriteBindHost — the Azure Blob emulator for the fraiseql-storage
 	// azure_emulator test (ci.yml integration-storage). The backend reaches it at
@@ -625,10 +610,6 @@ func (m *FraiseqlCi) TestIntegration(
 	switch suite {
 	case "", "postgres":
 		return m.integrationPostgres(ctx, source)
-	case "sqlite":
-		return m.integrationSqlite(ctx, source)
-	case "mysql":
-		return m.integrationMysql(ctx, source)
 	case "nats":
 		return m.integrationNats(ctx, source)
 	case "observers":
@@ -637,8 +618,6 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationHTTPE2e(ctx, source)
 	case "tls":
 		return m.integrationTLS(ctx, source)
-	case "sqlserver":
-		return m.integrationSQLServer(ctx, source)
 	case "server":
 		return m.integrationServer(ctx, source)
 	case "redis":
@@ -655,12 +634,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationFederation(ctx, source)
 	case "federation-compose":
 		return m.integrationFederationCompose(ctx, source)
-	case "cross-db":
-		return m.integrationCrossDb(ctx, source)
 	case "saml":
 		return m.integrationSaml(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, sqlite, mysql, nats, observers, http-e2e, tls, sqlserver, server, redis, vault, wire, storage, server-storage, federation, federation-compose, cross-db, saml)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml)", suite)
 	}
 }
 
@@ -675,9 +652,16 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: postgres (Dagger-bound service; tests read DATABASE_URL via harness)'",
 		// Broad core/db `--test '*'` sweep (matches the legacy integration-postgres job).
-		// The mysql/sqlserver/redis/federation-gated tests skip cleanly (only pg is bound).
+		// The redis/federation-gated tests skip cleanly (only pg is bound).
 		"cargo test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
 		"cargo test -p fraiseql-db --features '" + dbTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
+		// `--test '*'` runs only tests/ binaries. `postgres::adapter::integration_tests`
+		// is a LIB module gated on `test-postgres`, so it was compiled out of the
+		// DB-less test leg (which omits that feature) AND skipped by the line above
+		// — 24 live-PostgreSQL tests, including the #832 relay ORDER BY proofs, ran
+		// in NO leg. Same shape as P09/P16/P18/P20/P21.
+		"echo '### cargo test -p fraiseql-db --lib --features test-postgres (live-PG lib tests)'",
+		"cargo test -p fraiseql-db --lib --features '" + dbTestFeatures + ",test-postgres' -- --test-threads=1",
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
 		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
 		// #411 durable identity store (PostgresAccountStore: core.tb_user / tb_auth_identity + RLS).
@@ -723,11 +707,18 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the
 		// mixed local/remote coordinator path. --include-ignored runs the #[ignore]d
-		// PG tests (the SQLite execute_step proof in the same binary also runs here).
+		// PG tests (including the wired_execution_pg execute_step proofs).
 		// test-utils is required by the remote_dispatch_pg module: the SSRF guard
 		// blocks a loopback mock peer, so the coordinator's *_for_test / _unchecked
 		// builders (compiled only under test-utils) drive the HTTP dispatch path.
 		"cargo test -p fraiseql-federation --features saga,test-utils --test saga_integration -- --include-ignored --test-threads=1",
+		// #721 — the compiled rich-filter SQL templates are EXECUTED against
+		// PostgreSQL, not merely asserted to exist. The pre-existing template
+		// tests check only that an operator HAS a template, which a template
+		// computing the wrong answer satisfies exactly as well as a right one:
+		// `tldEq` split on the first dot and shipped `.com` for `example.com`.
+		"echo '### cargo test -p fraiseql-cli --test sql_templates_execute_pg (#721 templates run against PG)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test sql_templates_execute_pg -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 
@@ -800,84 +791,6 @@ func (m *FraiseqlCi) integrationFederationCompose(ctx context.Context, source *d
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
-}
-
-// integrationSqlite runs the SQLite integration tests. SQLite is in-process
-// (`SqliteAdapter::in_memory`) — no service binding, no env URL. The `sqlite`
-// feature compiles a different code path than `test-postgres`; both sets of
-// artifacts coexist in the shared integration target cache (cargo keys fingerprints
-// per feature-set; sccache backs the cross-feature object reuse).
-func (m *FraiseqlCi) integrationSqlite(ctx context.Context, source *dagger.Directory) (string, error) {
-	script := strings.Join([]string{
-		"set -e",
-		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: sqlite (in-process; no service)'",
-		"cargo test -p fraiseql-core --features sqlite --test integration -- multi_database_integration::sqlite --test-threads=1",
-		"echo 'test-integration OK: sqlite suite passed'",
-	}, "\n")
-
-	return m.integrationBase(source, rustMsrv).
-		WithExec([]string{"bash", "-c", script}).
-		Stdout(ctx)
-}
-
-// integrationMysql binds a seeded MySQL service and runs the MySQL multi-database
-// integration tests. They are #[cfg(feature = "test-mysql")] and read MYSQL_URL,
-// querying the v_user / v_post views (init.sql) and the fn_create_tag stored
-// procedure (procedures.sql).
-func (m *FraiseqlCi) integrationMysql(ctx context.Context, source *dagger.Directory) (string, error) {
-	mysqlURL := fmt.Sprintf("mysql://%s:%s@%s:3306/%s", pgUser, pgPassword, mysqlBindHost, pgDatabase)
-
-	svc, err := m.mysqlService(ctx, source)
-	if err != nil {
-		return "", err
-	}
-
-	script := strings.Join([]string{
-		"set -e",
-		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: mysql (Dagger-bound service; tests read MYSQL_URL)'",
-		"cargo test -p fraiseql-core --features test-mysql --test integration -- multi_database_integration --test-threads=1",
-		"echo 'test-integration OK: mysql suite passed'",
-	}, "\n")
-
-	return m.integrationBase(source, rustMsrv).
-		WithServiceBinding(mysqlBindHost, svc).
-		WithEnvVariable("MYSQL_URL", mysqlURL).
-		WithExec([]string{"bash", "-c", script}).
-		Stdout(ctx)
-}
-
-// mysqlService returns a started mysql:8.3 service seeded with init.sql (the views
-// the tests query) and procedures.sql (the fn_create_tag stored procedure). MySQL's
-// entrypoint creates the user/db from the env vars and runs
-// /docker-entrypoint-initdb.d on first boot.
-//
-// procedures.sql uses `//` as its statement terminator with no DELIMITER statement
-// (legacy loaded it via `mysql --delimiter="//"`). The entrypoint runs initdb files
-// through the mysql client with the default `;` delimiter, so we wrap the file body
-// in `DELIMITER //` … `DELIMITER ;` (a client directive the mysql CLI honours) and
-// seed the wrapped copy.
-func (m *FraiseqlCi) mysqlService(ctx context.Context, source *dagger.Directory) (*dagger.Service, error) {
-	procs, err := source.File("tests/sql/mysql/procedures.sql").Contents(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read mysql procedures.sql: %w", err)
-	}
-	wrappedProcs := "DELIMITER //\n" + procs + "\nDELIMITER ;\n"
-
-	initDir := dag.Directory().
-		WithFile("00-init.sql", source.File("tests/sql/mysql/init.sql")).
-		WithNewFile("01-procedures.sql", wrappedProcs)
-
-	return dag.Container().
-		From(mysqlImage).
-		WithEnvVariable("MYSQL_ROOT_PASSWORD", mysqlRootPassword).
-		WithEnvVariable("MYSQL_DATABASE", pgDatabase).
-		WithEnvVariable("MYSQL_USER", pgUser).
-		WithEnvVariable("MYSQL_PASSWORD", pgPassword).
-		WithDirectory("/docker-entrypoint-initdb.d", initDir).
-		WithExposedPort(3306).
-		AsService(), nil
 }
 
 // integrationServer binds a seeded Postgres and runs fraiseql-server's
@@ -1106,37 +1019,6 @@ func (m *FraiseqlCi) fakeGcsService() *dagger.Service {
 			UseEntrypoint: true,
 			Args:          []string{"-scheme", "http", "-backend", "memory", "-external-url", "http://" + fakeGcsBindHost + ":4443"},
 		})
-}
-
-// integrationCrossDb binds Postgres + MySQL and runs fraiseql-core's cross-database
-// parity tests (cross_database_test in the `integration` binary). They are gated by
-// FEDERATION_TESTS (the legacy job left it unset, so they were a no-op) and apply their
-// own schema/seed to each backend via the harness postgres()/mysql() services.
-func (m *FraiseqlCi) integrationCrossDb(ctx context.Context, source *dagger.Directory) (string, error) {
-	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
-	mysqlURL := fmt.Sprintf("mysql://%s:%s@%s:3306/%s", pgUser, pgPassword, mysqlBindHost, pgDatabase)
-
-	svc, err := m.mysqlService(ctx, source)
-	if err != nil {
-		return "", err
-	}
-
-	script := strings.Join([]string{
-		"set -e",
-		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: cross-db (Dagger-bound postgres + mysql; FEDERATION_TESTS=1)'",
-		"cargo test -p fraiseql-core --features 'test-postgres,test-mysql' --test integration -- cross_database_test --test-threads=1",
-		"echo 'test-integration OK: cross-db suite passed'",
-	}, "\n")
-
-	return m.integrationBase(source, rustMsrv).
-		WithServiceBinding(pgBindHost, m.pgService(source)).
-		WithServiceBinding(mysqlBindHost, svc).
-		WithEnvVariable("DATABASE_URL", dbURL).
-		WithEnvVariable("MYSQL_URL", mysqlURL).
-		WithEnvVariable("FEDERATION_TESTS", "1").
-		WithExec([]string{"bash", "-c", script}).
-		Stdout(ctx)
 }
 
 // integrationServerStorage binds a MinIO (S3-compatible) service AND Postgres, and runs
@@ -1409,105 +1291,6 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		WithEnvVariable("FRAISEQL_VAULT_ALLOW_INSECURE", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
-}
-
-// integrationSQLServer runs ci.yml's integration-sqlserver job as a real enforcing
-// gate (no continue-on-error). mssql:2022 has no initdb mechanism, so tests/sql/
-// sqlserver/init.sql is applied via sqlcmd (from the mssql image, which ships it)
-// behind a readiness loop — that loop structurally removes the startup-race flake the
-// legacy job hit. The init runs in its own container bound to the same service; the
-// test container takes a data dependency on the init's marker file so the schema is
-// in place before the tests run. The 4 sqlserver test modules read SQLSERVER_URL via
-// the harness (test_support::sqlserver) and append their database.
-func (m *FraiseqlCi) integrationSQLServer(ctx context.Context, source *dagger.Directory) (string, error) {
-	// The mssql service self-applies init.sql on boot (see sqlserverService), so EVERY
-	// instance is initialized — this is what makes the suite robust. The earlier
-	// design applied init.sql from a SEPARATE init container bound to the same service
-	// object; Dagger does not guarantee that a second container binding the same
-	// service reuses the first's running instance, so the test container could connect
-	// to an UNINITIALIZED mssql (no databases) → bb8 retried each connect to the full
-	// 30s timeout → a deterministic 21×30s ≈ 630s wall of `bb8: Timed out` panics.
-	// (Surfaced reproducibly once the 2026-06-02 disk migration left the engine cold;
-	// init.sql + mssql are both fine standalone. See parity-notes.md.) Start() holds
-	// one instance up across the readiness gate and the test container.
-	svc, err := m.sqlserverService(source).Start(ctx)
-	if err != nil {
-		return "", fmt.Errorf("starting sqlserver service: %w", err)
-	}
-	const sqlcmd = "/opt/mssql-tools18/bin/sqlcmd"
-	// -b makes sqlcmd exit non-zero on any SQL error, so the poll only breaks once the
-	// fraiseql_test DB AND the dbo.init_done sentinel (written last by init.sql) exist.
-	probe := fmt.Sprintf("%s -b -S %s,1433 -U sa -P '%s' -C -d fraiseql_test -Q 'SET NOCOUNT ON; SELECT TOP 1 ok FROM dbo.init_done'",
-		sqlcmd, sqlserverBindHost, sqlserverSaPassword)
-
-	// Readiness gate: block until the service has FULLY applied init.sql, then emit a
-	// marker the test container depends on so cargo test never races the DB warmup
-	// (Dagger only waits for port 1433 to listen, which happens before init completes).
-	readyScript := strings.Join([]string{
-		"set -e",
-		"for i in $(seq 1 90); do",
-		"  " + probe + " >/dev/null 2>&1 && break",
-		"  echo \"waiting for sqlserver init ($i/90)...\"; sleep 2",
-		"  if [ \"$i\" -eq 90 ]; then echo 'sqlserver init never completed'; exit 1; fi",
-		"done",
-		"echo ok > /tmp/ready",
-	}, "\n")
-
-	// Readiness probe runs in the mssql image (it has sqlcmd); no init.sql needed here.
-	readyMarker := dag.Container().
-		From(sqlserverImage).
-		WithServiceBinding(sqlserverBindHost, svc).
-		WithExec([]string{"bash", "-c", readyScript}).
-		File("/tmp/ready")
-
-	sqlserverURL := fmt.Sprintf("server=%s,1433;user=sa;password=%s;TrustServerCertificate=true", sqlserverBindHost, sqlserverSaPassword)
-
-	script := strings.Join([]string{
-		"set -e",
-		"echo \"### toolchain: $(rustc --version)\"",
-		"echo '### integration: sqlserver (Dagger-bound self-initializing mssql:2022)'",
-		"cargo test -p fraiseql-core --features test-sqlserver --test integration -- multi_database_integration --test-threads=1",
-		"echo 'test-integration OK: sqlserver suite passed'",
-	}, "\n")
-
-	return m.integrationBase(source, rustMsrv).
-		WithServiceBinding(sqlserverBindHost, svc).
-		// Data dependency on the readiness marker forces init.sql to be fully applied
-		// before cargo test runs.
-		WithFile("/tmp/ready", readyMarker).
-		WithEnvVariable("SQLSERVER_URL", sqlserverURL).
-		WithExec([]string{"bash", "-c", script}).
-		Stdout(ctx)
-}
-
-// sqlserverService returns a self-initializing SQL Server 2022 (Developer edition)
-// service. Its startup command launches sqlservr, waits for it to accept connections,
-// applies init.sql, then waits on sqlservr to hold the service in the foreground.
-// Baking init.sql into the service (rather than applying it from a separate
-// container) means every instance is initialized — robust against Dagger's service
-// instance lifecycle, which otherwise left the test container talking to an
-// uninitialized mssql. init.sql is idempotent, so a re-applied instance is harmless.
-func (m *FraiseqlCi) sqlserverService(source *dagger.Directory) *dagger.Service {
-	const tools = "/opt/mssql-tools18/bin/sqlcmd"
-	entry := strings.Join([]string{
-		"set -e",
-		"/opt/mssql/bin/sqlservr & SQLSERVR_PID=$!",
-		"for i in $(seq 1 90); do",
-		"  " + tools + " -b -S localhost,1433 -U sa -P '" + sqlserverSaPassword + "' -C -Q 'SELECT 1' >/dev/null 2>&1 && break",
-		"  sleep 2",
-		"done",
-		tools + " -b -S localhost,1433 -U sa -P '" + sqlserverSaPassword + "' -C -i /init.sql",
-		"wait $SQLSERVR_PID",
-	}, "\n")
-
-	return dag.Container().
-		From(sqlserverImage).
-		WithEnvVariable("ACCEPT_EULA", "Y").
-		WithEnvVariable("MSSQL_SA_PASSWORD", sqlserverSaPassword).
-		WithEnvVariable("MSSQL_PID", "Developer").
-		WithFile("/init.sql", source.File("tests/sql/sqlserver/init.sql")).
-		WithExposedPort(1433).
-		AsService(dagger.ContainerAsServiceOpts{Args: []string{"bash", "-c", entry}})
 }
 
 // integrationTLS runs ci.yml's integration-tls job: a TLS-enabled Postgres and the

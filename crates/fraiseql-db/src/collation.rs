@@ -21,12 +21,8 @@ use crate::{collation_config::CollationConfig, types::DatabaseType};
 ///
 /// // PostgreSQL with ICU
 /// let config = CollationConfig::default();
-/// let mapper = CollationMapper::new(config.clone(), DatabaseType::PostgreSQL);
+/// let mapper = CollationMapper::new(config, DatabaseType::PostgreSQL);
 /// assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("fr-FR-x-icu".to_string()));
-///
-/// // MySQL (general collation, not locale-specific)
-/// let mapper = CollationMapper::new(config, DatabaseType::MySQL);
-/// assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("utf8mb4_unicode_ci".to_string()));
 /// ```
 pub struct CollationMapper {
     config:        CollationConfig,
@@ -99,9 +95,6 @@ impl CollationMapper {
 
         match self.database_type {
             DatabaseType::PostgreSQL => Ok(self.map_postgres(locale)),
-            DatabaseType::MySQL => Ok(self.map_mysql(locale)),
-            DatabaseType::SQLite => Ok(self.map_sqlite(locale)),
-            DatabaseType::SQLServer => Ok(self.map_sqlserver(locale)),
         }
     }
 
@@ -124,60 +117,6 @@ impl CollationMapper {
 
         // Default: ICU collation
         Some(format!("{locale}-x-icu"))
-    }
-
-    /// Map locale for MySQL.
-    ///
-    /// MySQL collations are charset-based, not locale-specific.
-    /// All locales map to the same general-purpose collation.
-    fn map_mysql(&self, _locale: &str) -> Option<String> {
-        if let Some(overrides) = &self.config.database_overrides {
-            if let Some(mysql_config) = &overrides.mysql {
-                return Some(format!("{}{}", mysql_config.charset, mysql_config.suffix));
-            }
-        }
-
-        // Default: utf8mb4_unicode_ci (supports all languages)
-        Some("utf8mb4_unicode_ci".to_string())
-    }
-
-    /// Map locale for SQLite.
-    ///
-    /// SQLite has very limited collation support. Only NOCASE is built-in
-    /// for case-insensitive sorting.
-    fn map_sqlite(&self, _locale: &str) -> Option<String> {
-        if let Some(overrides) = &self.config.database_overrides {
-            if let Some(sqlite_config) = &overrides.sqlite {
-                return if sqlite_config.use_nocase {
-                    Some("NOCASE".to_string())
-                } else {
-                    None
-                };
-            }
-        }
-
-        // Default: NOCASE
-        Some("NOCASE".to_string())
-    }
-
-    /// Map locale for SQL Server.
-    ///
-    /// Maps common locales to SQL Server language-specific collations.
-    fn map_sqlserver(&self, locale: &str) -> Option<String> {
-        // Map common locales to SQL Server collations
-        let collation = match locale {
-            "en-US" | "en-GB" | "en-CA" | "en-AU" => "Latin1_General_100_CI_AI_SC_UTF8",
-            "fr-FR" | "fr-CA" => "French_100_CI_AI",
-            "de-DE" | "de-AT" | "de-CH" => "German_PhoneBook_100_CI_AI",
-            "es-ES" | "es-MX" => "Modern_Spanish_100_CI_AI",
-            "ja-JP" => "Japanese_XJIS_100_CI_AI",
-            "zh-CN" => "Chinese_PRC_100_CI_AI",
-            "pt-BR" => "Latin1_General_100_CI_AI_SC_UTF8",
-            "it-IT" => "Latin1_General_100_CI_AI_SC_UTF8",
-            _ => "Latin1_General_100_CI_AI_SC_UTF8", // Default
-        };
-
-        Some(collation.to_string())
     }
 
     /// Handle invalid locale based on configuration strategy.
@@ -215,22 +154,10 @@ pub struct CollationCapabilities;
 impl CollationCapabilities {
     /// Check if database supports locale-specific collations.
     ///
-    /// - PostgreSQL: ✅ Full support via ICU or libc
-    /// - MySQL: ❌ Only charset-based collations
-    /// - SQLite: ❌ Limited to NOCASE or custom functions
-    /// - SQL Server: ✅ Language-specific collations
+    /// PostgreSQL has full support via ICU or libc.
     #[must_use]
     pub const fn supports_locale_collation(db_type: DatabaseType) -> bool {
-        matches!(db_type, DatabaseType::PostgreSQL | DatabaseType::SQLServer)
-    }
-
-    /// Check if database requires custom collation registration.
-    ///
-    /// SQLite requires custom collation functions to be registered for
-    /// locale-aware sorting beyond NOCASE.
-    #[must_use]
-    pub const fn requires_custom_collation(db_type: DatabaseType) -> bool {
-        matches!(db_type, DatabaseType::SQLite)
+        matches!(db_type, DatabaseType::PostgreSQL)
     }
 
     /// Get collation strategy description for database.
@@ -238,9 +165,6 @@ impl CollationCapabilities {
     pub const fn strategy(db_type: DatabaseType) -> &'static str {
         match db_type {
             DatabaseType::PostgreSQL => "ICU collations (locale-specific)",
-            DatabaseType::MySQL => "UTF8MB4 collations (general)",
-            DatabaseType::SQLite => "NOCASE (limited)",
-            DatabaseType::SQLServer => "Language-specific collations",
         }
     }
 
@@ -249,9 +173,6 @@ impl CollationCapabilities {
     pub const fn recommended_provider(db_type: DatabaseType) -> Option<&'static str> {
         match db_type {
             DatabaseType::PostgreSQL => Some("icu"),
-            DatabaseType::MySQL => Some("utf8mb4_unicode_ci"),
-            DatabaseType::SQLite => Some("NOCASE"),
-            DatabaseType::SQLServer => Some("Latin1_General_100_CI_AI_SC_UTF8"),
         }
     }
 }

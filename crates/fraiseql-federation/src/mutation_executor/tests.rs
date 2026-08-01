@@ -141,9 +141,14 @@ fn recased_keys_fix_update_set_and_key_lookup() {
 async fn extended_mutation_fails_loud_instead_of_fabricating_success() {
     use std::sync::Arc;
 
-    use fraiseql_db::SqliteAdapter;
+    use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
 
-    let adapter = Arc::new(SqliteAdapter::with_pool_config("sqlite::memory:", 1, 1).await.unwrap());
+    // The extended-mutation path must error before any database work; a
+    // fail-everything adapter proves the local path is never reached.
+    let adapter = Arc::new(FailingAdapter::new().fail_with_error(FailError::Database {
+        message:   "test bug: the local adapter must not be reached".to_string(),
+        sql_state: None,
+    }));
     let executor = FederationMutationExecutor::new(
         adapter,
         crate::types::FederationMetadata::default(),

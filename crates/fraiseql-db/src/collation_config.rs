@@ -65,23 +65,17 @@ pub enum InvalidLocaleStrategy {
 }
 
 /// Database-specific collation overrides.
+///
+/// `deny_unknown_fields` is load-bearing: the `mysql`, `sqlite` and
+/// `sqlserver` override tables were removed with their backends (G2, #374),
+/// and a config that still carries one must fail to parse rather than be
+/// silently ignored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DatabaseCollationOverrides {
     /// PostgreSQL-specific settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub postgres: Option<PostgresCollationConfig>,
-
-    /// MySQL-specific settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mysql: Option<MySqlCollationConfig>,
-
-    /// SQLite-specific settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sqlite: Option<SqliteCollationConfig>,
-
-    /// SQL Server-specific settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sqlserver: Option<SqlServerCollationConfig>,
 }
 
 /// PostgreSQL-specific collation configuration.
@@ -99,57 +93,6 @@ impl Default for PostgresCollationConfig {
         Self {
             use_icu:  true,
             provider: "icu".to_string(),
-        }
-    }
-}
-
-/// MySQL-specific collation configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MySqlCollationConfig {
-    /// Charset (e.g., "utf8mb4").
-    pub charset: String,
-
-    /// Collation suffix (e.g., "_unicode_ci" or "_0900_ai_ci").
-    pub suffix: String,
-}
-
-impl Default for MySqlCollationConfig {
-    fn default() -> Self {
-        Self {
-            charset: "utf8mb4".to_string(),
-            suffix:  "_unicode_ci".to_string(),
-        }
-    }
-}
-
-/// SQLite-specific collation configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SqliteCollationConfig {
-    /// Use COLLATE NOCASE for case-insensitive sorting.
-    pub use_nocase: bool,
-}
-
-impl Default for SqliteCollationConfig {
-    fn default() -> Self {
-        Self { use_nocase: true }
-    }
-}
-
-/// SQL Server-specific collation configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SqlServerCollationConfig {
-    /// Case-insensitive (CI) collations.
-    pub case_insensitive: bool,
-
-    /// Accent-insensitive (AI) collations.
-    pub accent_insensitive: bool,
-}
-
-impl Default for SqlServerCollationConfig {
-    fn default() -> Self {
-        Self {
-            case_insensitive:   true,
-            accent_insensitive: true,
         }
     }
 }

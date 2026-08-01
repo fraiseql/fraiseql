@@ -175,12 +175,6 @@ fn test_validate_groups_frame_postgres_only() {
     // Should pass for PostgreSQL
     WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::PostgreSQL)
         .unwrap_or_else(|e| panic!("expected Ok for PostgreSQL GROUPS frame: {e}"));
-
-    // Should fail for MySQL
-    assert!(
-        WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::MySQL).is_err(),
-        "expected Err for MySQL GROUPS frame, got Ok"
-    );
 }
 
 // =============================================================================

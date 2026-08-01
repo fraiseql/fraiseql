@@ -55,21 +55,6 @@ mod row_number {
     fn postgres() {
         assert_snapshot!(plan_and_generate(&query(), DatabaseType::PostgreSQL));
     }
-
-    #[test]
-    fn mysql() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn sqlite() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn sqlserver() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLServer));
-    }
 }
 
 // =============================================================================
@@ -96,21 +81,6 @@ mod rank {
     fn postgres() {
         assert_snapshot!(plan_and_generate(&query(), DatabaseType::PostgreSQL));
     }
-
-    #[test]
-    fn mysql() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn sqlite() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn sqlserver() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLServer));
-    }
 }
 
 // =============================================================================
@@ -136,21 +106,6 @@ mod dense_rank {
     #[test]
     fn postgres() {
         assert_snapshot!(plan_and_generate(&query(), DatabaseType::PostgreSQL));
-    }
-
-    #[test]
-    fn mysql() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn sqlite() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn sqlserver() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLServer));
     }
 }
 
@@ -183,21 +138,6 @@ mod lag {
     fn postgres() {
         assert_snapshot!(plan_and_generate(&query(), DatabaseType::PostgreSQL));
     }
-
-    #[test]
-    fn mysql() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn sqlite() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn sqlserver() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLServer));
-    }
 }
 
 // =============================================================================
@@ -228,21 +168,6 @@ mod lead {
     #[test]
     fn postgres() {
         assert_snapshot!(plan_and_generate(&query(), DatabaseType::PostgreSQL));
-    }
-
-    #[test]
-    fn mysql() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn sqlite() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn sqlserver() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLServer));
     }
 }
 
@@ -275,21 +200,6 @@ mod cumulative_sum {
     fn postgres() {
         assert_snapshot!(plan_and_generate(&query(), DatabaseType::PostgreSQL));
     }
-
-    #[test]
-    fn mysql() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn sqlite() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn sqlserver() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLServer));
-    }
 }
 
 // =============================================================================
@@ -320,21 +230,6 @@ mod moving_average {
     #[test]
     fn postgres() {
         assert_snapshot!(plan_and_generate(&query(), DatabaseType::PostgreSQL));
-    }
-
-    #[test]
-    fn mysql() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn sqlite() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn sqlserver() {
-        assert_snapshot!(plan_and_generate(&query(), DatabaseType::SQLServer));
     }
 }
 
@@ -471,20 +366,8 @@ mod stddev_variance {
     }
 
     #[test]
-    fn stddev_sqlserver() {
-        let sql = plan_and_generate(&stddev_query(), DatabaseType::SQLServer);
-        assert_snapshot!(sql);
-    }
-
-    #[test]
     fn variance_postgres() {
         let sql = plan_and_generate(&variance_query(), DatabaseType::PostgreSQL);
-        assert_snapshot!(sql);
-    }
-
-    #[test]
-    fn variance_sqlserver() {
-        let sql = plan_and_generate(&variance_query(), DatabaseType::SQLServer);
         assert_snapshot!(sql);
     }
 }

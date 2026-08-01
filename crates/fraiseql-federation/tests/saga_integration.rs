@@ -3148,3 +3148,164 @@ mod compensation_honesty_pg {
         store.delete_saga(saga_id).await.unwrap();
     }
 }
+
+// ── Forward-phase execute_step against real PostgreSQL ────────────────────────
+//
+// Ported from `src/saga_executor/tests.rs::wired` when G2 removed the SQLite
+// adapter that used to host these proofs in the fast leg. Same guarantees,
+// proven against the shipped backend: `execute_step` dispatches the step's
+// real local mutation through a `DatabaseAdapter` and reports the outcome
+// without fabricating success.
+
+#[cfg(feature = "saga")]
+mod wired_execution_pg {
+    use std::sync::Arc;
+
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_federation::{
+        FederatedType, FederationMetadata, FederationMutationExecutor, KeyDirective, MutationType,
+        SagaExecutor, SagaStep, StepState,
+    };
+    use serde_json::json;
+    use uuid::Uuid;
+
+    fn database_url() -> Option<String> {
+        std::env::var("DATABASE_URL").ok()
+    }
+
+    /// Unique, identifier-safe entity type per test run: the mutation builder
+    /// targets `lowercase(typename)` as the table, so a unique name isolates
+    /// each run from fixtures and parallel tests (the P13 ambient-state lesson).
+    fn unique_typename() -> String {
+        format!("sagaexec{}", Uuid::new_v4().simple())
+    }
+
+    fn entity_metadata(typename: &str) -> FederationMetadata {
+        FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types: vec![FederatedType {
+                name:                typename.to_string(),
+                keys:                vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:          false,
+                external_fields:     Vec::new(),
+                shareable_fields:    Vec::new(),
+                inaccessible_fields: Vec::new(),
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
+            }],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        }
+    }
+
+    fn entity_step(
+        typename: &str,
+        mutation_type: MutationType,
+        variables: serde_json::Value,
+    ) -> SagaStep {
+        SagaStep {
+            id: Uuid::new_v4(),
+            saga_id: Uuid::new_v4(),
+            order: 0,
+            subgraph: "orders".to_string(),
+            remote: false,
+            mutation_type,
+            mutation_name: None,
+            typename: typename.to_string(),
+            variables,
+            state: StepState::Pending,
+            result: None,
+            started_at: None,
+            completed_at: None,
+            compensation_mutation: None,
+            compensation_variables: None,
+            required_fields: Vec::new(),
+            compensation_error: None,
+        }
+    }
+
+    /// Fresh entity table + executor over it; the adapter handle lets a test
+    /// read the database back directly. The table is dropped at the end of each
+    /// test to leave no ambient state.
+    async fn entity_table_executor(
+        url: &str,
+        typename: &str,
+    ) -> (FederationMutationExecutor<PostgresAdapter>, Arc<PostgresAdapter>) {
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!(
+                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
+            ))
+            .await
+            .unwrap();
+        let executor =
+            FederationMutationExecutor::new(Arc::clone(&adapter), entity_metadata(typename), false);
+        (executor, adapter)
+    }
+
+    async fn drop_entity_table(adapter: &PostgresAdapter, typename: &str) {
+        let table = typename.to_lowercase();
+        adapter
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (live PostgreSQL)"]
+    async fn execute_step_dispatches_real_create() {
+        let Some(url) = database_url() else {
+            return;
+        };
+        let typename = unique_typename();
+        let executor = SagaExecutor::new();
+        let (mutation_executor, adapter) = entity_table_executor(&url, &typename).await;
+        let step =
+            entity_step(&typename, MutationType::Create, json!({"id": "o1", "total": "100"}));
+
+        let result = executor.execute_step(&mutation_executor, &step).await;
+
+        assert!(result.success, "a successful create must report success: {result:?}");
+        assert_eq!(result.step_number, 1, "0-based order maps to 1-indexed step number");
+        let data = result.data.expect("a successful step must carry the read-back entity");
+        assert_eq!(data["id"], "o1", "result must reflect the real inserted row: {data}");
+        assert_eq!(data["__typename"], typename);
+
+        // The row really landed in the database — not a fabricated response.
+        let rows = adapter
+            .execute_raw_query(&format!(
+                "SELECT id FROM \"{}\" WHERE id = 'o1'",
+                typename.to_lowercase()
+            ))
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1, "the create must have persisted a real row");
+        drop_entity_table(&adapter, &typename).await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (live PostgreSQL)"]
+    async fn execute_step_failed_mutation_reports_failure_not_fabricated_success() {
+        let Some(url) = database_url() else {
+            return;
+        };
+        let typename = unique_typename();
+        let executor = SagaExecutor::new();
+        let (mutation_executor, adapter) = entity_table_executor(&url, &typename).await;
+        // UPDATE targeting an id that does not exist → 0 rows → NotFound. The
+        // step must report failure, never a fabricated Completed (audit H32).
+        let step =
+            entity_step(&typename, MutationType::Update, json!({"id": "missing", "total": "5"}));
+
+        let result = executor.execute_step(&mutation_executor, &step).await;
+
+        assert!(!result.success, "a 0-row update must report failure: {result:?}");
+        assert!(result.data.is_none(), "a failed step must not fabricate result data");
+        assert!(result.error.is_some(), "a failed step must carry the error: {result:?}");
+        drop_entity_table(&adapter, &typename).await;
+    }
+}

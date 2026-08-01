@@ -305,7 +305,7 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
     }
 
     fn database_type(&self) -> DatabaseType {
-        DatabaseType::SQLite
+        DatabaseType::PostgreSQL
     }
 
     fn pool_metrics(&self) -> PoolMetrics {
