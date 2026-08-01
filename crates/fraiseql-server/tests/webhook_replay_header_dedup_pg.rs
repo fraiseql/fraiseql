@@ -66,6 +66,7 @@ fn router(pool: PgPool) -> Router {
             secret_env: SECRET_ENV.to_string(),
             provider:   "github".to_string(),
             path:       None,
+            public_url: None,
         },
     );
     let state = WebhookInboundState::new(pool, &routes, |name| {

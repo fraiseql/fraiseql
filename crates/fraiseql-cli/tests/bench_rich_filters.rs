@@ -21,6 +21,7 @@ fn bench_compile_empty_schema_rich_types() {
         let intermediate = IntermediateSchema {
             grpc_config:       None,
             security:          None,
+            auth:              None,
             version:           "2.0.0".to_string(),
             types:             vec![],
             enums:             vec![],
@@ -77,6 +78,7 @@ fn bench_metadata_access_performance() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -139,6 +141,7 @@ fn bench_operator_metadata_parsing() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -205,6 +208,7 @@ fn bench_database_template_access() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -277,6 +281,7 @@ fn bench_lookup_data_access() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -343,6 +348,7 @@ fn bench_full_operator_traversal() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],

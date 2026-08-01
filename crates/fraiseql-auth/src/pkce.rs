@@ -20,7 +20,13 @@
 //! - **InMemory** — `DashMap`, single-process, per-replica
 //! - **Redis** — distributed, multi-replica (requires the `redis-pkce` Cargo feature)
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use dashmap::DashMap;
@@ -123,6 +129,15 @@ pub struct InMemoryPkceStateStore {
     /// Maximum number of in-flight entries; defaults to `MAX_PKCE_ENTRIES`.
     /// Overridable in tests via [`InMemoryPkceStateStore::with_max_entries`].
     max_entries:    usize,
+    /// Reserved-slot count for the capacity gate.
+    ///
+    /// `DashMap::len()` + a subsequent `insert` is a check-then-act TOCTOU:
+    /// concurrent creators each saw `len < max` and all inserted, overshooting the
+    /// cap (#737). Reserving a slot with a single atomic `fetch_add` closes that —
+    /// the increment and its bound-check are one operation, so the store can never
+    /// exceed `max_entries`. Kept in lockstep with `entries`: every insert reserves,
+    /// every removal (`consume`, `purge_expired`) releases.
+    size:           AtomicUsize,
 }
 
 impl InMemoryPkceStateStore {
@@ -132,6 +147,7 @@ impl InMemoryPkceStateStore {
             entries: DashMap::new(),
             encryptor,
             max_entries: MAX_PKCE_ENTRIES,
+            size: AtomicUsize::new(0),
         }
     }
 
@@ -147,14 +163,17 @@ impl InMemoryPkceStateStore {
             entries: DashMap::new(),
             encryptor,
             max_entries,
+            size: AtomicUsize::new(0),
         }
     }
 
     fn create_state_sync(&self, redirect_uri: &str) -> Result<(String, String), anyhow::Error> {
-        // SECURITY: reject inserts when the map is at capacity to prevent
-        // unbounded memory growth under DoS.  Callers translate this into
-        // HTTP 429 and invite the client to retry.
-        if self.entries.len() >= self.max_entries {
+        // SECURITY: reserve a slot atomically to bound memory under DoS. The
+        // fetch_add and its bound-check are one operation, so concurrent creators
+        // cannot each pass a `len() < max` check and all insert (#737 TOCTOU).
+        // Callers translate StoreFull into HTTP 429.
+        if self.size.fetch_add(1, Ordering::AcqRel) >= self.max_entries {
+            self.size.fetch_sub(1, Ordering::AcqRel);
             return Err(PkceError::StoreFull.into());
         }
 
@@ -190,7 +209,13 @@ impl InMemoryPkceStateStore {
     ///
     /// Call this from a background task on a fixed interval to reclaim memory.
     pub fn purge_expired(&self) {
-        self.entries.retain(|_, e| e.created_at.elapsed() <= e.ttl);
+        let mut removed = 0usize;
+        self.entries.retain(|_, e| {
+            let keep = e.created_at.elapsed() <= e.ttl;
+            removed += usize::from(!keep);
+            keep
+        });
+        self.size.fetch_sub(removed, Ordering::AcqRel);
     }
 
     fn consume_state_sync(&self, outbound_token: &str) -> Result<ConsumedPkceState, PkceError> {
@@ -203,6 +228,7 @@ impl InMemoryPkceStateStore {
         };
 
         let (_, entry) = self.entries.remove(&internal_key).ok_or(PkceError::StateNotFound)?;
+        self.size.fetch_sub(1, Ordering::AcqRel);
 
         if entry.created_at.elapsed() > entry.ttl {
             return Err(PkceError::StateExpired);
@@ -232,6 +258,16 @@ impl InMemoryPkceStateStore {
 /// Exposed via `/metrics` as `fraiseql_pkce_redis_errors_total`.
 #[cfg(feature = "redis-pkce")]
 pub static REDIS_PKCE_ERRORS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Record one Redis PKCE store error (transport / connection failure).
+///
+/// Increments [`REDIS_PKCE_ERRORS`], surfaced on `/metrics` as
+/// `fraiseql_pkce_redis_errors_total`. Before #788 the counter was declared but
+/// never incremented, so the metric read `0` forever even during a Redis outage.
+#[cfg(feature = "redis-pkce")]
+fn note_redis_pkce_error() {
+    REDIS_PKCE_ERRORS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// Return the total number of Redis PKCE errors observed so far.
 #[cfg(feature = "redis-pkce")]
@@ -304,7 +340,8 @@ impl RedisPkceStateStore {
             .arg("EX")
             .arg(self.state_ttl_secs)
             .query_async::<()>(&mut conn)
-            .await?;
+            .await
+            .inspect_err(|_| note_redis_pkce_error())?;
 
         let outbound_token = match &self.encryptor {
             Some(enc) => enc.encrypt(internal_key.as_bytes())?,
@@ -339,11 +376,22 @@ impl RedisPkceStateStore {
         // GETDEL — atomically retrieve and delete in a single round-trip.
         // This guarantees one-shot consumption: no concurrent request can
         // reuse the same state token, even without application-level locking.
+        //
+        // #788: a transport error here is Redis being unreachable, NOT the client
+        // presenting an unknown token. Increment the error counter (so
+        // fraiseql_pkce_redis_errors_total stops reading 0 forever while Redis is
+        // down) and log it, before mapping to StateNotFound for the caller. The
+        // counter is what an operator alerts on to tell "Redis outage" apart from
+        // "invalid client input".
         let raw: Option<String> = redis::cmd("GETDEL")
             .arg(&redis_key)
             .query_async(&mut conn)
             .await
-            .map_err(|_| PkceError::StateNotFound)?;
+            .map_err(|error| {
+                note_redis_pkce_error();
+                tracing::error!(%error, "Redis PKCE GETDEL failed — treating as state-not-found");
+                PkceError::StateNotFound
+            })?;
 
         let json = raw.ok_or(PkceError::StateNotFound)?;
 

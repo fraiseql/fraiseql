@@ -162,6 +162,7 @@ fn test_convert_minimal_schema() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -317,6 +318,7 @@ fn test_convert_type_with_fields() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),
@@ -398,6 +400,7 @@ fn test_validate_unknown_type_reference() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -458,6 +461,7 @@ fn test_convert_query_with_arguments() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),
@@ -545,6 +549,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "Item".to_string(),
@@ -621,6 +626,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "Item".to_string(),
@@ -699,6 +705,7 @@ fn test_convert_field_with_deprecated_directive() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),
@@ -796,6 +803,7 @@ fn test_convert_enum() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![IntermediateEnum {
@@ -880,6 +888,7 @@ fn test_convert_input_object() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -984,6 +993,7 @@ fn test_rich_filter_types_generated() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -1051,6 +1061,7 @@ fn test_rich_filter_types_have_sql_templates() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -1130,6 +1141,7 @@ fn test_lookup_data_embedded_in_schema() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -1220,6 +1232,7 @@ fn test_convert_interface() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -1284,6 +1297,7 @@ fn test_convert_type_implements_interface() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),
@@ -1384,6 +1398,7 @@ fn test_validate_unknown_interface() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),
@@ -1451,6 +1466,7 @@ fn test_validate_missing_interface_field() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),
@@ -1535,6 +1551,7 @@ fn test_convert_union() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![
             IntermediateType {
@@ -1637,6 +1654,7 @@ fn test_convert_field_requires_scope() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "Employee".to_string(),

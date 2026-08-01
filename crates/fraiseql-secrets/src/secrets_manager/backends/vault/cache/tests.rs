@@ -3,12 +3,15 @@
 use chrono::Duration;
 
 use super::*;
+use crate::secrets_manager::Secret;
 
 #[tokio::test]
 async fn test_cache_set_and_get() {
     let cache = SecretCache::new(10);
     let expiry = Utc::now() + Duration::hours(1);
-    cache.set("db-creds".to_string(), "password123".to_string(), expiry).await;
+    cache
+        .set("db-creds".to_string(), Secret::new("password123".to_string()), expiry)
+        .await;
 
     let result = cache.get_with_expiry("db-creds").await;
     assert!(result.is_some(), "cached secret must be returned before expiry");
@@ -28,7 +31,9 @@ async fn test_cache_returns_none_for_expired_entry() {
     let cache = SecretCache::new(10);
     // Set entry that expires in the past
     let expired = Utc::now() - Duration::seconds(1);
-    cache.set("expired-key".to_string(), "stale".to_string(), expired).await;
+    cache
+        .set("expired-key".to_string(), Secret::new("stale".to_string()), expired)
+        .await;
 
     let result = cache.get_with_expiry("expired-key").await;
     assert!(result.is_none(), "expired entry must return None");
@@ -38,7 +43,9 @@ async fn test_cache_returns_none_for_expired_entry() {
 async fn test_cache_invalidate_removes_entry() {
     let cache = SecretCache::new(10);
     let expiry = Utc::now() + Duration::hours(1);
-    cache.set("to-remove".to_string(), "secret".to_string(), expiry).await;
+    cache
+        .set("to-remove".to_string(), Secret::new("secret".to_string()), expiry)
+        .await;
 
     cache.invalidate("to-remove").await;
 
@@ -54,11 +61,13 @@ async fn test_cache_lru_eviction_at_capacity() {
 
     // Fill to capacity
     for i in 0..5 {
-        cache.set(format!("key-{i}"), format!("val-{i}"), expiry).await;
+        cache.set(format!("key-{i}"), Secret::new(format!("val-{i}")), expiry).await;
     }
 
     // Adding a 6th entry should trigger LRU eviction of 10% = 1 entry
-    cache.set("key-new".to_string(), "val-new".to_string(), expiry).await;
+    cache
+        .set("key-new".to_string(), Secret::new("val-new".to_string()), expiry)
+        .await;
 
     // The new key must be present
     let result = cache.get_with_expiry("key-new").await;
@@ -69,8 +78,8 @@ async fn test_cache_lru_eviction_at_capacity() {
 async fn test_cache_overwrite_existing_key() {
     let cache = SecretCache::new(10);
     let expiry = Utc::now() + Duration::hours(1);
-    cache.set("key".to_string(), "old-value".to_string(), expiry).await;
-    cache.set("key".to_string(), "new-value".to_string(), expiry).await;
+    cache.set("key".to_string(), Secret::new("old-value".to_string()), expiry).await;
+    cache.set("key".to_string(), Secret::new("new-value".to_string()), expiry).await;
 
     let (value, _) = cache.get_with_expiry("key").await.expect("key must exist");
     assert_eq!(value, "new-value", "overwritten key must return new value");

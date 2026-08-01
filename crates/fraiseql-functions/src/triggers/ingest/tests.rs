@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use super::{
-    Attachment, InboundMessage, IngestSource, IngestTrigger, PushSource, RawDelivery, RoutingRule,
-    Source, StorageRef, Transport, parse_recipient, resolve_routing,
+    Attachment, InboundMessage, IngestSelector, IngestSource, IngestTrigger, PushSource,
+    RawDelivery, RoutingRule, Source, StorageRef, Transport, parse_recipient, resolve_routing,
 };
 
 /// A fake push source that normalizes a Stripe-style delivery into an
@@ -96,7 +96,13 @@ fn source_key_is_the_after_ingest_discriminant() {
         .as_key(),
         "webhook:stripe"
     );
-    assert_eq!(IngestSource::Email.as_key(), "email");
+    assert_eq!(
+        IngestSource::Email {
+            mailbox: "support".to_string(),
+        }
+        .as_key(),
+        "email:support"
+    );
 }
 
 #[test]
@@ -112,7 +118,7 @@ fn ingest_trigger_matches_by_source() {
     // A source-specific trigger fires only for its source.
     let stripe = IngestTrigger {
         function_name: "onStripe".to_string(),
-        source:        Some(IngestSource::Webhook {
+        source:        Some(IngestSelector::Webhook {
             provider: "stripe".to_string(),
         }),
     };
@@ -120,7 +126,9 @@ fn ingest_trigger_matches_by_source() {
 
     let email = IngestTrigger {
         function_name: "onEmail".to_string(),
-        source:        Some(IngestSource::Email),
+        source:        Some(IngestSelector::Email {
+            mailbox: "test-mailbox".to_string(),
+        }),
     };
     assert!(!email.matches(&message));
 
@@ -184,7 +192,13 @@ fn parse_recipient_splits_base_and_plus_tag() {
 
 #[test]
 fn plus_tagged_address_routes_to_the_right_entity() {
-    let mut message = InboundMessage::new(IngestSource::Email, "msg-1", timestamp());
+    let mut message = InboundMessage::new(
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        "msg-1",
+        timestamp(),
+    );
     message.to.push("support+ticket-42@example.com".to_string());
 
     let rules = [RoutingRule {
@@ -199,7 +213,13 @@ fn plus_tagged_address_routes_to_the_right_entity() {
 
 #[test]
 fn dedicated_address_routes_without_a_tag() {
-    let mut message = InboundMessage::new(IngestSource::Email, "msg-2", timestamp());
+    let mut message = InboundMessage::new(
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        "msg-2",
+        timestamp(),
+    );
     // Case-insensitive match, and the rule fires even with no plus-tag.
     message.to.push("Invoices@Example.com".to_string());
 
@@ -215,7 +235,13 @@ fn dedicated_address_routes_without_a_tag() {
 
 #[test]
 fn no_matching_address_yields_empty_routing() {
-    let mut message = InboundMessage::new(IngestSource::Email, "msg-3", timestamp());
+    let mut message = InboundMessage::new(
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        "msg-3",
+        timestamp(),
+    );
     message.to.push("random@elsewhere.com".to_string());
 
     let rules = [RoutingRule {

@@ -49,6 +49,7 @@ fn test_rich_filter_compilation_pipeline() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -135,6 +136,7 @@ fn test_all_rich_types_generate_where_input() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -205,6 +207,7 @@ fn test_where_input_fields_include_standard_operators() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -270,6 +273,7 @@ fn test_sql_templates_cover_all_databases() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -346,6 +350,7 @@ fn test_lookup_data_integrity() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -423,6 +428,7 @@ fn test_compiled_schema_is_valid() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],

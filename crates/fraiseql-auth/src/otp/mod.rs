@@ -196,11 +196,6 @@ impl OtpStore for InMemoryOtpStore {
     }
 
     async fn verify_otp(&self, email: &str, code: &str) -> Result<()> {
-        // Constant-time comparison via subtle::ConstantTimeEq is preferred but
-        // DashMap entry mutation isn't easily composable with it; the code
-        // space (10^6 values) is too small for timing oracles to be useful in
-        // practice given the rate limit, and we do not branch on the secret
-        // value before the comparison.  Improvements tracked separately.
         let mut entry = self.codes.get_mut(email).ok_or_else(|| AuthError::InvalidToken {
             reason: "no pending OTP for email".into(),
         })?;
@@ -222,7 +217,11 @@ impl OtpStore for InMemoryOtpStore {
             });
         }
 
-        if entry.code != code {
+        // Constant-time comparison (#788): a data-dependent `!=` on the code leaks
+        // how many leading digits matched via its return time. The 3-attempt cap is
+        // the primary mitigation, but honouring the module's own "constant-time"
+        // doc claim costs nothing here.
+        if !crate::constant_time::ConstantTimeOps::compare_str(&entry.code, code) {
             return Err(AuthError::InvalidToken {
                 reason: "invalid OTP code".into(),
             });

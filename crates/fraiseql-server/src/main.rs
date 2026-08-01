@@ -363,15 +363,76 @@ async fn build_observer_pool(_config: &ServerConfig) -> anyhow::Result<Option<sq
 
 /// Initialize the secrets manager backend if `--secrets-backend` / `FRAISEQL_SECRETS_BACKEND` is
 /// set.
+///
+/// `FRAISEQL_SECRETS_BACKEND` selects the backend: `env`, `file` or `vault`.
+/// This used to accept **any** value and build the environment backend for all of
+/// them — an operator who set `FRAISEQL_SECRETS_BACKEND=vault` got env-var
+/// "secrets management" with a healthy startup log (#856's root cause). Unknown
+/// values and missing per-backend settings now refuse to boot.
+///
+/// Backend settings, all read from the environment:
+///
+/// * `file` — `FRAISEQL_SECRETS_FILE_PATH` (directory of one-file-per-secret).
+/// * `vault` — `VAULT_ADDR` plus either `VAULT_TOKEN` (static token) or `VAULT_ROLE_ID` +
+///   `VAULT_SECRET_ID` (`AppRole`, with automatic token renewal); optional `VAULT_NAMESPACE`;
+///   `VAULT_TLS_VERIFY=false` to accept invalid TLS certificates (refused in production).
 #[cfg(feature = "secrets")]
 async fn build_secrets_manager()
 -> anyhow::Result<Option<Arc<fraiseql_server::secrets_manager::SecretsManager>>> {
-    if std::env::var("FRAISEQL_SECRETS_BACKEND").is_err() {
+    use fraiseql_server::secrets_manager::{SecretsBackendConfig, VaultAuth};
+
+    let Ok(backend) = std::env::var("FRAISEQL_SECRETS_BACKEND") else {
         tracing::debug!("Secrets manager disabled (set FRAISEQL_SECRETS_BACKEND to enable)");
         return Ok(None);
-    }
-    tracing::info!("Initializing secrets manager from environment configuration");
-    let cfg = fraiseql_server::secrets_manager::SecretsBackendConfig::Env;
+    };
+
+    let env_or_bail = |name: &str| -> anyhow::Result<String> {
+        std::env::var(name).map_err(|_| {
+            anyhow::anyhow!(
+                "FRAISEQL_SECRETS_BACKEND={backend} requires {name} to be set; refusing to \
+                 boot without it rather than running with a partially configured secrets \
+                 backend"
+            )
+        })
+    };
+
+    let cfg = match backend.as_str() {
+        "env" => SecretsBackendConfig::Env,
+        "file" => SecretsBackendConfig::File {
+            path: std::path::PathBuf::from(env_or_bail("FRAISEQL_SECRETS_FILE_PATH")?),
+        },
+        "vault" => {
+            let addr = env_or_bail("VAULT_ADDR")?;
+            let auth = match (std::env::var("VAULT_TOKEN"), std::env::var("VAULT_ROLE_ID")) {
+                (Ok(token), _) => VaultAuth::Token(zeroize::Zeroizing::new(token)),
+                (Err(_), Ok(role_id)) => VaultAuth::AppRole {
+                    role_id,
+                    secret_id: zeroize::Zeroizing::new(env_or_bail("VAULT_SECRET_ID")?),
+                },
+                (Err(_), Err(_)) => anyhow::bail!(
+                    "FRAISEQL_SECRETS_BACKEND=vault requires either VAULT_TOKEN (static \
+                     token) or VAULT_ROLE_ID + VAULT_SECRET_ID (AppRole login)"
+                ),
+            };
+            SecretsBackendConfig::Vault {
+                addr,
+                auth,
+                namespace: std::env::var("VAULT_NAMESPACE").ok(),
+                // Anything but an explicit "false" verifies TLS; the factory refuses
+                // `false` in production (#727).
+                tls_verify: !std::env::var("VAULT_TLS_VERIFY")
+                    .is_ok_and(|v| v.eq_ignore_ascii_case("false")),
+            }
+        },
+        other => anyhow::bail!(
+            "unknown FRAISEQL_SECRETS_BACKEND {other:?}; expected \"env\", \"file\" or \
+             \"vault\". (Every value used to silently select the env backend, so a \
+             deployment that asked for Vault ran on environment variables while its \
+             startup log read healthy.)"
+        ),
+    };
+
+    tracing::info!(backend = %backend, "Initializing secrets manager");
     match fraiseql_server::secrets_manager::create_secrets_manager(cfg).await {
         Ok(manager) => Ok(Some(manager)),
         Err(e) => {

@@ -18,7 +18,8 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    EventPayload, FunctionModule, IngestSource, IngestTrigger, ResourceLimits, RuntimeType,
+    EventPayload, FunctionModule, IngestSelector, IngestSource, IngestTrigger, ResourceLimits,
+    RuntimeType,
     host::{HttpResponse, dyn_context::DynHostContext},
     normalize_email,
     runtime::deno::{DenoConfig, DenoRuntime},
@@ -129,12 +130,20 @@ impl crate::HostContext for ReplyHost {
 /// Normalize a raw fixture the way the poll-IMAP worker does, then build the exact
 /// `after:ingest:email` payload the dispatcher hands the guest.
 fn ingest(raw: &str) -> (EventPayload, Classification) {
-    let parsed = normalize_email(raw.as_bytes(), IngestSource::Email, chrono::Utc::now())
-        .expect("fixture parses as a MIME message");
+    let parsed = normalize_email(
+        raw.as_bytes(),
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        chrono::Utc::now(),
+    )
+    .expect("fixture parses as a MIME message");
     let classification = parsed.message.classification.expect("email is classified");
     let trigger = IngestTrigger {
         function_name: "reply-awareness".to_string(),
-        source:        Some(IngestSource::Email),
+        source:        Some(IngestSelector::Email {
+            mailbox: "test-mailbox".to_string(),
+        }),
     };
     assert!(trigger.matches(&parsed.message), "trigger fires for an email source");
     (trigger.build_payload(&parsed.message), classification)

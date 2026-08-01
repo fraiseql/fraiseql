@@ -45,7 +45,9 @@ fn normalize(to: &str) -> fraiseql_functions::InboundMessage {
     );
     fraiseql_functions::normalize_email(
         raw.as_bytes(),
-        fraiseql_functions::IngestSource::Email,
+        fraiseql_functions::IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
         chrono::Utc::now(),
     )
     .unwrap()

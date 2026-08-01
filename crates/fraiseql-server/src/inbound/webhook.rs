@@ -118,6 +118,9 @@ struct ResolvedRoute {
     provider:    String,
     /// Secret name resolved by the pipeline's secret provider.
     secret_name: String,
+    /// The exact public URL the provider signed, for URL-signing schemes
+    /// (Twilio). `None` for providers that sign the body only.
+    public_url:  Option<String>,
 }
 
 /// The concrete pipeline used by the inbound webhook adapter.
@@ -147,9 +150,12 @@ impl WebhookInboundState {
     /// Assemble the adapter state from the configured webhook routes.
     ///
     /// `get_env` resolves each route's `secret_env` to its signing secret (in
-    /// production, `std::env::var`); a route whose secret is absent is skipped
-    /// with a warning rather than mounted without a key. The path segment is the
-    /// route's `path` override or, failing that, its config key.
+    /// production, `std::env::var`); a route whose secret is absent is **skipped**
+    /// — not mounted — with a warning, so an unconfigured route answers 404 like
+    /// any other unknown path instead of 500ing with the missing env var's name in
+    /// the body (#787). In production [`webhook_routes_check`] refuses to boot
+    /// before this point, so the skip is reachable only in development. The path
+    /// segment is the route's `path` override or, failing that, its config key.
     #[must_use]
     pub fn new(
         pool: PgPool,
@@ -161,22 +167,23 @@ impl WebhookInboundState {
 
         for (name, config) in routes {
             let segment = config.path.clone().unwrap_or_else(|| name.clone());
-            match get_env(&config.secret_env) {
-                Some(secret) => secrets = secrets.with_secret(config.secret_env.clone(), secret),
-                None => {
-                    tracing::warn!(
-                        route = %name,
-                        secret_env = %config.secret_env,
-                        "inbound webhook route not fully configured: signing secret env is unset; \
-                         deliveries will fail signature verification until it is provided"
-                    );
-                },
-            }
+            let Some(secret) = get_env(&config.secret_env) else {
+                tracing::warn!(
+                    route = %name,
+                    secret_env = %config.secret_env,
+                    "inbound webhook route SKIPPED: signing secret env is unset, so the \
+                     route is not mounted (deliveries answer 404). Set the variable and \
+                     restart to serve it."
+                );
+                continue;
+            };
+            secrets = secrets.with_secret(config.secret_env.clone(), secret);
             resolved.insert(
                 segment,
                 ResolvedRoute {
                     provider:    config.provider.clone(),
                     secret_name: config.secret_env.clone(),
+                    public_url:  config.public_url.clone(),
                 },
             );
         }
@@ -234,6 +241,75 @@ impl WebhookInboundState {
     pub async fn init_spine(pool: &PgPool) -> fraiseql_error::Result<()> {
         super::spine::PostgresInboundSpine::new(pool.clone()).init().await
     }
+}
+
+/// Validate the configured inbound webhook routes at boot (#787/#781).
+///
+/// Refuses, in every environment:
+///
+/// * a `provider` the verifier registry does not know — the route could never verify anything, and
+///   the first genuine delivery would 500;
+/// * a provider whose signing scheme covers the request URL (Twilio) without a `public_url` — the
+///   URL cannot be reconstructed from request headers without trusting the sender.
+///
+/// Refuses in production (warns in development):
+///
+/// * a route whose `secret_env` is unset — the route the operator configured would silently answer
+///   404 (`WebhookInboundState::new` skips it).
+///
+/// Pure and race-free like the other boot guards: the caller supplies the env
+/// reader and the deployment mode.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming the route and what is missing.
+pub fn webhook_routes_check<S: std::hash::BuildHasher>(
+    routes: &std::collections::HashMap<String, WebhookRouteConfig, S>,
+    get_env: impl Fn(&str) -> Option<String>,
+    is_production: bool,
+) -> crate::Result<()> {
+    let registry = ProviderRegistry::new();
+    for (name, config) in routes {
+        let Some(verifier) = registry.get(&config.provider) else {
+            return Err(crate::ServerError::ConfigError(format!(
+                "[webhooks.{name}] provider = {:?} is not a known webhook provider; \
+                 known providers: {}",
+                config.provider,
+                {
+                    let mut names = registry.providers();
+                    names.sort();
+                    names.join(", ")
+                }
+            )));
+        };
+        if verifier.requires_url() && config.public_url.is_none() {
+            return Err(crate::ServerError::ConfigError(format!(
+                "[webhooks.{name}] provider = {:?} signs the request URL, so the route \
+                 needs `public_url` set to the exact URL registered at the provider. \
+                 Reconstructing it from request headers would let the sender choose the \
+                 signed material, so the server refuses to guess.",
+                config.provider
+            )));
+        }
+        if get_env(&config.secret_env).is_none() {
+            if is_production {
+                return Err(crate::ServerError::ConfigError(format!(
+                    "[webhooks.{name}] secret_env = {:?} is not set in the environment, so \
+                     the configured route cannot verify any delivery. Set the variable, or \
+                     remove the route. (For local development only, FRAISEQL_ENV=development \
+                     downgrades this to a warning and skips the route.)",
+                    config.secret_env
+                )));
+            }
+            tracing::warn!(
+                route = %name,
+                secret_env = %config.secret_env,
+                "inbound webhook route will be skipped: signing secret env is unset. \
+                 Allowed only because FRAISEQL_ENV=development."
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Collect request headers into a name→value map, dropping non-UTF-8 values.
@@ -346,6 +422,24 @@ pub async fn webhook_handler(
         );
     };
 
+    // #781: thread the provider's timestamp header and the configured public URL
+    // into verification. `Delivery { timestamp: None, url: None }` made every
+    // timestamp-requiring verifier (Slack, Discord, SendGrid) and the URL-signing
+    // one (Twilio) reject 100% of genuine deliveries with a 401 blaming the sender.
+    let timestamp = verifier
+        .timestamp_header()
+        .and_then(|h| headers.get(h))
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    if verifier.requires_url() && route.public_url.is_none() {
+        // webhook_routes_check refuses this at boot; guard the request path too so
+        // a bypassed construction cannot silently verify against no URL.
+        return json_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &json!({ "error": "server configuration error" }),
+        );
+    }
+
     let header_map = collect_headers(&headers);
     let event_id = extract_event_id(&payload, &body);
     let event_type = extract_event_type(&payload, &header_map);
@@ -375,8 +469,8 @@ pub async fn webhook_handler(
         function_name: &provider,
         body: &body,
         signature: &signature,
-        timestamp: None,
-        url: None,
+        timestamp: timestamp.as_deref(),
+        url: route.public_url.as_deref(),
         params,
     };
 

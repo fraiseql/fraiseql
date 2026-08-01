@@ -196,7 +196,10 @@ async fn test_vault_fetch_secret_success() {
 
     let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
     let result = vault.get_secret("secret/db-password").await.unwrap();
-    assert!(result.contains("supersecret"), "expected secret value in result; got: {result}");
+    assert!(
+        result.expose().contains("supersecret"),
+        "expected secret value in result (redacted in this message)"
+    );
 }
 
 #[tokio::test]
@@ -288,12 +291,12 @@ async fn test_renew_token_success_updates_token_and_ttl() {
         .mount(&mock)
         .await;
 
-    let mut vault = VaultBackend::new_for_test(mock.uri(), "old-token");
+    let vault = VaultBackend::new_for_test(mock.uri(), "old-token");
     vault.renew_token().await.expect("renewal should succeed");
 
     assert_eq!(vault.token(), "new-rotated-token", "token should be updated after renewal");
     assert_eq!(
-        vault.token_ttl_secs_for_test(),
+        vault.token_ttl_secs(),
         Some(7200),
         "TTL should be updated from renewal response"
     );
@@ -315,7 +318,7 @@ async fn test_renew_token_missing_client_token_returns_error() {
         .mount(&mock)
         .await;
 
-    let mut vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+    let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
     let result = vault.renew_token().await;
     assert!(
         matches!(result, Err(SecretsError::ConnectionError(_))),
@@ -337,7 +340,7 @@ async fn test_renew_token_403_returns_connection_error() {
         .mount(&mock)
         .await;
 
-    let mut vault = VaultBackend::new_for_test(mock.uri(), "expired-token");
+    let vault = VaultBackend::new_for_test(mock.uri(), "expired-token");
     // 403 response body is not valid JSON for the renewal struct → ConnectionError
     let result = vault.renew_token().await;
     assert!(
@@ -475,7 +478,7 @@ async fn vault_token_renewal_rejects_oversized_response() {
         .mount(&mock)
         .await;
 
-    let mut vault = VaultBackend::new_for_test(mock.uri(), "old-token");
+    let vault = VaultBackend::new_for_test(mock.uri(), "old-token");
     let result = vault.renew_token().await;
     assert!(result.is_err(), "oversized renewal response must be rejected; got: {result:?}");
 }
@@ -565,7 +568,7 @@ async fn vault_rotate_secret_does_not_self_deadlock() {
     .await
     .expect("rotate_secret self-deadlocked (H10): timed out");
     assert!(
-        rotated.unwrap().contains("rotated-secret"),
+        rotated.unwrap().expose().contains("rotated-secret"),
         "rotation should return the freshly fetched secret"
     );
 }
@@ -713,4 +716,101 @@ fn vault_addr_permits_every_allowed_corpus_entry() {
             assert!(validate_vault_addr(&url).is_ok(), "must permit {addr}");
         }
     });
+}
+
+// --- #726: renewal is reachable through Arc and actually renews on a loop ---
+
+/// The defect in #726 was structural: `renew_token(&mut self)` could not be
+/// called through the `Arc` the factory returns, so no shipped deployment could
+/// renew. This pin is primarily a compile-level guarantee — it drives renewal
+/// through `Arc<VaultBackend>` with no `&mut` anywhere.
+#[tokio::test]
+async fn renew_token_is_reachable_through_an_arc() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/token/renew-self"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auth": { "client_token": "renewed-through-arc", "lease_duration": 3600 }
+        })))
+        .mount(&server)
+        .await;
+
+    let vault = std::sync::Arc::new(VaultBackend::new_for_test(server.uri(), "initial-token"));
+    vault.renew_token().await.expect("renewal must succeed through the Arc");
+    assert_eq!(vault.token(), "renewed-through-arc");
+}
+
+/// The renewal loop drives `renew_token` once 80% of the TTL has elapsed and
+/// keeps the backend usable past the original TTL — the availability property
+/// `AppRole` deployments lost to #726.
+#[tokio::test]
+async fn the_renewal_loop_renews_before_the_token_ttl_expires() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{header, method, path},
+    };
+    let server = MockServer::start().await;
+    // AppRole login issues a 2-second token.
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/approle/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auth": { "client_token": "short-lived-token", "lease_duration": 2 }
+        })))
+        .mount(&server)
+        .await;
+    // renew-self only answers for the token the login issued, proving the loop
+    // sent the current token, and hands back a fresh one.
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/token/renew-self"))
+        .and(header("X-Vault-Token", "short-lived-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auth": { "client_token": "renewed-token", "lease_duration": 3600 }
+        })))
+        .mount(&server)
+        .await;
+
+    let vault = std::sync::Arc::new(
+        VaultBackend::with_approle_for_test(&server.uri(), "role", "secret")
+            .await
+            .expect("mock AppRole login succeeds"),
+    );
+    assert_eq!(vault.token_ttl_secs(), Some(2));
+
+    let (_handle, cancel) =
+        VaultBackend::spawn_token_renewal(&vault, std::time::Duration::from_millis(200));
+
+    // 80% of 2s = 1.6s; by 2.5s the loop must have renewed (several 200ms ticks
+    // land inside the [1.6s, 2s) window).
+    tokio::time::sleep(std::time::Duration::from_millis(2_500)).await;
+    assert_eq!(
+        vault.token(),
+        "renewed-token",
+        "the renewal loop must have replaced the token before its 2s TTL expired"
+    );
+    assert!(
+        !vault.token_needs_renewal(),
+        "a fresh 3600s lease is nowhere near its renewal threshold"
+    );
+    drop(cancel);
+}
+
+// --- #727: the SSRF allowlist admits exact hosts only ---
+
+#[test]
+fn allowlist_admits_exact_hosts_case_insensitively() {
+    use super::validation::host_is_allowlisted;
+    assert!(host_is_allowlisted("10.2.3.4", Some("vault.internal, 10.2.3.4")));
+    assert!(host_is_allowlisted("Vault.Internal", Some("vault.internal")));
+    assert!(!host_is_allowlisted("10.2.3.5", Some("10.2.3.4")));
+    assert!(!host_is_allowlisted("10.2.3.4", None));
+    assert!(!host_is_allowlisted("10.2.3.4", Some("")));
+    assert!(!host_is_allowlisted("", Some(",,")), "empty host never matches stray commas");
+    assert!(
+        !host_is_allowlisted("sub.vault.internal", Some("vault.internal")),
+        "no suffix/wildcard matching — exact hosts only"
+    );
 }

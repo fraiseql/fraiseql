@@ -88,6 +88,9 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         // ── Boot-frozen: read once during startup by a subsystem that is
         //    immutable afterwards. Changing one requires a restart.
         security: current_security,
+        // The OIDC server client (PKCE login) resolves discovery and is built at
+        // boot in `oidc_server_client_from_schema` (#621).
+        auth: current_auth,
         validation_config: current_validation,
         observers: current_observers,
         observers_config: current_observers_config,
@@ -110,6 +113,10 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
     // resolved from `[security]` during `Server::schema_subsystems`.
     if differs(current_security, &next.security) {
         drifted.push("security");
+    }
+    // The OIDC server client is constructed once at boot (discovery fetched then).
+    if differs(current_auth, &next.auth) {
+        drifted.push("auth");
     }
     // `RequestValidator` is built once in `build_app_state`.
     if differs(current_validation, &next.validation_config) {

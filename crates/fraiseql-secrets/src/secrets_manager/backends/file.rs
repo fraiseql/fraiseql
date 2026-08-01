@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use chrono::{Duration, Utc};
 
-use super::super::{SecretsBackend, SecretsError};
+use super::super::{Secret, SecretsBackend, SecretsError};
 
 /// Secrets backend that reads from local files
 ///
@@ -51,7 +51,7 @@ impl SecretsBackend for FileBackend {
         }
     }
 
-    async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
+    async fn get_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         // Reject path traversal attempts (e.g., "../../etc/passwd").
         if name.contains("..") {
             return Err(SecretsError::BackendError(format!(
@@ -93,20 +93,20 @@ impl SecretsBackend for FileBackend {
             ))
         })?;
 
-        Ok(content.trim().to_string())
+        Ok(Secret::new(content.trim().to_string()))
     }
 
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
         let secret = self.get_secret(name).await?;
         // File-based secrets don't expire; use 1-year TTL
         let expiry = Utc::now() + Duration::days(365);
         Ok((secret, expiry))
     }
 
-    async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
+    async fn rotate_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         // File-based secrets can't be rotated programmatically
         Err(SecretsError::RotationError(format!(
             "Rotation not supported for file-based secret {}",

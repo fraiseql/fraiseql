@@ -11,7 +11,14 @@ fn received() -> chrono::DateTime<chrono::Utc> {
 }
 
 fn normalize(raw: &[u8]) -> super::ParsedEmail {
-    normalize_email(raw, IngestSource::Email, received()).expect("email normalizes")
+    normalize_email(
+        raw,
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        received(),
+    )
+    .expect("email normalizes")
 }
 
 /// A plain human reply with all the ordinary fields.
@@ -30,8 +37,19 @@ fn normalizes_headers_bodies_and_addresses() {
     let parsed = normalize(SIMPLE);
     let message = &parsed.message;
 
-    assert_eq!(message.source, IngestSource::Email);
-    assert_eq!(message.idempotency_key, "reply-1@example.com");
+    assert_eq!(
+        message.source,
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        }
+    );
+    // #775: the idempotency key is the Message-ID plus a content digest, so a
+    // sender-forged Message-ID cannot pre-claim a genuine message's dedup slot.
+    assert!(
+        message.idempotency_key.starts_with("reply-1@example.com:sha256:"),
+        "key must be `<message-id>:sha256:<digest>`, got {}",
+        message.idempotency_key
+    );
     assert_eq!(message.from.as_deref(), Some("alice@example.com"));
     // Display names are stripped so the addresses stay routable.
     assert_eq!(message.to, vec!["support+ticket-42@fraise.app".to_string()]);

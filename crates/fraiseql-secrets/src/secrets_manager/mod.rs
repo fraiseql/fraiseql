@@ -82,6 +82,7 @@ impl fmt::Debug for VaultAuth {
 pub async fn create_secrets_manager(
     config: SecretsBackendConfig,
 ) -> Result<Arc<SecretsManager>, SecretsError> {
+    let mut renewal = None;
     let backend: Arc<dyn SecretsBackend> = match config {
         SecretsBackendConfig::File { path } => {
             info!(path = %path.display(), "Initializing file secrets backend");
@@ -97,7 +98,15 @@ pub async fn create_secrets_manager(
             namespace,
             tls_verify,
         } => {
+            // SECURITY (#727): `tls_verify = false` maps to
+            // `danger_accept_invalid_certs`, which silently disables the very
+            // property that keeps the Vault token from a man-in-the-middle. A
+            // production deployment must not reach that state from a config knob;
+            // development downgrades to a loud warning.
+            vault_tls_verify_check(tls_verify, fraiseql_guard::deployment::is_production())?;
+
             info!(addr = %addr, "Initializing Vault secrets backend");
+            let is_approle = matches!(auth, VaultAuth::AppRole { .. });
             let mut vault = match auth {
                 VaultAuth::Token(token) => VaultBackend::new(addr.as_str(), token.as_str())?,
                 VaultAuth::AppRole { role_id, secret_id } => {
@@ -108,21 +117,96 @@ pub async fn create_secrets_manager(
                 vault = vault.with_namespace(ns);
             }
             vault = vault.with_tls_verify(tls_verify);
-            Arc::new(vault)
+            let vault = Arc::new(vault);
+
+            // #726: AppRole tokens carry a TTL; without a renewal loop the token
+            // expires on a timer and every secret read starts failing. The loop
+            // checks at 1/4 of the TTL (clamped to [1s, 60s]) so renewal always
+            // fires within the 80%-elapsed threshold window.
+            if is_approle {
+                let interval = renewal_check_interval(&vault);
+                let (handle, cancel) = VaultBackend::spawn_token_renewal(&vault, interval);
+                renewal = Some(TokenRenewalGuard {
+                    cancel,
+                    _handle: handle,
+                });
+            }
+            vault
         },
     };
-    Ok(Arc::new(SecretsManager::new(backend)))
+    Ok(Arc::new(SecretsManager {
+        backend,
+        _renewal: renewal,
+    }))
+}
+
+/// Refuse `tls_verify = false` for the Vault backend in production (#727).
+///
+/// # Errors
+///
+/// Returns [`SecretsError::ValidationError`] when `tls_verify` is `false` and
+/// `is_production` is true. In development it degrades to a loud warning.
+pub fn vault_tls_verify_check(tls_verify: bool, is_production: bool) -> Result<(), SecretsError> {
+    if tls_verify {
+        return Ok(());
+    }
+    if is_production {
+        return Err(SecretsError::ValidationError(
+            "[secrets.vault] tls_verify = false disables TLS certificate verification,              exposing the Vault token and every secret in transit to interception. This is              refused in production. Fix the Vault TLS trust chain instead, or set              FRAISEQL_ENV=development for local runs against a self-signed Vault."
+                .into(),
+        ));
+    }
+    warn!(
+        "[secrets.vault] tls_verify = false — TLS certificate verification for Vault is          DISABLED. Secrets and the Vault token are exposed to interception. Allowed only          because FRAISEQL_ENV=development."
+    );
+    Ok(())
+}
+
+/// Renewal-loop check interval: 1/4 of the token TTL, clamped to [1s, 60s].
+///
+/// A quarter of the TTL guarantees at least one check lands between the 80%
+/// renewal threshold and expiry, even for the short TTLs integration tests use.
+fn renewal_check_interval(vault: &VaultBackend) -> Duration {
+    let ttl = vault.token_ttl_secs().unwrap_or(0);
+    let quarter = ttl / 4;
+    Duration::from_secs(quarter.clamp(1, 60).unsigned_abs())
+}
+
+/// Holds the Vault token-renewal task alive for the manager's lifetime.
+///
+/// Dropping the guard drops the cancel sender, which stops the loop (the task's
+/// `changed()` errs when the sender goes away).
+struct TokenRenewalGuard {
+    cancel:  tokio::sync::watch::Sender<bool>,
+    _handle: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for TokenRenewalGuard {
+    fn drop(&mut self) {
+        // Explicit, so a long-lived clone of the handle can never keep the loop
+        // running past the manager. Send errors just mean the loop already exited.
+        let _ = self.cancel.send(true);
+    }
 }
 
 /// Primary secrets manager that caches and rotates credentials.
 pub struct SecretsManager {
-    backend: Arc<dyn SecretsBackend>,
+    backend:  Arc<dyn SecretsBackend>,
+    /// Vault token-renewal loop guard (#726); `None` for non-`AppRole` backends.
+    _renewal: Option<TokenRenewalGuard>,
 }
 
 impl SecretsManager {
     /// Create new `SecretsManager` with specified backend.
+    ///
+    /// Does not wire Vault token renewal — use
+    /// [`create_secrets_manager`] for `AppRole` deployments, which spawns the
+    /// renewal loop (#726).
     pub fn new(backend: Arc<dyn SecretsBackend>) -> Self {
-        SecretsManager { backend }
+        SecretsManager {
+            backend,
+            _renewal: None,
+        }
     }
 
     /// Returns the backend type name (e.g., `"vault"`, `"env"`, `"file"`).
@@ -145,7 +229,7 @@ impl SecretsManager {
     /// # Errors
     ///
     /// Returns [`SecretsError`] if the secret does not exist or the backend returns an error.
-    pub async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
+    pub async fn get_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         self.backend.get_secret(name).await
     }
 
@@ -160,7 +244,7 @@ impl SecretsManager {
     pub async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(String, DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, DateTime<Utc>), SecretsError> {
         self.backend.get_secret_with_expiry(name).await
     }
 
@@ -172,7 +256,7 @@ impl SecretsManager {
     ///
     /// Returns [`SecretsError`] if rotation is unsupported by the backend or the backend returns an
     /// error.
-    pub async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
+    pub async fn rotate_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         self.backend.rotate_secret(name).await
     }
 }

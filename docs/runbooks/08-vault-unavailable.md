@@ -6,9 +6,10 @@
 - `401 Unauthorized` for OIDC clients (cannot fetch OIDC secrets)
 - API keys cannot be validated (stored in Vault)
 - Database password cannot be retrieved from Vault
-- FraiseQL service cannot start (hangs on secrets initialization)
-- Metrics show `vault_connection_errors_total` increasing
-- Logs contain: `failed to connect to vault`, `token revoked`, `permission denied`
+- FraiseQL refuses to start: `Secrets manager initialization failed` at boot (a Vault
+  that is unreachable when `FRAISEQL_SECRETS_BACKEND=vault` is a hard boot error)
+- `GET /health` reports `secrets.connected = false`
+- Logs contain: `Failed to initialize secrets manager`, `token revoked`, `permission denied`
 
 ## Impact
 
@@ -90,15 +91,25 @@ curl -s -X POST "$VAULT_ADDR/v1/auth/approle/login" \
 
 ### 4. FraiseQL Vault Configuration
 
+FraiseQL's secrets backend is selected **entirely by environment variable** — there is
+no `[secrets]` config section and the compiled schema carries no `security.vault` key.
+The only knob is `FRAISEQL_SECRETS_BACKEND`:
+
 ```bash
-# Check how FraiseQL is configured to use Vault
-jq '.security' /etc/fraiseql/schema.compiled.json | grep -A 20 "vault\|secrets"
+# Which backend is configured (env | file | vault). Unset means no secrets manager.
+echo "FRAISEQL_SECRETS_BACKEND=${FRAISEQL_SECRETS_BACKEND:-<unset>}"
 
-# Check what secrets FraiseQL needs from Vault
-jq '.security.vault' /etc/fraiseql/schema.compiled.json
+# For the vault backend, these are the variables FraiseQL reads:
+#   VAULT_ADDR                       - Vault server address (required)
+#   VAULT_TOKEN                      - static token auth, OR
+#   VAULT_ROLE_ID + VAULT_SECRET_ID  - AppRole auth (token auto-renewed at runtime)
+#   VAULT_NAMESPACE                  - optional (Vault Enterprise)
+#   VAULT_TLS_VERIFY=false           - accept invalid TLS certs (refused in production)
+env | grep -E "^(FRAISEQL_SECRETS_BACKEND|VAULT_)" | sed 's/\(SECRET_ID\|TOKEN\)=.*/\1=<redacted>/'
 
-# View vault mount paths and secret types
-jq '.security | to_entries[] | select(.value | type == "object")' /etc/fraiseql/schema.compiled.json
+# Ask the running server which backend it loaded and whether it is reachable:
+curl -s http://localhost:8815/health | jq '.secrets'
+# -> { "backend": "vault", "connected": true|false }   (absent when no backend is configured)
 ```
 
 ### 5. Required Secrets in Vault
@@ -162,16 +173,17 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    docker restart fraiseql-server
    ```
 
-2. **Use fallback/cached credentials** (if available)
+2. **Bring the service up on the environment backend** (last-resort, if Vault will be
+   down for a while)
 
    ```bash
-   # If Vault is down but data was cached
-   export FRAISEQL_VAULT_FALLBACK_MODE=cached
-   export VAULT_ADDR=""  # Disable Vault checks
+   # FraiseQL has no cached-credentials fallback. To run without Vault, switch the
+   # backend to `env` and supply the secrets it needs directly (backups required).
+   # This bypasses Vault entirely — high security risk, temporary only.
+   export FRAISEQL_SECRETS_BACKEND=env
+   export DATABASE_PASSWORD="<backup-password>"
+   export JWT_SECRET="<backup-jwt-key>"
    docker restart fraiseql-server
-
-   # This allows service to run with cached credentials temporarily
-   # But authentication/encryption may be limited
    ```
 
 3. **Check Vault logs for errors**
@@ -244,17 +256,16 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 
 ### Extended Outage (30+ minutes)
 
-1. **Disable Vault requirement temporarily**
+1. **Switch off the Vault backend temporarily**
 
    ```bash
-   # Last resort: Run without Vault (limited functionality)
-   # Set credentials directly in environment
-
+   # Last resort: Run without Vault (limited functionality). There is no
+   # FRAISEQL_VAULT_REQUIRED switch — instead select the environment backend and
+   # supply the secrets directly.
+   export FRAISEQL_SECRETS_BACKEND=env
    export DATABASE_PASSWORD="fallback-password"  # Must have backup
    export JWT_SECRET="fallback-jwt-key"
    # Note: This bypasses secret management, high security risk!
-
-   export FRAISEQL_VAULT_REQUIRED=false
    docker restart fraiseql-server
    ```
 
@@ -448,12 +459,19 @@ groups:
         for: 15m
         action: notify
 
-      - alert: FraiseQLVaultConnectionErrors
-        expr: rate(vault_connection_errors_total[5m]) > 0
+      # FraiseQL does not emit a Vault-specific metric. Alert on its secrets-backend
+      # health instead, scraped from GET /health via the Prometheus blackbox exporter
+      # (or a small script that curls /health and exports `secrets.connected`).
+      - alert: FraiseQLSecretsBackendDown
+        expr: fraiseql_secrets_connected == 0
         for: 5m
         action: notify
 EOF
 ```
+
+> Note: `fraiseql_secrets_connected` is a probe you derive from `GET /health`'s
+> `secrets.connected` field — FraiseQL emits no built-in `vault_connection_errors_total`
+> metric.
 
 ### Best Practices
 
@@ -472,7 +490,7 @@ EOF
 curl -s "$VAULT_ADDR/v1/sys/health" | jq '.'
 
 # Weekly: Check FraiseQL can access Vault
-curl -s http://localhost:8815/health | jq '.vault_connected'
+curl -s http://localhost:8815/health | jq '.secrets.connected'
 
 # Monthly: Rotate service account credentials
 # curl -X POST "$VAULT_ADDR/v1/auth/approle/role/fraiseql/secret-id"

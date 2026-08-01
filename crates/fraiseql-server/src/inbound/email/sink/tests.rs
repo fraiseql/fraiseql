@@ -117,13 +117,16 @@ async fn ready(pool: &PgPool) {
     PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
 }
 
-async fn spine_count(pool: &PgPool, key: &str) -> i64 {
-    let (count,): (i64,) =
-        sqlx::query_as("SELECT count(*) FROM _fraiseql_inbound_message WHERE idempotency_key = $1")
-            .bind(key)
-            .fetch_one(pool)
-            .await
-            .unwrap();
+async fn spine_count(pool: &PgPool, message_id: &str) -> i64 {
+    // #775: the stored idempotency_key is `<message-id>:sha256:<digest>`, so match
+    // on the Message-ID prefix rather than the whole key.
+    let (count,): (i64,) = sqlx::query_as(
+        "SELECT count(*) FROM _fraiseql_inbound_message WHERE idempotency_key LIKE $1 || ':sha256:%'",
+    )
+    .bind(message_id)
+    .fetch_one(pool)
+    .await
+    .unwrap();
     count
 }
 

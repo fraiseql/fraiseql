@@ -1,10 +1,10 @@
 //! Stripe webhook signature verification.
 //!
-//! Format: `t=<timestamp>,v1=<signature>`
+//! Format: `t=<timestamp>,v1=<signature>[,v1=<signature>...]` (one `v1` per active signing secret)
 //! Algorithm: HMAC-SHA256
 //! Signed payload: `<timestamp>.<payload>`
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
@@ -79,18 +79,30 @@ impl SignatureVerifier for StripeVerifier {
                 "Stripe webhook secret must not be empty".to_string(),
             ));
         }
-        // Parse Stripe signature format: t=timestamp,v1=signature
-        let parts: HashMap<&str, &str> = signature
-            .split(',')
-            .filter_map(|part| {
-                let mut kv = part.splitn(2, '=');
-                Some((kv.next()?, kv.next()?))
-            })
-            .collect();
+        // Parse Stripe signature format: t=timestamp,v1=signature,v1=...
+        //
+        // Stripe sends one `v1` entry PER ACTIVE SIGNING SECRET, so during secret
+        // rotation genuine deliveries carry several, in no guaranteed order. The
+        // old parse collected into a map keyed on the scheme name, keeping only
+        // the last `v1` — a delivery whose matching signature was not last was
+        // rejected 401 for the whole rotation window (#787). Per Stripe's
+        // verification guidance, the delivery is genuine when ANY candidate
+        // matches (each candidate still compared in constant time).
+        let mut timestamp = None;
+        let mut v1_candidates = Vec::new();
+        for part in signature.split(',') {
+            let mut kv = part.splitn(2, '=');
+            match (kv.next(), kv.next()) {
+                (Some("t"), Some(value)) => timestamp = Some(value),
+                (Some("v1"), Some(value)) => v1_candidates.push(value),
+                _ => {},
+            }
+        }
 
-        let timestamp = parts.get("t").ok_or(SignatureError::InvalidFormat)?;
-
-        let sig_v1 = parts.get("v1").ok_or(SignatureError::InvalidFormat)?;
+        let timestamp = timestamp.ok_or(SignatureError::InvalidFormat)?;
+        if v1_candidates.is_empty() {
+            return Err(SignatureError::InvalidFormat);
+        }
 
         // Verify timestamp is recent (replay protection) via the shared seam.
         check_timestamp_freshness(self.clock.now(), timestamp, self.tolerance)?;
@@ -105,8 +117,11 @@ impl SignatureVerifier for StripeVerifier {
 
         let expected = hex::encode(mac.finalize().into_bytes());
 
-        // Constant-time comparison
-        Ok(constant_time_eq(sig_v1.as_bytes(), expected.as_bytes()))
+        // Constant-time comparison per candidate; `|` (not `||`) so every
+        // candidate is compared regardless of earlier matches.
+        Ok(v1_candidates
+            .iter()
+            .fold(false, |acc, sig| acc | constant_time_eq(sig.as_bytes(), expected.as_bytes())))
     }
 
     fn extract_timestamp(&self, signature: &str) -> Option<i64> {

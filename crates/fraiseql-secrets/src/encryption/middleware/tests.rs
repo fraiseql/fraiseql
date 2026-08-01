@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use super::*;
-use crate::secrets_manager::{SecretsBackend, SecretsError as SmError, SecretsManager};
+use crate::secrets_manager::{Secret, SecretsBackend, SecretsError as SmError, SecretsManager};
 
 /// In-memory secrets backend for testing (avoids `set_var` which is unsafe).
 struct TestSecretsBackend {
@@ -24,22 +24,23 @@ impl SecretsBackend for TestSecretsBackend {
         Ok(())
     }
 
-    async fn get_secret(&self, name: &str) -> Result<String, SmError> {
+    async fn get_secret(&self, name: &str) -> Result<Secret, SmError> {
         self.secrets
             .get(name)
             .cloned()
+            .map(Secret::new)
             .ok_or_else(|| SmError::NotFound(format!("Secret '{}' not found", name)))
     }
 
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(String, chrono::DateTime<chrono::Utc>), SmError> {
+    ) -> Result<(Secret, chrono::DateTime<chrono::Utc>), SmError> {
         let value = self.get_secret(name).await?;
         Ok((value, chrono::Utc::now() + chrono::Duration::hours(1)))
     }
 
-    async fn rotate_secret(&self, _name: &str) -> Result<String, SmError> {
+    async fn rotate_secret(&self, _name: &str) -> Result<Secret, SmError> {
         Err(SmError::NotFound("rotation not supported".to_string()))
     }
 }

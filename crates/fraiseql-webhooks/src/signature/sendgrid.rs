@@ -67,6 +67,10 @@ impl SignatureVerifier for SendGridVerifier {
         "X-Twilio-Email-Event-Webhook-Signature"
     }
 
+    fn timestamp_header(&self) -> Option<&'static str> {
+        Some("X-Twilio-Email-Event-Webhook-Timestamp")
+    }
+
     fn verify(
         &self,
         payload: &[u8],

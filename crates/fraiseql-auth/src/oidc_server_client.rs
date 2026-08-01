@@ -16,20 +16,6 @@ use serde::Deserialize;
 use zeroize::Zeroizing;
 
 // ---------------------------------------------------------------------------
-// Resolved OIDC endpoints (cached in compiled schema)
-// ---------------------------------------------------------------------------
-
-/// OIDC endpoints fetched from the discovery document and cached in the
-/// compiled schema under `"auth_endpoints"`.
-#[derive(Debug, Clone, Deserialize)]
-pub struct OidcEndpoints {
-    /// The provider's `/authorize` URL.
-    pub authorization_endpoint: String,
-    /// The provider's `/token` URL.
-    pub token_endpoint:         String,
-}
-
-// ---------------------------------------------------------------------------
 // Token response from the provider
 // ---------------------------------------------------------------------------
 
@@ -118,19 +104,28 @@ impl OidcServerClient {
         }
     }
 
-    /// Build an `OidcServerClient` from the compiled schema JSON.
+    /// Build an `OidcServerClient` from the compiled schema JSON, resolving the
+    /// OIDC endpoints by fetching the provider's discovery document **at boot**
+    /// (#621).
+    ///
+    /// The compiled `auth` object carries only the client identity and the
+    /// provider's `discovery_url`; `authorization_endpoint` / `token_endpoint` are
+    /// resolved here from `discovery_url/.well-known/openid-configuration` under the
+    /// shared SSRF guards. This keeps the compiler hermetic (no network at compile
+    /// time) and the endpoints always fresh (no cached discovery going stale).
     ///
     /// Returns `None` if:
-    /// - `schema_json["auth"]` is absent, or
+    /// - `schema_json["auth"]` is absent or malformed, or
     /// - the env var named by `client_secret_env` is not set, or
-    /// - the OIDC endpoint cache (`schema_json["auth_endpoints"]`) is absent.
+    /// - the discovery document cannot be fetched or parsed.
     ///
     /// In all failure cases an explanatory `tracing::error!` is emitted so
     /// operators can diagnose startup issues without reading source code.
-    pub fn from_compiled_schema(schema_json: &serde_json::Value) -> Option<Arc<Self>> {
+    pub async fn from_compiled_schema(schema_json: &serde_json::Value) -> Option<Arc<Self>> {
         // ── Load [auth] config ────────────────────────────────────────────
         #[derive(Deserialize)]
         struct AuthCfg {
+            discovery_url:       String,
             client_id:           String,
             client_secret_env:   String,
             server_redirect_uri: String,
@@ -148,25 +143,27 @@ impl OidcServerClient {
             return None;
         };
 
-        // ── Load cached endpoints ─────────────────────────────────────────
-        let Some(endpoints): Option<OidcEndpoints> = schema_json
-            .get("auth_endpoints")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-        else {
-            tracing::error!(
-                "PKCE init failed: 'auth_endpoints' not found in compiled schema. \
-                 Re-compile the schema so that the CLI caches the OIDC discovery \
-                 document (authorization_endpoint, token_endpoint)."
-            );
-            return None;
-        };
+        // ── Resolve endpoints via boot-time discovery (#621) ──────────────
+        let discovery =
+            match crate::oidc_provider::fetch_oidc_discovery(&auth_cfg.discovery_url).await {
+                Ok(discovery) => discovery,
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        discovery_url = %auth_cfg.discovery_url,
+                        "PKCE init failed: could not resolve the OIDC discovery document at boot. \
+                         Check [auth] discovery_url and network reachability of the provider."
+                    );
+                    return None;
+                },
+            };
 
         Some(Arc::new(Self {
             client_id:              auth_cfg.client_id,
             client_secret:          Zeroizing::new(client_secret),
             server_redirect_uri:    auth_cfg.server_redirect_uri,
-            authorization_endpoint: endpoints.authorization_endpoint,
-            token_endpoint:         endpoints.token_endpoint,
+            authorization_endpoint: discovery.authorization_endpoint,
+            token_endpoint:         discovery.token_endpoint,
         }))
     }
 

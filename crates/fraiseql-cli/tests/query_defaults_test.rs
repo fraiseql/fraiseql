@@ -54,6 +54,7 @@ fn base_schema_with_query(
         sources: None,
         custom_scalars: None,
         security: None,
+        auth: None,
         observers_config: None,
         subscriptions_config: None,
         validation_config: None,

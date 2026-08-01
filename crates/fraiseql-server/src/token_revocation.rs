@@ -206,22 +206,33 @@ impl RevocationStore for InMemoryRevocationStore {
 /// Requires the `redis-rate-limiting` feature.
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisRevocationStore {
-    client:     redis::Client,
+    pool:       redis::aio::ConnectionManager,
     key_prefix: String,
 }
 
 #[cfg(feature = "redis-rate-limiting")]
 impl RedisRevocationStore {
-    /// Create a new Redis-backed revocation store.
+    /// Connect to Redis and prepare the revocation store.
+    ///
+    /// Connects eagerly: `redis::Client::open` only validates the URL, so a
+    /// well-formed URL pointing at nothing used to "build" a store whose every
+    /// operation failed at request time — which is how a configured-but-down
+    /// Redis booted into a silent per-process fallback (#770). The
+    /// `ConnectionManager` reconnects on its own across runtime blips; the only
+    /// window that needs a hard check is boot.
     ///
     /// # Errors
     ///
-    /// Returns error if the Redis URL is invalid.
-    pub fn new(redis_url: &str) -> Result<Self, RevocationError> {
+    /// Returns an error if the Redis URL is invalid or the initial connection
+    /// fails.
+    pub async fn new(redis_url: &str) -> Result<Self, RevocationError> {
         let client = redis::Client::open(redis_url)
             .map_err(|e| RevocationError::Backend(format!("Redis connection error: {e}")))?;
+        let pool = redis::aio::ConnectionManager::new(client)
+            .await
+            .map_err(|e| RevocationError::Backend(format!("Redis connection error: {e}")))?;
         Ok(Self {
-            client,
+            pool,
             key_prefix: "fraiseql:revoked:".into(),
         })
     }
@@ -235,11 +246,7 @@ impl RedisRevocationStore {
 impl RevocationStore for RedisRevocationStore {
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
         use redis::AsyncCommands;
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
+        let mut conn = self.pool.clone();
         let key = format!("{}{jti}", self.key_prefix);
         let exists: bool = conn
             .exists(&key)
@@ -250,11 +257,7 @@ impl RevocationStore for RedisRevocationStore {
 
     async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
         use redis::AsyncCommands;
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
+        let mut conn = self.pool.clone();
         let key = format!("{}{jti}", self.key_prefix);
         let _: () = conn
             .set_ex(&key, "1", ttl_secs)
@@ -265,11 +268,7 @@ impl RevocationStore for RedisRevocationStore {
 
     async fn revoke_all_for_user(&self, sub: &str, ttl_secs: u64) -> Result<(), RevocationError> {
         use redis::AsyncCommands;
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
+        let mut conn = self.pool.clone();
         // Record a per-user epoch under a single key (`…:user:{sub}`) with TTL. The old
         // implementation SCANned `…:user:{sub}:*`, a namespace `revoke` never wrote, so it
         // always matched nothing. The epoch is checked against each token's `iat`.
@@ -284,11 +283,7 @@ impl RevocationStore for RedisRevocationStore {
 
     async fn user_revoked_after(&self, sub: &str) -> Result<Option<i64>, RevocationError> {
         use redis::AsyncCommands;
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
+        let mut conn = self.pool.clone();
         let key = format!("{}user:{sub}", self.key_prefix);
         // Redis auto-expires the key after its TTL, so a present value is always live.
         let epoch: Option<i64> = conn
@@ -664,8 +659,23 @@ pub(crate) fn redis_revocation_unavailable_check(
 /// Returns `ServerError::ConfigError` when the `token_revocation` JSON cannot be
 /// parsed, or when `backend` is an unrecognised value — previously an unknown
 /// backend silently fell back to in-memory, defeating the operator's intent (#357).
-pub fn revocation_manager_from_schema(
+pub async fn revocation_manager_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
+) -> crate::Result<Option<Arc<TokenRevocationManager>>> {
+    revocation_manager_from_schema_in(schema, crate::ServerConfig::is_production_mode()).await
+}
+
+/// [`revocation_manager_from_schema`] with the deployment mode passed in.
+///
+/// Split out so tests can drive the production/development split without
+/// mutating process environment (mirrors `resolve_rate_limiter_in`).
+///
+/// # Errors
+///
+/// See [`revocation_manager_from_schema`].
+pub async fn revocation_manager_from_schema_in(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    is_production: bool,
 ) -> crate::Result<Option<Arc<TokenRevocationManager>>> {
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
@@ -694,16 +704,13 @@ pub fn revocation_manager_from_schema(
         #[cfg(feature = "redis-rate-limiting")]
         "redis" => {
             let url = config.redis_url.as_deref().unwrap_or("redis://localhost:6379");
-            match RedisRevocationStore::new(url) {
+            match RedisRevocationStore::new(url).await {
                 Ok(s) => {
                     info!(backend = "redis", "Token revocation store initialized");
                     Arc::new(s)
                 },
                 Err(e) => {
-                    redis_revocation_unavailable_check(
-                        &e.to_string(),
-                        crate::ServerConfig::is_production_mode(),
-                    )?;
+                    redis_revocation_unavailable_check(&e.to_string(), is_production)?;
                     Arc::new(InMemoryRevocationStore::new())
                 },
             }
@@ -712,11 +719,11 @@ pub fn revocation_manager_from_schema(
         "redis" => {
             redis_revocation_unavailable_check(
                 "the `redis-rate-limiting` Cargo feature is not compiled into this binary",
-                crate::ServerConfig::is_production_mode(),
+                is_production,
             )?;
             Arc::new(InMemoryRevocationStore::new())
         },
-        "memory" | "env" => {
+        "memory" => {
             info!(backend = "memory", "Token revocation store initialized (in-memory)");
             Arc::new(InMemoryRevocationStore::new())
         },

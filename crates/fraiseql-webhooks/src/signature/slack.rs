@@ -58,6 +58,10 @@ impl SignatureVerifier for SlackVerifier {
         "X-Slack-Signature"
     }
 
+    fn timestamp_header(&self) -> Option<&'static str> {
+        Some("X-Slack-Request-Timestamp")
+    }
+
     fn verify(
         &self,
         payload: &[u8],

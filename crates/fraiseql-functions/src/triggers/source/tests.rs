@@ -24,7 +24,13 @@ fn ts() -> chrono::DateTime<chrono::Utc> {
 }
 
 fn msg(key: &str) -> InboundMessage {
-    InboundMessage::new(IngestSource::Email, key, ts())
+    InboundMessage::new(
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        key,
+        ts(),
+    )
 }
 
 /// An in-memory cursor store that always loads the same snapshot.
@@ -54,7 +60,9 @@ struct StubPullSource {
 
 impl Source for StubPullSource {
     fn source(&self) -> IngestSource {
-        IngestSource::Email
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        }
     }
 
     fn transport(&self) -> Transport {

@@ -34,120 +34,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
     }
 
-    /// Build a `PkceStateStore` from the compiled schema if `security.pkce.enabled = true`.
-    ///
-    /// When `redis_url` is set and the `redis-pkce` feature is compiled in, initialises
-    /// a Redis-backed distributed store; otherwise falls back to the in-memory backend
-    /// with a warning.
-    ///
-    /// # Errors
-    ///
-    /// Returns `ServerError::ConfigError` when `pkce.enabled = true` but
-    /// `[security.state_encryption]` is missing or disabled while running in production
-    /// mode (`FRAISEQL_ENV` is not `development`/`dev`). PKCE state tokens would
-    /// otherwise be sent to the OIDC provider as the raw, unencrypted lookup key, so the
-    /// server refuses to start rather than serve `/auth/start` with a false "state
-    /// encryption is enforced" posture. In development mode this is a warning instead.
-    #[cfg(feature = "auth")]
-    #[allow(clippy::cognitive_complexity)] // Reason: conditional backend selection (Redis vs in-memory) with feature-gated branches
-    pub(super) async fn pkce_store_from_schema(
-        schema: &CompiledSchema,
-        state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
-    ) -> crate::Result<Option<Arc<crate::auth::PkceStateStore>>> {
-        let Some(security) = schema.security.as_ref() else {
-            return Ok(None);
-        };
-        let Some(pkce_cfg) = security.additional.get("pkce") else {
-            return Ok(None);
-        };
-
-        #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
-        #[derive(serde::Deserialize)]
-        struct PkceCfgMinimal {
-            #[serde(default)]
-            enabled:               bool,
-            #[serde(default = "default_ttl")]
-            state_ttl_secs:        u64,
-            #[serde(default = "default_method")]
-            code_challenge_method: String,
-            redis_url:             Option<String>,
-        }
-        #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
-        const fn default_ttl() -> u64 {
-            600
-        }
-        #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
-        fn default_method() -> String {
-            "S256".into()
-        }
-
-        let cfg: PkceCfgMinimal = match serde_json::from_value(pkce_cfg.clone()) {
-            Ok(cfg) => cfg,
-            Err(e) => {
-                warn!(error = %e, "Failed to deserialize pkce config — disabling PKCE");
-                return Ok(None);
-            },
-        };
-        if !cfg.enabled {
-            return Ok(None);
-        }
-
-        // SECURITY (#360): PKCE state tokens are sent to the OIDC provider; without
-        // [security.state_encryption] they travel as the raw 32-byte lookup key. Refuse
-        // to boot in production rather than serve /auth/start with a false "state
-        // encryption is enforced" posture; development mode downgrades this to a warning.
-        pkce_state_encryption_check(
-            state_encryption.is_some(),
-            crate::ServerConfig::is_production_mode(),
-        )?;
-
-        if cfg.code_challenge_method.eq_ignore_ascii_case("plain") {
-            warn!(
-                "pkce.code_challenge_method = \"plain\" is insecure. \
-                 Use \"S256\" in all production environments."
-            );
-        }
-
-        let enc = state_encryption.cloned();
-
-        // Prefer the Redis backend when redis_url is configured and the feature is compiled in.
-        #[cfg(feature = "redis-pkce")]
-        if let Some(ref url) = cfg.redis_url {
-            match crate::auth::PkceStateStore::new_redis(url, cfg.state_ttl_secs, enc.clone()).await
-            {
-                Ok(store) => {
-                    info!(redis_url = %url, "PKCE state store: Redis backend");
-                    return Ok(Some(Arc::new(store)));
-                },
-                Err(e) => {
-                    tracing::error!(
-                        error = %e,
-                        redis_url = %url,
-                        "Failed to connect to Redis PKCE store — falling back to in-memory"
-                    );
-                },
-            }
-        }
-
-        #[cfg(not(feature = "redis-pkce"))]
-        if cfg.redis_url.is_some() {
-            warn!(
-                "pkce.redis_url is set but the `redis-pkce` Cargo feature is not compiled in. \
-                 Rebuild with `--features redis-pkce` to enable the Redis PKCE backend. \
-                 Falling back to in-memory storage."
-            );
-        }
-
-        warn!(
-            "PKCE state store: in-memory. In a multi-replica deployment, auth flows will fail \
-             if /auth/start and /auth/callback hit different replicas. \
-             Set [security.pkce] redis_url to enable the Redis backend, \
-             or FRAISEQL_REQUIRE_REDIS=1 to enforce it at startup."
-        );
-
-        Ok(Some(Arc::new(crate::auth::PkceStateStore::new(cfg.state_ttl_secs, enc))))
-    }
-
     /// Validate that distributed storage is configured when `FRAISEQL_REQUIRE_REDIS` is set.
     ///
     /// When `FRAISEQL_REQUIRE_REDIS=1` is present in the environment, the server refuses
@@ -186,7 +72,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Build an `OidcServerClient` from the compiled schema JSON, if `[auth]` is present.
     #[cfg(feature = "auth")]
-    pub(super) fn oidc_server_client_from_schema(
+    pub(super) async fn oidc_server_client_from_schema(
         schema: &CompiledSchema,
     ) -> Option<Arc<crate::auth::OidcServerClient>> {
         // The full schema JSON lives in the executor's compiled schema.
@@ -195,7 +81,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let schema_json = serde_json::to_value(schema)
             .inspect_err(|e| warn!(error = %e, "Failed to serialize compiled schema for OIDC client construction"))
             .ok()?;
-        crate::auth::OidcServerClient::from_compiled_schema(&schema_json)
+        // #621: resolves the OIDC discovery document at boot (network I/O), so this
+        // is async.
+        crate::auth::OidcServerClient::from_compiled_schema(&schema_json).await
     }
 
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
@@ -592,6 +480,141 @@ pub(super) fn failed_login_lockout_check(
 ///
 /// Returns `ServerError::ConfigError` when `trust_proxy_headers = true`, the resolved CIDR
 /// list is empty, and `is_production` is true.
+/// Build a `PkceStateStore` from the compiled schema if `security.pkce.enabled = true`.
+///
+/// When `redis_url` is set and the `redis-pkce` feature is compiled in, initialises
+/// a Redis-backed distributed store.
+///
+/// `is_production` is a parameter rather than an `env::var` read so the guards can
+/// be exercised for both modes without mutating process-global state (mirrors
+/// [`resolve_rate_limiter_in`]).
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when:
+///
+/// * the `pkce` section is present but does not deserialize — a malformed section used to be a
+///   warning that silently disabled PKCE, the #778 fail-open;
+/// * `pkce.enabled = true` but `[security.state_encryption]` is missing or disabled while
+///   `is_production` (#360) — PKCE state tokens would otherwise be sent to the OIDC provider as the
+///   raw, unencrypted lookup key;
+/// * `pkce.redis_url` is configured but the Redis store cannot be built — the URL is malformed, the
+///   connection fails, or the `redis-pkce` feature is not compiled in — while `is_production`
+///   (#777). The operator asked for distributed PKCE state; an in-memory store is not a degraded
+///   version of that behind a load balancer, it is a broken login flow. Development mode downgrades
+///   this to a warning.
+#[cfg(feature = "auth")]
+#[allow(clippy::cognitive_complexity)] // Reason: conditional backend selection (Redis vs in-memory) with feature-gated branches
+pub(super) async fn pkce_store_from_schema_in(
+    schema: &CompiledSchema,
+    state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    is_production: bool,
+) -> crate::Result<Option<Arc<crate::auth::PkceStateStore>>> {
+    let Some(security) = schema.security.as_ref() else {
+        return Ok(None);
+    };
+    let Some(pkce_cfg) = security.additional.get("pkce") else {
+        return Ok(None);
+    };
+
+    #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
+    #[derive(serde::Deserialize)]
+    struct PkceCfgMinimal {
+        #[serde(default)]
+        enabled:               bool,
+        #[serde(default = "default_ttl")]
+        state_ttl_secs:        u64,
+        #[serde(default = "default_method")]
+        code_challenge_method: String,
+        redis_url:             Option<String>,
+    }
+    #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
+    const fn default_ttl() -> u64 {
+        600
+    }
+    #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
+    fn default_method() -> String {
+        "S256".into()
+    }
+
+    // An explicit JSON null is the compiler's way of writing "absent".
+    if pkce_cfg.is_null() {
+        return Ok(None);
+    }
+
+    let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone()).map_err(|e| {
+        ServerError::ConfigError(format!(
+            "invalid [security.pkce] in the compiled schema: {e}. A malformed section used \
+             to be a warning that silently disabled PKCE while the operator had a \
+             successful compile as evidence it was in effect."
+        ))
+    })?;
+    if !cfg.enabled {
+        return Ok(None);
+    }
+
+    // SECURITY (#360): PKCE state tokens are sent to the OIDC provider; without
+    // [security.state_encryption] they travel as the raw 32-byte lookup key. Refuse
+    // to boot in production rather than serve /auth/start with a false "state
+    // encryption is enforced" posture; development mode downgrades this to a warning.
+    pkce_state_encryption_check(state_encryption.is_some(), is_production)?;
+
+    if cfg.code_challenge_method.eq_ignore_ascii_case("plain") {
+        warn!(
+            "pkce.code_challenge_method = \"plain\" is insecure. \
+             Use \"S256\" in all production environments."
+        );
+    }
+
+    let enc = state_encryption.cloned();
+
+    // Prefer the Redis backend when redis_url is configured and the feature is compiled in.
+    #[cfg(feature = "redis-pkce")]
+    if let Some(ref url) = cfg.redis_url {
+        match crate::auth::PkceStateStore::new_redis(url, cfg.state_ttl_secs, enc.clone()).await {
+            Ok(store) => {
+                info!(redis_url = %url, "PKCE state store: Redis backend");
+                return Ok(Some(Arc::new(store)));
+            },
+            Err(e) => {
+                redis_backend_unavailable_check(
+                    "[security.pkce] redis_url",
+                    &e.to_string(),
+                    PKCE_REDIS_CONSEQUENCE,
+                    is_production,
+                )?;
+            },
+        }
+    }
+
+    #[cfg(not(feature = "redis-pkce"))]
+    if cfg.redis_url.is_some() {
+        redis_backend_unavailable_check(
+            "[security.pkce] redis_url",
+            "the `redis-pkce` Cargo feature is not compiled into this binary",
+            PKCE_REDIS_CONSEQUENCE,
+            is_production,
+        )?;
+    }
+
+    if cfg.redis_url.is_none() {
+        warn!(
+            "PKCE state store: in-memory. In a multi-replica deployment, auth flows will fail \
+             if /auth/start and /auth/callback hit different replicas. \
+             Set [security.pkce] redis_url to enable the Redis backend, \
+             or FRAISEQL_REQUIRE_REDIS=1 to enforce it at startup."
+        );
+    }
+
+    Ok(Some(Arc::new(crate::auth::PkceStateStore::new(cfg.state_ttl_secs, enc))))
+}
+
+/// What breaks when configured-Redis PKCE state silently lands in memory (#777).
+#[cfg(feature = "auth")]
+const PKCE_REDIS_CONSEQUENCE: &str = "PKCE login state would live only in this process's memory: \
+     behind a load balancer, /auth/callback fails with \"state not found\" whenever it lands on a \
+     different replica than /auth/start, and a restart drops every in-flight login";
+
 /// Resolve the rate limiter both server constructors use.
 ///
 /// Replaces a block that was duplicated verbatim in `builder.rs` and
@@ -682,15 +705,23 @@ pub(super) async fn resolve_rate_limiter_in(
         is_production,
     )?;
 
-    let limiter = build_rate_limiter(effective, path_rules_source).await;
+    let limiter = build_rate_limiter(effective, path_rules_source, is_production).await?;
     Ok(Some(Arc::new(limiter)))
 }
 
 /// Construct the limiter, choosing the Redis or in-memory backend.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when `redis_url` is configured but the Redis
+/// backend cannot be built and `is_production` is true (#770/#777 class): the
+/// operator asked for one shared budget across replicas, and an in-memory fallback
+/// enforces N times the configured rate while the startup log reads healthy.
 async fn build_rate_limiter(
     config: crate::middleware::RateLimitConfig,
     sec: Option<&crate::middleware::RateLimitingSecurityConfig>,
-) -> RateLimiter {
+    is_production: bool,
+) -> crate::Result<RateLimiter> {
     let with_rules = |limiter: RateLimiter| match sec {
         Some(sec) => limiter.with_path_rules_from_security(sec),
         None => limiter,
@@ -708,25 +739,27 @@ async fn build_rate_limiter(
                     burst_size = config.burst_size,
                     "Rate limiting: using Redis distributed backend"
                 );
-                return with_rules(rl);
+                return Ok(with_rules(rl));
             },
             Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    "Failed to connect to Redis for rate limiting — falling back to in-memory \
-                     backend. Limits are now per-process, so a deployment of N replicas \
-                     enforces N times the configured rate."
-                );
+                redis_backend_unavailable_check(
+                    "[security.rate_limiting] redis_url",
+                    &e.to_string(),
+                    RATE_LIMIT_REDIS_CONSEQUENCE,
+                    is_production,
+                )?;
             },
         }
     }
 
     #[cfg(not(feature = "redis-rate-limiting"))]
     if redis_url.is_some() {
-        warn!(
-            "rate_limiting.redis_url is set but the server was compiled without the \
-             'redis-rate-limiting' feature. Using in-memory backend."
-        );
+        redis_backend_unavailable_check(
+            "[security.rate_limiting] redis_url",
+            "the `redis-rate-limiting` Cargo feature is not compiled into this binary",
+            RATE_LIMIT_REDIS_CONSEQUENCE,
+            is_production,
+        )?;
     }
 
     info!(
@@ -734,8 +767,13 @@ async fn build_rate_limiter(
         burst_size = config.burst_size,
         "Rate limiting: using in-memory backend"
     );
-    with_rules(RateLimiter::new(config))
+    Ok(with_rules(RateLimiter::new(config)))
 }
+
+/// What breaks when configured-Redis rate limiting silently lands in memory.
+const RATE_LIMIT_REDIS_CONSEQUENCE: &str = "rate-limit budgets would be tracked per process, so a \
+     deployment of N replicas enforces N times the configured rate while every replica's \
+     startup log reads healthy";
 
 /// Read `security.rate_limiting` out of the compiled schema.
 ///
@@ -860,6 +898,58 @@ pub(super) fn proxy_trust_check(
          Any client can spoof X-Forwarded-For and bypass per-IP rate limits. Allowed only \
          because FRAISEQL_ENV=development; set trusted_proxy_cidrs to your proxy ranges (e.g. \
          [\"10.0.0.0/8\"]), or [\"0.0.0.0/0\"] to keep trusting every proxy explicitly."
+    );
+    Ok(())
+}
+
+// ── Configured Redis backend unavailable (#770 / #777) ───────────────────────
+
+/// Refuse a configured-but-unavailable Redis backend instead of silently
+/// downgrading to in-memory state.
+///
+/// An operator who configured a Redis URL asked for state shared across
+/// replicas. Whatever the subsystem — PKCE login state, rate-limit budgets,
+/// token revocation — a per-process fallback is not a degraded version of that
+/// service; it is a silently absent one wearing a healthy startup log. The only
+/// sanctioned fallback is an explicit one: remove the Redis configuration, or
+/// declare a development environment.
+///
+/// In production this is a hard error so the server refuses to boot; in
+/// development (`FRAISEQL_ENV=development`/`dev`) it is downgraded to a warning
+/// so local runs still come up. Pure and race-free like its siblings
+/// ([`pkce_state_encryption_check`], [`observer_transport_check`]): the caller
+/// passes the deployment mode, the config key it read, the failure cause, and
+/// the subsystem-specific consequence line.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when `is_production` is true.
+pub fn redis_backend_unavailable_check(
+    config_key: &str,
+    cause: &str,
+    consequence: &str,
+    is_production: bool,
+) -> crate::Result<()> {
+    if is_production {
+        return Err(crate::ServerError::ConfigError(format!(
+            "FraiseQL failed to start\n\n  \
+             {config_key} is configured but the Redis backend is unavailable: {cause}.\n\n  \
+             Falling back to in-memory would silently disable what the configuration \
+             promises:\n  {consequence}.\n\n  \
+             To fix, choose one:\n    \
+             - make Redis reachable at the configured URL (and build with the matching \
+             Cargo feature)\n    \
+             - remove the Redis URL from {config_key} to accept per-process, \
+             single-replica state\n\n  \
+             For local development only:\n    \
+             Set FRAISEQL_ENV=development to downgrade this to a warning."
+        )));
+    }
+    warn!(
+        config_key,
+        cause,
+        "configured Redis backend is unavailable — falling back to in-memory. {consequence}. \
+         Allowed only because FRAISEQL_ENV=development."
     );
     Ok(())
 }

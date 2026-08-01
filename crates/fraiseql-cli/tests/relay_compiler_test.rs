@@ -95,6 +95,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         sources:              None,
         custom_scalars:       None,
         security:             None,
+        auth:                 None,
         observers_config:     None,
         subscriptions_config: None,
         validation_config:    None,
