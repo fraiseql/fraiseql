@@ -41,7 +41,10 @@ const (
 	// lockstep with the YAML (the ci.yml steps carry the same SYNC: tags).
 	coreTestFeatures   = "arrow,federation,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
 	dbTestFeatures     = "mysql,postgres,sqlite,sqlserver,wire-backend"
-	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend"
+	// redis-pkce + redis-rate-limiting are compiled in so the #770/#777 boot-guard
+	// lib tests run here (they need no live Redis — closed ports and URL parsing);
+	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
+	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend"
 )
 
 // LintRoutes fails if any axum 0.7-style `:param` route capture remains in the
@@ -694,6 +697,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// so this is also its first Dagger coverage.
 		// Both filters go after `--`: cargo accepts a single TESTNAME, libtest ORs several.
 		"cargo test -p fraiseql-server --features inbound-email --lib -- inbound::email::source inbound::email::sink --test-threads=1",
+		// #775: per-mailbox spine scoping + content-digest dedup key. Drives
+		// EmailIngestSink against real PG (no IMAP, no real mailbox): the same
+		// Message-ID to two mailboxes lands twice; a pre-claimed Message-ID cannot
+		// suppress a genuine, differently-bodied message.
+		"cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1",
 		// #573 source scheduler (Model B): the SourceQueryExecutor identity/tenant
 		// seam, the SourcePoller build_host composition (cursor round-trip vs PG +
 		// executor reachable via host.query), and the scheduler's schedulable/config
@@ -890,6 +898,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// idempotency claim — the defect it guards lived precisely where no
 		// real-system test reached.
 		"cargo test -p fraiseql-server --features inbound --test webhook_replay_header_dedup_pg -- --test-threads=1",
+		// #781/#787: genuine provider-shaped deliveries (Slack timestamp threading,
+		// Twilio public_url, LemonSqueezy hex) through the real route + real
+		// idempotency claim, plus the boot-time route validation.
+		"cargo test -p fraiseql-server --features inbound --test webhook_provider_matrix_pg -- --test-threads=1",
 		// #794/#795 (CRITICAL): the analytics injection guards. Both holes were reachable
 		// by any client that can POST a GraphQL query, and both were invisible to unit
 		// tests because the allowlist that "covered" them was only ever consulted by a
@@ -1343,6 +1355,14 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// (its Redis-touching tests self-skip when REDIS_URL is unset).
 		"cargo test -p fraiseql-observers --features caching --lib cache::tests::glob_tests -- --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,testing' --test cache_invalidation_redis -- --test-threads=1",
+		// #770: cross-replica token revocation through the shipped construction
+		// path against the bound Redis (skips when REDIS_URL is unset).
+		"cargo test -p fraiseql-server --features 'auth,redis-rate-limiting' --test revocation_redis_test -- --test-threads=1",
+		// The #[ignore]d Redis-backed rate-limiter and PKCE-store tests. Before
+		// #770/#777 these ran in NO leg (this leg only ran core + observers), so
+		// the cross-instance sharing they assert was never CI-verified.
+		"cargo test -p fraiseql-server --features redis-rate-limiting --lib middleware::rate_limit -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-auth --features redis-pkce --lib redis_pkce -- --ignored --test-threads=1",
 		"echo 'test-integration OK: redis suite passed'",
 	}, "\n")
 

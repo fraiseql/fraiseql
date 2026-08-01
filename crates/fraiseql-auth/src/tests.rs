@@ -486,28 +486,28 @@ mod proxy_tests {
     #[test]
     fn test_proxy_config_is_trusted_proxy_valid_ip() {
         let ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![ip], true);
+        let config = ProxyConfig::new(vec![ip]);
         assert!(config.is_trusted_proxy("10.0.0.1"));
     }
 
     #[test]
     fn test_proxy_config_is_trusted_proxy_untrusted_ip() {
         let ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![ip], true);
+        let config = ProxyConfig::new(vec![ip]);
         assert!(!config.is_trusted_proxy("192.168.1.1"));
     }
 
     #[test]
     fn test_proxy_config_is_trusted_proxy_invalid_ip() {
         let ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![ip], true);
+        let config = ProxyConfig::new(vec![ip]);
         assert!(!config.is_trusted_proxy("invalid_ip"));
     }
 
     #[test]
     fn test_extract_client_ip_from_trusted_proxy_x_forwarded_for() {
         let ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![ip], true);
+        let config = ProxyConfig::new(vec![ip]);
 
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "192.0.2.1, 10.0.0.1".parse().unwrap());
@@ -522,7 +522,7 @@ mod proxy_tests {
     #[test]
     fn test_extract_client_ip_from_untrusted_proxy_x_forwarded_for() {
         let ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![ip], true);
+        let config = ProxyConfig::new(vec![ip]);
 
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "192.0.2.1, 10.0.0.1".parse().unwrap());
@@ -558,7 +558,7 @@ mod proxy_tests {
     #[test]
     fn test_extract_client_ip_spoofing_attempt() {
         let trusted_ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![trusted_ip], true);
+        let config = ProxyConfig::new(vec![trusted_ip]);
 
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "1.2.3.4".parse().unwrap());
@@ -573,7 +573,7 @@ mod proxy_tests {
     #[test]
     fn test_extract_client_ip_invalid_format_x_forwarded_for() {
         let trusted_ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![trusted_ip], true);
+        let config = ProxyConfig::new(vec![trusted_ip]);
 
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "not-a-valid-ip-address, 10.0.0.1".parse().unwrap());
@@ -588,7 +588,7 @@ mod proxy_tests {
     #[test]
     fn test_extract_client_ip_invalid_format_x_real_ip() {
         let trusted_ip: IpAddr = "10.0.0.1".parse().unwrap();
-        let config = ProxyConfig::new(vec![trusted_ip], true);
+        let config = ProxyConfig::new(vec![trusted_ip]);
 
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-real-ip", "256.256.256.256".parse().unwrap());
@@ -603,7 +603,7 @@ mod proxy_tests {
     #[test]
     fn test_extract_client_ip_valid_ipv6() {
         let trusted_ip: IpAddr = "::1".parse().unwrap();
-        let config = ProxyConfig::new(vec![trusted_ip], true);
+        let config = ProxyConfig::new(vec![trusted_ip]);
 
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "2001:db8::1, ::1".parse().unwrap());
@@ -613,6 +613,33 @@ mod proxy_tests {
 
         let result = config.extract_client_ip(&headers, socket);
         assert_eq!(result, Some("2001:db8::1".to_string()));
+    }
+
+    /// #788: a client prepending a spoofed IP to X-Forwarded-For cannot become the
+    /// resolved client IP. The trusted proxy appends the peer it saw (the real
+    /// client), so the rightmost non-proxy hop wins and the spoofed leftmost value
+    /// is ignored.
+    #[test]
+    fn spoofed_leftmost_xff_is_ignored_behind_an_appending_proxy() {
+        let trusted_ip: IpAddr = "10.0.0.1".parse().unwrap();
+        let config = ProxyConfig::new(vec![trusted_ip]);
+
+        let mut headers = axum::http::HeaderMap::new();
+        // Attacker (real IP 203.0.113.9) prepends 1.2.3.4; the trusted proxy then
+        // appends what it actually saw. Chain: <spoof>, <real client>, <proxy>.
+        headers.insert("x-forwarded-for", "1.2.3.4, 203.0.113.9, 10.0.0.1".parse().unwrap());
+        let socket = "10.0.0.1"
+            .parse::<std::net::IpAddr>()
+            .ok()
+            .map(|ip| std::net::SocketAddr::new(ip, 8000));
+
+        let result = config.extract_client_ip(&headers, socket);
+        assert_eq!(
+            result,
+            Some("203.0.113.9".to_string()),
+            "the rightmost non-proxy hop is the real client; the spoofed leftmost value \
+             must not win"
+        );
     }
 }
 
@@ -1314,8 +1341,14 @@ mod state_store_tests {
                     .await
                     .unwrap();
 
-                let (provider, _) = store.retrieve("redis_state_1").await.unwrap();
+                let (provider, retrieved_expiry) = store.retrieve("redis_state_1").await.unwrap();
                 assert_eq!(provider, "google");
+                // #788: the real stored expiry round-trips, rather than a fabricated
+                // `now` that sits on the callers' `now > expiry` rejection boundary.
+                assert_eq!(
+                    retrieved_expiry, expiry,
+                    "retrieve must return the stored expiry, not the current clock"
+                );
 
                 let result = store.retrieve("redis_state_1").await;
                 assert!(
@@ -5524,42 +5557,46 @@ mod oidc_server_client_tests {
         assert!(!state_segment.contains('+'), "plus in state must be percent-encoded");
     }
 
-    #[test]
-    fn test_from_compiled_schema_absent_auth_returns_none() {
+    #[tokio::test]
+    async fn test_from_compiled_schema_absent_auth_returns_none() {
         let json = serde_json::json!({});
-        assert!(OidcServerClient::from_compiled_schema(&json).is_none());
+        assert!(OidcServerClient::from_compiled_schema(&json).await.is_none());
     }
 
-    #[test]
-    fn test_from_compiled_schema_missing_env_var_returns_none() {
+    #[tokio::test]
+    async fn test_from_compiled_schema_missing_env_var_returns_none() {
+        // The client secret env var is unset, so construction must fail before any
+        // discovery fetch is attempted (#621).
         let json = serde_json::json!({
             "auth": {
                 "discovery_url":       "https://example.com",
                 "client_id":           "x",
                 "client_secret_env":   "__FRAISEQL_TEST_DEFINITELY_UNSET_42XYZ__",
                 "server_redirect_uri": "https://api.example.com/auth/callback"
-            },
-            "auth_endpoints": {
-                "authorization_endpoint": "https://example.com/auth",
-                "token_endpoint":         "https://example.com/token"
             }
         });
-        let _ = OidcServerClient::from_compiled_schema(&json);
+        assert!(
+            OidcServerClient::from_compiled_schema(&json).await.is_none(),
+            "an unset client_secret_env must return None"
+        );
     }
 
-    #[test]
-    fn test_from_compiled_schema_missing_endpoints_returns_none() {
+    #[tokio::test]
+    async fn test_from_compiled_schema_unresolvable_discovery_returns_none() {
+        // Secret present, but the discovery_url is a private/loopback address that
+        // the SSRF guard rejects, so boot-time discovery fails and construction
+        // returns None (#621). Uses PATH (always set) as the secret env.
         let json = serde_json::json!({
             "auth": {
-                "discovery_url":       "https://example.com",
+                "discovery_url":       "http://127.0.0.1:1/blocked",
                 "client_id":           "x",
                 "client_secret_env":   "PATH",
                 "server_redirect_uri": "https://api.example.com/auth/callback"
             }
         });
         assert!(
-            OidcServerClient::from_compiled_schema(&json).is_none(),
-            "missing auth_endpoints must return None"
+            OidcServerClient::from_compiled_schema(&json).await.is_none(),
+            "a discovery_url the SSRF guard blocks must return None"
         );
     }
 

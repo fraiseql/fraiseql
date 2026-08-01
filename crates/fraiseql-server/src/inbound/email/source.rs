@@ -119,7 +119,9 @@ impl ImapSource {
 
 impl Source for ImapSource {
     fn source(&self) -> IngestSource {
-        IngestSource::Email
+        IngestSource::Email {
+            mailbox: self.mailbox_key.clone(),
+        }
     }
 
     fn transport(&self) -> Transport {
@@ -149,7 +151,7 @@ impl PullSource for ImapSource {
         let mut messages = Vec::new();
         let mut highest = effective;
         for message in &fresh {
-            match normalize_email(&message.raw, IngestSource::Email, chrono::Utc::now()) {
+            match normalize_email(&message.raw, self.source(), chrono::Utc::now()) {
                 Ok(parsed) => {
                     let mut normalized = parsed.message;
                     normalized.routing = resolve_routing(&normalized, &self.routing_rules);

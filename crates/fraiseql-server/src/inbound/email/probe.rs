@@ -104,7 +104,15 @@ pub async fn run_return_path_probe(
             .map_err(|error| fraiseql_error::FraiseQLError::database(error.to_string()))?;
         for message in &batch.messages {
             if let Ok(parsed) =
-                normalize_email(&message.raw, IngestSource::Email, chrono::Utc::now())
+                // The probe never touches the spine, so the mailbox tag is
+                // informational only.
+                normalize_email(
+                    &message.raw,
+                    IngestSource::Email {
+                        mailbox: "probe".to_string(),
+                    },
+                    chrono::Utc::now(),
+                )
             {
                 if message_carries_probe(&parsed.message, nonce) {
                     return Ok(ProbeOutcome::Confirmed);

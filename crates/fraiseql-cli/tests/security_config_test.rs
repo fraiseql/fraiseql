@@ -374,9 +374,11 @@ fn test_auth_issuer_and_jwks_uri_compiles() {
     schema.validate().expect("issuer + jwks_uri is a valid JWT [auth] block");
 }
 
-// a complete PKCE client group is rejected loud (recognized, not yet functional).
+// #621: a complete PKCE client group is now functional on the compiled path and
+// must be ACCEPTED (previously rejected as "not yet functional"). The runtime
+// resolves the OIDC endpoints at boot from `discovery_url`.
 #[test]
-fn test_auth_complete_client_group_rejected_loud() {
+fn test_auth_complete_client_group_accepted() {
     let toml = r#"
         [schema]
         name = "test"
@@ -390,10 +392,9 @@ fn test_auth_complete_client_group_rejected_loud() {
         server_redirect_uri = "https://api.example.com/auth/callback"
     "#;
     let schema: TomlSchema = toml::from_str(toml).unwrap();
-    let err = schema.validate().expect_err("a complete PKCE client group must be rejected");
-    let msg = err.to_string();
-    assert!(msg.contains("not yet functional"), "explains why it is rejected: {msg}");
-    assert!(msg.contains("#621"), "points at the tracking follow-up: {msg}");
+    schema
+        .validate()
+        .expect("a complete PKCE client group is functional on the compiled path (#621)");
 }
 
 #[test]

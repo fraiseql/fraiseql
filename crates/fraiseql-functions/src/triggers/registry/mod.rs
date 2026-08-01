@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     FunctionDefinition,
     triggers::{
-        ingest::{InboundMessage, IngestSource, IngestTrigger},
+        ingest::{InboundMessage, IngestTrigger},
         mutation::{AfterMutationTrigger, BeforeMutationTrigger, TriggerMatcher},
     },
 };
@@ -363,17 +363,19 @@ impl TriggerRegistry {
                 },
                 ParsedTrigger::AfterIngest { source } => {
                     // A `None` source matches every inbound source; a named source
-                    // must be a recognised discriminant (fail loud otherwise).
+                    // must be a recognised selector (fail loud otherwise).
                     let source = match source {
                         None => None,
-                        Some(key) => {
-                            Some(IngestSource::from_key(&key).ok_or_else(|| RegistryError {
-                                message: format!(
-                                    "unknown after:ingest source '{key}' (expected \
-                                     'email' or 'webhook:<provider>')"
-                                ),
-                            })?)
-                        },
+                        Some(key) => Some(
+                            crate::triggers::ingest::IngestSelector::from_key(&key).ok_or_else(
+                                || RegistryError {
+                                    message: format!(
+                                        "unknown after:ingest source '{key}' (expected \
+                                         'email', 'email:<mailbox>' or 'webhook:<provider>')"
+                                    ),
+                                },
+                            )?,
+                        ),
                     };
                     registry.ingest_triggers.push(IngestTrigger {
                         function_name: func.name.clone(),

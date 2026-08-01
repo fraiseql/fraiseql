@@ -173,6 +173,58 @@ pub(crate) fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
     Ok(())
 }
 
+/// Fetch and parse an OIDC discovery document, with the same SSRF guards the
+/// provider constructor applies (issuer validated up front, every redirect hop
+/// re-checked, response size bounded).
+///
+/// `discovery_base` is the issuer/provider base URL; `.well-known/openid-configuration`
+/// is appended. Shared by [`OidcProvider::new`] and the server-side PKCE client
+/// (`OidcServerClient::from_compiled_schema`, #621) so the two cannot drift on the
+/// SSRF posture.
+///
+/// # Errors
+///
+/// Returns [`AuthError::OidcMetadataError`] if the base URL fails SSRF validation,
+/// the document cannot be fetched/parsed, or it exceeds [`MAX_OIDC_DISCOVERY_BYTES`].
+pub(crate) async fn fetch_oidc_discovery(discovery_base: &str) -> Result<OidcDiscovery> {
+    validate_oidc_issuer_url(discovery_base)?;
+
+    let client = reqwest::Client::builder()
+        .timeout(OIDC_REQUEST_TIMEOUT)
+        .redirect(ssrf_checked_redirect_policy(oidc_ssrf_guards_disabled()))
+        .build()
+        .map_err(|e| AuthError::OidcMetadataError {
+            message: format!("Failed to create HTTP client: {e}"),
+        })?;
+
+    let discovery_url =
+        format!("{}/.well-known/openid-configuration", discovery_base.trim_end_matches('/'));
+
+    let discovery_bytes = client
+        .get(&discovery_url)
+        .send()
+        .await
+        .map_err(|e| AuthError::OidcMetadataError {
+            message: format!("Failed to fetch OIDC metadata from {discovery_url}: {e}"),
+        })?
+        .bytes()
+        .await
+        .map_err(|e| AuthError::OidcMetadataError {
+            message: format!("Failed to read OIDC metadata: {e}"),
+        })?;
+    if discovery_bytes.len() > MAX_OIDC_DISCOVERY_BYTES {
+        return Err(AuthError::OidcMetadataError {
+            message: format!(
+                "OIDC discovery response too large ({} bytes, max {MAX_OIDC_DISCOVERY_BYTES})",
+                discovery_bytes.len()
+            ),
+        });
+    }
+    serde_json::from_slice(&discovery_bytes).map_err(|e| AuthError::OidcMetadataError {
+        message: format!("Failed to parse OIDC metadata: {e}"),
+    })
+}
+
 /// Returns `true` if `url`'s host is one that OIDC fetches must not contact.
 fn is_ssrf_blocked_oidc_url(url: &reqwest::Url) -> bool {
     let host_raw = url.host_str().unwrap_or("");

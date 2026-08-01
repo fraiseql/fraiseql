@@ -15,6 +15,28 @@ pub trait SignatureVerifier: Send + Sync {
     /// Header name containing the signature
     fn signature_header(&self) -> &'static str;
 
+    /// Header name carrying the provider's request timestamp, if its signing
+    /// scheme uses one (Slack, Discord, SendGrid).
+    ///
+    /// The receiving route reads this header and threads the value into
+    /// [`verify`](Self::verify)'s `timestamp` argument. Before #781 no route did,
+    /// so every verifier that `.ok_or(MissingTimestamp)?`'d rejected 100% of
+    /// genuine deliveries. Default `None`: the scheme needs no timestamp header
+    /// (Stripe and Paddle carry theirs inside the signature header itself).
+    fn timestamp_header(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Whether the signing scheme covers the request URL (Twilio).
+    ///
+    /// A route serving such a provider must know its exact public URL (the one
+    /// the provider signed — scheme, host, path and query, as configured at the
+    /// provider) and pass it to [`verify`](Self::verify); reconstructing it from
+    /// request headers would trust attacker-controlled input. Default `false`.
+    fn requires_url(&self) -> bool {
+        false
+    }
+
     /// Verify the signature
     ///
     /// # Arguments

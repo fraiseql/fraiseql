@@ -10,13 +10,10 @@ use super::{
     cache::{CACHE_TTL_PERCENTAGE, DEFAULT_MAX_CACHE_ENTRIES, SecretCache, VaultResponse},
     validation::{validate_vault_addr, validate_vault_secret_name},
 };
-use crate::secrets_manager::{SecretsBackend, SecretsError};
+use crate::secrets_manager::{Secret, SecretsBackend, SecretsError};
 
 /// Fraction of the token TTL after which the token should be proactively renewed.
 /// At 80% of TTL elapsed, renewal is triggered before the token expires.
-// Reason: referenced in the renew_token() doc comment; the actual scheduling logic
-// uses this constant to avoid a magic literal at the call site.
-#[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
 const TOKEN_RENEWAL_THRESHOLD: f64 = 0.8;
 
 const VAULT_API_VERSION: &str = "v1";
@@ -95,22 +92,27 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 ///
 /// # Token Renewal
 ///
-/// When the Vault token is obtained via `AppRole` login (`with_approle`), the token carries
-/// a TTL. To avoid using an expired token, callers should check `token_needs_renewal()` and
-/// call `renew_token()` proactively at `TOKEN_RENEWAL_THRESHOLD` (80%) of TTL elapsed.
+/// When the Vault token is obtained via `AppRole` login (`with_approle`), the token
+/// carries a TTL. [`Self::spawn_token_renewal`] runs a background loop that checks
+/// [`Self::token_needs_renewal`] and calls [`Self::renew_token`] once
+/// `TOKEN_RENEWAL_THRESHOLD` (80%) of the TTL has elapsed —
+/// [`create_secrets_manager`](crate::secrets_manager::create_secrets_manager) wires
+/// this automatically for `AppRole` deployments (#726: `renew_token` used to take
+/// `&mut self` and was unreachable through the `Arc<dyn SecretsBackend>` the factory
+/// returns, so `AppRole` tokens simply expired).
 ///
-/// A background task should be spawned to call `renew_token()` periodically; for example:
-/// ```rust,ignore
-/// let vault = Arc::new(VaultBackend::with_approle(addr, role_id, secret_id).await?);
-/// let vault_clone = Arc::clone(&vault);
-/// tokio::spawn(async move {
-///     loop {
-///         tokio::time::sleep(Duration::from_secs(60)).await;
-///         if vault_clone.token_needs_renewal() {
-///             if let Err(e) = vault_clone.renew_token().await { /* log */ }
-///         }
-///     }
-/// });
+/// ```no_run
+/// # async fn example() -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
+/// use std::{sync::Arc, time::Duration};
+///
+/// use fraiseql_secrets::secrets_manager::VaultBackend;
+/// let vault = Arc::new(
+///     VaultBackend::with_approle("https://vault.example.com:8200", "role-id", "secret-id")
+///         .await?,
+/// );
+/// let (_handle, _cancel) = VaultBackend::spawn_token_renewal(&vault, Duration::from_secs(60));
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Configuration
@@ -122,26 +124,36 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// tls_verify = true              # Verify TLS certificates
 /// ```
 pub struct VaultBackend {
-    addr:              String,
-    token:             Zeroizing<String>,
-    namespace:         Option<String>,
-    tls_verify:        bool,
+    addr:           String,
+    /// Auth-token state behind a lock so [`Self::renew_token`] can take `&self`
+    /// and stay reachable through `Arc<dyn SecretsBackend>` (#726). The lock is
+    /// `std::sync::RwLock`, never held across an `.await`.
+    token_state:    std::sync::RwLock<TokenState>,
+    namespace:      Option<String>,
+    tls_verify:     bool,
     /// Shared HTTP client — built once to reuse TLS sessions across requests.
-    client:            reqwest::Client,
-    cache:             Arc<RwLock<SecretCache>>,
+    client:         reqwest::Client,
+    cache:          Arc<RwLock<SecretCache>>,
     /// Per-secret rotation locks.
     ///
     /// Held during the invalidate→fetch sequence in `rotate_secret` and during
     /// cache-miss fetches in `get_secret_with_expiry`, preventing the classic
     /// thundering-herd / stale-cache race: a concurrent reader cannot load the
     /// pre-rotation value into cache while rotation is in progress.
-    rotation_locks:    Arc<DashMap<String, Arc<Mutex<()>>>>,
-    /// When the current token was obtained (for renewal tracking).
-    /// `None` when using a static long-lived token.
-    token_obtained_at: Option<chrono::DateTime<Utc>>,
+    rotation_locks: Arc<DashMap<String, Arc<Mutex<()>>>>,
+}
+
+/// The Vault auth token together with its renewal-tracking metadata.
+///
+/// Grouped so a renewal replaces token, clock and TTL under one lock
+/// acquisition and readers can never observe a half-updated state.
+struct TokenState {
+    token:       Zeroizing<String>,
+    /// When the current token was obtained. `None` for static long-lived tokens.
+    obtained_at: Option<chrono::DateTime<Utc>>,
     /// Token TTL as reported by Vault at login time (seconds).
-    /// `None` when using a static long-lived token.
-    token_ttl_secs:    Option<i64>,
+    /// `None` for static long-lived tokens.
+    ttl_secs:    Option<i64>,
 }
 
 impl std::fmt::Debug for VaultBackend {
@@ -159,16 +171,19 @@ impl std::fmt::Debug for VaultBackend {
 
 impl Clone for VaultBackend {
     fn clone(&self) -> Self {
+        let state = self.token_state.read().expect("vault token lock poisoned");
         VaultBackend {
-            addr:              self.addr.clone(),
-            token:             Zeroizing::new((*self.token).clone()),
-            namespace:         self.namespace.clone(),
-            tls_verify:        self.tls_verify,
-            client:            self.client.clone(),
-            cache:             Arc::clone(&self.cache),
-            rotation_locks:    Arc::clone(&self.rotation_locks),
-            token_obtained_at: self.token_obtained_at,
-            token_ttl_secs:    self.token_ttl_secs,
+            addr:           self.addr.clone(),
+            token_state:    std::sync::RwLock::new(TokenState {
+                token:       Zeroizing::new((*state.token).clone()),
+                obtained_at: state.obtained_at,
+                ttl_secs:    state.ttl_secs,
+            }),
+            namespace:      self.namespace.clone(),
+            tls_verify:     self.tls_verify,
+            client:         self.client.clone(),
+            cache:          Arc::clone(&self.cache),
+            rotation_locks: Arc::clone(&self.rotation_locks),
         }
     }
 }
@@ -195,7 +210,7 @@ impl SecretsBackend for VaultBackend {
         }
     }
 
-    async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
+    async fn get_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         validate_vault_secret_name(name)?;
 
         let (secret, _) = self.get_secret_with_expiry(name).await?;
@@ -205,7 +220,7 @@ impl SecretsBackend for VaultBackend {
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
         validate_vault_secret_name(name)?;
 
         // Check cache first (outside the rotation lock for hot-path performance).
@@ -221,7 +236,7 @@ impl SecretsBackend for VaultBackend {
         self.with_secret_lock(name, || self.fetch_and_cache_locked(name)).await
     }
 
-    async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
+    async fn rotate_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         validate_vault_secret_name(name)?;
 
         // S47/H10: hold the per-secret rotation lock once across the invalidate→fetch
@@ -256,15 +271,17 @@ impl VaultBackend {
         let client = build_http_client(true)?;
         Ok(VaultBackend {
             addr: addr_str,
-            token: Zeroizing::new(token.into()),
+            // Static token — no TTL tracking
+            token_state: std::sync::RwLock::new(TokenState {
+                token:       Zeroizing::new(token.into()),
+                obtained_at: None,
+                ttl_secs:    None,
+            }),
             namespace: None,
             tls_verify: true,
             client,
             cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
             rotation_locks: Arc::new(DashMap::new()),
-            // Static token — no TTL tracking
-            token_obtained_at: None,
-            token_ttl_secs: None,
         })
     }
 
@@ -296,6 +313,11 @@ impl VaultBackend {
     /// # Errors
     ///
     /// Returns `SecretsError::ConnectionError` if login fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the token-state lock is poisoned (a prior holder panicked while
+    /// updating it) — unreachable in practice, the guarded section is panic-free.
     pub async fn with_approle(
         addr: &str,
         role_id: &str,
@@ -336,9 +358,12 @@ impl VaultBackend {
         let token_ttl_secs = response["auth"]["lease_duration"].as_i64();
         let token_obtained_at = Some(Utc::now());
 
-        let mut backend = Self::new(addr, token.as_str())?;
-        backend.token_obtained_at = token_obtained_at;
-        backend.token_ttl_secs = token_ttl_secs;
+        let backend = Self::new(addr, token.as_str())?;
+        {
+            let mut state = backend.token_state.write().expect("vault token lock poisoned");
+            state.obtained_at = token_obtained_at;
+            state.ttl_secs = token_ttl_secs;
+        }
         Ok(backend)
     }
 
@@ -348,15 +373,15 @@ impl VaultBackend {
         &self.addr
     }
 
-    /// Get authentication token.
+    /// Get authentication token (cloned out of the state lock).
     ///
     /// Available only in test builds. Production code must not extract the raw
     /// token — it is stored in `Zeroizing<String>` precisely to limit its lifetime
     /// and exposure.
     #[cfg(test)]
     #[must_use]
-    pub(super) fn token(&self) -> &str {
-        &self.token
+    pub(super) fn token(&self) -> String {
+        (*self.token_state.read().expect("vault token lock poisoned").token).clone()
     }
 
     /// Get configured namespace.
@@ -414,17 +439,19 @@ impl VaultBackend {
 
         let client_new = build_http_client(false)?;
         Ok(VaultBackend {
-            addr: addr.to_string(),
-            token: zeroize::Zeroizing::new(token),
-            namespace: None,
-            tls_verify: false,
-            client: client_new,
-            cache: std::sync::Arc::new(tokio::sync::RwLock::new(super::cache::SecretCache::new(
-                super::cache::DEFAULT_MAX_CACHE_ENTRIES,
-            ))),
+            addr:           addr.to_string(),
+            token_state:    std::sync::RwLock::new(TokenState {
+                token:       zeroize::Zeroizing::new(token),
+                obtained_at: token_obtained_at,
+                ttl_secs:    token_ttl_secs,
+            }),
+            namespace:      None,
+            tls_verify:     false,
+            client:         client_new,
+            cache:          std::sync::Arc::new(tokio::sync::RwLock::new(
+                super::cache::SecretCache::new(super::cache::DEFAULT_MAX_CACHE_ENTRIES),
+            )),
             rotation_locks: Arc::new(DashMap::new()),
-            token_obtained_at,
-            token_ttl_secs,
         })
     }
 
@@ -438,14 +465,16 @@ impl VaultBackend {
         let client = build_http_client(false).expect("Failed to build test Vault HTTP client");
         VaultBackend {
             addr: addr.into(),
-            token: Zeroizing::new(token.into()),
+            token_state: std::sync::RwLock::new(TokenState {
+                token:       Zeroizing::new(token.into()),
+                obtained_at: None,
+                ttl_secs:    None,
+            }),
             namespace: None,
             tls_verify: false,
             client,
             cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
             rotation_locks: Arc::new(DashMap::new()),
-            token_obtained_at: None,
-            token_ttl_secs: None,
         }
     }
 
@@ -490,7 +519,7 @@ impl VaultBackend {
     async fn fetch_and_cache_locked(
         &self,
         name: &str,
-    ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
         // Re-check the cache under the lock — rotation may have populated it while we
         // were waiting (double-checked locking).
         let cache = self.cache.read().await;
@@ -512,13 +541,13 @@ impl VaultBackend {
         let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
 
         // Extract secret from response data
-        let secret_str = Self::extract_secret_from_response(&response, name)?;
+        let secret = Secret::new(Self::extract_secret_from_response(&response, name)?);
 
         // Store in cache
         let cache = self.cache.read().await;
-        cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
+        cache.set(name.to_string(), secret.clone(), cache_expiry).await;
 
-        Ok((secret_str, expiry))
+        Ok((secret, expiry))
     }
 
     /// Returns `true` if the Vault auth token should be renewed.
@@ -529,13 +558,19 @@ impl VaultBackend {
     ///
     /// Callers should invoke `renew_token()` when this returns `true` to avoid
     /// authentication failures from expired tokens.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the token-state lock is poisoned; the guarded section is
+    /// panic-free, so this is unreachable in practice.
     #[must_use]
     pub fn token_needs_renewal(&self) -> bool {
-        let (Some(obtained_at), Some(ttl_secs)) = (self.token_obtained_at, self.token_ttl_secs)
-        else {
+        let state = self.token_state.read().expect("vault token lock poisoned");
+        let (Some(obtained_at), Some(ttl_secs)) = (state.obtained_at, state.ttl_secs) else {
             // Static long-lived token — no renewal needed
             return false;
         };
+        drop(state);
 
         let elapsed_secs = (Utc::now() - obtained_at).num_seconds();
         // Use integer arithmetic to avoid f64 precision loss for large TTL values.
@@ -548,24 +583,35 @@ impl VaultBackend {
 
     /// Renew the Vault auth token via `POST /v1/auth/token/renew-self`.
     ///
-    /// On success, resets the `token_obtained_at` clock and updates `token_ttl_secs`
-    /// from the response so that `token_needs_renewal()` reflects the renewed lease.
+    /// On success, resets the renewal clock and updates the tracked TTL from the
+    /// response so that `token_needs_renewal()` reflects the renewed lease.
+    ///
+    /// Takes `&self`: the token state lives behind a lock precisely so renewal is
+    /// reachable through the `Arc<dyn SecretsBackend>` the factory hands out
+    /// (#726 — the old `&mut self` signature made renewal uncallable in every
+    /// shipped deployment, so `AppRole` tokens expired on a timer).
     ///
     /// # Errors
     ///
     /// Returns `SecretsError::ConnectionError` if the renewal request fails or if
     /// the token is not renewable (e.g. orphaned or periodic tokens).
-    pub async fn renew_token(&mut self) -> Result<(), SecretsError> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the token-state lock is poisoned; the guarded section is
+    /// panic-free, so this is unreachable in practice.
+    pub async fn renew_token(&self) -> Result<(), SecretsError> {
         let url = format!(
             "{}/{}/auth/token/renew-self",
             self.addr.trim_end_matches('/'),
             VAULT_API_VERSION
         );
+        let current = self.current_token();
         let response: serde_json::Value = {
             let resp = self
                 .client
                 .post(&url)
-                .header("X-Vault-Token", &*self.token)
+                .header("X-Vault-Token", &*current)
                 .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
                 .send()
                 .await
@@ -590,20 +636,85 @@ impl VaultBackend {
             )
         })?;
 
-        self.token = Zeroizing::new(new_token.to_string());
-        self.token_obtained_at = Some(Utc::now());
+        let mut state = self.token_state.write().expect("vault token lock poisoned");
+        state.token = Zeroizing::new(new_token.to_string());
+        state.obtained_at = Some(Utc::now());
         if let Some(ttl) = response["auth"]["lease_duration"].as_i64() {
-            self.token_ttl_secs = Some(ttl);
+            state.ttl_secs = Some(ttl);
         }
 
         Ok(())
     }
 
-    /// Token TTL as set at login time (seconds). `None` for static tokens.
-    /// Exposed for test assertions only.
-    #[cfg(test)]
-    pub(super) const fn token_ttl_secs_for_test(&self) -> Option<i64> {
-        self.token_ttl_secs
+    /// Spawn the background token-renewal loop.
+    ///
+    /// Every `check_interval` the loop calls [`Self::token_needs_renewal`] and, once
+    /// `TOKEN_RENEWAL_THRESHOLD` (80%) of the token TTL has elapsed, renews via
+    /// [`Self::renew_token`]. Renewal failures are logged and retried on the next
+    /// tick — Vault may be transiently unreachable, and the token stays valid until
+    /// its TTL actually expires.
+    ///
+    /// Returns the task handle and a cancel sender: send `true` (or drop the
+    /// sender) to stop the loop. [`create_secrets_manager`] holds the sender for
+    /// the manager's lifetime, so the loop stops when the manager is dropped.
+    ///
+    /// [`create_secrets_manager`]: crate::secrets_manager::create_secrets_manager
+    pub fn spawn_token_renewal(
+        self: &Arc<Self>,
+        check_interval: Duration,
+    ) -> (tokio::task::JoinHandle<()>, tokio::sync::watch::Sender<bool>) {
+        let (cancel_tx, mut cancel_rx) = tokio::sync::watch::channel(false);
+        let backend = Arc::clone(self);
+        let handle = tokio::spawn(async move {
+            tracing::info!(
+                interval_secs = check_interval.as_secs(),
+                "Vault token renewal task started"
+            );
+            loop {
+                tokio::select! {
+                    result = cancel_rx.changed() => {
+                        if result.is_err() || *cancel_rx.borrow() {
+                            tracing::info!("Vault token renewal task stopped");
+                            break;
+                        }
+                    },
+                    () = tokio::time::sleep(check_interval) => {
+                        if backend.token_needs_renewal() {
+                            match backend.renew_token().await {
+                                Ok(()) => tracing::info!("Vault auth token renewed"),
+                                Err(e) => tracing::warn!(
+                                    error = %e,
+                                    "Vault token renewal failed — will retry next tick"
+                                ),
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        (handle, cancel_tx)
+    }
+
+    /// Clone the current auth token out of the state lock.
+    ///
+    /// The clone is wrapped in [`Zeroizing`] so the transient copy is wiped when
+    /// the request that used it completes.
+    fn current_token(&self) -> Zeroizing<String> {
+        Zeroizing::new((*self.token_state.read().expect("vault token lock poisoned").token).clone())
+    }
+
+    /// Token TTL as reported by Vault at login time (seconds).
+    ///
+    /// `None` for static tokens created via [`Self::new`]; `Some` for `AppRole`
+    /// logins. Used by the factory to size the renewal-loop check interval.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the token-state lock is poisoned; the guarded section is
+    /// panic-free, so this is unreachable in practice.
+    #[must_use]
+    pub fn token_ttl_secs(&self) -> Option<i64> {
+        self.token_state.read().expect("vault token lock poisoned").ttl_secs
     }
 
     /// Extract secret data from Vault API response.
@@ -651,7 +762,7 @@ impl VaultBackend {
             match self
                 .client
                 .get(&url)
-                .header("X-Vault-Token", &*self.token)
+                .header("X-Vault-Token", &*self.current_token())
                 .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
                 .send()
                 .await
@@ -712,7 +823,7 @@ impl VaultBackend {
     fn build_vault_request(&self, client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
         client
             .post(url)
-            .header("X-Vault-Token", (*self.token).clone())
+            .header("X-Vault-Token", (*self.current_token()).clone())
             .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
     }
 

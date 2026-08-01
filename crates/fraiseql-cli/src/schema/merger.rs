@@ -602,6 +602,28 @@ impl SchemaMerger {
                     .context("Failed to serialize federation config")?;
         }
 
+        // Embed the `[auth]` PKCE OAuth-client group (#621). The group is all-four
+        // -or-none (enforced by `OidcClientConfig::validate` at load time), so if
+        // `client_id` is present the whole group is. The compiled `auth` object
+        // carries the client identity and the provider `discovery_url` only — the
+        // runtime resolves the authorization/token endpoints at boot, and the
+        // secret is read from `client_secret_env`, never embedded.
+        if let Some(auth) = &toml_schema.auth {
+            if let (Some(discovery_url), Some(client_id), Some(client_secret_env), Some(redirect)) = (
+                auth.discovery_url.as_ref(),
+                auth.client_id.as_ref(),
+                auth.client_secret_env.as_ref(),
+                auth.server_redirect_uri.as_ref(),
+            ) {
+                merged["auth"] = json!({
+                    "discovery_url": discovery_url,
+                    "client_id": client_id,
+                    "client_secret_env": client_secret_env,
+                    "server_redirect_uri": redirect,
+                });
+            }
+        }
+
         // Embed subscriptions configuration (hooks, limits)
         let subs_json = serde_json::to_value(&toml_schema.subscriptions)
             .context("Failed to serialize subscriptions config")?;

@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use fraiseql_secrets::{
     EnvBackend, FieldEncryption, SecretsBackend, SecretsError, SecretsManager,
-    VersionedFieldEncryption,
+    VersionedFieldEncryption, secrets_manager::Secret,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ impl SecretsBackend for FailingBackend {
         Err(SecretsError::ConnectionError("Vault unavailable".to_string()))
     }
 
-    async fn get_secret(&self, _name: &str) -> Result<String, SecretsError> {
+    async fn get_secret(&self, _name: &str) -> Result<Secret, SecretsError> {
         Err(SecretsError::ConnectionError(
             "Vault: connection refused (simulated outage)".to_string(),
         ))
@@ -256,11 +256,11 @@ impl SecretsBackend for FailingBackend {
     async fn get_secret_with_expiry(
         &self,
         _name: &str,
-    ) -> Result<(String, chrono::DateTime<chrono::Utc>), SecretsError> {
+    ) -> Result<(Secret, chrono::DateTime<chrono::Utc>), SecretsError> {
         Err(SecretsError::ConnectionError("Vault unavailable".to_string()))
     }
 
-    async fn rotate_secret(&self, _name: &str) -> Result<String, SecretsError> {
+    async fn rotate_secret(&self, _name: &str) -> Result<Secret, SecretsError> {
         Err(SecretsError::ConnectionError("Vault unavailable".to_string()))
     }
 }

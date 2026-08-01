@@ -38,7 +38,7 @@ A checklist for hardening FraiseQL deployments. Review each item before going li
 ## Secrets
 
 - [ ] Store database credentials in environment variables, not config files
-- [ ] Use HashiCorp Vault integration for secret management (`[secrets]`)
+- [ ] Select a secrets backend with `FRAISEQL_SECRETS_BACKEND` (`env`, `file`, or `vault`); for Vault set `VAULT_ADDR` plus `VAULT_TOKEN` (static) or `VAULT_ROLE_ID` + `VAULT_SECRET_ID` (AppRole). There is no `[secrets]` config section — the backend is selected entirely by environment variable.
 - [ ] Encrypt sensitive columns at the database/storage layer — field-level at-rest encryption is **not implemented** (the server refuses to boot if a field is marked for encryption)
 - [ ] Ensure OTLP endpoint URLs do not contain embedded credentials
 

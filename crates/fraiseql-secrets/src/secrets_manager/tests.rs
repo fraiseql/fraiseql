@@ -31,20 +31,20 @@ impl SecretsBackend for MockBackend {
         Ok(())
     }
 
-    async fn get_secret(&self, _name: &str) -> Result<String, SecretsError> {
-        Ok(self.secret.clone())
+    async fn get_secret(&self, _name: &str) -> Result<Secret, SecretsError> {
+        Ok(Secret::new(self.secret.clone()))
     }
 
     async fn get_secret_with_expiry(
         &self,
         _name: &str,
-    ) -> Result<(String, DateTime<Utc>), SecretsError> {
-        Ok((self.secret.clone(), self.expiry))
+    ) -> Result<(Secret, DateTime<Utc>), SecretsError> {
+        Ok((Secret::new(self.secret.clone()), self.expiry))
     }
 
-    async fn rotate_secret(&self, _name: &str) -> Result<String, SecretsError> {
+    async fn rotate_secret(&self, _name: &str) -> Result<Secret, SecretsError> {
         self.rotate_count.fetch_add(1, Ordering::SeqCst);
-        Ok("rotated".to_string())
+        Ok(Secret::new("rotated".to_string()))
     }
 }
 
@@ -183,4 +183,29 @@ async fn test_create_secrets_manager_env_backend() {
         assert_eq!(value, "env_value");
     })
     .await;
+}
+
+// ---------------------------------------------------------------------------
+// #727: tls_verify = false is refused in production
+// ---------------------------------------------------------------------------
+
+#[test]
+fn vault_tls_verify_off_is_refused_in_production() {
+    let err = vault_tls_verify_check(false, true)
+        .expect_err("tls_verify = false must refuse to boot in production");
+    assert!(
+        err.to_string().contains("tls_verify"),
+        "the refusal must name the knob; got: {err}"
+    );
+}
+
+#[test]
+fn vault_tls_verify_off_is_a_warning_in_development() {
+    assert!(vault_tls_verify_check(false, false).is_ok());
+}
+
+#[test]
+fn vault_tls_verify_on_is_always_ok() {
+    assert!(vault_tls_verify_check(true, true).is_ok());
+    assert!(vault_tls_verify_check(true, false).is_ok());
 }

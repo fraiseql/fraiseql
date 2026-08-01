@@ -26,8 +26,13 @@ pub trait SecretsBackend: Send + Sync {
     /// * `name` - Secret identifier (path, env var name, etc.)
     ///
     /// # Returns
-    /// Secret value as String, or `SecretsError` if not found/error
-    async fn get_secret(&self, name: &str) -> Result<String, SecretsError>;
+    /// The secret wrapped in [`Secret`] (redacted `Debug`/`Display`,
+    /// zeroize-on-drop), or `SecretsError` if not found/error.
+    ///
+    /// The wrapper is part of the trait contract (#727): returning a plain
+    /// `String` here made every backend and every caller a place where secret
+    /// material could linger in freed heap or leak through a stray `{:?}`.
+    async fn get_secret(&self, name: &str) -> Result<Secret, SecretsError>;
 
     /// Get secret with expiry information
     ///
@@ -38,13 +43,13 @@ pub trait SecretsBackend: Send + Sync {
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(String, DateTime<Utc>), SecretsError>;
+    ) -> Result<(Secret, DateTime<Utc>), SecretsError>;
 
     /// Rotate secret to new value
     ///
     /// For backends supporting rotation (Vault), generates new credential
     /// For static backends (env, file), may be no-op or return error
-    async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError>;
+    async fn rotate_secret(&self, name: &str) -> Result<Secret, SecretsError>;
 }
 
 /// Wrapper for secrets that redacts values in logs/debug output and zeroes
@@ -129,6 +134,21 @@ impl PartialEq for Secret {
 }
 
 impl Eq for Secret {}
+
+/// Compare against a string without exposing the secret (assertion failures
+/// Debug-print `Secret(***)`, never the value).
+impl PartialEq<str> for Secret {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+/// See [`PartialEq<str>`] — the `&str` form `assert_eq!` actually meets.
+impl PartialEq<&str> for Secret {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
 
 /// Zero the underlying secret buffer on drop.
 ///

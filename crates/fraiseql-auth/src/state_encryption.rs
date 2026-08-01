@@ -20,7 +20,7 @@ use chacha20poly1305::{
 };
 use rand::RngCore as _;
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize as _, Zeroizing};
 
 use crate::{AuthError, error::Result};
 
@@ -287,6 +287,19 @@ impl fmt::Debug for StateEncryptionService {
             .field("algorithm", &self.algorithm)
             .field("key", &"[REDACTED]")
             .finish()
+    }
+}
+
+/// Zero the key material on drop (#737).
+///
+/// `generate_state_encryption_key` already returns the key in `Zeroizing`, but
+/// once it was copied into this service's bare `[u8; 32]` the wipe-on-drop
+/// guarantee stopped there — the key sat in freed heap/stack until reused. This
+/// restores it end to end. `#![forbid(unsafe_code)]` is honoured (`zeroize` does
+/// the volatile write).
+impl Drop for StateEncryptionService {
+    fn drop(&mut self) {
+        self.key.zeroize();
     }
 }
 

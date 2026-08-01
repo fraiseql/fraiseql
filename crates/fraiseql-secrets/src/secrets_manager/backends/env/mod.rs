@@ -2,7 +2,7 @@
 
 use chrono::{Duration, Utc};
 
-use super::super::{SecretsBackend, SecretsError};
+use super::super::{Secret, SecretsBackend, SecretsError};
 
 /// Secrets backend that reads from environment variables
 ///
@@ -39,16 +39,17 @@ impl SecretsBackend for EnvBackend {
         Ok(()) // Environment variables are always available
     }
 
-    async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
+    async fn get_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         validate_secret_name(name)?;
         std::env::var(name)
+            .map(Secret::new)
             .map_err(|_| SecretsError::NotFound(format!("Environment variable {} not found", name)))
     }
 
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
         let secret = self.get_secret(name).await?;
         // Environment variables don't expire, but we need to return an expiry
         // Use a long TTL (1 year) for env vars
@@ -56,7 +57,7 @@ impl SecretsBackend for EnvBackend {
         Ok((secret, expiry))
     }
 
-    async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
+    async fn rotate_secret(&self, name: &str) -> Result<Secret, SecretsError> {
         // Environment variables can't be rotated programmatically
         // Return error indicating rotation not supported
         Err(SecretsError::RotationError(format!(

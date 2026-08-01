@@ -186,8 +186,14 @@ impl From<WebhookError> for fraiseql_error::FraiseQLError {
     fn from(e: WebhookError) -> Self {
         match e {
             WebhookError::Database(msg) => Self::database(format!("webhook: {msg}")),
-            WebhookError::MissingSecret(name) => Self::Configuration {
-                message: format!("webhook secret not found: {name}"),
+            WebhookError::MissingSecret(name) => {
+                // The mapped message reaches unauthenticated HTTP callers as a 500
+                // body; the env-var / secret name belongs in the operator's log
+                // only (#787).
+                tracing::error!(secret = %name, "webhook signing secret is not configured");
+                Self::Configuration {
+                    message: "webhook route is not fully configured (see server logs)".into(),
+                }
             },
             WebhookError::SignatureInvalid(reason) => Self::Authentication {
                 message: format!("webhook signature verification failed: {reason}"),

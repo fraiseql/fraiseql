@@ -57,6 +57,7 @@ pub const AUTHORABLE_SINGLETON_SECTIONS: &[&str] = &[
     "federation_config",
     "inject_defaults",
     "security",
+    "auth",
     "observers_config",
     "subscriptions_config",
     "validation_config",

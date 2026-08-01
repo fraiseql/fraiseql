@@ -755,3 +755,169 @@ mod rate_limit_boot_guard_tests {
         assert_eq!(limiter.config().rps_per_ip, 250);
     }
 }
+
+/// #770/#777 class — a configured Redis backend that cannot be provided must refuse
+/// to boot in production instead of silently downgrading to per-process state.
+#[cfg(feature = "redis-rate-limiting")]
+mod redis_rate_limit_downgrade_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
+
+    use fraiseql_core::schema::CompiledSchema;
+    use serde_json::json;
+
+    use super::super::initialization::resolve_rate_limiter_in;
+    use crate::ServerConfig;
+
+    const PRODUCTION: bool = true;
+    const DEVELOPMENT: bool = false;
+
+    fn schema_with_redis_rate_limiting() -> CompiledSchema {
+        let mut security = fraiseql_core::schema::SecurityConfig::default();
+        security.additional.insert(
+            "rate_limiting".to_string(),
+            json!({
+                "enabled": true,
+                "requests_per_second": 100,
+                "burst_size": 50,
+                // Well-formed URL, nothing listening.
+                "redis_url": "redis://127.0.0.1:6390",
+            }),
+        );
+        CompiledSchema {
+            security: Some(security),
+            ..CompiledSchema::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_redis_limiter_refuses_to_boot_in_production() {
+        let err = resolve_rate_limiter_in(
+            &schema_with_redis_rate_limiting(),
+            &ServerConfig::default(),
+            PRODUCTION,
+        )
+        .await
+        .err()
+        .expect(
+            "a configured-but-unreachable rate-limit Redis must refuse to boot: the \
+                 in-memory fallback enforces N times the configured rate across N replicas",
+        );
+        assert!(
+            err.to_string().contains("rate_limiting"),
+            "the refusal must name the config section; got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_redis_limiter_downgrades_with_a_warning_in_development() {
+        let limiter = resolve_rate_limiter_in(
+            &schema_with_redis_rate_limiting(),
+            &ServerConfig::default(),
+            DEVELOPMENT,
+        )
+        .await
+        .expect("development boots on the in-memory fallback with a warning");
+        assert!(limiter.is_some(), "the development fallback still builds a limiter");
+    }
+}
+
+/// #777 — the PKCE state store must honour a configured Redis backend or refuse to
+/// boot; and a malformed `[security.pkce]` section must be loud, not a silent
+/// PKCE-off (#778 class).
+#[cfg(feature = "auth")]
+mod pkce_boot_guard_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
+
+    use std::sync::Arc;
+
+    use fraiseql_core::schema::CompiledSchema;
+    use serde_json::json;
+
+    use super::super::initialization::pkce_store_from_schema_in;
+    use crate::auth::state_encryption::StateEncryptionService;
+
+    const PRODUCTION: bool = true;
+    #[cfg(feature = "redis-pkce")]
+    const DEVELOPMENT: bool = false;
+
+    fn schema_with_pkce(section: serde_json::Value) -> CompiledSchema {
+        let mut security = fraiseql_core::schema::SecurityConfig::default();
+        security.additional.insert("pkce".to_string(), section);
+        CompiledSchema {
+            security: Some(security),
+            ..CompiledSchema::default()
+        }
+    }
+
+    fn encryption() -> Arc<StateEncryptionService> {
+        Arc::new(StateEncryptionService::from_raw_key(
+            &[7u8; 32],
+            crate::auth::state_encryption::EncryptionAlgorithm::Aes256Gcm,
+        ))
+    }
+
+    #[tokio::test]
+    async fn a_malformed_pkce_section_refuses_to_boot() {
+        // A string-typed number is what a hand edit or an external generator produces;
+        // it used to be a warning that silently disabled PKCE.
+        let schema = schema_with_pkce(json!({ "enabled": true, "state_ttl_secs": "600" }));
+        let enc = encryption();
+        let err = pkce_store_from_schema_in(&schema, Some(&enc), PRODUCTION)
+            .await
+            .err()
+            .expect("a present-but-unparseable [security.pkce] must refuse to boot");
+        assert!(
+            err.to_string().contains("security.pkce"),
+            "the error must name the section; got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_null_pkce_section_is_treated_as_absent() {
+        let schema = schema_with_pkce(serde_json::Value::Null);
+        let enc = encryption();
+        let store = pkce_store_from_schema_in(&schema, Some(&enc), PRODUCTION)
+            .await
+            .expect("a null section means absent, not malformed");
+        assert!(store.is_none());
+    }
+
+    #[cfg(feature = "redis-pkce")]
+    #[tokio::test]
+    async fn an_unreachable_redis_pkce_store_refuses_to_boot_in_production() {
+        // Well-formed URL, nothing listening — the k8s pod-ordering race from #777.
+        // Before the fix this fell back to in-memory permanently: behind a load
+        // balancer ~ (N-1)/N of logins then fail with "state not found", and the only
+        // evidence is one error line at boot.
+        let schema = schema_with_pkce(json!({
+            "enabled": true,
+            "redis_url": "redis://127.0.0.1:6390",
+        }));
+        let enc = encryption();
+        let err = pkce_store_from_schema_in(&schema, Some(&enc), PRODUCTION)
+            .await
+            .err()
+            .expect("a configured-but-unreachable PKCE Redis must refuse to boot");
+        assert!(
+            err.to_string().contains("security.pkce"),
+            "the refusal must name the config section; got: {err}"
+        );
+    }
+
+    #[cfg(feature = "redis-pkce")]
+    #[tokio::test]
+    async fn an_unreachable_redis_pkce_store_downgrades_in_development() {
+        let schema = schema_with_pkce(json!({
+            "enabled": true,
+            "redis_url": "redis://127.0.0.1:6390",
+        }));
+        let enc = encryption();
+        let store = pkce_store_from_schema_in(&schema, Some(&enc), DEVELOPMENT)
+            .await
+            .expect("development boots on the in-memory fallback with a warning");
+        assert!(
+            store.is_some_and(|s| s.is_in_memory()),
+            "the development fallback is the in-memory store"
+        );
+    }
+}

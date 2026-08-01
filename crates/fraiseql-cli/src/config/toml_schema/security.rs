@@ -234,7 +234,11 @@ pub struct RateLimitingSecurityConfig {
     /// Defaults to 10× `requests_per_second` if not set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requests_per_second_per_user: Option<u32>,
-    /// Redis URL for distributed rate limiting (optional — falls back to in-memory)
+    /// Redis URL for distributed rate limiting.
+    ///
+    /// Optional: when unset, budgets are tracked in-memory, per process. When set,
+    /// an unreachable Redis is a **boot error** in production (#770/#777 class) —
+    /// the server does not silently downgrade to per-process limits.
     pub redis_url: Option<String>,
     /// Trust `X-Real-IP` / `X-Forwarded-For` headers for client IP extraction.
     ///
@@ -689,16 +693,11 @@ impl OidcClientConfig {
             );
         }
 
-        if has_client_group {
-            // client_set == 4 here (all-or-none enforced above).
-            anyhow::bail!(
-                "[auth] PKCE OAuth-client config (discovery_url, client_id, client_secret_env, \
-                 server_redirect_uri) is recognized but not yet functional on the compiled path: \
-                 the compiled schema carries no auth/auth_endpoints for the server to consume. \
-                 Remove these fields and use [auth] issuer/audience for JWT validation, or track \
-                 the wiring in #621."
-            );
-        }
+        // #621: a complete PKCE client group is now functional on the compiled
+        // path — the merger emits the compiled `auth` object, and the runtime
+        // resolves the OIDC discovery document at boot from `discovery_url`
+        // (fetch-at-boot, so the compiler stays hermetic). It no longer bails.
+        // (`has_client_group` with `client_set == 4` is accepted.)
 
         if self.audience.is_some() && !has_jwt_group {
             anyhow::bail!(
@@ -709,10 +708,15 @@ impl OidcClientConfig {
             );
         }
 
-        if !has_jwt_group {
+        // A PKCE client group alone (no JWT group) is a valid configuration:
+        // server-side OAuth login without also validating bearer JWTs. Only an
+        // entirely empty block is refused.
+        if !has_jwt_group && !has_client_group {
             anyhow::bail!(
-                "[auth] is empty. Configure JWT validation with issuer, or with jwks_uri for IdPs \
-                 whose tokens omit `iss` (e.g. Hanko). An empty [auth] block does nothing."
+                "[auth] is empty. Configure JWT validation with issuer (or jwks_uri for IdPs \
+                 whose tokens omit `iss`, e.g. Hanko), or a PKCE OAuth-client group \
+                 (discovery_url, client_id, client_secret_env, server_redirect_uri). An empty \
+                 [auth] block does nothing."
             );
         }
 

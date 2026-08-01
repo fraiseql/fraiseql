@@ -278,6 +278,11 @@ impl SchemaConverter {
                 .map(serde_json::from_value)
                 .transpose()
                 .context("security: invalid JSON structure")?,
+            auth: intermediate
+                .auth
+                .map(serde_json::from_value)
+                .transpose()
+                .context("auth: invalid PKCE OAuth-client structure (#621)")?,
             observers_config: intermediate
                 .observers_config
                 .map(|mut oc| {

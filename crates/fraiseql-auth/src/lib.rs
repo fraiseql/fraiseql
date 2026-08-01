@@ -102,7 +102,7 @@ pub use oauth::{
     TokenRefreshScheduler, TokenRefreshWorker, TokenRefresher,
 };
 pub use oidc_provider::OidcProvider;
-pub use oidc_server_client::{OidcEndpoints, OidcServerClient, OidcTokenResponse};
+pub use oidc_server_client::{OidcServerClient, OidcTokenResponse};
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use otp::{
     EmailDelivery, InMemoryOtpStore, NoopEmailDelivery, OtpRequest, OtpResponse, OtpRouteState,

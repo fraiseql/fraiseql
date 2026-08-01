@@ -84,8 +84,8 @@ async fn poll_fetches_new_and_encodes_the_advanced_cursor() {
     let batch = src.poll(&PullContext { cursor: None }).await.unwrap();
 
     assert_eq!(batch.messages.len(), 2);
-    assert_eq!(batch.messages[0].idempotency_key, "mid-a");
-    assert_eq!(batch.messages[1].idempotency_key, "mid-b");
+    assert!(batch.messages[0].idempotency_key.starts_with("mid-a:sha256:"));
+    assert!(batch.messages[1].idempotency_key.starts_with("mid-b:sha256:"));
     assert_eq!(
         batch.next_cursor,
         cursor_value(Cursor::new(1, 11)),
@@ -136,7 +136,7 @@ async fn poll_skips_poison_but_advances_past_it() {
     let batch = src.poll(&PullContext { cursor: None }).await.unwrap();
 
     assert_eq!(batch.messages.len(), 1, "only the parseable message is returned");
-    assert_eq!(batch.messages[0].idempotency_key, "mid-good");
+    assert!(batch.messages[0].idempotency_key.starts_with("mid-good:sha256:"));
     assert_eq!(
         batch.next_cursor,
         cursor_value(Cursor::new(1, 6)),

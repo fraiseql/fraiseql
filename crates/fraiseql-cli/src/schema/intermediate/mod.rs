@@ -148,6 +148,15 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub security: Option<serde_json::Value>,
 
+    /// PKCE OAuth-client configuration (the `[auth]` PKCE group, #621).
+    ///
+    /// The TOML merger emits the compiled `auth` object here (`discovery_url`,
+    /// `client_id`, `client_secret_env`, `server_redirect_uri`); the converter
+    /// carries it verbatim into `CompiledSchema.auth`. `None` when the group is
+    /// absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<serde_json::Value>,
+
     /// Observers/event system configuration (from fraiseql.toml).
     ///
     /// Contains backend connection settings (redis_url, nats_url, etc.) compiled

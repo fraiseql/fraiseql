@@ -30,9 +30,9 @@ pub use store::{FunctionRecord, FunctionStatus, FunctionStore, memory::InMemoryF
 pub use triggers::{
     cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
     ingest::{
-        Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSource,
-        IngestTrigger, PullBatch, PullContext, PullSource, PushSource, RawDelivery, Recipient,
-        RoutingRule, Source, StorageRef, Transport,
+        Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSelector,
+        IngestSource, IngestTrigger, PullBatch, PullContext, PullSource, PushSource, RawDelivery,
+        Recipient, RoutingRule, Source, StorageRef, Transport,
         email::{ParsedEmail, PendingAttachment, classify, derive_thread_key, normalize_email},
         parse_recipient, resolve_routing,
     },

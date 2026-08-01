@@ -108,6 +108,16 @@ fn build_redirect_with_tokens(
 }
 
 /// Shared state for the multi-provider auth endpoints.
+///
+/// # Rate limiting (#788)
+///
+/// [`authorize`] and [`callback`] write to the bounded CSRF [`StateStore`] with no
+/// per-IP throttle, unlike `handlers::auth_start`, so an unauthenticated flood
+/// could evict legitimate in-flight states. This is **not wired in the shipped
+/// server**: no fraiseql-server route mounts this router (nor `saml_routes`), so
+/// the gap is not reachable from the binary today. When these routers are mounted
+/// (the auth-enterprise wave), gate both handlers on the same per-IP
+/// `RateLimiters` middleware the GraphQL/auth transport already applies.
 #[derive(Clone)]
 pub struct MultiProviderAuthState {
     /// OAuth providers keyed by name (e.g., "github", "google").

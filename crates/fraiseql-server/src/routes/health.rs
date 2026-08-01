@@ -99,7 +99,7 @@ pub struct CacheHealth {
 pub struct SecretsHealth {
     /// Whether the secrets backend is reachable and the token is valid.
     pub connected: bool,
-    /// Backend type: `"vault"`, `"env"`, `"aws-secrets"`, etc.
+    /// Backend type: `"vault"`, `"env"`, or `"file"`.
     pub backend:   String,
 }
 

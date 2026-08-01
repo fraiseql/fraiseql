@@ -26,4 +26,4 @@ pub mod spine;
 pub mod webhook;
 
 pub use spine::{Emitted, PostgresInboundSpine, emit_in_tx};
-pub use webhook::{WebhookInboundState, WebhookSource, webhook_router};
+pub use webhook::{WebhookInboundState, WebhookSource, webhook_router, webhook_routes_check};

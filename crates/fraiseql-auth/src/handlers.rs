@@ -467,8 +467,12 @@ pub async fn auth_logout(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Generate a cryptographically random state for CSRF protection
-/// Uses OsRng for cryptographically secure randomness
+/// Generate a cryptographically random state for CSRF protection.
+///
+/// Uses `rand::rng()` (a reseeding thread-local CSPRNG, ChaCha-based) — a
+/// cryptographically secure source. The doc previously claimed `OsRng`, which
+/// this does not call; corrected rather than switched, since `rand::rng()` is
+/// itself a CSPRNG and the entropy guarantee holds (#737).
 #[must_use]
 pub fn generate_secure_state() -> String {
     use rand::RngCore as _;

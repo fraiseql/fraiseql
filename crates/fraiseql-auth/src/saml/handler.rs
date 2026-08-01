@@ -40,6 +40,14 @@ const LOGIN_STATE_TTL_SECS: u64 = 600;
 const SESSION_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// Shared state for the SAML endpoints.
+///
+/// # Rate limiting (#788)
+///
+/// [`saml_login`] and [`saml_acs`] write to the bounded CSRF [`StateStore`] with
+/// no per-IP throttle. As with the multi-provider router, **no fraiseql-server
+/// route mounts [`saml_routes`] today**, so the gap is not reachable from the
+/// shipped binary; when these routes are mounted (the auth-enterprise wave), gate
+/// them on the same per-IP `RateLimiters` middleware the transport already applies.
 #[derive(Clone)]
 pub struct SamlAuthState {
     /// Configured IdPs keyed by logical name.

@@ -308,6 +308,15 @@ pub struct WebhookRouteConfig {
     /// URL path override; if absent, the route name is used as the path segment.
     #[serde(default)]
     pub path:       Option<String>,
+    /// The exact public URL this route is registered under at the provider.
+    ///
+    /// Required for providers whose signing scheme covers the request URL
+    /// (Twilio signs scheme + host + path + query). It must be the URL as the
+    /// provider knows it — reconstructing it from `Host`/`X-Forwarded-*` headers
+    /// would put the signed material under the sender's control, so the server
+    /// refuses to boot instead when a URL-signing provider lacks this (#781).
+    #[serde(default)]
+    pub public_url: Option<String>,
 }
 
 /// Configuration for a file-upload route.

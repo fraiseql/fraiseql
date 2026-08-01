@@ -224,12 +224,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         let state_encryption = Self::state_encryption_from_schema(schema)?;
         #[cfg(feature = "auth")]
-        let pkce_store = Self::pkce_store_from_schema(schema, state_encryption.as_ref()).await?;
+        let pkce_store = super::initialization::pkce_store_from_schema_in(
+            schema,
+            state_encryption.as_ref(),
+            crate::ServerConfig::is_production_mode(),
+        )
+        .await?;
         #[cfg(feature = "auth")]
-        let oidc_server_client = Self::oidc_server_client_from_schema(schema);
+        let oidc_server_client = Self::oidc_server_client_from_schema(schema).await;
         // Both configuration sources resolved together, so the boot guards run on
         // whatever actually takes effect (#837) and CLI/env overrides win (#774).
         let rate_limiter = super::initialization::resolve_rate_limiter(schema, config).await?;
+        // #787/#781: a configured inbound webhook route must be servable — known
+        // provider, its secret env set (production), and a public_url when the
+        // provider signs the request URL — or the server refuses to boot instead
+        // of mounting routes that 404/500 every genuine delivery.
+        #[cfg(feature = "inbound")]
+        crate::inbound::webhook_routes_check(
+            &config.webhooks,
+            |name| std::env::var(name).ok(),
+            crate::ServerConfig::is_production_mode(),
+        )?;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(schema);
         if api_key_authenticator.is_some() {
             info!("API key authentication enabled");
@@ -239,7 +254,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if service_account_authenticator.is_some() {
             info!("Service-account authentication enabled");
         }
-        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(schema)?;
+        let revocation_manager =
+            crate::token_revocation::revocation_manager_from_schema(schema).await?;
         if revocation_manager.is_some() {
             info!("Token revocation enabled");
         }

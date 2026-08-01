@@ -115,6 +115,10 @@ impl SignatureVerifier for TwilioVerifier {
         "X-Twilio-Signature"
     }
 
+    fn requires_url(&self) -> bool {
+        true
+    }
+
     fn verify(
         &self,
         payload: &[u8],

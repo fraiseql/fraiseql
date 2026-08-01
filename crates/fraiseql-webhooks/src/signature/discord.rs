@@ -63,6 +63,10 @@ impl SignatureVerifier for DiscordVerifier {
         "X-Signature-Ed25519"
     }
 
+    fn timestamp_header(&self) -> Option<&'static str> {
+        Some("X-Signature-Timestamp")
+    }
+
     fn verify(
         &self,
         payload: &[u8],

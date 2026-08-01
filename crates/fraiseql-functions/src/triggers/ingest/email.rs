@@ -278,10 +278,18 @@ fn is_delivery_status_report(message: &Message<'_>) -> bool {
     })
 }
 
-/// The dedup key: the `Message-ID`, or a deterministic content hash when absent.
+/// The dedup key: `Message-ID` (when present) **plus** a content digest.
+///
+/// The `Message-ID` header is chosen entirely by the sender, so it must never be
+/// the whole key (#775): a forged message carrying a victim's `Message-ID` used
+/// to claim the dedup slot and the genuine message was then dropped as a
+/// duplicate. Folding in `SHA-256(raw)` means only a byte-identical redelivery
+/// deduplicates — which is exactly what dedup is for — while two different
+/// messages sharing an id are both processed. (Per-mailbox scoping of the spine
+/// key is the other half of the fix; see [`IngestSource::Email`].)
 fn dedup_key(message_id: Option<&str>, raw: &[u8]) -> String {
-    message_id
-        .map_or_else(|| format!("sha256:{}", hex::encode(Sha256::digest(raw))), str::to_string)
+    let digest = hex::encode(Sha256::digest(raw));
+    message_id.map_or_else(|| format!("sha256:{digest}"), |id| format!("{id}:sha256:{digest}"))
 }
 
 /// Strip surrounding angle brackets and whitespace from a message id.

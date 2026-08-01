@@ -8,6 +8,18 @@ use crate::secrets_manager::SecretsError;
 /// in production regardless of its value.
 pub const VAULT_ALLOW_INSECURE_ENV: &str = "FRAISEQL_VAULT_ALLOW_INSECURE";
 
+/// Env var holding a comma-separated allowlist of exact Vault hosts that may
+/// bypass the private-range SSRF block (#727).
+///
+/// Production Vault almost always lives on an RFC 1918 address, and before this
+/// allowlist the only way to reach it was `FRAISEQL_VAULT_ALLOW_INSECURE=true` —
+/// which is refused in production and, where honoured, disables *every* guard
+/// including the scheme check. The allowlist is the granular alternative: it is
+/// honoured in every environment, it admits only the exact hosts named (matched
+/// case-insensitively against the URL host, an IP literal or a hostname), and the
+/// scheme and URL-validity checks still apply.
+pub const VAULT_ALLOWED_HOSTS_ENV: &str = "FRAISEQL_VAULT_ALLOWED_HOSTS";
+
 /// Maximum byte length for a Vault secret name / path.
 ///
 /// Vault's own internal key-value paths top out at a few hundred characters in
@@ -63,12 +75,40 @@ pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
         host_raw
     };
 
+    // #727: an exact-host allowlist bypasses only the private-range block — the
+    // scheme and URL checks above have already run. This is what lets a production
+    // deployment reach a Vault on RFC 1918 space without flipping the all-guards-off
+    // insecure switch.
+    if host_is_allowlisted(host, std::env::var(VAULT_ALLOWED_HOSTS_ENV).ok().as_deref()) {
+        return Ok(());
+    }
+
     if is_ssrf_blocked_host_vault(host) {
         return Err(SecretsError::ValidationError(format!(
-            "Vault address targets a private/loopback address (SSRF protection): {addr}"
+            "Vault address targets a private/loopback address (SSRF protection): {addr}. \
+             If this is genuinely your Vault, allow this exact host with \
+             {VAULT_ALLOWED_HOSTS_ENV}={host}"
         )));
     }
     Ok(())
+}
+
+/// Returns `true` when `host` appears in the comma-separated allowlist.
+///
+/// Pure so both environments of the guard are unit-testable without touching
+/// process env. Matching is exact and case-insensitive per entry; empty entries
+/// (stray commas, whitespace) are ignored. No wildcard or CIDR forms — an
+/// allowlist that can widen silently is the footgun this replaces.
+pub(super) fn host_is_allowlisted(host: &str, allowlist: Option<&str>) -> bool {
+    let Some(list) = allowlist else {
+        return false;
+    };
+    if host.is_empty() {
+        return false;
+    }
+    list.split(',')
+        .map(str::trim)
+        .any(|entry| !entry.is_empty() && entry.eq_ignore_ascii_case(host))
 }
 
 /// Returns `true` for hostnames/IPs a Vault address must never point at.

@@ -36,7 +36,13 @@ fn email(
     headers: &[(&str, &str)],
     classification: Option<Classification>,
 ) -> InboundMessage {
-    let mut message = InboundMessage::new(IngestSource::Email, "mid-1", now());
+    let mut message = InboundMessage::new(
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        "mid-1",
+        now(),
+    );
     message.to = to.iter().map(ToString::to_string).collect();
     message.headers = headers.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
     message.classification = classification;
@@ -332,18 +338,28 @@ Click the link to prove you are not a robot.\r
 
 #[test]
 fn a_real_bounce_eml_classifies_and_yields_its_send_id() {
-    let parsed =
-        fraiseql_functions::normalize_email(BOUNCE_EML.as_bytes(), IngestSource::Email, now())
-            .expect("bounce parses");
+    let parsed = fraiseql_functions::normalize_email(
+        BOUNCE_EML.as_bytes(),
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        now(),
+    )
+    .expect("bounce parses");
     assert_eq!(parsed.message.classification, Some(Classification::Bounce));
     assert_eq!(extract_send_id(&parsed.message).as_deref(), Some(SEND_ID));
 }
 
 #[test]
 fn a_real_challenge_eml_classifies_and_yields_its_send_id() {
-    let parsed =
-        fraiseql_functions::normalize_email(CHALLENGE_EML.as_bytes(), IngestSource::Email, now())
-            .expect("challenge parses");
+    let parsed = fraiseql_functions::normalize_email(
+        CHALLENGE_EML.as_bytes(),
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        now(),
+    )
+    .expect("challenge parses");
     assert_eq!(parsed.message.classification, Some(Classification::Challenge));
     assert_eq!(extract_send_id(&parsed.message).as_deref(), Some(SEND_ID));
 }
@@ -353,9 +369,14 @@ async fn a_real_bounce_eml_drives_the_correlation_transition() {
     // The full inbound path in miniature: a raw DSN normalizes, classifies as a
     // bounce, its send-id is recovered from the Return-Path plus-tag, and the
     // correlation marks the send bounced + suppresses.
-    let parsed =
-        fraiseql_functions::normalize_email(BOUNCE_EML.as_bytes(), IngestSource::Email, now())
-            .expect("bounce parses");
+    let parsed = fraiseql_functions::normalize_email(
+        BOUNCE_EML.as_bytes(),
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
+        now(),
+    )
+    .expect("bounce parses");
     let fake = FakeCorrelator::with_send(0);
     let outcome = correlate(&fake, Some(KEY), 2, now(), &parsed.message).await.unwrap();
     assert_eq!(outcome, CorrelationOutcome::Bounced);

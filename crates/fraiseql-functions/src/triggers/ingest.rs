@@ -52,31 +52,50 @@ pub enum IngestSource {
         /// Provider name, the second half of the `webhook:<provider>` key.
         provider: String,
     },
-    /// An email message (the poll-IMAP adapter).
-    Email,
+    /// An email message (the poll-IMAP adapter), tagged by the mailbox that
+    /// received it.
+    ///
+    /// The mailbox is part of the identity (#775): with a single global
+    /// `"email"` key, all polled mailboxes shared one spine dedup namespace
+    /// keyed on the sender-chosen `Message-ID` — a message To/Cc'd to two
+    /// configured mailboxes was ingested (and routed) for only whichever poller
+    /// won, and a sender could pre-claim a `Message-ID` to suppress a later
+    /// genuine message.
+    Email {
+        /// Mailbox key, the second half of the `email:<mailbox>` key — the
+        /// `[mailbox.<key>]` config name.
+        mailbox: String,
+    },
 }
 
 impl IngestSource {
     /// The source discriminant used in `after:ingest:<source>` triggers and
-    /// stored on the spine: `"webhook:<provider>"` or `"email"`.
+    /// stored on the spine: `"webhook:<provider>"` or `"email:<mailbox>"`.
     #[must_use]
     pub fn as_key(&self) -> String {
         match self {
             IngestSource::Webhook { provider } => format!("webhook:{provider}"),
-            IngestSource::Email => "email".to_string(),
+            IngestSource::Email { mailbox } => format!("email:{mailbox}"),
         }
     }
 
     /// Parse a source discriminant (the inverse of [`as_key`](Self::as_key)).
     ///
-    /// `"email"` → [`IngestSource::Email`]; `"webhook:<provider>"` (with a
-    /// non-empty provider) → [`IngestSource::Webhook`]. Any other string — an
-    /// unknown source or a `webhook:` with no provider — returns `None` so the
-    /// trigger loader can reject it loudly.
+    /// `"email:<mailbox>"` (with a non-empty mailbox) → [`IngestSource::Email`];
+    /// `"webhook:<provider>"` (with a non-empty provider) →
+    /// [`IngestSource::Webhook`]. Any other string — including the pre-#775
+    /// mailbox-less `"email"` — returns `None` so the caller can reject it
+    /// loudly. (Trigger declarations go through [`IngestSelector::from_key`],
+    /// where the bare `"email"` remains valid as the any-mailbox selector.)
     #[must_use]
     pub fn from_key(key: &str) -> Option<Self> {
-        if key == "email" {
-            return Some(IngestSource::Email);
+        if let Some(mailbox) = key.strip_prefix("email:") {
+            if mailbox.is_empty() {
+                return None;
+            }
+            return Some(IngestSource::Email {
+                mailbox: mailbox.to_string(),
+            });
         }
         key.strip_prefix("webhook:")
             .filter(|provider| !provider.is_empty())
@@ -400,20 +419,82 @@ pub trait PullSource: Source {
 /// Mirrors [`AfterMutationTrigger`](crate::AfterMutationTrigger): it matches a
 /// normalized [`InboundMessage`] and builds the [`EventPayload`] that runs the
 /// function. `source = None` matches every source; `source = Some(..)` matches
-/// only that source (`after:ingest:webhook:stripe` vs `after:ingest`).
+/// only the selected sources (`after:ingest:webhook:stripe` vs `after:ingest`).
 #[derive(Debug, Clone)]
 pub struct IngestTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Source filter: `None` matches all sources.
-    pub source:        Option<IngestSource>,
+    pub source:        Option<IngestSelector>,
+}
+
+/// A trigger's source filter — what `after:ingest:<source>` selects.
+///
+/// Distinct from [`IngestSource`] (a message's concrete origin) because a
+/// selector can be broader than any one origin: the documented
+/// `after:ingest:email` form matches mail from **every** configured mailbox,
+/// while `after:ingest:email:<mailbox>` narrows to one (#775 made the mailbox
+/// part of the message identity, so plain equality stopped being enough).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IngestSelector {
+    /// `email` — an email message from any configured mailbox.
+    AnyEmail,
+    /// `email:<mailbox>` — email from one specific mailbox.
+    Email {
+        /// The `[mailbox.<key>]` config name to match.
+        mailbox: String,
+    },
+    /// `webhook:<provider>` — a webhook delivery from one provider.
+    Webhook {
+        /// Provider name to match.
+        provider: String,
+    },
+}
+
+impl IngestSelector {
+    /// Parse a trigger's source segment.
+    ///
+    /// `"email"` → any mailbox; `"email:<mailbox>"` / `"webhook:<provider>"`
+    /// (non-empty) → the specific selector. Anything else returns `None` so the
+    /// trigger loader can reject it loudly.
+    #[must_use]
+    pub fn from_key(key: &str) -> Option<Self> {
+        if key == "email" {
+            return Some(IngestSelector::AnyEmail);
+        }
+        if let Some(mailbox) = key.strip_prefix("email:") {
+            return (!mailbox.is_empty()).then(|| IngestSelector::Email {
+                mailbox: mailbox.to_string(),
+            });
+        }
+        key.strip_prefix("webhook:")
+            .filter(|provider| !provider.is_empty())
+            .map(|provider| IngestSelector::Webhook {
+                provider: provider.to_string(),
+            })
+    }
+
+    /// Whether this selector matches a message's concrete source.
+    #[must_use]
+    pub fn matches(&self, source: &IngestSource) -> bool {
+        match (self, source) {
+            (IngestSelector::AnyEmail, IngestSource::Email { .. }) => true,
+            (IngestSelector::Email { mailbox }, IngestSource::Email { mailbox: actual }) => {
+                mailbox == actual
+            },
+            (IngestSelector::Webhook { provider }, IngestSource::Webhook { provider: actual }) => {
+                provider == actual
+            },
+            _ => false,
+        }
+    }
 }
 
 impl IngestTrigger {
     /// Check whether this trigger fires for the given message.
     #[must_use]
     pub fn matches(&self, message: &InboundMessage) -> bool {
-        self.source.as_ref().is_none_or(|source| *source == message.source)
+        self.source.as_ref().is_none_or(|selector| selector.matches(&message.source))
     }
 
     /// Build the [`EventPayload`] for an ingested message. The full normalized

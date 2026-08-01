@@ -4,6 +4,8 @@ use chrono::Utc;
 use tokio::sync::RwLock;
 use zeroize::Zeroizing;
 
+use crate::secrets_manager::Secret;
+
 /// Fraction of lease duration used as the cache TTL.
 /// Caching until 80% of the credential lease avoids returning stale data.
 pub(super) const CACHE_TTL_PERCENTAGE: f64 = 0.8;
@@ -54,15 +56,19 @@ impl SecretCache {
     }
 
     /// Get cached secret with expiry information, updating last-access time for LRU.
+    ///
+    /// The value is handed out wrapped in [`Secret`] so the trait-boundary
+    /// zeroization guarantee (#727) holds for cache hits too, not only for
+    /// fresh Vault fetches.
     pub(super) async fn get_with_expiry(
         &self,
         key: &str,
-    ) -> Option<(String, chrono::DateTime<Utc>)> {
+    ) -> Option<(Secret, chrono::DateTime<Utc>)> {
         let mut entries = self.entries.write().await;
         if let Some(cached) = entries.get_mut(key) {
             if cached.expires_at > Utc::now() {
                 cached.last_accessed = Utc::now();
-                return Some(((*cached.value).clone(), cached.expires_at));
+                return Some((Secret::new((*cached.value).clone()), cached.expires_at));
             }
         }
         None
@@ -77,7 +83,7 @@ impl SecretCache {
     ///
     /// The secret is wrapped in [`Zeroizing`] on insertion so the bytes are
     /// overwritten when the entry is evicted or the cache is dropped.
-    pub(super) async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>) {
+    pub(super) async fn set(&self, key: String, secret: Secret, expires_at: chrono::DateTime<Utc>) {
         let mut entries = self.entries.write().await;
 
         // LRU eviction: if at capacity, remove the least-recently-accessed 10% of entries.
@@ -95,7 +101,7 @@ impl SecretCache {
         entries.insert(
             key,
             CachedSecret {
-                value: Zeroizing::new(secret),
+                value: Zeroizing::new(secret.into_exposed()),
                 expires_at,
                 last_accessed: now,
             },

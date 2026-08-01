@@ -191,6 +191,17 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub security: Option<SecurityConfig>,
 
+    /// PKCE OAuth-client configuration for server-side login (`[auth]` PKCE group).
+    ///
+    /// Carries the OIDC client identity (`client_id`, `client_secret_env`,
+    /// `server_redirect_uri`) and the provider's `discovery_url`. The runtime
+    /// resolves the `authorization_endpoint` / `token_endpoint` by fetching the
+    /// discovery document **at boot** from `discovery_url` (#621) — the compiler
+    /// stays hermetic and the discovery document is always fresh. `None` when the
+    /// `[auth]` PKCE client group is absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthClientConfig>,
+
     /// Observers/event system configuration (from fraiseql.toml).
     ///
     /// Contains backend connection settings (`redis_url`, `nats_url`, etc.) and
@@ -332,6 +343,7 @@ impl PartialEq for CompiledSchema {
             && self.subscribable == other.subscribable
             && self.federation == other.federation
             && self.security == other.security
+            && self.auth == other.auth
             && self.observers_config == other.observers_config
             && self.subscriptions_config == other.subscriptions_config
             && self.validation_config == other.validation_config
@@ -350,4 +362,25 @@ impl CompiledSchema {
     pub fn new() -> Self {
         Self::default()
     }
+}
+
+/// PKCE OAuth-client configuration compiled from the `[auth]` PKCE group (#621).
+///
+/// The client secret is **never** carried here — `client_secret_env` names the
+/// environment variable the runtime reads it from. The `authorization_endpoint` /
+/// `token_endpoint` are deliberately absent: the runtime resolves them at boot by
+/// fetching `discovery_url`'s `.well-known/openid-configuration`, so the compiler
+/// performs no network I/O and the endpoints cannot go stale in a cached schema.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthClientConfig {
+    /// OIDC provider discovery base URL (e.g. `https://accounts.google.com`). The
+    /// runtime appends `/.well-known/openid-configuration` at boot.
+    pub discovery_url:       String,
+    /// `OAuth2` `client_id` registered with the provider.
+    pub client_id:           String,
+    /// Name of the environment variable holding the client secret.
+    pub client_secret_env:   String,
+    /// This server's `/auth/callback` URL, registered with the provider.
+    pub server_redirect_uri: String,
 }

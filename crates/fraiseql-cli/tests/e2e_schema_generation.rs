@@ -23,6 +23,7 @@ fn test_e2e_complete_compilation_pipeline() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -85,6 +86,7 @@ fn test_e2e_sql_templates_all_databases() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -153,6 +155,7 @@ fn test_e2e_lookup_data_comprehensive() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -218,6 +221,7 @@ fn test_e2e_all_operators_generated() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -291,6 +295,7 @@ fn test_e2e_compilation_deterministic() {
     let create_schema = || IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -358,6 +363,7 @@ fn test_e2e_all_49_types_valid() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![],
         enums:             vec![],
@@ -435,6 +441,7 @@ fn test_e2e_full_field_assertion() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
+        auth:              None,
         version:           "2.0.0".to_string(),
         types:             vec![IntermediateType {
             name:                   "User".to_string(),

@@ -175,3 +175,112 @@ async fn test_multiple_backends_initialization() {
     assert_eq!(value1, "value1");
     assert_eq!(value2, "value2");
 }
+
+/// #726: an `AppRole` deployment must survive past its token TTL.
+///
+/// Provisions a short-TTL `AppRole` on the bound dev Vault, builds the manager
+/// through the shipped factory (which spawns the token-renewal loop), then keeps
+/// reading a KV secret past the original TTL. Before #726 the renewal loop did
+/// not exist and `renew_token` was uncallable through the factory's
+/// `Arc<dyn SecretsBackend>`, so the second read failed with 403.
+#[tokio::test]
+#[ignore = "requires vault"]
+async fn approle_deployment_survives_past_token_ttl() {
+    let Some(vault) = fraiseql_test_support::vault() else {
+        eprintln!("SKIP approle_deployment_survives_past_token_ttl: no vault");
+        return;
+    };
+    let http = reqwest::Client::new();
+    let root = |path: &str| format!("{}/v1/{path}", vault.addr().trim_end_matches('/'));
+    let admin = |req: reqwest::RequestBuilder| req.header("X-Vault-Token", vault.token());
+
+    // Enable AppRole auth (idempotent: 400 "path is already in use" on re-runs).
+    let resp = admin(http.post(root("sys/auth/approle")))
+        .json(&serde_json::json!({ "type": "approle" }))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        resp.status().is_success() || resp.status() == reqwest::StatusCode::BAD_REQUEST,
+        "enabling approle auth failed: {}",
+        resp.status()
+    );
+
+    // A policy that can read the test secret, and a role whose tokens live 3s.
+    admin(http.put(root("sys/policies/acl/fraiseql-726-test")))
+        .json(&serde_json::json!({
+            "policy": "path \"secret/data/fraiseql-726\" { capabilities = [\"read\"] }"
+        }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    admin(http.post(root("auth/approle/role/fraiseql-726-test")))
+        .json(&serde_json::json!({
+            "token_ttl": "3s",
+            "token_max_ttl": "60s",
+            "token_policies": ["fraiseql-726-test"],
+        }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+
+    let role_id = admin(http.get(root("auth/approle/role/fraiseql-726-test/role-id")))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap()["data"]["role_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let secret_id = admin(http.post(root("auth/approle/role/fraiseql-726-test/secret-id")))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap()["data"]["secret_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // The secret the deployment reads (kv-v2 mounted at secret/ in dev mode).
+    admin(http.post(root("secret/data/fraiseql-726")))
+        .json(&serde_json::json!({ "data": { "value": "renewed-and-alive" } }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+
+    // The shipped construction path: AppRole login + automatic token renewal.
+    let manager = create_secrets_manager(SecretsBackendConfig::Vault {
+        addr:       vault.addr().to_string(),
+        auth:       VaultAuth::AppRole {
+            role_id,
+            secret_id: secret_id.into(),
+        },
+        namespace:  None,
+        tls_verify: true,
+    })
+    .await
+    .expect("AppRole login against the bound Vault succeeds");
+
+    let first = manager.get_secret("secret/data/fraiseql-726").await.expect("initial read");
+    assert!(first.expose().contains("renewed-and-alive"));
+
+    // Sleep past the 3s token TTL. The renewal loop (interval = TTL/4, clamped
+    // to >= 1s) must have renewed by then; without it the token is expired.
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+    let second = manager
+        .get_secret("secret/data/fraiseql-726")
+        .await
+        .expect("read past the original token TTL — fails with 403 if renewal never ran (#726)");
+    assert!(second.expose().contains("renewed-and-alive"));
+}

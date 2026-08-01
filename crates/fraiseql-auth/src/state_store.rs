@@ -163,9 +163,23 @@ impl StateStore for InMemoryStateStore {
     }
 
     async fn retrieve(&self, state: &str) -> Result<(String, u64)> {
-        let (_key, value) =
+        let (_key, (provider, expiry)) =
             self.states.remove(state).ok_or_else(|| crate::error::AuthError::InvalidState)?;
-        Ok(value)
+
+        // #788: the trait doc promises "if state exists **and is valid**", but this
+        // arm never checked expiry — it returned the stored value and left the
+        // expiry check entirely to the caller. Enforce it here too (fail-closed if
+        // the clock cannot be read) so the guarantee holds regardless of the
+        // caller, and the caller's own `now > expiry` becomes defense-in-depth.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| crate::error::AuthError::InvalidState)?
+            .as_secs();
+        if now > expiry {
+            return Err(crate::error::AuthError::InvalidState);
+        }
+
+        Ok((provider, expiry))
     }
 }
 
@@ -241,8 +255,15 @@ impl StateStore for RedisStateStore {
             )
             .max(1); // Minimum 1 second TTL
 
+        // #788: persist the absolute expiry alongside the provider so `retrieve`
+        // can return the real value. The value used to be the provider alone, and
+        // `retrieve` fabricated `expiry = now` — placing every retrieved state
+        // exactly on the callers' `now > expiry` rejection boundary, one clock tick
+        // from spuriously rejecting a valid login. Format: `provider\x1fexpiry`
+        // (unit separator, which cannot appear in a provider name).
+        let value = format!("{provider}\u{1f}{expiry_secs}");
         let mut conn = self.client.clone();
-        let _: () = conn.set_ex(&key, &provider, ttl).await.map_err(|e| {
+        let _: () = conn.set_ex(&key, &value, ttl).await.map_err(|e| {
             crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             }
@@ -260,20 +281,21 @@ impl StateStore for RedisStateStore {
         // SECURITY: Use GETDEL (atomic get-and-delete, Redis ≥6.2) to prevent the
         // GET+DEL race condition where two concurrent requests could both read the
         // same state token before either deletes it, enabling replay attacks.
-        let provider: Option<String> =
+        let raw: Option<String> =
             conn.get_del(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             })?;
 
-        let provider = provider.ok_or(crate::error::AuthError::InvalidState)?;
+        let raw = raw.ok_or(crate::error::AuthError::InvalidState)?;
 
-        // Return current time as expiry (it was already validated by Redis TTL)
-        let expiry_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        // Split `provider\x1fexpiry`; a value missing the separator predates this
+        // format and is treated as invalid rather than silently accepted with a
+        // fabricated expiry.
+        let (provider, expiry) =
+            raw.split_once('\u{1f}').ok_or(crate::error::AuthError::InvalidState)?;
+        let expiry_secs: u64 = expiry.parse().map_err(|_| crate::error::AuthError::InvalidState)?;
 
-        Ok((provider, expiry_secs))
+        Ok((provider.to_string(), expiry_secs))
     }
 }
 
@@ -303,5 +325,35 @@ mod lru_eviction_tests {
         assert_eq!(store.states.len(), 2, "store should stay at capacity, not grow");
         assert!(store.retrieve("s1").await.is_err(), "oldest (s1) should have been evicted");
         assert!(store.retrieve("s3").await.is_ok(), "newest (s3) should be present");
+    }
+
+    /// #788: `retrieve` must reject an entry whose stored expiry is in the past,
+    /// not return it and leave enforcement solely to the caller. Directly inserts
+    /// a past-expiry entry (bypassing `store`'s cleanup) to isolate `retrieve`.
+    #[tokio::test]
+    async fn retrieve_rejects_an_expired_entry() {
+        let store = InMemoryStateStore::new();
+        let now = now_secs();
+        store.states.insert("stale".into(), ("provider".into(), now - 1));
+
+        assert!(
+            matches!(store.retrieve("stale").await, Err(crate::error::AuthError::InvalidState)),
+            "an entry whose expiry has passed must be rejected as InvalidState"
+        );
+    }
+
+    #[tokio::test]
+    async fn retrieve_returns_the_real_stored_expiry() {
+        let store = InMemoryStateStore::new();
+        let now = now_secs();
+        store.store("s".into(), "provider".into(), now + 500).await.unwrap();
+
+        let (provider, expiry) = store.retrieve("s").await.expect("valid state");
+        assert_eq!(provider, "provider");
+        assert_eq!(
+            expiry,
+            now + 500,
+            "the caller must receive the real expiry, not a fabricated one"
+        );
     }
 }

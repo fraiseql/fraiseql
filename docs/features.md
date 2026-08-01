@@ -16,7 +16,7 @@ The default feature set for new projects:
 | Feature | Description |
 |---------|-------------|
 | `auth` | OIDC/JWT authentication (required for `redis-pkce`) |
-| `secrets` | Secrets management (HashiCorp Vault, environment, AWS SSM) |
+| `secrets` | Secrets management (HashiCorp Vault, environment variables, local files) |
 | `webhooks` | Outbound webhook dispatch |
 
 To opt out of all defaults: `--no-default-features`.

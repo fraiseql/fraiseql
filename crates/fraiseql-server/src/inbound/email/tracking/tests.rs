@@ -125,7 +125,9 @@ const KEY: &[u8] = b"correlation-e2e-key";
 /// Build a classified inbound message addressed to a VERP Return-Path.
 fn inbound_to_verp(send_id: &str, classification: Classification) -> InboundMessage {
     let mut message = InboundMessage::new(
-        IngestSource::Email,
+        IngestSource::Email {
+            mailbox: "test-mailbox".to_string(),
+        },
         "mid-e2e",
         chrono::DateTime::parse_from_rfc3339("2026-07-05T12:00:00Z")
             .unwrap()

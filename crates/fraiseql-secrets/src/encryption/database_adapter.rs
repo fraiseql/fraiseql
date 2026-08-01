@@ -191,7 +191,7 @@ impl DatabaseFieldAdapter {
         })?;
 
         let key_str = self.secrets_manager.get_secret(key_name).await?;
-        let key_bytes = key_str.as_bytes().to_vec();
+        let key_bytes = key_str.expose().as_bytes().to_vec();
 
         // FieldEncryption::new() validates the key length and returns Err on mismatch.
         let cipher = Arc::new(FieldEncryption::new(&key_bytes).map_err(|e| {
