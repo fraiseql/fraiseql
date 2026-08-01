@@ -440,14 +440,14 @@ fn arrow_value_to_sql(
                 .as_any()
                 .downcast_ref::<Float32Array>()
                 .ok_or("Failed to cast to Float32Array")?;
-            Ok(arr.value(row).to_string())
+            Ok(float_sql_literal(f64::from(arr.value(row)), "float4"))
         },
         DataType::Float64 => {
             let arr = array
                 .as_any()
                 .downcast_ref::<Float64Array>()
                 .ok_or("Failed to cast to Float64Array")?;
-            Ok(arr.value(row).to_string())
+            Ok(float_sql_literal(arr.value(row), "float8"))
         },
         DataType::Utf8 => {
             let arr = array
@@ -473,34 +473,55 @@ fn arrow_value_to_sql(
                 .ok_or("Failed to cast to BooleanArray")?;
             Ok(if arr.value(row) { "true" } else { "false" }.to_string())
         },
-        DataType::Timestamp(_, _) => {
-            // Try as microseconds (common format)
-            if let Some(arr) = array.as_any().downcast_ref::<TimestampMicrosecondArray>() {
-                let ts = arr.value(row);
-                let secs = ts / 1_000_000;
-                let nanos = (ts % 1_000_000) * 1000;
-                return Ok(format!("to_timestamp({}, {})", secs, nanos));
-            }
-            // Try as nanoseconds
-            if let Some(arr) = array.as_any().downcast_ref::<TimestampNanosecondArray>() {
-                let ts = arr.value(row);
-                let secs = ts / 1_000_000_000;
-                let nanos = ts % 1_000_000_000;
-                return Ok(format!("to_timestamp({}, {})", secs, nanos));
-            }
-            // Try as milliseconds
-            if let Some(arr) = array.as_any().downcast_ref::<TimestampMillisecondArray>() {
-                let ts = arr.value(row);
-                let secs = ts / 1_000;
-                let millis = ts % 1_000;
-                return Ok(format!("to_timestamp({}, {})", secs, millis * 1_000_000));
-            }
-            // Try as seconds
-            if let Some(arr) = array.as_any().downcast_ref::<TimestampSecondArray>() {
-                let ts = arr.value(row);
-                return Ok(format!("to_timestamp({})", ts));
-            }
-            Err(format!("Unsupported timestamp precision: {:?}", array.data_type()))
+        // Dispatch on the TimeUnit already in hand (#715) — the old
+        // downcast-chain emitted a two-argument numeric `to_timestamp`, which
+        // PostgreSQL does not have, and its `%` arithmetic produced negative
+        // second/nano operands for pre-epoch values. An ISO-8601 literal with
+        // an explicit cast is exact for every precision and every sign; a
+        // timezone-less Arrow timestamp is interpreted as UTC (the same
+        // convention `to_timestamp` used). PostgreSQL stores microseconds, so
+        // sub-microsecond digits of a nanosecond timestamp are rounded by the
+        // server.
+        DataType::Timestamp(unit, _) => {
+            use arrow::datatypes::TimeUnit;
+            let (secs, nanos) = match unit {
+                TimeUnit::Second => {
+                    let arr = array
+                        .as_any()
+                        .downcast_ref::<TimestampSecondArray>()
+                        .ok_or("Failed to cast to TimestampSecondArray")?;
+                    (arr.value(row), 0i64)
+                },
+                TimeUnit::Millisecond => {
+                    let arr = array
+                        .as_any()
+                        .downcast_ref::<TimestampMillisecondArray>()
+                        .ok_or("Failed to cast to TimestampMillisecondArray")?;
+                    let ts = arr.value(row);
+                    (ts.div_euclid(1_000), ts.rem_euclid(1_000) * 1_000_000)
+                },
+                TimeUnit::Microsecond => {
+                    let arr = array
+                        .as_any()
+                        .downcast_ref::<TimestampMicrosecondArray>()
+                        .ok_or("Failed to cast to TimestampMicrosecondArray")?;
+                    let ts = arr.value(row);
+                    (ts.div_euclid(1_000_000), ts.rem_euclid(1_000_000) * 1_000)
+                },
+                TimeUnit::Nanosecond => {
+                    let arr = array
+                        .as_any()
+                        .downcast_ref::<TimestampNanosecondArray>()
+                        .ok_or("Failed to cast to TimestampNanosecondArray")?;
+                    let ts = arr.value(row);
+                    (ts.div_euclid(1_000_000_000), ts.rem_euclid(1_000_000_000))
+                },
+            };
+            let nanos = u32::try_from(nanos)
+                .map_err(|_| format!("sub-second component out of range: {nanos}"))?;
+            let dt = chrono::DateTime::from_timestamp(secs, nanos)
+                .ok_or_else(|| format!("timestamp out of PostgreSQL range: {secs}s {nanos}ns"))?;
+            Ok(format!("'{}'::timestamptz", dt.to_rfc3339()))
         },
         DataType::Date32 => {
             let arr = array
@@ -512,15 +533,37 @@ fn arrow_value_to_sql(
             let epoch_date =
                 chrono::NaiveDate::from_ymd_opt(1970, 1, 1).ok_or("Failed to create epoch date")?;
             let target_date = epoch_date + chrono::Duration::days(i64::from(days_since_epoch));
-            Ok(format!("'{}'", target_date))
+            Ok(format!("'{}'::date", target_date))
         },
         _ => Err(format!("Unsupported Arrow type for SQL conversion: {:?}", array.data_type())),
     }
 }
 
+/// Render a float as a SQL literal `PostgreSQL` accepts for every value.
+///
+/// Finite values render as plain numeric literals; `NaN`, `Infinity` and
+/// `-Infinity` need the quoted-and-cast spelling (`'NaN'::float8`) — the bare
+/// tokens the old code emitted are not valid SQL (#715).
+fn float_sql_literal(value: f64, pg_type: &str) -> String {
+    if value.is_finite() {
+        value.to_string()
+    } else if value.is_nan() {
+        format!("'NaN'::{pg_type}")
+    } else if value.is_sign_positive() {
+        format!("'Infinity'::{pg_type}")
+    } else {
+        format!("'-Infinity'::{pg_type}")
+    }
+}
+
 /// Build a SQL INSERT statement from a `RecordBatch`.
 ///
-/// Generates parameterized INSERT query with proper escaping.
+/// Generates a single multi-row INSERT statement with **inline, escaped
+/// literals** — not bind parameters (the Flight upload path executes it via
+/// `execute_raw_query`, which has no parameter transport). String values are
+/// quote-escaped; floats, timestamps and dates render as cast literals. The
+/// statement grows with the batch, so callers control statement size via
+/// their Arrow batch size.
 ///
 /// # Arguments
 /// * `table_name` - Target table name

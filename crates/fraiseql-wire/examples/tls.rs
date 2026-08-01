@@ -36,9 +36,7 @@ async fn main() -> fraiseql_wire::Result<()> {
     println!();
 
     // Create TLS configuration
-    let tls = TlsConfig::builder()
-        .verify_hostname(true) // Verify server certificate matches hostname (production)
-        .build()?;
+    let tls = TlsConfig::builder().build()?;
 
     println!("✓ TLS configuration created");
     println!("  - System root certificates: enabled");
@@ -90,7 +88,6 @@ async fn main() -> fraiseql_wire::Result<()> {
             eprintln!("  2. Check that TLS is enabled on the server");
             eprintln!("  3. For self-signed certificates, use:");
             eprintln!("     .danger_accept_invalid_certs(true)");
-            eprintln!("     .danger_accept_invalid_hostnames(true)");
             eprintln!("  4. For custom CA certificates, use:");
             eprintln!("     .ca_cert_path(\"/path/to/ca.pem\")");
             return Err(e);

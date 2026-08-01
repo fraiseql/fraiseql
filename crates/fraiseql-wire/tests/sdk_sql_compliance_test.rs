@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(deprecated)]
+// Reason: pins the deprecated generator's output shape until #877's follow-up (implement binding or delete)
 //! SDK cross-compliance harness for the fraiseql-wire SQL operator layer.
 //!
 //! Verifies that each `WhereOperator` variant produces the correct, well-formed

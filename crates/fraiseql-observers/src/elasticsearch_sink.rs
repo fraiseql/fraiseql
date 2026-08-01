@@ -164,7 +164,13 @@ impl ElasticsearchSink {
             "Creating Elasticsearch sink"
         );
 
-        let client = Client::builder().timeout(ES_SINK_REQUEST_TIMEOUT).build().unwrap_or_default();
+        // A build failure must surface, not silently substitute a default
+        // client that lacks the configured request timeout (#718).
+        let client = Client::builder().timeout(ES_SINK_REQUEST_TIMEOUT).build().map_err(|e| {
+            ObserverError::InvalidConfig {
+                message: format!("failed to build the Elasticsearch HTTP client: {e}"),
+            }
+        })?;
         Ok(Self {
             client: Arc::new(client),
             config,
@@ -173,12 +179,16 @@ impl ElasticsearchSink {
 
     /// Create a sink without SSRF validation — for use in tests only.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// Returns an error if the HTTP client cannot be constructed.
+    /// Panics if the HTTP client cannot be constructed (test-only path).
     #[cfg(test)]
     pub(crate) fn new_unchecked(config: ElasticsearchSinkConfig) -> Self {
-        let client = Client::builder().timeout(ES_SINK_REQUEST_TIMEOUT).build().unwrap_or_default();
+        #[allow(clippy::expect_used)] // Reason: test-only constructor
+        let client = Client::builder()
+            .timeout(ES_SINK_REQUEST_TIMEOUT)
+            .build()
+            .expect("test HTTP client must build");
         Self {
             client: Arc::new(client),
             config,

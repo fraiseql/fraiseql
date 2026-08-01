@@ -1,7 +1,7 @@
 //! Core `Connection` type and implementation
 
 use super::config::ConnectionConfig;
-use super::helpers::extract_entity_from_query;
+use super::helpers::metrics_entity_label;
 use crate::auth::ScramClient;
 use crate::connection::state::ConnectionState;
 use crate::connection::transport::Transport;
@@ -407,6 +407,7 @@ impl Connection {
     pub async fn streaming_query(
         mut self,
         query: &str,
+        entity: &str,
         chunk_size: usize,
         max_memory: Option<usize>,
         soft_limit_warn_threshold: Option<f32>,
@@ -495,9 +496,12 @@ impl Connection {
 
             validate_row_description(&row_desc)?;
 
-            // Record startup timing
+            // Record startup timing. The metrics label is the entity the
+            // caller already knows — not re-derived from the SQL text, where a
+            // heuristic scan could land inside a user-supplied literal and
+            // mint unbounded label cardinality (#877).
             let startup_duration = startup_start.elapsed().as_millis() as u64;
-            let entity = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
+            let entity = metrics_entity_label(entity);
             crate::metrics::histograms::query_startup_duration(&entity, startup_duration);
 
             // Create channels
@@ -505,8 +509,8 @@ impl Connection {
             let (cancel_tx, mut cancel_rx) = mpsc::channel::<()>(1);
 
             // Create stream instance first so we can clone its pause/resume signals
-            let entity_for_metrics = extract_entity_from_query(query).unwrap_or_else(|| "unknown".to_string());
-            let entity_for_stream = entity_for_metrics.clone();  // Clone for stream
+            let entity_for_metrics = entity;
+            let entity_for_stream = entity_for_metrics.clone(); // Clone for stream
 
             let stream = JsonStream::new(
                 result_rx,
@@ -542,11 +546,16 @@ impl Connection {
             // Adaptive chunking (audit L-wire-builder): when enabled, the batch size
             // self-tunes from observed channel occupancy. The builder's
             // enable/min/max options now actually reach this point and take effect
-            // instead of being dropped at the `execute_query` boundary.
+            // instead of being dropped at the `execute_query` boundary. Each bound
+            // applies independently (#877): a lone `adaptive_min_size` used to be
+            // silently dropped by a both-or-nothing tuple match.
             let mut adaptive = if enable_adaptive_chunking {
                 let mut adp = AdaptiveChunking::new();
-                if let (Some(min), Some(max)) = (adaptive_min_chunk_size, adaptive_max_chunk_size) {
-                    adp = adp.with_bounds(min, max);
+                if let Some(min) = adaptive_min_chunk_size {
+                    adp = adp.with_min_size(min);
+                }
+                if let Some(max) = adaptive_max_chunk_size {
+                    adp = adp.with_max_size(max);
                 }
                 Some(adp)
             } else {

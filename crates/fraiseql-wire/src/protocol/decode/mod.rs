@@ -276,7 +276,13 @@ fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
                     break;
                 }
                 if mechanisms.len() >= MAX_SASL_MECHANISMS {
-                    break;
+                    // Hard-error like every other decode cap (#729): silently
+                    // truncating the list could hide the one mechanism the
+                    // client supports and produce a misleading auth failure.
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("SASL mechanism list exceeds maximum {MAX_SASL_MECHANISMS}"),
+                    ));
                 }
                 mechanisms.push(mechanism);
             }

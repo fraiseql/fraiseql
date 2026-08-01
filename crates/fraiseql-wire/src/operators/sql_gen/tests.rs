@@ -1,3 +1,4 @@
+#![allow(deprecated)] // Reason: pins the deprecated generator's behaviour until #877's follow-up lands
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 use super::*;

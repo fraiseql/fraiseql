@@ -112,3 +112,27 @@ const _SEND_SAFETY_CHECK: fn() = || {
         );
     };
 };
+
+// ── #877: the metrics entity label guard ──────────────────────────────────────
+
+mod metrics_entity_label {
+    use crate::connection::conn::helpers::metrics_entity_label;
+
+    #[test]
+    fn identifier_entities_pass_through() {
+        assert_eq!(metrics_entity_label("orders"), "orders");
+        assert_eq!(metrics_entity_label("v_user_2"), "v_user_2");
+        assert_eq!(metrics_entity_label("_private"), "_private");
+    }
+
+    #[test]
+    fn non_identifier_entities_become_unknown() {
+        // A label value must never be able to carry row data (#877): quotes,
+        // spaces, operators and empty strings all collapse to "unknown".
+        assert_eq!(metrics_entity_label(""), "unknown");
+        assert_eq!(metrics_entity_label("abc123'"), "unknown");
+        assert_eq!(metrics_entity_label("a b"), "unknown");
+        assert_eq!(metrics_entity_label("1abc"), "unknown");
+        assert_eq!(metrics_entity_label("data->>'code'"), "unknown");
+    }
+}

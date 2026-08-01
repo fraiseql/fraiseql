@@ -1,24 +1,24 @@
 //! Internal helper functions for connection operations
 
-/// Extract entity name from query for metrics
-/// Query format: SELECT data FROM v_{entity} ...
-pub(super) fn extract_entity_from_query(query: &str) -> Option<String> {
-    let query_lower = query.to_lowercase();
-    if let Some(from_pos) = query_lower.find("from") {
-        let after_from = &query_lower[from_pos + 4..].trim_start();
-        if let Some(entity_start) = after_from.find('v').or_else(|| after_from.find('t')) {
-            let potential_table = &after_from[entity_start..];
-            // Extract table name: "v_entity" or "tv_entity"
-            let end_pos = potential_table
-                .find(' ')
-                .or_else(|| potential_table.find(';'))
-                .unwrap_or(potential_table.len());
-            let table_name = &potential_table[..end_pos];
-            // Extract entity from table name
-            if let Some(entity_pos) = table_name.rfind('_') {
-                return Some(table_name[entity_pos + 1..].to_string());
-            }
+/// Constrain a caller-supplied entity name to a safe Prometheus label value.
+///
+/// The entity used to be re-derived from the rendered SQL text, where a
+/// heuristic scan could land inside a user-supplied filter literal and mint
+/// unbounded label cardinality (#877). The caller now passes the entity it
+/// already knows; this guard keeps the label a bounded identifier even if a
+/// caller passes something exotic: anything not shaped like
+/// `[A-Za-z_][A-Za-z0-9_]*` becomes `"unknown"`.
+pub(super) fn metrics_entity_label(entity: &str) -> String {
+    let mut chars = entity.chars();
+    let valid = match chars.next() {
+        Some(first) if first.is_ascii_alphabetic() || first == '_' => {
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
         }
+        _ => false,
+    };
+    if valid {
+        entity.to_string()
+    } else {
+        "unknown".to_string()
     }
-    None
 }

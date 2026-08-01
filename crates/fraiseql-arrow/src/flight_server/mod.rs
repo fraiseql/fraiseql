@@ -53,11 +53,17 @@ pub(crate) use self::auth::{
     create_session_token, extract_session_token, map_security_error_to_status,
     validate_session_token,
 };
+// Public under `testing` so the executed-SQL integration suite (#715,
+// tests/insert_sql_pg.rs) can run the generated INSERT against real Postgres.
+#[cfg(feature = "testing")]
+pub use self::convert::build_insert_query;
+#[cfg(not(feature = "testing"))]
+pub(crate) use self::convert::build_insert_query;
 #[cfg(any(test, feature = "testing"))]
 pub(crate) use self::convert::execute_placeholder_query;
 // Re-export convert functions for use across submodules
 pub(crate) use self::convert::{
-    build_insert_query, build_optimized_sql, decode_flight_data_to_batch, decode_upload_batch,
+    build_optimized_sql, decode_flight_data_to_batch, decode_upload_batch,
     encode_json_to_arrow_batch, record_batch_to_flight_data, schema_to_flight_data,
 };
 use crate::{

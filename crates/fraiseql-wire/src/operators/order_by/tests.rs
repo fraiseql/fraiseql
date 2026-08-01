@@ -5,7 +5,7 @@ use super::*;
 fn test_jsonb_field_ordering() {
     let clause = OrderByClause::jsonb_field("name", SortOrder::Asc);
     let sql = clause.to_sql().unwrap();
-    assert_eq!(sql, "(data->'name') ASC");
+    assert_eq!(sql, "(data->>'name') ASC");
 }
 
 #[test]
@@ -19,7 +19,7 @@ fn test_direct_column_ordering() {
 fn test_ordering_with_collation() {
     let clause = OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("en-US");
     let sql = clause.to_sql().unwrap();
-    assert_eq!(sql, "(data->'name') COLLATE \"en-US\" ASC");
+    assert_eq!(sql, "(data->>'name') COLLATE \"en-US\" ASC");
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn test_ordering_with_collation_and_nulls() {
         .with_collation("C")
         .with_nulls(NullsHandling::First);
     let sql = clause.to_sql().unwrap();
-    assert_eq!(sql, "(data->'email') COLLATE \"C\" DESC NULLS FIRST");
+    assert_eq!(sql, "(data->>'email') COLLATE \"C\" DESC NULLS FIRST");
 }
 
 #[test]

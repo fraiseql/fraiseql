@@ -227,3 +227,54 @@ fn clickhouse_url_permits_every_allowed_corpus_entry() {
         assert!(validate_clickhouse_url(&url).is_ok(), "must permit {addr}");
     }
 }
+
+// ── #718: the flush deadline must anchor at the first buffered row ────────────
+
+/// Under a steady stream arriving faster than `batch_timeout` but slower than
+/// `batch_size`, buffered rows must still flush once the timeout lapses after
+/// the FIRST buffered row. A timer that resets on every received message never
+/// fires, leaving latency unbounded until the size threshold trips.
+#[tokio::test(start_paused = true)]
+async fn steady_stream_still_flushes_on_the_batch_timeout() {
+    use std::sync::{Arc, Mutex};
+
+    let (tx, rx) = mpsc::channel::<u32>(64);
+    let flushes: Arc<Mutex<Vec<(usize, Duration)>>> = Arc::new(Mutex::new(Vec::new()));
+    let flushes_in_driver = Arc::clone(&flushes);
+    let started = tokio::time::Instant::now();
+
+    let driver = tokio::spawn(drive_batches(
+        rx,
+        1_000, // never reached: the size path must not be what flushes
+        Duration::from_secs(1),
+        |n: &u32| Ok(vec![*n]),
+        move |rows: Vec<u32>| {
+            let flushes = Arc::clone(&flushes_in_driver);
+            async move {
+                flushes.lock().unwrap().push((rows.len(), started.elapsed()));
+                Ok(())
+            }
+        },
+    ));
+
+    // A steady stream: one message every 100 ms for 3 virtual seconds.
+    for n in 0..30u32 {
+        tx.send(n).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    drop(tx);
+    driver.await.unwrap().unwrap();
+
+    let flushes = flushes.lock().unwrap();
+    let (first_count, first_at) = *flushes.first().expect("at least the final flush runs");
+    assert!(
+        first_at <= Duration::from_millis(1_150),
+        "first flush happened at {first_at:?} — the batch timeout (1s) never fired \
+         under steady traffic, so latency is unbounded until batch_size trips (#718)"
+    );
+    assert!(
+        first_count <= 12,
+        "first flush carried {first_count} rows — it waited for the stream to end \
+         instead of firing on the timeout"
+    );
+}

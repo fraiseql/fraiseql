@@ -307,54 +307,15 @@ impl ClickHouseSink {
     /// - Conversion fails (Arrow → `EventRow`)
     /// - `ClickHouse` insertion fails permanently after retries
     #[cfg(feature = "clickhouse")]
-    pub async fn run(&self, mut rx: mpsc::Receiver<RecordBatch>) -> Result<()> {
-        let mut batch_buffer: Vec<EventRow> = Vec::with_capacity(self.config.batch_size);
-        let batch_timeout = Duration::from_secs(self.config.batch_timeout_secs);
-
-        loop {
-            tokio::select! {
-                // Receive next batch from channel
-                maybe_batch = rx.recv() => {
-                    let Some(record_batch) = maybe_batch else {
-                        // Channel closed (all senders dropped): flush any buffered rows
-                        // and return cleanly instead of spinning on the timeout branch
-                        // forever (the `Some(..)` pattern would silently disable this
-                        // arm on `None`, never terminating the loop).
-                        if !batch_buffer.is_empty() {
-                            info!(
-                                count = batch_buffer.len(),
-                                "Flushing final batch on channel close"
-                            );
-                            self.flush_batch(&batch_buffer).await?;
-                            batch_buffer.clear();
-                        }
-                        return Ok(());
-                    };
-                    match self.process_batch(&record_batch) {
-                        Ok(rows) => {
-                            batch_buffer.extend(rows);
-                            if batch_buffer.len() >= self.config.batch_size {
-                                self.flush_batch(&batch_buffer).await?;
-                                batch_buffer.clear();
-                            }
-                        }
-                        Err(e) => {
-                            error!(error = %e, "Failed to process batch");
-                            return Err(e);
-                        }
-                    }
-                }
-
-                // Flush on timeout
-                () = tokio::time::sleep(batch_timeout) => {
-                    if !batch_buffer.is_empty() {
-                        info!(count = batch_buffer.len(), "Flushing batch due to timeout");
-                        self.flush_batch(&batch_buffer).await?;
-                        batch_buffer.clear();
-                    }
-                }
-            }
-        }
+    pub async fn run(&self, rx: mpsc::Receiver<RecordBatch>) -> Result<()> {
+        drive_batches(
+            rx,
+            self.config.batch_size,
+            Duration::from_secs(self.config.batch_timeout_secs),
+            |batch| self.process_batch(batch),
+            |rows| async move { self.flush_batch(&rows).await },
+        )
+        .await
     }
 
     /// Process a single Arrow `RecordBatch`, converting to `EventRows`
@@ -534,6 +495,90 @@ impl ClickHouseSink {
             || error.contains("TEMPORARY_ERROR")
             || error.contains("503")
             || error.contains("Service Unavailable")
+    }
+}
+
+/// Drive the accumulate-and-flush loop for a batching sink.
+///
+/// Generic over the inbound item (`T`) and buffered row (`R`) so the timer
+/// semantics are unit-testable without a live `ClickHouse`. `convert` turns one
+/// inbound item into rows; `flush` receives the drained buffer.
+///
+/// Flush triggers: the buffer reaching `batch_size`, the batch timeout lapsing,
+/// or the channel closing (final drain, then a clean return).
+///
+/// The timeout is a **deadline anchored at the moment the buffer first becomes
+/// non-empty** — it is not reset by later messages (#718). A per-iteration
+/// `sleep(batch_timeout)` would restart on every received message, so a steady
+/// stream arriving faster than the timeout but slower than `batch_size` would
+/// never timer-flush and latency would be unbounded.
+async fn drive_batches<T, R, C, F, Fut>(
+    mut rx: mpsc::Receiver<T>,
+    batch_size: usize,
+    batch_timeout: Duration,
+    mut convert: C,
+    mut flush: F,
+) -> Result<()>
+where
+    C: FnMut(&T) -> Result<Vec<R>>,
+    F: FnMut(Vec<R>) -> Fut,
+    Fut: std::future::Future<Output = Result<()>>,
+{
+    let mut buffer: Vec<R> = Vec::with_capacity(batch_size);
+    // The flush deadline; armed when the buffer transitions empty → non-empty,
+    // disarmed on every flush.
+    let mut deadline: Option<tokio::time::Instant> = None;
+
+    loop {
+        let timer = async {
+            match deadline {
+                Some(at) => tokio::time::sleep_until(at).await,
+                None => std::future::pending().await,
+            }
+        };
+
+        tokio::select! {
+            maybe_item = rx.recv() => {
+                let Some(item) = maybe_item else {
+                    // Channel closed (all senders dropped): flush any buffered
+                    // rows and return cleanly.
+                    if !buffer.is_empty() {
+                        info!(count = buffer.len(), "Flushing final batch on channel close");
+                        flush(std::mem::replace(&mut buffer, Vec::with_capacity(batch_size)))
+                            .await?;
+                    }
+                    return Ok(());
+                };
+                match convert(&item) {
+                    Ok(rows) => {
+                        if buffer.is_empty() && !rows.is_empty() {
+                            deadline = Some(tokio::time::Instant::now() + batch_timeout);
+                        }
+                        buffer.extend(rows);
+                        if buffer.len() >= batch_size {
+                            info!(count = buffer.len(), "Flushing batch due to size");
+                            flush(std::mem::replace(&mut buffer, Vec::with_capacity(batch_size)))
+                                .await?;
+                            deadline = None;
+                        }
+                    }
+                    Err(e) => {
+                        error!(error = %e, "Failed to process batch");
+                        return Err(e);
+                    }
+                }
+            }
+
+            // Flush on the anchored deadline
+            () = timer => {
+                if !buffer.is_empty() {
+                    info!(count = buffer.len(), "Flushing batch due to timeout");
+                    flush(std::mem::replace(&mut buffer, Vec::with_capacity(batch_size)))
+                        .await?;
+                }
+                deadline = None;
+            }
+        }
     }
 }
 

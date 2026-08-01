@@ -229,7 +229,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("      .build();");
     println!();
     println!("  let tls = TlsConfig::builder()");
-    println!("      .verify_hostname(true)");
     println!("      .build()?;");
     println!();
     println!("  let client = FraiseClient::connect_with_config_and_tls(");

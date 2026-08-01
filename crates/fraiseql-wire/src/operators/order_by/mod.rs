@@ -138,7 +138,7 @@ impl OrderByClause {
     ///
     /// # Examples
     ///
-    /// - JSONB with collation: `(data->'name') COLLATE "en-US" ASC`
+    /// - JSONB with collation: `(data->>'name') COLLATE "en-US" ASC`
     /// - Direct column: `created_at DESC`
     /// - With NULLS: `status ASC NULLS LAST`
     ///
@@ -149,7 +149,13 @@ impl OrderByClause {
         self.validate()?;
 
         let field_expr = match self.field_source {
-            FieldSource::JsonbPayload => format!("(data->'{}')", self.field),
+            // Text extraction (`->>`), matching `FieldSource::JsonbPayload`'s
+            // documented contract and `Field::to_sql` (audit L-wire-jsonb).
+            // The `->` navigation operator yields `jsonb`, which is not
+            // collatable — `COLLATE` on it is a guaranteed server error
+            // (42P22), so the old rendering made every collated JSONB clause
+            // fail at execution (#877).
+            FieldSource::JsonbPayload => format!("(data->>'{}')", self.field),
             FieldSource::DirectColumn => self.field.clone(),
         };
 
