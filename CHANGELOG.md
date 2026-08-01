@@ -9,6 +9,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **CDC drain redesign (P20, #797 #814 #815).** `core.tb_cdc_sink_state` gains a
+  `lease_expires_at` column and an `in_flight` status (idempotent `ADD COLUMN IF NOT
+  EXISTS` migration; re-run `outbox_sink_state_migration_sql`). The enqueue cursor is now
+  an anti-join bounded by a commit-lag window (default 15 min,
+  `DrainWorker::with_commit_lag_window`) with a periodic full recovery sweep
+  (`with_sweep_every`, first tick always sweeps) — a row whose transaction commits out of
+  sequence order is no longer permanently dropped. Publishing is claim-then-publish under
+  a lease (`with_lease`, default 10 min) with **no database transaction held across broker
+  calls**, and a transiently failing row now **blocks its successors** (head-of-line
+  blocking; a dead-lettered row releases them) instead of being overtaken —
+  `DrainStats.retried` therefore counts at most the head row per tick, and `DrainStats`
+  gains `late_recovered`.
+- **`fraiseql-wire` connection strings parse their query component strictly (#817).**
+  `?sslmode=…`, `?application_name=…` and `?connect_timeout=…` are honoured (`sslmode` is
+  *enforced*: a plaintext connect refuses `require`/`verify-*`, a TLS connect refuses
+  `disable`, and the opportunistic `prefer`/`allow` modes are refused outright); any other
+  parameter is a loud `WireError::Config` instead of being folded into the database name.
+  `ConnectionInfo.user`/`database` are now `Option<String>` (explicit-vs-defaulted is
+  distinguishable; `user_or_default()`/`database_or_default()` apply the OS-user
+  convention), and `Connection::streaming_query` takes the entity name as a parameter
+  instead of re-deriving it from the SQL text.
+- **`fraiseql-wire` `connect_with_config`/`connect_with_config_and_tls` implement their
+  documented merge (#877).** The connection string's explicit user, password, database,
+  `application_name` and `connect_timeout` now override the passed `ConnectionConfig`
+  (they were previously parsed and silently discarded, so the startup packet carried the
+  config's credentials and no password).
+- **`fraiseql-wire` `TlsConfig` drops `verify_hostname` and
+  `danger_accept_invalid_hostnames` (#877).** Both flags were stored and reported but
+  never reached the rustls verifier — hostname verification is always on. The
+  debug-build-only `danger_accept_invalid_certs` remains the self-signed-development
+  escape hatch (it disables the whole verification, hostname included).
+- **`fraiseql-wire` `OrderByClause` renders JSONB fields with text extraction (`->>`)
+  (#877).** The previous `->` navigation yielded `jsonb`, so any collated JSONB order
+  clause failed at the server with `collations are not supported by type jsonb` (42P22).
+- **`fraiseql-wire` SASL mechanism-list decoding hard-errors past the cap (#729)** like
+  every other decode cap, instead of silently truncating the list.
+- **`fraiseql_arrow::execute_batched_queries` rejects heterogeneous result schemas
+  (#717).** A Flight stream carries one schema header; a batch whose queries infer
+  different schemas now returns `InvalidArgument` naming both shapes instead of emitting
+  an undecodable stream.
+
+### Fixed
+
+- **CDC sinks: outbox rows that commit out of sequence order are never lost (#797)**, a
+  transient per-message failure no longer reorders the stream (#815), and a slow broker no
+  longer pins a Postgres transaction (and the vacuum horizon) across up to 256
+  round-trips (#814). Proven by three new drain integration tests against real Postgres
+  (overlapping commits, head-of-line blocking, `pg_stat_activity` transaction probing).
+- **Arrow `build_insert_query` emits valid PostgreSQL for every supported type (#715):**
+  timestamps render as ISO-8601 literals with `::timestamptz` casts (the old two-argument
+  numeric `to_timestamp` does not exist in PostgreSQL, and its `%` arithmetic produced
+  negative operands for pre-epoch values); `NaN`/`Infinity`/`-Infinity` render as
+  quoted-and-cast literals. A new integration suite (`insert_sql_pg`, wired into the
+  Postgres integration leg) **executes** the generated SQL against real PostgreSQL for
+  every Arrow type, including all four timestamp precisions, pre-epoch values, float
+  specials and NULLs.
+- **ClickHouse sink flush timer fires on schedule under a steady stream (#718):** the
+  flush deadline anchors at the first buffered row instead of resetting on every received
+  message (which left latency unbounded until the size threshold tripped).
+- **Elasticsearch sink surfaces an HTTP-client build failure (#718)** instead of silently
+  substituting a default client without the configured request timeout.
+- **`fraiseql-wire` edge findings (#729):** `soft_limit_warn_threshold` now warns (log +
+  `fraiseql_memory_soft_limit_warned_total` metric, once per stream) instead of being
+  dropped; `pause()` on a completed/failed stream no longer corrupts the state snapshot;
+  the memory limit is documented as the items×2KB heuristic it is; SCRAM HMAC failures
+  map to `KeyDerivation` (not `Utf8Error`) and derived key material (salted password,
+  client key) is zeroized.
+- **`fraiseql-wire` metrics entity label can no longer be minted from row data (#877):**
+  the label comes from the caller-known entity (validated as an identifier) instead of a
+  heuristic scan of the rendered SQL that could land inside a user-supplied literal and
+  create unbounded label cardinality. Adaptive-chunking `adaptive_min_size` /
+  `adaptive_max_size` now apply independently instead of requiring both.
+
+### Deprecated
+
+- **`fraiseql_wire::operators::generate_where_operator_sql` (#877).** It emits `$N`
+  placeholders that the crate's simple-query protocol can never bind — no encoder for
+  Parse/Bind exists and `QueryBuilder` has no method accepting the parameter map, so the
+  advertised usage failed at the server with `there is no parameter $1`. Deprecated (and
+  the module docs corrected) until the crate either implements the extended query
+  protocol or renders operator values as safely quoted literals; use
+  `QueryBuilder::where_sql` with an inline predicate.
+
 - **Saga store and recovery API (P19, #744 #745 #766 #767 #785).**
   `PostgresSagaStore::claim_stuck_sagas` takes a `stuck_after_secs` staleness threshold and
   `find_pending_sagas` an `older_than_secs` age gate; `RecoveryConfig` gains

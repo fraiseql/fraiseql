@@ -46,6 +46,7 @@ impl FraiseClient {
     /// Returns [`WireError::Io`] if the underlying TCP or Unix socket connection fails.
     pub async fn connect(connection_string: &str) -> Result<Self> {
         let info = ConnectionInfo::parse(connection_string)?;
+        require_plaintext_allowed(&info)?;
 
         let transport = match info.transport {
             TransportType::Tcp => {
@@ -92,9 +93,7 @@ impl FraiseClient {
     /// use fraiseql_wire::{FraiseClient, connection::TlsConfig};
     ///
     /// // Configure TLS with system root certificates
-    /// let tls = TlsConfig::builder()
-    ///     .verify_hostname(true)
-    ///     .build()?;
+    /// let tls = TlsConfig::builder().build()?;
     ///
     /// // Connect with TLS
     /// let client = FraiseClient::connect_tls("postgres://secure.db.example.com/mydb", tls).await?;
@@ -106,6 +105,7 @@ impl FraiseClient {
         tls_config: crate::connection::TlsConfig,
     ) -> Result<Self> {
         let info = ConnectionInfo::parse(connection_string)?;
+        require_tls_allowed(&info)?;
 
         let transport = match info.transport {
             TransportType::Tcp => {
@@ -134,8 +134,10 @@ impl FraiseClient {
     /// Connect to Postgres with custom connection configuration
     ///
     /// This method allows you to configure timeouts, keepalive intervals, and other
-    /// connection options. The connection configuration is merged with parameters from
-    /// the connection string.
+    /// connection options. The connection string's explicit components (user,
+    /// password, database, `application_name`, `connect_timeout`) override the
+    /// passed configuration; every field the string does not name keeps the
+    /// caller's value.
     ///
     /// # Errors
     ///
@@ -151,9 +153,9 @@ impl FraiseClient {
     /// use fraiseql_wire::{FraiseClient, connection::ConnectionConfig};
     /// use std::time::Duration;
     ///
-    /// // Build connection configuration with timeouts
-    /// let config = ConnectionConfig::builder("localhost", "mydb")
-    ///     .password("secret")
+    /// // Build connection configuration with timeouts (builder takes
+    /// // (database, user); the URL's components override them when present)
+    /// let config = ConnectionConfig::builder("mydb", "app_user")
     ///     .statement_timeout(Duration::from_secs(30))
     ///     .keepalive_idle(Duration::from_secs(300))
     ///     .application_name("my_app")
@@ -169,6 +171,10 @@ impl FraiseClient {
         config: ConnectionConfig,
     ) -> Result<Self> {
         let info = ConnectionInfo::parse(connection_string)?;
+        require_plaintext_allowed(&info)?;
+        // The documented merge (#877): the string's explicit credentials and
+        // parameters win; they were previously parsed and then discarded.
+        let config = info.merge_into_config(config);
 
         let transport = match info.transport {
             TransportType::Tcp => {
@@ -205,7 +211,10 @@ impl FraiseClient {
     /// Connect to Postgres with both custom configuration and TLS encryption
     ///
     /// This method combines connection configuration (timeouts, keepalive, etc.)
-    /// with TLS encryption for secure connections with advanced options.
+    /// with TLS encryption for secure connections with advanced options. The
+    /// connection string's explicit components (user, password, database,
+    /// `application_name`, `connect_timeout`) override the passed
+    /// configuration, exactly as in [`FraiseClient::connect_with_config`].
     ///
     /// # Errors
     ///
@@ -221,16 +230,13 @@ impl FraiseClient {
     /// use fraiseql_wire::{FraiseClient, connection::{ConnectionConfig, TlsConfig}};
     /// use std::time::Duration;
     ///
-    /// // Configure connection with timeouts
-    /// let config = ConnectionConfig::builder("localhost", "mydb")
-    ///     .password("secret")
+    /// // Configure connection with timeouts (builder takes (database, user))
+    /// let config = ConnectionConfig::builder("mydb", "app_user")
     ///     .statement_timeout(Duration::from_secs(30))
     ///     .build();
     ///
     /// // Configure TLS
-    /// let tls = TlsConfig::builder()
-    ///     .verify_hostname(true)
-    ///     .build()?;
+    /// let tls = TlsConfig::builder().build()?;
     ///
     /// // Connect with both configuration and TLS
     /// let client = FraiseClient::connect_with_config_and_tls(
@@ -247,6 +253,8 @@ impl FraiseClient {
         tls_config: crate::connection::TlsConfig,
     ) -> Result<Self> {
         let info = ConnectionInfo::parse(connection_string)?;
+        require_tls_allowed(&info)?;
+        let config = info.merge_into_config(config);
 
         let transport = match info.transport {
             TransportType::Tcp => {
@@ -355,6 +363,7 @@ impl FraiseClient {
     pub(crate) async fn execute_query(
         self,
         sql: &str,
+        entity: &str,
         chunk_size: usize,
         max_memory: Option<usize>,
         soft_limit_warn_threshold: Option<f32>,
@@ -366,6 +375,7 @@ impl FraiseClient {
         self.conn
             .streaming_query(
                 sql,
+                entity,
                 chunk_size,
                 max_memory,
                 soft_limit_warn_threshold,
@@ -376,6 +386,34 @@ impl FraiseClient {
             )
             .await
     }
+}
+
+/// Refuse a plaintext connect when the connection string demanded TLS.
+///
+/// `?sslmode=require` (or `verify-ca`/`verify-full`) on a plaintext entry point
+/// used to be silently folded into the database name and ignored (#817); a user
+/// who believes it enforces TLS must get an error, not a cleartext connection.
+fn require_plaintext_allowed(info: &ConnectionInfo) -> Result<()> {
+    if info.ssl_mode == crate::client::connection_string::SslMode::Require {
+        return Err(crate::WireError::Config(
+            "the connection string demands TLS (sslmode=require/verify-*) but this is a \
+             plaintext connect: use connect_tls or connect_with_config_and_tls"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Refuse a TLS connect when the connection string demanded plaintext.
+fn require_tls_allowed(info: &ConnectionInfo) -> Result<()> {
+    if info.ssl_mode == crate::client::connection_string::SslMode::Disable {
+        return Err(crate::WireError::Config(
+            "the connection string demands plaintext (sslmode=disable) but this is a TLS \
+             connect: drop the parameter or use a plaintext connect method"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Apply an optional connect timeout to a transport-connect future.

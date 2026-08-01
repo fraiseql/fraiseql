@@ -104,6 +104,16 @@ const CARRIER_GRADE_RANGES: &[&str] = &["100.64.0.0/10"];
 
 /// Generates SQL from a WHERE operator with parameter binding support
 ///
+/// # ⚠️ Deprecated: no code path can bind the parameters it emits (#877)
+///
+/// The generated SQL uses `$N` placeholders and the accumulated `params` map
+/// expects a Bind step — but this crate implements only the simple query
+/// protocol (no Parse/Bind/Execute encoders, by design), and `QueryBuilder`
+/// has no method that accepts the map. Feeding the output through `where_sql`
+/// fails at the server with `ERROR: there is no parameter $1`, silently
+/// discarding the values. Deprecated until the crate either implements the
+/// extended query protocol or renders values as safely quoted literals.
+///
 /// # Parameters
 ///
 /// - `operator`: The WHERE operator to generate SQL for
@@ -118,19 +128,11 @@ const CARRIER_GRADE_RANGES: &[&str] = &["100.64.0.0/10"];
 ///
 /// Returns `WireError::InvalidSchema` if the operator fails validation (e.g., invalid
 /// field names or unsupported value types for the given operator).
-///
-/// # Examples
-///
-/// ```no_run
-/// // Requires: fraiseql_wire::operators re-exports; Value has no PartialEq so assert_eq on params omitted.
-/// use std::collections::HashMap;
-/// use fraiseql_wire::operators::{Field, Value, WhereOperator, generate_where_operator_sql};
-/// let mut param_index = 0;
-/// let mut params = HashMap::new();
-/// let op = WhereOperator::Eq(Field::JsonbField("name".to_string()), Value::String("John".to_string()));
-/// let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
-/// assert_eq!(sql, "(data->>'name')::text = $1");
-/// ```
+#[deprecated(
+    since = "2.15.0",
+    note = "emits $N placeholders that fraiseql-wire's simple-query protocol can never bind \
+            (#877); use QueryBuilder::where_sql with an inline predicate instead"
+)]
 pub fn generate_where_operator_sql(
     operator: &WhereOperator,
     param_index: &mut usize,

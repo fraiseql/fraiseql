@@ -232,7 +232,11 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// When the estimated memory usage of buffered items exceeds this limit,
     /// the stream will return `WireError::MemoryLimitExceeded` instead of additional items.
     ///
-    /// Memory is estimated as: `items_buffered * 2048 bytes` (conservative for typical JSON).
+    /// **This is an item-count heuristic, not a measurement**: memory is
+    /// estimated as a flat `items_buffered * 2048 bytes` regardless of actual
+    /// row size, so 256 buffered 1-MB rows are "estimated" at 512 KB. Treat
+    /// the limit as a bound on `bytes / 2048` buffered items. Rows much larger
+    /// than 2 KB need a proportionally smaller limit (#729).
     ///
     /// By default, `max_memory()` is None (unbounded), maintaining backward compatibility.
     /// Only set if you need hard memory bounds.
@@ -458,6 +462,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
             .client
             .execute_query(
                 &sql,
+                &self.entity,
                 self.chunk_size,
                 self.max_memory,
                 self.soft_limit_warn_threshold,

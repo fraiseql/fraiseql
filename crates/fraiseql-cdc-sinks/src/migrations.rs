@@ -40,16 +40,23 @@ CREATE TABLE IF NOT EXISTS core.tb_cdc_sink_state (
     last_error           TEXT,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
     published_at         TIMESTAMPTZ,
+    lease_expires_at     TIMESTAMPTZ,
     -- Idempotent enqueue / per-sink dedup: an outbox row enqueues at most once
-    -- per sink.
+    -- per sink. Also the anti-join key of the enqueue scan.
     UNIQUE (sink_name, pk_entity_change_log)
 );
 
--- Drain query: due rows for a sink (pending/retrying past next_attempt_at).
+-- Reconcile a pre-lease deployment: the claim lease column (#814/#815) is
+-- additive.
+ALTER TABLE core.tb_cdc_sink_state
+    ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
+
+-- Drain query: due rows for a sink (pending/retrying past next_attempt_at,
+-- in_flight past lease_expires_at).
 CREATE INDEX IF NOT EXISTS idx_cdc_sink_state_due
     ON core.tb_cdc_sink_state (sink_name, status, next_attempt_at);
 
--- Ordered per-sink draining + the enqueue cursor MAX(seq).
+-- Ordered per-sink draining (head-of-line claim walks seq order).
 CREATE INDEX IF NOT EXISTS idx_cdc_sink_state_seq
     ON core.tb_cdc_sink_state (sink_name, seq);
 

@@ -27,6 +27,7 @@ async fn test_streaming_query() {
     let mut stream = conn
         .streaming_query(
             "SELECT '{\"key\": \"value\"}'::json AS data",
+            "streaming_integration",
             10,
             None,
             None,

@@ -12,8 +12,6 @@ fn install_crypto_provider() {
 fn test_tls_config_builder_defaults() {
     let tls = TlsConfigBuilder::default();
     assert!(!tls.danger_accept_invalid_certs);
-    assert!(!tls.danger_accept_invalid_hostnames);
-    assert!(tls.verify_hostname);
     assert!(tls.ca_cert_path.is_none());
 }
 
@@ -22,11 +20,9 @@ fn test_tls_config_builder_with_hostname_verification() {
     install_crypto_provider();
 
     let tls = TlsConfig::builder()
-        .verify_hostname(true)
         .build()
         .expect("Failed to build TLS config");
 
-    assert!(tls.verify_hostname());
     assert!(!tls.danger_accept_invalid_certs());
 }
 
@@ -63,13 +59,11 @@ fn test_tls_config_debug() {
     install_crypto_provider();
 
     let tls = TlsConfig::builder()
-        .verify_hostname(true)
         .build()
         .expect("Failed to build TLS config");
 
     let debug_str = format!("{:?}", tls);
     assert!(debug_str.contains("TlsConfig"));
-    assert!(debug_str.contains("verify_hostname"));
 }
 
 #[test]
@@ -107,7 +101,6 @@ fn test_normal_tls_config_works() {
     install_crypto_provider();
 
     let config = TlsConfig::builder()
-        .verify_hostname(true)
         .build()
         .expect("normal TLS config should build successfully");
 

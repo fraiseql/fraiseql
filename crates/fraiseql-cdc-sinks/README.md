@@ -8,8 +8,12 @@ FraiseQL's change spine into a durable event stream for downstream systems.
 ## Features
 
 - **Durable outbox drain worker** (`DrainWorker`) that enqueues each new, matching change-log
-  row into a per-sink delivery-state table keyed by a restart-safe `MAX(seq)` cursor, then
-  publishes due rows in `seq` order under `FOR UPDATE SKIP LOCKED`.
+  row into a per-sink delivery-state table via an anti-join (so a row whose transaction
+  commits out of sequence order is still picked up — never silently skipped), then claims a
+  head-contiguous batch under a lease and publishes it in `seq` order with **no database
+  transaction held across broker calls**.
+- **Ordered from the head** — a transiently failing row blocks its successors
+  (head-of-line blocking) instead of being overtaken; a dead-lettered row releases them.
 - **NATS JetStream sink** (enable the `cdc-nats-jetstream` feature). The broker client
   (`async-nats`, pure Rust) is pulled in only when this feature is on; the default build is
   broker-free and the drain worker plus all encoding/sanitisation logic compile

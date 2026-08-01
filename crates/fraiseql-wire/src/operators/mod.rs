@@ -3,28 +3,18 @@
 //! This module provides type-safe operator abstractions for building WHERE clauses,
 //! ORDER BY clauses, and query modifiers (LIMIT/OFFSET) without raw SQL strings.
 //!
-//! # Design Philosophy
+//! # ⚠️ The `WhereOperator` generator is not usable end to end (#877)
 //!
-//! fraiseql-wire maintains backward compatibility with the existing string-based API
-//! while offering operator abstractions for type safety and auditability:
-//!
-//! ```text
-//! // Requires: live Postgres connection via FraiseClient.
-//! // Old style (still works)
-//! client.query("users")
-//!     .where_sql("data->>'name' = 'John'")
-//!     .execute()
-//!     .await?;
-//!
-//! // New style (type-safe)
-//! client.query("users")
-//!     .where_operator(WhereOperator::Eq(
-//!         Field::JsonbField("name".to_string()),
-//!         Value::String("John".to_string()),
-//!     ))
-//!     .execute()
-//!     .await?;
-//! ```
+//! [`generate_where_operator_sql`] emits `$N` placeholders, but this crate
+//! speaks only the Postgres **simple query** protocol — there is no
+//! Parse/Bind/Execute encoder, `QueryBuilder` has no method that accepts an
+//! operator or a parameter map, and a `$N` placeholder sent through
+//! `where_sql` fails at the server with `there is no parameter $1`. The
+//! function is deprecated until the crate either implements the extended
+//! query protocol or renders operator values as safely quoted literals; use
+//! [`QueryBuilder::where_sql`](crate::client::QueryBuilder::where_sql) with an
+//! inline predicate instead. [`OrderByClause`] and the [`Field`] helpers are
+//! unaffected — they render plain SQL fragments.
 //!
 //! # Operator Coverage
 //!
@@ -44,5 +34,7 @@ pub mod where_operator;
 
 pub use field::{Field, Value};
 pub use order_by::{Collation, FieldSource, NullsHandling, OrderByClause, SortOrder};
+#[allow(deprecated)]
+// Reason: re-export keeps the deprecated path importable; the deprecation fires at use sites
 pub use sql_gen::generate_where_operator_sql;
 pub use where_operator::WhereOperator;

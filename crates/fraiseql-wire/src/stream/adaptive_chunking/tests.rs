@@ -231,3 +231,42 @@ fn test_average_occupancy_calculation() {
         "Average should account for integer division in percentages"
     );
 }
+
+// ── #877: each bound applies independently ────────────────────────────────────
+
+#[test]
+fn a_lone_min_bound_is_applied_not_dropped() {
+    // The builder's adaptive_min_size / adaptive_max_size are independent
+    // options; a both-or-nothing tuple match used to silently drop a lone
+    // minimum, leaving the default floor of 16 in force.
+    let adaptive = AdaptiveChunking::new().with_min_size(64);
+    assert_eq!(
+        adaptive.min_size(),
+        64,
+        "a lone minimum must take effect (#877)"
+    );
+    assert_eq!(
+        adaptive.max_size(),
+        1024,
+        "the un-set maximum keeps its default"
+    );
+}
+
+#[test]
+fn a_lone_max_bound_is_applied_not_dropped() {
+    let adaptive = AdaptiveChunking::new().with_max_size(128);
+    assert_eq!(
+        adaptive.max_size(),
+        128,
+        "a lone maximum must take effect (#877)"
+    );
+    assert_eq!(
+        adaptive.min_size(),
+        16,
+        "the un-set minimum keeps its default"
+    );
+    assert!(
+        adaptive.current_size() <= 128,
+        "the current size must be clamped into the new bounds"
+    );
+}

@@ -221,6 +221,38 @@ impl AdaptiveChunking {
         self
     }
 
+    /// Set only the minimum chunk-size bound, keeping the current maximum.
+    ///
+    /// The builder's `adaptive_min_size`/`adaptive_max_size` are independent
+    /// options; a lone minimum used to be silently dropped because the wiring
+    /// only honoured the pair (#877).
+    #[must_use]
+    pub fn with_min_size(self, min_size: usize) -> Self {
+        let max = self.max_size;
+        self.with_bounds(min_size, max)
+    }
+
+    /// Set only the maximum chunk-size bound, keeping the current minimum.
+    ///
+    /// See [`Self::with_min_size`] (#877).
+    #[must_use]
+    pub fn with_max_size(self, max_size: usize) -> Self {
+        let min = self.min_size;
+        self.with_bounds(min, max_size)
+    }
+
+    /// The configured minimum chunk size.
+    #[must_use]
+    pub const fn min_size(&self) -> usize {
+        self.min_size
+    }
+
+    /// The configured maximum chunk size.
+    #[must_use]
+    pub const fn max_size(&self) -> usize {
+        self.max_size
+    }
+
     /// Calculate average occupancy percentage over the measurement window
     #[must_use]
     pub fn average_occupancy(&self) -> usize {

@@ -258,3 +258,68 @@ fn set_pause_timeout_updates_the_shared_handle() {
         "clear_pause_timeout must reset the shared handle"
     );
 }
+
+// ── #729: pause() must not corrupt the state snapshot of a terminal stream ────
+
+#[tokio::test]
+async fn pause_on_a_completed_stream_errors_without_corrupting_the_snapshot() {
+    let (_tx, mut stream) = test_stream(4);
+
+    // Drive the stream to its terminal state the way the reader does.
+    *stream.clone_state().lock().await = StreamState::Completed;
+    stream.state_atomic_set_completed();
+    assert_eq!(stream.state_snapshot(), StreamState::Completed);
+
+    let result = stream.pause().await;
+    assert!(
+        result.is_err(),
+        "pausing a completed stream must be rejected"
+    );
+    assert_eq!(
+        stream.state_snapshot(),
+        StreamState::Completed,
+        "the rejected pause left the atomic snapshot reporting Paused forever (#729)"
+    );
+}
+
+// ── #729: the warn threshold must actually warn instead of being dropped ──────
+
+#[tokio::test]
+async fn soft_limit_warn_threshold_fires_when_crossed() {
+    use futures::StreamExt;
+
+    // limit 20 items' worth; warn at 50% (10 items), fail never (threshold 1.0
+    // → 20 items). Buffer 12 items: past warn, below fail.
+    let (tx, rx) = mpsc::channel::<Result<Value>>(64);
+    let (cancel_tx, _cancel_rx) = mpsc::channel::<()>(1);
+    let mut stream = JsonStream::new(
+        rx,
+        cancel_tx,
+        "warn_ent".to_string(),
+        Some(20 * 2048),
+        Some(0.5),
+        Some(1.0),
+    );
+    assert!(!stream.soft_limit_warned(), "must not warn before any poll");
+
+    for i in 0..12 {
+        tx.send(Ok(serde_json::json!({ "n": i }))).await.unwrap();
+    }
+
+    let item = stream
+        .next()
+        .await
+        .expect("stream must yield")
+        .expect("item must be Ok");
+    assert_eq!(item["n"], 0);
+    assert!(
+        stream.soft_limit_warned(),
+        "crossing the warn threshold must be recorded — the option was accepted \
+         through the public API and silently dropped (#729)"
+    );
+    assert_ne!(
+        stream.state_snapshot(),
+        StreamState::Failed,
+        "the warn threshold must warn, not fail the stream"
+    );
+}

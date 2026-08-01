@@ -1,9 +1,17 @@
 //! Connection string parsing
 //!
 //! Supports formats:
-//! * postgres://[user[:password]@][host][:port][/database]
+//! * postgres://[user[:password]@][host][:port][/database][?params]
 //! * <postgres:///database> (Unix socket, local)
 //! * <postgres:///database?host=/path/to/socket> (Unix socket, custom directory)
+//!
+//! Query parameters are parsed strictly: the TCP form accepts `sslmode`
+//! (`disable`, `require`, `verify-ca`, `verify-full` — the opportunistic
+//! `prefer`/`allow` modes are refused rather than silently downgraded),
+//! `application_name` and `connect_timeout` (seconds); the Unix form accepts
+//! `host` (socket directory) and `port`. Any other parameter is a loud
+//! [`WireError::Config`] naming the parameter — never silently folded into the
+//! database name or dropped (#817).
 
 use crate::connection::ConnectionConfig;
 use crate::{Result, WireError};
@@ -140,6 +148,24 @@ pub fn validate_socket_dir(dir: &str) -> Result<()> {
     Ok(())
 }
 
+/// TLS requirement expressed by the connection string's `sslmode` parameter.
+///
+/// The entry points enforce it: a plaintext `connect` refuses
+/// [`SslMode::Require`], and a TLS connect refuses [`SslMode::Disable`] —
+/// `sslmode` is never silently ignored (#817).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SslMode {
+    /// No `sslmode` parameter: the entry point's transport stands.
+    #[default]
+    Unspecified,
+    /// `sslmode=disable`: plaintext demanded.
+    Disable,
+    /// `sslmode=require` / `verify-ca` / `verify-full`: TLS demanded. The
+    /// client's TLS stack always validates the chain and hostname, so the
+    /// verify-* variants collapse to this.
+    Require,
+}
+
 /// Parsed connection info
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
@@ -151,12 +177,18 @@ pub struct ConnectionInfo {
     pub port: Option<u16>,
     /// Unix socket path
     pub unix_socket: Option<PathBuf>,
-    /// Database name
-    pub database: String,
-    /// Username
-    pub user: String,
+    /// Database name, when the string names one (`None` ⇒ OS-user default)
+    pub database: Option<String>,
+    /// Username, when the string names one (`None` ⇒ OS-user default)
+    pub user: Option<String>,
     /// Password (zeroed on drop for security)
     pub password: Option<Zeroizing<String>>,
+    /// TLS requirement from `sslmode`, for the entry points to enforce
+    pub ssl_mode: SslMode,
+    /// `application_name` query parameter
+    pub application_name: Option<String>,
+    /// `connect_timeout` query parameter (seconds)
+    pub connect_timeout: Option<std::time::Duration>,
 }
 
 /// Transport type
@@ -243,12 +275,24 @@ impl ConnectionInfo {
             (rest, "")
         };
 
+        // Strict parameter handling (#817): only `host` and `port` mean
+        // anything on the Unix form; anything else must not be silently
+        // dropped.
+        for key in query_param_keys(query_string) {
+            if key != "host" && key != "port" {
+                return Err(WireError::Config(format!(
+                    "unsupported query parameter {key:?} in Unix-socket connection string \
+                     (supported: host, port)"
+                )));
+            }
+        }
+
         let path = path.trim_start_matches('/');
 
         let database = if path.is_empty() {
-            whoami::username()
+            None
         } else {
-            path.to_string()
+            Some(percent_decode(path)?)
         };
 
         // Parse port from query parameters (default: 5432)
@@ -279,18 +323,33 @@ impl ConnectionInfo {
             port: Some(port),
             unix_socket,
             database,
-            user: whoami::username(),
+            user: None,
             password: None,
+            ssl_mode: SslMode::Unspecified,
+            application_name: None,
+            connect_timeout: None,
         })
     }
 
     fn parse_tcp(rest: &str) -> Result<Self> {
-        // Format: [user[:password]@]host[:port][/database]
+        // Format: [user[:password]@]host[:port][/database][?params]
         //
-        // Split userinfo from host at the LAST '@': a percent-encoded '@' in the
-        // password decodes to a literal later, but the host component itself can
-        // never contain '@', so the final '@' is always the delimiter (audit
-        // L-wire-connstr).
+        // The `?query` component is split off FIRST: an '@' or '/' inside a
+        // query value must never influence the host or database parse (#817 —
+        // the query string used to be folded into the database name, and a
+        // later '@' re-split the host).
+        let (rest, query_string) = if let Some(q_pos) = rest.find('?') {
+            let (r, q) = rest.split_at(q_pos);
+            (r, q)
+        } else {
+            (rest, "")
+        };
+        let params = parse_tcp_params(query_string)?;
+
+        // Split userinfo from host at the LAST '@' of the pre-query portion: a
+        // percent-encoded '@' in the password decodes to a literal later, but
+        // the host component itself can never contain '@', so the final '@' is
+        // always the delimiter (audit L-wire-connstr).
         let (auth, rest) = if let Some(pos) = rest.rfind('@') {
             let (auth, rest) = rest.split_at(pos);
             (Some(auth), &rest[1..])
@@ -304,21 +363,27 @@ impl ConnectionInfo {
             if let Some(pos) = auth.find(':') {
                 let (user, pass) = auth.split_at(pos);
                 (
-                    percent_decode(user)?,
+                    Some(percent_decode(user)?),
                     Some(Zeroizing::new(percent_decode(&pass[1..])?)),
                 )
             } else {
-                (percent_decode(auth)?, None)
+                (Some(percent_decode(auth)?), None)
             }
         } else {
-            (whoami::username(), None)
+            (None, None)
         };
 
         let (host_port, database) = if let Some(pos) = rest.find('/') {
             let (hp, db) = rest.split_at(pos);
-            (hp, db[1..].to_string())
+            let db = &db[1..];
+            let database = if db.is_empty() {
+                None
+            } else {
+                Some(percent_decode(db)?)
+            };
+            (hp, database)
         } else {
-            (rest, whoami::username())
+            (rest, None)
         };
 
         let (host, port) = split_host_port(host_port)?;
@@ -331,18 +396,133 @@ impl ConnectionInfo {
             database,
             user,
             password,
+            ssl_mode: params.ssl_mode,
+            application_name: params.application_name,
+            connect_timeout: params.connect_timeout,
         })
+    }
+
+    /// The database to connect to: the string's, or the OS user name (the
+    /// Postgres convention) when the string names none.
+    #[must_use]
+    pub fn database_or_default(&self) -> String {
+        self.database.clone().unwrap_or_else(whoami::username)
+    }
+
+    /// The user to connect as: the string's, or the OS user name when the
+    /// string names none.
+    #[must_use]
+    pub fn user_or_default(&self) -> String {
+        self.user.clone().unwrap_or_else(whoami::username)
     }
 
     /// Convert to `ConnectionConfig`
     pub fn to_config(&self) -> ConnectionConfig {
-        let mut config = ConnectionConfig::new(&self.database, &self.user);
+        let mut config = ConnectionConfig::new(self.database_or_default(), self.user_or_default());
         if let Some(ref password) = self.password {
             // SECURITY: Extract password string from Zeroizing wrapper
             config = config.password(password.as_str());
         }
+        config.application_name.clone_from(&self.application_name);
+        config.connect_timeout = self.connect_timeout;
         config
     }
+
+    /// Merge this parsed string into a caller-supplied config: the string's
+    /// explicit components (user, password, database, `application_name`,
+    /// `connect_timeout`) win; everything the string does not name keeps the
+    /// caller's value. This is the documented `connect_with_config` contract —
+    /// previously the string's credentials were silently discarded (#877).
+    #[must_use]
+    pub fn merge_into_config(&self, mut config: ConnectionConfig) -> ConnectionConfig {
+        if let Some(database) = &self.database {
+            config.database.clone_from(database);
+        }
+        if let Some(user) = &self.user {
+            config.user.clone_from(user);
+        }
+        if let Some(password) = &self.password {
+            config = config.password(password.as_str());
+        }
+        if let Some(app) = &self.application_name {
+            config.application_name = Some(app.clone());
+        }
+        if let Some(timeout) = self.connect_timeout {
+            config.connect_timeout = Some(timeout);
+        }
+        config
+    }
+}
+
+/// The TCP query parameters this client supports.
+struct TcpParams {
+    ssl_mode: SslMode,
+    application_name: Option<String>,
+    connect_timeout: Option<std::time::Duration>,
+}
+
+/// Iterate the keys of a query string (leading `?` tolerated).
+fn query_param_keys(query_string: &str) -> impl Iterator<Item = &str> {
+    query_string
+        .trim_start_matches('?')
+        .split('&')
+        .filter(|pair| !pair.is_empty())
+        .map(|pair| pair.split_once('=').map_or(pair, |(k, _)| k))
+}
+
+/// Strictly parse the TCP query string: `sslmode`, `application_name` and
+/// `connect_timeout` are honoured; anything else — including libpq parameters
+/// this client does not implement — is a loud [`WireError::Config`] naming the
+/// parameter, never a silent drop (#817).
+fn parse_tcp_params(query_string: &str) -> Result<TcpParams> {
+    let mut params = TcpParams {
+        ssl_mode: SslMode::Unspecified,
+        application_name: None,
+        connect_timeout: None,
+    };
+    let query = query_string.trim_start_matches('?');
+    for pair in query.split('&').filter(|p| !p.is_empty()) {
+        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        match key {
+            "sslmode" => {
+                params.ssl_mode = match value {
+                    "disable" => SslMode::Disable,
+                    "require" | "verify-ca" | "verify-full" => SslMode::Require,
+                    "prefer" | "allow" => {
+                        return Err(WireError::Config(format!(
+                            "sslmode={value} (opportunistic TLS) is not supported: it \
+                             silently falls back to plaintext. Use sslmode=require with \
+                             connect_tls, or sslmode=disable."
+                        )));
+                    }
+                    other => {
+                        return Err(WireError::Config(format!(
+                            "invalid sslmode {other:?} (supported: disable, require, \
+                             verify-ca, verify-full)"
+                        )));
+                    }
+                };
+            }
+            "application_name" => {
+                params.application_name = Some(percent_decode(value)?);
+            }
+            "connect_timeout" => {
+                let secs: u64 = value.parse().map_err(|_| {
+                    WireError::Config(format!(
+                        "invalid connect_timeout {value:?}: expected whole seconds"
+                    ))
+                })?;
+                params.connect_timeout = Some(std::time::Duration::from_secs(secs));
+            }
+            other => {
+                return Err(WireError::Config(format!(
+                    "unsupported query parameter {other:?} in connection string \
+                     (supported: sslmode, application_name, connect_timeout)"
+                )));
+            }
+        }
+    }
+    Ok(params)
 }
 
 #[cfg(test)]

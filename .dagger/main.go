@@ -1713,6 +1713,12 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).
 		"cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-cdc-sinks --features cdc-nats-jetstream --test cdc_nats_e2e -- --ignored --test-threads=1",
+		// #715/#717 arrow executed-SQL suite: the generated INSERT (every Arrow
+		// type, specials, pre-epoch timestamps, NULLs) EXECUTED vs the bound
+		// Postgres, and the batched-queries schema-mismatch guard. This is the
+		// only leg that runs fraiseql-arrow with a live DATABASE_URL — the test
+		// leg's arrow run has no database and its DB-backed tests self-skip.
+		"cargo test -p fraiseql-arrow --all-features --test insert_sql_pg -- --ignored --test-threads=1",
 		"echo 'test-integration OK: observers suite passed'",
 	}, "\n")
 

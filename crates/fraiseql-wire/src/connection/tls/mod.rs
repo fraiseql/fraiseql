@@ -18,6 +18,15 @@ use std::sync::Arc;
 /// Provides a builder for creating TLS configurations with various certificate handling options.
 /// By default, server certificates are validated against system root certificates.
 ///
+/// Hostname verification is **always on**: the certificate's subject
+/// alternative names must match the server hostname. There is no knob to
+/// weaken only the name check — the former `verify_hostname` /
+/// `danger_accept_invalid_hostnames` flags were stored and reported but never
+/// reached the verifier, so they were deleted rather than left lying (#877).
+/// The debug-build-only `danger_accept_invalid_certs` escape hatch covers the
+/// self-signed-development case (it disables the whole verification, hostname
+/// included).
+///
 /// # Examples
 ///
 /// ```no_run
@@ -25,20 +34,16 @@ use std::sync::Arc;
 /// use fraiseql_wire::connection::TlsConfig;
 ///
 /// // With system root certificates (production)
-/// let tls = TlsConfig::builder()
-///     .verify_hostname(true)
-///     .build()?;
+/// let tls = TlsConfig::builder().build()?;
 ///
 /// // With custom CA certificate
 /// let tls = TlsConfig::builder()
 ///     .ca_cert_path("/path/to/ca.pem")
-///     .verify_hostname(true)
 ///     .build()?;
 ///
-/// // For development (danger: disables verification)
+/// // For development (danger: disables verification; debug builds only)
 /// let tls = TlsConfig::builder()
 ///     .danger_accept_invalid_certs(true)
-///     .danger_accept_invalid_hostnames(true)
 ///     .build()?;
 /// # fraiseql_wire::Result::Ok(())
 /// ```
@@ -46,12 +51,8 @@ use std::sync::Arc;
 pub struct TlsConfig {
     /// Path to CA certificate file (None = use system roots)
     ca_cert_path: Option<String>,
-    /// Whether to verify hostname matches certificate
-    verify_hostname: bool,
     /// Whether to accept invalid certificates (development only)
     danger_accept_invalid_certs: bool,
-    /// Whether to accept invalid hostnames (development only)
-    danger_accept_invalid_hostnames: bool,
     /// Compiled rustls `ClientConfig`
     client_config: Arc<ClientConfig>,
 }
@@ -64,9 +65,7 @@ impl TlsConfig {
     /// ```no_run
     /// // Requires: system root certificates.
     /// use fraiseql_wire::connection::TlsConfig;
-    /// let tls = TlsConfig::builder()
-    ///     .verify_hostname(true)
-    ///     .build()?;
+    /// let tls = TlsConfig::builder().build()?;
     /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn builder() -> TlsConfigBuilder {
@@ -79,22 +78,10 @@ impl TlsConfig {
         self.client_config.clone()
     }
 
-    /// Check if hostname verification is enabled.
-    #[must_use]
-    pub const fn verify_hostname(&self) -> bool {
-        self.verify_hostname
-    }
-
     /// Check if invalid certificates are accepted (development only).
     #[must_use]
     pub const fn danger_accept_invalid_certs(&self) -> bool {
         self.danger_accept_invalid_certs
-    }
-
-    /// Check if invalid hostnames are accepted (development only).
-    #[must_use]
-    pub const fn danger_accept_invalid_hostnames(&self) -> bool {
-        self.danger_accept_invalid_hostnames
     }
 }
 
@@ -102,14 +89,9 @@ impl std::fmt::Debug for TlsConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TlsConfig")
             .field("ca_cert_path", &self.ca_cert_path)
-            .field("verify_hostname", &self.verify_hostname)
             .field(
                 "danger_accept_invalid_certs",
                 &self.danger_accept_invalid_certs,
-            )
-            .field(
-                "danger_accept_invalid_hostnames",
-                &self.danger_accept_invalid_hostnames,
             )
             .field("client_config", &"<ClientConfig>")
             .finish()
@@ -120,22 +102,10 @@ impl std::fmt::Debug for TlsConfig {
 ///
 /// Provides a fluent API for constructing TLS configurations with custom settings.
 #[must_use = "call .build() to construct the final value"]
+#[derive(Default)]
 pub struct TlsConfigBuilder {
     ca_cert_path: Option<String>,
-    verify_hostname: bool,
     danger_accept_invalid_certs: bool,
-    danger_accept_invalid_hostnames: bool,
-}
-
-impl Default for TlsConfigBuilder {
-    fn default() -> Self {
-        Self {
-            ca_cert_path: None,
-            verify_hostname: true,
-            danger_accept_invalid_certs: false,
-            danger_accept_invalid_hostnames: false,
-        }
-    }
 }
 
 impl TlsConfigBuilder {
@@ -159,30 +129,6 @@ impl TlsConfigBuilder {
     /// ```
     pub fn ca_cert_path(mut self, path: impl Into<String>) -> Self {
         self.ca_cert_path = Some(path.into());
-        self
-    }
-
-    /// Enable or disable hostname verification (default: enabled).
-    ///
-    /// When enabled, the certificate's subject alternative names (SANs) are verified
-    /// to match the server hostname.
-    ///
-    /// # Arguments
-    ///
-    /// * `verify` - Whether to verify hostname matches certificate
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// // Requires: system root certificates.
-    /// use fraiseql_wire::connection::TlsConfig;
-    /// let tls = TlsConfig::builder()
-    ///     .verify_hostname(true)
-    ///     .build()?;
-    /// # fraiseql_wire::Result::Ok(())
-    /// ```
-    pub const fn verify_hostname(mut self, verify: bool) -> Self {
-        self.verify_hostname = verify;
         self
     }
 
@@ -213,29 +159,6 @@ impl TlsConfigBuilder {
         self
     }
 
-    /// ⚠️ **DANGER**: Accept invalid hostnames (development only).
-    ///
-    /// **NEVER use in production.** This disables hostname verification,
-    /// making the connection vulnerable to man-in-the-middle attacks.
-    ///
-    /// Only use for testing with self-signed certificates where you can't
-    /// match the hostname.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// // Requires: debug build only.
-    /// use fraiseql_wire::connection::TlsConfig;
-    /// let tls = TlsConfig::builder()
-    ///     .danger_accept_invalid_hostnames(true)
-    ///     .build()?;
-    /// # fraiseql_wire::Result::Ok(())
-    /// ```
-    pub const fn danger_accept_invalid_hostnames(mut self, accept: bool) -> Self {
-        self.danger_accept_invalid_hostnames = accept;
-        self
-    }
-
     /// Build the TLS configuration.
     ///
     /// # Errors
@@ -250,9 +173,7 @@ impl TlsConfigBuilder {
     /// ```no_run
     /// // Requires: system root certificates.
     /// use fraiseql_wire::connection::TlsConfig;
-    /// let tls = TlsConfig::builder()
-    ///     .verify_hostname(true)
-    ///     .build()?;
+    /// let tls = TlsConfig::builder().build()?;
     /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn build(self) -> Result<TlsConfig> {
@@ -302,9 +223,7 @@ impl TlsConfigBuilder {
 
         Ok(TlsConfig {
             ca_cert_path: self.ca_cert_path,
-            verify_hostname: self.verify_hostname,
             danger_accept_invalid_certs: self.danger_accept_invalid_certs,
-            danger_accept_invalid_hostnames: self.danger_accept_invalid_hostnames,
             client_config,
         })
     }

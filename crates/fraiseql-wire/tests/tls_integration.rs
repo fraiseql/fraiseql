@@ -46,7 +46,6 @@ fn test_tls_config_builder() {
     install_crypto_provider();
 
     let config = TlsConfig::builder()
-        .verify_hostname(true)
         .build()
         .expect("TLS config builder should create valid config");
 
@@ -59,7 +58,6 @@ fn test_tls_config_cloneable() {
     install_crypto_provider();
 
     let config = TlsConfig::builder()
-        .verify_hostname(true)
         .build()
         .expect("Failed to build TLS config");
 
@@ -78,13 +76,11 @@ fn test_tls_hostname_verification_setting() {
 
     // Strict verification (production)
     let _strict_config = TlsConfig::builder()
-        .verify_hostname(true)
         .build()
         .expect("Strict TLS config should be valid");
 
     // Lenient for self-signed certs (development)
     let _dev_config = TlsConfig::builder()
-        .verify_hostname(false)
         .build()
         .expect("Dev TLS config should be valid");
 }

@@ -921,7 +921,10 @@ impl FraiseQLFlightService {
 
         // Execute all queries sequentially
         let mut all_messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
-        let mut first_query = true;
+        // The single stream carries ONE schema message, so every query's
+        // inferred schema must match it. Emitting the first query's header for
+        // N different schemas produces an undecodable stream (#717).
+        let mut emitted_schema: Option<std::sync::Arc<arrow::datatypes::Schema>> = None;
 
         for query in &queries {
             debug!("Executing batched query: {}", query);
@@ -969,10 +972,37 @@ impl FraiseQLFlightService {
             let batches = chunk_into_batches(&arrow_rows, &converter, config.batch_size)
                 .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
 
-            // Add schema message only for first query (schema is shared)
-            if first_query {
-                all_messages.push(schema_to_flight_data(&inferred_schema));
-                first_query = false;
+            // One schema message describes the whole stream: verify every
+            // later query's inferred schema equals it, and error loudly when
+            // it does not — a mismatched batch under the first header is
+            // undecodable on the client (#717).
+            match &emitted_schema {
+                None => {
+                    all_messages.push(schema_to_flight_data(&inferred_schema));
+                    emitted_schema = Some(inferred_schema.clone());
+                },
+                Some(first) if **first != *inferred_schema => {
+                    return Err(Status::invalid_argument(format!(
+                        "batched queries produced heterogeneous schemas: a Flight stream \
+                         carries one schema header, so every query must return the same \
+                         shape. First schema: [{}]; query {:?} returned: [{}]. Run \
+                         differently-shaped queries as separate requests.",
+                        first
+                            .fields()
+                            .iter()
+                            .map(|f| f.name().as_str())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        query,
+                        inferred_schema
+                            .fields()
+                            .iter()
+                            .map(|f| f.name().as_str())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    )));
+                },
+                Some(_) => {},
             }
 
             // Add batch messages

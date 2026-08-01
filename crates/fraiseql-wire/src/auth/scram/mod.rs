@@ -243,36 +243,39 @@ fn calculate_client_proof(
 ) -> Result<Vec<u8>, ScramError> {
     // SaltedPassword := PBKDF2(password, salt, iterations, HMAC-SHA256)
     let password_bytes = password.as_bytes();
-    let mut salted_password = vec![0u8; 32]; // SHA256 produces 32 bytes
-                                             // Propagate the PBKDF2 result instead of discarding it (audit L-wire-scram):
-                                             // a swallowed `InvalidLength` would leave `salted_password` all-zeros and
-                                             // silently produce a wrong client proof rather than failing authentication.
+    // Zeroizing: the salted password is password-equivalent key material (#729).
+    let mut salted_password = Zeroizing::new(vec![0u8; 32]); // SHA256 produces 32 bytes
+                                                             // Propagate the PBKDF2 result instead of discarding it (audit L-wire-scram):
+                                                             // a swallowed `InvalidLength` would leave `salted_password` all-zeros and
+                                                             // silently produce a wrong client proof rather than failing authentication.
     pbkdf2::<HmacSha256>(password_bytes, salt, iterations, &mut salted_password).map_err(|_| {
         ScramError::KeyDerivation("PBKDF2 produced an invalid output length".into())
     })?;
 
     // ClientKey := HMAC(SaltedPassword, "Client Key")
-    let mut client_key_hmac = HmacSha256::new_from_slice(&salted_password)
-        .map_err(|_| ScramError::Utf8Error("HMAC key error".to_string()))?;
+    let mut client_key_hmac = HmacSha256::new_from_slice(salted_password.as_slice())
+        .map_err(|_| ScramError::KeyDerivation("HMAC key initialisation failed".to_string()))?;
     client_key_hmac.update(b"Client Key");
-    let client_key = client_key_hmac.finalize().into_bytes();
+    // Zeroizing: ClientKey lets anyone who holds it impersonate the user (#729).
+    let client_key = Zeroizing::new(client_key_hmac.finalize().into_bytes().to_vec());
 
     // StoredKey := SHA256(ClientKey)
-    let stored_key = Sha256::digest(client_key.to_vec().as_slice());
+    let stored_key = Sha256::digest(client_key.as_slice());
 
     // ClientSignature := HMAC(StoredKey, AuthMessage)
     let mut client_sig_hmac = HmacSha256::new_from_slice(&stored_key)
-        .map_err(|_| ScramError::Utf8Error("HMAC key error".to_string()))?;
+        .map_err(|_| ScramError::KeyDerivation("HMAC key initialisation failed".to_string()))?;
     client_sig_hmac.update(auth_message);
     let client_signature = client_sig_hmac.finalize().into_bytes();
 
-    // ClientProof := ClientKey XOR ClientSignature
+    // ClientProof := ClientKey XOR ClientSignature (the proof itself goes on
+    // the wire, so it is not zeroized).
     let mut proof = client_key.to_vec();
     for (proof_byte, sig_byte) in proof.iter_mut().zip(client_signature.iter()) {
         *proof_byte ^= sig_byte;
     }
 
-    Ok(proof.clone())
+    Ok(proof)
 }
 
 /// Calculate server key for server signature verification
@@ -283,7 +286,8 @@ fn calculate_server_key(
 ) -> Result<Vec<u8>, ScramError> {
     // SaltedPassword := PBKDF2(password, salt, iterations, HMAC-SHA256)
     let password_bytes = password.as_bytes();
-    let mut salted_password = vec![0u8; 32];
+    // Zeroizing: password-equivalent key material (#729).
+    let mut salted_password = Zeroizing::new(vec![0u8; 32]);
     // Propagate the PBKDF2 result (audit L-wire-scram): a swallowed error here
     // would derive the server key from an all-zero salted password, breaking
     // server-signature verification silently.
@@ -292,8 +296,8 @@ fn calculate_server_key(
     })?;
 
     // ServerKey := HMAC(SaltedPassword, "Server Key")
-    let mut server_key_hmac = HmacSha256::new_from_slice(&salted_password)
-        .map_err(|_| ScramError::Utf8Error("HMAC key error".to_string()))?;
+    let mut server_key_hmac = HmacSha256::new_from_slice(salted_password.as_slice())
+        .map_err(|_| ScramError::KeyDerivation("HMAC key initialisation failed".to_string()))?;
     server_key_hmac.update(b"Server Key");
 
     Ok(server_key_hmac.finalize().into_bytes().to_vec())
@@ -304,8 +308,9 @@ fn calculate_server_signature(
     server_key: &[u8],
     auth_message: &[u8],
 ) -> Result<Vec<u8>, ScramError> {
-    let mut hmac = HmacSha256::new_from_slice(server_key)
-        .map_err(|_| ScramError::Utf8Error("invalid HMAC key for server signature".to_string()))?;
+    let mut hmac = HmacSha256::new_from_slice(server_key).map_err(|_| {
+        ScramError::KeyDerivation("invalid HMAC key for server signature".to_string())
+    })?;
     hmac.update(auth_message);
     Ok(hmac.finalize().into_bytes().to_vec())
 }

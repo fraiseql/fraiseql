@@ -6,7 +6,7 @@ use bytes::Bytes;
 use futures::stream::Stream;
 use serde_json::Value;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -45,7 +45,10 @@ pub enum StreamState {
 pub struct StreamStats {
     /// Number of items currently buffered in channel (0-256)
     pub items_buffered: usize,
-    /// Estimated memory used by buffered items in bytes
+    /// Estimated memory used by buffered items in bytes.
+    ///
+    /// A flat `items_buffered * 2048` heuristic, **not** a measurement of
+    /// actual serialized sizes — large rows are under-counted (#729).
     pub estimated_memory: usize,
     /// Total rows yielded to consumer so far
     pub total_rows_yielded: u64,
@@ -76,6 +79,8 @@ pub struct JsonStream {
     rows_yielded: Arc<AtomicU64>,  // Counter of items yielded to consumer
     rows_filtered: Arc<AtomicU64>, // Counter of items filtered
     max_memory: Option<usize>,     // Optional memory limit in bytes
+    soft_limit_warn_threshold: Option<f32>, // Warn at threshold % (0.0-1.0), once per stream
+    soft_limit_warned: Arc<AtomicBool>, // Whether the warn threshold has fired
     soft_limit_fail_threshold: Option<f32>, // Fail at threshold % (0.0-1.0)
 
     // Lightweight state tracking (cheap AtomicU8)
@@ -111,7 +116,7 @@ impl JsonStream {
         cancel_tx: mpsc::Sender<()>,
         entity: String,
         max_memory: Option<usize>,
-        _soft_limit_warn_threshold: Option<f32>,
+        soft_limit_warn_threshold: Option<f32>,
         soft_limit_fail_threshold: Option<f32>,
     ) -> Self {
         Self {
@@ -121,6 +126,8 @@ impl JsonStream {
             rows_yielded: Arc::new(AtomicU64::new(0)),
             rows_filtered: Arc::new(AtomicU64::new(0)),
             max_memory,
+            soft_limit_warn_threshold,
+            soft_limit_warned: Arc::new(AtomicBool::new(false)),
             soft_limit_fail_threshold,
 
             // Initialize lightweight atomic state
@@ -247,14 +254,16 @@ impl JsonStream {
         // audit H43).
         let occupancy = self.receiver.len();
 
-        // Update lightweight atomic state first (fast path)
-        self.state_atomic_set_paused();
-
         let pr = &self.pause_resume;
         let mut state = pr.state.lock().await;
 
         match *state {
             StreamState::Running => {
+                // Update the lightweight atomic only after the terminal-state
+                // check: storing it first left `state_snapshot()` reporting
+                // Paused forever after a rejected pause on a Completed/Failed
+                // stream (#729).
+                self.state_atomic_set_paused();
                 pr.paused_occupancy.store(occupancy, Ordering::Relaxed);
                 // Update state
                 *state = StreamState::Paused;
@@ -413,6 +422,12 @@ impl JsonStream {
         self.state_atomic.store(STATE_FAILED, Ordering::Release);
     }
 
+    /// Whether the soft memory warn threshold has fired for this stream (#729).
+    #[cfg(test)]
+    pub(crate) fn soft_limit_warned(&self) -> bool {
+        self.soft_limit_warned.load(Ordering::Relaxed)
+    }
+
     /// Record that one row was filtered out by a downstream Rust predicate.
     ///
     /// Called by [`crate::stream::QueryStream`] when its predicate rejects a row,
@@ -471,6 +486,26 @@ impl Stream for JsonStream {
             let items_buffered = self.receiver.len();
             let estimated_memory = items_buffered * 2048; // Conservative: 2KB per item
 
+            // Warn threshold (#729): the builder accepted this option through
+            // the whole public API and then dropped it. Crossing it now logs
+            // once per stream and records a metric — a heads-up before the
+            // fail threshold terminates the stream.
+            if let Some(warn_threshold) = self.soft_limit_warn_threshold {
+                let warn_bytes = (limit as f32 * warn_threshold) as usize;
+                if estimated_memory > warn_bytes
+                    && !self.soft_limit_warned.swap(true, Ordering::Relaxed)
+                {
+                    crate::metrics::counters::memory_soft_limit_warned(&self.entity);
+                    tracing::warn!(
+                        entity = %self.entity,
+                        estimated_memory,
+                        limit,
+                        warn_threshold,
+                        "stream buffer crossed the soft memory warn threshold"
+                    );
+                }
+            }
+
             // Check soft limit thresholds first (warn before fail)
             if let Some(fail_threshold) = self.soft_limit_fail_threshold {
                 let threshold_bytes = (limit as f32 * fail_threshold) as usize;
@@ -492,9 +527,6 @@ impl Stream for JsonStream {
                     estimated_memory,
                 })));
             }
-
-            // Note: Warn threshold would be handled by instrumentation/logging layer
-            // This is for application-level monitoring, not a hard error
         }
 
         match self.receiver.poll_recv(cx) {

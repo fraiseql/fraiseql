@@ -58,9 +58,17 @@ impl HttpSearchBackend {
     }
 
     /// Create a backend without SSRF validation — for use in tests only.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the HTTP client cannot be constructed (test-only path).
     #[cfg(test)]
     fn new_unchecked(es_url: String) -> Self {
-        let client = Client::builder().timeout(ES_REQUEST_TIMEOUT).build().unwrap_or_default();
+        #[allow(clippy::expect_used)] // Reason: test-only constructor
+        let client = Client::builder()
+            .timeout(ES_REQUEST_TIMEOUT)
+            .build()
+            .expect("test HTTP client must build");
         Self { client, es_url }
     }
 

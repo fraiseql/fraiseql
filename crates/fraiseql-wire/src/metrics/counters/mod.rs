@@ -179,6 +179,15 @@ pub fn auth_failed(mechanism: &str, reason: &str) {
     .increment(1);
 }
 
+/// Record a stream buffer crossing its soft memory warn threshold (#729)
+pub fn memory_soft_limit_warned(entity: &str) {
+    counter!(
+        "fraiseql_memory_soft_limit_warned_total",
+        labels::ENTITY => entity.to_string(),
+    )
+    .increment(1);
+}
+
 /// Record memory limit exceeded event
 pub fn memory_limit_exceeded(entity: &str) {
     counter!(

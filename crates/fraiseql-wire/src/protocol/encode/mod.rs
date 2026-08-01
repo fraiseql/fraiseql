@@ -24,7 +24,10 @@ fn fill_length(buf: &mut BytesMut, len_pos: usize, len: usize) {
 ///
 /// # Errors
 ///
-/// Returns `io::Error` if the message contains invalid UTF-8 or cannot be serialized.
+/// Returns `io::Error` if a string field contains an interior NUL byte, which
+/// cannot be represented in the protocol's C-string encoding. (All inputs are
+/// Rust `str`s, so invalid UTF-8 is impossible here — an earlier version of
+/// this doc claimed it as an error path.)
 pub fn encode_message(msg: &FrontendMessage) -> io::Result<BytesMut> {
     let mut buf = BytesMut::new();
 

@@ -202,29 +202,20 @@ fn sasl_mechanisms_within_limit_are_accepted() {
 }
 
 #[test]
-fn sasl_mechanisms_exceeding_limit_are_truncated_not_rejected() {
-    // The guard breaks out of the loop rather than erroring; verify it still succeeds
-    // with at most MAX_SASL_MECHANISMS entries.
+fn sasl_mechanisms_exceeding_limit_hard_error() {
+    // The cap hard-errors like every other decode cap (#729) — silently
+    // truncating could drop the one mechanism the client supports and turn a
+    // malformed message into a misleading auth failure.
     let mechanisms: Vec<&str> = (0..MAX_SASL_MECHANISMS + 5)
         .map(|_| "SCRAM-SHA-256")
         .collect();
     let mut buf = make_sasl_auth(&mechanisms);
     let result = decode_message(&mut buf);
+    let err = result.expect_err("SASL with excess mechanisms must be rejected, not truncated");
     assert!(
-        result.is_ok(),
-        "SASL with excess mechanisms must still parse successfully"
+        err.to_string().contains("mechanism list exceeds maximum"),
+        "error must name the cap: {err}"
     );
-    if let Ok((
-        BackendMessage::Authentication(AuthenticationMessage::Sasl { mechanisms: parsed }),
-        _,
-    )) = result
-    {
-        assert!(
-            parsed.len() <= MAX_SASL_MECHANISMS,
-            "parsed mechanisms must not exceed cap: {} > {MAX_SASL_MECHANISMS}",
-            parsed.len()
-        );
-    }
 }
 
 // ── Parameter name/value cap tests (S21-H3) ───────────────────────────────
