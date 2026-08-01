@@ -526,12 +526,7 @@ fn warn_sources_feature_missing(schema: &CompiledSchema) {
 /// Warn at startup when `[storage.<name>]` is configured for a database the
 /// binary cannot mount storage on. Object storage is PostgreSQL-only because the
 /// object-metadata repository requires a `sqlx::PgPool`.
-#[cfg(any(
-    feature = "mysql",
-    feature = "sqlite",
-    feature = "sqlserver",
-    feature = "wire-backend"
-))]
+#[cfg(feature = "wire-backend")]
 fn warn_storage_requires_postgres(config: &ServerConfig, database: &str) {
     if config.storage.is_empty() {
         return;
@@ -547,12 +542,7 @@ fn warn_storage_requires_postgres(config: &ServerConfig, database: &str) {
 /// a database the binary cannot back it with. The Postgres revocation store requires
 /// a `sqlx::PgPool`, so on non-PostgreSQL deployments the backend is unavailable and
 /// token revocation will not be active (#357). Use `memory`/`redis`, or run on PostgreSQL.
-#[cfg(any(
-    feature = "mysql",
-    feature = "sqlite",
-    feature = "sqlserver",
-    feature = "wire-backend"
-))]
+#[cfg(feature = "wire-backend")]
 fn warn_revocation_requires_postgres(schema: &CompiledSchema, database: &str) {
     if fraiseql_server::token_revocation::revocation_backend_is_postgres(schema) {
         tracing::warn!(
@@ -568,12 +558,7 @@ fn warn_revocation_requires_postgres(schema: &CompiledSchema, database: &str) {
 /// runtime tenant *provisioning* is unavailable. The registry and `X-Tenant-ID`
 /// dispatch still work for pre-registered tenants, but `PUT /api/v1/admin/tenants`
 /// needs a `FromPoolConfig` adapter, which only PostgreSQL provides today.
-#[cfg(any(
-    feature = "mysql",
-    feature = "sqlite",
-    feature = "sqlserver",
-    feature = "wire-backend"
-))]
+#[cfg(feature = "wire-backend")]
 fn warn_tenant_provisioning_requires_postgres(config: &ServerConfig, database: &str) {
     if config.tenancy.runtime.enabled {
         tracing::warn!(
@@ -676,14 +661,11 @@ async fn dispatch_server(
 ) -> anyhow::Result<()> {
     use fraiseql_server::url_guard::{DatabaseScheme, parse_database_url};
 
-    // Box::pin each arm: the per-scheme server-setup futures exceed clippy's
-    // `large_futures` 16-KiB threshold once optional subsystems (observers, MCP,
-    // multiple adapters) are enabled. Heap-allocating once at startup is fine.
+    // Box::pin: the server-setup future exceeds clippy's `large_futures`
+    // 16-KiB threshold once optional subsystems (observers, MCP) are enabled.
+    // Heap-allocating once at startup is fine.
     match parse_database_url(&config.database_url)? {
         DatabaseScheme::Postgres => Box::pin(run_postgres(config, schema, cli)).await,
-        DatabaseScheme::MySql => Box::pin(run_mysql(config, schema, cli)).await,
-        DatabaseScheme::Sqlite => Box::pin(run_sqlite(config, schema, cli)).await,
-        DatabaseScheme::SqlServer => Box::pin(run_sqlserver(config, schema, cli)).await,
     }
 }
 
@@ -824,118 +806,6 @@ async fn run_postgres(
     }
 }
 
-/// MySQL entry point. Observer pool, Arrow Flight, and relay-aware
-/// construction are not wired for non-PG adapters today; observers in
-/// particular rely on PostgreSQL LISTEN/NOTIFY and have no MySQL equivalent.
-#[cfg(all(not(feature = "wire-backend"), feature = "mysql"))]
-async fn run_mysql(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
-    warn_storage_requires_postgres(&config, "mysql");
-    warn_tenant_provisioning_requires_postgres(&config, "mysql");
-    warn_revocation_requires_postgres(&schema, "mysql");
-    tracing::info!(
-        pool_min_size = config.pool_min_size,
-        pool_max_size = config.pool_max_size,
-        "Initializing MySQL connection pool"
-    );
-    let adapter = Arc::new(
-        fraiseql_core::db::mysql::MySqlAdapter::with_pool_config(
-            &config.database_url,
-            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
-            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
-        )
-        .await?,
-    );
-    tracing::info!("MySQL adapter ready");
-    let server = Server::new(config, schema, adapter, None).await?;
-    let server = enable_rest_writes(server);
-    finish_server(server, cli, /* with_arrow = */ false).await
-}
-
-#[cfg(all(not(feature = "wire-backend"), not(feature = "mysql")))]
-async fn run_mysql(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Result<()> {
-    anyhow::bail!(feature_off_message("mysql", "mysql"))
-}
-
-/// SQLite entry point — read-only.
-#[cfg(all(not(feature = "wire-backend"), feature = "sqlite"))]
-async fn run_sqlite(config: ServerConfig, schema: CompiledSchema, cli: &Cli) -> anyhow::Result<()> {
-    warn_storage_requires_postgres(&config, "sqlite");
-    warn_tenant_provisioning_requires_postgres(&config, "sqlite");
-    warn_revocation_requires_postgres(&schema, "sqlite");
-    fraiseql_server::url_guard::guard_sqlite_mutations(&schema)?;
-    tracing::info!(
-        pool_min_size = config.pool_min_size,
-        pool_max_size = config.pool_max_size,
-        "Initializing SQLite connection pool"
-    );
-    let adapter = Arc::new(
-        fraiseql_core::db::sqlite::SqliteAdapter::with_pool_config(
-            &config.database_url,
-            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
-            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
-        )
-        .await?,
-    );
-    tracing::info!("SQLite adapter ready (read-only)");
-    let server = Server::new(config, schema, adapter, None).await?;
-    finish_server(server, cli, /* with_arrow = */ false).await
-}
-
-#[cfg(all(not(feature = "wire-backend"), not(feature = "sqlite")))]
-async fn run_sqlite(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Result<()> {
-    anyhow::bail!(feature_off_message("sqlite", "sqlite"))
-}
-
-/// SQL Server entry point.
-#[cfg(all(not(feature = "wire-backend"), feature = "sqlserver"))]
-async fn run_sqlserver(
-    config: ServerConfig,
-    schema: CompiledSchema,
-    cli: &Cli,
-) -> anyhow::Result<()> {
-    warn_storage_requires_postgres(&config, "sqlserver");
-    warn_tenant_provisioning_requires_postgres(&config, "sqlserver");
-    warn_revocation_requires_postgres(&schema, "sqlserver");
-    tracing::info!(
-        pool_min_size = config.pool_min_size,
-        pool_max_size = config.pool_max_size,
-        "Initializing SQL Server connection pool"
-    );
-    let adapter = Arc::new(
-        fraiseql_core::db::sqlserver::SqlServerAdapter::with_pool_config(
-            &config.database_url,
-            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
-            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
-        )
-        .await?,
-    );
-    tracing::info!("SQL Server adapter ready");
-    let server = Server::new(config, schema, adapter, None).await?;
-    let server = enable_rest_writes(server);
-    finish_server(server, cli, /* with_arrow = */ false).await
-}
-
-#[cfg(all(not(feature = "wire-backend"), not(feature = "sqlserver")))]
-async fn run_sqlserver(_: ServerConfig, _: CompiledSchema, _: &Cli) -> anyhow::Result<()> {
-    anyhow::bail!(feature_off_message("sqlserver", "sqlserver"))
-}
-
-#[cfg(all(
-    not(feature = "wire-backend"),
-    any(
-        not(feature = "mysql"),
-        not(feature = "sqlite"),
-        not(feature = "sqlserver")
-    )
-))]
-fn feature_off_message(scheme: &str, feature: &str) -> String {
-    format!(
-        "fraiseql-server: {scheme}:// URL provided but the binary was built without the \
-         `{feature}` Cargo feature. Rebuild with `cargo install fraiseql-server --features \
-         {feature}` (or enable the feature in your downstream crate) and retry."
-    )
-}
-
 /// Enable the REST write surface on a server whose adapter supports mutations.
 ///
 /// One helper rather than a copy at each boot path, because "which backends serve REST
@@ -943,10 +813,10 @@ fn feature_off_message(scheme: &str, feature: &str) -> String {
 /// lost its only production caller while the served `OpenAPI` document went on
 /// advertising every write path, so following the published contract earned a 405.
 ///
-/// The read-only backends need no entry here and cannot be given one — `SqliteAdapter`
-/// and `FraiseWireAdapter` do not implement `SupportsMutations`, so the type system,
+/// The read-only backend needs no entry here and cannot be given one —
+/// `FraiseWireAdapter` does not implement `SupportsMutations`, so the type system,
 /// rather than a runtime check someone must remember to write, is what keeps writes off
-/// them.
+/// it.
 #[cfg(all(not(feature = "wire-backend"), feature = "rest"))]
 fn enable_rest_writes<X>(server: Server<X>) -> Server<X>
 where

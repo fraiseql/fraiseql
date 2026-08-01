@@ -1123,12 +1123,9 @@ fn test_rich_filter_types_have_sql_templates() {
         operators.keys().collect::<Vec<_>>()
     );
 
-    // Verify domainEq has templates for all 4 databases
+    // Verify domainEq has a PostgreSQL template
     let email_domain_eq = operators["domainEq"].as_object().expect("test");
     assert!(email_domain_eq.contains_key("postgres"));
-    assert!(email_domain_eq.contains_key("mysql"));
-    assert!(email_domain_eq.contains_key("sqlite"));
-    assert!(email_domain_eq.contains_key("sqlserver"));
 
     // Verify PostgreSQL template is correct
     let postgres_template = email_domain_eq["postgres"].as_str().expect("test");

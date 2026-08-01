@@ -28,7 +28,7 @@ schema.json    +    fraiseql.toml      →    schema.compiled.json    →    Gra
 |-----------|-----------|-----|
 | **Core engine** | Rust | Zero-cost abstractions, memory safety |
 | **Schema authoring** | Python/TypeScript | Developer ergonomics |
-| **Database drivers** | PostgreSQL (primary), MySQL, SQLite, SQL Server | Native Rust drivers only |
+| **Database driver** | PostgreSQL only | Native Rust driver; non-PG backends removed in v2.15.0 (#374) |
 | **Testing** | cargo-nextest | 2-3x faster than cargo test |
 | **Linting** | Clippy (pedantic + deny) | Strict code quality |
 
@@ -196,14 +196,16 @@ See [docs/architecture/overview.md](../docs/architecture/overview.md) for compre
 
 ### 3. Database Abstraction
 
-FraiseQL supports multiple databases via **runtime SQL generation**, not ORMs:
+FraiseQL targets **PostgreSQL only**. MySQL, SQLite and SQL Server adapters were
+removed in v2.15.0: they had never faced a real database, failed on the primary
+query shape, and shipped two security defects (see
+`docs/database-compatibility.md`).
 
-- PostgreSQL (primary, most features)
-- MySQL (secondary)
-- SQLite (local dev, testing)
-- SQL Server (enterprise)
-
-**Pattern**: Write database-agnostic traits, implement per-database SQL generation.
+**Pattern**: the `DatabaseAdapter` trait and `DatabaseType` enum remain, so SQL
+generation seams stay explicitly tagged with the dialect they emit and adding a
+backend would be a compile-time-visible change at every match site. Do not
+reintroduce a dialect without a per-dialect integration matrix that executes
+against a real database in CI.
 
 ### 4. Error Handling
 
@@ -314,8 +316,8 @@ fraiseql/
 ### Add a New Database Operation
 
 1. Define trait in `db/mod.rs`
-2. Implement for each database in `db/postgres.rs`, `db/mysql.rs`, etc.
-3. Add tests in `db/tests.rs`
+2. Implement in `db/postgres.rs`
+3. Add tests in `db/tests.rs` — executing against a real database, not string comparisons
 4. Update documentation
 
 ### Add a New GraphQL Feature

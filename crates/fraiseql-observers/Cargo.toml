@@ -5,8 +5,6 @@ arrow = {version = "59", optional = true}
 async-nats = {version = "0.49", optional = true}
 async-trait = "0.1"
 base64 = "0.22"
-bb8 = {version = "0.9", optional = true}
-bb8-tiberius = {version = "0.16", optional = true}
 chrono = {workspace = true}
 clap = {version = "4.5", features = ["derive"], optional = true}
 colored = {version = "2.1", optional = true}
@@ -36,9 +34,6 @@ sha2 = "0.11"
 sqlx = {version = "0.8", features = ["runtime-tokio", "uuid", "chrono"]}
 tabwriter = {version = "1.4", optional = true}
 thiserror = "2.0"
-# SQL Server Dependencies (tiberius - sqlx doesn't support MSSQL)
-# SECURITY: use native-tls instead of rustls to avoid EOL rustls 0.21 (GHSA-6g18-jhpc-69jc)
-tiberius = {version = "0.12", default-features = false, features = ["native-tls", "chrono"], optional = true}
 tokio = {workspace = true}
 tokio-util = {version = "0.7", features = ["compat"], optional = true}
 tracing = "0.1"
@@ -62,7 +57,7 @@ tokio-test = "0.4"
 wiremock = "0.6"
 
 [features]
-all-db = ["postgres", "mysql", "mssql"]
+all-db = ["postgres"]
 analytics = ["arrow"]
 # Arrow Features
 arrow = ["fraiseql-arrow", "dep:arrow"]
@@ -75,11 +70,6 @@ default = ["postgres"]
 # Descriptive bundles
 enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 metrics = ["prometheus"]
-# SQL Server uses tiberius crate (sqlx doesn't support MSSQL in v0.8)
-mssql = ["tiberius", "tokio-util", "bb8", "bb8-tiberius"]
-# Multi-Database Features
-multi-db = ["postgres", "mysql"]
-mysql = ["sqlx/mysql"]
 # NATS Features
 nats = ["async-nats"]
 # Database backends (enable sqlx features)
@@ -87,7 +77,6 @@ postgres = ["sqlx/postgres"]
 queue = ["redis"]
 redis-lease = ["redis"]
 search = []
-sqlite = ["sqlx/sqlite"]
 testing = []
 
 [lints]

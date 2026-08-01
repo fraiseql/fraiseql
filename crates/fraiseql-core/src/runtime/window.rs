@@ -73,9 +73,6 @@ impl WindowSqlGenerator {
     pub fn generate(&self, plan: &WindowExecutionPlan) -> Result<WindowSql> {
         match self.database_type {
             DatabaseType::PostgreSQL => self.generate_postgres(plan),
-            DatabaseType::MySQL => self.generate_mysql(plan),
-            DatabaseType::SQLite => self.generate_sqlite(plan),
-            DatabaseType::SQLServer => self.generate_sqlserver(plan),
         }
     }
 
@@ -237,20 +234,8 @@ impl WindowSqlGenerator {
             WindowFunctionType::Count { field: None } => "COUNT(*)".to_string(),
             WindowFunctionType::Min { field } => format!("MIN({field})"),
             WindowFunctionType::Max { field } => format!("MAX({field})"),
-            WindowFunctionType::Stddev { field } => {
-                // PostgreSQL/MySQL use STDDEV, SQL Server uses STDEV
-                match self.database_type {
-                    DatabaseType::SQLServer => format!("STDEV({field})"),
-                    _ => format!("STDDEV({field})"),
-                }
-            },
-            WindowFunctionType::Variance { field } => {
-                // PostgreSQL/MySQL use VARIANCE, SQL Server uses VAR
-                match self.database_type {
-                    DatabaseType::SQLServer => format!("VAR({field})"),
-                    _ => format!("VARIANCE({field})"),
-                }
-            },
+            WindowFunctionType::Stddev { field } => format!("STDDEV({field})"),
+            WindowFunctionType::Variance { field } => format!("VARIANCE({field})"),
         };
 
         Ok(sql)
@@ -302,26 +287,5 @@ impl WindowSqlGenerator {
             FrameBoundary::NFollowing { n } => format!("{n} FOLLOWING"),
             FrameBoundary::UnboundedFollowing => "UNBOUNDED FOLLOWING".to_string(),
         }
-    }
-
-    /// Generate MySQL window function SQL
-    fn generate_mysql(&self, plan: &WindowExecutionPlan) -> Result<WindowSql> {
-        // MySQL 8.0+ supports window functions similar to PostgreSQL
-        // Main differences handled in generate_function_call (no STDEV/VAR differences for window
-        // functions)
-        self.generate_postgres(plan)
-    }
-
-    /// Generate SQLite window function SQL
-    fn generate_sqlite(&self, plan: &WindowExecutionPlan) -> Result<WindowSql> {
-        // SQLite 3.25+ supports window functions
-        // Similar to PostgreSQL but no PERCENT_RANK, CUME_DIST validation done in planner
-        self.generate_postgres(plan)
-    }
-
-    /// Generate SQL Server window function SQL
-    fn generate_sqlserver(&self, plan: &WindowExecutionPlan) -> Result<WindowSql> {
-        // SQL Server supports window functions with minor differences (STDEV/VAR naming)
-        self.generate_postgres(plan)
     }
 }

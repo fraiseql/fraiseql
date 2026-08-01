@@ -72,6 +72,5 @@ same transaction.
 
 ## Database support
 
-Mutation timing is PostgreSQL-only. The `set_config` / `current_setting`
-functions are PostgreSQL-specific. Other adapters (MySQL, SQLite, SQL Server)
-are unaffected.
+Mutation timing is built on the PostgreSQL `set_config` / `current_setting`
+session functions.

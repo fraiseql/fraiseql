@@ -393,24 +393,6 @@ mod database_validator_tests {
     }
 
     #[tokio::test]
-    async fn test_sqlserver_nvarchar_no_warning() {
-        let introspector = MockIntrospector::new(DatabaseType::SQLServer)
-            .with_relation("dbo", "v_user", fraiseql_core::db::RelationKind::View)
-            .with_columns("v_user", vec![("data", "nvarchar", false)]);
-
-        let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
-
-        let report = validate_schema_against_database(&schema, &introspector).await.unwrap();
-        // SQL Server: nvarchar is always accepted for JSON columns
-        assert!(
-            !report
-                .warnings
-                .iter()
-                .any(|w| matches!(w, DatabaseWarning::WrongJsonColumnType { .. }))
-        );
-    }
-
-    #[tokio::test]
     async fn test_missing_cursor_column() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
             .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
@@ -685,26 +667,6 @@ mod database_validator_tests {
         assert!(is_json_type("jsonb", DatabaseType::PostgreSQL));
         assert!(is_json_type("json", DatabaseType::PostgreSQL));
         assert!(!is_json_type("text", DatabaseType::PostgreSQL));
-    }
-
-    #[test]
-    fn test_is_json_type_mysql() {
-        assert!(is_json_type("json", DatabaseType::MySQL));
-        assert!(!is_json_type("varchar", DatabaseType::MySQL));
-    }
-
-    #[test]
-    fn test_is_json_type_sqlite() {
-        assert!(is_json_type("json", DatabaseType::SQLite));
-        assert!(is_json_type("JSON", DatabaseType::SQLite));
-        assert!(!is_json_type("text", DatabaseType::SQLite));
-    }
-
-    #[test]
-    fn test_is_json_type_sqlserver() {
-        // SQL Server always returns true
-        assert!(is_json_type("nvarchar", DatabaseType::SQLServer));
-        assert!(is_json_type("varchar", DatabaseType::SQLServer));
     }
 
     #[test]
@@ -2201,16 +2163,12 @@ mod sql_templates_tests {
     fn test_extract_operator_templates() {
         let templates = extract_operator_templates("domainEq");
 
-        // Should have templates for all 4 databases
-        assert_eq!(templates.len(), 4);
+        // PostgreSQL is the only supported backend (G2, #374).
+        assert_eq!(templates.len(), 1);
         assert!(templates.contains_key("postgres"));
-        assert!(templates.contains_key("mysql"));
-        assert!(templates.contains_key("sqlite"));
-        assert!(templates.contains_key("sqlserver"));
 
         // Verify templates are correct
         assert!(templates["postgres"].contains("SPLIT_PART"));
-        assert!(templates["mysql"].contains("SUBSTRING_INDEX"));
     }
 
     #[test]
@@ -2231,7 +2189,6 @@ mod sql_templates_tests {
 
         assert!(templates.contains_key("postgres"));
         assert!(templates["postgres"].contains("SUBSTRING"));
-        assert!(templates["mysql"].contains("SUBSTRING"));
     }
 
     #[test]
@@ -2240,15 +2197,6 @@ mod sql_templates_tests {
 
         assert!(templates.contains_key("postgres"));
         assert!(templates["postgres"].contains("ST_DWithin"));
-
-        assert!(templates.contains_key("mysql"));
-        assert!(templates["mysql"].contains("ST_Distance_Sphere"));
-
-        assert!(templates.contains_key("sqlite"));
-        assert!(templates["sqlite"].contains("Haversine") || templates["sqlite"].contains("ACOS"));
-
-        assert!(templates.contains_key("sqlserver"));
-        assert!(templates["sqlserver"].contains("geography"));
     }
 
     #[test]
@@ -2256,9 +2204,6 @@ mod sql_templates_tests {
         let templates = extract_operator_templates("phoneCountryCodeEq");
 
         assert!(templates.contains_key("postgres"));
-        assert!(templates.contains_key("mysql"));
-        assert!(templates.contains_key("sqlite"));
-        assert!(templates.contains_key("sqlserver"));
     }
 
     #[test]
@@ -2267,9 +2212,6 @@ mod sql_templates_tests {
 
         assert!(templates.contains_key("postgres"));
         assert!(templates["postgres"].contains("EXTRACT"));
-
-        assert!(templates.contains_key("mysql"));
-        assert!(templates["mysql"].contains("DATEDIFF"));
     }
 
     #[test]
@@ -2278,8 +2220,5 @@ mod sql_templates_tests {
 
         assert!(templates.contains_key("postgres"));
         assert!(templates["postgres"].contains("EPOCH"));
-
-        assert!(templates.contains_key("mysql"));
-        assert!(templates["mysql"].contains("REPLACE"));
     }
 }

@@ -668,55 +668,6 @@ fn test_temporal_bucket_all_types() {
 }
 
 #[test]
-fn test_temporal_bucket_multi_database() {
-    use fraiseql_core::{
-        compiler::aggregation::AggregationPlanner,
-        db::DatabaseType,
-        runtime::{AggregateQueryParser, AggregationSqlGenerator},
-    };
-
-    let query = json!({
-        "table": "tf_sales",
-        "groupBy": {"occurred_at": "day"},
-        "aggregates": [{"count": {}}]
-    });
-
-    let metadata = create_sales_metadata();
-
-    // PostgreSQL
-    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
-    assert!(pg_sql.sql.contains("DATE_TRUNC('day', occurred_at)"));
-
-    // MySQL
-    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
-    assert!(mysql_sql.sql.contains("DATE_FORMAT(occurred_at,"));
-
-    // SQLite
-    let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sqlite_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
-    let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
-    assert!(sqlite_sql.sql.contains("strftime("));
-
-    // SQL Server
-    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
-    assert!(mssql_sql.sql.contains("CAST(occurred_at AS DATE)"));
-}
-
-#[test]
 fn test_temporal_bucket_with_where_having() {
     let query = json!({
         "where": {
@@ -809,222 +760,6 @@ fn test_array_agg_simple() {
 
     // PostgreSQL uses ARRAY_AGG
     assert_sql_contains(&sql, &["GROUP BY", "ARRAY_AGG(customer_id"]);
-}
-
-#[test]
-fn test_advanced_aggregates_multi_database() {
-    use fraiseql_core::{
-        compiler::aggregation::AggregationPlanner,
-        db::DatabaseType,
-        runtime::{AggregateQueryParser, AggregationSqlGenerator},
-    };
-
-    let query = json!({
-        "table": "tf_sales",
-        "groupBy": {"category": true},
-        "aggregates": [
-            {"customer_id_string_agg": {}}
-        ]
-    });
-
-    let metadata = create_sales_metadata();
-
-    // PostgreSQL
-    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
-    assert!(pg_sql.sql.contains("STRING_AGG(customer_id"));
-
-    // MySQL
-    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
-    assert!(mysql_sql.sql.contains("GROUP_CONCAT(customer_id"));
-
-    // SQLite
-    let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sqlite_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
-    let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
-    assert!(sqlite_sql.sql.contains("GROUP_CONCAT(customer_id"));
-
-    // SQL Server
-    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
-    assert!(mssql_sql.sql.contains("STRING_AGG"));
-}
-
-// =============================================================================
-// Statistical Functions Tests
-// =============================================================================
-
-#[test]
-fn test_stddev_postgres_mysql() {
-    use fraiseql_core::{
-        compiler::aggregation::AggregationPlanner,
-        db::DatabaseType,
-        runtime::{AggregateQueryParser, AggregationSqlGenerator},
-    };
-
-    let query = json!({
-        "table": "tf_sales",
-        "groupBy": {"category": true},
-        "aggregates": [
-            {"count": {}},
-            {"revenue_stddev": {}}
-        ]
-    });
-
-    let metadata = create_sales_metadata();
-
-    // PostgreSQL
-    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
-    assert!(pg_sql.sql.contains("STDDEV_SAMP(revenue)"));
-
-    // MySQL
-    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
-    assert!(mysql_sql.sql.contains("STDDEV_SAMP(revenue)"));
-
-    // SQL Server
-    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
-    assert!(mssql_sql.sql.contains("STDEV(revenue)"));
-}
-
-#[test]
-fn test_variance_postgres_mysql() {
-    use fraiseql_core::{
-        compiler::aggregation::AggregationPlanner,
-        db::DatabaseType,
-        runtime::{AggregateQueryParser, AggregationSqlGenerator},
-    };
-
-    let query = json!({
-        "table": "tf_sales",
-        "groupBy": {"category": true},
-        "aggregates": [
-            {"count": {}},
-            {"revenue_variance": {}}
-        ]
-    });
-
-    let metadata = create_sales_metadata();
-
-    // PostgreSQL
-    let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
-    let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
-    assert!(pg_sql.sql.contains("VAR_SAMP(revenue)"));
-
-    // MySQL
-    let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
-    let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
-    assert!(mysql_sql.sql.contains("VAR_SAMP(revenue)"));
-
-    // SQL Server
-    let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
-    let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
-    assert!(mssql_sql.sql.contains("VAR(revenue)"));
-}
-
-#[test]
-fn test_statistical_functions_sqlite_unsupported() {
-    use fraiseql_core::{
-        compiler::aggregation::AggregationPlanner,
-        db::DatabaseType,
-        runtime::{AggregateQueryParser, AggregationSqlGenerator},
-    };
-
-    let query = json!({
-        "table": "tf_sales",
-        "groupBy": {"category": true},
-        "aggregates": [
-            {"count": {}},
-            {"revenue_stddev": {}},
-            {"revenue_variance": {}}
-        ]
-    });
-
-    let metadata = create_sales_metadata();
-
-    // SQLite - should return NULL placeholders
-    let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sqlite_parsed =
-        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
-    let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata).unwrap();
-    let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
-
-    // SQLite doesn't support STDDEV/VARIANCE natively
-    assert!(sqlite_sql.sql.contains("NULL /* STDDEV not supported"));
-    assert!(sqlite_sql.sql.contains("NULL /* VARIANCE not supported"));
-}
-
-// =============================================================================
-// Cross-Feature Integration Tests
-// =============================================================================
-
-/// Create metadata with `native_measures` and `native_dimension_mapping` for cross-feature tests
-fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMetadata {
-    use fraiseql_core::compiler::fact_table::*;
-
-    FactTableMetadata {
-        table_name:               "tf_metrics".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "raw_value".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
-        }],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
-            paths: vec![DimensionPath {
-                name:      "source".to_string(),
-                json_path: "data->>'source'".to_string(),
-                data_type: "text".to_string(),
-            }],
-        },
-        denormalized_filters:     vec![FilterColumn {
-            name:     "device_id".to_string(),
-            sql_type: SqlType::Text,
-            indexed:  true,
-        }],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::from([
-            ("measures.volume".to_string(), "volume".to_string()),
-            ("measures.latency".to_string(), "latency_ms".to_string()),
-        ]),
-        native_dimension_mapping: std::collections::HashMap::from([
-            ("dimensions.category.id".to_string(), "category_id".to_string()),
-            ("dimensions.region.code".to_string(), "region_code".to_string()),
-        ]),
-    }
 }
 
 #[test]
@@ -1180,5 +915,42 @@ mod table_reconciliation {
             plan_with_table(&json!("tf_sales")).is_ok(),
             "the legitimate table name must still plan"
         );
+    }
+}
+
+/// Create metadata with `native_measures` and `native_dimension_mapping` for cross-feature tests
+fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMetadata {
+    use fraiseql_core::compiler::fact_table::*;
+
+    FactTableMetadata {
+        table_name:               "tf_metrics".to_string(),
+        measures:                 vec![MeasureColumn {
+            name:     "raw_value".to_string(),
+            sql_type: SqlType::Decimal,
+            nullable: false,
+        }],
+        dimensions:               DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![DimensionPath {
+                name:      "source".to_string(),
+                json_path: "data->>'source'".to_string(),
+                data_type: "text".to_string(),
+            }],
+        },
+        denormalized_filters:     vec![FilterColumn {
+            name:     "device_id".to_string(),
+            sql_type: SqlType::Text,
+            indexed:  true,
+        }],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::from([
+            ("measures.volume".to_string(), "volume".to_string()),
+            ("measures.latency".to_string(), "latency_ms".to_string()),
+        ]),
+        native_dimension_mapping: std::collections::HashMap::from([
+            ("dimensions.category.id".to_string(), "category_id".to_string()),
+            ("dimensions.region.code".to_string(), "region_code".to_string()),
+        ]),
     }
 }

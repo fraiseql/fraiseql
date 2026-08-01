@@ -4,8 +4,6 @@
 //!
 //! This crate provides database-agnostic access to multiple database backends:
 //! - PostgreSQL (primary, full feature set)
-//! - MySQL (secondary support)
-//! - SQLite (local dev, testing)
 //! - SQL Server (enterprise)
 //!
 //! It also provides the shared DB-level types used by the compilation and
@@ -64,15 +62,6 @@ pub mod where_sql_generator;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 
-#[cfg(feature = "mysql")]
-pub mod mysql;
-
-#[cfg(feature = "sqlite")]
-pub mod sqlite;
-
-#[cfg(feature = "sqlserver")]
-pub mod sqlserver;
-
 #[cfg(feature = "wire-backend")]
 pub mod wire_pool;
 
@@ -86,32 +75,16 @@ pub use changelog::{
 };
 pub use collation::{CollationCapabilities, CollationMapper};
 pub use collation_config::{
-    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,
-    PostgresCollationConfig, SqlServerCollationConfig, SqliteCollationConfig,
+    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, PostgresCollationConfig,
 };
-pub use dialect::{
-    DialectCapabilityGuard, Feature, MySqlDialect, PostgresDialect, SqlDialect, SqlServerDialect,
-    SqliteDialect, UnsupportedOperator,
-};
+pub use dialect::{PostgresDialect, SqlDialect, UnsupportedOperator};
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
-pub use identifier::{
-    quote_mysql_identifier, quote_postgres_identifier, quote_sqlite_identifier,
-    quote_sqlserver_identifier,
-};
+pub use identifier::quote_postgres_identifier;
 pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
-#[cfg(feature = "mysql")]
-pub use mysql::{MySqlAdapter, MySqlIntrospector};
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
-pub use projection_generator::{
-    FieldKind, MySqlProjectionGenerator, PostgresProjectionGenerator, ProjectionField,
-    SqliteProjectionGenerator,
-};
-#[cfg(feature = "sqlite")]
-pub use sqlite::{SqliteAdapter, SqliteIntrospector};
-#[cfg(feature = "sqlserver")]
-pub use sqlserver::{SqlServerAdapter, SqlServerIntrospector};
+pub use projection_generator::{FieldKind, PostgresProjectionGenerator, ProjectionField};
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite, CursorValue, DatabaseAdapter,
     DatabaseCapabilities, DirectMutationContext, DirectMutationOp, MutationStrategy,

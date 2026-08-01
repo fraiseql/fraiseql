@@ -48,7 +48,7 @@ curl -X POST http://localhost:8080/graphql \
 
 2. **Schema-as-code authoring.** Define schemas in Python or TypeScript with decorators, compile to optimized JSON. No runtime language bridge, no FFI.
 
-3. **Multi-database from one schema.** PostgreSQL, MySQL, SQLite, SQL Server from a single compiled schema. Per-database SQL generation, not ORM translation.
+3. **PostgreSQL, used properly.** SQL is generated for PostgreSQL specifically — JSONB projection, native RLS, `LISTEN/NOTIFY` subscriptions, WAL-based change capture — not translated through a lowest-common-denominator ORM layer.
 
 ## Performance
 
@@ -75,22 +75,13 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 
 ## Database Support
 
-| Feature          | PostgreSQL | MySQL | SQL Server | SQLite |
-|------------------|:----------:|:-----:|:----------:|:------:|
-| Queries          | ✅         | ✅    | ✅         | ✅     |
-| Mutations        | ✅         | ✅    | ✅         | ⚠️ Insert/Delete |
-| Relay pagination | ✅         | ✅    | ✅         | ❌     |
-| Full-text search | ✅         | ⚠️    | ⚠️         | ❌     |
-| Subscriptions    | ✅         | ⚠️    | ⚠️         | ❌     |
-| Production use   | ✅         | ✅    | ✅         | ❌     |
+**PostgreSQL 14+ only.** MySQL, SQLite and SQL Server adapters were removed in
+v2.15.0 — they had never been exercised against a real database and failed on
+the primary query shape. A `mysql://`, `sqlite://` or `sqlserver://` URL is
+refused at startup with an explanatory error.
 
-**PostgreSQL** is the primary platform with full feature support.
-
-**MySQL** (v2.1+) and **SQL Server** support queries, mutations, and relay cursor pagination. Subscriptions use polling-based observer bridges (not LISTEN/NOTIFY).
-
-**SQLite** supports direct-SQL **Insert/Delete** mutations (via the `DirectSql` strategy); **Update** and stored-procedure (`fn_*`) mutations are not supported on SQLite. It also lacks relay pagination, full-text search, and subscriptions. Recommended for local development and testing only.
-
-See [docs/database-compatibility.md](docs/database-compatibility.md) for the full feature matrix.
+See [docs/database-compatibility.md](docs/database-compatibility.md) for what was
+removed and why.
 
 ## Wire Protocol
 
@@ -124,7 +115,6 @@ npm install fraiseql        # TypeScript
 | Feature | Use Case |
 |---------|----------|
 | `postgres` (default) | PostgreSQL only |
-| `mysql`, `sqlite`, `sqlserver` | Additional databases |
 | `server` | HTTP GraphQL server |
 | `observers` | Post-mutation event hooks |
 | `arrow` | Apache Arrow Flight for analytics |

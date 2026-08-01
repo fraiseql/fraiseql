@@ -162,9 +162,8 @@ CDC view).
   the fallback trigger (with the degraded external envelope) rather than the rich
   executor outbox. There is no duplication — the gRPC path writes no outbox row of
   its own.
-- **PostgreSQL only.** The marker is transaction-local PostgreSQL state and the
-  capture function is PL/pgSQL. The MySQL / SQL Server contract migrations are
-  unaffected.
+- **PostgreSQL mechanism.** The marker is transaction-local PostgreSQL state and
+  the capture function is PL/pgSQL.
 
 ---
 

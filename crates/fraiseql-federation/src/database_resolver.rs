@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use ::tracing::warn;
 use fraiseql_db::{
-    DatabaseType, GenericWhereGenerator, MySqlDialect, PostgresDialect, SqlServerDialect,
-    SqliteDialect, WhereClause, traits::DatabaseAdapter, utils::to_snake_case,
+    DatabaseType, GenericWhereGenerator, PostgresDialect, WhereClause, traits::DatabaseAdapter,
+    utils::to_snake_case,
 };
 use fraiseql_error::{FraiseQLError, Result};
 use serde_json::Value;
@@ -278,12 +278,6 @@ fn render_row_filter(
 ) -> Result<(String, Vec<Value>)> {
     match db_type {
         DatabaseType::PostgreSQL => GenericWhereGenerator::new(PostgresDialect)
-            .generate_with_param_offset(filter, param_offset),
-        DatabaseType::MySQL => GenericWhereGenerator::new(MySqlDialect)
-            .generate_with_param_offset(filter, param_offset),
-        DatabaseType::SQLite => GenericWhereGenerator::new(SqliteDialect)
-            .generate_with_param_offset(filter, param_offset),
-        DatabaseType::SQLServer => GenericWhereGenerator::new(SqlServerDialect)
             .generate_with_param_offset(filter, param_offset),
     }
 }

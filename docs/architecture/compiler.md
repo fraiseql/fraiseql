@@ -34,7 +34,7 @@ The FraiseQL v2 compiler is responsible for transforming authoring-time schema d
 │ For each rich type in schema:           │
 │  1. Look up operators (from Rust)       │
 │  2. Look up validation rules (from TOML)│
-│  3. Load SQL handlers (from 4 databases)│
+│  3. Load PostgreSQL SQL handlers        │
 │  4. Generate GraphQL WhereInput type    │
 │  5. Embed SQL templates                 │
 │  6. Embed validation rules              │
@@ -44,7 +44,7 @@ The FraiseQL v2 compiler is responsible for transforming authoring-time schema d
              │
              └─ schema.compiled.json
                 - GraphQL types (static)
-                - SQL templates (all 4 DBs)
+                - SQL templates (PostgreSQL)
                 - Validation rules (embedded)
                        ↓
 ┌──────────────────────────────────────────┐
@@ -146,11 +146,9 @@ fn compile(schema: Schema, config: Config) -> CompiledSchema {
         for op in operators {
             let validation_rule = config.validation[&op_name(op)];
 
-            for database in [Postgres, MySQL, SQLite, SQLServer] {
-                let sql_template = get_sql_template(database, op);
-                compiled.operators[&op][database] = sql_template;
-                compiled.validation[&op] = validation_rule;
-            }
+            let sql_template = get_sql_template(op);
+            compiled.operators[&op] = sql_template;
+            compiled.validation[&op] = validation_rule;
         }
     }
 
@@ -181,15 +179,9 @@ fn build_where_input(rich_type: &str, operators: Vec<ExtendedOperator>) -> Graph
     }
 }
 
-fn get_sql_template(database: Database, op: ExtendedOperator) -> String {
-    // This calls the database-specific handler
-    // which returns a template with $param and $field placeholders
-    match database {
-        Postgres => postgres::get_sql_template(op),
-        MySQL => mysql::get_sql_template(op),
-        SQLite => sqlite::get_sql_template(op),
-        SQLServer => sqlserver::get_sql_template(op),
-    }
+fn get_sql_template(op: ExtendedOperator) -> String {
+    // Returns a PostgreSQL template with $param and $field placeholders
+    postgres::get_sql_template(op)
 }
 ```
 
@@ -243,22 +235,13 @@ fn get_sql_template(database: Database, op: ExtendedOperator) -> String {
   },
   "operators": {
     "emailDomainEq": {
-      "postgres": "SPLIT_PART($field, '@', 2) = $param",
-      "mysql": "SUBSTRING_INDEX($field, '@', -1) = ?",
-      "sqlite": "SUBSTR($field, INSTR($field, '@') + 1) = ?",
-      "sqlserver": "SUBSTRING($field, CHARINDEX('@', $field) + 1, LEN($field)) = @param"
+      "postgres": "SPLIT_PART($field, '@', 2) = $param"
     },
     "emailDomainIn": {
-      "postgres": "SPLIT_PART($field, '@', 2) IN ($params)",
-      "mysql": "SUBSTRING_INDEX($field, '@', -1) IN ($params)",
-      "sqlite": "SUBSTR($field, INSTR($field, '@') + 1) IN ($params)",
-      "sqlserver": "SUBSTRING($field, CHARINDEX('@', $field) + 1, LEN($field)) IN ($params)"
+      "postgres": "SPLIT_PART($field, '@', 2) IN ($params)"
     },
     "vinWmiEq": {
-      "postgres": "SUBSTRING($field FROM 1 FOR 3) = $param",
-      "mysql": "SUBSTRING($field, 1, 3) = ?",
-      "sqlite": "SUBSTR($field, 1, 3) = ?",
-      "sqlserver": "SUBSTRING($field, 1, 3) = @param"
+      "postgres": "SUBSTRING($field FROM 1 FOR 3) = $param"
     }
   },
   "validation": {
@@ -317,7 +300,6 @@ async fn execute_query(
 
 - ✅ Validation happens **before** SQL generation
 - ✅ Validation happens in **Rust layer**, not database
-- ✅ All 4 databases validate the **same way**
 - ✅ Invalid parameters never reach the database
 - ✅ Clear, application-controlled error messages
 
@@ -356,10 +338,9 @@ This is the **bridge** between:
 
 ## SQL Template Generation
 
-Each database implements a function that returns SQL templates:
+The PostgreSQL generator implements a function that returns SQL templates:
 
 ```rust
-// PostgreSQL example
 impl ExtendedOperatorHandler for PostgresWhereGenerator {
     fn get_sql_template(operator: &ExtendedOperator) -> String {
         match operator {
@@ -432,7 +413,6 @@ At runtime, placeholders are substituted when building the actual SQL.
 ✅ **Static Artifact**: schema.compiled.json is complete and self-contained
 ✅ **No Runtime Generation**: Server just loads JSON, no code generation
 ✅ **Fast Validation**: Happens in Rust before touching database
-✅ **Database Agnostic**: All 4 databases validate the same way
 ✅ **Configuration Driven**: Developer controls behavior via TOML
 ✅ **v2 Philosophy**: Clear separation of Authoring → Compilation → Runtime
 
@@ -447,7 +427,7 @@ compile` invocation.
 - ✅ ExtendedOperator enum (single source of truth in `crates/fraiseql-core/src/filters/operators.rs`)
 - ✅ Validation framework built (ValidationRule, ChecksumType)
 - ✅ Default rules created (70+ for all operators)
-- ✅ SQL generation patterns established across all 4 databases
+- ✅ SQL generation patterns established for PostgreSQL
 
 ### Compiler (`fraiseql-cli compile`)
 
@@ -467,8 +447,8 @@ compile` invocation.
 
 ### SQL Generation Coverage
 
-- ✅ Comparison, equality, set membership, range, pattern, null operators across PostgreSQL, MySQL, SQLite, SQL Server
-- See [`database-compatibility.md`](../database-compatibility.md) for the per-dialect operator matrix
+- ✅ Comparison, equality, set membership, range, pattern, null operators for PostgreSQL
+- See [`database-compatibility.md`](../database-compatibility.md) — PostgreSQL is the only supported backend (v2.15.0)
 
 ## Files Involved
 
@@ -477,7 +457,7 @@ compile` invocation.
 - `crates/fraiseql-core/src/filters/operators.rs` - ExtendedOperator enum (single source of truth)
 - `crates/fraiseql-core/src/filters/validators.rs` - ValidationRule framework
 - `crates/fraiseql-core/src/filters/default_rules.rs` - 70+ default validation rules
-- `crates/fraiseql-core/src/db/{postgres,mysql,sqlite,sqlserver}/where_generator.rs` - SQL templates
+- `crates/fraiseql-core/src/db/postgres/where_generator.rs` - SQL templates
 
 **Future (to build)**:
 

@@ -66,28 +66,23 @@ fn test_dialect_placeholders() {
     let (pg, _) =
         construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL, None)
             .unwrap();
-    // PostgreSQL casts the key column to text (#504); other dialects coerce.
+    // PostgreSQL casts the key column to text (#504).
     assert_eq!(pg, "id::text IN ($1)");
-    let (my, _) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL, None).unwrap();
-    assert_eq!(my, "id IN (?)");
-    let (ms, _) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::SQLServer, None).unwrap();
-    assert_eq!(ms, "id IN (@P1)");
 }
 
 #[test]
 fn test_sql_injection_value_is_bound_not_interpolated() {
-    // The injection payload — including the MySQL backslash-breakout vector — must
+    // The injection payload — including the backslash-breakout vector — must
     // be carried as a bound parameter, never spliced into the SQL text (H3).
     let metadata = make_test_metadata();
     let payload = r"\'; DROP TABLE users; --";
     let reps = vec![rep(payload)];
 
     let (clause, params) =
-        construct_where_in_clause("User", &reps, &metadata, DatabaseType::MySQL, None).unwrap();
+        construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL, None)
+            .unwrap();
 
-    assert_eq!(clause, "id IN (?)");
+    assert_eq!(clause, "id::text IN ($1)");
     assert!(!clause.contains("DROP"), "payload must not appear in SQL text");
     assert!(!clause.contains('\''), "no inline quotes in the parameterized clause");
     assert_eq!(params, vec![json!(payload)]);

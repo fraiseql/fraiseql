@@ -242,6 +242,12 @@ impl WhereClause {
                     conditions.push(Self::Not(Box::new(sub)));
                 },
                 field_name => {
+                    // Security boundary (#833): the name will be interpolated
+                    // into SQL text (JSON path literals, `data->>'…'`), so it
+                    // must be a plain GraphQL identifier — same rule orderBy
+                    // enforces. Rejecting here covers every dialect and every
+                    // downstream consumer.
+                    crate::utils::validate_graphql_identifier(field_name, "where")?;
                     let ops = val.as_object().ok_or_else(|| FraiseQLError::Validation {
                         message: format!(
                             "where field '{field_name}' must be an object of {{operator: value}}"

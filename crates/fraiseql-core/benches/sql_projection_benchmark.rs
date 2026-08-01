@@ -41,10 +41,7 @@
 #![allow(clippy::missing_errors_doc)] // Reason: criterion_group! macro generates undocumented items
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_core::{
-    db::{
-        MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
-        types::JsonbValue,
-    },
+    db::{PostgresProjectionGenerator, types::JsonbValue},
     runtime::ResultProjector,
 };
 use serde_json::json;
@@ -95,44 +92,6 @@ fn postgres_projection_generation(c: &mut Criterion) {
             field_count,
             |b, &field_count| {
                 let generator = PostgresProjectionGenerator::new();
-                let fields = generate_field_list(field_count);
-
-                b.iter(|| generator.generate_projection_sql(black_box(&fields)).unwrap());
-            },
-        );
-    }
-
-    group.finish();
-}
-
-fn mysql_projection_generation(c: &mut Criterion) {
-    let mut group = c.benchmark_group("mysql_projection_generation");
-
-    for field_count in &[5, 10, 20, 50] {
-        group.bench_with_input(
-            BenchmarkId::from_parameter(format!("{}_fields", field_count)),
-            field_count,
-            |b, &field_count| {
-                let generator = MySqlProjectionGenerator::new();
-                let fields = generate_field_list(field_count);
-
-                b.iter(|| generator.generate_projection_sql(black_box(&fields)).unwrap());
-            },
-        );
-    }
-
-    group.finish();
-}
-
-fn sqlite_projection_generation(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sqlite_projection_generation");
-
-    for field_count in &[5, 10, 20, 50] {
-        group.bench_with_input(
-            BenchmarkId::from_parameter(format!("{}_fields", field_count)),
-            field_count,
-            |b, &field_count| {
-                let generator = SqliteProjectionGenerator::new();
                 let fields = generate_field_list(field_count);
 
                 b.iter(|| generator.generate_projection_sql(black_box(&fields)).unwrap());
@@ -360,8 +319,6 @@ fn payload_size_comparison(c: &mut Criterion) {
 criterion_group!(
     benches,
     postgres_projection_generation,
-    mysql_projection_generation,
-    sqlite_projection_generation,
     result_projection_field_filtering,
     result_projection_large_fieldset,
     add_typename_single_object,

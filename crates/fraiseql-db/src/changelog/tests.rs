@@ -82,35 +82,18 @@ fn portable_insert_uses_dialect_specific_placeholders() {
         "PG placeholders: {pg}"
     );
 
-    // SQL Server: @P1..@PN.
-    let mssql = build_changelog_insert_sql(table, DatabaseType::SQLServer);
-    assert!(
-        mssql.contains(
-            "VALUES (@P1, @P2, @P3, @P4, @P5, @P6, @P7, @P8, @P9, @P10, @P11, @P12, @P13)"
-        ),
-        "MSSQL placeholders: {mssql}"
-    );
-
-    // MySQL and SQLite: anonymous `?`.
-    for dialect in [DatabaseType::MySQL, DatabaseType::SQLite] {
-        let sql = build_changelog_insert_sql(table, dialect);
-        assert_eq!(sql.matches('?').count(), n, "{dialect} uses one `?` per column: {sql}");
-        assert!(
-            sql.contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
-            "{dialect}: {sql}"
-        );
-    }
+    let _ = n;
 }
 
 #[test]
 fn portable_insert_writes_the_identity_and_envelope_subset() {
-    let sql = build_changelog_insert_sql("t", DatabaseType::MySQL);
-    // Target table + the contract column list (backtick-quoted for MySQL), in
-    // lockstep with the constant.
+    let sql = build_changelog_insert_sql("t", DatabaseType::PostgreSQL);
+    // Target table + the contract column list (double-quoted for PostgreSQL),
+    // in lockstep with the constant.
     assert!(sql.starts_with("INSERT INTO t ("), "names the target table: {sql}");
     let cols = CHANGELOG_PORTABLE_INSERT_COLUMNS
         .iter()
-        .map(|c| format!("`{c}`"))
+        .map(|c| format!("\"{c}\""))
         .collect::<Vec<_>>()
         .join(", ");
     assert!(sql.contains(&cols), "writes the portable contract columns `{cols}`: {sql}");
@@ -138,11 +121,7 @@ fn portable_insert_writes_the_identity_and_envelope_subset() {
 
 #[test]
 fn portable_insert_quotes_identifiers_per_dialect() {
-    // `cascade` is a reserved keyword in MySQL and SQL Server → must be quoted.
-    let mysql = build_changelog_insert_sql("t", DatabaseType::MySQL);
-    assert!(mysql.contains("`cascade`"), "MySQL backtick-quotes columns: {mysql}");
-    let mssql = build_changelog_insert_sql("t", DatabaseType::SQLServer);
-    assert!(mssql.contains("[cascade]"), "SQL Server bracket-quotes columns: {mssql}");
+    // `cascade` is a reserved keyword in several engines → must be quoted.
     let pg = build_changelog_insert_sql("t", DatabaseType::PostgreSQL);
     assert!(pg.contains("\"cascade\""), "PostgreSQL double-quotes columns: {pg}");
 }

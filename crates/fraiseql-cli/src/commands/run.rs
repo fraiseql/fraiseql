@@ -204,14 +204,10 @@ async fn dispatch_serve(
     schema: CompiledSchema,
     shutdown: ShutdownFuture,
 ) -> Result<()> {
-    // Box::pin each arm: the adapter-init futures (SQLite in particular) exceed
-    // clippy's `large_futures` 16-KiB stack threshold. Heap-allocating once at
-    // server startup is free; boxing uniformly keeps the arms symmetric.
+    // Box::pin: the adapter-init future exceeds clippy's `large_futures`
+    // 16-KiB stack threshold. Heap-allocating once at server startup is free.
     match scheme {
         DatabaseScheme::Postgres => Box::pin(serve_postgres(config, schema, shutdown)).await,
-        DatabaseScheme::MySql => Box::pin(serve_mysql(config, schema, shutdown)).await,
-        DatabaseScheme::Sqlite => Box::pin(serve_sqlite(config, schema, shutdown)).await,
-        DatabaseScheme::SqlServer => Box::pin(serve_sqlserver(config, schema, shutdown)).await,
     }
 }
 
@@ -251,94 +247,6 @@ async fn serve_postgres(
     Box::pin(finish_serve(server, shutdown)).await
 }
 
-#[cfg(feature = "mysql")]
-async fn serve_mysql(
-    config: ServerConfig,
-    schema: CompiledSchema,
-    shutdown: ShutdownFuture,
-) -> Result<()> {
-    let adapter = Arc::new(
-        fraiseql_core::db::mysql::MySqlAdapter::with_pool_config(
-            &config.database_url,
-            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
-            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
-        )
-        .await
-        .context("Failed to connect to MySQL")?,
-    );
-    let server: Server<CachedDatabaseAdapter<fraiseql_core::db::mysql::MySqlAdapter>> =
-        // Box the server-init future: it exceeds clippy's `large_futures` stack
-        // threshold once the platform features are compiled in (`--all-features`).
-        Box::pin(Server::new(config, schema, adapter, None))
-            .await
-            .context("Failed to initialize server")?;
-    Box::pin(finish_serve(server, shutdown)).await
-}
-
-#[cfg(not(feature = "mysql"))]
-async fn serve_mysql(_: ServerConfig, _: CompiledSchema, _: ShutdownFuture) -> Result<()> {
-    anyhow::bail!(scheme_feature_off("mysql"))
-}
-
-#[cfg(feature = "sqlite")]
-async fn serve_sqlite(
-    config: ServerConfig,
-    schema: CompiledSchema,
-    shutdown: ShutdownFuture,
-) -> Result<()> {
-    fraiseql_server::url_guard::guard_sqlite_mutations(&schema)?;
-    let adapter = Arc::new(
-        fraiseql_core::db::sqlite::SqliteAdapter::with_pool_config(
-            &config.database_url,
-            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
-            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
-        )
-        .await
-        .context("Failed to connect to SQLite")?,
-    );
-    let server: Server<CachedDatabaseAdapter<fraiseql_core::db::sqlite::SqliteAdapter>> =
-        // Box the server-init future: it exceeds clippy's `large_futures` stack
-        // threshold once the platform features are compiled in (`--all-features`).
-        Box::pin(Server::new(config, schema, adapter, None))
-            .await
-            .context("Failed to initialize server")?;
-    Box::pin(finish_serve(server, shutdown)).await
-}
-
-#[cfg(not(feature = "sqlite"))]
-async fn serve_sqlite(_: ServerConfig, _: CompiledSchema, _: ShutdownFuture) -> Result<()> {
-    anyhow::bail!(scheme_feature_off("sqlite"))
-}
-
-#[cfg(feature = "sqlserver")]
-async fn serve_sqlserver(
-    config: ServerConfig,
-    schema: CompiledSchema,
-    shutdown: ShutdownFuture,
-) -> Result<()> {
-    let adapter = Arc::new(
-        fraiseql_core::db::sqlserver::SqlServerAdapter::with_pool_config(
-            &config.database_url,
-            u32::try_from(config.pool_min_size).unwrap_or(u32::MAX),
-            u32::try_from(config.pool_max_size).unwrap_or(u32::MAX),
-        )
-        .await
-        .context("Failed to connect to SQL Server")?,
-    );
-    let server: Server<CachedDatabaseAdapter<fraiseql_core::db::sqlserver::SqlServerAdapter>> =
-        // Box the server-init future: it exceeds clippy's `large_futures` stack
-        // threshold once the platform features are compiled in (`--all-features`).
-        Box::pin(Server::new(config, schema, adapter, None))
-            .await
-            .context("Failed to initialize server")?;
-    Box::pin(finish_serve(server, shutdown)).await
-}
-
-#[cfg(not(feature = "sqlserver"))]
-async fn serve_sqlserver(_: ServerConfig, _: CompiledSchema, _: ShutdownFuture) -> Result<()> {
-    anyhow::bail!(scheme_feature_off("sqlserver"))
-}
-
 async fn finish_serve<X>(server: Server<X>, shutdown: ShutdownFuture) -> Result<()>
 where
     X: DatabaseAdapter + Clone + Send + Sync + 'static,
@@ -348,19 +256,6 @@ where
     } else {
         server.serve().await.context("Server error")
     }
-}
-
-#[cfg(any(
-    not(feature = "mysql"),
-    not(feature = "sqlite"),
-    not(feature = "sqlserver"),
-))]
-fn scheme_feature_off(feature: &str) -> String {
-    format!(
-        "fraiseql run: {feature}:// URL provided but the CLI was built without the `{feature}` \
-         feature. Rebuild with `cargo install fraiseql --features {feature}` (or enable both \
-         `run-server` and `{feature}` in your downstream crate)."
-    )
 }
 
 /// Resolve all runtime configuration, applying the override precedence chain.

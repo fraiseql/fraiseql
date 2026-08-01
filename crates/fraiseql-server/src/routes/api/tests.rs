@@ -517,7 +517,7 @@ mod metadata_tests {
         }
 
         fn database_type(&self) -> DatabaseType {
-            DatabaseType::SQLite
+            DatabaseType::PostgreSQL
         }
 
         async fn health_check(&self) -> FraiseQLResult<()> {
@@ -1049,7 +1049,7 @@ mod tenant_admin_tests {
         }
 
         fn database_type(&self) -> DatabaseType {
-            DatabaseType::SQLite
+            DatabaseType::PostgreSQL
         }
 
         async fn health_check(&self) -> FraiseQLResult<()> {
@@ -1278,7 +1278,7 @@ mod usage_tests {
         }
 
         fn database_type(&self) -> DatabaseType {
-            DatabaseType::SQLite
+            DatabaseType::PostgreSQL
         }
 
         async fn health_check(&self) -> FraiseQLResult<()> {

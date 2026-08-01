@@ -1,20 +1,16 @@
-//! Cross-adapter SQL parity tests.
+//! WHERE-generator SQL shape tests.
 //!
-//! For each common WHERE operator, verifies that both the PostgreSQL and SQLite generators:
-//! 1. Produce valid SQL (no error).
-//! 2. Have structurally equivalent logical output (same operator meaning, different syntax).
-//! 3. Pass the correct number of bind parameters.
+//! For each common WHERE operator, verifies that the PostgreSQL generator:
+//! 1. Produces valid SQL (no error).
+//! 2. Emits the expected operator syntax.
+//! 3. Passes the correct number of bind parameters.
 //!
-//! These tests do NOT need a live database — they exercise the SQL string generation only.
+//! These tests do NOT need a live database — they exercise SQL string
+//! generation only. (This file was a cross-adapter parity suite until the
+//! non-PostgreSQL adapters were removed; see `docs/database-compatibility.md`.)
 //!
 //! # Running
 //!
-//! Cross-adapter parity tests require both adapters compiled in:
-//! ```bash
-//! cargo test -p fraiseql-db --features sqlite --test adapter_parity_test
-//! ```
-//!
-//! PostgreSQL-only tests run with the default feature set:
 //! ```bash
 //! cargo test -p fraiseql-db --test adapter_parity_test
 //! ```
@@ -195,98 +191,4 @@ fn pg_contains_param_count() {
 }
 
 // ---------------------------------------------------------------------------
-// Cross-adapter parity (requires `sqlite` feature)
 // ---------------------------------------------------------------------------
-
-#[cfg(feature = "sqlite")]
-mod parity {
-    use fraiseql_db::{SqliteDialect, sqlite::SqliteWhereGenerator};
-
-    use super::*;
-
-    const fn sq_gen() -> SqliteWhereGenerator {
-        SqliteWhereGenerator::new(SqliteDialect)
-    }
-
-    #[test]
-    fn parity_eq_param_count_and_value() {
-        let clause = field("status", WhereOperator::Eq, json!("active"));
-        let (pg_sql, pg_params) = pg_gen().generate(&clause).unwrap();
-        let (sq_sql, sq_params) = sq_gen().generate(&clause).unwrap();
-
-        assert_eq!(pg_params.len(), sq_params.len(), "Same param count");
-        assert_eq!(pg_params[0], sq_params[0], "Same param value");
-
-        // Syntax differs: PG uses $1, SQLite uses ?
-        assert!(pg_sql.contains("$1"), "PG placeholder: {pg_sql}");
-        assert!(sq_sql.contains('?'), "SQLite placeholder: {sq_sql}");
-    }
-
-    #[test]
-    fn parity_neq_param_count() {
-        let clause = field("role", WhereOperator::Neq, json!("admin"));
-        let (_, pg_params) = pg_gen().generate(&clause).unwrap();
-        let (_, sq_params) = sq_gen().generate(&clause).unwrap();
-        assert_eq!(pg_params.len(), sq_params.len());
-    }
-
-    #[test]
-    fn parity_isnull_no_params() {
-        let clause = field("deleted_at", WhereOperator::IsNull, json!(true));
-        let (_, pg_params) = pg_gen().generate(&clause).unwrap();
-        let (_, sq_params) = sq_gen().generate(&clause).unwrap();
-        assert_eq!(pg_params.len(), 0);
-        assert_eq!(sq_params.len(), 0);
-    }
-
-    #[test]
-    fn parity_icontains_sqlite_emulates_case_insensitive() {
-        let clause = field("email", WhereOperator::Icontains, json!("example.com"));
-        let (pg_sql, _) = pg_gen().generate(&clause).unwrap();
-        let (sq_sql, _) = sq_gen().generate(&clause).unwrap();
-        assert!(pg_sql.to_uppercase().contains("ILIKE"), "PG: {pg_sql}");
-        let sq_upper = sq_sql.to_uppercase();
-        assert!(
-            sq_upper.contains("LOWER") || sq_upper.contains("LIKE"),
-            "SQLite case-insensitive: {sq_sql}"
-        );
-    }
-
-    #[test]
-    fn parity_and_same_param_count() {
-        let clause = WhereClause::And(vec![
-            field("active", WhereOperator::Eq, json!(true)),
-            field("role", WhereOperator::Eq, json!("user")),
-        ]);
-        let (pg_sql, pg_params) = pg_gen().generate(&clause).unwrap();
-        let (sq_sql, sq_params) = sq_gen().generate(&clause).unwrap();
-        assert!(pg_sql.contains("AND"), "PG: {pg_sql}");
-        assert!(sq_sql.contains("AND"), "SQLite: {sq_sql}");
-        assert_eq!(pg_params.len(), sq_params.len());
-    }
-
-    #[test]
-    fn parity_nested_path_same_param_count() {
-        let clause = nested_field(&["address", "city"], WhereOperator::Eq, json!("Paris"));
-        let (_, pg_params) = pg_gen().generate(&clause).unwrap();
-        let (_, sq_params) = sq_gen().generate(&clause).unwrap();
-        assert_eq!(pg_params.len(), 1);
-        assert_eq!(sq_params.len(), 1);
-        assert_eq!(pg_params[0], sq_params[0]);
-    }
-
-    #[test]
-    fn parity_nested_and_or_same_param_count() {
-        let clause = WhereClause::And(vec![
-            WhereClause::Or(vec![
-                field("tag", WhereOperator::Eq, json!("rust")),
-                field("tag", WhereOperator::Eq, json!("go")),
-            ]),
-            field("published", WhereOperator::Eq, json!(true)),
-        ]);
-        let (_, pg_params) = pg_gen().generate(&clause).unwrap();
-        let (_, sq_params) = sq_gen().generate(&clause).unwrap();
-        assert_eq!(pg_params.len(), 3);
-        assert_eq!(sq_params.len(), 3);
-    }
-}

@@ -7,7 +7,7 @@
 //! Measures latency for:
 //! - WHERE clause SQL generation (WhereSqlGenerator — raw string path)
 //! - GenericWhereGenerator parameterized SQL across all four dialects
-//! - Projection/SELECT generation (PostgreSQL, MySQL, SQLite)
+//! - Projection/SELECT generation (PostgreSQL)
 //! - Collation mapping across database types
 //! - `WhereClause::from_graphql_json` parsing
 
@@ -16,9 +16,8 @@ use std::sync::Arc;
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_db::{
     CollationConfig, CollationMapper, DatabaseType, GenericWhereGenerator,
-    MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator, WhereClause,
-    WhereOperator, WhereSqlGenerator,
-    dialect::{MySqlDialect, PostgresDialect, SqlServerDialect, SqliteDialect},
+    PostgresProjectionGenerator, WhereClause, WhereOperator, WhereSqlGenerator,
+    dialect::PostgresDialect,
 };
 use serde_json::json;
 
@@ -134,31 +133,11 @@ fn generic_where_generator_benchmarks(c: &mut Criterion) {
         b.iter(|| gen.generate(black_box(&clause)).unwrap());
     });
 
-    group.bench_function("mysql_simple_eq", |b| {
-        let gen = GenericWhereGenerator::new(MySqlDialect);
-        b.iter(|| gen.generate(black_box(&clause)).unwrap());
-    });
-
-    group.bench_function("sqlite_simple_eq", |b| {
-        let gen = GenericWhereGenerator::new(SqliteDialect);
-        b.iter(|| gen.generate(black_box(&clause)).unwrap());
-    });
-
-    group.bench_function("sqlserver_simple_eq", |b| {
-        let gen = GenericWhereGenerator::new(SqlServerDialect);
-        b.iter(|| gen.generate(black_box(&clause)).unwrap());
-    });
-
     // Complex nested AND/OR across dialects
     let complex = complex_and_or_clause();
 
     group.bench_function("postgres_complex_and_or", |b| {
         let gen = GenericWhereGenerator::new(PostgresDialect);
-        b.iter(|| gen.generate(black_box(&complex)).unwrap());
-    });
-
-    group.bench_function("mysql_complex_and_or", |b| {
-        let gen = GenericWhereGenerator::new(MySqlDialect);
         b.iter(|| gen.generate(black_box(&complex)).unwrap());
     });
 
@@ -246,22 +225,6 @@ fn projection_benchmarks(c: &mut Criterion) {
         });
     }
 
-    // MySQL projection
-    let mysql = MySqlProjectionGenerator::new();
-    for (count, fields) in &field_sets {
-        group.bench_with_input(BenchmarkId::new("mysql", count), fields, |b, fields| {
-            b.iter(|| mysql.generate_projection_sql(black_box(fields)).unwrap());
-        });
-    }
-
-    // SQLite projection
-    let sqlite = SqliteProjectionGenerator::new();
-    for (count, fields) in &field_sets {
-        group.bench_with_input(BenchmarkId::new("sqlite", count), fields, |b, fields| {
-            b.iter(|| sqlite.generate_projection_sql(black_box(fields)).unwrap());
-        });
-    }
-
     group.finish();
 }
 
@@ -274,12 +237,7 @@ fn collation_benchmarks(c: &mut Criterion) {
 
     let config = CollationConfig::default();
 
-    let db_types = [
-        ("postgres", DatabaseType::PostgreSQL),
-        ("mysql", DatabaseType::MySQL),
-        ("sqlite", DatabaseType::SQLite),
-        ("sqlserver", DatabaseType::SQLServer),
-    ];
+    let db_types = [("postgres", DatabaseType::PostgreSQL)];
 
     for (name, db_type) in &db_types {
         group.bench_with_input(BenchmarkId::from_parameter(name), db_type, |b, &dt| {

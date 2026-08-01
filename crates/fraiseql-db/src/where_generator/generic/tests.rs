@@ -187,28 +187,6 @@ fn generic_pg_ltree_ancestor_of() {
 }
 
 #[test]
-fn non_pg_vector_op_returns_error() {
-    use crate::dialect::MySqlDialect;
-    let gen = GenericWhereGenerator::new(MySqlDialect);
-    let clause = field("embedding", WhereOperator::CosineDistance, json!([0.1]));
-    let err = gen.generate(&clause).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("VectorDistance") || msg.contains("not supported"), "Got: {msg}");
-}
-
-#[test]
-fn non_pg_network_op_returns_error() {
-    use crate::dialect::SqliteDialect;
-    let gen = GenericWhereGenerator::new(SqliteDialect);
-    let clause = field("ip", WhereOperator::IsIPv4, json!(true));
-    let err = gen.generate(&clause).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("Inet") || msg.contains("not supported"), "Got: {msg}");
-}
-
-// ── LIKE metacharacter escaping (C3 fix verification) ──────────────
-
-#[test]
 fn escape_like_literal_escapes_percent_and_underscore() {
     assert_eq!(super::escape_like_literal("50%"), "50\\%");
     assert_eq!(super::escape_like_literal("user_name"), "user\\_name");
@@ -411,51 +389,6 @@ fn descendant_of_id_without_hierarchy_ctx_errors() {
 }
 
 #[test]
-fn descendant_of_id_mysql_unsupported() {
-    use crate::dialect::MySqlDialect;
-    let gen = GenericWhereGenerator::new(MySqlDialect);
-    let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
-        path_column: "category_path".to_string(),
-        fk_column:   None,
-    };
-    let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
-    let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("not supported") || msg.contains("LTreeIdSubquery"), "Got: {msg}");
-}
-
-#[test]
-fn ancestor_of_id_sqlite_unsupported() {
-    use crate::dialect::SqliteDialect;
-    let gen = GenericWhereGenerator::new(SqliteDialect);
-    let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
-        path_column: "category_path".to_string(),
-        fk_column:   None,
-    };
-    let clause = field("category_path", WhereOperator::AncestorOfId, json!("some-id"));
-    let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("not supported") || msg.contains("LTreeIdSubquery"), "Got: {msg}");
-}
-
-#[test]
-fn descendant_of_id_sqlserver_unsupported() {
-    use crate::dialect::SqlServerDialect;
-    let gen = GenericWhereGenerator::new(SqlServerDialect);
-    let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
-        path_column: "category_path".to_string(),
-        fk_column:   None,
-    };
-    let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
-    let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("not supported") || msg.contains("LTreeIdSubquery"), "Got: {msg}");
-}
-
-#[test]
 fn ltree_id_subquery_escapes_adversarial_identifiers() {
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
@@ -473,4 +406,76 @@ fn ltree_id_subquery_escapes_adversarial_identifiers() {
         sql.contains(r#""evil""col""#),
         "Column name should have doubled quotes, got: {sql}"
     );
+}
+
+// ── #870.2: every INET operator honours its boolean argument ────────────────
+//
+// `IsPrivate`, `IsLoopback`, `IsMulticast`, `IsLinkLocal`, `IsDocumentation`
+// and `IsCarrierGrade` all read `value.as_bool()` and dispatch to a negated
+// check name. `IsIPv4`/`IsIPv6` did not, so `is_ipv4: false` — a request to
+// EXCLUDE IPv4 — returned exactly the IPv4 rows.
+
+/// Drives every INET operator with `false` and requires the emitted SQL to
+/// negate. Asserting the shared helper would prove nothing about the arms: the
+/// defect was in the dispatch, not in `inet_check_sql`.
+#[test]
+fn every_inet_operator_negates_when_the_value_is_false() {
+    for op in [
+        WhereOperator::IsIPv4,
+        WhereOperator::IsIPv6,
+        WhereOperator::IsPrivate,
+        WhereOperator::IsLoopback,
+        WhereOperator::IsMulticast,
+        WhereOperator::IsLinkLocal,
+        WhereOperator::IsDocumentation,
+        WhereOperator::IsCarrierGrade,
+    ] {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("ip_address", op.clone(), json!(false));
+        let generated = gen.generate(&clause);
+        assert!(generated.is_ok(), "{op:?} with value=false must generate SQL: {generated:?}");
+        let (sql, _params) = generated.unwrap();
+        assert!(
+            sql.contains("NOT ") || sql.contains("<> 4") || sql.contains("<> 6"),
+            "{op:?} with value=false must emit a negated check, got: {sql}"
+        );
+    }
+}
+
+/// Counterweight: `true` must NOT negate, or the fix would invert every filter.
+#[test]
+fn every_inet_operator_is_positive_when_the_value_is_true() {
+    for op in [
+        WhereOperator::IsIPv4,
+        WhereOperator::IsIPv6,
+        WhereOperator::IsPrivate,
+        WhereOperator::IsLoopback,
+        WhereOperator::IsMulticast,
+        WhereOperator::IsLinkLocal,
+        WhereOperator::IsDocumentation,
+        WhereOperator::IsCarrierGrade,
+    ] {
+        let gen = GenericWhereGenerator::new(PostgresDialect);
+        let clause = field("ip_address", op.clone(), json!(true));
+        let generated = gen.generate(&clause);
+        assert!(generated.is_ok(), "{op:?} with value=true must generate SQL: {generated:?}");
+        let (sql, _params) = generated.unwrap();
+        assert!(
+            !sql.contains("NOT "),
+            "{op:?} with value=true must emit a positive check, got: {sql}"
+        );
+    }
+}
+
+/// `is_ipv4: false` and `is_ipv6: true` must not render the same SQL — the
+/// pre-fix code made "exclude IPv4" and "only IPv6" indistinguishable from
+/// "only IPv4".
+#[test]
+fn not_ipv4_is_distinct_from_ipv4() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let (positive, _) =
+        gen.generate(&field("ip_address", WhereOperator::IsIPv4, json!(true))).unwrap();
+    let (negative, _) =
+        gen.generate(&field("ip_address", WhereOperator::IsIPv4, json!(false))).unwrap();
+    assert_ne!(positive, negative, "is_ipv4:true and is_ipv4:false must differ");
 }

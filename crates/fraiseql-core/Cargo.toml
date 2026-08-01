@@ -113,7 +113,6 @@ tracing-subscriber = {workspace = true}
 mutants = "0.0.4"
 proptest = {workspace = true}
 serial_test = "3"
-sqlx = {workspace = true, features = ["mysql"]}
 temp-env = {workspace = true}
 tempfile = {workspace = true}
 tokio-test = "0.4"
@@ -132,7 +131,6 @@ default = ["postgres"]
 dhat-heap = ["dhat"]
 federation = ["dep:fraiseql-federation"]
 kafka = ["rdkafka"]
-mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]
 redis-apq = ["redis"]
 # JWT replay prevention via Redis SET NX (requires a Redis instance).
@@ -141,15 +139,9 @@ jwt-replay = ["redis"]
 # Schema linting: anti-pattern detection, cost analysis, quality scoring.
 # Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
 schema-lint = []
-sqlite = ["fraiseql-db/sqlite"]
-sqlserver = ["fraiseql-db/sqlserver"]
-# Run with: cargo test --features test-mysql -- --test-threads=1
-test-mysql = ["mysql", "fraiseql-db/test-mysql"]
 # Test features - enable database integration tests
 # Run with: cargo test --features test-postgres -- --test-threads=1
 test-postgres = ["fraiseql-db/test-postgres"]
-# Run with: cargo test --features test-sqlserver -- --test-threads=1
-test-sqlserver = ["sqlserver", "fraiseql-db/test-sqlserver"]
 # Expose ManualClock and other test helpers for dependent crates
 test-utils = []
 wire-backend = ["fraiseql-db/wire-backend"]

@@ -229,7 +229,7 @@ jobs:
           # fraiseql-wire is Unix-only (uses tokio::net::UnixStream)
           if [ "$RUNNER_OS" == "Windows" ]; then
             # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
-            cargo build --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver" --verbose
+            cargo build --workspace --exclude fraiseql-wire --features "postgres" --verbose
           else
             cargo build --all-features --verbose
           fi
@@ -239,10 +239,10 @@ jobs:
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
             # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
-            cargo test --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver" --verbose
+            cargo test --workspace --exclude fraiseql-wire --features "postgres" --verbose
           else
             # Test all crates except those needing external services.
-            # fraiseql-core/fraiseql-db: test-postgres/test-mysql/test-sqlserver features
+            # fraiseql-core/fraiseql-db: test-postgres feature
             # fraiseql-arrow: Arrow Flight e2e tests
             # fraiseql-observers: dedup/caching tests need Redis
             # fraiseql-server: observer_repository tests need PostgreSQL via testcontainers
@@ -255,9 +255,9 @@ jobs:
               --all-features --verbose
             # Test crates with explicit feature lists (no test-* infra features)
             # SYNC:CORE_FEATURES — keep in sync with other SYNC:CORE_FEATURES locations
-            cargo test -p fraiseql-core --features "arrow,federation,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --verbose
+            cargo test -p fraiseql-core --features "arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend" --verbose
             # SYNC:DB_FEATURES — keep in sync with other SYNC:DB_FEATURES locations
-            cargo test -p fraiseql-db --features "mysql,postgres,sqlite,sqlserver,wire-backend" --verbose
+            cargo test -p fraiseql-db --features "postgres,wire-backend" --verbose
             # Server lib tests only (integration tests need PostgreSQL)
             # --all-features is avoided because observers-nats, redis-rate-limiting,
             # redis-pkce, redis-idempotency, and observers-enterprise require NATS/Redis
@@ -271,7 +271,7 @@ jobs:
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
             # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
-            cargo test --doc --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver" --verbose
+            cargo test --doc --workspace --exclude fraiseql-wire --features "postgres" --verbose
           else
             cargo test --doc --all-features --verbose
           fi
@@ -281,7 +281,7 @@ jobs:
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
             # SYNC:WINDOWS_FEATURES — keep in sync with other SYNC:WINDOWS_FEATURES locations
-            RUSTDOCFLAGS="-D warnings" cargo doc --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver" --no-deps
+            RUSTDOCFLAGS="-D warnings" cargo doc --workspace --exclude fraiseql-wire --features "postgres" --no-deps
           else
             RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps
           fi
@@ -321,12 +321,11 @@ jobs:
         # concurrently is the primary cause of OOM (collect2 Bus error) on 7GB CI runners.
         # RUSTFLAGS uses mold linker for lower memory usage during linking.
         # Uses test-postgres feature to compile only PostgreSQL-dependent tests.
-        # MySQL and SQL Server tests run in their own integration jobs.
         run: |
           # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
-          cargo test -p fraiseql-core --features "test-postgres,arrow,federation,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --test '*' -- --test-threads=1
+          cargo test -p fraiseql-core --features "test-postgres,arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend" --test '*' -- --test-threads=1
           # SYNC:DB_TEST_FEATURES — keep in sync with other SYNC:DB_TEST_FEATURES locations
-          cargo test -p fraiseql-db --features "test-postgres,mysql,postgres,sqlite,sqlserver,wire-backend" --test '*' -- --test-threads=1
+          cargo test -p fraiseql-db --features "test-postgres,postgres,wire-backend" --test '*' -- --test-threads=1
           # fraiseql-arrow Tier 3 (DB-backed) flight tests — these skip gracefully
           # when DATABASE_URL is unset; here we run them against the PostgreSQL service.
           cargo test -p fraiseql-arrow --test flight_integration --test flight_e2e_test --test flight_error_handling_test -- --test-threads=1
@@ -358,112 +357,6 @@ jobs:
           RUST_LOG: debug
           CARGO_BUILD_JOBS: 2
           RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
-
-  # Integration tests with MySQL
-  integration-mysql:
-    name: Integration Tests (MySQL)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    services:
-      mysql:
-        image: mysql:8.3
-        env:
-          MYSQL_ROOT_PASSWORD: fraiseql_test_root
-          MYSQL_DATABASE: test_fraiseql
-          MYSQL_USER: fraiseql_test
-          MYSQL_PASSWORD: fraiseql_test_password
-        options: >-
-          --health-cmd "mysqladmin ping -h localhost -u fraiseql_test -pfraiseql_test_password"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 3307:3306
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Install MySQL client
-        run: sudo apt-get update && sudo apt-get install -y default-mysql-client
-
-      - name: Initialize MySQL test database schema
-        run: |
-          mysql -h 127.0.0.1 -P 3307 -u fraiseql_test -pfraiseql_test_password test_fraiseql < tests/sql/mysql/init.sql
-          mysql --delimiter="//" -h 127.0.0.1 -P 3307 -u fraiseql_test -pfraiseql_test_password test_fraiseql < tests/sql/mysql/procedures.sql
-
-      - name: Run MySQL integration tests
-        run: cargo test -p fraiseql-core --features "test-mysql" --test integration -- multi_database_integration --test-threads=1
-        env:
-          MYSQL_URL: mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql
-          RUST_LOG: debug
-
-  # Integration tests with SQLite (no external service needed)
-  integration-sqlite:
-    name: Integration Tests (SQLite)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Run SQLite integration tests
-        run: cargo test -p fraiseql-core --features "sqlite" --test integration -- multi_database_integration::sqlite
-        env:
-          RUST_LOG: debug
-
-  # Integration tests with SQL Server
-  integration-sqlserver:
-    name: Integration Tests (SQL Server)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # SQL Server containers are unreliable on GitHub Actions runners (memory/startup issues)
-    continue-on-error: true
-
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04
-        env:
-          ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "FraiseQL_Test1234"
-          MSSQL_PID: "Developer"
-          MSSQL_MEMORY_LIMIT_MB: "512"
-        options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P FraiseQL_Test1234 -C -Q 'SELECT 1' || exit 1"
-          --health-interval 15s
-          --health-timeout 10s
-          --health-retries 10
-          --health-start-period 40s
-        ports:
-          - 1434:1433
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Install mssql-tools18
-        run: |
-          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-          curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
-
-      - name: Initialize SQL Server test databases
-        run: /opt/mssql-tools18/bin/sqlcmd -S localhost,1434 -U sa -P 'FraiseQL_Test1234' -C -i tests/sql/sqlserver/init.sql
-
-      - name: Run SQL Server integration tests
-        run: cargo test -p fraiseql-core --features "test-sqlserver" --test integration -- multi_database_integration --test-threads=1
-        env:
-          SQLSERVER_URL: "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true"
-          RUST_LOG: debug
 
   # Code coverage runs on a weekly schedule — see .github/workflows/coverage.yml
   # Removed from PR CI to avoid 30-60min instrumented builds on every push.
@@ -541,63 +434,6 @@ jobs:
 
       - name: Check for broken links
         run: cargo doc --all-features --no-deps 2>&1 | grep -i "warning" && exit 1 || exit 0
-
-  # Cross-database parity tests (PostgreSQL + MySQL)
-  integration-cross-db:
-    name: Integration Tests (Cross-DB Parity)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: ""
-          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
-          MYSQL_DATABASE: test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd "mysqladmin ping -h localhost --silent"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: Run cross-database parity tests
-        run: |
-          cargo nextest run \
-            --test integration \
-            -E 'test(cross_database_test)' \
-            --run-ignored all \
-            --features test-mysql,test-postgres \
-            -p fraiseql-core
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          MYSQL_URL: mysql://root:@localhost:3306/test
-          RUST_LOG: warn
 
   # Integration tests for Redis (APQ storage, observer queue and lease)
   integration-redis:
@@ -1297,8 +1133,8 @@ jobs:
         run: cargo check --workspace --target x86_64-unknown-freebsd
 
       - name: cargo check (fraiseql-server, all features)
-        # Full deployable feature surface. Excludes runtime-deno and sqlserver
-        # by construction (fraiseql-server enables neither), so this needs no
+        # Full deployable feature surface. Excludes runtime-deno by
+        # construction (fraiseql-server does not enable it), so this needs no
         # target OpenSSL and no native V8 — see the job header comment.
         run: cargo check -p fraiseql-server --all-features --target x86_64-unknown-freebsd
 
@@ -1311,9 +1147,6 @@ jobs:
       - example-async-jobs-subgraph
       - test
       - integration-postgres
-      - integration-mysql
-      - integration-sqlite
-      - integration-sqlserver
       - integration-redis
       - integration-nats
       - integration-observers
@@ -1323,7 +1156,6 @@ jobs:
       - integration-http-e2e
       - security
       - dependency-audit
-      - integration-cross-db
       - docs
       - sdk-parity
       - binary-size

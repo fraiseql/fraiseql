@@ -752,27 +752,6 @@ fn test_where_case_insensitive_postgresql() {
 
 /// Test WHERE clause with case-insensitive operators (MySQL - uses UPPER)
 #[test]
-fn test_where_case_insensitive_mysql() {
-    let metadata = create_test_fact_table_metadata();
-    let where_clause = WhereClause::Field {
-        path:     vec!["category".to_string()],
-        operator: WhereOperator::Icontains,
-        value:    json!("electr"),
-    };
-
-    let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mut params: Vec<serde_json::Value> = vec![];
-    let sql = generator
-        .build_where_clause_parameterized(&where_clause, &metadata, &mut params)
-        .unwrap();
-
-    // MySQL should use UPPER() for case-insensitive
-    assert!(sql.contains("UPPER"));
-    assert!(sql.contains("LIKE"));
-}
-
-/// Test WHERE clause with IS NULL operator
-#[test]
 fn test_where_is_null_operator() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
@@ -792,49 +771,6 @@ fn test_where_is_null_operator() {
 }
 
 /// Test WHERE clause SQL generation across all databases
-#[test]
-fn test_where_multi_database_compatibility() {
-    let metadata = create_test_fact_table_metadata();
-    let where_clause = WhereClause::Field {
-        path:     vec!["category".to_string()],
-        operator: WhereOperator::Eq,
-        value:    json!("electronics"),
-    };
-
-    // PostgreSQL: data->>'category'
-    let pg = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let mut params: Vec<serde_json::Value> = vec![];
-    let sql = pg
-        .build_where_clause_parameterized(&where_clause, &metadata, &mut params)
-        .unwrap();
-    assert!(sql.contains("data->>'category'"));
-
-    // MySQL: JSON_UNQUOTE(JSON_EXTRACT(...))
-    let mysql = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mut params: Vec<serde_json::Value> = vec![];
-    let sql = mysql
-        .build_where_clause_parameterized(&where_clause, &metadata, &mut params)
-        .unwrap();
-    assert!(sql.contains("JSON_EXTRACT") || sql.contains("JSON_UNQUOTE"));
-
-    // SQLite: json_extract(...)
-    let sqlite = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let mut params: Vec<serde_json::Value> = vec![];
-    let sql = sqlite
-        .build_where_clause_parameterized(&where_clause, &metadata, &mut params)
-        .unwrap();
-    assert!(sql.contains("json_extract"));
-
-    // SQL Server: JSON_VALUE(...)
-    let mssql = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mut params: Vec<serde_json::Value> = vec![];
-    let sql = mssql
-        .build_where_clause_parameterized(&where_clause, &metadata, &mut params)
-        .unwrap();
-    assert!(sql.contains("JSON_VALUE"));
-}
-
-/// Test empty WHERE clause
 #[test]
 fn test_where_empty_clause() {
     let metadata = create_test_fact_table_metadata();

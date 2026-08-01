@@ -17,7 +17,7 @@ help:
 	@echo "  make load-test-all      - Run all k6 load test scenarios"
 	@echo ""
 	@echo "Database (Docker):"
-	@echo "  make db-up              - Start all test infrastructure (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)"
+	@echo "  make db-up              - Start all test infrastructure (PostgreSQL, Redis, NATS, Vault)"
 	@echo "  make db-down            - Stop test infrastructure"
 	@echo "  make db-logs            - View infrastructure logs"
 	@echo "  make db-reset           - Reset test infrastructure (remove volumes)"
@@ -104,7 +104,7 @@ release-validate-semver:
 test: test-unit test-integration
 
 # Run the full test suite: unit + snapshots + all DBs + Redis/NATS/Vault + server + federation
-# Requires full infrastructure: Docker with PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault + Apollo Router
+# Requires full infrastructure: Docker with PostgreSQL, Redis, NATS, Vault + Apollo Router
 # Reports a single pass/fail at the end.
 test-full: db-up federation-up
 	@echo "=== Running full test suite (9 steps) ==="
@@ -115,22 +115,12 @@ test-full: db-up federation-up
 	@echo "[2/9] SQL snapshot tests..."
 	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
 	@echo ""
-	@echo "[3/9] Database integration tests (PostgreSQL, MySQL, SQL Server)..."
+	@echo "[3/9] Database integration tests (PostgreSQL)..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test --features test-postgres -p fraiseql-core --lib --tests -- --ignored --test-threads=4
-	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
-	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-mysql -p fraiseql-core --lib --tests -- --ignored --test-threads=1
-	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
-	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-sqlserver -p fraiseql-core --lib --tests -- --ignored --test-threads=1
 	@echo ""
-	@echo "[4/9] Cross-database parity tests..."
-	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-	MYSQL_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
-		cargo test --features test-postgres,test-mysql -p fraiseql-core \
-		    --test cross_database_test -- --ignored --test-threads=1
+	@echo "[4/9] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
 	@echo ""
 	@echo "[5/9] Redis tests (APQ + observer queue/lease)..."
 	REDIS_URL="redis://localhost:6379" \
@@ -178,16 +168,6 @@ test-integration: db-up
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test --features test-postgres -p fraiseql-core --lib --tests -- --ignored --test-threads=4
-	@echo ""
-	@echo "=== MySQL integration tests ==="
-	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
-	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-mysql -p fraiseql-core --lib --tests -- --ignored --test-threads=1
-	@echo ""
-	@echo "=== SQL Server integration tests ==="
-	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
-	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-sqlserver -p fraiseql-core --lib --tests -- --ignored --test-threads=1
 	@echo ""
 	@echo "=== fraiseql-observers integration tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -609,14 +589,14 @@ watch-check:
 # Docker-based Test Database Management
 # ============================================================================
 
-# Start all test infrastructure (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)
+# Start all test infrastructure (PostgreSQL, Redis, NATS, Vault)
 # and wait until each service is healthy.
 db-up:
 	@echo "Starting test infrastructure..."
 	@bash docker/tls/gen-certs.sh
 	@docker compose -f docker/docker-compose.test.yml up -d
 	@echo "Waiting for all services to be healthy..."
-	@for svc in postgres-test postgres-tls-test mysql-test sqlserver-test redis-test nats-test vault-test; do \
+	@for svc in postgres-test postgres-tls-test redis-test nats-test vault-test; do \
 		printf "  Waiting for %-20s" "$$svc..."; \
 		for i in $$(seq 1 60); do \
 			status=$$(docker inspect --format='{{.State.Health.Status}}' \

@@ -342,43 +342,29 @@ provider = "libc"
 }
 
 #[test]
-fn test_collation_with_mysql_overrides() {
-    let toml = r#"
+fn test_collation_with_removed_backend_overrides_fails_loud() {
+    // The mysql/sqlite/sqlserver collation override tables were removed with
+    // their backends (G2, #374). A config that still carries one must FAIL to
+    // parse — silently ignoring it would let an operator believe the override
+    // is active.
+    for table in ["mysql", "sqlite", "sqlserver"] {
+        let toml = format!(
+            r#"
 [database]
 url = "postgresql://localhost/test"
 
 [collation]
 enabled = true
 
-[collation.database_overrides.mysql]
-charset = "utf8mb4"
-suffix = "_0900_ai_ci"
-"#;
-    let config = FraiseQLConfig::from_toml(toml).unwrap();
-
-    let overrides = config.collation.database_overrides.as_ref().unwrap();
-    let mysql_config = overrides.mysql.as_ref().unwrap();
-    assert_eq!(mysql_config.charset, "utf8mb4");
-    assert_eq!(mysql_config.suffix, "_0900_ai_ci");
-}
-
-#[test]
-fn test_collation_with_sqlite_overrides() {
-    let toml = r#"
-[database]
-url = "postgresql://localhost/test"
-
-[collation]
-enabled = true
-
-[collation.database_overrides.sqlite]
-use_nocase = false
-"#;
-    let config = FraiseQLConfig::from_toml(toml).unwrap();
-
-    let overrides = config.collation.database_overrides.as_ref().unwrap();
-    let sqlite_config = overrides.sqlite.as_ref().unwrap();
-    assert!(!sqlite_config.use_nocase);
+[collation.database_overrides.{table}]
+"#
+        );
+        let result = FraiseQLConfig::from_toml(&toml);
+        assert!(
+            result.is_err(),
+            "a removed {table} collation override must be rejected, got {result:?}"
+        );
+    }
 }
 
 #[test]

@@ -20,7 +20,7 @@ arrow = ["dep:fraiseql-arrow", "fraiseql-core/arrow", "server"]
 cli = ["dep:fraiseql-cli"]
 default = ["postgres"]
 # Feature bundles
-full = ["server", "observers", "arrow", "wire", "postgres", "mysql", "sqlite", "cli", "federation"]
+full = ["server", "observers", "arrow", "wire", "postgres", "cli", "federation"]
 federation = ["fraiseql-core/federation"]
 # Platform-feature pass-throughs to the server (mirror `observers`). These let the
 # umbrella `fraiseql` binary — the published release artifact — be built with the
@@ -42,7 +42,6 @@ minimal = []
 # the published `-full` binary is a self-contained server (functions/sources/mcp all
 # reachable at runtime) instead of a CLI with dead server code.
 run-server = ["cli", "server", "fraiseql-cli?/run-server"]
-mysql = ["fraiseql-core/mysql"]
 observers = ["dep:fraiseql-observers", "fraiseql-server?/observers"]
 # Database backends (pass-through to fraiseql-core)
 postgres = ["fraiseql-core/postgres"]
@@ -70,8 +69,6 @@ release-full = [
 # Optional components
 server = ["dep:fraiseql-server"]
 sources = ["server", "fraiseql-server?/sources"]
-sqlite = ["fraiseql-core/sqlite"]
-sqlserver = ["fraiseql-core/sqlserver"]
 wire = ["dep:fraiseql-wire", "fraiseql-core/wire-backend"]
 
 [lints]

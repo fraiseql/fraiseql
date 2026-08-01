@@ -250,15 +250,6 @@ metrics = ["dep:metrics-exporter-prometheus"]
 # always on via the default feature.
 #
 # Constraints:
-# - SQLite is read-only (SqliteAdapter does not implement SupportsMutations).
-#   Starting the server against a sqlite:// URL with a schema that declares
-#   mutations fails fast at startup.
-# - The observer subsystem (LISTEN/NOTIFY) is PostgreSQL-only. With MySQL /
-#   SQLite / SQL Server, observer routes are skipped even if the `observers`
-#   feature is enabled.
-mysql = ["fraiseql-core/mysql"]
-sqlite = ["fraiseql-core/sqlite"]
-sqlserver = ["fraiseql-core/sqlserver"]
 # Observer system for reactive business logic
 # checkpoint is not optional for the server: the change-log runtime restores a
 # durable cursor at start so a restart never replays the change log (#805).

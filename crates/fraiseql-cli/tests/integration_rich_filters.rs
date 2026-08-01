@@ -109,11 +109,9 @@ fn test_rich_filter_compilation_pipeline() {
     let operators = metadata["operators"].as_object().unwrap();
     assert!(operators.contains_key("domainEq"), "Should have domainEq operator template");
 
-    // Verify templates for all databases
+    // Verify the PostgreSQL template is present
     let domain_eq = operators["domainEq"].as_object().unwrap();
-    for db in &["postgres", "mysql", "sqlite", "sqlserver"] {
-        assert!(domain_eq.contains_key(*db), "Should have {} template for domainEq", db);
-    }
+    assert!(domain_eq.contains_key("postgres"), "Should have postgres template for domainEq");
 
     // 5. Verify lookup data is present
     assert!(compiled.security.is_some(), "Security section should exist for lookup data");
@@ -267,9 +265,9 @@ fn test_where_input_fields_include_standard_operators() {
     assert!(email_where.fields.len() >= 10, "Should have at least 10 fields");
 }
 
-/// Test: SQL templates have correct database coverage
+/// Test: SQL templates have correct PostgreSQL coverage
 #[test]
-fn test_sql_templates_cover_all_databases() {
+fn test_sql_templates_cover_postgres() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
@@ -328,18 +326,13 @@ fn test_sql_templates_cover_all_databases() {
             .unwrap_or_else(|| panic!("{} should have metadata", type_name));
         let operators = metadata["operators"].as_object().unwrap();
 
-        // Each operator should have templates for all 4 databases
+        // Each operator should have a PostgreSQL template
         for (op_name, templates) in operators {
             let db_templates = templates.as_object().unwrap();
-            for db in &["postgres", "mysql", "sqlite", "sqlserver"] {
-                assert!(
-                    db_templates.contains_key(*db),
-                    "{}/{} should have {} template",
-                    type_name,
-                    op_name,
-                    db
-                );
-            }
+            assert!(
+                db_templates.contains_key("postgres"),
+                "{type_name}/{op_name} should have a postgres template"
+            );
         }
     }
 }

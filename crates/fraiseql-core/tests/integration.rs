@@ -6,8 +6,6 @@
 
 mod integration {
     mod aggregation_integration;
-    mod cross_database_test;
     mod fact_table_integration;
-    mod multi_database_integration;
     mod relay_integration;
 }

@@ -33,7 +33,7 @@ As a result, applications built with FraiseQL achieve significantly faster query
 
 ### 2. True Multi-Database Support
 
-**FraiseQL**: Single compiled schema runs unchanged on PostgreSQL, MySQL, SQLite, or SQL Server. SQL generation is database-agnostic; runtime swaps adapters.
+**FraiseQL**: SQL is generated for PostgreSQL at compile time — JSONB projection, native RLS, `LISTEN/NOTIFY` — rather than translated at runtime through an ORM abstraction.
 
 **Hasura**: PostGraphQL focused; migrations complex when switching databases.
 
@@ -42,7 +42,6 @@ As a result, applications built with FraiseQL achieve significantly faster query
 **Advantage**: FraiseQL enables:
 
 - Write once, deploy anywhere (same schema compiles for all 4 databases)
-- Test locally with SQLite, deploy to PostgreSQL without modification
 - No vendor lock-in; migration is configuration-only
 
 ---
@@ -110,7 +109,7 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 - Apollo Federation v2 (entity resolution, federated subscriptions)
 - Query validation and projection optimization
 - Connection pooling and health checks
-- Four database backends: PostgreSQL, MySQL, SQLite, SQL Server
+- PostgreSQL 14+ (the only supported backend)
 
 **No external dependencies beyond database drivers. Minimal binary footprint (~15MB).**
 
@@ -265,7 +264,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 |--------|----------|--------|
 | **Architecture** | Compiled, statically-analyzed | Runtime interpretation |
 | **Performance** | Faster (compiled SQL, workload-dependent) | Baseline (interpreted) |
-| **Databases** | PostgreSQL, MySQL, SQLite, SQL Server | Postgres-first, others secondary |
+| **Database** | PostgreSQL | PostgreSQL |
 | **Schema Authoring** | 6 languages (Python, TS, Java, Go, PHP, Rust) | Manual YAML/API |
 | **N+1 Prevention** | Automatic at compile time | Manual via schema design |
 | **Startup Time** | Fast (no parsing) | Fast (no interpretation) |
@@ -282,7 +281,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 
 | Aspect | FraiseQL | PostGraphile |
 |--------|----------|--------------|
-| **Database** | PostgreSQL, MySQL, SQLite, SQL Server | PostgreSQL only |
+| **Database** | PostgreSQL | PostgreSQL only |
 | **Performance** | Faster (compiled SQL, workload-dependent) | Baseline (interpreted) |
 | **Build Step** | Required (schema → compiled JSON) | No build step |
 | **Type Safety** | Compile-time guarantee | Runtime reflection |
@@ -377,9 +376,6 @@ pub trait DatabaseAdapter: Send + Sync {
 }
 
 impl DatabaseAdapter for PostgresAdapter { ... }
-impl DatabaseAdapter for MysqlAdapter { ... }
-impl DatabaseAdapter for SqliteAdapter { ... }
-impl DatabaseAdapter for MssqlAdapter { ... }
 ```
 
 Benefits:

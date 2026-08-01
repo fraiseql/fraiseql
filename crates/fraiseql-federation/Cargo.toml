@@ -37,10 +37,14 @@ uuid = {workspace = true}
 zeroize = "1.8"
 
 [dev-dependencies]
-# SQLite proves wired saga forward execution (#429) against a real
-# `DatabaseAdapter` with no external service; Postgres backs the saga store +
-# entity-mutation orchestration integration tests (`saga`, ignored).
-fraiseql-db = {workspace = true, default-features = false, features = ["sqlite", "postgres"]}
+# Postgres backs the saga store + entity-mutation orchestration integration
+# tests (`saga`, ignored). The lib tests use `FailingAdapter` from
+# fraiseql-test-utils as the local `DatabaseAdapter`: remote-dispatch tests
+# configure it to fail loudly if the local path is ever reached, and the
+# real-SQL forward-execution proofs live in `tests/saga_integration.rs`
+# against PostgreSQL (G2 removed the non-PG adapters).
+fraiseql-db = {workspace = true, default-features = false, features = ["postgres"]}
+fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 chrono = {workspace = true}
 criterion = {version = "0.5", features = ["html_reports"]}
 proptest = {workspace = true}

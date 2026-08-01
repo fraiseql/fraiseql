@@ -52,7 +52,7 @@ jobs:
         uses: ./.github/actions/init-postgres
 
       # Collect profdata across multiple runs with --no-report.
-      # fraiseql-core and fraiseql-db use explicit features (no test-mysql/test-sqlserver).
+      # fraiseql-core and fraiseql-db use explicit features.
       # All other crates use --all-features for maximum coverage.
       - name: Clean previous coverage data
         run: cargo llvm-cov clean --workspace
@@ -61,7 +61,7 @@ jobs:
         run: |
           # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
           cargo llvm-cov --no-report \
-            --features "test-postgres,arrow,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend" \
+            --features "test-postgres,arrow,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend" \
             -p fraiseql-core \
             -- --test-threads=1
         env:
@@ -72,7 +72,7 @@ jobs:
         run: |
           # SYNC:DB_FEATURES — keep in sync with other SYNC:DB_FEATURES locations
           cargo llvm-cov --no-report \
-            --features "mysql,postgres,sqlite,sqlserver,wire-backend" \
+            --features "postgres,wire-backend" \
             -p fraiseql-db \
             -- --test-threads=1
         env:

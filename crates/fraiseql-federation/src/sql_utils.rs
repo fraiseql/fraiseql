@@ -49,20 +49,16 @@ pub fn is_safe_sql_identifier(name: &str) -> bool {
 /// // Illustrative — see unit tests below for runnable examples.
 /// value_to_sql_literal(DatabaseType::PostgreSQL, &json!("test")) // produces "'test'"
 /// value_to_sql_literal(DatabaseType::PostgreSQL, &json!("O'Brien")) // produces "'O''Brien'"
-/// value_to_sql_literal(DatabaseType::MySQL, &json!("x")) // Err — escaping mode unknowable
 /// ```
 pub fn value_to_sql_literal(db_type: DatabaseType, value: &Value) -> Result<String> {
-    // Allow-list, not deny-list: an unknown future dialect fails loud instead
-    // of inheriting escaping rules that were never checked against it.
-    if !matches!(
-        db_type,
-        DatabaseType::PostgreSQL | DatabaseType::SQLite | DatabaseType::SQLServer
-    ) {
+    // Allow-list, not deny-list: an unknown future dialect must fail loud
+    // instead of inheriting escaping rules that were never checked against it
+    // (#728 — MySQL's connection-dependent backslash escaping is why).
+    if !matches!(db_type, DatabaseType::PostgreSQL) {
         return Err(FraiseQLError::Validation {
             message: format!(
-                "SQL literal building is not supported for {db_type:?}: its string-escaping \
-                 mode (e.g. MySQL backslash escapes) is connection-dependent, so quote \
-                 doubling could produce a wrong literal; use bind parameters instead"
+                "SQL literal building is not supported for {db_type:?}; use bind parameters \
+                 instead"
             ),
             path:    None,
         });
@@ -126,8 +122,6 @@ pub fn value_to_string(value: &Value) -> Result<String> {
 pub fn placeholder(db_type: DatabaseType, index: usize) -> String {
     match db_type {
         DatabaseType::PostgreSQL => format!("${}", index + 1),
-        DatabaseType::SQLServer => format!("@P{}", index + 1),
-        _ => "?".to_string(),
     }
 }
 

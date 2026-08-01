@@ -1,7 +1,5 @@
 //! SELECT, GROUP BY, and aggregate expression SQL generation.
 
-use std::fmt::Write as _;
-
 use super::{
     AggregateExpression, AggregateFunction, AggregationSqlGenerator, DatabaseType,
     GroupByExpression, OrderByClause, OrderDirection, Result, TemporalBucket,
@@ -83,55 +81,6 @@ impl AggregationSqlGenerator {
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 format!("DATE_TRUNC('{}', {})", bucket.postgres_arg(), column)
-            },
-            DatabaseType::MySQL => {
-                let format = match bucket {
-                    TemporalBucket::Second => "%Y-%m-%d %H:%i:%s",
-                    TemporalBucket::Minute => "%Y-%m-%d %H:%i:00",
-                    TemporalBucket::Hour => "%Y-%m-%d %H:00:00",
-                    TemporalBucket::Day => "%Y-%m-%d",
-                    TemporalBucket::Week => "%Y-%u",
-                    TemporalBucket::Month => "%Y-%m",
-                    TemporalBucket::Quarter => "%Y-Q%q",
-                    TemporalBucket::Year => "%Y",
-                };
-                format!("DATE_FORMAT({}, '{}')", column, format)
-            },
-            DatabaseType::SQLite => {
-                let format = match bucket {
-                    TemporalBucket::Second => "%Y-%m-%d %H:%M:%S",
-                    TemporalBucket::Minute => "%Y-%m-%d %H:%M:00",
-                    TemporalBucket::Hour => "%Y-%m-%d %H:00:00",
-                    TemporalBucket::Day => "%Y-%m-%d",
-                    TemporalBucket::Week => "%Y-W%W",
-                    TemporalBucket::Month => "%Y-%m",
-                    TemporalBucket::Quarter => "%Y-Q",
-                    TemporalBucket::Year => "%Y",
-                };
-                format!("strftime('{}', {})", format, column)
-            },
-            DatabaseType::SQLServer => {
-                let datepart = match bucket {
-                    TemporalBucket::Second => "second",
-                    TemporalBucket::Minute => "minute",
-                    TemporalBucket::Hour => "hour",
-                    TemporalBucket::Day => "day",
-                    TemporalBucket::Week => "week",
-                    TemporalBucket::Month => "month",
-                    TemporalBucket::Quarter => "quarter",
-                    TemporalBucket::Year => "year",
-                };
-                // SQL Server doesn't have DATE_TRUNC, use DATEADD/DATEDIFF pattern
-                match bucket {
-                    TemporalBucket::Day => format!("CAST({} AS DATE)", column),
-                    TemporalBucket::Month => {
-                        format!("DATEADD(month, DATEDIFF(month, 0, {}), 0)", column)
-                    },
-                    TemporalBucket::Year => {
-                        format!("DATEADD(year, DATEDIFF(year, 0, {}), 0)", column)
-                    },
-                    _ => format!("DATEPART({}, {})", datepart, column),
-                }
             },
         }
     }
@@ -225,21 +174,6 @@ impl AggregationSqlGenerator {
                     format!("ARRAY_AGG({})", column)
                 }
             },
-            DatabaseType::MySQL => {
-                // MySQL doesn't have ARRAY_AGG, use JSON_ARRAYAGG
-                format!("JSON_ARRAYAGG({})", column)
-            },
-            DatabaseType::SQLite => {
-                // SQLite: emulate with GROUP_CONCAT, wrap in JSON array syntax
-                format!("'[' || GROUP_CONCAT('\"' || {} || '\"', ',') || ']'", column)
-            },
-            DatabaseType::SQLServer => {
-                // SQL Server: use STRING_AGG and wrap in JSON array
-                format!(
-                    "'[' + STRING_AGG('\"' + CAST({} AS NVARCHAR(MAX)) + '\"', ',') + ']'",
-                    column
-                )
-            },
         }
     }
 
@@ -256,18 +190,6 @@ impl AggregationSqlGenerator {
                 } else {
                     format!("JSON_AGG({})", column)
                 }
-            },
-            DatabaseType::MySQL => {
-                // MySQL: JSON_ARRAYAGG for arrays
-                format!("JSON_ARRAYAGG({})", column)
-            },
-            DatabaseType::SQLite => {
-                // SQLite: limited JSON support
-                format!("JSON_ARRAY({})", column)
-            },
-            DatabaseType::SQLServer => {
-                // SQL Server: FOR JSON PATH
-                format!("(SELECT {} FOR JSON PATH)", column)
             },
         }
     }
@@ -286,8 +208,6 @@ impl AggregationSqlGenerator {
                     format!("JSONB_AGG({})", column)
                 }
             },
-            // Fall back to JSON_AGG for other databases
-            _ => self.generate_json_agg_sql(column, order_by),
         }
     }
 
@@ -313,26 +233,6 @@ impl AggregationSqlGenerator {
                 } else {
                     format!("STRING_AGG({}, '{}')", column, safe_delimiter)
                 }
-            },
-            DatabaseType::MySQL => {
-                let mut sql = format!("GROUP_CONCAT({}", column);
-                if let Some(order) = order_by {
-                    let _ = write!(sql, " ORDER BY {}", self.order_by_to_sql(order));
-                }
-                let _ = write!(sql, " SEPARATOR '{safe_delimiter}')");
-                sql
-            },
-            DatabaseType::SQLite => {
-                // SQLite GROUP_CONCAT doesn't support ORDER BY in older versions
-                format!("GROUP_CONCAT({}, '{}')", column, safe_delimiter)
-            },
-            DatabaseType::SQLServer => {
-                let mut sql =
-                    format!("STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')", column, safe_delimiter);
-                if let Some(order) = order_by {
-                    let _ = write!(sql, " WITHIN GROUP (ORDER BY {})", self.order_by_to_sql(order));
-                }
-                sql
             },
         }
     }
@@ -364,13 +264,7 @@ impl AggregationSqlGenerator {
     /// - SQL Server: `STDEV()`
     pub(super) fn generate_stddev_sql(&self, column: &str) -> String {
         match self.database_type {
-            DatabaseType::PostgreSQL | DatabaseType::MySQL => format!("STDDEV_SAMP({})", column),
-            DatabaseType::SQLite => {
-                // SQLite doesn't have built-in STDDEV
-                // Return NULL to indicate unavailable
-                "NULL /* STDDEV not supported in SQLite */".to_string()
-            },
-            DatabaseType::SQLServer => format!("STDEV({})", column),
+            DatabaseType::PostgreSQL => format!("STDDEV_SAMP({})", column),
         }
     }
 
@@ -383,13 +277,7 @@ impl AggregationSqlGenerator {
     /// - SQL Server: `VAR()`
     pub(super) fn generate_variance_sql(&self, column: &str) -> String {
         match self.database_type {
-            DatabaseType::PostgreSQL | DatabaseType::MySQL => format!("VAR_SAMP({})", column),
-            DatabaseType::SQLite => {
-                // SQLite doesn't have built-in VARIANCE
-                // Return NULL to indicate unavailable
-                "NULL /* VARIANCE not supported in SQLite */".to_string()
-            },
-            DatabaseType::SQLServer => format!("VAR({})", column),
+            DatabaseType::PostgreSQL => format!("VAR_SAMP({})", column),
         }
     }
 
@@ -399,26 +287,10 @@ impl AggregationSqlGenerator {
         column: &str,
         function: crate::compiler::aggregate_types::BoolAggregateFunction,
     ) -> String {
-        use crate::compiler::aggregate_types::BoolAggregateFunction;
-
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 // PostgreSQL has native BOOL_AND/BOOL_OR
                 format!("{}({})", function.sql_name(), column)
-            },
-            DatabaseType::MySQL | DatabaseType::SQLite => {
-                // MySQL/SQLite: emulate with MIN/MAX on boolean as integer (0/1)
-                match function {
-                    BoolAggregateFunction::And => format!("MIN({}) = 1", column),
-                    BoolAggregateFunction::Or => format!("MAX({}) = 1", column),
-                }
-            },
-            DatabaseType::SQLServer => {
-                // SQL Server: emulate with MIN/MAX on CAST to BIT
-                match function {
-                    BoolAggregateFunction::And => format!("MIN(CAST({} AS BIT)) = 1", column),
-                    BoolAggregateFunction::Or => format!("MAX(CAST({} AS BIT)) = 1", column),
-                }
             },
         }
     }

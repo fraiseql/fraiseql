@@ -312,16 +312,6 @@ fn build_pool(
     })
 }
 
-/// Escape a JSONB key for use in a PostgreSQL string literal (`data->>'key'`).
-///
-/// PostgreSQL string literals use single-quote doubling for escaping (`'` → `''`).
-/// This function is defense-in-depth: `OrderByClause` already rejects field names
-/// that are not valid GraphQL identifiers (which cannot contain `'`), but this
-/// escaping ensures correctness for any future caller that bypasses that validation.
-pub(super) fn escape_jsonb_key(key: &str) -> String {
-    key.replace('\'', "''")
-}
-
 /// PostgreSQL database adapter with connection pooling.
 ///
 /// Uses `deadpool-postgres` for connection pooling and `tokio-postgres` for async queries.
@@ -450,8 +440,13 @@ impl PostgresAdapter {
             timing_variable_name: "fraiseql.started_at".to_string(),
         };
 
-        // Pre-warm: open `min_size - 1` additional connections (one already exists).
-        let warm_target = cfg.min_size.min(cfg.max_size).saturating_sub(1);
+        // Pre-warm to `min_size` — NOT `min_size - 1`. The health-check connection
+        // above is returned to the pool, so the first warm acquisition recycles it
+        // rather than opening a new one; subtracting for it left the pool one
+        // connection short of `min_size` (#937). Acquiring `min_size` concurrently
+        // is self-correcting: whatever is already idle gets reused, the rest are
+        // opened, and the pool's own `max_size` caps the total.
+        let warm_target = cfg.min_size.min(cfg.max_size);
         if warm_target > 0 {
             adapter.prewarm(warm_target).await;
         }
@@ -492,21 +487,19 @@ impl PostgresAdapter {
         use futures::future::join_all;
         use tokio::time::timeout;
 
-        let handles: Vec<_> = (0..count)
-            .map(|_| {
-                let pool = self.pool.clone();
-                tokio::spawn(async move { pool.get().await })
-            })
-            .collect();
-
-        let result = timeout(Duration::from_secs(10), join_all(handles)).await;
+        // Acquire every guard CONCURRENTLY and hold them all until the last one
+        // is in hand. Acquiring one at a time — or spawning tasks that release
+        // as they finish — lets a later acquisition recycle a connection an
+        // earlier one just returned, so the pool settles below `count` and
+        // `pool_min_size` silently under-delivers (#937).
+        let result =
+            timeout(Duration::from_secs(10), join_all((0..count).map(|_| self.pool.get()))).await;
 
         let (succeeded, failed) = match result {
-            Ok(outcomes) => {
-                let s = outcomes
-                    .iter()
-                    .filter(|r| r.as_ref().map(|inner| inner.is_ok()).unwrap_or(false))
-                    .count();
+            Ok(guards) => {
+                let s = guards.iter().filter(|r| r.is_ok()).count();
+                // Released together, so `s` distinct connections stay in the pool.
+                drop(guards);
                 (s, count - s)
             },
             Err(_elapsed) => {
@@ -525,8 +518,9 @@ impl PostgresAdapter {
                 "Pool pre-warm: some connections could not be established"
             );
         } else {
+            // Report what the pool actually holds, not what was attempted.
             tracing::info!(
-                idle_connections = succeeded + 1,
+                idle_connections = self.pool.status().available,
                 "PostgreSQL pool pre-warmed successfully"
             );
         }

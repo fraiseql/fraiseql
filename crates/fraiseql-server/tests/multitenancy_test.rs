@@ -76,7 +76,7 @@ impl DatabaseAdapter for StubAdapter {
     }
 
     fn database_type(&self) -> DatabaseType {
-        DatabaseType::SQLite
+        DatabaseType::PostgreSQL
     }
 
     async fn health_check(&self) -> CoreResult<()> {

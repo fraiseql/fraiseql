@@ -49,7 +49,7 @@ async fn get_compensation_status_without_store_is_none() {
 mod wired {
     use std::{collections::HashMap, sync::Arc};
 
-    use fraiseql_db::sqlite::SqliteAdapter;
+    use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
     use reqwest::Url;
     use serde_json::json;
     use uuid::Uuid;
@@ -87,9 +87,15 @@ mod wired {
         }
     }
 
-    async fn order_executor() -> FederationMutationExecutor<SqliteAdapter> {
-        let adapter =
-            Arc::new(SqliteAdapter::with_pool_config("sqlite::memory:", 1, 1).await.unwrap());
+    /// Local adapter that FAILS every operation: these tests exercise the
+    /// store-free and remote paths, so any touch of the local adapter is a
+    /// routing bug and must surface as a loud failure (G2 removed SQLite,
+    /// which used to sit here as an inert placeholder).
+    fn order_executor() -> FederationMutationExecutor<FailingAdapter> {
+        let adapter = Arc::new(FailingAdapter::new().fail_with_error(FailError::Database {
+            message:   "test bug: the local adapter must not be reached".to_string(),
+            sql_state: None,
+        }));
         FederationMutationExecutor::new(adapter, order_metadata(), false)
     }
 
@@ -118,7 +124,7 @@ mod wired {
     #[tokio::test]
     async fn compensate_step_without_store_fails_loud() {
         let compensator = SagaCompensator::new();
-        let executor = order_executor().await;
+        let executor = order_executor();
         let result = compensator.compensate_step(&executor, &completed_step(), None).await;
         assert!(
             matches!(result, Err(SagaStoreError::Database(_))),
@@ -129,7 +135,7 @@ mod wired {
     #[tokio::test]
     async fn compensate_saga_without_store_fails_loud() {
         let compensator = SagaCompensator::new();
-        let executor = order_executor().await;
+        let executor = order_executor();
         let result = compensator
             .compensate_saga(Uuid::new_v4(), &executor, &HashMap::new(), None)
             .await;
@@ -164,7 +170,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let executor = order_executor().await;
+        let executor = order_executor();
         let client = HttpMutationClient::new_for_test(HttpMutationConfig::default()).unwrap();
         let url = Url::parse(&format!("{}/graphql", server.uri())).unwrap();
 
@@ -193,7 +199,7 @@ mod wired {
             .mount(&server)
             .await;
 
-        let executor = order_executor().await;
+        let executor = order_executor();
         // Single attempt with a tiny delay keeps the failure test fast.
         let config = HttpMutationConfig {
             timeout_ms:     2000,

@@ -46,26 +46,11 @@ pub mod nats;
 #[cfg(all(feature = "postgres", feature = "nats"))]
 pub mod bridge;
 
-#[cfg(all(feature = "mysql", feature = "nats"))]
-pub mod mysql_bridge;
-
-#[cfg(all(feature = "mssql", feature = "nats"))]
-pub mod mssql_bridge;
-
 #[cfg(all(feature = "postgres", feature = "nats"))]
 pub use bridge::{
     BridgeConfig, ChangeLogEntry, CheckpointStore, PostgresCheckpointStore, PostgresNatsBridge,
 };
 pub use in_memory::InMemoryTransport;
-#[cfg(all(feature = "mssql", feature = "nats"))]
-pub use mssql_bridge::{
-    MSSQLBridgeConfig, MSSQLChangeLogEntry, MSSQLCheckpointStore, MSSQLNatsBridge, MSSQLPool,
-    create_mssql_pool,
-};
-#[cfg(all(feature = "mysql", feature = "nats"))]
-pub use mysql_bridge::{
-    MySQLBridgeConfig, MySQLChangeLogEntry, MySQLCheckpointStore, MySQLNatsBridge,
-};
 #[cfg(feature = "nats")]
 pub use nats::{NatsConfig, NatsTransport};
 #[cfg(feature = "postgres")]
@@ -121,12 +106,6 @@ pub trait EventTransport: Send + Sync {
 pub enum TransportType {
     /// PostgreSQL LISTEN/NOTIFY
     PostgresNotify,
-    /// MySQL polling-based
-    #[cfg(feature = "mysql")]
-    MySQL,
-    /// SQL Server polling-based
-    #[cfg(feature = "mssql")]
-    MSSQL,
     /// NATS `JetStream`
     #[cfg(feature = "nats")]
     Nats,

@@ -157,17 +157,20 @@ fn entities_scattered_back_to_input_order_for_interleaved_typenames() {
 }
 
 /// #764 — a database failure while resolving an `_entities` batch must surface
-/// as an **error**, never as `data: [null, …]`. The SQLite adapter has no
-/// backing table for the type, so the batch query genuinely fails; the public
-/// wrappers must propagate that instead of dropping it into all-`None`
-/// entities (a router then merges nulls and nothing signals the outage).
+/// as an **error**, never as `data: [null, …]`. The adapter is configured to
+/// fail every query, so the batch query genuinely fails; the public wrappers
+/// must propagate that instead of dropping it into all-`None` entities (a
+/// router then merges nulls and nothing signals the outage).
 #[tokio::test]
 async fn database_errors_are_errors_not_null_entities() {
-    use fraiseql_db::SqliteAdapter;
+    use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
 
     use crate::types::{FederatedType, FederationMetadata};
 
-    let adapter = Arc::new(SqliteAdapter::with_pool_config("sqlite::memory:", 1, 1).await.unwrap());
+    let adapter = Arc::new(FailingAdapter::new().fail_with_error(FailError::Database {
+        message:   "injected batch failure".to_string(),
+        sql_state: None,
+    }));
 
     let metadata = FederationMetadata {
         enabled: true,

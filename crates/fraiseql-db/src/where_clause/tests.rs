@@ -499,3 +499,64 @@ fn test_descendant_of_id_graphql_json() {
         }
     );
 }
+
+// --- #833: WHERE field names are a security boundary ---
+//
+// Field names are interpolated into SQL string literals (MySQL/SQLite JSON
+// paths, PostgreSQL `data->>'…'`). ORDER BY enforces the GraphQL identifier
+// pattern at parse time (`OrderByClause::validate_field_name`); WHERE must
+// enforce the same rule, otherwise a client-controlled key ending in `\`
+// escapes the closing quote of a MySQL string literal.
+
+#[test]
+fn test_from_graphql_json_rejects_backslash_in_field_name() {
+    let json = json!({"a\\": {"eq": 1}});
+    let result = WhereClause::from_graphql_json(&json, &untyped());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "field name containing a backslash must be rejected at the parse boundary, got {result:?}"
+    );
+}
+
+#[test]
+fn test_from_graphql_json_rejects_quote_in_field_name() {
+    let json = json!({"a'b": {"eq": 1}});
+    let result = WhereClause::from_graphql_json(&json, &untyped());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "field name containing a quote must be rejected at the parse boundary, got {result:?}"
+    );
+}
+
+#[test]
+fn test_from_graphql_json_rejects_backslash_in_nested_field_name() {
+    let json = json!({"machine": {"a\\": {"eq": 1}}});
+    let result = WhereClause::from_graphql_json(&json, &untyped());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "nested field name containing a backslash must be rejected, got {result:?}"
+    );
+}
+
+#[test]
+fn test_from_graphql_json_rejects_leading_digit_field_name() {
+    let json = json!({"1abc": {"eq": 1}});
+    let result = WhereClause::from_graphql_json(&json, &untyped());
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "field name outside [_A-Za-z][_0-9A-Za-z]* must be rejected, got {result:?}"
+    );
+}
+
+#[test]
+fn test_from_graphql_json_accepts_valid_identifiers_after_boundary_check() {
+    // Control: legitimate GraphQL identifiers must be unaffected by the boundary.
+    let json = json!({
+        "createdAt": {"gte": "2024-01-01"},
+        "_internal": {"eq": true},
+        "field_2": {"eq": "x"},
+        "machine": {"id": {"eq": "m-1"}}
+    });
+    let result = WhereClause::from_graphql_json(&json, &untyped());
+    assert!(result.is_ok(), "valid identifiers must still parse: {result:?}");
+}

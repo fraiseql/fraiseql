@@ -733,87 +733,9 @@ mod generated_sql {
     // MySQL — operator parity
     // -----------------------------------------------------------------------
 
-    #[cfg(feature = "mysql")]
-    #[test]
-    fn generated_mysql_eq() {
-        use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
-        let clause = WhereClause::Field {
-            path:     vec!["email".to_string()],
-            operator: WhereOperator::Eq,
-            value:    json!("alice@example.com"),
-        };
-        let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
-        assert_snapshot!(sql);
-    }
-
-    #[cfg(feature = "mysql")]
-    #[test]
-    fn generated_mysql_like() {
-        use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
-        let clause = WhereClause::Field {
-            path:     vec!["name".to_string()],
-            operator: WhereOperator::Like,
-            value:    json!("%alice%"),
-        };
-        let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
-        assert_snapshot!(sql);
-    }
-
-    #[cfg(feature = "mysql")]
-    #[test]
-    fn generated_mysql_in_operator() {
-        use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
-        let clause = WhereClause::Field {
-            path:     vec!["status".to_string()],
-            operator: WhereOperator::In,
-            value:    json!(["active", "pending"]),
-        };
-        let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
-        assert_snapshot!(sql);
-    }
-
     // -----------------------------------------------------------------------
     // SQLite — operator parity
     // -----------------------------------------------------------------------
-
-    #[cfg(feature = "sqlite")]
-    #[test]
-    fn generated_sqlite_eq() {
-        use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
-        let clause = WhereClause::Field {
-            path:     vec!["email".to_string()],
-            operator: WhereOperator::Eq,
-            value:    json!("alice@example.com"),
-        };
-        let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
-        assert_snapshot!(sql);
-    }
-
-    #[cfg(feature = "sqlite")]
-    #[test]
-    fn generated_sqlite_like() {
-        use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
-        let clause = WhereClause::Field {
-            path:     vec!["name".to_string()],
-            operator: WhereOperator::Like,
-            value:    json!("%alice%"),
-        };
-        let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
-        assert_snapshot!(sql);
-    }
-
-    #[cfg(feature = "sqlite")]
-    #[test]
-    fn generated_sqlite_gt() {
-        use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
-        let clause = WhereClause::Field {
-            path:     vec!["score".to_string()],
-            operator: WhereOperator::Gt,
-            value:    json!(50),
-        };
-        let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
-        assert_snapshot!(sql);
-    }
 
     // -----------------------------------------------------------------------
     // Parameter index continuity (multi-clause offset)

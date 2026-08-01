@@ -61,13 +61,8 @@ use crate::{
         fact_table::FactTableMetadata,
     },
     db::{
-        identifier::{
-            quote_mysql_identifier, quote_postgres_identifier, quote_sqlserver_identifier,
-        },
-        path_escape::{
-            escape_mysql_json_path, escape_postgres_jsonb_segment, escape_sqlite_json_path,
-            escape_sqlserver_json_path,
-        },
+        identifier::quote_postgres_identifier,
+        path_escape::escape_postgres_jsonb_segment,
         types::DatabaseType,
         where_clause::{WhereClause, WhereOperator},
     },
@@ -119,21 +114,6 @@ impl AggregationSqlGenerator {
                 let escaped = escape_postgres_jsonb_segment(path);
                 format!("{}->>'{}' ", jsonb_column, escaped)
             },
-            DatabaseType::MySQL => {
-                // escape_mysql_json_path returns "$.escaped_segment"
-                let escaped = escape_mysql_json_path(&[path.to_owned()]);
-                format!("JSON_UNQUOTE(JSON_EXTRACT({}, '{}'))", jsonb_column, escaped)
-            },
-            DatabaseType::SQLite => {
-                // escape_sqlite_json_path returns "$.escaped_segment"
-                let escaped = escape_sqlite_json_path(&[path.to_owned()]);
-                format!("json_extract({}, '{}')", jsonb_column, escaped)
-            },
-            DatabaseType::SQLServer => {
-                // escape_sqlserver_json_path returns "$.escaped_segment"
-                let escaped = escape_sqlserver_json_path(&[path.to_owned()]);
-                format!("JSON_VALUE({}, '{}')", jsonb_column, escaped)
-            },
         }
     }
 
@@ -156,7 +136,6 @@ impl AggregationSqlGenerator {
             | WhereOperator::Istartswith
             | WhereOperator::Iendswith => match self.database_type {
                 DatabaseType::PostgreSQL => "ILIKE",
-                _ => "LIKE", // Other databases use LIKE with UPPER/LOWER
             },
             // Eq and any future operators default to equality
             _ => "=",
@@ -171,10 +150,8 @@ impl AggregationSqlGenerator {
     /// that would break unquoted ORDER BY clauses.
     pub(super) fn quote_identifier(&self, name: &str) -> String {
         match self.database_type {
-            DatabaseType::MySQL => quote_mysql_identifier(name),
-            DatabaseType::SQLServer => quote_sqlserver_identifier(name),
             // PostgreSQL and SQLite both use double-quote syntax.
-            DatabaseType::PostgreSQL | DatabaseType::SQLite => quote_postgres_identifier(name),
+            DatabaseType::PostgreSQL => quote_postgres_identifier(name),
         }
     }
 
@@ -195,21 +172,14 @@ impl AggregationSqlGenerator {
         } else {
             s.into()
         };
-        if matches!(self.database_type, DatabaseType::MySQL) {
-            // Escape backslashes first, then single quotes.
-            without_nulls.replace('\\', "\\\\").replace('\'', "''")
-        } else {
-            // Standard SQL: only double single quotes.
-            without_nulls.replace('\'', "''")
-        }
+        // Standard SQL: only double single quotes.
+        without_nulls.replace('\'', "''")
     }
 
     /// Returns the bind-parameter placeholder for position `index` (0-based).
     pub(super) fn placeholder(&self, index: usize) -> String {
         match self.database_type {
             DatabaseType::PostgreSQL => format!("${}", index + 1),
-            DatabaseType::SQLServer => format!("@P{}", index + 1),
-            _ => "?".to_string(),
         }
     }
 

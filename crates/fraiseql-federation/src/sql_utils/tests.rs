@@ -61,32 +61,16 @@ fn test_value_to_string() {
     assert_eq!(value_to_string(&Value::Null).unwrap(), "null");
 }
 
-/// #728 — literal escaping is dialect-dependent, and single-quote doubling is
-/// only sound where the backend never treats backslash as an escape
-/// (PostgreSQL with `standard_conforming_strings=on`, SQLite, SQL Server).
-/// MySQL's default mode DOES, so `'O''Brien\'` re-escapes differently and the
-/// helper must refuse rather than emit a wrong (injectable) literal.
+/// #728 — literal escaping is dialect-dependent; single-quote doubling is
+/// sound on PostgreSQL (`standard_conforming_strings=on`). The allow-list
+/// shape survives the G2 de-scope so an unvetted future dialect fails loud
+/// instead of inheriting escaping rules that were never checked against it.
 #[test]
-fn literal_building_refuses_backslash_escaping_dialects() {
+fn literal_building_quotes_postgres_soundly() {
     use serde_json::json;
 
-    // Sound dialects keep working.
-    for db in [
-        DatabaseType::PostgreSQL,
-        DatabaseType::SQLite,
-        DatabaseType::SQLServer,
-    ] {
-        assert_eq!(
-            value_to_sql_literal(db, &json!("O'Brien")).unwrap(),
-            "'O''Brien'",
-            "quote doubling is correct for {db:?}"
-        );
-    }
-
-    // MySQL must fail loud: its default backslash-escape mode makes
-    // quote-doubling-only escaping unsound, and which mode is active is a
-    // per-connection server setting this helper cannot see.
-    let err = value_to_sql_literal(DatabaseType::MySQL, &json!("O'Brien"))
-        .expect_err("MySQL literal building must be refused, not mis-escaped");
-    assert!(err.to_string().contains("MySQL"), "the refusal must name the dialect: {err}");
+    assert_eq!(
+        value_to_sql_literal(DatabaseType::PostgreSQL, &json!("O'Brien")).unwrap(),
+        "'O''Brien'"
+    );
 }

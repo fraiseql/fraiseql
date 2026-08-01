@@ -427,45 +427,6 @@ fn test_generate_json_path_postgres() {
 }
 
 #[test]
-fn test_generate_json_path_mysql() {
-    assert_eq!(
-        FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::MySQL),
-        "JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category')"
-    );
-
-    assert_eq!(
-        FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::MySQL),
-        "JSON_UNQUOTE(JSON_EXTRACT(data, '$.customer.region')"
-    );
-}
-
-#[test]
-fn test_generate_json_path_sqlite() {
-    assert_eq!(
-        FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::SQLite),
-        "json_extract(dimensions, '$.category')"
-    );
-
-    assert_eq!(
-        FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::SQLite),
-        "json_extract(data, '$.customer.region')"
-    );
-}
-
-#[test]
-fn test_generate_json_path_sqlserver() {
-    assert_eq!(
-        FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::SQLServer),
-        "JSON_VALUE(dimensions, '$.category')"
-    );
-
-    assert_eq!(
-        FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::SQLServer),
-        "JSON_VALUE(data, '$.customer.region')"
-    );
-}
-
-#[test]
 fn test_infer_json_type() {
     assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(null)), "string");
     assert_eq!(FactTableDetector::infer_json_type(&serde_json::json!(true)), "boolean");

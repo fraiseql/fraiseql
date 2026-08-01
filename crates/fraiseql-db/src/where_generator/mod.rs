@@ -9,15 +9,9 @@
 //! | Type alias | Dialect |
 //! |---|---|
 //! | `PostgresWhereGenerator` | [`PostgresDialect`] |
-//! | `MySqlWhereGenerator` | [`MySqlDialect`] |
-//! | `SqliteWhereGenerator` | [`SqliteDialect`] |
-//! | `SqlServerWhereGenerator` | [`SqlServerDialect`] |
 //!
 //! [`SqlDialect`]: crate::dialect::SqlDialect
 //! [`PostgresDialect`]: crate::dialect::PostgresDialect
-//! [`MySqlDialect`]: crate::dialect::MySqlDialect
-//! [`SqliteDialect`]: crate::dialect::SqliteDialect
-//! [`SqlServerDialect`]: crate::dialect::SqlServerDialect
 
 pub(super) mod counter;
 pub mod generic;
