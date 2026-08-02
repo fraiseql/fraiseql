@@ -7,15 +7,12 @@ pub mod advanced_types;
 pub mod converter;
 pub mod database_validator;
 pub mod intermediate;
-pub mod lookup_data;
 pub mod merger;
 pub mod multi_file_loader;
 pub mod mutation_contract;
 pub mod optimizer;
 pub mod pg_catalog;
-pub mod rich_filters;
 pub mod seam;
-pub mod sql_templates;
 pub mod validator;
 
 pub use converter::{ConvertOptions, SchemaConverter};

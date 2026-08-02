@@ -765,7 +765,7 @@ fn validate_dimension_key(key: &str) -> Result<()> {
 
 #[cfg(test)]
 mod alias_injection_tests {
-    #![allow(clippy::unwrap_used, clippy::panic)]
+    #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
     use std::collections::HashMap;
 
     use super::*;

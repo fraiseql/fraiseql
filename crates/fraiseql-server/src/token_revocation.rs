@@ -79,6 +79,15 @@ const fn default_revoke_all_ttl() -> u64 {
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait RevocationStore: Send + Sync {
+    /// Whether revocation state is shared across replicas (#874).
+    ///
+    /// Defaults to `false` (per-process): a store must opt in. Redis and
+    /// PostgreSQL stores share state; the in-memory store does not, so a
+    /// logout on one replica leaves the token accepted by the others.
+    fn is_distributed(&self) -> bool {
+        false
+    }
+
     /// Check if a JTI has been revoked.
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError>;
 
@@ -244,6 +253,10 @@ impl RedisRevocationStore {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl RevocationStore for RedisRevocationStore {
+    fn is_distributed(&self) -> bool {
+        true
+    }
+
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
         use redis::AsyncCommands;
         let mut conn = self.pool.clone();
@@ -377,6 +390,11 @@ impl PostgresRevocationStore {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl RevocationStore for PostgresRevocationStore {
+    fn is_distributed(&self) -> bool {
+        // The database is shared by every replica.
+        true
+    }
+
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
         let revoked: bool = sqlx::query_scalar(
             "SELECT EXISTS (
@@ -453,6 +471,12 @@ pub struct TokenRevocationManager {
 }
 
 impl TokenRevocationManager {
+    /// Whether revocation state is shared across replicas (#874).
+    #[must_use]
+    pub fn is_distributed(&self) -> bool {
+        self.store.is_distributed()
+    }
+
     /// Create a new revocation manager.
     ///
     /// `revoke_all_ttl_secs` is how long a `revoke-all` epoch is retained (see

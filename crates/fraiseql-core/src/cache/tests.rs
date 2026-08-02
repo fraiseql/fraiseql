@@ -879,6 +879,20 @@ mod fact_table_version_tests {
         assert!(key.unwrap().starts_with("tb:"));
     }
 
+    /// #784: `time_based(0)` is constructible via the public API and serde config;
+    /// the version bucket must not divide by it. Zero TTL means "nothing is ever
+    /// fresh", which is `Disabled` — the component must be `None`, not a panic.
+    #[test]
+    fn test_generate_version_key_time_based_zero_ttl_is_disabled() {
+        let key = generate_version_key_component(
+            "tf_sales",
+            &FactTableVersionStrategy::TimeBased { ttl_seconds: 0 },
+            None,
+            "1.0.0",
+        );
+        assert!(key.is_none());
+    }
+
     #[test]
     fn test_generate_version_key_schema_version() {
         let key = generate_version_key_component(

@@ -205,7 +205,7 @@ impl RequestValidator {
         }
         let document = graphql_parser::parse_query::<String>(query)
             .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
-        Ok(self.document_metrics(&document))
+        Ok(self.document_metrics(&document, None))
     }
 
     /// Compute depth, complexity, and alias count in a single memoizing pass.
@@ -215,9 +215,14 @@ impl RequestValidator {
     /// fragment-spread topology — without it, B-way branching across D chained
     /// spreads costs B^D walks and the validation step itself becomes the `DoS`
     /// (audit H4).
-    fn document_metrics<'a>(&self, document: &'a Document<'a, String>) -> QueryMetrics {
+    fn document_metrics<'a>(
+        &self,
+        document: &'a Document<'a, String>,
+        variables: Option<&'a serde_json::Value>,
+    ) -> QueryMetrics {
         let fragments = collect_fragments(document);
-        let mut analyzer = DocumentAnalyzer::new(&fragments, self.max_depth, self.max_complexity);
+        let mut analyzer =
+            DocumentAnalyzer::new(&fragments, self.max_depth, self.max_complexity, variables);
         analyzer.analyze_document(document)
     }
 
@@ -249,7 +254,7 @@ impl RequestValidator {
 
         let document = graphql_parser::parse_query::<String>(query)
             .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
-        self.validate_query_doc(&document)
+        self.validate_query_doc(&document, None)
     }
 
     /// Validate an already-parsed GraphQL document, enforcing configured limits.
@@ -266,12 +271,13 @@ impl RequestValidator {
     pub fn validate_query_doc<'a>(
         &self,
         document: &'a Document<'a, String>,
+        variables: Option<&'a serde_json::Value>,
     ) -> Result<(), ComplexityValidationError> {
         if self.is_no_op() {
             return Ok(());
         }
 
-        let metrics = self.document_metrics(document);
+        let metrics = self.document_metrics(document, variables);
 
         if self.validate_depth && metrics.depth > self.max_depth {
             return Err(ComplexityValidationError::QueryTooDeep {
@@ -367,6 +373,10 @@ struct DocumentAnalyzer<'a> {
     visiting:       HashSet<&'a str>,
     max_depth:      usize,
     max_complexity: usize,
+    /// Request variables for resolving variable-valued pagination arguments
+    /// (#869). `None` means unavailable: a variable-valued `first`/`limit`/
+    /// `take`/`last` then scores the clamp ceiling (fail closed), never 1.
+    variables:      Option<&'a serde_json::Map<String, serde_json::Value>>,
 }
 
 impl<'a> DocumentAnalyzer<'a> {
@@ -374,6 +384,7 @@ impl<'a> DocumentAnalyzer<'a> {
         fragments: &[&'a FragmentDefinition<'a, String>],
         max_depth: usize,
         max_complexity: usize,
+        variables: Option<&'a serde_json::Value>,
     ) -> Self {
         let mut by_name = HashMap::with_capacity(fragments.len());
         for frag in fragments {
@@ -386,6 +397,7 @@ impl<'a> DocumentAnalyzer<'a> {
             visiting: HashSet::new(),
             max_depth,
             max_complexity,
+            variables: variables.and_then(serde_json::Value::as_object),
         }
     }
 
@@ -487,7 +499,7 @@ impl<'a> DocumentAnalyzer<'a> {
                         }
                     } else {
                         let nested = self.selection_metrics(&field.selection_set, budget);
-                        let multiplier = extract_limit_multiplier(&field.arguments);
+                        let multiplier = extract_limit_multiplier(&field.arguments, self.variables);
                         SelectionMetrics {
                             depth:      nested.depth,
                             // Saturating: the multiplier compounds per nesting
@@ -533,7 +545,7 @@ impl<'a> DocumentAnalyzer<'a> {
             1
         } else {
             let nested = self.selection_metrics(&field.selection_set, budget);
-            let multiplier = extract_limit_multiplier(&field.arguments);
+            let multiplier = extract_limit_multiplier(&field.arguments, self.variables);
             1usize.saturating_add(nested.complexity.saturating_mul(multiplier))
         }
     }
@@ -599,11 +611,12 @@ impl<'a> DocumentAnalyzer<'a> {
 pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
     document: &'a Document<'a, String>,
     root_cost_weights: &HashMap<String, usize, S>,
+    variables: Option<&'a serde_json::Value>,
 ) -> usize {
     let fragments = collect_fragments(document);
     // usize::MAX sentinels so a fragment cycle yields a saturating (rejected) cost
     // rather than an artificial cap.
-    let mut analyzer = DocumentAnalyzer::new(&fragments, usize::MAX, usize::MAX);
+    let mut analyzer = DocumentAnalyzer::new(&fragments, usize::MAX, usize::MAX, variables);
     analyzer.document_cost(document, root_cost_weights)
 }
 
@@ -649,15 +662,38 @@ fn collect_fragments<'a>(
 }
 
 /// Extract pagination limit from field arguments to use as a cost multiplier.
-fn extract_limit_multiplier(arguments: &[(String, graphql_parser::query::Value<String>)]) -> usize {
+fn extract_limit_multiplier(
+    arguments: &[(String, graphql_parser::query::Value<String>)],
+    variables: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> usize {
+    /// Upper clamp for the pagination multiplier — also the fail-closed score
+    /// for a variable-valued pagination argument that cannot be resolved
+    /// (#869): scoring it 1 is what let `first: $n` bypass `max_complexity`.
+    const MULTIPLIER_CEILING: usize = 100;
+
     for (name, value) in arguments {
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
-            if let graphql_parser::query::Value::Int(n) = value {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                // Reason: value is clamped to [1, 100] immediately after; truncation and sign loss
-                // are safe
-                let limit = n.as_i64().unwrap_or(10) as usize;
-                return limit.clamp(1, 100);
+            match value {
+                graphql_parser::query::Value::Int(n) => {
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    // Reason: value is clamped to [1, 100] immediately after; truncation and
+                    // sign loss are safe
+                    let limit = n.as_i64().unwrap_or(10) as usize;
+                    return limit.clamp(1, MULTIPLIER_CEILING);
+                },
+                graphql_parser::query::Value::Variable(var) => {
+                    return variables
+                        .and_then(|vars| vars.get(var))
+                        .and_then(serde_json::Value::as_i64)
+                        .map_or(MULTIPLIER_CEILING, |n| {
+                            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                            // Reason: value is clamped to [1, 100] immediately after; truncation
+                            // and sign loss are safe
+                            let limit = n as usize;
+                            limit.clamp(1, MULTIPLIER_CEILING)
+                        });
+                },
+                _ => {},
             }
         }
     }

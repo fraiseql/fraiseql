@@ -437,3 +437,99 @@ async fn ws_e2e_authorizer_allow_permits_subscription() {
         tokio::task::yield_now().await;
     }
 }
+
+// ---------------------------------------------------------------------------
+// #786: graphql-transport-ws conformance around connection_init
+// ---------------------------------------------------------------------------
+
+/// Helper: wait for a `WebSocket` Close frame and return its close code.
+async fn recv_close_code(
+    ws: &mut futures::stream::SplitStream<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    >,
+) -> u16 {
+    loop {
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+            .await
+            .expect("timed out waiting for Close frame")
+            // The server may drop the TCP stream right after (or instead of)
+            // the Close frame; tungstenite surfaces that as an error/None.
+            .expect("stream ended without a Close frame")
+            .expect("stream errored without a Close frame");
+        match msg {
+            tungstenite::Message::Close(Some(frame)) => return frame.code.into(),
+            tungstenite::Message::Close(None) => return 1005,
+            _ => {},
+        }
+    }
+}
+
+fn plain_state() -> SubscriptionState {
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    SubscriptionState::new(manager)
+}
+
+/// Before `connection_ack`, an undecodable message must close 4400 — not be
+/// silently swallowed while the init timeout keeps running.
+#[tokio::test]
+async fn pre_ack_invalid_json_closes_4400() {
+    let url = spawn_ws_server(plain_state()).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    sink.send(tungstenite::Message::Text("this is not json".into())).await.unwrap();
+
+    assert_eq!(recv_close_code(&mut stream).await, 4400, "invalid JSON before init");
+}
+
+/// Before `connection_ack`, any valid message other than `connection_init`
+/// must close 4401 (spec: Unauthorized) — not be silently discarded.
+#[tokio::test]
+async fn pre_ack_non_init_message_closes_4401() {
+    let url = spawn_ws_server(plain_state()).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "1",
+            "payload": { "query": "subscription { orderCreated { id } }" }
+        }),
+    )
+    .await;
+
+    assert_eq!(recv_close_code(&mut stream).await, 4401, "subscribe before init");
+}
+
+/// Legacy `connection_terminate` performs a graceful close — the connection
+/// and its subscriptions must not stay alive.
+#[tokio::test]
+async fn connection_terminate_closes_gracefully() {
+    let url = spawn_ws_server(plain_state()).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+
+    send_json(&mut sink, json!({"type": "connection_terminate"})).await;
+
+    assert_eq!(recv_close_code(&mut stream).await, 1000, "connection_terminate → normal close");
+}
+
+/// A malformed subscribe payload closes 4400 (Bad Request), not 1002.
+#[tokio::test]
+async fn malformed_subscribe_closes_4400() {
+    let url = spawn_ws_server(plain_state()).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+
+    // `subscribe` with no payload at all.
+    send_json(&mut sink, json!({"type": "subscribe", "id": "1"})).await;
+
+    assert_eq!(recv_close_code(&mut stream).await, 4400, "malformed subscribe payload");
+}

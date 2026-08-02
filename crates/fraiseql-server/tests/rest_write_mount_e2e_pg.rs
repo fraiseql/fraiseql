@@ -247,6 +247,8 @@ fn auth_config() -> ServerConfig {
             issuer:     Some(ISSUER.to_string()),
             audience:   Some(AUDIENCE.to_string()),
         }),
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     }
 }

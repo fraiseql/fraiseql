@@ -641,6 +641,8 @@ async fn full_server_shutdown_drains_live_subscription_gracefully() {
 
     // No OIDC in this harness: an unauthenticated /ws mount is required.
     let config = fraiseql_server::server_config::ServerConfig {
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         subscription_require_auth: Some(false),
         ..Default::default()
     };

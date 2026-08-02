@@ -41,7 +41,17 @@ impl TestServer {
         // delegating to `start_with_config` nests the `Server::new` future inside this
         // one, and `clippy::large_futures` (pedantic, denied) rejects the result at every
         // call site otherwise.
-        Box::pin(Self::start_with_config(ServerConfig::default(), schema, adapter)).await
+        Box::pin(Self::start_with_config(
+            // #874: Server::new now runs ServerConfig::validate(); the default
+            // cors_enabled=true with empty origins is refused in production mode.
+            ServerConfig {
+                cors_enabled: false,
+                ..ServerConfig::default()
+            },
+            schema,
+            adapter,
+        ))
+        .await
     }
 
     /// Start a server with an explicit [`ServerConfig`].

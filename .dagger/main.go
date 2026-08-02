@@ -752,13 +752,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// blocks a loopback mock peer, so the coordinator's *_for_test / _unchecked
 		// builders (compiled only under test-utils) drive the HTTP dispatch path.
 		"cargo test -p fraiseql-federation --features saga,test-utils --test saga_integration -- --include-ignored --test-threads=1",
-		// #721 — the compiled rich-filter SQL templates are EXECUTED against
-		// PostgreSQL, not merely asserted to exist. The pre-existing template
-		// tests check only that an operator HAS a template, which a template
-		// computing the wrong answer satisfies exactly as well as a right one:
-		// `tldEq` split on the first dot and shipped `.com` for `example.com`.
-		"echo '### cargo test -p fraiseql-cli --test sql_templates_execute_pg (#721 templates run against PG)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test sql_templates_execute_pg -- --test-threads=1",
+		// (#869: the rich-filter surface — including the #721 sql_templates_execute_pg
+		// suite — was removed in P25: the compiler advertised WHERE operators the
+		// runtime could never parse. The compiler↔runtime contract test now lives in
+		// fraiseql-cli's lib tests: compiled_schema_advertises_no_unservable_where_operators.)
 		// #823/#822/#569 — the first-run e2e: `fraiseql init` scaffolds, every
 		// printed next step is executed, the scaffold's DDL is applied, and a
 		// query + a mutation run through the real executor against PostgreSQL.

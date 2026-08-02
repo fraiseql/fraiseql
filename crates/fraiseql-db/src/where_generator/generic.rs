@@ -827,11 +827,6 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
-            // ── Extended operators ────────────────────────────────────────────
-            WhereOperator::Extended(op) => {
-                self.dialect.generate_extended_sql(op, &field_expr, params)
-            },
-
             // ── Unknown / future operators ────────────────────────────────────
             // This arm is only reachable if WhereOperator gains new variants
             // (it is #[non_exhaustive]).  Suppress the lint that fires when all
@@ -860,20 +855,6 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
 impl<D: SqlDialect + Default> Default for GenericWhereGenerator<D> {
     fn default() -> Self {
         Self::new(D::default())
-    }
-}
-
-// ── ExtendedOperatorHandler — single blanket impl ─────────────────────────────
-// Delegates to `D::generate_extended_sql`, which each dialect implements.
-
-impl<D: SqlDialect> crate::filters::ExtendedOperatorHandler for GenericWhereGenerator<D> {
-    fn generate_extended_sql(
-        &self,
-        operator: &crate::filters::ExtendedOperator,
-        field_sql: &str,
-        params: &mut Vec<serde_json::Value>,
-    ) -> Result<String> {
-        self.dialect.generate_extended_sql(operator, field_sql, params)
     }
 }
 

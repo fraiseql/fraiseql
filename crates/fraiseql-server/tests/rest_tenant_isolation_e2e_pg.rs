@@ -154,6 +154,8 @@ fn auth_config() -> ServerConfig {
             issuer:     Some(ISSUER.to_string()),
             audience:   Some(AUDIENCE.to_string()),
         }),
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     }
 }
@@ -285,7 +287,11 @@ async fn start_with_schema(authenticated: bool, schema: CompiledSchema) -> Optio
     let config = if authenticated {
         auth_config()
     } else {
-        ServerConfig::default()
+        // #874: cors_enabled=false — production validate() refuses the default.
+        ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        }
     };
     // Boxed: `Server::new`'s future is ~18 KiB and `clippy::large_futures` (pedantic,
     // denied) rejects awaiting it inline at every call site.

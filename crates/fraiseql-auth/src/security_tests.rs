@@ -267,7 +267,7 @@ mod rs256_negative_paths {
         Claims {
             sub: "user123".to_string(),
             iat: n - 10,
-            #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+            #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // Reason: test fixture values are non-negative; test fixture values are small
             exp: (n as i64 + exp_offset) as u64,
             nbf: None,
             iss: "fraiseql".to_string(),

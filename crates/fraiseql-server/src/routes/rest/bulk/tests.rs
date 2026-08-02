@@ -1,6 +1,6 @@
 //! Tests for the `bulk` module.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use axum::http::HeaderMap;
 

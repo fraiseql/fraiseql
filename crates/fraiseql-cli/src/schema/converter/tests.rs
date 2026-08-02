@@ -953,10 +953,11 @@ fn test_convert_input_object() {
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
-    // 1 user-defined input type + 49 rich type WhereInput types
-    assert_eq!(compiled.input_types.len(), 50);
+    // Exactly the 1 user-defined input type: the compiler must not fabricate
+    // input types the runtime cannot serve (#869).
+    assert_eq!(compiled.input_types.len(), 1);
 
-    // Find the UserFilter type (rich types are added at the end)
+    // Find the UserFilter type
     let filter = compiled.input_types.iter().find(|t| t.name == "UserFilter").expect("test");
     assert_eq!(filter.name, "UserFilter");
     assert_eq!(filter.description, Some("User filter input".to_string()));
@@ -988,8 +989,18 @@ fn test_convert_input_object() {
     assert!(old_field.is_deprecated());
 }
 
+/// #869 contract test — the compiler must not advertise WHERE operators the
+/// runtime cannot serve.
+///
+/// The `<RichType>WhereInput` surface (48 rich scalar types x 35 operator
+/// names) was emitted unconditionally while `WhereOperator::from_str` — the
+/// only path by which a `where` operator becomes SQL — could parse almost none
+/// of them, and two (`depthEq`, `overlaps`) silently bound to unrelated
+/// ltree/inet operators. The emission is gone; this test keeps it gone, and
+/// keeps every operator-shaped field any input type does advertise parseable
+/// by the runtime.
 #[test]
-fn test_rich_filter_types_generated() {
+fn compiled_schema_advertises_no_unservable_where_operators() {
     let intermediate = IntermediateSchema {
         grpc_config:       None,
         security:          None,
@@ -1028,198 +1039,30 @@ fn test_rich_filter_types_generated() {
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
 
-    // Should have 49 rich type WhereInput types
-    assert_eq!(compiled.input_types.len(), 49);
-
-    // Check that EmailAddressWhereInput exists
-    let email_where = compiled
-        .input_types
-        .iter()
-        .find(|t| t.name == "EmailAddressWhereInput")
-        .expect("EmailAddressWhereInput should be generated");
-
-    // Should have standard operators (eq, neq, in, nin, contains, isnull) + rich operators
-    assert!(email_where.fields.len() > 6);
-    assert!(email_where.fields.iter().any(|f| f.name == "eq"));
-    assert!(email_where.fields.iter().any(|f| f.name == "neq"));
-    assert!(email_where.fields.iter().any(|f| f.name == "contains"));
-    assert!(email_where.fields.iter().any(|f| f.name == "isnull"));
-
-    // Check that VINWhereInput exists
-    let vin_where = compiled
-        .input_types
-        .iter()
-        .find(|t| t.name == "VINWhereInput")
-        .expect("VINWhereInput should be generated");
-
-    assert!(vin_where.fields.len() > 6);
-    assert!(vin_where.fields.iter().any(|f| f.name == "eq"));
-}
-
-#[test]
-fn test_rich_filter_types_have_sql_templates() {
-    let intermediate = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        auth:              None,
-        version:           "2.0.0".to_string(),
-        types:             vec![],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
-    };
-
-    let compiled = SchemaConverter::convert(intermediate).expect("test");
-
-    // Check that EmailAddressWhereInput has SQL template metadata
-    let email_where = compiled
-        .input_types
-        .iter()
-        .find(|t| t.name == "EmailAddressWhereInput")
-        .expect("EmailAddressWhereInput should be generated");
-
-    // Verify metadata exists and contains operators
+    // An empty authored schema compiles to zero input types — nothing fabricated.
     assert!(
-        email_where.metadata.is_some(),
-        "Metadata should exist for EmailAddressWhereInput"
-    );
-    let metadata = email_where.metadata.as_ref().expect("test");
-    assert!(
-        metadata.get("operators").is_some(),
-        "Operators should be in metadata: {metadata:?}"
+        compiled.input_types.is_empty(),
+        "compiler fabricated input types for an empty schema: {:?}",
+        compiled.input_types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>()
     );
 
-    let operators = metadata["operators"].as_object().expect("test");
-    // Should have templates for email-specific operators
-    assert!(!operators.is_empty(), "Operators map should not be empty: {operators:?}");
-    assert!(
-        operators.contains_key("domainEq"),
-        "Missing domainEq in operators: {:?}",
-        operators.keys().collect::<Vec<_>>()
-    );
-
-    // Verify domainEq has a PostgreSQL template
-    let email_domain_eq = operators["domainEq"].as_object().expect("test");
-    assert!(email_domain_eq.contains_key("postgres"));
-
-    // Verify PostgreSQL template is correct
-    let postgres_template = email_domain_eq["postgres"].as_str().expect("test");
-    assert!(postgres_template.contains("SPLIT_PART"));
-    assert!(postgres_template.contains("$field"));
-}
-
-#[test]
-fn test_lookup_data_embedded_in_schema() {
-    let intermediate = IntermediateSchema {
-        grpc_config:       None,
-        security:          None,
-        auth:              None,
-        version:           "2.0.0".to_string(),
-        types:             vec![],
-        enums:             vec![],
-        input_types:       vec![],
-        interfaces:        vec![],
-        unions:            vec![],
-        queries:           vec![],
-        mutations:         vec![],
-        subscriptions:     vec![],
-        fragments:         None,
-        directives:        None,
-        fact_tables:       None,
-        aggregate_queries: None,
-        observers:         None,
-
-        sources:              None,
-        custom_scalars:       None,
-        observers_config:     None,
-        subscriptions_config: None,
-        validation_config:    None,
-        federation_config:    None,
-        debug_config:         None,
-        mcp_config:           None,
-        rest_config:          None,
-        query_defaults:       None,
-        inject_defaults:      None,
-        naming_convention:    NamingConvention::default(),
-        session_variables:    None,
-        hierarchies_config:   None,
-        changelog_config:     None,
-    };
-
-    let compiled = SchemaConverter::convert(intermediate).expect("test");
-
-    // Verify lookup data is embedded in schema.security
-    assert!(compiled.security.is_some(), "Security section should exist");
-    let security = compiled.security.as_ref().expect("test");
-    assert!(
-        security.additional.contains_key("lookup_data"),
-        "Lookup data should be in security section"
-    );
-
-    let lookup_data = security.additional["lookup_data"].as_object().expect("test");
-
-    // Verify all lookup tables are present
-    assert!(lookup_data.contains_key("countries"), "Countries lookup should be present");
-    assert!(lookup_data.contains_key("currencies"), "Currencies lookup should be present");
-    assert!(lookup_data.contains_key("timezones"), "Timezones lookup should be present");
-    assert!(lookup_data.contains_key("languages"), "Languages lookup should be present");
-
-    // Verify countries data
-    let countries = lookup_data["countries"].as_object().expect("test");
-    assert!(countries.contains_key("US"), "US should be in countries");
-    assert!(countries.contains_key("FR"), "France should be in countries");
-    assert!(countries.contains_key("GB"), "UK should be in countries");
-
-    // Verify US data
-    let us = countries["US"].as_object().expect("test");
-    assert_eq!(us["continent"].as_str().expect("test"), "North America");
-    assert!(!us["in_eu"].as_bool().expect("test"));
-
-    // Verify France is EU and Schengen
-    let fr = countries["FR"].as_object().expect("test");
-    assert!(fr["in_eu"].as_bool().expect("test"));
-    assert!(fr["in_schengen"].as_bool().expect("test"));
-
-    // Verify currencies data
-    let currencies = lookup_data["currencies"].as_object().expect("test");
-    assert!(currencies.contains_key("USD"));
-    assert!(currencies.contains_key("EUR"));
-    let usd = currencies["USD"].as_object().expect("test");
-    assert_eq!(usd["symbol"].as_str().expect("test"), "$");
-    assert_eq!(usd["decimal_places"].as_i64().expect("test"), 2);
-
-    // Verify timezones data
-    let timezones = lookup_data["timezones"].as_object().expect("test");
-    assert!(timezones.contains_key("UTC"));
-    assert!(timezones.contains_key("EST"));
-    let est = timezones["EST"].as_object().expect("test");
-    assert_eq!(est["offset_minutes"].as_i64().expect("test"), -300);
-    assert!(est["has_dst"].as_bool().expect("test"));
+    // And any `*WhereInput` type that IS compiled may only advertise operator
+    // names the runtime WHERE parser accepts.
+    for input_type in &compiled.input_types {
+        if !input_type.name.ends_with("WhereInput") {
+            continue;
+        }
+        for field in &input_type.fields {
+            assert!(
+                fraiseql_core::db::where_clause::WhereOperator::from_str(&field.name).is_ok(),
+                "input type '{}' advertises operator '{}', which \
+                 WhereOperator::from_str cannot parse — the request would fail at \
+                 runtime with 'Unknown WHERE operator'",
+                input_type.name,
+                field.name
+            );
+        }
+    }
 }
 
 #[test]

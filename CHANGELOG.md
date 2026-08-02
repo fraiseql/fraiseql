@@ -9,6 +9,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The rich-filter surface (`<RichType>WhereInput`) is gone (#869).** The compiler
+  emitted 48 per-type WhereInput input types advertising 35 operator names
+  (`domainEq`, `tldIn`, `withinRange`, …) that the runtime WHERE parser could never
+  serve: 32 of them failed with `Unknown WHERE operator`, and two (`depthEq`,
+  `overlaps`) silently bound to unrelated ltree/inet operators. The emission, the
+  embedded `lookup_data` blob, the CLI SQL-template tables, and the runtime's
+  unreachable `ExtendedOperator` machinery (`fraiseql_db::filters`,
+  `WhereOperator::Extended`, `SqlDialect::generate_extended_sql`,
+  `fraiseql_core::filters`) are all deleted. Rich scalar *names* remain valid
+  authoring types; filtering uses the standard operator set. A compiler↔runtime
+  contract test now refuses any compiled input type advertising an operator
+  `WhereOperator::from_str` cannot parse.
+
+- **The string-SQL tenancy helpers are gone (#736).**
+  `fraiseql_core::tenancy::{where_clause, where_clause_postgresql,
+  where_clause_parameterized}` (methods and free functions) interpolated or
+  templated `tenant_id` SQL that no production path used, behind a doc claim
+  ("validated at context creation") that was false — `TenantContext::new` validates
+  nothing, and `where_clause()` panicked on IDs outside `[A-Za-z0-9._-]`.
+  `TenantContext` now carries identity/metadata only; tenant filtering is done by
+  the runtime security machinery (`inject_params`, `rls_policy`, per-tenant pools).
+
+- **An RLS-protected deployment now fails closed on every anonymous query path
+  (#784).** With a `RuntimeConfig::rls_policy` configured, the anonymous regular
+  path served *unfiltered* rows (it never consulted the policy) and the REST
+  direct-read and count paths fell through to unfiltered on a missing security
+  context, while the relay and node paths refused. All five paths now refuse
+  identically ("Query not found"), and `Prefer: count=exact` can no longer
+  disagree with the body it describes.
+
+- **`fraiseql run` refuses malformed `FRAISEQL_*` env values instead of silently
+  flipping them to `false` (#874).** `ServerArgs::from_env` routed every boolean
+  through a hand parser that mapped clap-valid `y`/`t`/`on` — and any typo, e.g.
+  `FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH=ture` or a trailing space — to an explicit
+  `false` override, silently disabling the guard the operator was enabling. Both
+  binaries now share clap's boolish parser; a set-but-unrecognised boolean or an
+  unparseable numeric/address value is a startup error naming the variable.
+
+- **Arrow Flight defaults to loopback (#874).** `flight_bind_addr` defaulted to
+  the `0.0.0.0:50051` wildcard while the HTTP surface defaulted to loopback, and
+  the `FRAISEQL_FLIGHT_BIND_ADDR` override lived in a serde default — so it lost
+  to any config-file value, and a malformed value silently fell back to the
+  wildcard. Default is now `127.0.0.1:50051`; the env var / `--flight-bind-addr`
+  follow the standard CLI > env > file > default precedence and refuse startup on
+  a malformed value.
+
+- **`Server::new`/`from_executor` run `ServerConfig::validate()` (#874).** The
+  documented library embedding (`ServerConfig::from_file` + `Server::new`) skipped
+  every production safety gate — a leftover `playground_enabled = true`, a zero
+  pool timeout, or `[auth]` + `[auth_hs256]` both configured booted happily as a
+  library while the binary refused. Every construction path now faces the same
+  gates; library embedders with configs the binary would reject will now be
+  refused too.
+
+- **`FRAISEQL_REQUIRE_REDIS` now verifies all three shared-auth-state subsystems
+  (#874).** The gate inspected only the PKCE store, so the operator's "all shared
+  state is distributed" assertion held while revoked tokens stayed accepted on
+  other replicas and per-IP limits ran at N× the configured rate. It now refuses
+  when the PKCE store, the rate limiter, or the token revocation store is
+  per-process (a disabled subsystem is not a violation; Postgres-backed
+  revocation counts as shared).
+
+- **The non-kafka `KafkaAdapter` stub fails loud (#784).** The compiled-out stub
+  reported `Ok` from `deliver()` (dropping every subscription event) and
+  `health_check() == true`. It now errors on delivery and reports unhealthy,
+  matching the other compiled-out runtime stubs.
+
+- **The dead `ServerSubsystems` bundle was deleted (#874).**
+  `ServerSubsystemsBuilder`, `validate_subsystems_config` and the
+  `ServerSubsystems`/`StorageSubsystem` container had no production constructor —
+  their "call once during server startup" advisories never reached an operator.
+  The live pieces (`FunctionsSubsystem`, `BeforeMutationHooks`, the functions
+  loader) are unchanged.
+
 - **`ServerConfig` (the `fraiseql-server --config` file) now refuses unknown keys
   (#839).** The architecture docs shipped a production example whose keys sat in
   `[server]`/`[database]` grouping tables `ServerConfig` does not have; serde silently
@@ -49,6 +123,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ServerConfig`. All three run in CI (shell gates + the test leg).
 
 ### Fixed
+
+- **`max_query_complexity` is enforced for variable-valued pagination arguments
+  (#869).** `first`/`limit`/`take`/`last` supplied as GraphQL variables — the shape
+  every Relay/Apollo client uses — scored the neutral multiplier 1, so
+  `users(first: $n) { orders(first: $n) { … } }` with `n = 100` scored 4 instead of
+  ~10,000 and sailed past the DoS gate the literal form tripped. Variables are now
+  resolved during validation and cost estimation; an unresolvable variable scores
+  the clamp ceiling (fail closed). The per-tenant cost budget uses the same fix.
+
+- **`read:*` scope wildcards stop at the delimiter (#784).** `RoleDefinition::has_scope`
+  matched by bare string prefix, so a role granted `read:*` also passed
+  `readwrite:…` checks; `read:User.*`-style grants now also require the `.`/`:`
+  boundary the docs describe.
+
+- **`FactTableVersionStrategy::TimeBased { ttl_seconds: 0 }` no longer panics
+  (#784).** The version-key bucket divided by the TTL, so a zero TTL — constructible
+  via the public `time_based(0)` API or serde config — crashed the process on the
+  first cached aggregation query. Zero now means Disabled.
+
+- **Valid subscriptions with `{` in variable defaults or directive arguments are
+  accepted (#786).** The subscription-name scanner took the first `{` after the
+  literal `subscription` as the selection-set brace; it now uses the real GraphQL
+  parser, and multi-root subscription documents are rejected explicitly instead of
+  silently serving only the first field.
+
+- **graphql-transport-ws conformance around `connection_init` (#786).** Before the
+  ack, an undecodable message closes `4400` and any non-init message closes `4401`
+  (both were silently discarded, leaving clients to the generic init timeout);
+  legacy `connection_terminate` performs a graceful close instead of being ignored
+  with the connection and its subscriptions left alive; malformed subscribe
+  payloads close `4400` instead of `1002`.
+
+- **The documented `[rate_limiting]` example parses (#874).** `RateLimitConfig`
+  gained the container-level `#[serde(default)]` its own rustdoc example assumed,
+  so a partial block no longer dies on `missing field cleanup_interval_secs` — a
+  key no documentation mentions. A test pins the exact documented block.
+
+- **`GATE-1` query validation is one function (#736).** `execute_with_scopes` and
+  `execute_dispatch` each carried their own copy of the validator block; they now
+  share one, so the two entry points cannot drift.
+
 
 - **Operator runbooks and the config docs now prescribe only knobs that exist
   (#838).** The runbooks told on-call engineers to export ~24 `FRAISEQL_*` variables

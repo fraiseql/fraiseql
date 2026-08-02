@@ -73,6 +73,23 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
+    /// GATE 1: query-structure validation (depth/complexity/size `DoS` limits).
+    ///
+    /// The single implementation behind every entry point — `execute_dispatch`
+    /// and `execute_with_scopes` both call this, so the gate cannot drift
+    /// between them (#736).
+    fn run_gate1(&self, query: &str) -> Result<()> {
+        if let Some(ref cfg) = self.ctx.config.query_validation {
+            QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
+                FraiseQLError::Validation {
+                    message: e.to_string(),
+                    path:    Some("query".to_string()),
+                }
+            })?;
+        }
+        Ok(())
+    }
+
     /// Unified query dispatch for both the anonymous and authenticated entry
     /// points (H19). `security_context` is `None` for anonymous requests and
     /// `Some` for authenticated ones; it threads through GATE-1, the parse
@@ -96,14 +113,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         // GATE 1: query-structure validation (DoS protection for direct embedders).
         // Runs on BOTH the anonymous and authenticated paths (L-gate1-skip).
-        if let Some(ref cfg) = self.ctx.config.query_validation {
-            QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
-                FraiseQLError::Validation {
-                    message: e.to_string(),
-                    path:    Some("query".to_string()),
-                }
-            })?;
-        }
+        self.run_gate1(query)?;
 
         // 1. Classify query type — also returns the ParsedQuery for Regular
         // queries so we do not parse the same string twice.
@@ -269,14 +279,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         user_scopes: &[String],
     ) -> Result<serde_json::Value> {
         // GATE 1: Query structure validation (mirrors execute() — DoS protection).
-        if let Some(ref cfg) = self.ctx.config.query_validation {
-            QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
-                FraiseQLError::Validation {
-                    message: e.to_string(),
-                    path:    Some("query".to_string()),
-                }
-            })?;
-        }
+        // Same shared gate as execute_dispatch — the two call sites cannot drift (#736).
+        self.run_gate1(query)?;
 
         // 2. Classify query type
         let query_type = self.classify_query(query)?;

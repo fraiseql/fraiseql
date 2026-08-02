@@ -91,7 +91,6 @@ pub use fraiseql_db as db;
 pub mod design;
 #[cfg(feature = "federation")]
 pub use fraiseql_federation as federation;
-pub mod filters;
 pub mod security;
 pub mod tenancy;
 pub mod types;

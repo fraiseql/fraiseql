@@ -833,6 +833,34 @@ fn role_has_scope_true_when_granted() {
     assert!(!schema.role_has_scope("admin", "write:anything"));
 }
 
+/// #784: `read:*` is documented as "any scope starting with `read:`" — it must
+/// not also grant `readwrite:` scopes that merely share the string prefix.
+#[test]
+fn role_scope_verb_wildcard_stops_at_the_delimiter() {
+    let mut schema = CompiledSchema::new();
+    let mut sec = SecurityConfig::new();
+    sec.add_role(RoleDefinition::new("reader", vec!["read:*".to_string()]));
+    schema.security = Some(sec);
+    assert!(schema.role_has_scope("reader", "read:User.email"));
+    assert!(!schema.role_has_scope("reader", "readwrite:User.email"));
+    // A wildcard grant matches only namespaced scopes, never a bare verb.
+    assert!(!schema.role_has_scope("reader", "read"));
+}
+
+/// #784: `read:User.*` grants fields of `User` only; a bare-prefix grant like
+/// `read*` is not a wildcard form and must not match anything by string prefix.
+#[test]
+fn role_scope_type_wildcard_requires_boundary() {
+    let mut schema = CompiledSchema::new();
+    let mut sec = SecurityConfig::new();
+    sec.add_role(RoleDefinition::new("user_reader", vec!["read:User.*".to_string()]));
+    sec.add_role(RoleDefinition::new("sloppy", vec!["read*".to_string()]));
+    schema.security = Some(sec);
+    assert!(schema.role_has_scope("user_reader", "read:User.email"));
+    assert!(!schema.role_has_scope("user_reader", "read:UserAudit.email"));
+    assert!(!schema.role_has_scope("sloppy", "readwrite:User.email"));
+}
+
 #[test]
 fn get_role_scopes_empty_for_missing_role() {
     let schema = CompiledSchema::new();

@@ -575,28 +575,4 @@ pub trait SqlDialect: Send + Sync + 'static {
             col_list.join(",\n  ")
         )
     }
-
-    // ── Extended operators (Email, VIN, IBAN, …) ───────────────────────────────
-
-    /// Generate SQL for an extended rich-type operator.
-    ///
-    /// Default: returns a validation error (operator not supported).
-    /// Each dialect overrides this to provide dialect-specific SQL functions
-    /// (e.g. `SPLIT_PART` for PostgreSQL, `SUBSTRING_INDEX` for MySQL).
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Validation` if the operator is not supported
-    /// by this dialect or the parameters are invalid.
-    fn generate_extended_sql(
-        &self,
-        operator: &crate::filters::ExtendedOperator,
-        _field_sql: &str,
-        _params: &mut Vec<serde_json::Value>,
-    ) -> fraiseql_error::Result<String> {
-        Err(fraiseql_error::FraiseQLError::validation(format!(
-            "Extended operator {operator} is not supported by the {} dialect",
-            self.name()
-        )))
-    }
 }

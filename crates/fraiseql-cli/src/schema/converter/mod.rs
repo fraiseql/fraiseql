@@ -29,10 +29,7 @@ use fraiseql_core::{
 };
 use tracing::{info, warn};
 
-use super::{
-    intermediate::{IntermediateFactTable, IntermediateInjectDefaults, IntermediateSchema},
-    rich_filters::{RichFilterConfig, compile_rich_filters},
-};
+use super::intermediate::{IntermediateFactTable, IntermediateInjectDefaults, IntermediateSchema};
 
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
@@ -383,11 +380,6 @@ impl SchemaConverter {
 
         // Inject synthetic Relay types (PageInfo, Node interface, XxxConnection, XxxEdge).
         relay::inject_relay_types(&mut compiled)?;
-
-        // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
-        let rich_filter_config = RichFilterConfig::default();
-        compile_rich_filters(&mut compiled, &rich_filter_config)
-            .context("Failed to compile rich filter types")?;
 
         // Inject the changelog GraphQL surface (EntityChangeLog / TransportCheckpoint
         // types + cursor query + point lookup + upsert mutation) when opted in.

@@ -21,7 +21,7 @@
     clippy::inline_always,
     clippy::needless_pass_by_value,
     clippy::future_not_send
-)]
+)] // Reason: #[op2] proc-macro output constraints — see the paragraph above
 
 #[cfg(test)]
 mod tests;

@@ -309,8 +309,10 @@ impl TransportAdapter for KafkaAdapter {
 
 /// Kafka transport adapter stub (without `kafka` feature).
 ///
-/// This is a stub implementation for development and testing.
-/// Enable the `kafka` feature for actual Kafka delivery.
+/// The stub fails loud: every `deliver` returns an error and `health_check`
+/// reports unhealthy, so a deployment configured for Kafka on a binary built
+/// without it cannot silently drop events. Enable the `kafka` feature for
+/// actual Kafka delivery.
 #[cfg(not(feature = "kafka"))]
 #[derive(Debug)]
 pub struct KafkaAdapter {
@@ -323,11 +325,13 @@ impl KafkaAdapter {
     ///
     /// # Note
     ///
-    /// This is a stub implementation. Enable the `kafka` feature for actual delivery.
+    /// This is a stub implementation: it can be constructed (so configuration
+    /// plumbing keeps working), but every `deliver` fails and `health_check`
+    /// reports unhealthy. Enable the `kafka` feature for actual delivery.
     ///
     /// # Errors
     ///
-    /// This stub implementation never fails, but returns `Result` for API compatibility.
+    /// Construction never fails; the `Result` mirrors the real adapter's API.
     pub fn new(config: KafkaConfig) -> Result<Self, SubscriptionError> {
         tracing::warn!(
             brokers = %config.brokers,
@@ -354,22 +358,16 @@ impl TransportAdapter for KafkaAdapter {
         event: &SubscriptionEvent,
         subscription_name: &str,
     ) -> Result<(), SubscriptionError> {
-        let message = KafkaMessage::from_event(event, subscription_name);
+        // Fail loud (#784): reporting Ok here would drop the event while
+        // signalling successful delivery — the fail-open shape the other
+        // compiled-out runtime stubs (functions WASM/Deno, observers cache,
+        // NATS) deliberately avoid.
         let topic = self.get_topic(subscription_name);
-
-        let _payload = serde_json::to_string(&message).map_err(|e| {
-            SubscriptionError::Internal(format!("Failed to serialize message: {e}"))
-        })?;
-
-        // Stub implementation - log the event
-        tracing::info!(
-            topic = topic,
-            key = message.key(),
-            event_id = %event.event_id,
-            "Kafka delivery (STUB) - enable 'kafka' feature for actual delivery"
-        );
-
-        Ok(())
+        Err(SubscriptionError::Internal(format!(
+            "Kafka transport is not compiled into this binary (event {event_id} for topic \
+             '{topic}' not delivered). Rebuild with `--features kafka`.",
+            event_id = event.event_id,
+        )))
     }
 
     fn name(&self) -> &'static str {
@@ -377,8 +375,8 @@ impl TransportAdapter for KafkaAdapter {
     }
 
     async fn health_check(&self) -> bool {
-        // Stub always returns true
-        tracing::debug!("Kafka health check (STUB) - always returns true");
-        true
+        // The stub can deliver nothing, so it is never healthy.
+        tracing::debug!("Kafka health check (STUB): kafka feature not compiled in — unhealthy");
+        false
     }
 }

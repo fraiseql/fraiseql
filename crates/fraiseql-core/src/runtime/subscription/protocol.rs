@@ -21,6 +21,10 @@ pub enum ClientMessageType {
     Subscribe,
     /// Complete/unsubscribe from operation.
     Complete,
+    /// Legacy `graphql-ws` connection termination — mapped to a graceful
+    /// close so the connection and its subscriptions do not outlive the
+    /// client's stated intent (#786).
+    ConnectionTerminate,
 }
 
 impl ClientMessageType {
@@ -34,6 +38,7 @@ impl ClientMessageType {
             "pong" => Some(Self::Pong),
             "subscribe" => Some(Self::Subscribe),
             "complete" => Some(Self::Complete),
+            "connection_terminate" => Some(Self::ConnectionTerminate),
             _ => None,
         }
     }
@@ -47,6 +52,7 @@ impl ClientMessageType {
             Self::Pong => "pong",
             Self::Subscribe => "subscribe",
             Self::Complete => "complete",
+            Self::ConnectionTerminate => "connection_terminate",
         }
     }
 }
@@ -261,6 +267,8 @@ pub enum CloseCode {
     GoingAway            = 1001,
     /// Client violated protocol.
     ProtocolError        = 1002,
+    /// Invalid or undecodable message (graphql-transport-ws spec: Bad Request).
+    BadRequest           = 4400,
     /// Internal server error.
     InternalError        = 1011,
     /// Connection initialization timeout.
@@ -289,6 +297,7 @@ impl CloseCode {
             Self::Normal => "Normal closure",
             Self::GoingAway => "Server shutting down",
             Self::ProtocolError => "Protocol error",
+            Self::BadRequest => "Bad Request",
             Self::InternalError => "Internal server error",
             Self::ConnectionInitTimeout => "Connection initialization timeout",
             Self::TooManyInitRequests => "Too many initialization requests",

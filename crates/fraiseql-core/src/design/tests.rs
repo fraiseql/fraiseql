@@ -4,7 +4,7 @@
 pub use serde_json::json;
 
 mod authorization_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::*;
     use crate::design::authorization::analyze;
 
@@ -18,7 +18,7 @@ mod authorization_tests {
 }
 
 mod cache_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::*;
     use crate::design::cache::analyze;
 
@@ -32,7 +32,7 @@ mod cache_tests {
 }
 
 mod compilation_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::*;
     use crate::design::compilation::analyze;
 
@@ -72,7 +72,7 @@ mod compilation_tests {
 }
 
 mod cost_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::*;
     use crate::design::cost::analyze;
 
@@ -86,7 +86,7 @@ mod cost_tests {
 }
 
 mod federation_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::*;
     use crate::design::federation::analyze;
 
@@ -114,7 +114,7 @@ mod federation_tests {
 }
 
 mod design_mod_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::*;
 
     #[test]
@@ -140,7 +140,7 @@ mod design_mod_tests {
 }
 
 mod schema_patterns_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::*;
     use crate::design::schema_patterns::analyze;
 

@@ -377,6 +377,30 @@ fn test_kafka_adapter_name() {
     assert_eq!(adapter.name(), "kafka");
 }
 
+/// #784: the non-kafka stub must fail loud, not report successful delivery of
+/// events it drops. `deliver` errors and `health_check` is false, matching the
+/// posture of the other compiled-out runtime stubs.
+///
+/// Runs only on builds without the `kafka` feature (the local default set);
+/// the all-features CI leg exercises the real adapter instead.
+#[cfg(not(feature = "kafka"))]
+#[tokio::test]
+async fn test_kafka_stub_fails_loud() {
+    let config = KafkaConfig::new("localhost:9092", "events");
+    let adapter = KafkaAdapter::new(config).unwrap();
+
+    let event = SubscriptionEvent::new(
+        "Order",
+        "ord_123",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_123"}),
+    );
+
+    let delivered = adapter.deliver(&event, "test_sub").await;
+    assert!(delivered.is_err(), "stub deliver must not report success: {delivered:?}");
+    assert!(!adapter.health_check().await, "stub health_check must not report healthy");
+}
+
 #[test]
 fn test_transport_manager_new() {
     let manager = TransportManager::new();
@@ -1156,7 +1180,7 @@ fn test_subscription_error_rbac_variants_constructible() {
 }
 
 mod change_spine_envelope_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::{ChangeSpineEnvelope, SubscriptionEvent, SubscriptionOperation};
 
     #[test]
@@ -1211,7 +1235,7 @@ mod change_spine_envelope_tests {
 }
 
 mod protocol_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::super::protocol::*;
 
     #[test]

@@ -371,6 +371,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         db_pool: Option<sqlx::PgPool>,
         #[cfg(feature = "arrow")] flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
+        // #874: every entry point — the binary, `fraiseql run`, and the
+        // documented library embedding (`from_file` + `Server::new`) — faces the
+        // same production safety gates. `main.rs` also validates (earlier, for a
+        // friendlier error before any subsystem work); this is the backstop the
+        // library path used to lack, which let a public playground, a zero pool
+        // timeout, or OIDC+HS256 both configured boot without complaint.
+        config.validate().map_err(ServerError::ConfigError)?;
+
         let SchemaSubsystems {
             #[cfg(feature = "federation")]
             circuit_breaker,
@@ -444,9 +452,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
-        // Refuse to start if FRAISEQL_REQUIRE_REDIS is set and PKCE store is in-memory.
-        #[cfg(feature = "auth")]
-        Self::check_redis_requirement(pkce_store.as_ref())?;
+        // Refuse to start if FRAISEQL_REQUIRE_REDIS is set and any running
+        // shared-auth-state subsystem is per-process (#874): PKCE, rate
+        // limiting, and token revocation are all part of the operator's
+        // "distributed state" assertion, not just PKCE.
+        Self::check_redis_requirement(&crate::server::initialization::SharedStateBackends {
+            #[cfg(feature = "auth")]
+            pkce_in_memory: pkce_store.as_ref().is_some_and(|s| s.is_in_memory()),
+            #[cfg(not(feature = "auth"))]
+            pkce_in_memory: false,
+            rate_limiter_in_memory: rate_limiter.as_ref().is_some_and(|rl| !rl.is_distributed()),
+            revocation_in_memory: revocation_manager
+                .as_ref()
+                .is_some_and(|rm| !rm.is_distributed()),
+        })?;
 
         // Spawn background PKCE state cleanup task (every 5 minutes).
         #[cfg(feature = "auth")]

@@ -1,20 +1,17 @@
-//! Multi-tenancy support for FraiseQL
+//! Tenant identity for FraiseQL.
 //!
-//! Provides tenant isolation, context extraction, and row-level security.
+//! [`TenantContext`] carries a tenant's identity and metadata — typically
+//! extracted from JWT claims — for use by transports and middleware.
 //!
-//! # Architecture
-//!
-//! Tenants are isolated at the data level:
-//! - Each tenant has a unique ID
-//! - Queries automatically include tenant filter (WHERE `tenant_id` = $1)
-//! - JWT claims carry `tenant_id` for authorization
-//! - Cross-tenant access is denied
+//! This module does **not** enforce isolation. Data-level tenant isolation is
+//! enforced by the runtime's security machinery: `inject_params` tenant
+//! filters, the `rls_policy` WHERE-clause composition, and (for schema-mode
+//! tenancy) per-tenant `search_path` pools in `fraiseql-server`, each with
+//! their own real-database test suites.
 //!
 //! # Example
 //!
-//! ```no_run
-//! // Requires: a live database adapter and compiled schema.
-//! // See: tests/integration/ for runnable examples.
+//! ```rust
 //! use fraiseql_core::tenancy::TenantContext;
 //! use serde_json::json;
 //!
@@ -24,9 +21,7 @@
 //! // Or extract from JWT claims
 //! let claims = json!({"tenant_id": "acme-corp", "sub": "user123"});
 //! let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
-//!
-//! // Use in query execution (executor setup not shown — requires live DB)
-//! // let result = executor.execute("query { users { id name } }").await?;
+//! assert_eq!(tenant.id(), "acme-corp");
 //! ```
 
 use std::collections::HashMap;
@@ -34,11 +29,12 @@ use std::collections::HashMap;
 use chrono::Utc;
 use serde_json::Value as JsonValue;
 
-/// Tenant context for row-level security and data isolation.
+/// A tenant's identity and metadata.
 ///
-/// Represents a single tenant in a multi-tenant system.
-/// All queries executed with this context will be filtered to only include data
-/// belonging to this tenant.
+/// Represents a single tenant in a multi-tenant system. This type carries
+/// identity only; query filtering is performed by the runtime's security
+/// machinery (`inject_params`, `rls_policy`, per-tenant pools), not by this
+/// struct.
 #[derive(Debug, Clone)]
 pub struct TenantContext {
     /// Tenant identifier (e.g., "acme-corp", UUID, or subdomain).
@@ -148,145 +144,7 @@ impl TenantContext {
 
         Ok(Self::new(tenant_id))
     }
-
-    /// Generate a WHERE clause for tenant filtering.
-    ///
-    /// Returns a WHERE clause that restricts data to this tenant.
-    /// Can be combined with existing WHERE clauses using AND.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the tenant ID contains characters outside the safe set
-    /// (`[A-Za-z0-9._-]`). Tenant IDs are validated at context creation
-    /// so this should never trigger in practice.
-    ///
-    /// # Security
-    ///
-    /// Prefer [`where_clause_postgresql`] or [`where_clause_parameterized`]
-    /// for production query execution. This method embeds the tenant ID
-    /// directly into SQL and is only safe because the ID is strictly validated.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use fraiseql_core::tenancy::TenantContext;
-    /// let tenant = TenantContext::new("acme-corp");
-    /// let clause = tenant.where_clause();  // "tenant_id = 'acme-corp'"
-    /// assert_eq!(clause, "tenant_id = 'acme-corp'");
-    /// ```
-    #[must_use]
-    pub fn where_clause(&self) -> String {
-        validate_tenant_id_for_interpolation(&self.id);
-        format!("tenant_id = '{}'", self.id)
-    }
-
-    /// Generate a parameterized WHERE clause for PostgreSQL.
-    ///
-    /// For use with parameterized queries to prevent SQL injection.
-    ///
-    /// # Arguments
-    ///
-    /// * `param_index` - Parameter placeholder index (1-based for PostgreSQL)
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use fraiseql_core::tenancy::TenantContext;
-    /// let tenant = TenantContext::new("acme-corp");
-    /// let clause = tenant.where_clause_postgresql(1);  // "tenant_id = $1"
-    /// assert_eq!(clause, "tenant_id = $1");
-    /// ```
-    #[must_use]
-    pub fn where_clause_postgresql(&self, param_index: usize) -> String {
-        format!("tenant_id = ${}", param_index)
-    }
-
-    /// Generate a parameterized WHERE clause for MySQL/SQLite.
-    ///
-    /// For use with parameterized queries to prevent SQL injection.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use fraiseql_core::tenancy::TenantContext;
-    /// let tenant = TenantContext::new("acme-corp");
-    /// let clause = tenant.where_clause_parameterized();  // "tenant_id = ?"
-    /// assert_eq!(clause, "tenant_id = ?");
-    /// ```
-    #[must_use]
-    pub fn where_clause_parameterized(&self) -> String {
-        "tenant_id = ?".to_string()
-    }
 }
-
-// ============================================================================
-// Query Filtering
-// ============================================================================
-
-/// Validate that a tenant ID is safe to interpolate directly into SQL.
-///
-/// Allows only `[A-Za-z0-9._-]` to prevent SQL injection. Panics on
-/// violation so callers catch programming errors at development time.
-///
-/// Production code should use the parameterized WHERE clause helpers instead.
-fn validate_tenant_id_for_interpolation(tenant_id: &str) {
-    assert!(
-        !tenant_id.is_empty()
-            && tenant_id.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-')),
-        "SECURITY: tenant_id '{tenant_id}' contains characters that are unsafe for SQL interpolation. \
-         Use where_clause_postgresql() or where_clause_parameterized() instead."
-    );
-}
-
-/// Generates a WHERE clause for tenant filtering.
-///
-/// Returns a WHERE clause that restricts data to a specific tenant.
-/// Can be combined with existing WHERE clauses using AND.
-///
-/// # Panics
-///
-/// Panics if `tenant_id` contains characters outside `[A-Za-z0-9._-]`.
-/// Use [`where_clause_postgresql`] or [`where_clause_parameterized`] for
-/// production code where tenant IDs come from external input.
-///
-/// # Example
-///
-/// ```rust
-/// # use fraiseql_core::tenancy::where_clause;
-/// let clause = where_clause("acme-corp");  // "tenant_id = 'acme-corp'"
-/// assert_eq!(clause, "tenant_id = 'acme-corp'");
-/// ```
-#[must_use]
-pub fn where_clause(tenant_id: &str) -> String {
-    validate_tenant_id_for_interpolation(tenant_id);
-    format!("tenant_id = '{}'", tenant_id)
-}
-
-/// Generates a parameterized WHERE clause for PostgreSQL.
-///
-/// For use with parameterized queries to prevent SQL injection.
-#[must_use]
-pub fn where_clause_postgresql(param_index: usize) -> String {
-    format!("tenant_id = ${}", param_index)
-}
-
-/// Generates a parameterized WHERE clause for MySQL/SQLite.
-///
-/// For use with parameterized queries to prevent SQL injection.
-#[must_use]
-pub fn where_clause_parameterized() -> String {
-    "tenant_id = ?".to_string()
-}
-
-// ============================================================================
-// Tests
-// ============================================================================
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod jwt_extraction_tests;
-
-#[cfg(test)]
-mod query_filter_tests;

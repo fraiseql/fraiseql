@@ -163,6 +163,10 @@ fn fully_configured_server_config() -> ServerConfig {
         // The fixture adapter is not a real database; caching is off so the
         // multi-tenant/RLS gate and the live RLS verification stay out of the way.
         cache_enabled: false,
+        // #874: `Server::new` now runs `ServerConfig::validate()`, and the
+        // default `cors_enabled = true` with no origins is refused in
+        // production mode (the test environment does not set FRAISEQL_ENV).
+        cors_enabled: false,
         pool_tuning: Some(crate::config::pool_tuning::PoolPressureMonitorConfig {
             enabled: true,
             ..crate::config::pool_tuning::PoolPressureMonitorConfig::default()
@@ -475,5 +479,34 @@ async fn hot_reload_runs_the_boot_safety_gates() {
     assert!(
         err.contains("User.email"),
         "the refusal must name the offending field, as boot does: {err}"
+    );
+}
+
+/// #874: `ServerConfig::validate()` must run on the library construction path,
+/// not only in `main.rs`. A downstream embedder following the documented
+/// `from_file` + `Server::new` flow used to skip every production safety gate —
+/// a `pool_timeout_secs = 0` (or a public playground, or OIDC+HS256 both
+/// configured) booted happily as a library while the binary refused it.
+///
+/// `pool_timeout_secs = 0` is the probe because it is environment-independent:
+/// the production-mode gates depend on `FRAISEQL_ENV`, which the parallel test
+/// runner must not touch.
+#[tokio::test]
+async fn library_construction_path_runs_config_validate() {
+    let config = ServerConfig {
+        pool_timeout_secs: 0,
+        ..fully_configured_server_config()
+    };
+    let result =
+        Server::new(config, fully_configured_schema(), Arc::new(NoopRelayAdapter), None).await;
+    assert!(
+        result.is_err(),
+        "Server::new must refuse the config validate() refuses — the library \
+         path skipped every production safety gate (#874)"
+    );
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("pool_timeout_secs"),
+        "the refusal must name the offending key, got: {msg}"
     );
 }

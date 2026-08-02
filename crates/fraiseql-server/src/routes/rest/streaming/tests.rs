@@ -1,6 +1,6 @@
 //! Tests for the `streaming` module.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::json;

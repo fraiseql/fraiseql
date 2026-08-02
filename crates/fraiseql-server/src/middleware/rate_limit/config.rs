@@ -127,7 +127,14 @@ impl Default for RateLimitingSecurityConfig {
 ///
 /// Distinct from `fraiseql_auth::AuthRateLimitConfig`, which uses a
 /// sliding-window algorithm for auth endpoint brute-force protection.
+///
+/// The container is `#[serde(default)]` (#874): a partial `[rate_limiting]`
+/// block — including the exact example in `ServerConfig`'s rustdoc — starts
+/// from the documented [`Default`] and overwrites only the keys the operator
+/// set. Without it, omitting `cleanup_interval_secs` (a key no documentation
+/// mentions) refused to boot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RateLimitConfig {
     /// Enable rate limiting
     pub enabled: bool,
@@ -166,7 +173,6 @@ pub struct RateLimitConfig {
     ///
     /// Defaults to `100_000`.  At ~200 bytes per bucket, this cap allows up to
     /// ~20 `MiB` of tracking state per map before enforcement kicks in.
-    #[serde(default = "default_max_buckets")]
     pub max_buckets: usize,
 }
 

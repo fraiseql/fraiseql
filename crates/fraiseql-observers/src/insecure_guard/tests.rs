@@ -1,6 +1,6 @@
 //! Tests for the centralised SSRF-bypass guard.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use super::*;
 

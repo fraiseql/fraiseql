@@ -26,6 +26,19 @@ pub enum RateLimiter {
 }
 
 impl RateLimiter {
+    /// Whether this limiter's budget is shared across replicas (#874).
+    ///
+    /// The in-memory backend tracks budgets per process, so a deployment of N
+    /// replicas enforces N times the configured rate.
+    #[must_use]
+    pub const fn is_distributed(&self) -> bool {
+        match self {
+            Self::InMemory(_) => false,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(_) => true,
+        }
+    }
+
     /// Create an in-memory rate limiter.
     #[must_use]
     pub fn new(config: RateLimitConfig) -> Self {

@@ -143,7 +143,12 @@ impl TestPipeline {
         );
 
         // ── 3. Construct server ────────────────────────────────────────────
-        let config = ServerConfig::default();
+        // #874: Server::new now runs ServerConfig::validate(); the default
+        // cors_enabled=true with empty origins is refused in production mode.
+        let config = ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
         let server = Server::new(config, schema, adapter, None)
             .await
             .expect("Server::new must succeed");

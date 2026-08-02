@@ -412,8 +412,14 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // M-quotas (cost): reject a query whose estimated cost exceeds the tenant's
     // per-operation cost budget (#379). Same chokepoint and 429 surfacing as the
     // other per-tenant quotas, and in the shared seam for the same reason (#858).
-    super::tenant_dispatch::charge_cost_budget(&state, tenant_key.as_deref(), &query, executor)
-        .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+    super::tenant_dispatch::charge_cost_budget(
+        &state,
+        tenant_key.as_deref(),
+        &query,
+        variables.as_ref(),
+        executor,
+    )
+    .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
 
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]

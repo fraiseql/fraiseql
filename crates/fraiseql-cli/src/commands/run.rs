@@ -111,7 +111,7 @@ async fn run_once(
 ) -> Result<()> {
     let scheme = parse_database_url(db_url)?;
     let schema = compile_schema(input_path).await?;
-    let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
+    let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection)?;
 
     println!("Server ready at http://{bind_addr}/graphql");
     println!("   Press Ctrl+C to stop");
@@ -133,7 +133,7 @@ async fn run_watch_loop(
 
     loop {
         let schema = compile_schema(input_path).await?;
-        let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
+        let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection)?;
 
         println!("Server ready at http://{bind_addr}/graphql");
         println!("   Watching {} for changes...  (Ctrl+C to stop)", input_path.display());
@@ -426,7 +426,7 @@ pub(crate) fn build_config_from(
     server: &ServerRuntimeConfig,
     db_cfg: &DatabaseRuntimeConfig,
     introspection: bool,
-) -> ServerConfig {
+) -> Result<ServerConfig> {
     let tls = server.tls.enabled.then(|| build_tls_config(&server.tls));
 
     let mut config = ServerConfig {
@@ -461,10 +461,11 @@ pub(crate) fn build_config_from(
     // limiting, etc.) via the shared ServerArgs struct.  This picks up env
     // vars like FRAISEQL_METRICS_ENABLED without duplicating the parsing
     // logic here.
-    let server_args = fraiseql_server::ServerArgs::from_env();
+    let server_args = fraiseql_server::ServerArgs::from_env()
+        .map_err(|e| anyhow::anyhow!("invalid server environment variable: {e}"))?;
     server_args.apply_to_config(&mut config);
 
-    config
+    Ok(config)
 }
 
 /// Convert `TlsRuntimeConfig` → `TlsServerConfig`.

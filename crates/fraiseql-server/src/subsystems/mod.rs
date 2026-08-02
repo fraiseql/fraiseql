@@ -1,32 +1,14 @@
-//! Server subsystem assembly and lifecycle management.
+//! Serverless-functions subsystem types shared across the server.
 //!
-//! [`ServerSubsystems`] bundles the optional platform extensions —
-//! object storage and serverless functions — into a
-//! single coherent struct that the server can query, route-mount, and shut down
-//! in a controlled order.
+//! [`FunctionsSubsystem`] is assembled at startup by
+//! [`loader::build_functions_subsystem`] from the `[functions]` section of the
+//! compiled schema; [`BeforeMutationHooks`] is the cloneable hot-path snapshot
+//! of it that lives in `AppState`.
 //!
-//! # Assembly
-//!
-//! Use [`builder::ServerSubsystemsBuilder`] to assemble subsystems from their
-//! pre-built parts. The builder validates cross-subsystem dependencies before
-//! returning the final [`ServerSubsystems`]:
-//!
-//! ```rust,ignore
-//! let subsystems = ServerSubsystemsBuilder::new()
-//!     .with_storage(storage_subsystem)
-//!     .with_functions(functions_subsystem)
-//!     .build()?;
-//! ```
-//!
-//! # Shutdown order
-//!
-//! Shutdown proceeds in reverse initialization order:
-//! 1. Stop the cron scheduler (functions)
-//! 2. Drop the functions observer (stops dispatching events)
-//! 3. Drop the storage backend (flushes any pending writes)
-
-pub mod builder;
-pub mod validator;
+//! (The former `ServerSubsystems` bundle, its builder and
+//! `validate_subsystems_config` were deleted in #874: nothing in the boot path
+//! ever constructed them, so their advisories never reached an operator —
+//! dead code that read like a running gate.)
 
 /// Loads function modules from disk and assembles the functions-runtime subsystem.
 #[cfg(feature = "functions-runtime")]
@@ -37,28 +19,11 @@ mod tests;
 
 use std::sync::Arc;
 
-pub use builder::{ServerSubsystemsBuilder, SubsystemBuildError};
 use fraiseql_functions::{FunctionObserver, triggers::TriggerRegistry};
-pub use validator::{SubsystemConfigWarning, validate_subsystems_config};
 
-use crate::schema::loader::{FunctionsConfig, SchemaStorageConfig};
+use crate::schema::loader::FunctionsConfig;
 
 // ── Subsystem structs ─────────────────────────────────────────────────────────
-
-/// Storage subsystem: backend, metadata repository, RLS evaluator, and bucket config.
-///
-/// Assembled at server startup from the `[storage]` section of the compiled schema
-/// and the server's `PgPool`. Use the [`fraiseql_storage::storage_router`] with the
-/// contained `state` to mount the `/storage/v1` route tree.
-pub struct StorageSubsystem {
-    /// Runtime storage state (backend + metadata repo + RLS + bucket config map).
-    ///
-    /// Pass this to [`fraiseql_storage::storage_router`] to mount the HTTP routes.
-    pub state: fraiseql_storage::StorageState,
-
-    /// Schema-level bucket definitions from the compiled schema.
-    pub schema_config: SchemaStorageConfig,
-}
 
 /// Functions subsystem: observer and trigger registry.
 ///
@@ -80,47 +45,6 @@ pub struct FunctionsSubsystem {
 
     /// Schema-level functions configuration (definitions + module directory).
     pub config: FunctionsConfig,
-}
-
-// ── Aggregated container ──────────────────────────────────────────────────────
-
-/// All optional platform subsystems assembled from the compiled schema.
-///
-/// Each field is `None` when the corresponding section is absent from or disabled
-/// in the compiled schema. Callers can use [`is_storage_enabled`][Self::is_storage_enabled]
-/// etc. to check at a glance, or match directly on the `Option` fields.
-#[allow(missing_debug_implementations)] // Reason: inner subsystem types (e.g. FunctionObserver) don't implement Debug
-pub struct ServerSubsystems {
-    /// Object storage subsystem, present when the schema's `"storage"` key is set.
-    pub storage: Option<StorageSubsystem>,
-
-    /// Serverless functions subsystem, present when the schema's `"functions"` key is set.
-    pub functions: Option<FunctionsSubsystem>,
-}
-
-impl ServerSubsystems {
-    /// Create an empty `ServerSubsystems` with all subsystems disabled.
-    ///
-    /// Equivalent to `ServerSubsystemsBuilder::new().build().unwrap()`.
-    #[must_use]
-    pub const fn none() -> Self {
-        Self {
-            storage:   None,
-            functions: None,
-        }
-    }
-
-    /// Returns `true` if the storage subsystem is present.
-    #[must_use]
-    pub const fn is_storage_enabled(&self) -> bool {
-        self.storage.is_some()
-    }
-
-    /// Returns `true` if the functions subsystem is present.
-    #[must_use]
-    pub const fn is_functions_enabled(&self) -> bool {
-        self.functions.is_some()
-    }
 }
 
 // ── Before-mutation hook bundle ───────────────────────────────────────────────

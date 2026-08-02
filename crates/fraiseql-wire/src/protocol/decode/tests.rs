@@ -356,6 +356,7 @@ fn decode_message_accepts_length_at_the_cap_boundary() {
     // decoder must move past the length cap to the (here unmet) body-length
     // check — i.e. it must NOT reject on the cap.
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    // Reason: test fixture values are small
     let len = MAX_MESSAGE_LEN as i32;
     let mut data = BytesMut::new();
     data.extend_from_slice(b"D");
