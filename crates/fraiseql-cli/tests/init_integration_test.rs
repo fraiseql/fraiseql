@@ -303,19 +303,24 @@ fn test_init_fraiseql_toml_is_valid() {
     );
 }
 
+/// FraiseQL is PostgreSQL-only (v2.15.0, #374): `init` must refuse the removed
+/// engines with a message that says why — not scaffold a project the runtime
+/// cannot boot.
 #[test]
-fn test_init_mysql_sets_correct_database_target() {
-    let tmp = TempDir::new().unwrap();
-    let (ok, _, stderr) = run_init(&tmp, "myapp", &["--database", "mysql", "--no-git"]);
-    assert!(ok, "init failed: {stderr}");
-
-    let toml_content = fs::read_to_string(tmp.path().join("myapp/fraiseql.toml")).unwrap();
-    let parsed: toml::Value = toml::from_str(&toml_content).unwrap();
-
-    assert_eq!(parsed["project"]["database_target"].as_str().unwrap(), "mysql");
-    // Database URL is in a comment line (not a TOML field) — check the raw content instead
-    let toml_raw = fs::read_to_string(tmp.path().join("myapp/fraiseql.toml")).unwrap();
-    assert!(toml_raw.contains("mysql"), "Database URL comment should mention mysql");
+fn test_init_refuses_removed_engines_loudly() {
+    for engine in &["mysql", "sqlite", "sqlserver", "mssql"] {
+        let tmp = TempDir::new().unwrap();
+        let (ok, _, stderr) = run_init(&tmp, "refused", &["--database", engine, "--no-git"]);
+        assert!(!ok, "init must refuse --database {engine}");
+        assert!(
+            stderr.contains("PostgreSQL-only"),
+            "refusal for {engine} must explain the PostgreSQL-only decision: {stderr}"
+        );
+        assert!(
+            !tmp.path().join("refused").exists(),
+            "no project directory may be created for refused engine {engine}"
+        );
+    }
 }
 
 #[test]
@@ -410,36 +415,6 @@ fn test_init_postgres_project_compiles() {
     assert!(ok, "init failed: {stderr}");
 
     let (compile_ok, stdout, stderr) = run_compile(&tmp.path().join("pgapp"));
-    assert!(compile_ok, "compile failed: stdout={stdout}\nstderr={stderr}");
-}
-
-#[test]
-fn test_init_mysql_project_compiles() {
-    let tmp = TempDir::new().unwrap();
-    let (ok, _, stderr) = run_init(&tmp, "myapp", &["--database", "mysql", "--no-git"]);
-    assert!(ok, "init failed: {stderr}");
-
-    let (compile_ok, stdout, stderr) = run_compile(&tmp.path().join("myapp"));
-    assert!(compile_ok, "compile failed: stdout={stdout}\nstderr={stderr}");
-}
-
-#[test]
-fn test_init_sqlite_project_compiles() {
-    let tmp = TempDir::new().unwrap();
-    let (ok, _, stderr) = run_init(&tmp, "sqliteapp", &["--database", "sqlite", "--no-git"]);
-    assert!(ok, "init failed: {stderr}");
-
-    let (compile_ok, stdout, stderr) = run_compile(&tmp.path().join("sqliteapp"));
-    assert!(compile_ok, "compile failed: stdout={stdout}\nstderr={stderr}");
-}
-
-#[test]
-fn test_init_sqlserver_project_compiles() {
-    let tmp = TempDir::new().unwrap();
-    let (ok, _, stderr) = run_init(&tmp, "mssqlapp", &["--database", "sqlserver", "--no-git"]);
-    assert!(ok, "init failed: {stderr}");
-
-    let (compile_ok, stdout, stderr) = run_compile(&tmp.path().join("mssqlapp"));
     assert!(compile_ok, "compile failed: stdout={stdout}\nstderr={stderr}");
 }
 
@@ -634,44 +609,49 @@ fn test_init_postgres_sql_uses_serial_and_uuid() {
     assert!(sql.contains("CREATE INDEX"), "Indexes should live with tables (locality-first)");
 }
 
+/// #823: the scaffolded views must expose the `data` JSONB column — the only
+/// read shape the runtime executes (`SELECT data FROM "<view>"`). The full
+/// live-database proof is `init_first_run_pg.rs`; this string-level pin runs in
+/// the database-free leg too.
 #[test]
-fn test_init_mysql_sql_uses_auto_increment() {
+fn test_init_views_expose_data_jsonb_column() {
     let tmp = TempDir::new().unwrap();
-    let (ok, _, stderr) =
-        run_init(&tmp, "mysqltest", &["--database", "mysql", "--size", "xs", "--no-git"]);
+    let (ok, _, stderr) = run_init(&tmp, "viewtest", &["--size", "xs", "--no-git"]);
     assert!(ok, "init failed: {stderr}");
 
-    let sql = fs::read_to_string(tmp.path().join("mysqltest/db/0_schema/schema.sql")).unwrap();
-
-    assert!(sql.contains("AUTO_INCREMENT"), "MySQL SQL should use AUTO_INCREMENT");
-    assert!(sql.contains("CHAR(36)"), "MySQL SQL should use CHAR(36) for UUID");
+    let sql = fs::read_to_string(tmp.path().join("viewtest/db/0_schema/schema.sql")).unwrap();
+    for view in &["v_author", "v_post", "v_comment", "v_tag"] {
+        let body = sql
+            .split(&format!("CREATE OR REPLACE VIEW {view} AS"))
+            .nth(1)
+            .map(|rest| rest.split(';').next().unwrap_or_default());
+        assert!(body.is_some(), "scaffold must create {view}");
+        let body = body.unwrap();
+        assert!(
+            body.contains("jsonb_build_object") && body.contains(") AS data"),
+            "{view} must expose a jsonb_build_object(…) AS data column, got:\n{body}"
+        );
+    }
 }
 
+/// #569: the scaffolded mutation functions must return the v2.2
+/// `mutation_response` shape (via the `fraiseql setup` builders), never bare
+/// UUID/BOOLEAN values the executor cannot decode.
 #[test]
-fn test_init_sqlite_sql_uses_autoincrement() {
+fn test_init_mutation_functions_use_response_contract() {
     let tmp = TempDir::new().unwrap();
-    let (ok, _, stderr) =
-        run_init(&tmp, "sqlitetest", &["--database", "sqlite", "--size", "xs", "--no-git"]);
+    let (ok, _, stderr) = run_init(&tmp, "fntest", &["--size", "xs", "--no-git"]);
     assert!(ok, "init failed: {stderr}");
 
-    let sql = fs::read_to_string(tmp.path().join("sqlitetest/db/0_schema/schema.sql")).unwrap();
-
-    assert!(sql.contains("AUTOINCREMENT"), "SQLite SQL should use AUTOINCREMENT");
-    assert!(sql.contains("datetime('now')"), "SQLite SQL should use datetime()");
-}
-
-#[test]
-fn test_init_sqlserver_sql_uses_identity() {
-    let tmp = TempDir::new().unwrap();
-    let (ok, _, stderr) =
-        run_init(&tmp, "mssqltest", &["--database", "sqlserver", "--size", "xs", "--no-git"]);
-    assert!(ok, "init failed: {stderr}");
-
-    let sql = fs::read_to_string(tmp.path().join("mssqltest/db/0_schema/schema.sql")).unwrap();
-
-    assert!(sql.contains("IDENTITY"), "SQL Server SQL should use IDENTITY");
-    assert!(sql.contains("UNIQUEIDENTIFIER"), "SQL Server SQL should use UNIQUEIDENTIFIER");
-    assert!(sql.contains("NVARCHAR"), "SQL Server SQL should use NVARCHAR");
+    let sql = fs::read_to_string(tmp.path().join("fntest/db/0_schema/schema.sql")).unwrap();
+    assert!(
+        sql.contains("fraiseql.mutation_ok") && sql.contains("fraiseql.mutation_err"),
+        "scaffolded functions must build responses with the fraiseql setup helpers"
+    );
+    assert!(
+        !sql.contains("RETURNS UUID") && !sql.contains("RETURNS BOOLEAN"),
+        "no scaffolded mutation function may return a bare scalar the executor cannot decode"
+    );
 }
 
 // ============================================================================

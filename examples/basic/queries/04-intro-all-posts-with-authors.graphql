@@ -1,16 +1,15 @@
-# Chapter 4: Nested Data & Complex Queries
-# Fetch all posts with author information (including relationships)
+# Chapter 4: Denormalized Reads
+# Fetch all posts with author identity. The v_post view joins tb_user at
+# view-definition time, so no client-side join is needed.
 
 query AllPostsWithAuthors {
-  posts(limit: 20) {
+  posts {
     id
     title
     content
-    created_at
-    author {
-      id
-      name
-      email
-    }
+    authorId
+    authorName
+    authorEmail
+    createdAt
   }
 }

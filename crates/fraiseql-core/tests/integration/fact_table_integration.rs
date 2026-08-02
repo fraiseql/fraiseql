@@ -334,3 +334,78 @@ async fn test_get_indexed_columns_tf_sales() {
     assert!(indexed.contains(&"product_id".to_string()));
     assert!(indexed.contains(&"occurred_at".to_string()));
 }
+
+/// #825 — the documented calendar-dimension layout (docs/modules/fact-table.md):
+/// the real dimensions column (`data`) followed by `*_info` JSONB calendar
+/// columns. Introspection picked the LAST JSONB column by ordinal position, so
+/// every calendar fact table got `year_info` as its dimensions column,
+/// `introspect facts` printed it for the developer to paste, and
+/// `validate-facts` hard-errored on a correct schema.
+#[tokio::test]
+async fn test_calendar_fact_table_dimensions_by_role() {
+    let Some((pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
+    let (client, connection) = tokio_postgres::connect(pg.url(), NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+
+    client
+        .batch_execute(
+            "DROP TABLE IF EXISTS tf_p23_calendar_sales;
+             CREATE TABLE tf_p23_calendar_sales (
+                 id SERIAL PRIMARY KEY,
+                 revenue NUMERIC(12,2) NOT NULL,
+                 quantity INTEGER NOT NULL,
+                 data JSONB,
+                 date_info JSONB NOT NULL,
+                 month_info JSONB NOT NULL,
+                 quarter_info JSONB NOT NULL,
+                 year_info JSONB NOT NULL,
+                 customer_id INTEGER NOT NULL,
+                 occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+             );
+             INSERT INTO tf_p23_calendar_sales
+                 (revenue, quantity, data, date_info, month_info, quarter_info, year_info, customer_id)
+             VALUES (100.0, 2,
+                 '{\"region\": \"EU\", \"channel\": \"web\"}',
+                 '{\"date\": \"2026-08-01\", \"week\": 31, \"month\": 8, \"quarter\": 3, \"year\": 2026}',
+                 '{\"month\": 8, \"quarter\": 3, \"year\": 2026}',
+                 '{\"quarter\": 3, \"year\": 2026}',
+                 '{\"year\": 2026}', 7);",
+        )
+        .await
+        .expect("create calendar fact table");
+
+    let metadata = FactTableDetector::introspect(&introspector, "tf_p23_calendar_sales")
+        .await
+        .expect("calendar layout must introspect");
+
+    assert_eq!(
+        metadata.dimensions.name, "data",
+        "the dimensions column is `data` — the *_info calendar columns are claimed by \
+         calendar detection and must never win by ordinal position (#825)"
+    );
+    let path_names: Vec<&str> = metadata.dimensions.paths.iter().map(|p| p.name.as_str()).collect();
+    assert!(
+        path_names.contains(&"region") && path_names.contains(&"channel"),
+        "dimension paths must come from the data column's sample, got: {path_names:?}"
+    );
+    assert!(
+        !metadata.calendar_dimensions.is_empty(),
+        "the *_info columns must still be detected as calendar dimensions"
+    );
+
+    // #825 secondary — a non-indexed numeric `*_id` column must surface as an
+    // unindexed filter, not silently vanish from the metadata.
+    let customer = metadata
+        .denormalized_filters
+        .iter()
+        .find(|f| f.name == "customer_id")
+        .expect("customer_id must be recorded as a filter even without an index (#825)");
+    assert!(!customer.indexed, "customer_id has no index in this fixture");
+
+    client.batch_execute("DROP TABLE IF EXISTS tf_p23_calendar_sales;").await.ok();
+}

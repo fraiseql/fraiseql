@@ -109,7 +109,7 @@ impl FactTableDetector {
         let db_type = introspector.database_type();
 
         let mut measures = Vec::new();
-        let mut dimension_column: Option<DimensionColumn> = None;
+        let mut dimension_candidates: Vec<String> = Vec::new();
         let mut filters = Vec::new();
 
         for (name, data_type, is_nullable) in &columns {
@@ -117,18 +117,13 @@ impl FactTableDetector {
 
             match sql_type {
                 SqlType::Jsonb | SqlType::Json => {
-                    // This is the dimension column - try to extract paths from sample data
-                    let paths = if let Ok(Some(sample)) =
-                        introspector.get_sample_jsonb(table_name, name).await
-                    {
-                        Self::extract_dimension_paths(&sample, name, db_type)
-                    } else {
-                        Vec::new()
-                    };
-                    dimension_column = Some(DimensionColumn {
-                        name: name.clone(),
-                        paths,
-                    });
+                    // A dimension-column CANDIDATE. The choice is made by role
+                    // after the scan (#825): the old code assigned here
+                    // unconditionally, so with several JSONB columns the last
+                    // one in ordinal order silently won — guaranteed wrong for
+                    // the documented calendar pattern, whose `*_info` columns
+                    // come after the real dimensions column.
+                    dimension_candidates.push(name.clone());
                 },
                 SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float => {
                     // Skip common non-measure columns
@@ -140,12 +135,14 @@ impl FactTableDetector {
                         });
                     }
 
-                    // Check if it's a denormalized filter
-                    if name.ends_with("_id") && indexed_set.contains(name.as_str()) {
+                    // A numeric `*_id` column is a denormalized filter whether
+                    // or not it is indexed — dropping the unindexed ones made
+                    // them vanish from the metadata entirely (#825 secondary).
+                    if name.ends_with("_id") {
                         filters.push(FilterColumn {
                             name:     name.clone(),
                             sql_type: sql_type.clone(),
-                            indexed:  true,
+                            indexed:  indexed_set.contains(name.as_str()),
                         });
                     }
                 },
@@ -178,6 +175,21 @@ impl FactTableDetector {
         // Detect calendar dimensions
         let calendar_dimensions = Self::detect_calendar_dimensions(&columns, &indexed_set)?;
 
+        // Choose the dimensions column by role, then sample only the chosen one.
+        let dimension_column = match Self::choose_dimension_column(&dimension_candidates)? {
+            None => None,
+            Some(name) => {
+                let paths = if let Ok(Some(sample)) =
+                    introspector.get_sample_jsonb(table_name, &name).await
+                {
+                    Self::extract_dimension_paths(&sample, &name, db_type)
+                } else {
+                    Vec::new()
+                };
+                Some(DimensionColumn { name, paths })
+            },
+        };
+
         let metadata = FactTableMetadata {
             table_name: table_name.to_string(),
             measures,
@@ -200,6 +212,44 @@ impl FactTableDetector {
     fn parse_sql_type(type_name: &str, db_type: DatabaseType) -> SqlType {
         match db_type {
             DatabaseType::PostgreSQL => SqlType::from_str_postgres(type_name),
+        }
+    }
+
+    /// Choose the dimensions column from the JSONB/JSON candidates **by role,
+    /// never by position** (#825).
+    ///
+    /// `*_info` columns belong to the calendar-dimension pattern
+    /// ([`Self::detect_calendar_dimensions`]) and are excluded. Of what
+    /// remains: a single candidate wins; with several, a conventional name
+    /// (`data`, then `dimensions`) wins; several unconventional candidates are
+    /// a reported ambiguity rather than a silent order-dependent pick.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` naming the candidates when the
+    /// choice is ambiguous.
+    fn choose_dimension_column(candidates: &[String]) -> Result<Option<String>> {
+        let non_calendar: Vec<&String> =
+            candidates.iter().filter(|n| !n.ends_with("_info")).collect();
+        match non_calendar.as_slice() {
+            [] => Ok(None),
+            [only] => Ok(Some((*only).clone())),
+            several => {
+                for conventional in ["data", "dimensions"] {
+                    if let Some(name) = several.iter().find(|n| n.as_str() == conventional) {
+                        return Ok(Some((*name).clone()));
+                    }
+                }
+                let names = several.iter().map(|n| n.as_str()).collect::<Vec<_>>().join(", ");
+                Err(FraiseQLError::Validation {
+                    message: format!(
+                        "ambiguous dimension columns: several JSONB columns qualify ({names}) \
+                         and none is named 'data' or 'dimensions' — rename the dimensions \
+                         column to a conventional name"
+                    ),
+                    path:    None,
+                })
+            },
         }
     }
 
@@ -561,17 +611,14 @@ impl FactTableDetector {
         columns: Vec<(&str, SqlType, bool)>,
     ) -> Result<FactTableMetadata> {
         let mut measures = Vec::new();
-        let mut dimension_column: Option<DimensionColumn> = None;
+        let mut dimension_candidates: Vec<String> = Vec::new();
         let mut filters = Vec::new();
 
         for (name, sql_type, nullable) in columns {
             match sql_type {
                 SqlType::Jsonb | SqlType::Json => {
-                    // This is the dimension column
-                    dimension_column = Some(DimensionColumn {
-                        name:  name.to_string(),
-                        paths: Vec::new(),
-                    });
+                    // Dimension-column candidate; chosen by role below (#825).
+                    dimension_candidates.push(name.to_string());
                 },
                 SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float => {
                     // Skip id column
@@ -604,13 +651,21 @@ impl FactTableDetector {
             }
         }
 
+        let dimensions = Self::choose_dimension_column(&dimension_candidates)?.map_or_else(
+            || DimensionColumn {
+                name:  "dimensions".to_string(),
+                paths: Vec::new(),
+            },
+            |name| DimensionColumn {
+                name,
+                paths: Vec::new(),
+            },
+        );
+
         let metadata = FactTableMetadata {
             table_name,
             measures,
-            dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name:  "dimensions".to_string(),
-                paths: Vec::new(),
-            }),
+            dimensions,
             denormalized_filters: filters,
             calendar_dimensions: Vec::new(), // No calendar detection in test helper
             partial_period: None,

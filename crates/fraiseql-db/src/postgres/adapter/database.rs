@@ -417,11 +417,37 @@ async fn prepare_cached_stmt(
         // `db error` (rather than alongside it), falling back to `Display` so the
         // message is never empty.
         let detail = e.as_db_error().map_or_else(|| e.to_string(), |d| d.message().to_string());
+        let hint = changelog_prepare_hint(&detail);
         FraiseQLError::Database {
-            message:   format!("Failed to prepare statement: {detail}"),
+            message:   format!("Failed to prepare statement: {detail}{hint}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         }
     })
+}
+
+/// Actionable operator guidance for the two prepare failures every freshly
+/// authored stack hits (#569). The bare PostgreSQL diagnostics — `relation
+/// "core.tb_entity_change_log" does not exist` and `column r.entity_type does
+/// not exist` — point at neither of the actual requirements: the change-log
+/// outbox table must be installed (`fraiseql setup`), and every mutation
+/// function must return the 13-column v2.2 `mutation_response` row the outbox
+/// CTE reads (`r.` is that CTE's alias for the function result, so a missing
+/// `r.*` column means the function returns some other shape — classically
+/// `RETURNS SETOF v_*`).
+fn changelog_prepare_hint(detail: &str) -> &'static str {
+    if detail.contains("core.tb_entity_change_log") {
+        "\nhint: the mutation change-log outbox table is not installed in this database — \
+         run `fraiseql setup` (or apply the fraiseql-observers change-log contract \
+         migration) before executing mutations"
+    } else if detail.contains("column r.") {
+        "\nhint: the mutation function does not return the v2.2 mutation_response row \
+         (13 columns: succeeded, state_changed, …) that the change-log outbox reads. \
+         `RETURNS SETOF v_*` and bare scalar returns are not supported — build the row \
+         with fraiseql.mutation_ok()/fraiseql.mutation_err() (installed by `fraiseql \
+         setup`); see docs/architecture/mutation-response.md"
+    } else {
+        ""
+    }
 }
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match

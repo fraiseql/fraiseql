@@ -912,3 +912,68 @@ fn test_native_dimension_mapping_roundtrip() {
     let deserialized: FactTableMetadata = serde_json::from_str(&json).unwrap();
     assert_eq!(ft, deserialized);
 }
+
+/// #825 — with several JSONB columns, the dimensions column must be chosen by
+/// role, not ordinal position. The documented calendar pattern appends
+/// `*_info` JSONB columns AFTER the real dimensions column, and the old
+/// last-JSONB-wins loop deterministically picked the wrong one.
+#[test]
+fn test_from_columns_dimensions_by_role_not_position() {
+    let metadata = FactTableDetector::from_columns(
+        "tf_sales".to_string(),
+        vec![
+            ("id", SqlType::Int, false),
+            ("revenue", SqlType::Decimal, false),
+            ("data", SqlType::Jsonb, true),
+            ("date_info", SqlType::Jsonb, false),
+            ("month_info", SqlType::Jsonb, false),
+            ("year_info", SqlType::Jsonb, false),
+        ],
+    )
+    .expect("calendar layout must introspect");
+
+    assert_eq!(
+        metadata.dimensions.name, "data",
+        "the dimensions column is `data`, not the last JSONB column in DDL order"
+    );
+}
+
+/// #825 — a conventional name (`data`/`dimensions`) wins when several
+/// non-calendar JSONB candidates exist.
+#[test]
+fn test_from_columns_prefers_conventional_dimension_name() {
+    let metadata = FactTableDetector::from_columns(
+        "tf_events".to_string(),
+        vec![
+            ("id", SqlType::Int, false),
+            ("count", SqlType::Int, false),
+            ("dimensions", SqlType::Jsonb, true),
+            ("payload", SqlType::Jsonb, true),
+        ],
+    )
+    .expect("conventional name resolves the ambiguity");
+
+    assert_eq!(metadata.dimensions.name, "dimensions");
+}
+
+/// #825 — several non-calendar JSONB candidates and no conventional name is a
+/// reported ambiguity, never a silent order-dependent pick.
+#[test]
+fn test_from_columns_ambiguous_dimensions_is_an_error() {
+    let err = FactTableDetector::from_columns(
+        "tf_events".to_string(),
+        vec![
+            ("id", SqlType::Int, false),
+            ("count", SqlType::Int, false),
+            ("payload", SqlType::Jsonb, true),
+            ("attributes", SqlType::Jsonb, true),
+        ],
+    )
+    .expect_err("ambiguous dimension candidates must be reported");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("payload") && msg.contains("attributes"),
+        "the error must name the ambiguous candidates: {msg}"
+    );
+}

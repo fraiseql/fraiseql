@@ -1,76 +1,130 @@
 {
-  "$schema": "https://fraiseql.dev/schema/v2.json",
-  "version": "2.0",
   "types": [
     {
       "name": "User",
-      "description": "A user in the system.",
+      "sql_source": "v_user",
       "fields": [
-        {"name": "id", "type": "Int", "nullable": false},
-        {"name": "name", "type": "String", "nullable": false},
-        {"name": "email", "type": "String", "nullable": false},
-        {"name": "created_at", "type": "DateTime", "nullable": false}
-      ]
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A user in the system."
     },
     {
       "name": "Post",
-      "description": "A blog post.",
+      "sql_source": "v_post",
       "fields": [
-        {"name": "id", "type": "Int", "nullable": false},
-        {"name": "title", "type": "String", "nullable": false},
-        {"name": "content", "type": "String", "nullable": false},
-        {"name": "author_id", "type": "Int", "nullable": false},
-        {"name": "author", "type": "User", "nullable": true},
-        {"name": "created_at", "type": "DateTime", "nullable": false}
-      ]
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorId",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "authorName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorEmail",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A blog post, denormalized with its author's identity."
     }
   ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
   "queries": [
     {
       "name": "users",
-      "description": "Get all users.",
       "return_type": "User",
       "returns_list": true,
       "nullable": false,
-      "arguments": [
-        {"name": "limit", "type": "Int", "nullable": true, "default": 100}
-      ],
-      "sql_source": "v_users"
+      "arguments": [],
+      "description": "Get all users.",
+      "sql_source": "v_user"
     },
     {
       "name": "user",
-      "description": "Get a user by ID.",
       "return_type": "User",
       "returns_list": false,
       "nullable": true,
       "arguments": [
-        {"name": "id", "type": "Int", "nullable": false}
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
       ],
-      "sql_source": "v_users"
+      "description": "Get a user by ID.",
+      "sql_source": "v_user"
     },
     {
       "name": "posts",
-      "description": "Get all posts, optionally filtered by author.",
       "return_type": "Post",
       "returns_list": true,
       "nullable": false,
-      "arguments": [
-        {"name": "limit", "type": "Int", "nullable": true, "default": 100},
-        {"name": "author_id", "type": "Int", "nullable": true}
-      ],
-      "sql_source": "v_posts"
+      "arguments": [],
+      "description": "Get all posts.",
+      "sql_source": "v_post"
     },
     {
       "name": "post",
-      "description": "Get a post by ID.",
       "return_type": "Post",
       "returns_list": false,
       "nullable": true,
       "arguments": [
-        {"name": "id", "type": "Int", "nullable": false}
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
       ],
-      "sql_source": "v_posts"
+      "description": "Get a post by ID.",
+      "sql_source": "v_post"
     }
   ],
-  "mutations": []
+  "mutations": [],
+  "subscriptions": [],
+  "naming_convention": "camelCase"
 }

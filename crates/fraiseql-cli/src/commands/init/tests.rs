@@ -49,14 +49,24 @@ fn test_database_from_str() {
     assert_eq!(Database::from_str("postgres").expect("test"), Database::Postgres);
     assert_eq!(Database::from_str("postgresql").expect("test"), Database::Postgres);
     assert_eq!(Database::from_str("pg").expect("test"), Database::Postgres);
-    assert_eq!(Database::from_str("mysql").expect("test"), Database::Mysql);
-    assert_eq!(Database::from_str("sqlite").expect("test"), Database::Sqlite);
-    assert_eq!(Database::from_str("sqlserver").expect("test"), Database::SqlServer);
-    assert_eq!(Database::from_str("mssql").expect("test"), Database::SqlServer);
     assert!(
         Database::from_str("oracle").is_err(),
         "expected Err for unsupported database 'oracle'"
     );
+}
+
+/// The removed engines (G2: PostgreSQL-only, v2.15.0) must be refused with a
+/// message that says why — not scaffold a project the runtime cannot boot.
+#[test]
+fn test_database_refuses_removed_engines_loudly() {
+    for removed in ["mysql", "sqlite", "sqlserver", "mssql"] {
+        let err = Database::from_str(removed)
+            .expect_err("removed engine must be refused, not scaffolded");
+        assert!(
+            err.contains("PostgreSQL-only") && err.contains("v2.15.0"),
+            "refusal for {removed} must explain the PostgreSQL-only decision: {err}"
+        );
+    }
 }
 
 #[test]
@@ -70,7 +80,6 @@ fn test_size_from_str() {
 #[test]
 fn test_database_default_url() {
     assert_eq!(Database::Postgres.default_url("myapp"), "postgresql://localhost/myapp");
-    assert_eq!(Database::Sqlite.default_url("myapp"), "myapp.db");
 }
 
 #[test]

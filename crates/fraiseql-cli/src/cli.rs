@@ -295,7 +295,8 @@ EXAMPLES:
         #[arg(long, default_value = "true")]
         include_monitoring: bool,
 
-        /// Validate only, don't write file
+        /// Validate the generated DDL by executing it against PostgreSQL
+        /// (DATABASE_URL) in a rolled-back transaction; don't write a file
         #[arg(long)]
         validate: bool,
 
@@ -441,7 +442,7 @@ EXAMPLES:
         #[arg(short, long, default_value = "python")]
         language: String,
 
-        /// Target database (postgres, mysql, sqlite, sqlserver)
+        /// Target database (postgres — FraiseQL is PostgreSQL-only since v2.15.0)
         #[arg(long, default_value = "postgres")]
         database: String,
 

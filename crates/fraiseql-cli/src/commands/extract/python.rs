@@ -86,22 +86,28 @@ impl SchemaExtractor for PythonExtractor {
         for cap in query_re.captures_iter(source) {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
-            let return_type = params.get("return_type").cloned().unwrap_or_default();
+            let fn_end =
+                cap.get(0).expect("regex group 0 is always Some on a successful match").end();
+
+            // The real SDK derives the return type, list-ness and nullability
+            // from the function's return annotation (`-> list[Post]`,
+            // `-> Post | None`, `-> Post`) — it has no `return_type=` /
+            // `return_array=` decorator kwargs. The kwargs are kept as
+            // overrides so pre-SDK-dialect sources still extract.
+            let (ann_type, ann_list, ann_nullable) = parse_python_return_annotation(source, fn_end);
+            let return_type = params.get("return_type").cloned().or(ann_type).unwrap_or_default();
             let returns_list =
-                params.get("return_array").is_some_and(|v| v == "true" || v == "True");
+                params.get("return_array").map_or(ann_list, |v| v == "true" || v == "True");
             let sql_source = params.get("sql_source").cloned();
 
             // Parse function arguments (skip self, *, etc.)
-            let arguments = extract_python_query_args(
-                source,
-                cap.get(0).expect("regex group 0 is always Some on a successful match").end(),
-            );
+            let arguments = extract_python_query_args(source, fn_end);
 
             queries.push(IntermediateQuery {
                 name,
                 return_type,
                 returns_list,
-                nullable: false,
+                nullable: ann_nullable,
                 arguments,
                 description: None,
                 sql_source,
@@ -120,6 +126,33 @@ impl SchemaExtractor for PythonExtractor {
         }
 
         Ok(ExtractedSchema { types, queries })
+    }
+}
+
+/// Infer `(return_type, returns_list, nullable)` from the Python return
+/// annotation following the function signature: `-> list[Post]` is a list,
+/// `-> Post | None` is nullable, `-> Post` is a plain non-null result.
+/// Returns `(None, false, false)` when no annotation is present.
+fn parse_python_return_annotation(source: &str, fn_start: usize) -> (Option<String>, bool, bool) {
+    let rest = &source[fn_start..];
+    // Annotation lives between the signature's `->` and the `:` that opens the body.
+    let Some(arrow) = rest.find("->") else {
+        return (None, false, false);
+    };
+    let after_arrow = &rest[arrow + 2..];
+    let Some(colon) = after_arrow.find(':') else {
+        return (None, false, false);
+    };
+    let ann = after_arrow[..colon].trim();
+
+    if let Some(inner) = ann.strip_prefix("list[").and_then(|s| s.strip_suffix(']')) {
+        (Some(inner.trim().to_string()), true, false)
+    } else if let Some(t) = ann.strip_suffix("None").and_then(|s| s.trim_end().strip_suffix('|')) {
+        (Some(t.trim().to_string()), false, true)
+    } else if ann.is_empty() {
+        (None, false, false)
+    } else {
+        (Some(ann.to_string()), false, false)
     }
 }
 

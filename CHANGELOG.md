@@ -92,7 +92,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   different schemas now returns `InvalidArgument` naming both shapes instead of emitting
   an undecodable stream.
 
+- **`fraiseql init` refuses `--database mysql|sqlite|sqlserver|mssql` (#823 follow-through
+  of the PostgreSQL-only decision).** The scaffolder still generated projects for the
+  removed engines — projects the runtime refuses to boot. It now errors with the removal
+  notice instead of scaffolding; `postgres` is the only accepted value.
+
+- **`fraiseql generate-views --validate` now requires a database.** It executes the
+  generated DDL against `DATABASE_URL` inside a rolled-back transaction and fails when
+  PostgreSQL rejects any statement (#821). The previous flag checked only the view-name
+  prefix, so it could never fail — it reported files with syntax errors as "valid". Runs
+  without `DATABASE_URL` now exit non-zero with an explanation instead of claiming
+  validity.
+
 ### Fixed
+
+- **The first thirty minutes work: `fraiseql init` produces a project that runs (#823,
+  #822, #569).** The scaffolded views exposed plain columns with no `data` JSONB column,
+  so every query against a fresh project failed with `column "data" does not exist`; the
+  printed next step (`fraiseql compile fraiseql.toml`) could not succeed on the project
+  init had just generated; the CRUD functions returned bare `UUID`/`BOOLEAN` values the
+  mutation executor cannot decode; and the Python authoring skeleton was a `SyntaxError`
+  that imported nothing and never exported. The scaffold now follows the runtime's
+  contracts end to end: Trinity views with snake_case JSONB storage keys, camelCase
+  GraphQL field names, nine declared mutations backed by v2.2 `mutation_response`
+  functions built with the `fraiseql setup` helpers, and printed next steps
+  (`fraiseql setup` → `psql -f …` → `fraiseql compile schema.json` → `fraiseql query`)
+  that are executed verbatim by a new live-PostgreSQL e2e suite
+  (`init_first_run_pg.rs`), including a committed mutation with its change-log outbox
+  row.
+
+- **`fraiseql doctor` resolves hostnames (#819).** The `DATABASE_URL`/`REDIS_URL`
+  reachability probe parsed `host:port` with `str::parse::<SocketAddr>` — which performs
+  no DNS — and silently dialed the always-refused sentinel `0.0.0.0:0` for every
+  hostname-based URL, reporting healthy databases as "connection refused" and exiting 1.
+  The probe now resolves through the system resolver, tries every resolved address, and
+  reports "host does not resolve" as its own failure mode distinct from "connection
+  refused".
+
+- **`fraiseql generate-views` emits the source relation instead of a literal `{}`
+  (#821).** Both composition views were unconverted `format!` placeholders — PostgreSQL
+  syntax errors on every invocation, with no off switch. They now read the generated
+  view; `tv_` targets drop with `DROP MATERIALIZED VIEW` (the plain `DROP VIEW` made
+  re-runs fail); the `_recent` helper filters on the column the view actually exposes;
+  and the monitoring function is `STABLE`, not `IMMUTABLE`.
+
+- **Fact-table introspection picks the dimensions column by role, not position (#825).**
+  With several JSONB columns the last one in ordinal order silently won — guaranteed
+  wrong for the documented calendar layout, whose `*_info` columns follow the real
+  dimensions column, so `validate-facts` hard-errored on correct schemas and
+  `introspect facts` printed calendar metadata for developers to paste. Calendar columns
+  are now excluded, a conventional name (`data`/`dimensions`) wins among several
+  candidates, and a genuinely ambiguous layout is reported instead of silently picked.
+  Non-indexed numeric `*_id` columns now surface as unindexed filters instead of
+  vanishing from the metadata.
+
+- **Mutation prepare failures on a fresh stack are actionable (#569).** A missing
+  `core.tb_entity_change_log` now says to run `fraiseql setup`; a mutation function that
+  does not return the v2.2 `mutation_response` row (e.g. `RETURNS SETOF v_*`) now gets an
+  error naming the contract and the `fraiseql.mutation_ok`/`mutation_err` builders,
+  instead of the bare `column r.entity_type does not exist`.
+
+- **The documented onboarding path works and is CI-enforced (#734).** The quickstart used
+  a `fraiseql.config()` API that does not exist, the wrong server flag (`--schema` for
+  `--schema-path`), the wrong port (3000 vs the actual 8000 default), and never created
+  the `data`-column views the runtime reads; `examples/basic` declared `v_users`/`v_posts`
+  while its SQL created `v_user`/`v_post`, its `schema.py` imported from a nonexistent
+  path, and its example queries used Int IDs and a phantom nested field. All rewritten
+  against the real SDK API and verified end to end; the phantom `config()` section is
+  gone from the Python SDK reference; `docs/architecture/overview.md` and
+  `docs/operations/compiled-schema-lifecycle.md` version/flag/port drift corrected. The
+  durable gate is a new `quickstart` integration leg (`tools/quickstart-smoke.sh`) that
+  extracts the quickstart's fenced code blocks and executes them **verbatim** against real
+  PostgreSQL — authoring with the Python SDK, compiling, booting `fraiseql-server`, and
+  asserting the documented query response — plus a scaffold-skeleton regeneration check.
 
 - **CDC sinks: outbox rows that commit out of sequence order are never lost (#797)**, a
   transient per-message failure no longer reorders the stream (#815), and a slow broker no

@@ -1,16 +1,16 @@
 # Chapter 2: Fetching a Single Record
-# Get a specific user by ID
+# Get a specific user by ID (IDs are UUIDs — copy one from ListAllUsers)
 
-query GetUser($userId: Int!) {
+query GetUser($userId: ID!) {
   user(id: $userId) {
     id
     name
     email
-    created_at
+    createdAt
   }
 }
 
 # Variables for this query:
 # {
-#   "userId": 1
+#   "userId": "00000000-0000-0000-0000-000000000000"
 # }

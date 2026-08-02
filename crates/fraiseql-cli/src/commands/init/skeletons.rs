@@ -34,10 +34,15 @@ pub(super) fn create_python_skeleton(project_dir: &Path, config: &InitConfig) ->
     let dir = project_dir.join("schema");
     fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
 
-    let content = format!(
-        r#"""FraiseQL blog schema definition for {name}."""
-
+    // The docstring line carries the only interpolation; the body is a plain
+    // literal so its own `"""` docstrings need no format-escaping. (A previous
+    // version emitted a two-quote module docstring — a SyntaxError — because
+    // `r#"` swallowed the first `"` of the opening `"""`.)
+    let docstring =
+        format!("\"\"\"FraiseQL blog schema definition for {}.\"\"\"\n", config.project_name);
+    let body = r#"
 import fraiseql
+from fraiseql import ID, DateTime
 
 
 @fraiseql.type(sql_source="v_author")
@@ -91,37 +96,100 @@ class Tag:
     name: str
 
 
-@fraiseql.query(return_type=Post, return_array=True, sql_source="v_post")
+@fraiseql.query(sql_source="v_post")
 def posts() -> list[Post]:
     """List all published posts."""
     ...
 
 
-@fraiseql.query(return_type=Post, sql_source="v_post")
-def post(*, id: ID) -> Post:
+@fraiseql.query(sql_source="v_post")
+def post(id: ID) -> Post | None:
     """Get post by ID."""
     ...
 
 
-@fraiseql.query(return_type=Author, return_array=True, sql_source="v_author")
+@fraiseql.query(sql_source="v_author")
 def authors() -> list[Author]:
     """List all authors."""
     ...
 
 
-@fraiseql.query(return_type=Author, sql_source="v_author")
-def author(*, id: ID) -> Author:
+@fraiseql.query(sql_source="v_author")
+def author(id: ID) -> Author | None:
     """Get author by ID."""
     ...
 
 
-@fraiseql.query(return_type=Tag, return_array=True, sql_source="v_tag")
+@fraiseql.query(sql_source="v_tag")
 def tags() -> list[Tag]:
     """List all tags."""
     ...
-"#,
-        name = config.project_name,
-    );
+
+
+# Mutations call the scaffolded PostgreSQL functions (db/…/fn_*.sql), which
+# return the v2.2 mutation_response contract via the `fraiseql setup` helpers.
+# The Python function name is the GraphQL mutation name.
+
+
+@fraiseql.mutation(sql_source="fn_author_create", operation="CREATE")
+def createAuthor(identifier: str, name: str, email: str, bio: str | None = None) -> Author:
+    """Create a blog author."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_author_delete", operation="DELETE")
+def deleteAuthor(id: ID) -> Author:
+    """Delete a blog author."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_post_create", operation="CREATE")
+def createPost(identifier: str, title: str, body: str, author_id: ID) -> Post:
+    """Create a blog post (unpublished)."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_post_publish", operation="UPDATE")
+def publishPost(id: ID) -> Post:
+    """Publish a blog post."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_post_delete", operation="DELETE")
+def deletePost(id: ID) -> Post:
+    """Delete a blog post."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_comment_create", operation="CREATE")
+def createComment(body: str, author_name: str, post_id: ID) -> Comment:
+    """Comment on a blog post."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_comment_delete", operation="DELETE")
+def deleteComment(id: ID) -> Comment:
+    """Delete a comment."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_tag_create", operation="CREATE")
+def createTag(identifier: str, name: str) -> Tag:
+    """Create a tag."""
+    ...
+
+
+@fraiseql.mutation(sql_source="fn_tag_delete", operation="DELETE")
+def deleteTag(id: ID) -> Tag:
+    """Delete a tag."""
+    ...
+
+
+if __name__ == "__main__":
+    fraiseql.export_schema("schema.json")
+    print("Wrote schema.json")
+"#;
+    let content = format!("{docstring}{body}");
 
     fs::write(dir.join("schema.py"), content).context("Failed to create schema.py")?;
     info!("Created schema/schema.py");
