@@ -60,10 +60,10 @@ TEST_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 /tmp/decode_jwt.sh "$TEST_TOKEN"
 
 # Check token expiry
-curl -s http://localhost:8815/metrics | grep "auth_token_expiry"
+curl -s http://localhost:8000/metrics | grep "auth_token_expiry"
 
 # Check token cache hit rate (if caching enabled)
-curl -s http://localhost:8815/metrics | grep "auth_cache" | head -10
+curl -s http://localhost:8000/metrics | grep "auth_cache" | head -10
 ```
 
 ### 3. OIDC/OAuth Provider Connectivity
@@ -87,6 +87,11 @@ openssl s_client -connect accounts.example.com:443 < /dev/null 2>&1 | grep -A5 "
 
 ### 4. FraiseQL Authentication Logs
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 # Enable debug logging for auth module
 export RUST_LOG=fraiseql_auth=debug,fraiseql=debug
@@ -99,7 +104,7 @@ docker logs fraiseql-server | grep -i "auth\|token\|jwt\|oidc" | tail -50
 docker logs fraiseql-server | grep -E "invalid token|expired|signature" | head -20
 
 # Monitor auth failure metrics
-curl -s http://localhost:8815/metrics | grep "auth_" | sort
+curl -s http://localhost:8000/metrics | grep "auth_" | sort
 
 # Example metrics:
 # auth_failures_total{reason="invalid_signature"} 42
@@ -115,7 +120,7 @@ docker logs fraiseql-server | grep "jwks\|public key" | tail -10
 
 # Check if cached JWKS is stale
 # JWKS should be refreshed periodically (typically hourly)
-curl -s http://localhost:8815/metrics | grep "jwks_cache"
+curl -s http://localhost:8000/metrics | grep "jwks_cache"
 
 # Manual JWKS verification
 ISSUER="https://accounts.example.com"
@@ -169,14 +174,14 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
 
    ```bash
    # Force JWKS cache refresh (trigger reload)
-   curl -X POST http://localhost:8815/admin/auth/refresh-jwks
+   curl -X POST http://localhost:8000/admin/v1/auth/refresh-jwks
 
    # Or restart to clear cache
    docker restart fraiseql-server
    sleep 3
 
    # Verify new JWKS loaded
-   curl -s http://localhost:8815/metrics | grep "jwks_last_updated"
+   curl -s http://localhost:8000/metrics | grep "jwks_last_updated"
    ```
 
 ### For Token Expiry Issues
@@ -253,6 +258,11 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
 
 ### Complete Authentication Debugging Workflow
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 #!/bin/bash
 set -e
@@ -266,7 +276,7 @@ docker logs fraiseql-server | grep -i "auth.*fail\|invalid.*token" | tail -10
 # 2. Extract failure reasons
 echo ""
 echo "2. Auth failure breakdown:"
-curl -s http://localhost:8815/metrics | grep "auth_failures_total"
+curl -s http://localhost:8000/metrics | grep "auth_failures_total"
 
 # 3. Check provider connectivity
 echo ""
@@ -284,7 +294,7 @@ fi
 # 4. Check JWKS freshness
 echo ""
 echo "4. Checking JWKS cache:"
-JWKS_UPDATED=$(curl -s http://localhost:8815/metrics | grep "jwks_last_updated" | cut -d' ' -f2)
+JWKS_UPDATED=$(curl -s http://localhost:8000/metrics | grep "jwks_last_updated" | cut -d' ' -f2)
 echo "JWKS last updated: $(date -d @$JWKS_UPDATED 2>/dev/null || echo 'unknown')"
 
 # 5. Check token validation settings
@@ -296,7 +306,7 @@ jq '.security.authentication' /etc/fraiseql/schema.compiled.json | head -20
 echo ""
 echo "6. Testing with sample token..."
 SAMPLE_TOKEN="..."  # Obtain valid token from your OIDC provider
-RESPONSE=$(curl -s -H "Authorization: Bearer $SAMPLE_TOKEN" http://localhost:8815/graphql -d '{"query": "{ __typename }"}')
+RESPONSE=$(curl -s -H "Authorization: Bearer $SAMPLE_TOKEN" http://localhost:8000/graphql -d '{"query": "{ __typename }"}')
 echo "Response: $RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
 ```
 
@@ -337,7 +347,7 @@ fi
 # 4. Test token against FraiseQL
 echo ""
 echo "Testing token against FraiseQL:"
-curl -v -H "Authorization: Bearer $TOKEN" http://localhost:8815/health
+curl -v -H "Authorization: Bearer $TOKEN" http://localhost:8000/health
 ```
 
 ### OIDC Provider Recovery
@@ -353,19 +363,24 @@ done
 echo "✓ Provider online"
 
 # 2. Force JWKS refresh
-curl -s http://localhost:8815/admin/auth/refresh-jwks
+curl -s http://localhost:8000/admin/v1/auth/refresh-jwks
 
 # 3. Verify JWKS loaded
 sleep 2
-curl -s http://localhost:8815/metrics | grep "jwks_keys_loaded"
+curl -s http://localhost:8000/metrics | grep "jwks_keys_loaded"
 
 # 4. Test authentication
-curl -H "Authorization: Bearer <valid_token>" http://localhost:8815/health
+curl -H "Authorization: Bearer <valid_token>" http://localhost:8000/health
 ```
 
 ## Prevention
 
 ### Monitoring Setup
+
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
 
 ```bash
 # Prometheus alerts for auth failures
@@ -435,13 +450,18 @@ EOF
 
 ### Regular Checks
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 # Weekly: Verify OIDC provider certificate validity
 openssl s_client -connect accounts.example.com:443 -servername accounts.example.com < /dev/null 2>&1 | \
   openssl x509 -text -noout | grep -E "Not Before|Not After"
 
 # Weekly: Check token failure trends
-curl -s http://localhost:8815/metrics | grep "auth_failures_total" | sort
+curl -s http://localhost:8000/metrics | grep "auth_failures_total" | sort
 
 # Monthly: Test token refresh flow
 # Generate new token and verify it works

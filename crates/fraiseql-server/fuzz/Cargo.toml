@@ -8,11 +8,6 @@ doc = false
 name = "graphql_request"
 path = "fuzz_targets/graphql_request.rs"
 
-[[bin]]
-doc = false
-name = "env_resolution"
-path = "fuzz_targets/env_resolution.rs"
-
 [dependencies]
 libfuzzer-sys = "0.4"
 serde_json = "1"

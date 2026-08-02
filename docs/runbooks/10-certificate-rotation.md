@@ -7,7 +7,7 @@
 > below, which are the supported path. The certbot/ACM/CSR mechanics in this runbook are
 > reusable, but install the renewed certificate **on the proxy** and reload the proxy. The
 > steps that copy certs into `/etc/fraiseql/certs` and "restart FraiseQL to serve TLS", and
-> the `openssl s_client -connect localhost:8815` / `https://localhost:8815` checks, describe an
+> the `openssl s_client -connect localhost:8000` / `https://localhost:8000` checks, describe an
 > **unsupported** in-process-TLS setup and do not apply to current FraiseQL — read them as
 > "the TLS-terminating proxy in front of FraiseQL".
 
@@ -72,7 +72,7 @@ fi
 openssl verify -CAfile /etc/fraiseql/certs/ca-bundle.crt /etc/fraiseql/certs/server.crt
 
 # Test TLS handshake from client
-openssl s_client -connect localhost:8815 < /dev/null
+openssl s_client -connect localhost:8000 < /dev/null
 
 # Check for certificate warnings in output
 # "Verify return code" should be 0 (ok)
@@ -85,7 +85,7 @@ openssl s_client -connect localhost:8815 < /dev/null
 env | grep -E "TLS|CERT|SSL"
 
 # Check if TLS is enabled
-curl -v https://localhost:8815/health 2>&1 | head -20
+curl -v https://localhost:8000/health 2>&1 | head -20
 
 # Check FraiseQL logs for TLS errors
 docker logs fraiseql-server | grep -i "tls\|ssl\|certificate" | tail -20
@@ -328,7 +328,7 @@ sleep 5
 # 7. Verify TLS is working
 echo ""
 echo "7. Verifying TLS connection..."
-RESULT=$(openssl s_client -connect localhost:8815 < /dev/null 2>&1)
+RESULT=$(openssl s_client -connect localhost:8000 < /dev/null 2>&1)
 if echo "$RESULT" | grep -q "Verify return code: 0"; then
     echo "   ✓ TLS certificate valid"
 else
@@ -340,7 +340,7 @@ fi
 # 8. Health check
 echo ""
 echo "8. Health check..."
-if curl -s https://localhost:8815/health -k | jq -e '.status == "healthy"' > /dev/null; then
+if curl -s https://localhost:8000/health -k | jq -e '.status == "healthy"' > /dev/null; then
     echo "   ✓ Service is healthy"
 else
     echo "   ✗ Service health check failed"
@@ -463,7 +463,7 @@ for cert_file in /etc/fraiseql/certs/*.crt; do
 done
 
 # Check expiry of all endpoints
-for endpoint in localhost:8815 fraiseql.example.com:443; do
+for endpoint in localhost:8000 fraiseql.example.com:443; do
     echo "=== $endpoint ==="
     echo | openssl s_client -connect $endpoint -servername ${endpoint/:*/} 2>/dev/null | \
       openssl x509 -noout -subject -enddate

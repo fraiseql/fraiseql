@@ -18,7 +18,7 @@ The `-full` tarball contains **two** binaries:
   and names any other section it is handed), so it is for local iteration, not production.
 - **`fraiseql-server`** — the standalone production server, driven by `--config server.toml`.
   This is the entrypoint for a real deployment: it honors the full config surface
-  (`[auth]`, `[federation]`, `[observers]`, `[tenancy]`, `[storage]`, `[security]`, …),
+  (`[auth]`, `[observers]`, `[tenancy]`, `[storage]`, `[rate_limiting]`, `[tls]`, …),
   wires the observer / tenancy / storage / token-revocation / secrets subsystems, and
   validates `sql_source`s at boot. Point a full `server.toml` at this binary — not at
   `fraiseql run`.

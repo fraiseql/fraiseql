@@ -79,7 +79,7 @@ impl IntoResponse for FraiseQLError {
     // explicitly enumerated (silencing `unreachable_patterns`). The wildcard
     // becomes reachable as soon as a future variant is added to the
     // `#[non_exhaustive]` enum and gives that variant the safe generic
-    // response. See IMPROVEMENTS.md F055.
+    // response. See docs/history/IMPROVEMENTS.md F055.
     #[allow(clippy::match_same_arms, unreachable_patterns)]
     fn into_response(self) -> Response {
         let error_code = self.error_code();

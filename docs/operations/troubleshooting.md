@@ -18,11 +18,11 @@ Common operational issues and their diagnostic steps.
 pg_isready -h localhost -p 5432
 
 # 2. Check the configured URL
-echo $FRAISEQL_DATABASE_URL
+echo $DATABASE_URL
 # or inspect fraiseql.toml: database_url = "..."
 
 # 3. Test connectivity manually
-psql "$FRAISEQL_DATABASE_URL" -c "SELECT 1"
+psql "$DATABASE_URL" -c "SELECT 1"
 ```
 
 ## Auth Token Expired / JWT Validation Failures
@@ -47,7 +47,7 @@ curl -s https://your-provider/.well-known/openid-configuration | jq .jwks_uri
 date -u  # Compare with provider's server time
 
 # 4. Force JWKS cache refresh (if using admin API)
-curl -X POST http://localhost:8000/admin/reload-schema \
+curl -X POST http://localhost:8000/api/v1/admin/reload-schema \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -64,7 +64,7 @@ curl -X POST http://localhost:8000/admin/reload-schema \
 **Steps**:
 ```bash
 # 1. Check cache stats via admin API
-curl http://localhost:8000/admin/cache/stats \
+curl http://localhost:8000/api/v1/admin/cache/stats \
   -H "Authorization: Bearer $ADMIN_TOKEN" | jq
 
 # 2. Look at per-view TTL overrides in fraiseql.toml
@@ -102,7 +102,7 @@ journalctl -u fraiseql | grep "OB0" | tail -20
 # OB011 = DLQ overflow
 
 # 3. Verify LISTEN connection is alive
-psql "$FRAISEQL_DATABASE_URL" -c "SELECT * FROM pg_stat_activity WHERE query LIKE 'LISTEN%'"
+psql "$DATABASE_URL" -c "SELECT * FROM pg_stat_activity WHERE query LIKE 'LISTEN%'"
 ```
 
 **Fixes**:
@@ -121,11 +121,11 @@ psql "$FRAISEQL_DATABASE_URL" -c "SELECT * FROM pg_stat_activity WHERE query LIK
 curl http://localhost:8000/metrics | grep pool
 
 # 2. Look at active connections in PostgreSQL
-psql "$FRAISEQL_DATABASE_URL" -c \
+psql "$DATABASE_URL" -c \
   "SELECT count(*), state FROM pg_stat_activity WHERE datname = current_database() GROUP BY state"
 
 # 3. Check for long-running queries
-psql "$FRAISEQL_DATABASE_URL" -c \
+psql "$DATABASE_URL" -c \
   "SELECT pid, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active' ORDER BY duration DESC LIMIT 5"
 ```
 

@@ -63,7 +63,7 @@ ps aux | sort -k4 -rn | head -10  # Sort by %MEM column
 
 ```bash
 # Check metrics for in-memory caches, buffers
-curl -s http://localhost:8815/metrics | grep -E "memory|cache|buffer" | head -20
+curl -s http://localhost:8000/metrics | grep -E "memory|cache|buffer" | head -20
 
 # Common memory sinks in FraiseQL:
 # - Query result caches
@@ -76,7 +76,7 @@ curl -s http://localhost:8815/metrics | grep -E "memory|cache|buffer" | head -20
 docker logs fraiseql-server | grep -i "cache" | tail -20
 
 # Check connection pool size (each connection uses ~1-5 MB)
-curl -s http://localhost:8815/metrics | grep "db_pool_connections" | sort
+curl -s http://localhost:8000/metrics | grep "db_pool_connections" | sort
 ```
 
 ### 4. Docker Memory Limits
@@ -98,7 +98,7 @@ docker events --filter "type=container" --filter "container=fraiseql-server" --f
 # Each PostgreSQL connection holds memory (typically 5-10 MB)
 # Check active connections
 
-curl -s http://localhost:8815/metrics | grep "db_pool_connections_active"
+curl -s http://localhost:8000/metrics | grep "db_pool_connections_active"
 
 # Check how many connections are in use
 psql $DATABASE_URL << 'EOF'
@@ -151,22 +151,23 @@ fi
    # Remove it (we'll restart with new limits)
    docker rm fraiseql-server
 
-   # Restart with higher memory limit
+   # Restart with higher memory limit (pin the image version you were running —
+   # never :latest during an incident)
    docker run -d \
      --name fraiseql-server \
      --memory="4g" \
      --memory-reservation="3g" \
      --restart unless-stopped \
-     -p 8815:8815 \
-     -p 9090:9090 \
+     -p 8000:8000 \
      -e DATABASE_URL="$DATABASE_URL" \
-     -e REDIS_URL="$REDIS_URL" \
+     -e FRAISEQL_BIND_ADDR="0.0.0.0:8000" \
      -e RUST_LOG=info \
-     fraiseql:latest
+     -v /etc/fraiseql:/etc/fraiseql:ro \
+     ghcr.io/fraiseql/server:2.14.1 --config /etc/fraiseql/server.toml
 
    # Wait for startup
    sleep 5
-   curl http://localhost:8815/health
+   curl http://localhost:8000/health
    ```
 
 2. **Kill idle database connections**
@@ -181,44 +182,61 @@ fi
    EOF
    ```
 
-3. **Clear in-memory caches** (if application supports it)
+3. **Clear in-memory caches**
+
+   The reliable way to drop every in-process cache (including the query-result
+   adapter cache) is a restart:
 
    ```bash
-   # Some applications have cache clear endpoint
-   curl -X POST http://localhost:8815/admin/cache/clear
-
-   # Or restart to clear caches
    docker restart fraiseql-server
    sleep 5
-   curl http://localhost:8815/health
+   curl http://localhost:8000/health
+   ```
+
+   The admin API's cache-clear endpoint (requires `admin_api_enabled = true` and an
+   admin token) clears only the Arrow Flight query cache, when one is configured:
+
+   ```bash
+   curl -X POST http://localhost:8000/api/v1/admin/cache/clear \
+     -H "Authorization: Bearer $FRAISEQL_ADMIN_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"scope": "all"}'
    ```
 
 4. **Reduce connection pool size temporarily**
 
+   Pool sizing has **no environment override** — it is a config-file key. Edit the
+   server TOML passed via `--config` and restart:
+
+   ```toml
+   # server.toml
+   pool_max_size = 10   # from default 20; smaller pool = less memory, lower concurrency
+   ```
+
    ```bash
-   # Smaller pool = less memory, but lower concurrency
-   export FRAISEQL_DB_POOL_MAX=10  # from default 20
    docker restart fraiseql-server
    ```
 
 ### Short-term (5-30 minutes)
 
-1. **Enable request rate limiting to reduce load**
+1. **Enable request rate limiting to reduce load** (real env overrides — they win over
+   the config file and the compiled schema)
 
    ```bash
-   # Use Redis for rate limiting instead of in-memory
-   export REDIS_URL="redis://redis:6379"
-   export FRAISEQL_RATE_LIMIT_BACKEND="redis"
+   export FRAISEQL_RATE_LIMITING_ENABLED=true
+   export FRAISEQL_RATE_LIMIT_RPS_PER_IP=50
+   export FRAISEQL_RATE_LIMIT_BURST_SIZE=100
    docker restart fraiseql-server
    ```
 
-2. **Disable or reduce query caching**
+2. **Disable query caching** (config-file key — there is no env override)
+
+   ```toml
+   # server.toml
+   cache_enabled = false
+   ```
 
    ```bash
-   # If caching is consuming memory
-   export FRAISEQL_QUERY_CACHE_ENABLED="false"
-   # or
-   export FRAISEQL_QUERY_CACHE_SIZE="1000"  # reduce from default
    docker restart fraiseql-server
    ```
 
@@ -263,12 +281,12 @@ echo ""
 
 # 4. Check application metrics
 echo "4. FraiseQL memory metrics:"
-curl -s http://localhost:8815/metrics | grep -i "memory\|cache" | head -10
+curl -s http://localhost:8000/metrics | grep -i "memory\|cache" | head -10
 echo ""
 
 # 5. Database connection count
 echo "5. Database connections in memory:"
-curl -s http://localhost:8815/metrics | grep "db_pool_connections"
+curl -s http://localhost:8000/metrics | grep "db_pool_connections"
 echo ""
 
 # 6. Identify memory leak pattern
@@ -296,7 +314,7 @@ fi
 echo "Monitoring connection pool over 5 minutes:"
 for i in {1..5}; do
     echo "Minute $i:"
-    curl -s http://localhost:8815/metrics | grep "db_pool_connections"
+    curl -s http://localhost:8000/metrics | grep "db_pool_connections"
     sleep 60
 done
 
@@ -305,7 +323,7 @@ done
 
 # 2. Check cache growth
 echo "Monitoring cache metrics:"
-curl -s http://localhost:8815/metrics | grep "cache"
+curl -s http://localhost:8000/metrics | grep "cache"
 
 # If cache hits growing without eviction: Cache leak (items never evicted)
 # Fix: Enable cache eviction or reduce TTL
@@ -332,21 +350,19 @@ EOF
 # Example for 20 max connections: 20 * 10 = 200MB + 512MB = ~1GB minimum
 
 docker update fraiseql-server --memory="2g" --memory-reservation="1.5g"
+```
 
-# 2. Optimize connection pool
-# In fraiseql config or environment:
-export FRAISEQL_DB_POOL_MIN=5
-export FRAISEQL_DB_POOL_MAX=15  # Reduce if memory constrained
-export FRAISEQL_DB_POOL_IDLE_TIMEOUT=300  # Reap idle connections
+```toml
+# 2./3. Pool sizing and caching are config-file keys (server.toml, top-level):
+pool_min_size = 5
+pool_max_size = 15      # reduce if memory constrained
+cache_enabled = false   # or true if the cache earns its memory
+```
 
-# 3. Optimize caching
-export FRAISEQL_QUERY_CACHE_SIZE=5000  # Reduce if needed
-export FRAISEQL_QUERY_CACHE_TTL=300
-
-# 4. Use Redis for distributed caching/rate limiting
-export REDIS_URL="redis://redis:6379"
-export FRAISEQL_RATE_LIMIT_BACKEND="redis"
-export FRAISEQL_CACHE_BACKEND="redis"
+```bash
+# 4. Rate limiting can be tightened from the environment (these are read):
+export FRAISEQL_RATE_LIMITING_ENABLED=true
+export FRAISEQL_RATE_LIMIT_RPS_PER_IP=50
 
 # 5. Restart with new config
 docker restart fraiseql-server
@@ -398,22 +414,21 @@ EOF
 ### Configuration Best Practices
 
 ```bash
-# Recommended production configuration
+# Recommended production configuration. Pool sizing and caching are set in the
+# mounted server.toml (pool_min_size / pool_max_size / cache_enabled) — they have
+# no environment overrides. Pin the image version; never deploy :latest.
 docker run -d \
   --name fraiseql-server \
   --memory="2g" \
   --memory-reservation="1.5g" \
   --memory-swap="2g" \
   --restart unless-stopped \
-  -p 8815:8815 \
-  -p 9090:9090 \
+  -p 8000:8000 \
   -e DATABASE_URL="$DATABASE_URL" \
-  -e FRAISEQL_DB_POOL_MIN=5 \
-  -e FRAISEQL_DB_POOL_MAX=15 \
-  -e FRAISEQL_QUERY_CACHE_SIZE=10000 \
-  -e FRAISEQL_RATE_LIMIT_BACKEND="redis" \
-  -e REDIS_URL="redis://redis:6379" \
-  fraiseql:latest
+  -e FRAISEQL_BIND_ADDR="0.0.0.0:8000" \
+  -e FRAISEQL_ENV=production \
+  -v /etc/fraiseql:/etc/fraiseql:ro \
+  ghcr.io/fraiseql/server:2.14.1 --config /etc/fraiseql/server.toml
 ```
 
 ### Regular Maintenance

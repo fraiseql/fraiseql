@@ -1,7 +1,7 @@
 //! `OpenTelemetry` / Tracing integration tests.
 //!
-//! Validates the tracing infrastructure: W3C `traceparent` extraction,
-//! `TracingConfig` deserialization with defaults, and trace context propagation.
+//! Validates the tracing infrastructure: W3C `traceparent` extraction and
+//! trace context propagation.
 //!
 //! ## Running Tests
 //!
@@ -16,68 +16,8 @@
 
 #[cfg(feature = "federation")]
 use axum::http::HeaderMap;
-use fraiseql_server::config::tracing::TracingConfig;
 #[cfg(feature = "federation")]
 use fraiseql_server::tracing_utils::extract_trace_context;
-
-// --- TracingConfig deserialization ---
-
-#[test]
-fn tracing_config_defaults() {
-    let config = TracingConfig::default();
-    assert!(config.enabled);
-    assert_eq!(config.level, "info");
-    assert_eq!(config.format, "json");
-    assert_eq!(config.service_name, "fraiseql");
-    assert_eq!(config.otlp_export_timeout_secs, 10);
-}
-
-#[test]
-fn tracing_config_from_toml_full() {
-    let toml_str = r#"
-        enabled = true
-        level = "debug"
-        format = "pretty"
-        service_name = "my-fraiseql"
-        otlp_export_timeout_secs = 30
-    "#;
-
-    let config: TracingConfig = toml::from_str(toml_str).unwrap();
-    assert!(config.enabled);
-    assert_eq!(config.level, "debug");
-    assert_eq!(config.format, "pretty");
-    assert_eq!(config.service_name, "my-fraiseql");
-    assert_eq!(config.otlp_export_timeout_secs, 30);
-}
-
-#[test]
-fn tracing_config_from_toml_partial() {
-    let toml_str = r#"
-        level = "warn"
-    "#;
-
-    let config: TracingConfig = toml::from_str(toml_str).unwrap();
-    assert!(config.enabled, "should default to enabled");
-    assert_eq!(config.level, "warn");
-    assert_eq!(config.format, "json", "should default to json");
-    assert_eq!(config.service_name, "fraiseql", "should default to fraiseql");
-    assert_eq!(config.otlp_export_timeout_secs, 10, "should default to 10");
-}
-
-#[test]
-fn tracing_config_from_empty_toml() {
-    let config: TracingConfig = toml::from_str("").unwrap();
-    assert!(config.enabled);
-    assert_eq!(config.level, "info");
-    assert_eq!(config.format, "json");
-}
-
-#[test]
-fn tracing_config_disabled() {
-    let toml_str = "enabled = false";
-    let config: TracingConfig = toml::from_str(toml_str).unwrap();
-    assert!(!config.enabled);
-}
 
 // --- W3C Trace Context extraction ---
 // These tests require the `federation` feature because without it

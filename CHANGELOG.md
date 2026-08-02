@@ -9,6 +9,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`ServerConfig` (the `fraiseql-server --config` file) now refuses unknown keys
+  (#839).** The architecture docs shipped a production example whose keys sat in
+  `[server]`/`[database]` grouping tables `ServerConfig` does not have; serde silently
+  discarded every documented key, so the server booted on `127.0.0.1:8000` with default
+  pool sizing while the operator believed they had configured `0.0.0.0:4000` and
+  `pool_max_size = 20`. An unknown top-level key is now a parse error naming the key,
+  and a section whose build feature is compiled out (e.g. `[observers]` without the
+  `observers` feature) gets an error naming the missing feature instead of the former
+  warn-and-drop. **Migration:** the config keys are top-level (`bind_addr`,
+  `schema_path`, `database_url`, `pool_min_size`, …) — remove any grouping tables and
+  any key the error message names.
+
+- **The dead `fraiseql_server::config::RuntimeConfig` layer was deleted (#839).** The
+  docs described the binary as "loading `RuntimeConfig` and translating it to
+  `ServerConfig`"; in reality the type — with its own `[server]`/`[database]` shape,
+  `url_env` indirection, loader and 433-line `ConfigValidator` — was constructed by
+  nothing but its own tests and a fuzz target. Removed along with its sub-configs
+  (`HttpServerConfig`, `DatabaseConfig`, `LifecycleConfig`, `CorsConfig`,
+  `MetricsConfig`, `TracingConfig`, `RateLimitingConfig`, …), the `config::env`
+  helpers, and the never-fed `AppState` config slot whose emptiness made
+  `GET /api/v1/admin/config` always report `cache_enabled = false`; that endpoint now
+  reports the real adapter-cache state and no longer promises port/host/workers fields
+  it could never fill. `fraiseql_server::config` retains only the live types
+  (`UsagePersistenceConfig`, `WebhookRouteConfig`, error sanitization, pool tuning).
+
+### Added
+
+- **`FRAISEQL_SHUTDOWN_TIMEOUT_SECS` / `--shutdown-timeout-secs` (#838).** The
+  `shutdown_timeout_secs` config field's rustdoc had promised this override since it
+  shipped; the variable now exists — the only occurrence of its name in the workspace
+  used to be that comment.
+
+- **Docs-truth CI gates (#838, #839).** `tools/check-docs-env-vars.sh` fails when any
+  `FRAISEQL_*` variable named in `docs/`, `README.md` or an example README has no reader
+  in the workspace; `tools/check-docs-version.sh` fails when a doc's "vX.Y.Z released"
+  status line disagrees with `Cargo.toml`; and `doc_config_examples_test` deserializes
+  every `# server.toml`-marked TOML block in the operator docs into the real
+  `ServerConfig`. All three run in CI (shell gates + the test leg).
+
+### Fixed
+
+- **Operator runbooks and the config docs now prescribe only knobs that exist
+  (#838).** The runbooks told on-call engineers to export ~24 `FRAISEQL_*` variables
+  (`FRAISEQL_QUERY_CACHE_SIZE`, `FRAISEQL_DB_POOL_MAX`, `FRAISEQL_RATE_LIMIT_WINDOW_SECS`,
+  …) that zero lines of code read — a mitigation that appears applied and does nothing,
+  during a live incident. Every runbook step now names the real knob (config-file key +
+  restart, or a variable the server actually reads), the documented rate-limit
+  precedence matches the implemented one (server `[rate_limiting]` < compiled
+  `[security.rate_limiting]` < CLI/env, guards on the result), ports/endpoints/image
+  references were corrected (`8815` → `8000`, `/admin/…` → `/api/v1/admin/…`,
+  `fraiseql:latest` → pinned `ghcr.io/fraiseql/server`), and illustrative alert-rule
+  blocks are marked as such. The false `FRAISEQL_AUTH_*_MAX_REQUESTS` rustdoc claims in
+  `fraiseql-auth` were corrected to the real configuration path.
+
+### Removed
+
+- **Committed development archaeology (#735).** `v2.3.0-ext-phases/` (phase files from
+  eleven releases ago) and the stray `target-user/` cargo dir are gone (with a
+  `.gitignore` entry so a stray `--target-dir` cannot silently return); the frozen
+  `IMPROVEMENTS.md` / `IMPROVEMENTS_R3.md` audit ledgers moved to `docs/history/` (code
+  comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
+  archived onto issue #687 before removal.
+
+### Breaking
+
 - **FraiseQL is PostgreSQL-only: the MySQL, SQLite and SQL Server backends were removed
   (P22, #374 #721 #799 #829 #830 #831 #832 #833 #834 #870).** Three audit passes found
   the non-PostgreSQL paths had never been executed against a real database, and the

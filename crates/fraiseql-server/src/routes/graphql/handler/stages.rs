@@ -256,7 +256,7 @@ pub(super) fn enforce_introspection_policy<A: DatabaseAdapter + Clone + Send + S
 /// The document is parsed exactly once here so the validator can walk the AST
 /// without re-parsing — and only when the validator might use it, since a no-op
 /// validator would make the parse pure waste (the executor parses what it needs
-/// through its own cache; see F001 in `IMPROVEMENTS.md`).
+/// through its own cache; see F001 in `docs/history/IMPROVEMENTS.md`).
 ///
 /// Repeated validation failures from one peer are rate-limited: a client probing
 /// for the depth ceiling is cheap to answer and expensive to parse for.

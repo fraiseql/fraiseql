@@ -152,3 +152,7 @@ docker/tls/certs/
 # Dart SDK build artifacts
 .dart_tool/
 sdks/official/fraiseql-dart/pubspec.lock
+
+# Stray cargo target dirs from `cargo --target-dir` typos (#735: an 889-file
+# `target-user/` sat invisible in the tree because only *.so was ignored)
+/target-*/

@@ -89,7 +89,7 @@ impl fmt::Debug for AuthCallbackResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // SECURITY: never write the raw access_token/refresh_token to Debug
         // output — they would otherwise leak into structured logs via any
-        // `debug!(?resp)` call. See IMPROVEMENTS.md F045.
+        // `debug!(?resp)` call. See docs/history/IMPROVEMENTS.md F045.
         f.debug_struct("AuthCallbackResponse")
             .field("access_token", &"<redacted>")
             .field("refresh_token", &self.refresh_token.as_ref().map(|_| "<redacted>"))
@@ -143,7 +143,7 @@ pub struct AuthRefreshResponse {
 impl fmt::Debug for AuthRefreshResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // SECURITY: never write the raw access_token to Debug output. See
-        // IMPROVEMENTS.md F045.
+        // docs/history/IMPROVEMENTS.md F045.
         f.debug_struct("AuthRefreshResponse")
             .field("access_token", &"<redacted>")
             .field("token_type", &self.token_type)
@@ -166,8 +166,9 @@ pub struct AuthLogoutRequest {
 /// # Rate Limiting
 ///
 /// This endpoint is rate-limited per IP address to prevent brute-force attacks.
-/// The limit is configurable via FRAISEQL_AUTH_START_MAX_REQUESTS and
-/// FRAISEQL_AUTH_START_WINDOW_SECS environment variables.
+/// The limit comes from the [`RateLimiters`] the embedding application
+/// constructs (defaults via [`RateLimiters::new`], custom values via
+/// [`RateLimiters::with_configs`]); there is no environment-variable override.
 ///
 /// # Errors
 ///
@@ -218,8 +219,9 @@ pub async fn auth_start(
 /// # Rate Limiting
 ///
 /// This endpoint is rate-limited per IP address to prevent brute-force attacks.
-/// The limit is configurable via FRAISEQL_AUTH_CALLBACK_MAX_REQUESTS and
-/// FRAISEQL_AUTH_CALLBACK_WINDOW_SECS environment variables.
+/// The limit comes from the [`RateLimiters`] the embedding application
+/// constructs (defaults via [`RateLimiters::new`], custom values via
+/// [`RateLimiters::with_configs`]); there is no environment-variable override.
 ///
 /// # Errors
 ///
@@ -347,8 +349,9 @@ pub async fn auth_callback(
 /// # Rate Limiting
 ///
 /// This endpoint is rate-limited per user ID to prevent token refresh attacks.
-/// The limit is configurable via FRAISEQL_AUTH_REFRESH_MAX_REQUESTS and
-/// FRAISEQL_AUTH_REFRESH_WINDOW_SECS environment variables.
+/// The limit comes from the [`RateLimiters`] the embedding application
+/// constructs (defaults via [`RateLimiters::new`], custom values via
+/// [`RateLimiters::with_configs`]); there is no environment-variable override.
 ///
 /// # Errors
 ///
@@ -417,8 +420,9 @@ pub async fn auth_refresh(
 /// # Rate Limiting
 ///
 /// This endpoint is rate-limited per user ID to prevent logout token exhaustion attacks.
-/// The limit is configurable via FRAISEQL_AUTH_LOGOUT_MAX_REQUESTS and
-/// FRAISEQL_AUTH_LOGOUT_WINDOW_SECS environment variables.
+/// The limit comes from the [`RateLimiters`] the embedding application
+/// constructs (defaults via [`RateLimiters::new`], custom values via
+/// [`RateLimiters::with_configs`]); there is no environment-variable override.
 ///
 /// # Errors
 ///

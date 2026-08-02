@@ -80,9 +80,10 @@ chmod +x .git/hooks/pre-commit
 **Configuration:**
 
 ```bash
-# Environment variables
+# CI-job variables consumed by the workflow files in this directory (the server
+# itself does not read these — the lint commands pass the endpoint explicitly
+# via the --api-endpoint flag):
 export SCHEMA_FILE="schema.compiled.json"
-export FRAISEQL_API_ENDPOINT="http://localhost:8080"
 export DESIGN_QUALITY_THRESHOLD="70"
 export PYTHON_CMD="python3"
 ```
@@ -224,18 +225,9 @@ GitHub Actions:
       --api-endpoint https://api.example.com:8080
 ```
 
-GitLab CI:
-
-```yaml
-before_script:
-  - export FRAISEQL_API_ENDPOINT="https://api.example.com:8080"
-```
-
-Pre-commit:
-
-```bash
-export FRAISEQL_API_ENDPOINT="https://api.example.com:8080"
-```
+GitLab CI and pre-commit hooks: edit the `--api-endpoint` value in the copied
+`gitlab-ci-lint.yml` / hook script — the endpoint is always passed as a flag; there is
+no environment variable the tools read for it.
 
 ## Troubleshooting
 

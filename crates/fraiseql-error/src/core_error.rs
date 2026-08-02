@@ -456,7 +456,7 @@ impl FraiseQLError {
     // existing variant (silencing `unreachable_patterns`). The duplication is
     // the security guarantee: when a future variant is added to this
     // `#[non_exhaustive]` enum, the wildcard becomes reachable and prevents a
-    // wrong-status leak. See IMPROVEMENTS.md F055.
+    // wrong-status leak. See docs/history/IMPROVEMENTS.md F055.
     #[allow(clippy::match_same_arms, unreachable_patterns)]
     #[must_use]
     pub const fn status_code(&self) -> u16 {

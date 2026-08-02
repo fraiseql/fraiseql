@@ -16,7 +16,7 @@ use graphql_parser::query::{
 /// and reuse the AST for both complexity validation (via
 /// [`RequestValidator::validate_query_doc`]) and the downstream execution path
 /// — replacing the previous "validate then re-parse" pattern. See F001 in
-/// `IMPROVEMENTS.md`.
+/// `docs/history/IMPROVEMENTS.md`.
 ///
 /// # Errors
 ///
@@ -257,7 +257,7 @@ impl RequestValidator {
     /// This is the AST-only entry point used by the server's HTTP handler so the
     /// document is parsed exactly once per request (rather than once by the
     /// validator and once by the executor's matcher). See F001 in
-    /// `IMPROVEMENTS.md`.
+    /// `docs/history/IMPROVEMENTS.md`.
     ///
     /// # Errors
     ///

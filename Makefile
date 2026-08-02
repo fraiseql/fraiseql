@@ -459,6 +459,19 @@ lint-internal-flag:
 lint-value-json:
 	@bash tools/check-value-json-seam.sh
 
+# Gate: every FRAISEQL_* env var named in docs/, examples/*.md or README.md has a reader
+# in the workspace (#838) — a runbook step that exports an inert variable is an
+# instruction to do nothing, applied during a live incident.
+.PHONY: lint-docs-env-vars
+lint-docs-env-vars:
+	@bash tools/check-docs-env-vars.sh
+
+# Gate: docs status lines claiming "vX.Y.Z released" must match the workspace version
+# (#735 — overview.md once carried three different versions at once).
+.PHONY: lint-docs-version
+lint-docs-version:
+	@bash tools/check-docs-version.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -467,7 +480,7 @@ lint-value-json:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-docs-env-vars lint-docs-version test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

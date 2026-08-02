@@ -25,8 +25,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
     if let Some(path) = config_path {
         tracing::info!(path = %path, "Loading configuration from file");
-        let contents = std::fs::read_to_string(path)?;
-        let config: ServerConfig = toml::from_str(&contents)
+        let config = ServerConfig::from_file(path)
             .map_err(|e| anyhow::anyhow!("failed to parse config file `{path}`: {e}"))?;
         #[cfg(feature = "observers")]
         check_observer_config_layout(&config, path)?;
@@ -475,34 +474,10 @@ fn warn_files_not_wired(config: &ServerConfig) {
     );
 }
 
-/// Warn at startup when the config file declares an `[observers]` section but
-/// this binary was built without the `observers` feature (#469).
-///
-/// Without the feature the `ServerConfig.observers` field does not exist, so the
-/// section is parsed-and-discarded by serde with no error: the observer runtime
-/// never starts and the `/api/observers` admin routes return 404, with no
-/// signal as to why. Because the field is compiled out, we cannot inspect the
-/// deserialized `ServerConfig`; instead we re-read the raw TOML and check for a
-/// top-level `[observers]` table so the operator gets a clear, actionable
-/// warning rather than silent inaction.
-#[cfg(not(feature = "observers"))]
-fn warn_observers_feature_missing(config_path: Option<&str>) {
-    let Some(path) = config_path else { return };
-    let Ok(contents) = std::fs::read_to_string(path) else {
-        return;
-    };
-    let has_observers =
-        toml::from_str::<toml::Table>(&contents).is_ok_and(|table| table.contains_key("observers"));
-    if has_observers {
-        tracing::warn!(
-            path,
-            "[observers] is configured but this binary was built without the `observers` \
-             feature; the section is ignored — the observer runtime will not start and the \
-             /api/observers admin routes will return 404. Rebuild with `--features observers` \
-             (or `observers-nats` / `observers-enterprise`)."
-        );
-    }
-}
+// #469's warn-only handling of `[observers]`-without-the-feature is gone: since
+// `ServerConfig` denies unknown fields (#839), a build without the feature refuses
+// the config at parse time and `ServerConfig::from_file` names the missing build
+// feature in the error.
 
 /// Warn at startup when the compiled schema declares scheduled `sources` but this
 /// binary was built without the `sources` feature (#573).
@@ -620,8 +595,6 @@ async fn main() -> anyhow::Result<()> {
     init_security(&schema)?;
 
     warn_files_not_wired(&config);
-    #[cfg(not(feature = "observers"))]
-    warn_observers_feature_missing(cli.server.config.as_deref());
     #[cfg(not(feature = "sources"))]
     warn_sources_feature_missing(&schema);
 

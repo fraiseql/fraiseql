@@ -150,7 +150,7 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
    docker restart fraiseql-server-staging
 
    # Run smoke tests
-   ./test/smoke-tests.sh http://localhost:8815-staging
+   ./test/smoke-tests.sh http://localhost:8000-staging
 
    # Run integration tests
    cargo test --test integration_tests -- --test-threads=1
@@ -218,11 +218,11 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
    sleep 5
 
    # 3. Verify
-   curl http://localhost:8815/health | jq '.schema.version'
+   curl http://localhost:8000/health | jq '.schema.version'
 
    # 4. Monitor error rate
    sleep 30
-   curl -s http://localhost:8815/metrics | grep "errors_total"
+   curl -s http://localhost:8000/metrics | grep "errors_total"
 
    # 5. Rollback if needed
    if [ <error_rate> > 0.01 ]; then
@@ -265,6 +265,11 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
 ## Resolution
 
 ### Complete Schema Migration Workflow
+
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
 
 ```bash
 #!/bin/bash
@@ -390,7 +395,7 @@ echo ""
 echo "8. Verification..."
 
 # Health check
-if ! curl -s http://localhost:8815/health | jq -e '.status == "healthy"' > /dev/null; then
+if ! curl -s http://localhost:8000/health | jq -e '.status == "healthy"' > /dev/null; then
     echo "   ✗ Health check failed"
     echo "   Rolling back..."
     cp $BACKUP_DIR/schema.compiled.json.$TIMESTAMP $OLD_SCHEMA
@@ -405,7 +410,7 @@ echo "   ✓ New schema version: $NEW_VERSION"
 
 # Check error rate
 sleep 10
-ERROR_RATE=$(curl -s http://localhost:8815/metrics | grep "request_errors_total" | awk '{print $NF}' || echo "0")
+ERROR_RATE=$(curl -s http://localhost:8000/metrics | grep "request_errors_total" | awk '{print $NF}' || echo "0")
 echo "   Error rate: $ERROR_RATE"
 
 echo ""
@@ -438,7 +443,7 @@ docker restart fraiseql-server
 sleep 5
 
 # Verify
-if curl -s http://localhost:8815/health | jq -e '.status == "healthy"' > /dev/null; then
+if curl -s http://localhost:8000/health | jq -e '.status == "healthy"' > /dev/null; then
     echo "✓ Rollback successful"
 else
     echo "✗ Rollback verification failed"

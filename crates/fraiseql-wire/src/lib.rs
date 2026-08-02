@@ -18,7 +18,7 @@
 // with `#![allow(clippy::indexing_slicing)]` + `// Reason:`.
 #![deny(clippy::indexing_slicing)]
 // Pedantic allows — workspace sets `pedantic = deny`. These are grouped and
-// justified per Q3 / F053 (see `IMPROVEMENTS.md`). Two categories:
+// justified per Q3 / F053 (see `docs/history/IMPROVEMENTS.md`). Two categories:
 //
 //   1. Wire-protocol cast suppressions — binary decoders that are statically
 //      bounded by the protocol contract (counts, lengths, offsets fit in the

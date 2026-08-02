@@ -40,8 +40,6 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Query result cache (optional).
     #[cfg(feature = "arrow")]
     pub cache: Option<Arc<fraiseql_arrow::cache::QueryCache>>,
-    /// Server configuration (optional).
-    pub config: Option<Arc<crate::config::HttpServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
     #[cfg(feature = "auth")]
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
@@ -207,7 +205,6 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics: Arc::new(MetricsCollector::new()),
             #[cfg(feature = "arrow")]
             cache: None,
-            config: None,
             #[cfg(feature = "auth")]
             graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
                 AuthRateLimitConfig::per_ip_standard(),
@@ -605,17 +602,6 @@ impl<A: DatabaseAdapter> AppState<A> {
         Self::new(executor).set_cache(cache)
     }
 
-    /// Create new application state with cache and config.
-    #[cfg(feature = "arrow")]
-    #[must_use]
-    pub fn with_cache_and_config(
-        executor: Arc<Executor<A>>,
-        cache: Arc<fraiseql_arrow::cache::QueryCache>,
-        config: Arc<crate::config::HttpServerConfig>,
-    ) -> Self {
-        Self::new(executor).set_cache(cache).set_config(config)
-    }
-
     fn set_metrics(mut self, metrics: Arc<MetricsCollector>) -> Self {
         self.metrics = metrics;
         self
@@ -627,31 +613,11 @@ impl<A: DatabaseAdapter> AppState<A> {
         self
     }
 
-    #[cfg(feature = "arrow")]
-    fn set_config(mut self, config: Arc<crate::config::HttpServerConfig>) -> Self {
-        self.config = Some(config);
-        self
-    }
-
     /// Get query cache if configured.
     #[cfg(feature = "arrow")]
     #[must_use]
     pub const fn cache(&self) -> Option<&Arc<fraiseql_arrow::cache::QueryCache>> {
         self.cache.as_ref()
-    }
-
-    /// Get server configuration if configured.
-    #[must_use]
-    pub const fn server_config(&self) -> Option<&Arc<crate::config::HttpServerConfig>> {
-        self.config.as_ref()
-    }
-
-    /// Get sanitized configuration for safe API exposure.
-    #[must_use]
-    pub fn sanitized_config(&self) -> Option<crate::routes::api::types::SanitizedConfig> {
-        self.config
-            .as_ref()
-            .map(|cfg| crate::routes::api::types::SanitizedConfig::from_config(cfg))
     }
 
     /// Set secrets manager (for credential and secret management).

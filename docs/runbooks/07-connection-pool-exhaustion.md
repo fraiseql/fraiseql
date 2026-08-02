@@ -23,7 +23,7 @@
 
 ```bash
 # Check current pool state
-curl -s http://localhost:8815/metrics | grep "db_pool_connections"
+curl -s http://localhost:8000/metrics | grep "db_pool_connections"
 
 # Expected output:
 # db_pool_connections_active{} 20
@@ -32,13 +32,13 @@ curl -s http://localhost:8815/metrics | grep "db_pool_connections"
 # If active == max and idle == 0, pool is exhausted
 
 # Get more details
-curl -s http://localhost:8815/metrics | grep -E "db_pool|connection" | sort
+curl -s http://localhost:8000/metrics | grep -E "db_pool|connection" | sort
 
 # Check pool connection duration (how long connections held)
-curl -s http://localhost:8815/metrics | grep "connection_duration"
+curl -s http://localhost:8000/metrics | grep "connection_duration"
 
 # Monitor pool state in real-time
-watch -n 1 'curl -s http://localhost:8815/metrics | grep db_pool_connections'
+watch -n 1 'curl -s http://localhost:8000/metrics | grep db_pool_connections'
 ```
 
 ### 2. What's Holding Connections
@@ -75,36 +75,31 @@ EOF
 ### 3. FraiseQL Connection Pool Configuration
 
 ```bash
-# Check current pool configuration
-env | grep -E "DB_POOL|FRAISEQL.*POOL"
+# Pool sizing lives in the server TOML file passed via --config, as top-level keys
+# (there are no pool environment variables and the compiled schema carries no pool
+# section):
+grep -E "pool_(min|max)_size|pool_timeout_secs" /etc/fraiseql/server.toml
 
-# View configuration in compiled schema (if present)
-jq '.database.connection_pool' /etc/fraiseql/schema.compiled.json
-
-# Check pool timeout settings
-env | grep -E "POOL_TIMEOUT|POOL_IDLE"
-
-# Typical defaults:
-# DB_POOL_MIN_CONNECTIONS=5
-# DB_POOL_MAX_CONNECTIONS=20
-# DB_POOL_IDLE_TIMEOUT=300 seconds
-# DB_POOL_CONNECTION_TIMEOUT=30 seconds
+# Defaults when unset:
+# pool_min_size = 5
+# pool_max_size = 20
+# pool_timeout_secs = 30   (acquire timeout)
 ```
 
 ### 4. Request Queue Depth
 
 ```bash
 # Check how many requests are waiting for connections
-curl -s http://localhost:8815/metrics | grep "connection_pool_queue\|waiting"
+curl -s http://localhost:8000/metrics | grep "connection_pool_queue\|waiting"
 
 # Check total active requests
-curl -s http://localhost:8815/metrics | grep "requests_total"
+curl -s http://localhost:8000/metrics | grep "requests_total"
 
 # Calculate queue depth
 # If requests_in_flight > connections_active, requests are queued
 
-ACTIVE_CONNS=$(curl -s http://localhost:8815/metrics | grep "db_pool_connections_active" | awk '{print $NF}')
-REQUEST_TOTAL=$(curl -s http://localhost:8815/metrics | grep "requests_total\[^a-z\]" | head -1 | awk '{print $NF}')
+ACTIVE_CONNS=$(curl -s http://localhost:8000/metrics | grep "db_pool_connections_active" | awk '{print $NF}')
+REQUEST_TOTAL=$(curl -s http://localhost:8000/metrics | grep "requests_total\[^a-z\]" | head -1 | awk '{print $NF}')
 echo "Active connections: $ACTIVE_CONNS"
 echo "Requests in last period: $REQUEST_TOTAL"
 ```
@@ -113,13 +108,13 @@ echo "Requests in last period: $REQUEST_TOTAL"
 
 ```bash
 # Check if queries are fast but there are too many
-curl -s http://localhost:8815/metrics | grep "request_duration_seconds" | grep -E "p99|p95|p50"
+curl -s http://localhost:8000/metrics | grep "request_duration_seconds" | grep -E "p99|p95|p50"
 
 # If p50 is very fast (< 100ms) but pool still exhausted:
 # Problem is query volume, not query slowness
 
 # Check queries per second
-curl -s http://localhost:8815/metrics | grep "requests_total"
+curl -s http://localhost:8000/metrics | grep "requests_total"
 # And compare to pool size
 
 # Formula: Max RPS = (pool_size / avg_query_duration_secs)
@@ -132,8 +127,8 @@ curl -s http://localhost:8815/metrics | grep "requests_total"
 # Monitor connection count over time
 echo "Tracking connection count..."
 for i in {1..10}; do
-    ACTIVE=$(curl -s http://localhost:8815/metrics | grep "db_pool_connections_active" | awk '{print $NF}')
-    IDLE=$(curl -s http://localhost:8815/metrics | grep "db_pool_connections_idle" | awk '{print $NF}')
+    ACTIVE=$(curl -s http://localhost:8000/metrics | grep "db_pool_connections_active" | awk '{print $NF}')
+    IDLE=$(curl -s http://localhost:8000/metrics | grep "db_pool_connections_idle" | awk '{print $NF}')
     echo "$(date '+%H:%M:%S') active=$ACTIVE idle=$IDLE"
     sleep 10
 done
@@ -172,7 +167,7 @@ done
    EOF
 
    # Verify they're gone
-   curl -s http://localhost:8815/metrics | grep "db_pool_connections"
+   curl -s http://localhost:8000/metrics | grep "db_pool_connections"
    ```
 
 3. **Restart FraiseQL to reset connection pool**
@@ -185,32 +180,37 @@ done
    sleep 5
 
    # Verify pool reset
-   curl -s http://localhost:8815/metrics | grep "db_pool_connections"
+   curl -s http://localhost:8000/metrics | grep "db_pool_connections"
    # Should show: active=0 or very low, idle=pool_size
    ```
 
 ### Short-term (5-30 minutes)
 
-1. **Increase pool size temporarily**
+1. **Increase pool size temporarily** (config-file keys — there are no pool env vars)
+
+   ```toml
+   # server.toml
+   pool_max_size = 50   # from default 20
+   pool_min_size = 10
+   ```
 
    ```bash
-   # Scale up pool to handle load
-   export DB_POOL_MAX_CONNECTIONS=50  # from default 20
-   export DB_POOL_MIN_CONNECTIONS=10
-
    docker restart fraiseql-server
    sleep 3
 
    # Verify new pool size
-   curl -s http://localhost:8815/metrics | grep "db_pool_connections_max"
+   curl -s -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" \
+     http://localhost:8000/metrics | grep "fraiseql_db_pool_connections"
    ```
 
-2. **Reduce connection idle timeout** (faster reaping)
+2. **Reduce the pool acquire timeout** (fail fast instead of queueing)
+
+   ```toml
+   # server.toml
+   pool_timeout_secs = 5   # from default 30
+   ```
 
    ```bash
-   # Return connections to pool more aggressively
-   export DB_POOL_IDLE_TIMEOUT=60  # from default 300 (5 min)
-
    docker restart fraiseql-server
    ```
 
@@ -257,7 +257,7 @@ echo "=== Connection Pool Exhaustion Analysis ==="
 
 # 1. Check pool state
 echo "1. Current pool state:"
-curl -s http://localhost:8815/metrics | grep "db_pool_connections"
+curl -s http://localhost:8000/metrics | grep "db_pool_connections"
 echo ""
 
 # 2. Find what's using connections
@@ -281,12 +281,12 @@ echo ""
 
 # 4. Analyze query duration distribution
 echo "4. Query duration histogram:"
-curl -s http://localhost:8815/metrics | grep "request_duration_seconds_bucket" | head -10
+curl -s http://localhost:8000/metrics | grep "request_duration_seconds_bucket" | head -10
 echo ""
 
 # 5. Calculate capacity
-MAX_CONN=$(curl -s http://localhost:8815/metrics | grep "db_pool_connections_max" | awk '{print $NF}')
-AVG_DURATION=$(curl -s http://localhost:8815/metrics | grep "request_duration_seconds_sum\[^a-z\]" | head -1 | awk '{print $NF}' | cut -d'.' -f1)
+MAX_CONN=$(curl -s http://localhost:8000/metrics | grep "db_pool_connections_max" | awk '{print $NF}')
+AVG_DURATION=$(curl -s http://localhost:8000/metrics | grep "request_duration_seconds_sum\[^a-z\]" | head -1 | awk '{print $NF}' | cut -d'.' -f1)
 echo "5. Pool capacity analysis:"
 echo "   Max connections: $MAX_CONN"
 echo "   Avg query duration: ${AVG_DURATION}s"
@@ -315,7 +315,7 @@ EOF
 # See runbook 03 (High Latency) for detailed optimization
 
 # 3. Or increase pool size to accommodate slower queries
-export DB_POOL_MAX_CONNECTIONS=50
+#      server.toml:  pool_max_size = 50
 docker restart fraiseql-server
 ```
 
@@ -338,9 +338,8 @@ done
 # - Are transactions being rolled back?
 # - Are connection close being deferred?
 
-# 3. Temporary: Reduce connection timeout
-# So stuck connections are killed
-export DB_POOL_IDLE_TIMEOUT=30
+# 3. Temporary: Reduce the pool acquire timeout so callers fail fast
+#      server.toml:  pool_timeout_secs = 5
 docker restart fraiseql-server
 
 # 4. Or restart periodically
@@ -357,16 +356,14 @@ export DB_POOL_MAX_CONNECTIONS=100  # Significant increase
 
 docker restart fraiseql-server
 
-# 2. Or implement caching to reduce database load
-export FRAISEQL_QUERY_CACHE_ENABLED=true
-export FRAISEQL_QUERY_CACHE_TTL=300
-
+# 2. Or implement caching to reduce database load (config-file key, no env override):
+#      server.toml:  cache_enabled = true
 docker restart fraiseql-server
 
-# 3. Or implement request rate limiting
-export FRAISEQL_RATE_LIMIT_ENABLED=true
-export FRAISEQL_RATE_LIMIT_AUTH_MAX_REQUESTS=1000
-export FRAISEQL_RATE_LIMIT_WINDOW_SECS=60
+# 3. Or implement request rate limiting (these env overrides are read):
+export FRAISEQL_RATE_LIMITING_ENABLED=true
+export FRAISEQL_RATE_LIMIT_RPS_PER_IP=100
+export FRAISEQL_RATE_LIMIT_BURST_SIZE=200
 
 docker restart fraiseql-server
 
@@ -437,29 +434,16 @@ export FRAISEQL_QUERY_TIMEOUT=30000  # 30 seconds max
 
 ### Configuration Tuning
 
-```bash
-# Development
-DB_POOL_MIN=2
-DB_POOL_MAX=10
-DB_POOL_IDLE_TIMEOUT=60
+```toml
+# server.toml — production (high volume)
+pool_min_size = 10
+pool_max_size = 100
+pool_timeout_secs = 30
 
-# Staging (similar to production)
-DB_POOL_MIN=5
-DB_POOL_MAX=30
-DB_POOL_IDLE_TIMEOUT=300
-
-# Production (high volume)
-DB_POOL_MIN=10
-DB_POOL_MAX=100
-DB_POOL_IDLE_TIMEOUT=300
-DB_POOL_TIMEOUT=30
-
-# Very high volume (with caching)
-DB_POOL_MIN=20
-DB_POOL_MAX=200
-DB_POOL_IDLE_TIMEOUT=120
-# + query caching enabled
-# + Redis for distributed caching
+# Staging (similar to production): pool_min_size = 5, pool_max_size = 30.
+# Development: pool_min_size = 2, pool_max_size = 10, pool_timeout_secs = 10.
+# Very high volume: pool_min_size = 20, pool_max_size = 200, plus
+# cache_enabled = true so repeated queries stop consuming connections.
 ```
 
 ### Regular Maintenance
@@ -471,7 +455,7 @@ SELECT count(*) FROM pg_stat_activity WHERE state = 'idle in transaction';
 EOF
 
 # Weekly: Review connection pool metrics
-curl -s http://localhost:8815/metrics | grep "db_pool"
+curl -s http://localhost:8000/metrics | grep "db_pool"
 
 # Monthly: Analyze connection usage patterns
 # Resize pool if consistently hitting >80% utilization

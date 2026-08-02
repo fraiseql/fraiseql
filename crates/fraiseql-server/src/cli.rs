@@ -147,6 +147,12 @@ pub struct ServerArgs {
     /// human-readable (default).
     #[arg(long, env = "FRAISEQL_LOG_FORMAT")]
     pub log_format: Option<String>,
+
+    // ── Shutdown ─────────────────────────────────────────────────────────
+    /// Seconds to wait for in-flight requests to drain on SIGTERM/SIGINT
+    /// before aborting them.
+    #[arg(long, env = "FRAISEQL_SHUTDOWN_TIMEOUT_SECS")]
+    pub shutdown_timeout_secs: Option<u64>,
 }
 
 impl ServerArgs {
@@ -189,6 +195,9 @@ impl ServerArgs {
                 .ok()
                 .and_then(|v| v.parse().ok()),
             log_format:                 std::env::var("FRAISEQL_LOG_FORMAT").ok(),
+            shutdown_timeout_secs:      std::env::var("FRAISEQL_SHUTDOWN_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok()),
         }
     }
 
@@ -248,6 +257,12 @@ impl ServerArgs {
         }
         if let Some(require_auth) = self.subscription_require_auth {
             config.subscription_require_auth = Some(require_auth);
+        }
+
+        // Shutdown drain window (#838: the config field's rustdoc had promised
+        // this override long before anything read it).
+        if let Some(secs) = self.shutdown_timeout_secs {
+            config.shutdown_timeout_secs = secs;
         }
 
         // Rate limiting — apply all four overrides atomically.
