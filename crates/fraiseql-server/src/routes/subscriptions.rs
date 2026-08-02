@@ -651,6 +651,17 @@ fn resolve_subscription_tenant(
     )
 }
 
+/// What the pre-ack wait produced (#786): the init message, a client close,
+/// or a spec violation that must close with the named code — 4400 for an
+/// undecodable message, 4401 for anything valid that is not `connection_init`.
+/// The old loop silently discarded both violation shapes and kept waiting, so
+/// a misbehaving client saw only the generic init timeout.
+enum InitWait {
+    Init(Box<ClientMessage>),
+    ClientClosed,
+    Violation(CloseCode),
+}
+
 /// Handle a `WebSocket` subscription connection.
 #[allow(clippy::cognitive_complexity)] // Reason: WebSocket protocol state machine with message routing and lifecycle management
 async fn handle_subscription_connection(
@@ -675,28 +686,37 @@ async fn handle_subscription_connection(
     let init_result = tokio::time::timeout(CONNECTION_INIT_TIMEOUT, async {
         while let Some(msg) = receiver.next().await {
             match msg {
-                Ok(Message::Text(text)) => {
-                    if let Ok(client_msg) = codec.decode(&text) {
+                Ok(Message::Text(text)) => match codec.decode(&text) {
+                    Ok(client_msg) => {
                         if client_msg.parsed_type() == Some(ClientMessageType::ConnectionInit) {
-                            return Some(client_msg);
+                            return InitWait::Init(Box::new(client_msg));
                         }
-                    }
+                        warn!(
+                            message_type = %client_msg.message_type,
+                            "Message before connection_init; closing 4401"
+                        );
+                        return InitWait::Violation(CloseCode::Unauthorized);
+                    },
+                    Err(e) => {
+                        warn!(error = %e, "Undecodable message before connection_init; closing 4400");
+                        return InitWait::Violation(CloseCode::BadRequest);
+                    },
                 },
-                Ok(Message::Close(_)) => return None,
+                Ok(Message::Close(_)) => return InitWait::ClientClosed,
                 Err(e) => {
                     error!(error = %e, "WebSocket error during init");
-                    return None;
+                    return InitWait::ClientClosed;
                 },
                 _ => {},
             }
         }
-        None
+        InitWait::ClientClosed
     })
     .await;
 
     // Handle init timeout or failure
     let _init_payload = match init_result {
-        Ok(Some(msg)) => {
+        Ok(InitWait::Init(msg)) => {
             // Call lifecycle on_connect hook
             let params = msg.payload.clone().unwrap_or(serde_json::json!({}));
             if let Err(reason) = state.lifecycle.on_connect(&params, &connection_id).await {
@@ -726,8 +746,19 @@ async fn handle_subscription_connection(
             info!(connection_id = %connection_id, "Connection initialized");
             msg.payload
         },
-        Ok(None) => {
+        Ok(InitWait::ClientClosed) => {
             warn!(connection_id = %connection_id, "Connection closed during init");
+            return;
+        },
+        Ok(InitWait::Violation(code)) => {
+            WS_CONNECTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+            // Best-effort: connection is already being terminated.
+            let _ = sender
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code:   code.code(),
+                    reason: code.reason().into(),
+                })))
+                .await;
             return;
         },
         Err(_) => {
@@ -1124,7 +1155,8 @@ async fn handle_client_message(
 
     let client_msg: ClientMessage = codec.decode(text).map_err(|e| {
         warn!(error = %e, "Failed to parse client message");
-        CloseCode::ProtocolError
+        // graphql-transport-ws: undecodable message → 4400 Bad Request (#786).
+        CloseCode::BadRequest
     })?;
 
     match client_msg.parsed_type() {
@@ -1141,12 +1173,13 @@ async fn handle_client_message(
         Some(ClientMessageType::Subscribe) => {
             let payload: SubscribePayload = client_msg.subscription_payload().ok_or_else(|| {
                 warn!("Invalid subscribe payload");
-                CloseCode::ProtocolError
+                // Malformed subscribe → 4400 Bad Request, not 1002 (#786).
+                CloseCode::BadRequest
             })?;
 
             let op_id = client_msg.id.ok_or_else(|| {
                 warn!("Subscribe message missing operation ID");
-                CloseCode::ProtocolError
+                CloseCode::BadRequest
             })?;
 
             // Check for duplicate operation ID
@@ -1474,6 +1507,15 @@ async fn handle_client_message(
             return Err(CloseCode::TooManyInitRequests);
         },
 
+        Some(ClientMessageType::ConnectionTerminate) => {
+            // Legacy graphql-ws termination: close gracefully so the
+            // connection and its subscriptions do not outlive the client's
+            // stated intent (#786). The caller's cleanup path unsubscribes
+            // every active operation.
+            info!(connection_id = %connection_id, "connection_terminate received; closing");
+            return Err(CloseCode::Normal);
+        },
+
         None => {
             warn!(message_type = %client_msg.message_type, "Unknown message type");
         },
@@ -1556,25 +1598,42 @@ fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> Ser
     }
 }
 
-/// Extract subscription name from a GraphQL subscription query.
+/// Extract the root field name from a GraphQL subscription document.
+///
+/// Parses with the real GraphQL parser (#786) — the previous hand-rolled scan
+/// took the first `{` after the literal `subscription` as the selection-set
+/// brace, so an object literal in a variable default or directive argument
+/// yielded a bogus name and a valid subscription was rejected.
+///
+/// Returns `None` for unparseable documents, documents with no subscription
+/// operation, and — explicitly — subscriptions with multiple root fields or
+/// multiple subscription operations: the runtime serves exactly one root per
+/// connection operation, and silently dropping the second field would be a
+/// silent-loss bug.
 pub(crate) fn extract_subscription_name(query: &str) -> Option<String> {
-    let query = query.trim();
+    use graphql_parser::query::{Definition, OperationDefinition, Selection};
 
-    let sub_idx = query.find("subscription")?;
-    let after_sub = &query[sub_idx + "subscription".len()..];
+    let doc = graphql_parser::parse_query::<String>(query).ok()?;
 
-    let brace_idx = after_sub.find('{')?;
-    let after_brace = after_sub[brace_idx + 1..].trim_start();
-
-    let name_end = after_brace
-        .find(|c: char| !c.is_alphanumeric() && c != '_')
-        .unwrap_or(after_brace.len());
-
-    if name_end == 0 {
+    let mut sub_ops = doc.definitions.iter().filter_map(|def| match def {
+        Definition::Operation(OperationDefinition::Subscription(sub)) => Some(sub),
+        _ => None,
+    });
+    let sub = sub_ops.next()?;
+    if sub_ops.next().is_some() {
         return None;
     }
 
-    Some(after_brace[..name_end].to_string())
+    let mut root_fields = sub.selection_set.items.iter().filter_map(|sel| match sel {
+        Selection::Field(field) => Some(field),
+        _ => None,
+    });
+    let first = root_fields.next()?;
+    if root_fields.next().is_some() {
+        return None;
+    }
+
+    Some(first.name.clone())
 }
 
 #[cfg(test)]

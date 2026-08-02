@@ -1,7 +1,7 @@
 //! Tests for the `response` module.
 
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::missing_panics_doc)] // Reason: test code
 
 use axum::http::{HeaderMap, HeaderValue};
 use serde_json::json;

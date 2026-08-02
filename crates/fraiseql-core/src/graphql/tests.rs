@@ -868,6 +868,48 @@ mod complexity_tests {
         );
     }
 
+    /// #869: the multiplier must apply when pagination arguments arrive as
+    /// variables — the shape every Relay/Apollo client uses. The variable form
+    /// must score exactly as the behaviourally identical literal form.
+    #[test]
+    fn pagination_multiplier_applies_to_variable_arguments() {
+        let validator = RequestValidator::new().with_max_complexity(100);
+        let literal = "query { users(first: 100) { posts(first: 100) { id } } }";
+        let variable = "query Q($a: Int, $b: Int) { users(first: $a) { posts(first: $b) { id } } }";
+        let vars = serde_json::json!({"a": 100, "b": 100});
+
+        let literal_doc = crate::graphql::parse_graphql_document(literal).expect("valid query");
+        let variable_doc = crate::graphql::parse_graphql_document(variable).expect("valid query");
+
+        let literal_verdict = validator.validate_query_doc(&literal_doc, None);
+        let variable_verdict = validator.validate_query_doc(&variable_doc, Some(&vars));
+        assert!(literal_verdict.is_err(), "literal form must exceed max_complexity");
+        assert!(
+            variable_verdict.is_err(),
+            "variable form is behaviourally identical and must be scored identically"
+        );
+    }
+
+    /// #869: a variable-valued pagination argument whose value is unavailable
+    /// (or not an integer) fails closed at the clamp ceiling instead of the
+    /// neutral multiplier 1.
+    #[test]
+    fn pagination_multiplier_fails_closed_on_unresolvable_variable() {
+        let validator = RequestValidator::new().with_max_complexity(100);
+        let query = "query Q($n: Int) { users(first: $n) { posts(first: $n) { id } } }";
+        let doc = crate::graphql::parse_graphql_document(query).expect("valid query");
+
+        assert!(
+            validator.validate_query_doc(&doc, None).is_err(),
+            "no variables supplied: pagination must score at the ceiling, not 1"
+        );
+        let non_int = serde_json::json!({"n": "lots"});
+        assert!(
+            validator.validate_query_doc(&doc, Some(&non_int)).is_err(),
+            "non-integer variable: pagination must score at the ceiling, not 1"
+        );
+    }
+
     // ── Overflow safety (integer-overflow DoS / fuzz no-panic invariant) ──
 
     /// Build `query { f0(first: 100) { f1(first: 100) { ... { scalar } } } }`
@@ -1309,7 +1351,7 @@ mod complexity_tests {
         let doc = parse_graphql_document(query).expect("valid query");
         let map: std::collections::HashMap<String, usize> =
             weights.iter().map(|(k, v)| ((*k).to_string(), *v)).collect();
-        estimate_query_cost(&doc, &map)
+        estimate_query_cost(&doc, &map, None)
     }
 
     #[test]

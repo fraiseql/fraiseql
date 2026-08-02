@@ -296,9 +296,6 @@ impl WhereClause {
 /// All standard operators are supported.
 /// No underscore prefix (e.g., `eq`, `icontains`, not `_eq`, `_icontains`).
 ///
-/// Note: ExtendedOperator variants may contain f64 values which don't implement Eq,
-/// so WhereOperator derives PartialEq only (not Eq).
-///
 /// This enum is marked `#[non_exhaustive]` so that new operators (e.g., `Between`,
 /// `Similar`) can be added in future minor versions without breaking downstream
 /// exhaustive `match` expressions.
@@ -493,15 +490,6 @@ pub enum WhereOperator {
     DescendantOfId,
     /// Ancestor of entity by ID: `path @> (SELECT path FROM t WHERE id = $1)`.
     AncestorOfId,
-
-    // ========================================================================
-    // Extended Operators (Rich Type Filters)
-    // ========================================================================
-    /// Extended operator for rich scalar types (Email, VIN, CountryCode, etc.)
-    /// These operators are specialized filters enabled via feature flags.
-    /// See `fraiseql_core::filters::ExtendedOperator` for available operators.
-    #[serde(skip)]
-    Extended(crate::filters::ExtendedOperator),
 }
 
 impl WhereOperator {

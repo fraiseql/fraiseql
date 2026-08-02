@@ -5,9 +5,12 @@
 
 mod security {
     // SQL injection prevention
+    //
+    // The former `tenancy_sql_injection_test` (SR-2/AA1) suite is gone with its
+    // subject: the string-interpolating `tenancy::where_clause*` helpers were
+    // deleted in #736 — no tenancy SQL-generation path exists to inject into.
     mod path_injection_tests;
     mod security_sql_identifier_test;
-    mod tenancy_sql_injection_test;
     mod where_sql_injection_prevention;
 
     // End-to-end injection and RBAC pipeline

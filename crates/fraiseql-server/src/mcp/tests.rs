@@ -178,7 +178,7 @@ mod executor_tests {
 }
 
 mod tools_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use fraiseql_core::schema::{ArgumentDefinition, FieldType};
 

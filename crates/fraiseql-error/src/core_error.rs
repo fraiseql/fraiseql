@@ -457,6 +457,7 @@ impl FraiseQLError {
     // the security guarantee: when a future variant is added to this
     // `#[non_exhaustive]` enum, the wildcard becomes reachable and prevents a
     // wrong-status leak. See docs/history/IMPROVEMENTS.md F055.
+    // Reason: deliberate duplicate arms — non_exhaustive forward-compat guard (F055), see above
     #[allow(clippy::match_same_arms, unreachable_patterns)]
     #[must_use]
     pub const fn status_code(&self) -> u16 {

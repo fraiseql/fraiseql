@@ -12,10 +12,12 @@ pub fn default_database_url() -> String {
 
 #[cfg(feature = "arrow")]
 pub fn default_flight_bind_addr() -> SocketAddr {
-    std::env::var("FRAISEQL_FLIGHT_BIND_ADDR")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or_else(|| "0.0.0.0:50051".parse().expect("valid Flight bind address"))
+    // Loopback, matching `default_bind_addr` (#874): the gRPC data plane must
+    // not default to the all-interfaces wildcard while the HTTP surface
+    // defaults to loopback. Overrides flow through `ServerArgs`
+    // (`--flight-bind-addr` / `FRAISEQL_FLIGHT_BIND_ADDR`), where a malformed
+    // value is a hard startup error — never a silent fallback.
+    "127.0.0.1:50051".parse().expect("hard-coded addr literal is always valid")
 }
 
 pub fn default_bind_addr() -> SocketAddr {

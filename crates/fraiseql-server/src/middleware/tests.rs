@@ -60,15 +60,15 @@ mod admin_scope_tests {
 }
 
 mod auth_tests {
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::cast_precision_loss)]
-    #![allow(clippy::cast_sign_loss)]
-    #![allow(clippy::cast_possible_truncation)]
-    #![allow(clippy::cast_possible_wrap)]
-    #![allow(clippy::missing_panics_doc)]
-    #![allow(clippy::missing_errors_doc)]
-    #![allow(missing_docs)]
-    #![allow(clippy::items_after_statements)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test fixture values are small; precision is irrelevant
+    #![allow(clippy::cast_sign_loss)] // Reason: test fixture values are non-negative
+    #![allow(clippy::cast_possible_truncation)] // Reason: test fixture values are small
+    #![allow(clippy::cast_possible_wrap)] // Reason: test fixture values are small
+    #![allow(clippy::missing_panics_doc)] // Reason: test code
+    #![allow(clippy::missing_errors_doc)] // Reason: test code
+    #![allow(missing_docs)] // Reason: test module
+    #![allow(clippy::items_after_statements)] // Reason: test-local helpers defined next to their use
 
     use axum::{
         Router,
@@ -368,15 +368,15 @@ mod auth_tests {
 }
 
 mod content_type_tests {
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::cast_precision_loss)]
-    #![allow(clippy::cast_sign_loss)]
-    #![allow(clippy::cast_possible_truncation)]
-    #![allow(clippy::cast_possible_wrap)]
-    #![allow(clippy::missing_panics_doc)]
-    #![allow(clippy::missing_errors_doc)]
-    #![allow(missing_docs)]
-    #![allow(clippy::items_after_statements)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test fixture values are small; precision is irrelevant
+    #![allow(clippy::cast_sign_loss)] // Reason: test fixture values are non-negative
+    #![allow(clippy::cast_possible_truncation)] // Reason: test fixture values are small
+    #![allow(clippy::cast_possible_wrap)] // Reason: test fixture values are small
+    #![allow(clippy::missing_panics_doc)] // Reason: test code
+    #![allow(clippy::missing_errors_doc)] // Reason: test code
+    #![allow(missing_docs)] // Reason: test module
+    #![allow(clippy::items_after_statements)] // Reason: test-local helpers defined next to their use
 
     use axum::{
         Router,
@@ -483,7 +483,7 @@ mod content_type_tests {
 }
 
 mod cors_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::cors::{cors_layer, cors_layer_restricted, security_headers_middleware};
 
@@ -645,7 +645,7 @@ mod header_limits_tests {
 }
 
 mod hs256_auth_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use std::sync::Arc;
 
@@ -664,15 +664,15 @@ mod hs256_auth_tests {
 }
 
 mod metrics_tests {
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::cast_precision_loss)]
-    #![allow(clippy::cast_sign_loss)]
-    #![allow(clippy::cast_possible_truncation)]
-    #![allow(clippy::cast_possible_wrap)]
-    #![allow(clippy::missing_panics_doc)]
-    #![allow(clippy::missing_errors_doc)]
-    #![allow(missing_docs)]
-    #![allow(clippy::items_after_statements)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test fixture values are small; precision is irrelevant
+    #![allow(clippy::cast_sign_loss)] // Reason: test fixture values are non-negative
+    #![allow(clippy::cast_possible_truncation)] // Reason: test fixture values are small
+    #![allow(clippy::cast_possible_wrap)] // Reason: test fixture values are small
+    #![allow(clippy::missing_panics_doc)] // Reason: test code
+    #![allow(clippy::missing_errors_doc)] // Reason: test code
+    #![allow(missing_docs)] // Reason: test module
+    #![allow(clippy::items_after_statements)] // Reason: test-local helpers defined next to their use
 
     use std::sync::{Arc, atomic::Ordering};
 
@@ -751,7 +751,7 @@ mod metrics_tests {
 }
 
 mod oidc_auth_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use axum::http::header;
 
@@ -834,15 +834,15 @@ mod oidc_auth_tests {
 }
 
 mod tenant_tests {
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::cast_precision_loss)]
-    #![allow(clippy::cast_sign_loss)]
-    #![allow(clippy::cast_possible_truncation)]
-    #![allow(clippy::cast_possible_wrap)]
-    #![allow(clippy::missing_panics_doc)]
-    #![allow(clippy::missing_errors_doc)]
-    #![allow(missing_docs)]
-    #![allow(clippy::items_after_statements)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test fixture values are small; precision is irrelevant
+    #![allow(clippy::cast_sign_loss)] // Reason: test fixture values are non-negative
+    #![allow(clippy::cast_possible_truncation)] // Reason: test fixture values are small
+    #![allow(clippy::cast_possible_wrap)] // Reason: test fixture values are small
+    #![allow(clippy::missing_panics_doc)] // Reason: test code
+    #![allow(clippy::missing_errors_doc)] // Reason: test code
+    #![allow(missing_docs)] // Reason: test module
+    #![allow(clippy::items_after_statements)] // Reason: test-local helpers defined next to their use
 
     use super::super::tenant::TenantContext;
 

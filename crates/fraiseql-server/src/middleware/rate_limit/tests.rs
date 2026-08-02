@@ -18,7 +18,7 @@ use super::{
 // ── token_bucket_tests ──────────────────────────────────────────────────────
 
 mod token_bucket_tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use std::time::{Duration, Instant};
 

@@ -189,6 +189,8 @@ async fn test_server_new_wraps_adapter_successfully() {
 
     let config = ServerConfig {
         cache_enabled: true,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     };
 
@@ -208,6 +210,8 @@ async fn test_server_new_cache_disabled_also_builds() {
 
     let config = ServerConfig {
         cache_enabled: false,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     };
 

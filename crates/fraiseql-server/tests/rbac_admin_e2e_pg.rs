@@ -342,10 +342,14 @@ impl RbacServer {
         }))
         .expect("compiled schema");
 
-        let mut config = ServerConfig::default();
-        config.database_url.clone_from(&scratch_url);
-        config.admin_api_enabled = true;
-        config.admin_token = Some(ADMIN_TOKEN.to_string());
+        let config = ServerConfig {
+            // #874: production validate() refuses cors_enabled=true + empty origins
+            cors_enabled: false,
+            database_url: scratch_url.clone(),
+            admin_api_enabled: true,
+            admin_token: Some(ADMIN_TOKEN.to_string()),
+            ..ServerConfig::default()
+        };
 
         let adapter =
             Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));

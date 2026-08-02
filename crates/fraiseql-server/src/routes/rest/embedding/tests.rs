@@ -1,6 +1,6 @@
 //! Tests for the `embedding` module.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use fraiseql_core::schema::{Cardinality, Relationship};
 

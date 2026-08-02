@@ -153,7 +153,7 @@ pub async fn security_headers_middleware(
 mod security_headers_tests {
     //! M-sec-headers: the security-headers middleware must actually set the headers (it was
     //! never layered), and must not clobber a handler that sets its own policy.
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use axum::{
         Router,

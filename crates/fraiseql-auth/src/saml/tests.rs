@@ -4,7 +4,7 @@
 //! self-signed cert), then mutated to construct each attack. The XSW / comment-truncation /
 //! unsigned tests run against the **full** `verify_saml_response` extraction path (the seam),
 //! not against the crypto backend in isolation.
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code, panics are acceptable
 
 use std::sync::Arc;
 

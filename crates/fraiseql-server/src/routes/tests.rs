@@ -1,5 +1,5 @@
 //! Tests for top-level `routes/` modules.
-#![allow(unused_imports)]
+#![allow(unused_imports)] // Reason: shared test-prelude import used by only some cfg combinations
 
 mod auth_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -898,6 +898,34 @@ mod subscriptions_tests {
         assert_eq!(extract_subscription_name("query { users { id } }"), None);
         assert_eq!(extract_subscription_name("{ users { id } }"), None);
         assert_eq!(extract_subscription_name("subscription { }"), None);
+    }
+
+    /// #786: an object literal in a variable default appears before the
+    /// selection set. The old hand parser took the first `{` after the word
+    /// "subscription" as the selection-set brace and returned a bogus name,
+    /// rejecting a valid subscription.
+    #[test]
+    fn test_extract_subscription_name_object_literal_in_variable_default() {
+        let query = r#"subscription Q($f: FilterInput = {status: "active"}) {
+            orderCreated(filter: $f) { id }
+        }"#;
+        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
+    }
+
+    /// #786: same shape via a directive argument before the selection set.
+    #[test]
+    fn test_extract_subscription_name_object_literal_in_directive_arg() {
+        let query = r#"subscription Q @log(meta: {level: "info"}) { orderCreated { id } }"#;
+        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
+    }
+
+    /// #786: a subscription with multiple root fields is explicitly rejected
+    /// (the runtime serves exactly one root per operation) rather than the
+    /// second field being silently dropped.
+    #[test]
+    fn test_extract_subscription_name_multiple_root_fields_rejected() {
+        let query = "subscription { orderCreated { id } orderDeleted { id } }";
+        assert_eq!(extract_subscription_name(query), None);
     }
 
     fn tenant_matches_logic(conn_tenant: Option<&str>, evt_tenant: Option<&str>) -> bool {

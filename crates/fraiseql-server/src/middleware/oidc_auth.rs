@@ -469,7 +469,7 @@ mod revocation_tests {
     //! (out of scope here, see `auth_regression_test.rs`), so the enforcement logic is
     //! tested at this seam; the wiring (both middlewares call it; the server attaches the
     //! manager to every `OidcAuthState`) is structural.
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Reason: test code, panics are acceptable
 
     use std::{collections::HashMap, sync::Arc};
 

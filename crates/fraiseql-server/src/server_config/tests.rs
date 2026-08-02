@@ -829,3 +829,83 @@ mod observers_tests {
         );
     }
 }
+
+/// #874: the Arrow Flight gRPC surface must default to loopback like the HTTP
+/// surface (`default_bind_addr`), not the 0.0.0.0 wildcard; the built-in
+/// default no longer consults the environment; env overrides flow through
+/// `ServerArgs`, where a malformed value is a hard startup error instead of a
+/// silent fallback to the wildcard.
+///
+/// The malformed-value case is pinned against `parse_env_opt` under a unique
+/// var name: planting garbage in the real `FRAISEQL_FLIGHT_BIND_ADDR` would
+/// race the parallel tests that parse `Cli` (clap reads that env var).
+#[cfg(feature = "arrow")]
+mod flight_bind_addr_874 {
+    use super::*;
+
+    #[test]
+    fn default_is_loopback_not_wildcard() {
+        let config: ServerConfig = toml::from_str("").expect("empty config parses");
+        assert_eq!(
+            config.flight_bind_addr.to_string(),
+            "127.0.0.1:50051",
+            "Flight must default to loopback (parity with default_bind_addr)"
+        );
+    }
+
+    #[test]
+    fn malformed_env_value_is_a_hard_error() {
+        // Unique var name: race-free under the parallel runner.
+        let var = "FRAISEQL_TEST_874_FLIGHT_ADDR";
+        std::env::set_var(var, "127.0.0.1"); // port missing
+        let parsed = crate::cli::parse_env_opt::<std::net::SocketAddr>(var);
+        std::env::remove_var(var);
+        assert!(
+            parsed.is_err(),
+            "an address missing its port must refuse startup, not silently \
+             fall back: {parsed:?}"
+        );
+    }
+
+    #[test]
+    fn env_override_applies_over_config_file_value() {
+        // A VALID value on the real var name (a concurrent clap parse reading
+        // it is harmless; garbage here would race those tests).
+        std::env::set_var("FRAISEQL_FLIGHT_BIND_ADDR", "127.0.0.1:60051");
+        let args = crate::ServerArgs::from_env();
+        std::env::remove_var("FRAISEQL_FLIGHT_BIND_ADDR");
+        let args = args.expect("valid flight addr parses");
+        assert_eq!(args.flight_bind_addr.map(|a| a.to_string()), Some("127.0.0.1:60051".into()));
+
+        let mut config: ServerConfig = toml::from_str("flight_bind_addr = \"10.0.0.9:50051\"")
+            .expect("config with flight_bind_addr parses");
+        args.apply_to_config(&mut config);
+        assert_eq!(
+            config.flight_bind_addr.to_string(),
+            "127.0.0.1:60051",
+            "documented precedence: env must override the config-file value"
+        );
+    }
+}
+
+/// #874 (5.1): the `[rate_limiting]` example in `ServerConfig`'s own rustdoc
+/// must parse. It once could not — `RateLimitConfig` lacked a container-level
+/// `#[serde(default)]`, so the documented partial block died on
+/// `missing field cleanup_interval_secs`, a key no documentation mentions.
+/// P06 fixed the struct; this pins the exact documented block.
+#[test]
+fn rustdoc_rate_limiting_example_parses() {
+    let toml_str = r"
+        [rate_limiting]
+        enabled = true
+        rps_per_ip = 100
+        rps_per_user = 1000
+        burst_size = 500
+    ";
+    let config: ServerConfig =
+        toml::from_str(toml_str).expect("the documented [rate_limiting] example must parse");
+    let rl = config.rate_limiting.expect("section present");
+    assert!(rl.enabled);
+    assert_eq!(rl.rps_per_ip, 100);
+    assert_eq!(rl.burst_size, 500);
+}

@@ -127,6 +127,7 @@ pub fn charge_cost_budget<A: DatabaseAdapter>(
     state: &AppState<A>,
     tenant_key: Option<&str>,
     document: &str,
+    variables: Option<&serde_json::Value>,
     executor: &Executor<A>,
 ) -> fraiseql_error::Result<()> {
     let (Some(key), Some(registry)) = (tenant_key, state.tenant_registry()) else {
@@ -139,6 +140,7 @@ pub fn charge_cost_budget<A: DatabaseAdapter>(
         let cost = fraiseql_core::graphql::estimate_query_cost(
             &doc,
             &executor.schema().operation_cost_weights,
+            variables,
         );
         registry.check_cost_budget(key, cost)?;
     }

@@ -280,19 +280,24 @@ impl ProjectionMapper {
     }
 
     /// Project array elements from JSON array.
+    ///
+    /// A row that fails projection propagates as an error rather than being
+    /// silently dropped from the result set (#736): `project_json_object` is
+    /// currently infallible, but if it ever gains an error path, an array with
+    /// a bad element must not shrink without a trace.
     fn project_json_array(&self, arr: &[JsonValue]) -> Result<JsonValue> {
-        let projected: Vec<JsonValue> = arr
+        let projected: Result<Vec<JsonValue>> = arr
             .iter()
-            .filter_map(|item| {
+            .map(|item| {
                 if let JsonValue::Object(obj) = item {
-                    self.project_json_object(obj).ok()
+                    self.project_json_object(obj)
                 } else {
-                    Some(item.clone())
+                    Ok(item.clone())
                 }
             })
             .collect();
 
-        Ok(JsonValue::Array(projected))
+        Ok(JsonValue::Array(projected?))
     }
 }
 

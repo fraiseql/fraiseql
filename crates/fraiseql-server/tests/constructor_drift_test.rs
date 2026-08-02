@@ -145,6 +145,8 @@ fn multi_tenant_schema_without_rls() -> CompiledSchema {
 fn caching_config() -> ServerConfig {
     ServerConfig {
         cache_enabled: true,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     }
 }
@@ -153,6 +155,8 @@ fn caching_config() -> ServerConfig {
 async fn server_new_refuses_incompatible_schema_format() {
     let config = ServerConfig {
         cache_enabled: false,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     };
     let result = Server::new(config, incompatible_schema(), Arc::new(NoopRelayAdapter), None).await;
@@ -168,6 +172,8 @@ async fn with_relay_pagination_refuses_incompatible_schema_format() {
     // RuntimeConfig::default() and so never validated the schema format version.
     let config = ServerConfig {
         cache_enabled: false,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     };
     let result = Server::with_relay_pagination(
@@ -188,6 +194,8 @@ async fn with_relay_pagination_accepts_current_schema_format() {
     // Guard against over-rejection: a current-version schema still boots.
     let config = ServerConfig {
         cache_enabled: false,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     };
     let result =
@@ -203,6 +211,8 @@ async fn with_flight_service_refuses_incompatible_schema_format() {
     // RuntimeConfig::default() and skipped format-version validation.
     let config = ServerConfig {
         cache_enabled: false,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     };
     let result = Server::with_flight_service(

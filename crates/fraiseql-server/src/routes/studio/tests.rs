@@ -1,5 +1,5 @@
 //! Tests for `routes/studio/` modules.
-#![allow(unused_imports)]
+#![allow(unused_imports)] // Reason: shared test-prelude import used by only some cfg combinations
 
 mod admin_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions

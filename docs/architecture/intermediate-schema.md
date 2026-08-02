@@ -522,5 +522,4 @@ idiom conflicts with one, **the SDK adapts** — the compiler is the fixed point
 ## See also
 
 - `crates/fraiseql-cli/src/schema/intermediate.rs` — Rust struct definitions
-- `docs/architecture/compiler.md` — how the compiler uses this format
 - `docs/architecture/overview.md` — end-to-end architecture

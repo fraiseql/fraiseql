@@ -71,8 +71,12 @@ pub struct ServerConfig {
 
     /// Arrow Flight gRPC bind address (requires `arrow` feature).
     ///
-    /// Defaults to `0.0.0.0:50051`. Override with `FRAISEQL_FLIGHT_BIND_ADDR`
-    /// environment variable or this field in the config file.
+    /// Defaults to loopback `127.0.0.1:50051` (#874 — parity with
+    /// [`bind_addr`](Self::bind_addr); binding other interfaces is an explicit
+    /// operator decision). Override with the `--flight-bind-addr` flag or the
+    /// `FRAISEQL_FLIGHT_BIND_ADDR` environment variable — which follow the
+    /// standard CLI > env > file > default precedence and refuse startup on a
+    /// malformed value — or with this field in the config file.
     #[cfg(feature = "arrow")]
     #[serde(default = "defaults::default_flight_bind_addr")]
     pub flight_bind_addr: SocketAddr,

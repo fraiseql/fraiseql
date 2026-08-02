@@ -921,3 +921,60 @@ mod pkce_boot_guard_tests {
         );
     }
 }
+
+/// #874: the `FRAISEQL_REQUIRE_REDIS` gate must cover every running subsystem
+/// holding shared auth state — PKCE, rate limiting, and token revocation —
+/// not just the PKCE store. Tested through the pure decision fn so no test
+/// touches the real env var (the parallel runner would race it).
+mod require_redis_874 {
+    use crate::server::initialization::SharedStateBackends;
+
+    #[test]
+    fn each_per_process_subsystem_is_named() {
+        let b = SharedStateBackends {
+            pkce_in_memory:         false,
+            rate_limiter_in_memory: true,
+            revocation_in_memory:   true,
+        };
+        let v = b.per_process_subsystems();
+        assert!(
+            v.iter().any(|s| s.contains("rate_limiting")),
+            "an in-memory rate limiter must violate the distributed-state assertion: {v:?}"
+        );
+        assert!(
+            v.iter().any(|s| s.contains("token_revocation")),
+            "a per-process revocation store must violate the distributed-state assertion: {v:?}"
+        );
+    }
+
+    #[test]
+    fn absent_subsystems_are_not_violations() {
+        let b = SharedStateBackends {
+            pkce_in_memory:         false,
+            rate_limiter_in_memory: false,
+            revocation_in_memory:   false,
+        };
+        assert!(
+            b.per_process_subsystems().is_empty(),
+            "distributed-or-disabled subsystems hold no state that can diverge"
+        );
+    }
+
+    /// The backend classifiers feeding the gate: in-memory is per-process,
+    /// Postgres-backed revocation is shared (the database is common to every
+    /// replica).
+    #[tokio::test]
+    async fn backend_classifiers_are_truthful() {
+        let limiter =
+            crate::middleware::RateLimiter::new(crate::middleware::RateLimitConfig::default());
+        assert!(!limiter.is_distributed(), "the in-memory limiter is per-process");
+
+        let manager = crate::token_revocation::TokenRevocationManager::new(
+            std::sync::Arc::new(crate::token_revocation::InMemoryRevocationStore::new()),
+            false,
+            false,
+            3600,
+        );
+        assert!(!manager.is_distributed(), "the in-memory revocation store is per-process");
+    }
+}

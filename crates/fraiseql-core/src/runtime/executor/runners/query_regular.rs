@@ -566,6 +566,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             });
         }
 
+        // Guard (#784): an RLS-protected deployment must not serve unauthenticated
+        // regular queries — the policy cannot be evaluated without a principal.
+        // Fail closed exactly as the relay and node paths do.
+        if self.ctx.config.rls_policy.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!("Query '{}' not found in schema", query_match.query_def.name),
+                path:    None,
+            });
+        }
+
         // Route relay queries to dedicated handler.
         // No session vars: unauthenticated entrypoint (no SecurityContext). See #329.
         if query_match.query_def.relay {
@@ -795,14 +805,25 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             "REST",
         )?;
 
-        // Evaluate RLS policy if present.
-        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
-            (&self.ctx.config.rls_policy, security_context)
-        {
-            rls_policy.evaluate(ctx, &query_match.query_def.name)?
-        } else {
-            None
-        };
+        // Evaluate RLS policy if present. Fail closed (#784) when a policy is
+        // configured but there is no principal to evaluate it for — the same
+        // posture as the relay and node runners.
+        let rls_where_clause: Option<RlsWhereClause> =
+            match (&self.ctx.config.rls_policy, security_context) {
+                (Some(rls_policy), Some(ctx)) => {
+                    rls_policy.evaluate(ctx, &query_match.query_def.name)?
+                },
+                (Some(_), None) => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Query '{}' not found in schema",
+                            query_match.query_def.name
+                        ),
+                        path:    None,
+                    });
+                },
+                (None, _) => None,
+            };
 
         // Get SQL source.
         let sql_source =
@@ -1016,14 +1037,24 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
         }
 
-        // 1. Evaluate RLS policy
-        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
-            (&self.ctx.config.rls_policy, security_context)
-        {
-            rls_policy.evaluate(ctx, &query_match.query_def.name)?
-        } else {
-            None
-        };
+        // 1. Evaluate RLS policy. Fail closed (#784) when a policy is configured but there is no
+        //    principal — the count must not disagree with the (equally refused) body it describes.
+        let rls_where_clause: Option<RlsWhereClause> =
+            match (&self.ctx.config.rls_policy, security_context) {
+                (Some(rls_policy), Some(ctx)) => {
+                    rls_policy.evaluate(ctx, &query_match.query_def.name)?
+                },
+                (Some(_), None) => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Query '{}' not found in schema",
+                            query_match.query_def.name
+                        ),
+                        path:    None,
+                    });
+                },
+                (None, _) => None,
+            };
 
         // 2. Get SQL source
         let sql_source =

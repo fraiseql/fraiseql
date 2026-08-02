@@ -174,6 +174,71 @@ mod cli_tests {
         assert!(cli.server.admin_token.is_none());
     }
 
+    /// #874: `ServerArgs::from_env` and clap must parse booleans identically —
+    /// the hand-rolled env reader used to map clap-valid `y`/`t`/`on` (and any
+    /// typo) to `Some(false)`, silently disabling `*_require_auth` guards under
+    /// `fraiseql run` that `fraiseql-server` would have honoured or refused.
+    ///
+    /// Unique per-value env var names keep this race-free under the parallel
+    /// test runner.
+    #[test]
+    fn env_bool_parser_agrees_with_clap_for_every_boolish_value() {
+        let cases = [
+            ("true", true),
+            ("1", true),
+            ("yes", true),
+            ("on", true),
+            ("t", true),
+            ("y", true),
+            ("false", false),
+            ("0", false),
+            ("no", false),
+            ("off", false),
+            ("f", false),
+            ("n", false),
+        ];
+        for (value, expected) in cases {
+            let var = format!("FRAISEQL_TEST_874_AGREE_{}", value.to_uppercase());
+            std::env::set_var(&var, value);
+            let via_env = crate::cli::parse_bool_env_opt(&var);
+            std::env::remove_var(&var);
+
+            let via_clap = Cli::try_parse_from(["fraiseql-server", "--metrics-enabled", value])
+                .map(|cli| cli.server.metrics_enabled);
+
+            assert!(via_env.is_ok(), "env parser rejected clap-valid {value:?}: {via_env:?}");
+            assert!(via_clap.is_ok(), "clap rejected {value:?}: {via_clap:?}");
+            let via_env = via_env.unwrap_or_default();
+            let via_clap = via_clap.unwrap_or_default();
+            assert_eq!(via_env, Some(expected), "env parser wrong for {value:?}");
+            assert_eq!(via_env, via_clap, "env and clap disagree for {value:?}");
+        }
+    }
+
+    /// #874: a set-but-unrecognised boolean env value is a hard error, never a
+    /// silent `Some(false)` — and clap rejects the same values.
+    #[test]
+    fn env_bool_parser_rejects_unrecognised_values() {
+        for value in ["ture", "true ", "2", "enabled", "TRUEISH"] {
+            let var = format!(
+                "FRAISEQL_TEST_874_REJECT_{}",
+                value.trim().to_uppercase().replace(' ', "_")
+            );
+            std::env::set_var(&var, value);
+            let via_env = crate::cli::parse_bool_env_opt(&var);
+            std::env::remove_var(&var);
+            assert!(
+                via_env.is_err(),
+                "env parser must reject {value:?}, got {via_env:?} — a typo would silently \
+                 override the operator's intent to false"
+            );
+            assert!(
+                Cli::try_parse_from(["fraiseql-server", "--metrics-enabled", value]).is_err(),
+                "clap unexpectedly accepts {value:?} — the two parsers have diverged"
+            );
+        }
+    }
+
     #[test]
     fn cli_parse_bool_flag_with_value() {
         let cli = Cli::parse_from(["fraiseql-server", "--metrics-enabled", "true"]);

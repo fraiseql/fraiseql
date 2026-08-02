@@ -24,6 +24,13 @@ use crate::{server::Server, server_config::ServerConfig};
 /// Boxed at the delegation point: `Server::new`'s future is large enough to trip
 /// `clippy::large_futures` (pedantic, denied) at every call site otherwise.
 async fn server_with(config: ServerConfig) -> Server<CachedDatabaseAdapter<FailingAdapter>> {
+    // #874: Server::new now runs ServerConfig::validate(); the default
+    // cors_enabled=true with no origins is refused in production mode. These
+    // tests are about mount authorization, not CORS.
+    let config = ServerConfig {
+        cors_enabled: false,
+        ..config
+    };
     Box::pin(Server::new(
         config,
         CompiledSchema::new(),

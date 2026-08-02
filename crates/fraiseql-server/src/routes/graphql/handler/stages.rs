@@ -278,7 +278,7 @@ pub(super) fn validate_request<A: DatabaseAdapter + Clone + Send + Sync + 'stati
         Ok(())
     } else {
         match parse_graphql_document(query) {
-            Ok(doc) => validator.validate_query_doc(&doc),
+            Ok(doc) => validator.validate_query_doc(&doc, request.variables.as_ref()),
             Err(e) => Err(e),
         }
     };

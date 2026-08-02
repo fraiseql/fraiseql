@@ -2195,7 +2195,8 @@ mod run_tests {
                 &ServerRuntimeConfig::default(),
                 &DatabaseRuntimeConfig::default(),
                 false,
-            );
+            )
+            .expect("build_config_from");
             assert_eq!(config.database_url, "postgres://localhost/test");
         });
     }
@@ -2209,7 +2210,8 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &DatabaseRuntimeConfig::default(),
             false,
-        );
+        )
+        .expect("build_config_from");
         assert_eq!(config.bind_addr, addr);
     }
 
@@ -2222,7 +2224,8 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &DatabaseRuntimeConfig::default(),
             true,
-        );
+        )
+        .expect("build_config_from");
         assert!(config.introspection_enabled);
         assert!(!config.introspection_require_auth);
     }
@@ -2236,7 +2239,8 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &DatabaseRuntimeConfig::default(),
             false,
-        );
+        )
+        .expect("build_config_from");
         assert!(!config.introspection_enabled);
     }
 
@@ -2254,7 +2258,8 @@ mod run_tests {
             &ServerRuntimeConfig::default(),
             &db_cfg,
             false,
-        );
+        )
+        .expect("build_config_from");
         assert_eq!(config.pool_min_size, 5);
         assert_eq!(config.pool_max_size, 50);
     }
@@ -2275,7 +2280,8 @@ mod run_tests {
             &server_cfg,
             &DatabaseRuntimeConfig::default(),
             false,
-        );
+        )
+        .expect("build_config_from");
         assert_eq!(config.cors_origins, ["https://example.com"]);
     }
 

@@ -50,15 +50,7 @@ use std::{collections::HashMap, sync::Arc};
 use fraiseql_functions::{
     FunctionDefinition, FunctionModule, FunctionObserver, RuntimeType, TriggerRegistry,
 };
-use fraiseql_server::subsystems::{BeforeMutationHooks, FunctionsSubsystem, ServerSubsystems};
-
-/// Verify that `ServerSubsystems::none()` compiles and all subsystems are absent.
-#[test]
-fn test_platform_e2e_server_subsystems_none_is_all_absent() {
-    let subsystems = ServerSubsystems::none();
-    assert!(!subsystems.is_storage_enabled());
-    assert!(!subsystems.is_functions_enabled());
-}
+use fraiseql_server::subsystems::{BeforeMutationHooks, FunctionsSubsystem};
 
 /// Verify that `BeforeMutationHooks` can be constructed from a trigger registry.
 #[test]

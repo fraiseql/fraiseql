@@ -205,7 +205,13 @@ fn test_variables_validation() {
     );
 }
 
-/// Test pagination arguments validation
+/// Test pagination arguments validation.
+///
+/// #869: variable-valued pagination arguments are scored against the request's
+/// actual variables. With reasonable values the query passes; with the
+/// variables unavailable the multiplier fails closed at the clamp ceiling —
+/// the old behaviour (scoring the neutral 1) is what let `first: $n` bypass
+/// `max_query_complexity` entirely.
 #[test]
 fn test_pagination_query_validation() {
     let validator = RequestValidator::new();
@@ -215,10 +221,19 @@ fn test_pagination_query_validation() {
             id name
         }
     }";
+    let doc = fraiseql_core::graphql::parse_graphql_document(with_pagination)
+        .expect("valid query parses");
 
-    validator
-        .validate_query(with_pagination)
-        .unwrap_or_else(|e| panic!("Pagination query should pass validation: {e}"));
+    let variables = json!({"limit": 25, "offset": 0});
+    validator.validate_query_doc(&doc, Some(&variables)).unwrap_or_else(|e| {
+        panic!("pagination query with resolvable variables should pass validation: {e}")
+    });
+
+    assert!(
+        validator.validate_query_doc(&doc, None).is_err(),
+        "without the variables, a variable-valued pagination argument must fail \
+         closed at the clamp ceiling, not score the neutral 1 (#869)"
+    );
 }
 
 /// Test empty query rejection

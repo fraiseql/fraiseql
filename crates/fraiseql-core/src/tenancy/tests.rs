@@ -137,83 +137,7 @@ fn test_tenant_id_uuid() {
 }
 
 // ============================================================================
-// Test 7: Tenant Query Filtering
-// ============================================================================
-
-/// Test that tenant filter clause can be generated
-#[test]
-fn test_tenant_filter_clause_generation() {
-    let tenant = TenantContext::new("acme-corp");
-
-    // Generate a WHERE clause for the tenant
-    let filter_clause = format!("tenant_id = '{}'", tenant.id());
-
-    assert_eq!(filter_clause, "tenant_id = 'acme-corp'");
-}
-
-/// Test that multiple tenants generate different filters
-#[test]
-fn test_different_tenants_different_filters() {
-    let tenant_a = TenantContext::new("tenant_a");
-    let tenant_b = TenantContext::new("tenant_b");
-
-    let filter_a = format!("tenant_id = '{}'", tenant_a.id());
-    let filter_b = format!("tenant_id = '{}'", tenant_b.id());
-
-    assert_ne!(filter_a, filter_b);
-    assert!(filter_a.contains("tenant_a"));
-    assert!(filter_b.contains("tenant_b"));
-}
-
-/// Test that tenant isolation prevents data leakage
-#[test]
-fn test_tenant_isolation_semantics() {
-    let tenant_a = TenantContext::new("company_a");
-    let tenant_b = TenantContext::new("company_b");
-
-    // Verify that queries for tenant_a should never include tenant_b data
-    assert_ne!(tenant_a.id(), tenant_b.id());
-
-    // A proper implementation would verify this at database level
-    // by checking that queries from tenant_a never return tenant_b's rows
-}
-
-// ============================================================================
-// Test 8: Helper Functions for Query Filtering
-// ============================================================================
-
-/// Test `where_clause` helper function
-#[test]
-fn test_where_clause_helper() {
-    use crate::tenancy::where_clause;
-
-    let clause = where_clause("acme-corp");
-    assert_eq!(clause, "tenant_id = 'acme-corp'");
-}
-
-/// Test PostgreSQL parameterized `where_clause`
-#[test]
-fn test_where_clause_postgresql_helper() {
-    use crate::tenancy::where_clause_postgresql;
-
-    let clause = where_clause_postgresql(1);
-    assert_eq!(clause, "tenant_id = $1");
-
-    let clause2 = where_clause_postgresql(2);
-    assert_eq!(clause2, "tenant_id = $2");
-}
-
-/// Test parameterized `where_clause` for MySQL/SQLite
-#[test]
-fn test_where_clause_parameterized_helper() {
-    use crate::tenancy::where_clause_parameterized;
-
-    let clause = where_clause_parameterized();
-    assert_eq!(clause, "tenant_id = ?");
-}
-
-// ============================================================================
-// Test 9: JWT Extraction
+// Test 7: JWT Extraction
 // ============================================================================
 
 /// Test creating `TenantContext` from JWT claims
@@ -266,50 +190,14 @@ fn test_from_jwt_claims_uuid_tenant() {
     assert_eq!(tenant.id(), uuid_tenant);
 }
 
-// ============================================================================
-// Test 10: Tenant Where Clauses
-// ============================================================================
-
-/// Test `where_clause` method
+/// Test that a JSON `null` `tenant_id` is rejected, not treated as a tenant
 #[test]
-fn test_tenant_where_clause() {
-    let tenant = TenantContext::new("acme-corp");
-    let clause = tenant.where_clause();
+fn test_from_jwt_claims_null_tenant_id() {
+    let claims = json!({
+        "sub": "user123",
+        "tenant_id": null
+    });
 
-    assert_eq!(clause, "tenant_id = 'acme-corp'");
-}
-
-/// Test `where_clause_postgresql` method
-#[test]
-fn test_tenant_where_clause_postgresql() {
-    let tenant = TenantContext::new("acme-corp");
-
-    let clause1 = tenant.where_clause_postgresql(1);
-    assert_eq!(clause1, "tenant_id = $1");
-
-    let clause2 = tenant.where_clause_postgresql(2);
-    assert_eq!(clause2, "tenant_id = $2");
-}
-
-/// Test `where_clause_parameterized` method
-#[test]
-fn test_tenant_where_clause_parameterized() {
-    let tenant = TenantContext::new("acme-corp");
-    let clause = tenant.where_clause_parameterized();
-
-    assert_eq!(clause, "tenant_id = ?");
-}
-
-/// Test that different tenants generate different where clauses
-#[test]
-fn test_different_tenants_different_where_clauses() {
-    let tenant_a = TenantContext::new("company_a");
-    let tenant_b = TenantContext::new("company_b");
-
-    let clause_a = tenant_a.where_clause();
-    let clause_b = tenant_b.where_clause();
-
-    assert_ne!(clause_a, clause_b);
-    assert_eq!(clause_a, "tenant_id = 'company_a'");
-    assert_eq!(clause_b, "tenant_id = 'company_b'");
+    let result = TenantContext::from_jwt_claims(&claims);
+    assert!(result.is_err(), "Should error when tenant_id is null");
 }

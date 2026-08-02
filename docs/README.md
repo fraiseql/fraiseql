@@ -6,7 +6,6 @@
 |-----------------|--------|
 | Understand the system at a glance | [`architecture.md`](../architecture.md) — framework map (crates, modules, data flow) |
 | Read the conceptual architecture | [`docs/architecture/overview.md`](architecture/overview.md) |
-| Understand the SQL compiler | [`docs/architecture/compiler.md`](architecture/compiler.md) |
 | Read why design decisions were made | [`docs/adr/`](adr/) — 14 Architecture Decision Records |
 | Set up a development environment | [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) |
 | Understand the branching / release model | [`docs/contributing/branching-model.md`](contributing/branching-model.md) — trunk-based development |
@@ -43,7 +42,6 @@ docs/
 ├── architecture/                ← Conceptual architecture docs
 │   ├── README.md                ← Navigation guide
 │   ├── overview.md              ← 3-layer model, security, error handling
-│   └── compiler.md              ← GraphQL→SQL compilation pipeline
 ├── auth/                        ← Authentication provider guides
 ├── modules/                     ← Module orientation guides
 │   ├── cache.md                 ← Cache sharding, TTL, cascade invalidation

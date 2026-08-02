@@ -2578,6 +2578,85 @@ mod operation_authz {
     // `aggregate_is_gated` above, and the embedder gate is structurally identical.
 }
 
+// ── mod rls_fail_closed: #784 uniform RLS trust boundary ─────────────────
+//
+// When a `RuntimeConfig::rls_policy` is configured, a path that cannot
+// evaluate it (no security context) must fail closed — the posture the relay
+// and node runners already take. Before #784 the anonymous regular path never
+// consulted the policy and the REST direct/count paths fell through to
+// *unfiltered* rows.
+mod rls_fail_closed {
+    use super::*;
+    use crate::security::DefaultRLSPolicy;
+
+    fn rls_executor() -> Executor<MockAdapter> {
+        Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(mock_user_results())),
+            RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new())),
+        )
+    }
+
+    fn users_match() -> crate::runtime::matcher::QueryMatch {
+        crate::runtime::QueryMatcher::new(test_schema())
+            .match_query("{ users { id name } }", None)
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn anonymous_regular_query_fails_closed_under_rls() {
+        let err = rls_executor().execute("{ users { id name } }", None).await.unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "anonymous regular query under an RLS policy must fail closed, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rest_direct_read_without_context_fails_closed_under_rls() {
+        let qm = users_match();
+        let err = rls_executor().execute_query_direct(&qm, None, None).await.unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "REST direct read without a context under an RLS policy must fail closed, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rest_count_without_context_fails_closed_under_rls() {
+        let qm = users_match();
+        let err = rls_executor().count_rows(&qm, None, None).await.unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "REST count without a context under an RLS policy must fail closed, got {err:?}"
+        );
+    }
+
+    // Counterweight: the same paths succeed when a context is present, so the
+    // gate cannot pass by refusing everything.
+    #[tokio::test]
+    async fn rest_direct_read_with_context_still_serves() {
+        let ctx = SecurityContext {
+            user_id:          "u1".into(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-rls".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        };
+        let qm = users_match();
+        let result = rls_executor().execute_query_direct(&qm, None, Some(&ctx)).await;
+        assert!(result.is_ok(), "authenticated REST read must still serve: {result:?}");
+    }
+}
+
 // ── mod where_types_reach_the_generator ──────────────────────────────────
 //
 // The operator × declared-type matrix (`fraiseql-db`) proves the *generator*

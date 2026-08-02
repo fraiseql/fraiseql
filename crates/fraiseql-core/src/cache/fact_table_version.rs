@@ -147,6 +147,10 @@ impl Default for FactTableVersionStrategy {
 
 impl FactTableVersionStrategy {
     /// Create a time-based strategy with the given TTL.
+    ///
+    /// A TTL of `0` means nothing is ever fresh: the strategy behaves as
+    /// [`Disabled`](Self::Disabled) — no version component is generated and
+    /// nothing is cached.
     #[must_use]
     pub const fn time_based(ttl_seconds: u64) -> Self {
         Self::TimeBased { ttl_seconds }
@@ -155,7 +159,7 @@ impl FactTableVersionStrategy {
     /// Check if caching is enabled for this strategy.
     #[must_use]
     pub const fn is_caching_enabled(&self) -> bool {
-        !matches!(self, Self::Disabled)
+        !matches!(self, Self::Disabled | Self::TimeBased { ttl_seconds: 0 })
     }
 
     /// Get TTL for time-based strategy, if applicable.
@@ -320,7 +324,9 @@ pub fn generate_version_key_component(
     schema_version: &str,
 ) -> Option<String> {
     match strategy {
-        FactTableVersionStrategy::Disabled => None,
+        // A zero TTL means nothing is ever fresh — same contract as Disabled (#784).
+        FactTableVersionStrategy::Disabled
+        | FactTableVersionStrategy::TimeBased { ttl_seconds: 0 } => None,
 
         FactTableVersionStrategy::VersionTable => {
             // Require a version from tf_versions table

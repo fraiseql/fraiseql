@@ -127,7 +127,7 @@ mod sanitization_tests {
     //! H7: REST internal (5xx) error bodies must not leak raw DB/SQL text when error
     //! sanitization is enabled — previously the REST path wrote `err.to_string()`
     //! (schema names, constraint detail, SQL fragments) verbatim into the body.
-    #![allow(clippy::unwrap_used, clippy::expect_used)]
+    #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code, panics are acceptable
 
     use fraiseql_error::FraiseQLError;
 

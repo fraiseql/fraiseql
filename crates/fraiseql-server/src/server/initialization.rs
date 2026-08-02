@@ -6,9 +6,37 @@ use std::sync::Arc;
 use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
 use tracing::{info, warn};
 
-#[cfg(feature = "auth")]
-use super::ServerError;
-use super::{RateLimiter, Server};
+use super::{RateLimiter, Server, ServerError};
+
+/// Which per-replica-capable subsystems are running on per-process state (#874).
+///
+/// `false` means "distributed or not running" — a disabled subsystem holds no
+/// state that could diverge between replicas.
+pub(super) struct SharedStateBackends {
+    /// PKCE OAuth state store is in-memory.
+    pub pkce_in_memory:         bool,
+    /// The rate limiter tracks budgets per process.
+    pub rate_limiter_in_memory: bool,
+    /// The token revocation store is per-process.
+    pub revocation_in_memory:   bool,
+}
+
+impl SharedStateBackends {
+    /// The names of every subsystem violating the distributed-state requirement.
+    pub(super) fn per_process_subsystems(&self) -> Vec<&'static str> {
+        let mut v = Vec::new();
+        if self.pkce_in_memory {
+            v.push("PKCE auth state ([security.pkce])");
+        }
+        if self.rate_limiter_in_memory {
+            v.push("rate limiting ([security.rate_limiting])");
+        }
+        if self.revocation_in_memory {
+            v.push("token revocation ([security.token_revocation])");
+        }
+        v
+    }
+}
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[cfg(feature = "auth")]
@@ -37,37 +65,40 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Validate that distributed storage is configured when `FRAISEQL_REQUIRE_REDIS` is set.
     ///
     /// When `FRAISEQL_REQUIRE_REDIS=1` is present in the environment, the server refuses
-    /// to start if the PKCE state store is using in-memory storage.  This prevents silent
-    /// per-replica state isolation in multi-instance deployments.
+    /// to start if **any** running subsystem holding shared auth state — the PKCE state
+    /// store, the rate limiter, or the token revocation manager — is per-process (#874).
+    /// The gate used to inspect only the PKCE store, so the operator's explicit
+    /// "all shared auth state is distributed" assertion verified one third of the claim:
+    /// a logout revoked on one replica stayed accepted by the others, and per-IP limits
+    /// ran at N times the configured rate.
+    ///
+    /// A subsystem that is *not running at all* is not a violation: absent state cannot
+    /// diverge between replicas.
     ///
     /// # Errors
     ///
-    /// Returns `ServerError::ConfigError` with an operator-actionable message when the
+    /// Returns `ServerError::ConfigError` naming every per-process subsystem when the
     /// constraint is violated.
-    #[cfg(feature = "auth")]
-    pub(super) fn check_redis_requirement(
-        pkce_store: Option<&Arc<crate::auth::PkceStateStore>>,
-    ) -> crate::Result<()> {
-        if std::env::var("FRAISEQL_REQUIRE_REDIS").is_ok() {
-            let pkce_in_memory = pkce_store.is_some_and(|s| s.is_in_memory());
-            if pkce_in_memory {
-                return Err(ServerError::ConfigError(concat!(
-                    "FraiseQL failed to start\n\n",
-                    "  FRAISEQL_REQUIRE_REDIS is set but PKCE auth state is using in-memory storage.\n",
-                    "  In a multi-replica deployment, auth callbacks can fail if they hit a\n",
-                    "  different replica than the one that handled /auth/start.\n\n",
-                    "  To fix:\n",
-                    "    [security.pkce]\n",
-                    "    redis_url = \"redis://localhost:6379\"\n\n",
-                    "    [security.rate_limiting]\n",
-                    "    redis_url = \"redis://localhost:6379\"\n\n",
-                    "  To allow in-memory (single-replica only):\n",
-                    "    Unset FRAISEQL_REQUIRE_REDIS",
-                )
-                .into()));
-            }
+    pub(super) fn check_redis_requirement(backends: &SharedStateBackends) -> crate::Result<()> {
+        if std::env::var("FRAISEQL_REQUIRE_REDIS").is_err() {
+            return Ok(());
         }
-        Ok(())
+        let violations = backends.per_process_subsystems();
+        if violations.is_empty() {
+            return Ok(());
+        }
+        Err(ServerError::ConfigError(format!(
+            "FraiseQL failed to start\n\n  FRAISEQL_REQUIRE_REDIS is set but the following \
+             subsystems hold per-process state: {}.\n  In a multi-replica deployment that \
+             means auth callbacks can fail across replicas, revoked tokens stay accepted by \
+             other replicas, and rate limits multiply by the replica count.\n\n  To fix, give \
+             each of them a shared backend:\n    [security.pkce]            redis_url = \
+             \"redis://…\"\n    [security.rate_limiting]   redis_url = \"redis://…\"\n    \
+             [security.token_revocation] backend = \"postgres\" (or redis_url = \"redis://…\")\
+             \n\n  To allow per-process state (single-replica only): unset \
+             FRAISEQL_REQUIRE_REDIS",
+            violations.join(", ")
+        )))
     }
 
     /// Build an `OidcServerClient` from the compiled schema JSON, if `[auth]` is present.

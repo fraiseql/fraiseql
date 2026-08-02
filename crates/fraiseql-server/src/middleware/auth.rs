@@ -290,7 +290,7 @@ pub(crate) fn constant_time_compare(a: &str, b: &str) -> bool {
 mod xff_tests {
     //! M-xff-limiter: the brute-force limiter must not key on the attacker-controlled
     //! `X-Forwarded-For` header — rotating it must not grant a fresh failure budget.
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use axum::{
         Router,

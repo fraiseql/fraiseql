@@ -38,6 +38,13 @@ use crate::{server::Server, server_config::ServerConfig};
 /// schema and a healthy mock adapter — no OIDC validator. This is the same base + admin +
 /// extension mount path the binary assembles.
 async fn prod_router(config: ServerConfig) -> Router {
+    // #874: Server::new now runs ServerConfig::validate(); the default
+    // cors_enabled=true with no origins is refused in production mode. These
+    // tests are about route assembly, not CORS.
+    let config = ServerConfig {
+        cors_enabled: false,
+        ..config
+    };
     // Boxed at the delegation point: `Server::new`'s future is large enough to trip
     // `clippy::large_futures` (pedantic, denied) at every call site otherwise.
     let server: Server<CachedDatabaseAdapter<FailingAdapter>> = Box::pin(Server::new(

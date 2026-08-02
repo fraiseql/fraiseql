@@ -133,6 +133,8 @@ async fn start_with_export(
 
     let config = ServerConfig {
         export,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
         ..ServerConfig::default()
     };
 

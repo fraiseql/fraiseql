@@ -80,6 +80,7 @@ impl IntoResponse for FraiseQLError {
     // becomes reachable as soon as a future variant is added to the
     // `#[non_exhaustive]` enum and gives that variant the safe generic
     // response. See docs/history/IMPROVEMENTS.md F055.
+    // Reason: deliberate duplicate arms — non_exhaustive forward-compat guard (F055), see above
     #[allow(clippy::match_same_arms, unreachable_patterns)]
     fn into_response(self) -> Response {
         let error_code = self.error_code();
@@ -170,6 +171,7 @@ impl IntoResponse for FraiseQLError {
 // unreachable today (`unreachable_patterns`) and structurally duplicates the
 // generic arms (`match_same_arms`). Same defence-in-depth rationale as the
 // `FraiseQLError::IntoResponse` and `status_code` matches in this file.
+// Reason: deliberate duplicate arms — non_exhaustive forward-compat guard (F055), see above
 #[allow(clippy::match_same_arms, unreachable_patterns)]
 fn file_error_response(e: &FileError) -> (&'static str, String, Option<u64>) {
     match e {

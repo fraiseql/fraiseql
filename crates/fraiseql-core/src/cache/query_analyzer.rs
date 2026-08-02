@@ -86,15 +86,8 @@ impl QueryCardinality {
     /// reflect production hit rates for a given schema or workload.
     ///
     /// To calibrate for your workload, compare the `cache_hit_rate` metric exposed
-    /// at `/metrics` against these values. Operator-specific overrides can be
-    /// configured via the `cache.expected_hit_rates` section in `fraiseql.toml`:
-    ///
-    /// ```toml
-    /// [fraiseql.cache.expected_hit_rates]
-    /// single   = 0.85   # default: 0.91
-    /// multiple = 0.80   # default: 0.88
-    /// list     = 0.55   # default: 0.60
-    /// ```
+    /// at `/metrics` against these values. The estimates are compiled in and not
+    /// operator-configurable.
     #[must_use]
     pub const fn expected_hit_rate(&self) -> f64 {
         match self {

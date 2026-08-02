@@ -77,7 +77,10 @@ The compiler recognizes 49+ built-in rich scalar types (case-insensitive matchin
 - **Networking**: `IPAddress`, `IPv4`, `IPv6`, `MACAddress`, `CIDR`
 - **Content**: `Markdown`, `HTML`, `Cron`, `Regex`, `Color`
 
-Rich scalars get automatic where-input filters and server-side validation.
+Rich scalar names are recognized as valid field types (they compile to string
+storage). They do **not** carry type-specific filter operators: the
+`<RichType>WhereInput` surface was removed in v2.15 because the runtime WHERE
+parser never served it (#869) — filtering uses the standard operator set.
 
 ---
 
@@ -257,5 +260,4 @@ The compiler validates the schema and produces clear error messages. Common erro
 ## See Also
 
 - [architecture/intermediate-schema.md](architecture/intermediate-schema.md) — complete field reference
-- [architecture/compiler.md](architecture/compiler.md) — how the compiler processes this format
 - [architecture/overview.md](architecture/overview.md) — end-to-end architecture

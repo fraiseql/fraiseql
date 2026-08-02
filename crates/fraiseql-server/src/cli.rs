@@ -16,14 +16,46 @@ use clap::{Args, Parser, builder::BoolishValueParser};
 
 use crate::ServerConfig;
 
-/// Parse a boolean environment variable, returning `None` if unset.
+/// Parse a boolean environment variable, returning `Ok(None)` if unset.
 ///
-/// Accepts `true`, `1`, `yes`, `on` (case-insensitive) as `Some(true)`;
-/// all other values as `Some(false)`.
-fn parse_bool_env_opt(var: &str) -> Option<bool> {
-    std::env::var(var)
-        .ok()
-        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "on"))
+/// Delegates to the same [`BoolishValueParser`] clap applies to these
+/// variables under `fraiseql-server`, so the two binaries cannot disagree
+/// (#874): `y`/`t`/`on` are true, `n`/`f`/`off` are false, and a
+/// set-but-unrecognised value — a typo like `ture`, or `"true "` with a
+/// trailing space from a hand-edited compose `.env` — is a hard error, never
+/// a silent override to `false`.
+pub(crate) fn parse_bool_env_opt(var: &str) -> Result<Option<bool>, String> {
+    use clap::builder::TypedValueParser;
+    let Some(raw) = std::env::var_os(var) else {
+        return Ok(None);
+    };
+    BoolishValueParser::new()
+        .parse_ref(&clap::Command::new("fraiseql-server"), None, &raw)
+        .map(Some)
+        .map_err(|_| {
+            format!(
+                "{var} must be a boolean (true/false, 1/0, yes/no, on/off, t/f, y/n), got {:?}",
+                raw.to_string_lossy()
+            )
+        })
+}
+
+/// Parse an environment variable via `FromStr`, returning `Ok(None)` if unset.
+///
+/// A set-but-unparseable value is a hard error (#874): silently discarding it
+/// would apply a default the operator explicitly tried to override.
+pub(crate) fn parse_env_opt<T: std::str::FromStr>(var: &str) -> Result<Option<T>, String>
+where
+    T::Err: std::fmt::Display,
+{
+    match std::env::var(var) {
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(e) => Err(format!("{var} is not valid UTF-8: {e}")),
+        Ok(raw) => raw
+            .parse()
+            .map(Some)
+            .map_err(|e| format!("{var} has an unparseable value {raw:?}: {e}")),
+    }
 }
 
 // ── Top-level CLI ────────────────────────────────────────────────────────────
@@ -71,6 +103,11 @@ pub struct ServerArgs {
     /// Path to compiled schema JSON file.
     #[arg(long, env = "FRAISEQL_SCHEMA_PATH")]
     pub schema_path: Option<String>,
+
+    /// Arrow Flight gRPC bind address (`host:port`).
+    #[cfg(feature = "arrow")]
+    #[arg(long, env = "FRAISEQL_FLIGHT_BIND_ADDR")]
+    pub flight_bind_addr: Option<SocketAddr>,
 
     /// Fail boot if any declared `sql_source` (query view / mutation function) is
     /// not backed by the database, printing a precise list. Default OFF;
@@ -164,41 +201,39 @@ impl ServerArgs {
     ///
     /// Unset env vars produce `None` fields — only explicitly set env vars
     /// generate overrides.
-    #[must_use]
-    pub fn from_env() -> Self {
-        Self {
-            config:                     std::env::var("FRAISEQL_CONFIG").ok(),
-            database_url:               std::env::var("DATABASE_URL").ok(),
-            bind_addr:                  std::env::var("FRAISEQL_BIND_ADDR")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            schema_path:                std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
-            validate_sql_sources:       parse_bool_env_opt("FRAISEQL_VALIDATE_SQL_SOURCES"),
-            metrics_enabled:            parse_bool_env_opt("FRAISEQL_METRICS_ENABLED"),
-            metrics_token:              std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
-            admin_api_enabled:          parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED"),
-            admin_token:                std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
-            introspection_enabled:      parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
-            introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH"),
-            metadata_require_auth:      parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
-            schema_export_require_auth: parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"),
-            playground_require_auth:    parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH"),
-            subscription_require_auth:  parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH"),
-            rate_limiting_enabled:      parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
-            rate_limit_rps_per_ip:      std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            rate_limit_rps_per_user:    std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            rate_limit_burst_size:      std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            log_format:                 std::env::var("FRAISEQL_LOG_FORMAT").ok(),
-            shutdown_timeout_secs:      std::env::var("FRAISEQL_SHUTDOWN_TIMEOUT_SECS")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-        }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the variable when a set env var carries an
+    /// unparseable value (#874). Discarding it silently would flip the
+    /// operator's explicit override into the built-in default — for the
+    /// `*_require_auth` family, the exact opposite of the stated intent.
+    pub fn from_env() -> Result<Self, String> {
+        Ok(Self {
+            config: std::env::var("FRAISEQL_CONFIG").ok(),
+            database_url: std::env::var("DATABASE_URL").ok(),
+            bind_addr: parse_env_opt("FRAISEQL_BIND_ADDR")?,
+            schema_path: std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
+            #[cfg(feature = "arrow")]
+            flight_bind_addr: parse_env_opt("FRAISEQL_FLIGHT_BIND_ADDR")?,
+            validate_sql_sources: parse_bool_env_opt("FRAISEQL_VALIDATE_SQL_SOURCES")?,
+            metrics_enabled: parse_bool_env_opt("FRAISEQL_METRICS_ENABLED")?,
+            metrics_token: std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
+            admin_api_enabled: parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED")?,
+            admin_token: std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
+            introspection_enabled: parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED")?,
+            introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH")?,
+            metadata_require_auth: parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH")?,
+            schema_export_require_auth: parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH")?,
+            playground_require_auth: parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH")?,
+            subscription_require_auth: parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH")?,
+            rate_limiting_enabled: parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED")?,
+            rate_limit_rps_per_ip: parse_env_opt("FRAISEQL_RATE_LIMIT_RPS_PER_IP")?,
+            rate_limit_rps_per_user: parse_env_opt("FRAISEQL_RATE_LIMIT_RPS_PER_USER")?,
+            rate_limit_burst_size: parse_env_opt("FRAISEQL_RATE_LIMIT_BURST_SIZE")?,
+            log_format: std::env::var("FRAISEQL_LOG_FORMAT").ok(),
+            shutdown_timeout_secs: parse_env_opt("FRAISEQL_SHUTDOWN_TIMEOUT_SECS")?,
+        })
     }
 
     /// Apply CLI/env overrides to a [`ServerConfig`] loaded from file or
@@ -216,6 +251,10 @@ impl ServerArgs {
         }
         if let Some(ref path) = self.schema_path {
             config.schema_path = path.into();
+        }
+        #[cfg(feature = "arrow")]
+        if let Some(addr) = self.flight_bind_addr {
+            config.flight_bind_addr = addr;
         }
         // #487: the CLI flag / FRAISEQL_VALIDATE_SQL_SOURCES env var (both surface
         // here as `Some`) override the `validate_sql_sources` config key.

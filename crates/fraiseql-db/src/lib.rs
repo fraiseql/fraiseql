@@ -38,7 +38,6 @@ pub type Result<T> = std::result::Result<T, fraiseql_error::FraiseQLError>;
 pub mod changelog;
 pub mod collation_config;
 pub mod dialect;
-pub mod filters;
 pub mod introspector;
 pub mod types;
 pub mod where_generator;
