@@ -45,52 +45,15 @@ impl InMemoryRateLimiter {
         }
     }
 
-    /// Attach per-path rules derived from `[security.rate_limiting]` auth endpoint fields.
-    ///
-    /// Converts max-requests-per-window into token-per-second refill rates.
-    #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for rate-limit window calculations
+    /// Attach the per-path rules derived from `[security.rate_limiting]` auth
+    /// endpoint fields — built by the shared [`PathRateLimit::rules_from_security`]
+    /// so this backend and the Redis one cannot drift.
     #[must_use]
     pub(super) fn with_path_rules_from_security(
         mut self,
         sec: &RateLimitingSecurityConfig,
     ) -> Self {
-        let mut rules = Vec::new();
-
-        if sec.auth_start_max_requests > 0 && sec.auth_start_window_secs > 0 {
-            rules.push(PathRateLimit {
-                path_prefix:    "/auth/start".to_string(),
-                tokens_per_sec: f64::from(sec.auth_start_max_requests)
-                    / sec.auth_start_window_secs as f64,
-                burst:          f64::from(sec.auth_start_max_requests),
-            });
-        }
-        if sec.auth_callback_max_requests > 0 && sec.auth_callback_window_secs > 0 {
-            rules.push(PathRateLimit {
-                path_prefix:    "/auth/callback".to_string(),
-                tokens_per_sec: f64::from(sec.auth_callback_max_requests)
-                    / sec.auth_callback_window_secs as f64,
-                burst:          f64::from(sec.auth_callback_max_requests),
-            });
-        }
-        if sec.auth_refresh_max_requests > 0 && sec.auth_refresh_window_secs > 0 {
-            rules.push(PathRateLimit {
-                path_prefix:    "/auth/refresh".to_string(),
-                tokens_per_sec: f64::from(sec.auth_refresh_max_requests)
-                    / sec.auth_refresh_window_secs as f64,
-                burst:          f64::from(sec.auth_refresh_max_requests),
-            });
-        }
-
-        if sec.auth_logout_max_requests > 0 && sec.auth_logout_window_secs > 0 {
-            rules.push(PathRateLimit {
-                path_prefix:    "/auth/logout".to_string(),
-                tokens_per_sec: f64::from(sec.auth_logout_max_requests)
-                    / sec.auth_logout_window_secs as f64,
-                burst:          f64::from(sec.auth_logout_max_requests),
-            });
-        }
-
-        self.path_rules = rules;
+        self.path_rules = PathRateLimit::rules_from_security(sec);
         self
     }
 

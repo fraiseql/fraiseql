@@ -59,6 +59,7 @@ use crate::{
 };
 
 mod reset;
+pub mod routes;
 
 pub use reset::{PASSWORD_RESET_SCHEMA_SQL, RESET_TOKEN_TTL_SECS, ResetEmailSender};
 

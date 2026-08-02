@@ -2838,6 +2838,7 @@ mod otp_tests {
             otp_store: otp_store.clone(),
             email_delivery,
             session_store,
+            account_store: None,
         });
 
         (state, otp_store)
@@ -5568,12 +5569,12 @@ mod oidc_server_client_tests {
         // The client secret env var is unset, so construction must fail before any
         // discovery fetch is attempted (#621).
         let json = serde_json::json!({
-            "auth": {
+            "auth": { "pkce": {
                 "discovery_url":       "https://example.com",
                 "client_id":           "x",
                 "client_secret_env":   "__FRAISEQL_TEST_DEFINITELY_UNSET_42XYZ__",
                 "server_redirect_uri": "https://api.example.com/auth/callback"
-            }
+            } }
         });
         assert!(
             OidcServerClient::from_compiled_schema(&json).await.is_none(),
@@ -5587,12 +5588,12 @@ mod oidc_server_client_tests {
         // the SSRF guard rejects, so boot-time discovery fails and construction
         // returns None (#621). Uses PATH (always set) as the secret env.
         let json = serde_json::json!({
-            "auth": {
+            "auth": { "pkce": {
                 "discovery_url":       "http://127.0.0.1:1/blocked",
                 "client_id":           "x",
                 "client_secret_env":   "PATH",
                 "server_redirect_uri": "https://api.example.com/auth/callback"
-            }
+            } }
         });
         assert!(
             OidcServerClient::from_compiled_schema(&json).await.is_none(),

@@ -947,4 +947,98 @@ mod github_tests {
         let secs = GITHUB_REQUEST_TIMEOUT.as_secs();
         assert!(secs > 0 && secs <= 120, "GitHub timeout should be 1–120 s, got {secs}");
     }
+
+    // ── #368: GitHub is a plain OAuth2 provider, not an OIDC one ────────────
+
+    #[test]
+    fn github_constructs_offline_against_wellknown_endpoints() {
+        // github.com serves no OIDC discovery document
+        // (/.well-known/openid-configuration is a 404), so the old
+        // discovery-based constructor could never have produced a working
+        // provider. Construction must be network-free against the fixed
+        // well-known endpoints.
+        let p = GitHubOAuth::new(
+            "the-client-id".to_string(),
+            "the-secret".to_string(),
+            "https://app.example.com/auth/v1/callback".to_string(),
+        )
+        .expect("offline construction");
+        let url = crate::provider::OAuthProvider::authorization_url(&p, "STATE123");
+        assert!(
+            url.starts_with("https://github.com/login/oauth/authorize?"),
+            "authorize URL must target the well-known GitHub endpoint: {url}"
+        );
+        assert!(url.contains("client_id=the-client-id"), "{url}");
+        assert!(url.contains("state=STATE123"), "{url}");
+        assert!(
+            url.contains("scope=read%3Auser%20user%3Aemail"),
+            "the scope must request read:user + user:email so the /user/emails \
+             second hop is authorized: {url}"
+        );
+    }
+
+    #[test]
+    fn github_endpoint_overrides_are_ssrf_guarded() {
+        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
+            let err = GitHubOAuth::with_endpoints(
+                "id".to_string(),
+                "secret".to_string(),
+                "https://app.example.com/cb".to_string(),
+                "http://169.254.169.254".to_string(),
+                "https://api.github.com".to_string(),
+            )
+            .expect_err("a link-local base_url must be refused");
+            let msg = err.to_string();
+            assert!(msg.contains("SSRF") || msg.contains("private"), "{msg}");
+        });
+    }
+
+    #[test]
+    fn github_primary_verified_email_is_linkable() {
+        let emails = vec![
+            GitHubEmail {
+                email:    "old@example.com".to_string(),
+                primary:  false,
+                verified: true,
+            },
+            GitHubEmail {
+                email:    "me@example.com".to_string(),
+                primary:  true,
+                verified: true,
+            },
+        ];
+        assert_eq!(
+            select_linkable_email(&emails),
+            Some(("me@example.com".to_string(), true)),
+            "the primary verified email is the linkable identity"
+        );
+    }
+
+    #[test]
+    fn github_primary_unverified_email_is_never_verified() {
+        let emails = vec![GitHubEmail {
+            email:    "me@example.com".to_string(),
+            primary:  true,
+            verified: false,
+        }];
+        assert_eq!(
+            select_linkable_email(&emails),
+            Some(("me@example.com".to_string(), false)),
+            "an unverified primary email must carry verified = false"
+        );
+    }
+
+    #[test]
+    fn github_no_primary_email_selects_none() {
+        let emails = vec![GitHubEmail {
+            email:    "side@example.com".to_string(),
+            primary:  false,
+            verified: true,
+        }];
+        assert_eq!(
+            select_linkable_email(&emails),
+            None,
+            "without a primary entry there is no canonical identity email"
+        );
+    }
 }

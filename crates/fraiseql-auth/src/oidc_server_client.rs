@@ -115,14 +115,14 @@ impl OidcServerClient {
     /// time) and the endpoints always fresh (no cached discovery going stale).
     ///
     /// Returns `None` if:
-    /// - `schema_json["auth"]` is absent or malformed, or
+    /// - `schema_json["auth"]["pkce"]` is absent or malformed, or
     /// - the env var named by `client_secret_env` is not set, or
     /// - the discovery document cannot be fetched or parsed.
     ///
     /// In all failure cases an explanatory `tracing::error!` is emitted so
     /// operators can diagnose startup issues without reading source code.
     pub async fn from_compiled_schema(schema_json: &serde_json::Value) -> Option<Arc<Self>> {
-        // ── Load [auth] config ────────────────────────────────────────────
+        // ── Load the [auth] PKCE group (compiled `auth.pkce`, #621/#368) ──
         #[derive(Deserialize)]
         struct AuthCfg {
             discovery_url:       String,
@@ -131,8 +131,10 @@ impl OidcServerClient {
             server_redirect_uri: String,
         }
 
-        let auth_cfg: AuthCfg =
-            schema_json.get("auth").and_then(|v| serde_json::from_value(v.clone()).ok())?;
+        let auth_cfg: AuthCfg = schema_json
+            .get("auth")
+            .and_then(|v| v.get("pkce"))
+            .and_then(|v| serde_json::from_value(v.clone()).ok())?;
 
         // ── Read client secret from env ───────────────────────────────────
         let Ok(client_secret) = std::env::var(&auth_cfg.client_secret_env) else {

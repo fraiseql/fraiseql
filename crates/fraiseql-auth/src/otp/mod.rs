@@ -37,16 +37,24 @@ use crate::{
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /// `OTP` validity window in seconds (10 minutes).
-const OTP_TTL_SECS: u64 = 600;
+pub(super) const OTP_TTL_SECS: u64 = 600;
 
 /// Maximum verification attempts per code before it is invalidated.
-const MAX_VERIFY_ATTEMPTS: u32 = 3;
+pub(super) const MAX_VERIFY_ATTEMPTS: u32 = 3;
 
 /// Rate-limit window for `OTP` send requests (15 minutes).
-const OTP_RATE_WINDOW_SECS: u64 = 900;
+pub(super) const OTP_RATE_WINDOW_SECS: u64 = 900;
 
 /// Maximum `OTP` send requests in the rate-limit window.
-const OTP_RATE_MAX: u32 = 3;
+pub(super) const OTP_RATE_MAX: u32 = 3;
+
+/// Account-store provider key for email-`OTP` identities (#367).
+///
+/// Distinct from a social provider: no third party asserted the address —
+/// receiving the code *is* the proof of control.
+pub const OTP_PROVIDER: &str = "otp";
+
+pub mod postgres;
 
 // ─── OTP record ───────────────────────────────────────────────────────────────
 
@@ -278,6 +286,14 @@ pub struct OtpRouteState {
     pub email_delivery: Arc<dyn EmailDelivery>,
     /// Session store (to create sessions after successful verify).
     pub session_store:  Arc<dyn SessionStore>,
+    /// Account store resolving the verified email to a stable local user (#367).
+    ///
+    /// `None` mints the legacy `otp:<email>` pseudo-identity, which is **not a
+    /// real account**: it never links to the same person's social or
+    /// local-password sign-in, so the same human ends up with as many
+    /// identities as sign-in methods. The server always supplies one; the
+    /// option exists for library callers with their own identity model.
+    pub account_store:  Option<Arc<dyn crate::account_linking::AccountStore>>,
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -421,8 +437,26 @@ pub async fn otp_verify(
         },
     }
 
-    // OTP verified — create a session.
-    let user_id = format!("otp:{email}");
+    // OTP verified — resolve the local account (#367).
+    //
+    // Completing the flow proves control of the mailbox, so the email is
+    // verified by construction: no provider asserted it, FraiseQL observed it.
+    // That is what makes email-keyed linking correct here — the same person
+    // signing in later via Google or a local password lands on this account
+    // instead of a parallel one.
+    let user_id = match &state.account_store {
+        Some(accounts) => {
+            match accounts.link_or_create_user(Some(&email), true, OTP_PROVIDER, &email).await {
+                Ok(result) => result.user_id,
+                Err(e) => {
+                    tracing::error!(error = %e, "OTP account resolution failed");
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "user resolution failed")
+                        .into_response();
+                },
+            }
+        },
+        None => format!("otp:{email}"),
+    };
     let expires_at = match unix_now() {
         Ok(now) => now + 3_600, // 1-hour session
         Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response(),

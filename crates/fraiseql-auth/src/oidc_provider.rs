@@ -225,6 +225,19 @@ pub(crate) async fn fetch_oidc_discovery(discovery_base: &str) -> Result<OidcDis
     })
 }
 
+/// Validate a configurable non-OIDC OAuth endpoint base URL with the same
+/// SSRF gate as OIDC issuer URLs (#368: the GitHub `base_url` /
+/// `api_base_url` overrides). Shared so the two postures cannot drift.
+///
+/// # Errors
+///
+/// Returns [`AuthError::OidcMetadataError`] if the URL is invalid, uses a
+/// non-HTTPS scheme, or targets a private/loopback address (unless the
+/// development bypass is active).
+pub(crate) fn validate_oauth_endpoint_url(url: &str) -> Result<()> {
+    validate_oidc_issuer_url(url)
+}
+
 /// Returns `true` if `url`'s host is one that OIDC fetches must not contact.
 fn is_ssrf_blocked_oidc_url(url: &reqwest::Url) -> bool {
     let host_raw = url.host_str().unwrap_or("");

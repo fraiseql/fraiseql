@@ -1,5 +1,19 @@
 # FraiseQL .phases/
 
+## ⭐ Active program (as of 2026-07-27)
+
+[2026-07-27-open-issue-remediation/](2026-07-27-open-issue-remediation/) — **every one of the
+203 open GitHub issues**, assigned to exactly one of 32 phases across 8 waves, targeting
+v2.14.2 (security patch) → v2.19.0+. 158 of the 203 came from the three audit passes.
+Start at its [README](2026-07-27-open-issue-remediation/README.md); the full mapping is in
+[ISSUE-INDEX.md](2026-07-27-open-issue-remediation/ISSUE-INDEX.md) and the ordering
+rationale in [TRIAGE.md](2026-07-27-open-issue-remediation/TRIAGE.md). Five user-owned gates
+(G1–G5) are listed in the README.
+
+The trains below predate it; their remaining work is folded into the program's Wave 7.
+
+---
+
 **Active train (as of 2026-07-01):**
 [v2.11.0-saga-full-roundtrip/](v2.11.0-saga-full-roundtrip/) — closes the round-trip
 half of the #429 saga umbrella (compensation → recovery → coordinator →

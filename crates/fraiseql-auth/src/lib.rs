@@ -36,7 +36,6 @@ pub mod security_config;
 pub mod security_init;
 pub mod session;
 pub mod session_postgres;
-pub mod social;
 pub mod state_encryption;
 pub mod state_store;
 pub mod totp_mfa;
@@ -88,6 +87,7 @@ pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use local_password::{
     LocalPasswordAuthenticator, PASSWORD_RESET_SCHEMA_SQL, PASSWORD_SCHEMA_SQL,
     RESET_TOKEN_TTL_SECS, ResetEmailSender,
+    routes::{LocalPasswordRouteState, local_password_routes},
 };
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
@@ -107,6 +107,7 @@ pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use otp::{
     EmailDelivery, InMemoryOtpStore, NoopEmailDelivery, OtpRequest, OtpResponse, OtpRouteState,
     OtpStore, VerifyRequest, otp_send, otp_verify,
+    postgres::{PG_OTP_SCHEMA_SQL, PgOtpStore},
 };
 pub use phone_otp::{
     InMemorySmsSender, SmsOtpAuthState, SmsOtpRequest, SmsOtpResponse, SmsSender, SmsVerifyRequest,
@@ -133,9 +134,6 @@ pub use security_init::{
 };
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
 pub use session_postgres::PostgresSessionStore;
-pub use social::{
-    SocialAuthorizeParams, SocialLoginState, SocialProviderRegistry, social_authorize,
-};
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
     StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,
@@ -144,4 +142,5 @@ pub use state_store::{InMemoryStateStore, StateStore};
 pub use totp_mfa::{
     EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore, TotpEnrollment, mfa_challenge,
     mfa_enroll, mfa_unenroll, mfa_verify,
+    postgres::{PG_MFA_SCHEMA_SQL, PgMfaStore},
 };

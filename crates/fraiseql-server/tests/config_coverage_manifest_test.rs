@@ -63,6 +63,11 @@ const MANIFEST: &[(&str, &str)] = &[
     // ── Auth backends ────────────────────────────────────────────────────────
     ("auth", "OIDC auth config (fraiseql-core OidcConfig, Option)"),
     ("auth_hs256", "HS256 JWT auth config (Option)"),
+    (
+        "saml",
+        "SAML 2.0 SP config (#381) — Server::from_executor builds SamlAuthState and \
+         mount_auth_routes mounts /auth/saml/login + /auth/saml/acs",
+    ),
     ("hmac_secret_env", "HMAC secret env var name (Option)"),
     ("identity", "enriched-identity resolver config (Option)"),
     // ── Database pool ────────────────────────────────────────────────────────

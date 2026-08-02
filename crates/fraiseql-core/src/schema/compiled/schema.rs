@@ -364,6 +364,87 @@ impl CompiledSchema {
     }
 }
 
+/// OAuth-client configuration compiled from the `[auth]` client groups.
+///
+/// Two independent groups, each optional (at least one is present — the CLI
+/// refuses to compile an empty group set): the PKCE server-side login client
+/// (#621, `[auth]`'s `discovery_url`/`client_id`/`client_secret_env`/
+/// `server_redirect_uri` quadruple, lowered into [`pkce`](Self::pkce)) and the
+/// social-login providers (#368, `[auth.social.*]`, lowered into
+/// [`social`](Self::social)). Client secrets are **never** carried here — each
+/// group names the environment variable the runtime reads its secret from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthClientConfig {
+    /// PKCE OAuth client for server-side login (`/auth/start`, `/auth/callback`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pkce:   Option<PkceClientConfig>,
+    /// Social-login provider registry (`/auth/v1/authorize`, `/auth/v1/callback`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub social: Option<SocialAuthConfig>,
+    /// First-party auth methods this server operates itself (`[auth.local]`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local:  Option<LocalAuthConfig>,
+}
+
+/// `[auth.local]` — the auth methods `FraiseQL` operates itself, rather than
+/// delegating to an `IdP` (#367).
+///
+/// Every enabled method mounts real `HTTP` routes and requires a database pool:
+/// credentials, `MFA` enrollments, `OTP` budgets and sessions are all durable
+/// state. A method enabled without what it needs refuses to boot rather than
+/// mounting a flow that cannot complete.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalAuthConfig {
+    /// Email + password sign-in: mounts `/auth/v1/password/{signup,login}` and
+    /// the reset pair. Reset-link delivery additionally requires
+    /// [`email_from`](Self::email_from).
+    #[serde(default)]
+    pub password: bool,
+
+    /// Email `OTP` / magic-link sign-in: mounts `/auth/v1/otp` and
+    /// `/auth/v1/verify`. Requires [`email_from`](Self::email_from) — a code
+    /// nobody receives is not a login method.
+    #[serde(default)]
+    pub otp: bool,
+
+    /// `TOTP` `MFA`: mounts `/auth/v1/mfa/{enroll,challenge,verify,unenroll}`,
+    /// backed by the Postgres enrollment store (enrollments must survive a
+    /// restart, or a deploy locks every user out of their own account).
+    #[serde(default)]
+    pub mfa: bool,
+
+    /// Anonymous guest sessions: mounts `POST /auth/v1/signup`, which issues a
+    /// session to any caller with no credentials at all. Off by default — this
+    /// is a deliberate "anyone may hold a session" posture, not a convenience.
+    #[serde(default)]
+    pub anonymous: bool,
+
+    /// Service name shown in authenticator apps for `MFA` enrollment
+    /// (`otpauth://…?issuer=`). Defaults to `"`FraiseQL`"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mfa_issuer: Option<String>,
+
+    /// The `[mailbox.<name>]` account whose `SMTP` half delivers `OTP` codes and
+    /// password-reset links. Required whenever `otp` or `password` is enabled;
+    /// naming a mailbox with no `[mailbox.<name>.smtp]` section refuses to boot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email_from: Option<String>,
+
+    /// Template for the password-reset link, with `{token}` substituted for the
+    /// opaque reset token — e.g. `https://app.example.com/reset?token={token}`.
+    /// Required when `password` is enabled: the link points at the operator's
+    /// front end, which `FraiseQL` cannot guess.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reset_url_template: Option<String>,
+
+    /// Template for the `OTP` magic link, with `{code}` substituted. Optional:
+    /// when absent the email carries the bare six-digit code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub magic_link_template: Option<String>,
+}
+
 /// PKCE OAuth-client configuration compiled from the `[auth]` PKCE group (#621).
 ///
 /// The client secret is **never** carried here — `client_secret_env` names the
@@ -373,8 +454,8 @@ impl CompiledSchema {
 /// performs no network I/O and the endpoints cannot go stale in a cached schema.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AuthClientConfig {
-    /// OIDC provider discovery base URL (e.g. `https://accounts.google.com`). The
+pub struct PkceClientConfig {
+    /// `OIDC` provider discovery base URL (e.g. `https://accounts.google.com`). The
     /// runtime appends `/.well-known/openid-configuration` at boot.
     pub discovery_url:       String,
     /// `OAuth2` `client_id` registered with the provider.
@@ -383,4 +464,71 @@ pub struct AuthClientConfig {
     pub client_secret_env:   String,
     /// This server's `/auth/callback` URL, registered with the provider.
     pub server_redirect_uri: String,
+}
+
+/// Social-login provider configuration compiled from `[auth.social]` (#368).
+///
+/// Each configured provider is auto-registered by the server and served through
+/// the account-linking trust gate at `/auth/v1/authorize` / `/auth/v1/callback`.
+/// Only implemented providers are typable: an `[auth.social.apple]` block is a
+/// compile-time unknown-field error, not a silently-ignored table.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SocialAuthConfig {
+    /// Allow-listed `redirect_uri` values for the post-login token hand-off
+    /// (#427). Empty (the default) keeps the JSON-token response: the
+    /// client-supplied `redirect_uri` is never used as a redirect target, so
+    /// there is no open-redirect surface. Non-empty switches the callback to an
+    /// implicit-style fragment redirect, refusing any URI not matched here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub redirect_uri_allowlist: Vec<String>,
+
+    /// `Google` `OIDC` social login.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google: Option<GoogleSocialConfig>,
+
+    /// `GitHub` `OAuth2` social login (non-`OIDC`; fixed well-known endpoints).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github: Option<GitHubSocialConfig>,
+}
+
+/// `[auth.social.google]` — `Google` `OIDC` social-login client (#368).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GoogleSocialConfig {
+    /// `OAuth2` `client_id` from the `Google` Cloud Console.
+    pub client_id:         String,
+    /// Name of the environment variable holding the client secret.
+    pub client_secret_env: String,
+    /// This server's `/auth/v1/callback` URL, registered with `Google`.
+    pub redirect_uri:      String,
+    /// `OIDC` issuer override (default `https://accounts.google.com`). For
+    /// `Google`-compatible stand-ins; the runtime's SSRF guards still apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub discovery_url:     Option<String>,
+}
+
+/// `[auth.social.github]` — `GitHub` `OAuth2` social-login client (#368).
+///
+/// `GitHub` serves no `OIDC` discovery document; the endpoints are the fixed
+/// well-known paths under [`base_url`](Self::base_url) /
+/// [`api_base_url`](Self::api_base_url), overridable for `GitHub` Enterprise
+/// Server deployments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitHubSocialConfig {
+    /// `OAuth2` `client_id` of the `GitHub` OAuth app.
+    pub client_id:         String,
+    /// Name of the environment variable holding the client secret.
+    pub client_secret_env: String,
+    /// This server's `/auth/v1/callback` URL, registered with `GitHub`.
+    pub redirect_uri:      String,
+    /// Web base URL override (default `https://github.com`) — `GitHub` Enterprise
+    /// Server. The runtime's SSRF guards still apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url:          Option<String>,
+    /// API base URL override (default `https://api.github.com`) — `GitHub`
+    /// Enterprise Server (`https://HOSTNAME/api/v3`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_base_url:      Option<String>,
 }

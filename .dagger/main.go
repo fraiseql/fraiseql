@@ -445,7 +445,11 @@ func (m *FraiseqlCi) Test(
 		// SYNC:SERVER_FEATURES so every feature-gated manifest entry matches a
 		// real leaf.
 		"echo '### cargo test -p fraiseql-server config coverage manifest + doc config examples (not covered by --lib)'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email' --test config_coverage_manifest_test --test doc_config_examples_test",
+		// Every `cfg`-gated `ServerConfig` field must be COMPILED IN here, or the
+		// manifest gate's two directions disagree: a leaf that does not exist has
+		// no consumer to name, and its manifest entry reads as stale. Grow this
+		// list whenever a new feature adds a config section (#381 added `saml`).
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml' --test config_coverage_manifest_test --test doc_config_examples_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
 		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
 		// and run in the integration legs; `--features cli` pulls in the CLI
@@ -796,6 +800,11 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		"cargo test -p fraiseql-auth --features auth-saml --lib saml:: -- --test-threads=1",
 		// Tenant-bounded trust policy ∘ PostgresAccountStore (reads DATABASE_URL via harness).
 		"cargo test -p fraiseql-auth --features auth-saml --test saml_sso -- --test-threads=1",
+		// #381 P26: the SERVER mount — [saml] config → boot provisioning →
+		// /auth/saml/login redirect with SAMLRequest; configured-but-broken
+		// shapes (no pool, dud metadata) refuse to boot.
+		"echo '### cargo test -p fraiseql-server --test saml_mount_e2e_pg (#381 server mount)'",
+		"cargo test -p fraiseql-server --features auth-saml,auth --test saml_mount_e2e_pg -- --test-threads=1",
 		"echo 'test-integration OK: saml suite passed'",
 	}, "\n")
 
@@ -931,6 +940,26 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// answered 503. Needs two real per-tenant pools against one database — the
 		// wrong-database read is silent, so nothing short of distinguishable rows in
 		// two schemas can catch it.
+		// #627 — the Postgres-backed API-key store: DDL executed against real PG,
+		// full lifecycle (create/authenticate/revoke/rotate) plus the server mount
+		// (admin REST management + live authenticator on one store).
+		"echo '### cargo test -p fraiseql-server --test api_key_postgres_e2e_pg (#627 postgres api keys)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test api_key_postgres_e2e_pg -- --test-threads=1",
+		// #368 P26 — social login through the shipped mount, against a stub IdP:
+		// Google OIDC full loop, the GitHub /user/emails second hop (email-keyed
+		// linking), the auth_start path bucket on /auth/v1/authorize (#788), and
+		// state/provider refusals.
+		"echo '### cargo test -p fraiseql-server --test social_oauth_e2e_pg (#368 social login mount)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test social_oauth_e2e_pg -- --test-threads=1",
+		// #367 P26 — the [auth.local] reachability tier through the shipped mount:
+		// password signup/login/reset, OTP whose identity resolves through the
+		// account store, MFA whose Postgres enrollment survives a server restart,
+		// anonymous signup, and the disabled-method-is-absent invariant.
+		"echo '### cargo test -p fraiseql-server --test local_auth_e2e_pg (#367 local auth mount)'",
+		// `inbound-email` is added explicitly: the password/OTP tests need the SMTP
+		// transport, and without it `[auth.local]` refuses to boot (by design), so
+		// they are feature-gated and would silently vanish from this leg otherwise.
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",inbound-email' --test local_auth_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features mcp --test mcp_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server --test pipeline_e2e_test -- --test-threads=1",

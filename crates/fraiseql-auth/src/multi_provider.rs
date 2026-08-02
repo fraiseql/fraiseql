@@ -134,7 +134,7 @@ pub struct MultiProviderAuthState {
     /// email-keyed account **only** when the provider is in this set; otherwise the claim is
     /// downgraded to unverified and the identity is keyed on `(provider, provider_id)`, so an
     /// untrusted IdP can never collapse into another user's account (fail-closed, mirrors H26).
-    /// Defaults to [`TrustedEmailProviders::builtin_default`] (`google` + `apple`).
+    /// Defaults to [`TrustedEmailProviders::builtin_default`] (`google` + `apple` + `github`).
     trusted_email_providers: TrustedEmailProviders,
     /// Allow-list of permitted `redirect_uri` values (#427).
     ///
@@ -174,7 +174,7 @@ impl MultiProviderAuthState {
     /// Set which providers are trusted to assert email verification for cross-provider
     /// auto-linking (#368).
     ///
-    /// Defaults to [`TrustedEmailProviders::builtin_default`] (`google` + `apple`). Pass
+    /// Defaults to [`TrustedEmailProviders::builtin_default`] (`google` + `apple` + `github`). Pass
     /// [`TrustedEmailProviders::none`] for a high-assurance "trust no one" posture, or
     /// build a custom set with [`TrustedEmailProviders::trust`] / `distrust`. A provider not
     /// in the set never auto-links on email even when it claims `email_verified = true`.
@@ -556,7 +556,7 @@ pub async fn callback(
     // #368: gate the provider's email-verified claim on the trust policy. An untrusted
     // provider's `email_verified = true` is downgraded to unverified so it can never
     // auto-link onto another user's email-keyed account (account takeover). Trusted
-    // providers (default: google + apple) keep their claim and link as before.
+    // providers (default: google + apple + github) keep their claim and link as before.
     let provider_trusted = state.trusted_email_providers.is_trusted(&provider_name);
     let email_verified = effective_email_verified(
         &state.trusted_email_providers,

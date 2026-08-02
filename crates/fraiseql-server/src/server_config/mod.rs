@@ -11,6 +11,8 @@ pub(crate) mod defaults;
 pub mod hs256;
 mod methods;
 pub mod observers;
+#[cfg(feature = "auth-saml")]
+pub mod saml;
 pub mod storage;
 pub mod tls;
 
@@ -32,6 +34,8 @@ pub use hs256::Hs256Config;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
 pub use observers::{ObserverConfig, ObserverPoolConfig, ObserverRuntimeSettings};
+#[cfg(feature = "auth-saml")]
+pub use saml::{SamlIdpEntry, SamlServerConfig};
 use serde::{Deserialize, Serialize};
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
@@ -359,6 +363,15 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub auth_hs256: Option<Hs256Config>,
+
+    /// SAML 2.0 SP-initiated SSO (#381, requires the `auth-saml` feature).
+    ///
+    /// Mounts `GET /auth/saml/login` and `POST /auth/saml/acs`. Requires
+    /// `[auth_hs256]` (assertions mint sessions the server itself validates)
+    /// and a database pool (sessions and account linking are Postgres-backed).
+    #[cfg(feature = "auth-saml")]
+    #[serde(default)]
+    pub saml: Option<SamlServerConfig>,
 
     /// Name of the environment variable holding the server HMAC secret.
     ///
@@ -948,8 +961,10 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            auth: None,            // No auth by default
-            auth_hs256: None,      // No HS256 auth by default
+            auth: None, // No auth by default
+            auth_hs256: None,
+            #[cfg(feature = "auth-saml")]
+            saml: None, // No HS256 auth by default
             hmac_secret_env: None, // No HMAC secret → unsigned idempotency token
             tls: None,             // TLS disabled by default
             database_tls: None,    /* Database TLS disabled

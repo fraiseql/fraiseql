@@ -19,12 +19,23 @@ enum SigningKey {
     Hs256(Vec<u8>),
 }
 
+/// Default `iss` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
+pub const DEFAULT_TOKEN_ISSUER: &str = "fraiseql";
+/// Default `aud` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
+pub const DEFAULT_TOKEN_AUDIENCE: &str = "fraiseql-api";
+
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
-    db:          PgPool,
+    db:             PgPool,
     /// Key used to sign access tokens. `None` means signing is not configured and
     /// [`SessionStore::create_session`] will fail rather than mint an unverifiable token.
-    signing_key: Option<SigningKey>,
+    signing_key:    Option<SigningKey>,
+    /// `iss` claim minted into access tokens. Must match what the validating
+    /// side expects — see [`Self::with_token_claims`].
+    token_issuer:   String,
+    /// `aud` claim minted into access tokens. Must match what the validating
+    /// side expects — see [`Self::with_token_claims`].
+    token_audience: String,
 }
 
 impl PostgresSessionStore {
@@ -37,10 +48,12 @@ impl PostgresSessionStore {
     /// with. Use [`Self::with_rs256_key`] or [`Self::with_hs256_secret`] for a store
     /// that can issue sessions.
     #[must_use]
-    pub const fn new(db: PgPool) -> Self {
+    pub fn new(db: PgPool) -> Self {
         Self {
             db,
             signing_key: None,
+            token_issuer: DEFAULT_TOKEN_ISSUER.to_string(),
+            token_audience: DEFAULT_TOKEN_AUDIENCE.to_string(),
         }
     }
 
@@ -50,10 +63,10 @@ impl PostgresSessionStore {
     /// * `db` - PostgreSQL connection pool
     /// * `private_key_pem` - RSA private key in PEM format
     #[must_use]
-    pub const fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
+    pub fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
         Self {
-            db,
             signing_key: Some(SigningKey::Rs256(private_key_pem)),
+            ..Self::new(db)
         }
     }
 
@@ -67,11 +80,29 @@ impl PostgresSessionStore {
     /// * `db` - PostgreSQL connection pool
     /// * `secret` - Shared HMAC secret (use at least 32 bytes of entropy)
     #[must_use]
-    pub const fn with_hs256_secret(db: PgPool, secret: Vec<u8>) -> Self {
+    pub fn with_hs256_secret(db: PgPool, secret: Vec<u8>) -> Self {
         Self {
-            db,
             signing_key: Some(SigningKey::Hs256(secret)),
+            ..Self::new(db)
         }
+    }
+
+    /// Set the `iss` / `aud` claims minted into access tokens.
+    ///
+    /// The defaults (`fraiseql` / `fraiseql-api`) only validate against a
+    /// validator configured with exactly those values. A deployment whose
+    /// `[auth_hs256]` declares its own issuer/audience **must** mint matching
+    /// claims, or every login "succeeds" and then 401s on the first validated
+    /// request — the mint/validate drift #368's server mount surfaced.
+    #[must_use]
+    pub fn with_token_claims(
+        mut self,
+        issuer: impl Into<String>,
+        audience: impl Into<String>,
+    ) -> Self {
+        self.token_issuer = issuer.into();
+        self.token_audience = audience.into();
+        self
     }
 
     /// Initialize the sessions table
@@ -81,8 +112,12 @@ impl PostgresSessionStore {
     /// # Errors
     /// Returns error if table creation fails
     pub async fn init(&self) -> Result<()> {
-        sqlx::query(
+        // raw_sql: this is a multi-statement DDL batch, which the prepared-
+        // statement path (`sqlx::query`) refuses at the protocol level.
+        sqlx::raw_sql(
             r"
+            CREATE SCHEMA IF NOT EXISTS _system;
+
             CREATE TABLE IF NOT EXISTS _system.sessions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id TEXT NOT NULL,
@@ -125,8 +160,8 @@ impl PostgresSessionStore {
             iat: now,
             exp,
             nbf: None,
-            iss: "fraiseql".to_string(),
-            aud: vec!["fraiseql-api".to_string()],
+            iss: self.token_issuer.clone(),
+            aud: vec![self.token_audience.clone()],
             extra: std::collections::HashMap::new(),
         };
 

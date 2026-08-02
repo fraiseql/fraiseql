@@ -17,6 +17,7 @@ const FEATURE_GATED_SECTIONS: &[(&str, &str, bool)] = &[
     ("send", "inbound-email", cfg!(feature = "inbound-email")),
     ("export", "rest", cfg!(feature = "rest")),
     ("identity", "auth", cfg!(feature = "auth")),
+    ("saml", "auth-saml", cfg!(feature = "auth-saml")),
 ];
 
 /// Append a build-feature hint to a config parse error for every compiled-out
@@ -260,6 +261,19 @@ impl ServerConfig {
         }
 
         // Production safety validation
+        #[cfg(feature = "auth-saml")]
+        if let Some(ref saml) = self.saml {
+            saml.validate()?;
+            if self.auth_hs256.is_none() {
+                return Err("[saml] requires [auth_hs256]: a verified assertion mints a \
+                            session token that this server must itself be able to \
+                            validate, and HS256 is the self-contained signing path. \
+                            Configure [auth_hs256] (secret_env, issuer, audience) or \
+                            remove [saml]."
+                    .to_string());
+            }
+        }
+
         if Self::is_production_mode() {
             // Playground should be disabled in production
             if self.playground_enabled {

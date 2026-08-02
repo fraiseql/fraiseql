@@ -52,3 +52,55 @@ pub(super) struct PathRateLimit {
     /// Maximum burst (= `max_requests`).
     pub(super) burst:          f64,
 }
+
+impl PathRateLimit {
+    /// Build one rule when the `(max_requests, window_secs)` pair is enabled.
+    #[allow(clippy::cast_precision_loss)] // Reason: window_secs is a small config value; no meaningful precision loss
+    fn rule(prefix: &str, max_requests: u32, window_secs: u64) -> Option<Self> {
+        (max_requests > 0 && window_secs > 0).then(|| Self {
+            path_prefix:    prefix.to_string(),
+            tokens_per_sec: f64::from(max_requests) / window_secs as f64,
+            burst:          f64::from(max_requests),
+        })
+    }
+
+    /// Derive every per-path rule from `[security.rate_limiting]`'s auth
+    /// endpoint fields — the **single** builder both the in-memory and Redis
+    /// backends attach, so the two rule tables cannot drift.
+    ///
+    /// The social endpoints (#368) share the PKCE settings: an
+    /// `/auth/v1/authorize` flood fills the same bounded CSRF state store the
+    /// `/auth/start` budget protects (#788/H25), and `/auth/v1/callback`
+    /// performs the same provider round-trips as `/auth/callback`.
+    pub(super) fn rules_from_security(
+        sec: &super::config::RateLimitingSecurityConfig,
+    ) -> Vec<Self> {
+        [
+            Self::rule("/auth/start", sec.auth_start_max_requests, sec.auth_start_window_secs),
+            Self::rule(
+                "/auth/v1/authorize",
+                sec.auth_start_max_requests,
+                sec.auth_start_window_secs,
+            ),
+            Self::rule(
+                "/auth/callback",
+                sec.auth_callback_max_requests,
+                sec.auth_callback_window_secs,
+            ),
+            Self::rule(
+                "/auth/v1/callback",
+                sec.auth_callback_max_requests,
+                sec.auth_callback_window_secs,
+            ),
+            Self::rule(
+                "/auth/refresh",
+                sec.auth_refresh_max_requests,
+                sec.auth_refresh_window_secs,
+            ),
+            Self::rule("/auth/logout", sec.auth_logout_max_requests, sec.auth_logout_window_secs),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+}

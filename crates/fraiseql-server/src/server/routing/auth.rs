@@ -14,9 +14,7 @@ use tracing::info;
 use super::super::{
     AuthMeState, AuthPkceState, Server, auth_callback, auth_me, auth_start, oidc_auth_middleware,
 };
-use crate::auth::{
-    anon_signup, mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify, social::social_authorize,
-};
+use crate::auth::{anon_signup, mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Mount all `#[cfg(feature = "auth")]`-gated authentication routes.
@@ -42,15 +40,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("PKCE auth routes mounted: GET /auth/start, GET /auth/callback");
         }
 
-        // Unified social login entry point — mounted when social_login is configured.
+        // SAML SP-initiated SSO (#381) — mounted when [saml] is configured on an
+        // auth-saml build. Construction (from_executor) already proved the pool,
+        // the HS256 signing pair and every IdP's metadata; this is pure routing.
+        #[cfg(feature = "auth-saml")]
+        if let Some(ref saml) = self.saml_state {
+            app = app.merge(fraiseql_auth::saml::saml_routes(saml.clone()));
+            info!("SAML routes mounted: GET /auth/saml/login, POST /auth/saml/acs");
+        }
+
+        // Social login (#368) — the trust-gated multi_provider flow, mounted
+        // when `[auth.social]` is configured (or a state was attached by an
+        // embedder). Rate limiting: `/auth/v1/authorize` and
+        // `/auth/v1/callback` are governed by the shared per-IP path buckets
+        // derived from `[security.rate_limiting]`'s auth_start/auth_callback
+        // settings (#788) — the same limiter that guards /auth/start.
         if let Some(ref social) = self.social_login {
-            let social_router = Router::new()
-                .route("/auth/v1/authorize", get(social_authorize))
-                .with_state(Arc::clone(social));
-            app = app.merge(social_router);
+            app = app.merge(social_router(Arc::clone(social)));
             info!(
-                providers = ?social.registry.names(),
-                "Social login route mounted: GET /auth/v1/authorize"
+                providers = ?social.provider_names(),
+                "Social login routes mounted: GET /auth/v1/{{providers,authorize,callback}}"
             );
         }
 
@@ -61,6 +70,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_state(Arc::clone(anon));
             app = app.merge(anon_router);
             info!("Anonymous signup route mounted: POST /auth/v1/signup");
+        }
+
+        // Email OTP / magic-link (#367) — mounted when [auth.local] otp = true.
+        if let Some(ref otp) = self.otp_state {
+            let otp_router = Router::new()
+                .route("/auth/v1/otp", post(crate::auth::otp_send))
+                .route("/auth/v1/verify", post(crate::auth::otp_verify))
+                .with_state(Arc::clone(otp));
+            app = app.merge(otp_router);
+            info!("Email OTP routes mounted: POST /auth/v1/otp, POST /auth/v1/verify");
+        }
+
+        // Local email+password (#367) — mounted when [auth.local] password = true.
+        if let Some(ref pw) = self.local_password_state {
+            app = app.merge(fraiseql_auth::local_password_routes(Arc::clone(pw)));
+            info!(
+                "Local password routes mounted: POST /auth/v1/password/{{signup,login,reset}}, \
+                 POST /auth/v1/password/reset/confirm"
+            );
         }
 
         // TOTP MFA endpoints — mounted when mfa_state is configured.
@@ -129,5 +157,97 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         app
+    }
+}
+
+/// Build the social-login route group (#368). Factored out of
+/// `mount_auth_routes` so the route syntax is validated by an unconditional
+/// construction test (the axum-bump checklist), not only when a database-backed
+/// e2e suite runs.
+fn social_router(social: Arc<fraiseql_auth::MultiProviderAuthState>) -> Router {
+    Router::new()
+        .route("/auth/v1/providers", get(fraiseql_auth::multi_provider::list_providers))
+        .route("/auth/v1/authorize", get(fraiseql_auth::multi_provider::authorize))
+        .route("/auth/v1/callback", get(fraiseql_auth::multi_provider::callback))
+        .with_state(social)
+}
+
+#[cfg(test)]
+mod router_construction {
+    use super::*;
+
+    /// Session store double: never invoked — the test only constructs the router.
+    struct NoopSessionStore;
+
+    fn double_error() -> fraiseql_auth::AuthError {
+        fraiseql_auth::AuthError::ConfigError {
+            message: "construction-only double".to_string(),
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl fraiseql_auth::SessionStore for NoopSessionStore {
+        async fn create_session(
+            &self,
+            _user_id: &str,
+            _expires_at: u64,
+        ) -> fraiseql_auth::Result<fraiseql_auth::TokenPair> {
+            Err(double_error())
+        }
+
+        async fn get_session(
+            &self,
+            _refresh_token_hash: &str,
+        ) -> fraiseql_auth::Result<fraiseql_auth::SessionData> {
+            Err(double_error())
+        }
+
+        async fn revoke_session(&self, _refresh_token_hash: &str) -> fraiseql_auth::Result<()> {
+            Ok(())
+        }
+
+        async fn revoke_all_sessions(&self, _user_id: &str) -> fraiseql_auth::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// axum validates path-capture syntax inside `Router::route`, so a bad
+    /// literal panics here in `cargo test` rather than at first server boot.
+    #[tokio::test]
+    async fn social_router_constructs() {
+        let state = fraiseql_auth::MultiProviderAuthState::new(
+            Arc::new(fraiseql_auth::InMemoryStateStore::new()),
+            Arc::new(NoopSessionStore),
+        );
+        let _router = social_router(Arc::new(state));
+    }
+
+    /// Same gate for the `[auth.local]` OTP group (#367).
+    #[tokio::test]
+    async fn otp_router_constructs() {
+        let _router: Router = Router::new()
+            .route("/auth/v1/otp", post(crate::auth::otp_send))
+            .route("/auth/v1/verify", post(crate::auth::otp_verify))
+            .with_state(Arc::new(fraiseql_auth::OtpRouteState {
+                otp_store:      Arc::new(fraiseql_auth::InMemoryOtpStore::new()),
+                email_delivery: Arc::new(fraiseql_auth::NoopEmailDelivery),
+                session_store:  Arc::new(NoopSessionStore),
+                account_store:  None,
+            }));
+    }
+
+    /// Same gate for the `[auth.local]` MFA group (#367).
+    #[tokio::test]
+    async fn mfa_router_constructs() {
+        let _router: Router = Router::new()
+            .route("/auth/v1/mfa/enroll", post(mfa_enroll))
+            .route("/auth/v1/mfa/challenge", post(mfa_challenge))
+            .route("/auth/v1/mfa/verify", post(mfa_verify))
+            .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
+            .with_state(Arc::new(fraiseql_auth::MfaRouteState {
+                mfa_store:     Arc::new(fraiseql_auth::InMemoryMfaStore::new()),
+                session_store: Arc::new(NoopSessionStore),
+                issuer:        "FraiseQL".to_string(),
+            }));
     }
 }

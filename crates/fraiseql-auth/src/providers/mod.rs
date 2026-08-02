@@ -68,7 +68,8 @@ pub async fn create_provider(
             Ok(Box::new(provider))
         },
         "github" => {
-            let provider = GitHubOAuth::new(client_id, client_secret, redirect_uri).await?;
+            // Network-free: GitHub serves no OIDC discovery document.
+            let provider = GitHubOAuth::new(client_id, client_secret, redirect_uri)?;
             Ok(Box::new(provider))
         },
         "google" => {

@@ -270,7 +270,7 @@ async fn with_flight_service_carries_the_full_compiled_config() {
 // of `[auth]`.
 
 /// An `[auth]` block with the JWKS URI pinned, so `OidcValidator::new` performs
-/// no OIDC discovery and the test needs no network.
+/// no `OIDC` discovery and the test needs no network.
 #[cfg(all(feature = "arrow", feature = "auth"))]
 fn offline_oidc_config() -> fraiseql_core::security::OidcConfig {
     fraiseql_core::security::OidcConfig {
@@ -485,7 +485,7 @@ async fn hot_reload_runs_the_boot_safety_gates() {
 /// #874: `ServerConfig::validate()` must run on the library construction path,
 /// not only in `main.rs`. A downstream embedder following the documented
 /// `from_file` + `Server::new` flow used to skip every production safety gate —
-/// a `pool_timeout_secs = 0` (or a public playground, or OIDC+HS256 both
+/// a `pool_timeout_secs = 0` (or a public playground, or `OIDC`+HS256 both
 /// configured) booted happily as a library while the binary refused it.
 ///
 /// `pool_timeout_secs = 0` is the probe because it is environment-independent:
@@ -509,4 +509,209 @@ async fn library_construction_path_runs_config_validate() {
         msg.contains("pool_timeout_secs"),
         "the refusal must name the offending key, got: {msg}"
     );
+}
+
+/// #368: fixture for a compiled `[auth.social.github]` block. `GitHub` is used
+/// (not `Google`) because its construction is network-free — no discovery fetch
+/// can stall or fail these DB-less unit tests.
+#[cfg(feature = "auth")]
+fn schema_with_github_social(secret_env: &str) -> CompiledSchema {
+    let mut schema = fully_configured_schema();
+    schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
+        pkce:   None,
+        local:  None,
+        social: Some(fraiseql_core::schema::SocialAuthConfig {
+            redirect_uri_allowlist: Vec::new(),
+            google:                 None,
+            github:                 Some(fraiseql_core::schema::GitHubSocialConfig {
+                client_id:         "gh-client".to_string(),
+                client_secret_env: secret_env.to_string(),
+                redirect_uri:      "https://app.example.com/auth/v1/callback".to_string(),
+                base_url:          None,
+                api_base_url:      None,
+            }),
+        }),
+    });
+    schema
+}
+
+/// #368: a compiled `[auth.social]` block on a config without `[auth_hs256]`
+/// must refuse to boot: the callback mints HS256-signed sessions this server
+/// itself validates, so without the signing config every login would 500 (or
+/// worse, mint tokens nothing can validate).
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn social_login_without_hs256_refuses_to_boot() {
+    // A fixed valid value, set unconditionally: safe under the parallel runner
+    // because every reader wants exactly this value.
+    std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET", "gh-secret");
+    let schema = schema_with_github_social("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET");
+    let result =
+        Server::new(fully_configured_server_config(), schema, Arc::new(NoopRelayAdapter), None)
+            .await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("auth_hs256"),
+        "[auth.social] without [auth_hs256] must refuse naming the missing section, got: {msg}"
+    );
+}
+
+/// #368: a provider whose `client_secret_env` is unset must refuse to boot —
+/// the alternative is a mounted login flow whose every token exchange fails.
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn social_login_with_unset_secret_env_refuses_to_boot() {
+    let schema = schema_with_github_social("__FRAISEQL_TEST_P26_DEFINITELY_UNSET__");
+    let mut config = fully_configured_server_config();
+    std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_HS256", "p26-social-hs256-secret-32-bytes!");
+    config.auth_hs256 = Some(crate::server_config::hs256::Hs256Config {
+        secret_env: "FRAISEQL_TEST_P26_SOCIAL_HS256".to_string(),
+        issuer:     Some("https://sp.example.com".to_string()),
+        audience:   Some("fraiseql".to_string()),
+    });
+    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter), None).await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("__FRAISEQL_TEST_P26_DEFINITELY_UNSET__"),
+        "an unset client_secret_env must refuse naming the env var, got: {msg}"
+    );
+}
+
+/// #368: `[auth.social]` on a server constructed without a database pool must
+/// refuse to boot — sessions and account linking are Postgres-backed.
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn social_login_without_a_pool_refuses_to_boot() {
+    std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET", "gh-secret");
+    let schema = schema_with_github_social("FRAISEQL_TEST_P26_SOCIAL_GH_SECRET");
+    let mut config = fully_configured_server_config();
+    std::env::set_var("FRAISEQL_TEST_P26_SOCIAL_HS256", "p26-social-hs256-secret-32-bytes!");
+    config.auth_hs256 = Some(crate::server_config::hs256::Hs256Config {
+        secret_env: "FRAISEQL_TEST_P26_SOCIAL_HS256".to_string(),
+        issuer:     Some("https://sp.example.com".to_string()),
+        audience:   Some("fraiseql".to_string()),
+    });
+    let result = Server::new(config, schema, Arc::new(NoopRelayAdapter), None).await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("[auth.social]") && msg.contains("pool"),
+        "[auth.social] without a pool must refuse naming both, got: {msg}"
+    );
+}
+
+/// #367: fixture for a compiled `[auth.local]` block.
+#[cfg(feature = "auth")]
+fn schema_with_local_auth(local: fraiseql_core::schema::LocalAuthConfig) -> CompiledSchema {
+    let mut schema = fully_configured_schema();
+    schema.auth = Some(fraiseql_core::schema::AuthClientConfig {
+        pkce:   None,
+        social: None,
+        local:  Some(local),
+    });
+    schema
+}
+
+/// A `ServerConfig` with `[auth_hs256]` set — the shape `[auth.local]` requires.
+#[cfg(feature = "auth")]
+fn hs256_server_config() -> ServerConfig {
+    std::env::set_var("FRAISEQL_TEST_P26_LOCAL_HS256", "p26-local-hs256-secret-32bytes!!");
+    ServerConfig {
+        auth_hs256: Some(crate::server_config::hs256::Hs256Config {
+            secret_env: "FRAISEQL_TEST_P26_LOCAL_HS256".to_string(),
+            issuer:     Some("https://sp.example.com".to_string()),
+            audience:   Some("fraiseql".to_string()),
+        }),
+        ..fully_configured_server_config()
+    }
+}
+
+/// #367: `[auth.local]` without a database pool must refuse to boot —
+/// credentials, `MFA` enrollments, `OTP` budgets and sessions are all durable.
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn local_auth_without_a_pool_refuses_to_boot() {
+    let schema = schema_with_local_auth(fraiseql_core::schema::LocalAuthConfig {
+        mfa: true,
+        ..fraiseql_core::schema::LocalAuthConfig::default()
+    });
+    let result = Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter), None).await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("[auth.local]") && msg.contains("pool"),
+        "[auth.local] without a pool must refuse naming both, got: {msg}"
+    );
+}
+
+/// #367: `[auth.local]` without `[auth_hs256]` must refuse — every local
+/// sign-in mints HS256 sessions this server itself validates.
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn local_auth_without_hs256_refuses_to_boot() {
+    let schema = schema_with_local_auth(fraiseql_core::schema::LocalAuthConfig {
+        mfa: true,
+        ..fraiseql_core::schema::LocalAuthConfig::default()
+    });
+    let result = Server::new(
+        fully_configured_server_config(), // no [auth_hs256]
+        schema,
+        Arc::new(NoopRelayAdapter),
+        None,
+    )
+    .await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("auth_hs256"),
+        "[auth.local] without [auth_hs256] must refuse naming the missing section, got: {msg}"
+    );
+}
+
+/// #367: a mail-sending method (`otp`) naming a mailbox that does not exist must
+/// refuse to boot — the alternative is a mounted login flow that mails nobody.
+#[cfg(all(feature = "auth", feature = "inbound-email"))]
+#[tokio::test]
+async fn local_auth_otp_with_an_unknown_mailbox_refuses_to_boot() {
+    let schema = schema_with_local_auth(fraiseql_core::schema::LocalAuthConfig {
+        otp: true,
+        email_from: Some("no-such-mailbox".to_string()),
+        ..fraiseql_core::schema::LocalAuthConfig::default()
+    });
+    let result = Server::new(hs256_server_config(), schema, Arc::new(NoopRelayAdapter), None).await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    // The pool check fires first (it guards every method); with a pool present
+    // the mailbox check is what the live-PG suite proves. Either refusal is a
+    // refusal — what must never happen is a successful boot.
+    assert!(
+        !msg.is_empty(),
+        "[auth.local] otp naming an unknown mailbox must refuse to boot"
+    );
+}
+
+/// #627: `[security.api_keys] storage = "postgres"` configured on a server with
+/// no database pool must refuse to boot. Before the Postgres store existed, the
+/// CLI rejected the value at compile time; now that the server accepts it, a
+/// missing pool would otherwise reproduce the original defect — an authenticator
+/// with zero keys that authenticates nothing, silently.
+#[tokio::test]
+async fn postgres_api_keys_without_a_pool_refuse_to_boot() {
+    let mut schema = fully_configured_schema();
+    if let Some(ref mut sec) = schema.security {
+        sec.additional.insert(
+            "api_keys".to_string(),
+            serde_json::json!({ "enabled": true, "storage": "postgres" }),
+        );
+    }
+    let result = Server::new(
+        fully_configured_server_config(),
+        schema,
+        Arc::new(NoopRelayAdapter),
+        None, // no db_pool
+    )
+    .await;
+    assert!(
+        result.is_err(),
+        "storage = \"postgres\" with no database pool must refuse to boot, \
+         not authenticate nothing silently (#627)"
+    );
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(msg.contains("api_keys"), "the refusal must name the config section, got: {msg}");
 }

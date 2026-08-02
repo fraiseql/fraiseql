@@ -64,6 +64,137 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Ensure the API-key table exists before any request can resolve a
+        // Postgres-stored key (#627). Fail loud: a configured postgres store
+        // whose DDL cannot run must refuse to serve, not authenticate nothing.
+        if let Some(store) = self.api_key_authenticator.as_ref().and_then(|a| a.postgres_store()) {
+            store.ensure_schema().await.map_err(|e| {
+                ServerError::ConfigError(format!("Failed to initialize API-key schema: {e}"))
+            })?;
+            info!("API-key schema ready (core.tb_api_key)");
+        }
+
+        // Ensure the SAML session + account tables exist before the router
+        // mounts /auth/saml/acs (#381): the first verified assertion mints a
+        // Postgres session and resolves an account — a missing table there
+        // would 500 the login instead of failing the boot.
+        #[cfg(feature = "auth-saml")]
+        if self.saml_state.is_some() {
+            // auth-saml implies auth, so the enrichment_pool field exists and
+            // carries the same pool the constructor validated as present.
+            if let Some(ref pool) = self.enrichment_pool {
+                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize SAML session schema: {e}"
+                        ))
+                    },
+                )?;
+                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize SAML account schema: {e}"
+                        ))
+                    },
+                )?;
+                info!("SAML session + account schema ready");
+            }
+        }
+
+        // Ensure the [auth.local] tables exist before the router mounts their
+        // endpoints (#367). Every one of these would otherwise 500 on the first
+        // real request against a fresh database; failing the boot is the loud
+        // version of the same problem.
+        #[cfg(feature = "auth")]
+        if let Some(ref pool) = self.enrichment_pool {
+            let mut provisioned: Vec<&str> = Vec::new();
+            if self.otp_state.is_some() || self.mfa_state.is_some() {
+                // Sessions and accounts back every local method.
+                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize [auth.local] session schema: {e}"
+                        ))
+                    },
+                )?;
+                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize [auth.local] account schema: {e}"
+                        ))
+                    },
+                )?;
+            }
+            if self.otp_state.is_some() {
+                fraiseql_auth::PgOtpStore::new(pool.clone()).init().await.map_err(|e| {
+                    ServerError::ConfigError(format!("Failed to initialize OTP schema: {e}"))
+                })?;
+                provisioned.push("otp");
+            }
+            if self.mfa_state.is_some() {
+                fraiseql_auth::PgMfaStore::new(pool.clone()).init().await.map_err(|e| {
+                    ServerError::ConfigError(format!("Failed to initialize MFA schema: {e}"))
+                })?;
+                provisioned.push("mfa");
+            }
+            if let Some(ref pw) = self.local_password_state {
+                // `LocalPasswordAuthenticator::init` runs the identity, credential
+                // and reset-token DDL, so it also covers sessions/accounts.
+                pw.authenticator.init().await.map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "Failed to initialize local-password schema: {e}"
+                    ))
+                })?;
+                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize [auth.local] session schema: {e}"
+                        ))
+                    },
+                )?;
+                provisioned.push("password");
+            }
+            if self.anon_signup_state.is_some() {
+                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize [auth.local] session schema: {e}"
+                        ))
+                    },
+                )?;
+                provisioned.push("anonymous");
+            }
+            if !provisioned.is_empty() {
+                info!(methods = ?provisioned, "[auth.local] schema ready");
+            }
+        }
+
+        // Ensure the session + account tables exist before the router mounts
+        // /auth/v1/callback (#368): a successful OAuth callback mints a
+        // Postgres session and resolves an account through the account store —
+        // a missing table there would 500 the first login instead of failing
+        // the boot.
+        #[cfg(feature = "auth")]
+        if self.social_login.is_some() {
+            if let Some(ref pool) = self.enrichment_pool {
+                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize social-login session schema: {e}"
+                        ))
+                    },
+                )?;
+                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize social-login account schema: {e}"
+                        ))
+                    },
+                )?;
+                info!("Social-login session + account schema ready");
+            }
+        }
+
         // Ensure the inbound-ingestion tables exist before the router mounts
         // POST /webhooks/{provider}. Like RBAC, this must run here (async context)
         // rather than in the sync build_router(). The spine holds normalized
