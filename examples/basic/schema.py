@@ -1,71 +1,70 @@
 #!/usr/bin/env python3
-"""
-Basic FraiseQL Schema Definition
+"""Basic FraiseQL schema definition.
 
-This example demonstrates how to define a simple blog schema
-using the FraiseQL Python SDK.
+A simple blog schema authored with the FraiseQL Python SDK.
+The views it names are created by sql/setup.sql (singular Trinity naming:
+tb_user/v_user, tb_post/v_post, each exposing a JSONB `data` column).
 
 Run: python3 schema.py
-Output: schema.json
+Output: schema.json (consumed by `fraiseql-cli compile`)
+
+Requires the SDK: `pip install fraiseql` (or, inside this repository,
+`pip install -e sdks/official/fraiseql-python`).
 """
 
-import sys
 from pathlib import Path
 
-# Add fraiseql-python to path if running from examples directory
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "fraiseql-python"))
-
 import fraiseql
-from datetime import datetime
+from fraiseql import ID, DateTime
 
 
-# Define types using decorators
-@fraiseql.type
+@fraiseql.type(sql_source="v_user")
 class User:
     """A user in the system."""
-    id: int
+
+    id: ID
     name: str
     email: str
-    created_at: datetime
+    created_at: DateTime
 
 
-@fraiseql.type
+@fraiseql.type(sql_source="v_post")
 class Post:
-    """A blog post."""
-    id: int
+    """A blog post, denormalized with its author's identity."""
+
+    id: ID
     title: str
     content: str
-    author_id: int
-    author: User  # Relationship to User
-    created_at: datetime
+    author_id: ID
+    author_name: str
+    author_email: str
+    created_at: DateTime
 
 
-# Define queries
-@fraiseql.query
-def users(limit: int = 100) -> list[User]:
+@fraiseql.query(sql_source="v_user")
+def users() -> list[User]:
     """Get all users."""
-    return fraiseql.config(sql_source="v_users")
+    ...
 
 
-@fraiseql.query
-def user(id: int) -> User | None:
+@fraiseql.query(sql_source="v_user")
+def user(id: ID) -> User | None:
     """Get a user by ID."""
-    return fraiseql.config(sql_source="v_users")
+    ...
 
 
-@fraiseql.query
-def posts(limit: int = 100, author_id: int | None = None) -> list[Post]:
-    """Get all posts, optionally filtered by author."""
-    return fraiseql.config(sql_source="v_posts")
+@fraiseql.query(sql_source="v_post")
+def posts() -> list[Post]:
+    """Get all posts."""
+    ...
 
 
-@fraiseql.query
-def post(id: int) -> Post | None:
+@fraiseql.query(sql_source="v_post")
+def post(id: ID) -> Post | None:
     """Get a post by ID."""
-    return fraiseql.config(sql_source="v_posts")
+    ...
 
 
-# Export schema
 if __name__ == "__main__":
     output_path = Path(__file__).parent / "schema.json"
     fraiseql.export_schema(str(output_path))

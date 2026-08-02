@@ -213,7 +213,7 @@ pub async fn run() {
                 };
 
                 let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
-                commands::generate_views::run(config, &formatter)
+                commands::generate_views::run(config, &formatter).await
             },
             Err(e) => Err(anyhow::anyhow!(e)),
         },

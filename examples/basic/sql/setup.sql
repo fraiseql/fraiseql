@@ -32,10 +32,12 @@ CREATE INDEX idx_tb_user_id ON tb_user(id);
 CREATE INDEX idx_tb_post_id ON tb_post(id);
 
 -- Create views (Trinity Pattern v_* naming)
--- Each view returns pk_* (for internal joins) and data (JSONB for GraphQL)
+-- Each view returns pk_* (internal joins), id (native UUID for id lookups)
+-- and data (the JSONB payload the runtime reads)
 CREATE VIEW v_user AS
 SELECT
     pk_user,
+    id,
     jsonb_build_object(
         'id', id,
         'name', name,
@@ -47,6 +49,7 @@ FROM tb_user;
 CREATE VIEW v_post AS
 SELECT
     p.pk_post,
+    p.id,
     jsonb_build_object(
         'id', p.id,
         'title', p.title,

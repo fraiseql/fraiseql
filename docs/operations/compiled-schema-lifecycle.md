@@ -62,14 +62,14 @@ Deployment: Server downloads from S3 at startup
 ### Option B: Compile into Docker image
 
 ```dockerfile
-FROM rust:1.78 AS builder
+FROM rust:1.92 AS builder
 COPY fraiseql.toml types.json ./
 RUN fraiseql compile fraiseql.toml
 
 FROM debian:bookworm-slim
 COPY --from=builder schema.compiled.json .
 COPY --from=builder fraiseql-server .
-ENTRYPOINT ["./fraiseql-server", "--schema", "schema.compiled.json"]
+ENTRYPOINT ["./fraiseql-server", "--schema-path", "schema.compiled.json"]
 ```
 
 **Pros**: Self-contained image, no external storage required.
@@ -82,7 +82,7 @@ ENTRYPOINT ["./fraiseql-server", "--schema", "schema.compiled.json"]
 #!/bin/sh
 # entrypoint.sh — do NOT use in production
 fraiseql compile fraiseql.toml
-exec fraiseql-server --schema schema.compiled.json
+exec fraiseql-server --schema-path schema.compiled.json
 ```
 
 **Pros**: Simple local development flow.

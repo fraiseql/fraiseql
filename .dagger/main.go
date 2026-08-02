@@ -636,9 +636,47 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationFederationCompose(ctx, source)
 	case "saml":
 		return m.integrationSaml(ctx, source)
+	case "quickstart":
+		return m.integrationQuickstart(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml, quickstart)", suite)
 	}
+}
+
+// integrationQuickstart executes docs/guides/getting-started.md VERBATIM
+// against a real PostgreSQL (#734): tools/quickstart-smoke.sh extracts the
+// doc's fenced code blocks and runs them in order — schema authored with the
+// in-repo Python SDK, `fraiseql-cli compile`, a real `fraiseql-server` boot,
+// and one HTTP query whose response must match the doc's expected output. The
+// doc IS the fixture, so quickstart drift (phantom APIs, wrong flags, wrong
+// ports — the #734 class) reddens this leg. Phase 2 of the script scaffolds a
+// project with `fraiseql init` and runs its Python authoring skeleton, the
+// regeneration path the cargo suites cannot cover (it needs Python).
+func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: quickstart (docs/guides/getting-started.md verbatim, #734)'",
+		"cargo build -p fraiseql-cli --bin fraiseql-cli",
+		"cargo build -p fraiseql-server --bin fraiseql-server",
+		"export PATH=/src/target/debug:$PATH",
+		"bash tools/quickstart-smoke.sh",
+		"echo 'test-integration OK: quickstart suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		// The smoke drives the documented user tooling, not the test harness:
+		// psql applies the doc's setup.sql, curl issues the doc's query.
+		// python3-httpx is the SDK's one third-party import (the doc's
+		// `pip install fraiseql` is substituted with the in-repo SDK).
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "postgresql-client", "curl", "python3-httpx"}).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithEnvVariable("SMOKE_DATABASE_URL", dbURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
 }
 
 // integrationPostgres binds a seeded postgres:16 service and runs the PostgreSQL
@@ -719,6 +757,15 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// `tldEq` split on the first dot and shipped `.com` for `example.com`.
 		"echo '### cargo test -p fraiseql-cli --test sql_templates_execute_pg (#721 templates run against PG)'",
 		"cargo test -p fraiseql-cli --features test-postgres --test sql_templates_execute_pg -- --test-threads=1",
+		// #823/#822/#569 — the first-run e2e: `fraiseql init` scaffolds, every
+		// printed next step is executed, the scaffold's DDL is applied, and a
+		// query + a mutation run through the real executor against PostgreSQL.
+		"echo '### cargo test -p fraiseql-cli --test init_first_run_pg (#823/#822 first-run e2e)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1",
+		// #821 — `generate-views --validate` executes the DDL against PostgreSQL
+		// in a rolled-back transaction; this suite proves it can PASS and FAIL.
+		"echo '### cargo test -p fraiseql-cli --test generate_views_validate_pg (#821 validate can fail)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 

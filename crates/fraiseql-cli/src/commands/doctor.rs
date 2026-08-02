@@ -307,13 +307,14 @@ pub fn check_db_reachable(db_url_override: Option<&str>) -> DoctorCheck {
         ),
         Some((host, port)) => {
             let addr = format!("{host}:{port}");
-            // Parse the socket addr; fall back to a guaranteed-refused addr on parse failure.
-            let sock_addr = addr.parse().unwrap_or_else(|_| {
-                std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0)
-            });
-            match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
-                Ok(_) => DoctorCheck::pass("DATABASE_URL reachable", addr),
-                Err(e) => DoctorCheck::fail(
+            match probe_tcp(&host, port) {
+                Ok(()) => DoctorCheck::pass("DATABASE_URL reachable", addr),
+                Err(ProbeError::Resolution(e)) => DoctorCheck::fail(
+                    "DATABASE_URL reachable",
+                    format!("host does not resolve ({addr}): {e}"),
+                    format!("Check the hostname in DATABASE_URL — DNS lookup of '{host}' failed"),
+                ),
+                Err(ProbeError::Connect(e)) => DoctorCheck::fail(
                     "DATABASE_URL reachable",
                     format!("connection refused ({addr}): {e}"),
                     format!(
@@ -324,6 +325,47 @@ pub fn check_db_reachable(db_url_override: Option<&str>) -> DoctorCheck {
             }
         },
     }
+}
+
+/// Why a TCP probe failed: the name never resolved, or every resolved address
+/// refused the connection. The two need different operator guidance.
+enum ProbeError {
+    /// DNS/name resolution failed (or yielded no addresses).
+    Resolution(String),
+    /// The name resolved but no address accepted a connection.
+    Connect(std::io::Error),
+}
+
+/// Resolve `host:port` through the system resolver (hostnames, IPv4 and IPv6
+/// literals alike) and try a 5-second TCP connect to each resolved address.
+///
+/// `str::parse::<SocketAddr>` performs **no** name resolution, so the previous
+/// implementation dialed a sentinel `0.0.0.0:0` for every hostname-based URL
+/// and reported a healthy database as "connection refused" (#819). A sentinel
+/// address is never substituted: resolution failure is reported as its own
+/// failure mode.
+fn probe_tcp(host: &str, port: u16) -> std::result::Result<(), ProbeError> {
+    use std::net::ToSocketAddrs;
+
+    let addrs: Vec<std::net::SocketAddr> = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| ProbeError::Resolution(e.to_string()))?
+        .collect();
+    if addrs.is_empty() {
+        return Err(ProbeError::Resolution("no addresses returned".to_string()));
+    }
+
+    let mut last_err: Option<std::io::Error> = None;
+    for addr in addrs {
+        match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
+            Ok(_) => return Ok(()),
+            Err(e) => last_err = Some(e),
+        }
+    }
+    // `addrs` is non-empty, so at least one connect ran and set `last_err`.
+    Err(ProbeError::Connect(last_err.unwrap_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "no address accepted")
+    })))
 }
 
 /// Check whether `FRAISEQL_JWT_SECRET` is set.
@@ -353,12 +395,14 @@ pub fn check_redis_reachable() -> DoctorCheck {
         ),
         Some((host, port)) => {
             let addr = format!("{host}:{port}");
-            let sock_addr = addr.parse().unwrap_or_else(|_| {
-                std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0)
-            });
-            match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
-                Ok(_) => DoctorCheck::pass("FRAISEQL_REDIS_URL", format!("reachable ({addr})")),
-                Err(e) => DoctorCheck::fail(
+            match probe_tcp(&host, port) {
+                Ok(()) => DoctorCheck::pass("FRAISEQL_REDIS_URL", format!("reachable ({addr})")),
+                Err(ProbeError::Resolution(e)) => DoctorCheck::fail(
+                    "FRAISEQL_REDIS_URL",
+                    format!("host does not resolve ({addr}): {e}"),
+                    "Check the hostname in REDIS_URL, or unset REDIS_URL to disable caching",
+                ),
+                Err(ProbeError::Connect(e)) => DoctorCheck::fail(
                     "FRAISEQL_REDIS_URL",
                     format!("set but not reachable ({addr}): {e}"),
                     "Check that Redis is running or unset REDIS_URL to disable caching",

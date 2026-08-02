@@ -449,59 +449,6 @@ type Query {
 
 ---
 
-## config()
-
-Configuration helper for decorators.
-
-### Signature
-
-```python
-@fraiseql.query
-def my_query() -> Result:
-    return fraiseql.config(
-        sql_source="v_data",
-        auto_params={"limit": True}
-    )
-```
-
-### Features
-
-- **In-function configuration**: Alternative to decorator arguments
-- **Dynamic configuration**: Can be conditional (though not recommended)
-- **Type-safe**: Returns configuration dict
-
-### Examples
-
-```python
-# Basic usage
-@fraiseql.query
-def users() -> list[User]:
-    return fraiseql.config(sql_source="v_user")
-
-# With parameters
-@fraiseql.query
-def users(limit: int = 10) -> list[User]:
-    return fraiseql.config(
-        sql_source="v_user",
-        auto_params={"limit": True, "offset": True}
-    )
-
-# Alternative to decorator arguments
-# These are equivalent:
-
-# Style 1: Decorator arguments
-@fraiseql.query(sql_source="v_user")
-def users1() -> list[User]:
-    pass
-
-# Style 2: config() in function body
-@fraiseql.query
-def users2() -> list[User]:
-    return fraiseql.config(sql_source="v_user")
-```
-
----
-
 ## Complete Example
 
 ```python

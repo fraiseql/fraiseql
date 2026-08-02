@@ -7,7 +7,8 @@ A simple blog-style schema demonstrating FraiseQL's core features.
 This example includes:
 
 - **User** type with id, name, email, created_at
-- **Post** type with id, title, content, author_id, created_at
+- **Post** type with id, title, content, denormalized author identity
+  (author_id / author_name / author_email), created_at
 - Queries for listing and fetching users/posts
 - WHERE clause filtering support
 
@@ -24,6 +25,7 @@ psql -U postgres -d fraiseql_example -f sql/setup.sql
 ### 2. Generate Schema (Python SDK)
 
 ```bash
+pip install fraiseql   # inside this repo: pip install -e sdks/official/fraiseql-python
 cd examples/basic
 python3 schema.py
 # Creates: schema.json
@@ -52,10 +54,10 @@ curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users { id name email } }"}'
 
-# Get user by ID
+# Get user by ID (IDs are UUIDs — copy one from the users list above)
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
-  -d '{"query": "{ user(id: 1) { id name email posts { title } } }"}'
+  -d '{"query": "{ user(id: \"PASTE-A-UUID-HERE\") { id name email } }"}'
 ```
 
 ## Files
@@ -74,7 +76,8 @@ See `queries/` directory for example queries:
 
 - `list_users.graphql` - List all users
 - `get_user.graphql` - Get user by ID with posts
-- `filter_posts.graphql` - Filter posts by author
+- `list_posts.graphql` - List posts with author identity
+- `03-intro-list-posts-by-author.graphql` - Filter posts by author (WHERE clause)
 
 ## Architecture
 

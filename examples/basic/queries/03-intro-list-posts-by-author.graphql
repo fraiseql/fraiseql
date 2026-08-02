@@ -1,21 +1,18 @@
-# Chapter 3: Relationships & Filtering
-# Get all posts by a specific author
+# Chapter 3: Filtering
+# Get all posts by a specific author. v_post denormalizes the author's
+# identity into each post row (authorId / authorName / authorEmail).
 
-query GetPostsByAuthor($authorId: Int!) {
-  posts(filter: { author_id: $authorId }, limit: 10) {
+query PostsByAuthor($authorId: ID!) {
+  posts(where: { authorId: { eq: $authorId } }) {
     id
     title
     content
-    created_at
-    author {
-      id
-      name
-      email
-    }
+    authorName
+    createdAt
   }
 }
 
 # Variables for this query:
 # {
-#   "authorId": 1
+#   "authorId": "00000000-0000-0000-0000-000000000000"
 # }

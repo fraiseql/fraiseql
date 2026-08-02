@@ -1276,6 +1276,61 @@ mod doctor_tests {
         });
     }
 
+    /// #819 — a healthy listener reachable by HOSTNAME must be a Pass. The old
+    /// probe parsed `host:port` with `str::parse::<SocketAddr>` (which performs
+    /// no name resolution), silently fell back to the always-refused sentinel
+    /// `0.0.0.0:0`, and reported every hostname-based URL as "connection
+    /// refused" — a permanent false FAIL and exit 1 on a healthy setup.
+    #[test]
+    fn test_db_reachable_hostname_resolves_and_passes() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+        let port = listener.local_addr().expect("local addr").port();
+        let url = format!("postgres://user:pass@localhost:{port}/db");
+        let result = check_db_reachable(Some(&url));
+        assert_eq!(
+            result.status,
+            CheckStatus::Pass,
+            "a live listener reached via hostname must pass, got: {}",
+            result.detail
+        );
+    }
+
+    /// #819 — a host that does not resolve is its own failure mode and must be
+    /// reported as such, never as "connection refused" against a sentinel
+    /// address the probe invented.
+    #[test]
+    fn test_db_reachable_unresolvable_host_reports_resolution_failure() {
+        // `.invalid` is reserved (RFC 2606) and never resolves.
+        let result = check_db_reachable(Some("postgres://u:p@db.invalid:5432/db"));
+        assert_eq!(result.status, CheckStatus::Fail);
+        assert!(
+            result.detail.contains("resolve"),
+            "an unresolvable host must be reported as a resolution failure, got: {}",
+            result.detail
+        );
+        assert!(
+            !result.detail.contains("0.0.0.0"),
+            "the probe must never dial a sentinel address, got: {}",
+            result.detail
+        );
+    }
+
+    /// #819 — the Redis probe had the identical sentinel fallback.
+    #[test]
+    fn test_redis_reachable_hostname_resolves_and_passes() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+        let port = listener.local_addr().expect("local addr").port();
+        temp_env::with_var("REDIS_URL", Some(format!("redis://localhost:{port}")), || {
+            let result = check_redis_reachable();
+            assert_eq!(
+                result.status,
+                CheckStatus::Pass,
+                "a live Redis listener reached via hostname must pass, got: {}",
+                result.detail
+            );
+        });
+    }
+
     #[test]
     fn test_jwt_secret_set() {
         temp_env::with_var("FRAISEQL_JWT_SECRET", Some("supersecret"), || {
@@ -1737,6 +1792,63 @@ mod generate_views_tests {
         assert!(sql.contains("Composition views"));
         assert!(sql.contains("_recent"));
         assert!(sql.contains("_count"));
+        // #821 — an unconverted `format!` emitted the literal placeholder `{}`
+        // into the SQL; both composition views were PostgreSQL syntax errors on
+        // every invocation (the flag defaults on and has no off switch).
+        assert!(!sql.contains("{}"), "no unfilled placeholder may reach the DDL:\n{sql}");
+        assert!(
+            sql.contains("FROM tv_user_profile"),
+            "composition views must read the generated view:\n{sql}"
+        );
+    }
+
+    /// #821 adjunct — a `tv_` target is a MATERIALIZED view: the drop must
+    /// match the object class (a plain `DROP VIEW` errors on re-run), and the
+    /// `_recent` helper must filter on the column the tv_ view actually
+    /// exposes (`materialized_at`, not `updated_at`).
+    #[test]
+    fn test_generate_view_sql_tv_is_rerunnable_and_self_consistent() {
+        let sql = generate_view_sql(
+            "User",
+            "v_user",
+            "tv_user_profile",
+            "Table Vector (tv_)",
+            RefreshStrategy::TriggerBased,
+            true,
+            false,
+        );
+
+        assert!(
+            sql.contains("DROP MATERIALIZED VIEW IF EXISTS tv_user_profile"),
+            "tv_ drop must match the materialized object class:\n{sql}"
+        );
+        assert!(
+            !sql.contains("DROP VIEW IF EXISTS tv_user_profile"),
+            "a plain DROP VIEW on a materialized view fails on re-run:\n{sql}"
+        );
+        assert!(
+            sql.contains("materialized_at > NOW()"),
+            "_recent on a tv_ view must filter on materialized_at:\n{sql}"
+        );
+    }
+
+    /// #821 adjunct — the monitoring function reads a relation, so its
+    /// volatility is STABLE; IMMUTABLE licenses the planner to constant-fold
+    /// the row count inside a cached plan.
+    #[test]
+    fn test_generate_view_sql_monitoring_is_stable_not_immutable() {
+        let sql = generate_view_sql(
+            "User",
+            "v_user",
+            "ta_users",
+            "Table Arrow (ta_)",
+            RefreshStrategy::TriggerBased,
+            false,
+            true,
+        );
+
+        assert!(sql.contains("STABLE"), "monitoring function must be STABLE:\n{sql}");
+        assert!(!sql.contains("IMMUTABLE"), "IMMUTABLE mislabels a relation-reading fn:\n{sql}");
     }
 
     #[test]

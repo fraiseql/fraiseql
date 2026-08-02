@@ -1,8 +1,8 @@
 # FraiseQL v2 Architecture Principles
 
-**Last Updated**: June 22, 2026
+**Last Updated**: August 2, 2026
 **Architecture**: Layered Optionality with Feature Gates
-**Status**: v2.10.0 released · v2.11.0 in preparation (core production-ready; some enterprise features experimental — see notes)
+**Status**: v2.14.1 released (core production-ready; some enterprise features experimental — see notes)
 
 ---
 
@@ -323,7 +323,7 @@ let server = Server::new(config, schema, adapter, None).await?;
 server.serve().await?;
 ```
 
-This starts a fully functional GraphQL server on `127.0.0.1:4000` suitable for development.
+This starts a fully functional GraphQL server on `127.0.0.1:8000` (the `ServerConfig::default()` bind address) suitable for development.
 
 ### Production setup
 
@@ -498,7 +498,7 @@ struct MockDatabaseAdapter {
 }
 
 // Note: #[async_trait] is currently required for dyn-compatible async traits.
-// Native dyn-async-trait with Send is not yet stable in Rust 1.88 (MSRV),
+// Native dyn-async-trait with Send is not yet stable in Rust 1.92 (MSRV),
 // and dynosaur is incompatible due to Tokio's Send requirement on futures.
 #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
@@ -823,8 +823,8 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 ---
 
-**Architecture Status**: Core production-ready (v2.8.0 released; v2.9.0 in development)
-**Last Updated**: June 22, 2026 (Enterprise features: secrets, auth, RBAC available; field-level at-rest encryption not implemented)
+**Architecture Status**: Core production-ready (v2.14.1 released)
+**Last Updated**: August 2, 2026 (Enterprise features: secrets, auth, RBAC available; field-level at-rest encryption not implemented)
 **Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
 **Unsafe Code**: Zero (forbidden at compile time)
