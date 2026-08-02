@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The compiled `auth` object is nested (#368, #367).** `CompiledSchema.auth` was
+  the flat PKCE quadruple; it is now a container with `pkce`, `social` and `local`
+  groups, so the `[auth]` block can carry the social-provider registry and the
+  first-party auth methods alongside the PKCE client. A schema compiled before this
+  change carries the flat shape and no longer deserializes — recompile it. (There are
+  no compiled schemas in the wild; the field shipped in #621.)
+
+- **`fraiseql_auth::social` is deleted (#368).** `SocialLoginState`,
+  `SocialProviderRegistry` and `social_authorize` were a second, thinner social
+  surface: a redirect-only `GET /auth/v1/authorize` with no callback, no account
+  linking and therefore no trust gate. The mounted flow is `multi_provider`, which has
+  all three. `Server::with_social_login` now takes
+  `Arc<MultiProviderAuthState>`; library embedders on the old type should build the
+  `multi_provider` state instead, or configure `[auth.social]` and let the server
+  build it.
+
+- **`GitHubOAuth::new` is synchronous and fallible (#368).** It was `async` because it
+  performed OIDC discovery — against an endpoint GitHub does not serve. It now returns
+  `Result<Self>` without any network call; `GitHubOAuth::with_endpoints` takes explicit
+  base URLs for GitHub Enterprise Server.
+
+- **`github` is trusted for email-verified account linking by default (#368).** With
+  the `/user/emails` second hop implemented, `TrustedEmailProviders::builtin_default`
+  is now `{google, apple, github}`. Deployments that want the previous posture should
+  call `.distrust("github")`.
+
 - **The rich-filter surface (`<RichType>WhereInput`) is gone (#869).** The compiler
   emitted 48 per-type WhereInput input types advertising 35 operator names
   (`domainEq`, `tldIn`, `withinRange`, …) that the runtime WHERE parser could never
@@ -109,6 +135,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`UsagePersistenceConfig`, `WebhookRouteConfig`, error sanitization, pool tuning).
 
 ### Added
+
+- **Social login is reachable from the shipped binary (#368).** The account-linking
+  trust gate and the provider modules were library-only: `Server::with_social_login`
+  had zero callers, nothing auto-registered providers, and `[auth.social]` could not
+  even be typed (`[auth]` is `deny_unknown_fields`). A compiled `[auth.social.google]`
+  / `[auth.social.github]` block now builds the trust-gated `multi_provider` flow at
+  boot and mounts `GET /auth/v1/{providers,authorize,callback}`, backed by
+  Postgres-backed sessions and account linking. Configured-but-unusable shapes refuse
+  to boot naming the offending key: no `[auth_hs256]`, an unset `client_secret_env`,
+  an SSRF-blocked endpoint override, or no database pool. `/auth/v1/authorize` and
+  `/auth/v1/callback` are governed by the same per-IP `auth_start` / `auth_callback`
+  path buckets that guard `/auth/start` (#788) — both rate-limit backends now derive
+  their rules from one shared builder so they cannot drift. Apple, Discord and
+  Facebook are split out to #943 and #944.
+
+- **The GitHub provider talks to GitHub (#368).** It wrapped `OidcProvider`, so
+  construction performed OIDC discovery against `github.com` — which serves no
+  discovery document (404), meaning it could never have constructed against real
+  GitHub. It is now a plain OAuth2 client against the fixed well-known endpoints
+  (overridable for GitHub Enterprise Server, SSRF-guarded), requesting
+  `read:user user:email`, sending `Accept: application/json` at the token endpoint,
+  and tolerating the absent `expires_in`. The `/user/emails` second hop resolves the
+  **primary verified** address, so a private-email GitHub account can participate in
+  email-keyed account linking; any failure of that hop falls back to
+  `email_verified = false`. GitHub therefore joins `google` and `apple` in the default
+  `TrustedEmailProviders` set — the documented reason for its exclusion was exactly
+  this missing hop.
+
+- **`[auth.local]` — first-party auth methods are reachable (#367).** Email+password,
+  email OTP / magic link, TOTP MFA and anonymous sessions all existed in
+  `fraiseql-auth` with no way to reach them: `with_mfa` / `with_anon_signup` had zero
+  callers, the MFA/social/anon route groups were registered against fields hard-coded
+  to `None`, OTP had no server route at all, and the password-reset flow had no
+  concrete `ResetEmailSender` outside its own test double. A compiled `[auth.local]`
+  block now mounts each enabled method — `/auth/v1/password/{signup,login,reset,
+  reset/confirm}`, `/auth/v1/{otp,verify}`, `/auth/v1/mfa/*`, `/auth/v1/signup` — and
+  a method that cannot work refuses to boot rather than dead-ending: no
+  `[auth_hs256]`, no pool, a missing or send-less `email_from` mailbox, or a build
+  without the `inbound-email` feature (which carries the SMTP transport) each name
+  the offending key.
+
+- **Postgres-backed MFA and OTP stores (#367).** `PgMfaStore` and `PgOtpStore` make
+  `[auth.local] mfa`/`otp` safe to serve. The in-memory stores are per-process, which
+  for MFA means a deploy silently destroys every user's second factor, and for OTP
+  means N replicas multiply both the send budget and the 3-attempt verify cap by N —
+  a six-digit code becomes brute-forceable. TOTP secrets are stored recoverable (they
+  are shared secrets), recovery codes are bcrypt-hashed and deleted as consumed,
+  challenge tokens and OTP codes are stored as SHA-256 hashes so a database read
+  cannot replay a live one, and the per-user failure budget lives in the enrollment
+  row so it survives a restart. Both budgets are charged in SQL, so a concurrent
+  flood cannot lose a failure to a read-modify-write race.
+
+- **A concrete `ResetEmailSender` / `EmailDelivery` (#367).** `MailboxEmailSender`
+  relays OTP codes and reset links through the same `[mailbox.<name>.smtp]` transport
+  the `send_email` host op uses, so a deployment configures outbound mail once.
+  `reset_url_template` / `magic_link_template` are validated at compile time to
+  contain their `{token}` / `{code}` placeholder — a template without one builds the
+  same dead link for every user.
+
+- **OTP identities are real accounts (#367).** `otp_verify` minted
+  `user_id = "otp:<email>"` without touching the account store, so the same person's
+  OTP, social and password sign-ins produced as many separate identities as sign-in
+  methods. Completing the OTP flow proves control of the mailbox, so the identity now
+  resolves through `AccountStore::link_or_create_user` with `email_verified = true`
+  and converges with every other verified-email sign-in for that address.
 
 - **`FRAISEQL_SHUTDOWN_TIMEOUT_SECS` / `--shutdown-timeout-secs` (#838).** The
   `shutdown_timeout_secs` config field's rustdoc had promised this override since it

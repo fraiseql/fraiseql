@@ -30,6 +30,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.mount_rbac(app, db_pool);
         }
 
+        // API-key management (#627) — mounted only when the authenticator is
+        // Postgres-backed, behind the same admin bearer gate as RBAC. Operates
+        // on the SAME store the authenticator reads.
+        if let Some(store) = self.api_key_authenticator.as_ref().and_then(|a| a.postgres_store()) {
+            if let Some(ref token) = self.config.admin_token {
+                info!("API-key management endpoints enabled (admin bearer token required)");
+                let mgmt_state = crate::api::ApiKeyManagementState {
+                    store: std::sync::Arc::new(store.clone()),
+                };
+                let auth_state = BearerAuthState::with_max_failures(
+                    token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
+                let mgmt_router = crate::api::api_key_management_router(mgmt_state).route_layer(
+                    middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
+                );
+                app = app.merge(mgmt_router);
+            } else {
+                tracing::error!(
+                    "API-key management disabled — [security.api_keys] storage = \"postgres\" \
+                     is active but admin_token is not set. Keys can be authenticated but not \
+                     managed over HTTP; set admin_token to enable the management endpoints."
+                );
+            }
+        }
+
         // Identity-cache admin API (flush) — same admin bearer gate as RBAC,
         // mounted only when an enrichment resolver exists (#539). Lets an operator
         // propagate a revoke/provision immediately instead of waiting out the TTL.

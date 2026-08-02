@@ -62,14 +62,27 @@ impl GoogleOAuth {
         client_secret: String,
         redirect_uri: String,
     ) -> Result<Self> {
-        let oidc = OidcProvider::new(
-            "google",
-            "https://accounts.google.com",
-            &client_id,
-            &client_secret,
-            &redirect_uri,
-        )
-        .await?;
+        Self::with_issuer(client_id, client_secret, redirect_uri, "https://accounts.google.com")
+            .await
+    }
+
+    /// Create a Google OAuth provider against an explicit OIDC issuer —
+    /// Google-compatible stand-ins or a stub `IdP` in tests (#368,
+    /// `[auth.social.google] discovery_url`). Discovery is fetched at boot
+    /// under the shared SSRF guards, exactly like [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `AuthError` if the issuer fails SSRF validation or discovery fails.
+    pub async fn with_issuer(
+        client_id: String,
+        client_secret: String,
+        redirect_uri: String,
+        issuer_url: &str,
+    ) -> Result<Self> {
+        let oidc =
+            OidcProvider::new("google", issuer_url, &client_id, &client_secret, &redirect_uri)
+                .await?;
 
         Ok(Self { oidc })
     }

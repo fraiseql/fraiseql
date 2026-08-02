@@ -634,6 +634,33 @@ sql_source = "v_category"
         );
     }
 
+    /// #627: `storage = "postgres"` is now a real backend and must compile;
+    /// an unknown storage value still bails (it would authenticate nothing).
+    #[test]
+    fn api_keys_storage_postgres_is_accepted_and_unknown_is_refused() {
+        let postgres = r#"
+[security.api_keys]
+enabled = true
+storage = "postgres"
+"#;
+        let schema: TomlSchema = toml::from_str(postgres).unwrap();
+        assert!(
+            schema.reject_accepted_but_unconsumed_config().is_ok(),
+            "storage = \"postgres\" is implemented (#627) and must be accepted"
+        );
+
+        let unknown = r#"
+[security.api_keys]
+enabled = true
+storage = "redis"
+"#;
+        let schema: TomlSchema = toml::from_str(unknown).unwrap();
+        let err = schema
+            .reject_accepted_but_unconsumed_config()
+            .expect_err("an unimplemented storage backend must be refused");
+        assert!(err.to_string().contains("redis"), "the error must name the value: {err}");
+    }
+
     #[test]
     fn test_hierarchy_config_rejects_empty_path_column() {
         let toml = r#"

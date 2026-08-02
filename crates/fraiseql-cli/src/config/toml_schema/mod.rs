@@ -385,16 +385,15 @@ impl TomlSchema {
             );
         }
 
-        // #7 [security.api_keys] storage: only `env` (static keys) is implemented; the
-        // server never reads `.storage`, so `postgres` authenticates nothing.
+        // #7 [security.api_keys] storage: `env` (static keys) and `postgres` (#627,
+        // the server-side PgApiKeyStore) are implemented; anything else would
+        // deserialize into an authenticator that authenticates nothing, silently.
         if let Some(api_keys) = &self.security.api_keys {
-            if api_keys.storage != "env" {
+            if api_keys.storage != "env" && api_keys.storage != "postgres" {
                 anyhow::bail!(
-                    "[security.api_keys] storage = \"{}\" is not implemented: the server only \
-                     authenticates static `env` keys and never reads a postgres-backed key \
-                     store, so this value authenticates nothing. Set storage = \"env\". A \
-                     postgres-backed API-key store is tracked at \
-                     https://github.com/fraiseql/fraiseql/issues/627.",
+                    "[security.api_keys] storage = \"{}\" is not implemented: supported values \
+                     are \"env\" (static hashed keys) and \"postgres\" (database-backed store, \
+                     #627). Any other value would authenticate nothing.",
                     api_keys.storage
                 );
             }

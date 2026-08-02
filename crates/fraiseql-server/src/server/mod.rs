@@ -122,25 +122,41 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
     #[cfg(feature = "auth")]
     pub(super) oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
-    /// Unified social login provider registry.
+    /// Social-login state (#368) — the trust-gated `multi_provider` flow.
     ///
-    /// When `Some`, the server mounts `GET /auth/v1/authorize` and uses the
-    /// registry to look up `OAuth` providers by name.  Set via
-    /// [`Server::with_social_login`].
+    /// When `Some`, the server mounts `GET /auth/v1/providers`,
+    /// `GET /auth/v1/authorize` and `GET /auth/v1/callback`. Built from the
+    /// compiled `[auth.social]` block in `from_executor`; library embedders
+    /// may override via [`Server::with_social_login`].
     #[cfg(feature = "auth")]
-    pub(super) social_login: Option<Arc<crate::auth::social::SocialLoginState>>,
+    pub(super) social_login: Option<Arc<crate::auth::MultiProviderAuthState>>,
     /// Anonymous session signup state.
     ///
     /// When `Some`, mounts `POST /auth/v1/signup`.  Set via [`Server::with_anon_signup`].
     #[cfg(feature = "auth")]
     pub(super) anon_signup_state: Option<Arc<crate::auth::AnonSignupState>>,
-    /// `TOTP` `MFA` route state.
+    /// `TOTP` `MFA` route state (`[auth.local] mfa = true`, #367).
     ///
     /// When `Some`, the server mounts the four `MFA` endpoints under
-    /// `/auth/v1/mfa/`.  Set via [`Server::with_mfa`].
+    /// `/auth/v1/mfa/`, backed by the Postgres enrollment store. Also settable
+    /// via [`Server::with_mfa`] for library embedders.
     #[cfg(feature = "auth")]
     pub(super) mfa_state: Option<Arc<crate::auth::MfaRouteState>>,
+    /// Email `OTP` / magic-link route state (`[auth.local] otp = true`, #367).
+    ///
+    /// When `Some`, mounts `POST /auth/v1/otp` and `POST /auth/v1/verify`.
+    #[cfg(feature = "auth")]
+    pub(super) otp_state: Option<Arc<crate::auth::OtpRouteState>>,
+    /// Local email+password route state (`[auth.local] password = true`, #367).
+    ///
+    /// When `Some`, mounts `/auth/v1/password/{signup,login,reset,reset/confirm}`.
+    #[cfg(feature = "auth")]
+    pub(super) local_password_state: Option<Arc<crate::auth::LocalPasswordRouteState>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    /// SAML SP state (#381) — present when `[saml]` is configured on an
+    /// `auth-saml` build; `mount_auth_routes` mounts the login/ACS routes.
+    #[cfg(feature = "auth-saml")]
+    pub(super) saml_state: Option<fraiseql_auth::saml::SamlAuthState>,
     pub(super) service_account_authenticator:
         Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
     // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs

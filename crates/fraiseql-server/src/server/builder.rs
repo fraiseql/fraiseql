@@ -66,7 +66,11 @@ pub(super) struct SchemaSubsystems {
     #[cfg(feature = "auth")]
     pub oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
-    pub api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    /// Parsed `[security.api_keys]` config. The authenticator is built in
+    /// `from_executor`, where the database pool is in scope — `storage =
+    /// "postgres"` needs it, and a config that demands it without one refuses
+    /// to boot there (#627).
+    pub api_key_config: Option<crate::api_key::ApiKeyConfig>,
     pub service_account_authenticator:
         Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
     pub revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
@@ -182,7 +186,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
-        let mut server = Self::from_executor(
+        // Boxed: `from_executor` constructs every subsystem, and its future is
+        // large enough that inlining it tips each public constructor past
+        // clippy's `large_futures` stack budget — and, more to the point, puts a
+        // multi-KiB frame on every caller's stack.
+        let mut server = Box::pin(Self::from_executor(
             config,
             executor,
             subscription_manager,
@@ -190,7 +198,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             db_pool,
             #[cfg(feature = "arrow")]
             None,
-        )
+        ))
         .await?;
 
         server.adapter_cache_enabled = cache_config.enabled;
@@ -245,10 +253,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             |name| std::env::var(name).ok(),
             crate::ServerConfig::is_production_mode(),
         )?;
-        let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(schema);
-        if api_key_authenticator.is_some() {
-            info!("API key authentication enabled");
-        }
+        let api_key_config = crate::api_key::api_key_config_from_schema(schema);
         let service_account_authenticator =
             crate::service_account::service_account_authenticator_from_schema(schema);
         if service_account_authenticator.is_some() {
@@ -275,7 +280,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             oidc_server_client,
             rate_limiter,
-            api_key_authenticator,
+            api_key_config,
             service_account_authenticator,
             revocation_manager,
             trusted_docs,
@@ -390,12 +395,52 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             oidc_server_client,
             rate_limiter,
-            api_key_authenticator,
+            api_key_config,
             service_account_authenticator,
             revocation_manager,
             trusted_docs,
+            // Reason: `tasks` is only mutated by the auth-gated PKCE cleanup spawn below
+            #[cfg_attr(not(feature = "auth"), allow(unused_mut))]
             mut tasks,
         } = subsystems;
+
+        // Build the API-key authenticator here, where `db_pool` is in scope.
+        // `storage = "postgres"` without a pool must refuse to boot — the
+        // alternative is #627's original defect: an authenticator with zero
+        // keys that authenticates nothing, silently.
+        let api_key_authenticator = match &api_key_config {
+            Some(cfg) if cfg.enabled && cfg.storage == "postgres" => {
+                let pool = db_pool.clone().ok_or_else(|| {
+                    ServerError::ConfigError(
+                        "[security.api_keys] storage = \"postgres\" requires a database \
+                         pool, and this server was constructed without one. Pass a PgPool \
+                         to Server::new (the binary does this automatically when \
+                         database_url is set), or use storage = \"env\"."
+                            .to_string(),
+                    )
+                })?;
+                let authenticator = crate::api_key::ApiKeyAuthenticator::from_config(cfg)
+                    .ok_or_else(|| {
+                        ServerError::ConfigError(
+                            "[security.api_keys] is enabled but invalid — see the warnings \
+                             above for the offending field"
+                                .to_string(),
+                        )
+                    })?
+                    .with_postgres(crate::api_key::postgres::PgApiKeyStore::new(pool));
+                info!("API key authentication enabled (postgres-backed store)");
+                Some(Arc::new(authenticator))
+            },
+            Some(cfg) => {
+                let authenticator =
+                    crate::api_key::ApiKeyAuthenticator::from_config(cfg).map(Arc::new);
+                if authenticator.is_some() {
+                    info!("API key authentication enabled");
+                }
+                authenticator
+            },
+            None => None,
+        };
 
         // Initialize OIDC validator if auth is configured.
         //
@@ -452,6 +497,138 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Social-login state (#368): built here, where the pool is in scope.
+        // The compiled `[auth.social]` block declares the providers; every
+        // configured-but-unusable shape (missing [auth_hs256], unset secret
+        // env, no pool, unreachable Google discovery) refuses to boot.
+        #[cfg(feature = "auth")]
+        let social_login = match executor.schema().auth.as_ref().and_then(|a| a.social.as_ref()) {
+            Some(social_cfg) => {
+                // Boxed for the same reason as `build_local_auth_states` below.
+                Some(
+                    Box::pin(Self::build_social_state(social_cfg, &config, db_pool.clone()))
+                        .await?,
+                )
+            },
+            None => None,
+        };
+
+        // `[auth.local]` states (#367): password / OTP / MFA / anonymous. Built
+        // here for the same reason as the social states — the pool is in scope,
+        // and every enabled method needs it.
+        #[cfg(feature = "auth")]
+        let local_auth = match executor.schema().auth.as_ref().and_then(|a| a.local.as_ref()) {
+            // Boxed: this builds four route states plus their stores, and
+            // inlining that into `from_executor`'s future tips it past clippy's
+            // `large_futures` stack budget at every call site.
+            Some(local_cfg) => {
+                Box::pin(crate::auth_local::build_local_auth_states(
+                    local_cfg,
+                    &config,
+                    db_pool.clone(),
+                ))
+                .await?
+            },
+            None => crate::auth_local::LocalAuthStates {
+                otp:      None,
+                mfa:      None,
+                password: None,
+                anon:     None,
+            },
+        };
+
+        // SAML SP state (#381): built here, where the pool is in scope. The
+        // `[saml]` section is validated by ServerConfig::validate (shape +
+        // [auth_hs256] requirement); this adds the runtime requirements — a
+        // database pool (sessions + account linking) and parseable IdP
+        // metadata — failing loud on each.
+        #[cfg(feature = "auth-saml")]
+        let saml_state = match &config.saml {
+            Some(saml_cfg) => {
+                let pool = db_pool.clone().ok_or_else(|| {
+                    ServerError::ConfigError(
+                        "[saml] requires a database pool: verified assertions mint \
+                         Postgres-backed sessions and resolve accounts through the \
+                         account store. The binary provides one when database_url is \
+                         set; library embedders must pass a PgPool to Server::new."
+                            .to_string(),
+                    )
+                })?;
+                let hs = config.auth_hs256.as_ref().ok_or_else(|| {
+                    // validate() enforces this; belt-and-braces for embedders that
+                    // construct ServerConfig programmatically and skip nothing else.
+                    ServerError::ConfigError("[saml] requires [auth_hs256]".to_string())
+                })?;
+                let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
+                // Mint sessions with the claims the configured HS256 validator
+                // demands — defaults would 401 on the first validated request.
+                let session_store = Arc::new(
+                    fraiseql_auth::PostgresSessionStore::with_hs256_secret(
+                        pool.clone(),
+                        secret.into_bytes(),
+                    )
+                    .with_token_claims(
+                        hs.issuer.clone().unwrap_or_else(|| {
+                            fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string()
+                        }),
+                        hs.audience.clone().unwrap_or_else(|| {
+                            fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string()
+                        }),
+                    ),
+                );
+                let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool));
+                let state_store = Arc::new(fraiseql_auth::InMemoryStateStore::new());
+                let mut state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
+                    .with_user_store(account_store);
+                for (name, entry) in &saml_cfg.idps {
+                    let xml = match (&entry.metadata_xml, &entry.metadata_xml_path) {
+                        (Some(xml), _) => xml.clone(),
+                        (None, Some(path)) => std::fs::read_to_string(path).map_err(|e| {
+                            ServerError::ConfigError(format!(
+                                "[saml.idps.{name}] cannot read metadata_xml_path {}: {e}",
+                                path.display()
+                            ))
+                        })?,
+                        (None, None) => {
+                            // validate() enforces exactly one source; a
+                            // programmatic config that skips validate is
+                            // caught by the same gate in from_executor.
+                            return Err(ServerError::ConfigError(format!(
+                                "[saml.idps.{name}] needs exactly one of metadata_xml / \
+                                 metadata_xml_path"
+                            )));
+                        },
+                    };
+                    let idp = fraiseql_auth::saml::SamlIdpConfig::builder(
+                        name.clone(),
+                        entry.sp_entity_id.clone(),
+                        entry.acs_url.clone(),
+                    )
+                    .idp_metadata_xml(&xml)
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "[saml.idps.{name}] metadata does not parse: {e}"
+                        ))
+                    })?
+                    .tenant_id(entry.tenant_id.clone())
+                    .trust_asserted_email(entry.trust_asserted_email)
+                    .build()
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "[saml.idps.{name}] configuration invalid: {e}"
+                        ))
+                    })?;
+                    state = state.with_idp(idp);
+                }
+                info!(
+                    idps = saml_cfg.idps.len(),
+                    "SAML SP-initiated SSO enabled (/auth/saml/login, /auth/saml/acs)"
+                );
+                Some(state)
+            },
+            None => None,
+        };
+
         // Refuse to start if FRAISEQL_REQUIRE_REDIS is set and any running
         // shared-auth-state subsystem is per-process (#874): PKCE, rate
         // limiting, and token revocation are all part of the operator's
@@ -493,11 +670,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             oidc_server_client,
             #[cfg(feature = "auth")]
-            social_login: None,
+            social_login,
             #[cfg(feature = "auth")]
-            mfa_state: None,
+            mfa_state: local_auth.mfa,
             #[cfg(feature = "auth")]
-            anon_signup_state: None,
+            anon_signup_state: local_auth.anon,
+            #[cfg(feature = "auth")]
+            otp_state: local_auth.otp,
+            #[cfg(feature = "auth")]
+            local_password_state: local_auth.password,
+            #[cfg(feature = "auth-saml")]
+            saml_state,
             api_key_authenticator,
             service_account_authenticator,
             revocation_manager,
@@ -561,6 +744,133 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
     }
 
+    /// Build the social-login state from the compiled `[auth.social]` block
+    /// (#368) — the trust-gated `multi_provider` flow, backed by
+    /// Postgres-backed sessions and account linking.
+    ///
+    /// Fail-loud on every configured-but-unusable shape, in config-first order
+    /// so DB-less misconfigurations surface before the pool requirement:
+    /// missing `[auth_hs256]`, an unset provider `client_secret_env`, an
+    /// invalid provider endpoint (SSRF-guarded), an unreachable Google
+    /// discovery document, and finally a missing database pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServerError::ConfigError`] naming the offending section for
+    /// each of the shapes above.
+    #[cfg(feature = "auth")]
+    async fn build_social_state(
+        social: &fraiseql_core::schema::SocialAuthConfig,
+        config: &ServerConfig,
+        db_pool: Option<sqlx::PgPool>,
+    ) -> Result<Arc<fraiseql_auth::MultiProviderAuthState>> {
+        use fraiseql_auth::provider::OAuthProvider;
+
+        let hs = config.auth_hs256.as_ref().ok_or_else(|| {
+            ServerError::ConfigError(
+                "[auth.social] requires [auth_hs256]: the OAuth callback mints HS256-signed \
+                 sessions this server itself validates. Add [auth_hs256] to the server config."
+                    .to_string(),
+            )
+        })?;
+
+        let read_secret = |provider: &str, env_name: &str| {
+            std::env::var(env_name).map_err(|_| {
+                ServerError::ConfigError(format!(
+                    "[auth.social.{provider}] client_secret_env {env_name} is not set. The \
+                     provider cannot exchange authorization codes without it — refusing to \
+                     mount a login flow that can never complete."
+                ))
+            })
+        };
+
+        let mut providers: Vec<(&'static str, Arc<dyn OAuthProvider>)> = Vec::new();
+        if let Some(g) = &social.google {
+            let secret = read_secret("google", &g.client_secret_env)?;
+            let issuer = g.discovery_url.as_deref().unwrap_or("https://accounts.google.com");
+            let provider = fraiseql_auth::GoogleOAuth::with_issuer(
+                g.client_id.clone(),
+                secret,
+                g.redirect_uri.clone(),
+                issuer,
+            )
+            .await
+            .map_err(|e| {
+                ServerError::ConfigError(format!(
+                    "[auth.social.google] provider construction failed (boot-time OIDC \
+                     discovery against {issuer}): {e}"
+                ))
+            })?;
+            providers.push(("google", Arc::new(provider)));
+        }
+        if let Some(g) = &social.github {
+            let secret = read_secret("github", &g.client_secret_env)?;
+            let provider = fraiseql_auth::GitHubOAuth::with_endpoints(
+                g.client_id.clone(),
+                secret,
+                g.redirect_uri.clone(),
+                g.base_url.clone().unwrap_or_else(|| "https://github.com".to_string()),
+                g.api_base_url.clone().unwrap_or_else(|| "https://api.github.com".to_string()),
+            )
+            .map_err(|e| {
+                ServerError::ConfigError(format!(
+                    "[auth.social.github] provider construction failed: {e}"
+                ))
+            })?;
+            providers.push(("github", Arc::new(provider)));
+        }
+        if providers.is_empty() {
+            // The CLI refuses this at compile time; belt-and-braces for
+            // programmatically constructed schemas.
+            return Err(ServerError::ConfigError(
+                "[auth.social] is configured but names no provider".to_string(),
+            ));
+        }
+
+        let pool = db_pool.ok_or_else(|| {
+            ServerError::ConfigError(
+                "[auth.social] requires a database pool: the callback mints Postgres-backed \
+                 sessions and resolves accounts through the account store. The binary provides \
+                 one when database_url is set; library embedders must pass a PgPool to \
+                 Server::new."
+                    .to_string(),
+            )
+        })?;
+
+        let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
+        // Mint sessions with the claims the configured HS256 validator demands
+        // — defaults would 401 on the first validated request.
+        let session_store = Arc::new(
+            fraiseql_auth::PostgresSessionStore::with_hs256_secret(
+                pool.clone(),
+                secret.into_bytes(),
+            )
+            .with_token_claims(
+                hs.issuer.clone().unwrap_or_else(|| {
+                    fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string()
+                }),
+                hs.audience.clone().unwrap_or_else(|| {
+                    fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string()
+                }),
+            ),
+        );
+        let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool));
+        let state_store = Arc::new(fraiseql_auth::InMemoryStateStore::new());
+        let mut state = fraiseql_auth::MultiProviderAuthState::new(state_store, session_store)
+            .with_user_store(account_store)
+            .with_redirect_uri_allowlist(social.redirect_uri_allowlist.clone());
+        let names: Vec<&str> = providers.iter().map(|(n, _)| *n).collect();
+        for (name, provider) in providers {
+            state.register_provider(name, provider);
+        }
+        info!(
+            providers = ?names,
+            allowlisted_redirects = social.redirect_uri_allowlist.len(),
+            "Social login enabled (/auth/v1/authorize, /auth/v1/callback)"
+        );
+        Ok(Arc::new(state))
+    }
+
     /// Set lifecycle hooks for `WebSocket` subscriptions.
     #[must_use]
     pub fn with_subscription_lifecycle(
@@ -613,24 +923,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         Ok(self)
     }
 
-    /// Attach a unified social-login provider registry.
+    /// Attach a pre-built social-login state, replacing whatever the compiled
+    /// `[auth.social]` block produced (#368).
     ///
-    /// When set, the server mounts `GET /auth/v1/authorize` which redirects
-    /// users to the specified `OAuth` provider's authorization URL with a `CSRF`
-    /// state token.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// use fraiseql_auth::social::{SocialLoginState, SocialProviderRegistry};
-    /// let state = Arc::new(SocialLoginState { ... });
-    /// let server = server.with_social_login(state);
-    /// ```
+    /// When set, the server mounts `GET /auth/v1/providers`,
+    /// `GET /auth/v1/authorize` and `GET /auth/v1/callback` — the trust-gated
+    /// `multi_provider` flow. Prefer configuring `[auth.social]` in
+    /// `fraiseql.toml`; this hook exists for library embedders wiring custom
+    /// providers.
     #[cfg(feature = "auth")]
     #[must_use]
     pub fn with_social_login(
         mut self,
-        social_login: Arc<crate::auth::social::SocialLoginState>,
+        social_login: Arc<crate::auth::MultiProviderAuthState>,
     ) -> Self {
         self.social_login = Some(social_login);
         self

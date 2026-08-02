@@ -47,13 +47,13 @@ use crate::{
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /// Number of recovery codes generated at enrollment.
-const RECOVERY_CODE_COUNT: usize = 8;
+pub(super) const RECOVERY_CODE_COUNT: usize = 8;
 
 /// Length of each recovery code (16 hex chars = 64-bit entropy).
 const RECOVERY_CODE_HEX_LEN: usize = 16;
 
 /// Challenge token `TTL` in seconds (5 minutes).
-const CHALLENGE_TTL_SECS: u64 = 300;
+pub(super) const CHALLENGE_TTL_SECS: u64 = 300;
 
 /// `TOTP` tolerance: ±1 step around the current 30-second window (RFC 6238 §5.2).
 const TOTP_STEP_TOLERANCE: u8 = 1;
@@ -62,26 +62,26 @@ const TOTP_STEP_TOLERANCE: u8 = 1;
 ///
 /// With `±1` step tolerance a 6-digit `TOTP` has 3 valid codes out of 10^6, so an
 /// unbounded challenge is brute-forceable inside its 5-minute `TTL`.
-const MAX_CHALLENGE_ATTEMPTS: u32 = 5;
+pub(super) const MAX_CHALLENGE_ATTEMPTS: u32 = 5;
 
 /// Failed verifications tolerated per user inside [`FAILURE_WINDOW_SECS`] before
 /// further challenges are refused.
 ///
 /// The per-challenge cap alone is not enough: challenges can be re-minted, so the
 /// budget has to be tracked against the user, not the token.
-const MAX_USER_FAILURES: u32 = 10;
+pub(super) const MAX_USER_FAILURES: u32 = 10;
 
 /// Sliding-window length for the per-user failure budget (15 minutes).
-const FAILURE_WINDOW_SECS: u64 = 900;
+pub(super) const FAILURE_WINDOW_SECS: u64 = 900;
 
 /// `bcrypt` cost factor.
 ///
 /// 12 is the recommended production minimum; lowered to 4 in tests to keep the
 /// suite fast.  This is the only deviation from the prod constant.
 #[cfg(not(test))]
-const BCRYPT_COST: u32 = 12;
+pub(super) const BCRYPT_COST: u32 = 12;
 #[cfg(test)]
-const BCRYPT_COST: u32 = 4;
+pub(super) const BCRYPT_COST: u32 = 4;
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -185,6 +185,8 @@ pub struct EnrollmentResponse {
     pub recovery_codes: Vec<String>,
 }
 
+pub mod postgres;
+
 // ─── In-memory MFA store ──────────────────────────────────────────────────────
 
 /// Thread-safe in-memory `MFA` store.
@@ -250,7 +252,11 @@ impl Default for InMemoryMfaStore {
 /// Uses `SHA-1`, 6 digits, 30-second step (RFC 6238 defaults).
 /// `issuer` and `account_name` are embedded in the `otpauth://` URI; for
 /// verification-only callers pass `None` and `""`.
-fn build_totp(secret_base32: &str, issuer: Option<&str>, account_name: &str) -> Result<TOTP> {
+pub(super) fn build_totp(
+    secret_base32: &str,
+    issuer: Option<&str>,
+    account_name: &str,
+) -> Result<TOTP> {
     let secret_bytes =
         Secret::Encoded(secret_base32.to_string())
             .to_bytes()
@@ -272,13 +278,13 @@ fn build_totp(secret_base32: &str, issuer: Option<&str>, account_name: &str) -> 
 }
 
 /// Verify a `TOTP` code with `±1` step tolerance.
-fn verify_totp_code(secret_base32: &str, code: &str) -> Result<bool> {
+pub(super) fn verify_totp_code(secret_base32: &str, code: &str) -> Result<bool> {
     let totp = build_totp(secret_base32, None, "")?;
     Ok(totp.check_current(code).unwrap_or(false))
 }
 
 /// Generate a random recovery code (`RECOVERY_CODE_HEX_LEN` lowercase hex chars).
-fn generate_recovery_code() -> String {
+pub(super) fn generate_recovery_code() -> String {
     // SECURITY: rand::rng() uses OS-level entropy for recovery codes.
     // Each byte encodes as 2 hex chars, so RECOVERY_CODE_HEX_LEN / 2 bytes.
     let byte_count = RECOVERY_CODE_HEX_LEN / 2;
@@ -292,7 +298,7 @@ fn generate_recovery_code() -> String {
 }
 
 /// Generate a 32-byte random challenge token (URL-safe base64).
-fn generate_challenge_token() -> String {
+pub(super) fn generate_challenge_token() -> String {
     use base64::Engine as _;
     // SECURITY: rand::rng() uses OS-level entropy for MFA challenge tokens.
     let mut bytes = [0u8; 32];
@@ -303,7 +309,7 @@ fn generate_challenge_token() -> String {
 /// Check a candidate code against a list of `bcrypt` hashes.
 ///
 /// Returns the index of the matching hash if found.
-fn check_recovery_code(candidate: &str, hashes: &[String]) -> Option<usize> {
+pub(super) fn check_recovery_code(candidate: &str, hashes: &[String]) -> Option<usize> {
     for (i, hash) in hashes.iter().enumerate() {
         if bcrypt::verify(candidate, hash).unwrap_or(false) {
             return Some(i);

@@ -26,6 +26,9 @@
 // CLI argument parsing (shared with fraiseql-cli) — requires `cli` feature
 #[cfg(feature = "cli")]
 pub mod cli;
+// `[auth.local]` — first-party auth methods (password, OTP, MFA, anonymous) (#367)
+#[cfg(feature = "auth")]
+mod auth_local;
 // API key authentication
 pub mod api_key;
 pub mod service_account;

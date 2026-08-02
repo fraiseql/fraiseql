@@ -1,6 +1,7 @@
 //! API key authentication.
 //!
-//! Provides static (env-based) and database-backed API key authentication.
+//! Provides static (env-based) and Postgres-backed API key authentication
+//! (#627).
 //! When an `X-API-Key` header (or configured header) is present, the key is
 //! hashed and looked up against configured storage.  A valid key produces a
 //! [`SecurityContext`]; a missing key falls through to JWT authentication.
@@ -12,11 +13,12 @@
 //!   side-channels.
 //! - Revoked keys (with `revoked_at` set) are rejected.
 
-use std::sync::Arc;
+pub mod postgres;
 
 use axum::http::{HeaderMap, HeaderName};
 use chrono::Utc;
 use fraiseql_core::security::{AuthenticatedUser, SecurityContext};
+use postgres::PgApiKeyStore;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
@@ -100,6 +102,8 @@ pub enum ApiKeyResult {
 pub struct ApiKeyAuthenticator {
     header_name:            HeaderName,
     pub(crate) static_keys: Vec<ResolvedStaticKey>,
+    /// Postgres-backed store, present when `storage = "postgres"` (#627).
+    postgres:               Option<PgApiKeyStore>,
 }
 
 impl ApiKeyAuthenticator {
@@ -162,7 +166,28 @@ impl ApiKeyAuthenticator {
         Some(Self {
             header_name,
             static_keys,
+            postgres: None,
         })
+    }
+
+    /// Attach the Postgres-backed store (`storage = "postgres"`, #627).
+    #[must_use]
+    pub fn with_postgres(mut self, store: PgApiKeyStore) -> Self {
+        self.postgres = Some(store);
+        self
+    }
+
+    /// Whether this authenticator resolves keys against Postgres.
+    #[must_use]
+    pub const fn has_postgres(&self) -> bool {
+        self.postgres.is_some()
+    }
+
+    /// The Postgres store, when configured — the admin key-management API
+    /// operates on the same store the authenticator reads.
+    #[must_use]
+    pub const fn postgres_store(&self) -> Option<&PgApiKeyStore> {
+        self.postgres.as_ref()
     }
 
     /// Authenticate a request using the API key header.
@@ -197,6 +222,45 @@ impl ApiKeyAuthenticator {
             }
         }
 
+        // Postgres-stored keys (#627): parse selector+verifier, look the row
+        // up by selector (no secret in the WHERE), gate on revocation/expiry,
+        // and compare the verifier hash in constant time.
+        if let (Some(store), Some((selector, verifier))) =
+            (&self.postgres, postgres::parse_key(key))
+        {
+            match store.resolve(selector).await {
+                Ok(Some(row)) => {
+                    let now = Utc::now();
+                    let revoked = row.revoked_at.is_some();
+                    let expired = row.expires_at.is_some_and(|t| t <= now);
+                    let verifier_hash = sha256_hash(verifier.as_bytes());
+                    let hash_ok = row.verifier_hash.len() == 32
+                        && bool::from(verifier_hash.ct_eq(&row.verifier_hash[..]));
+                    if hash_ok && !revoked && !expired {
+                        debug!(name = %row.name, "API key authenticated (postgres)");
+                        if let Err(e) = store.touch(selector).await {
+                            // Best-effort stamp; the request is already authenticated.
+                            debug!(error = %e, "Failed to stamp api-key last_used_at");
+                        }
+                        let ctx = build_security_context(&row.name, &row.scopes);
+                        return ApiKeyResult::Authenticated(Box::new(ctx));
+                    }
+                    warn!(revoked, expired, "API key authentication failed: postgres key rejected");
+                    return ApiKeyResult::Invalid;
+                },
+                Ok(None) => {
+                    // Fall through to the shared failure path: an unknown
+                    // selector must be indistinguishable from a bad verifier.
+                },
+                Err(e) => {
+                    // Fail closed: a dead database must not admit keys, and
+                    // must not be mistaken for "key not found".
+                    warn!(error = %e, "API key authentication failed: store error");
+                    return ApiKeyResult::Invalid;
+                },
+            }
+        }
+
         warn!("API key authentication failed: key not found");
         ApiKeyResult::Invalid
     }
@@ -207,6 +271,7 @@ impl std::fmt::Debug for ApiKeyAuthenticator {
         f.debug_struct("ApiKeyAuthenticator")
             .field("header_name", &self.header_name)
             .field("static_keys_count", &self.static_keys.len())
+            .field("postgres", &self.postgres.is_some())
             .finish()
     }
 }
@@ -241,18 +306,21 @@ fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext 
         .with_actor_type(fraiseql_core::security::ActorType::ServiceAccount)
 }
 
-/// Build an `ApiKeyAuthenticator` from the compiled schema's `security.api_keys` JSON.
-pub fn api_key_authenticator_from_schema(
+/// Parse the compiled schema's `security.api_keys` JSON into an [`ApiKeyConfig`].
+///
+/// Construction of the authenticator happens later, where the database pool is
+/// in scope (`storage = "postgres"` needs it, #627).
+#[must_use]
+pub fn api_key_config_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
-) -> Option<Arc<ApiKeyAuthenticator>> {
+) -> Option<ApiKeyConfig> {
     let security = schema.security.as_ref()?;
     let api_keys_val = security.additional.get("api_keys")?;
-    let config: ApiKeyConfig = serde_json::from_value(api_keys_val.clone())
+    serde_json::from_value(api_keys_val.clone())
         .map_err(|e| {
             warn!(error = %e, "Failed to parse security.api_keys config");
         })
-        .ok()?;
-    ApiKeyAuthenticator::from_config(&config).map(Arc::new)
+        .ok()
 }
 
 // ───────────────────────────────────────────────────────────────

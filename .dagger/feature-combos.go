@@ -77,6 +77,11 @@ var featureCombos = []featureCombo{
 	// ── server: feature-matrix (cargo check -p fraiseql-server) ──────────────
 	{name: "server-no-default", crate: "fraiseql-server", noDefaultFeatures: true},
 	{name: "server-auth-secrets", crate: "fraiseql-server", features: []string{"auth", "secrets"}},
+	{name: "server-auth-saml", crate: "fraiseql-server", features: []string{"auth-saml"}},
+	// #367: `[auth.local]`'s mail bridge is `inbound-email`-gated. This combo is
+	// the one that compiles the `cfg(not(feature = "inbound-email"))` arm — the
+	// refusal path that tells an operator to rebuild with the feature.
+	{name: "server-auth-no-email", crate: "fraiseql-server", features: []string{"auth"}, noDefaultFeatures: true},
 	{name: "server-observers-rate-limiting", crate: "fraiseql-server", features: []string{"observers", "redis-rate-limiting"}},
 	{name: "server-observers-enterprise-otel", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-rate-limiting", "tracing-opentelemetry"}},
 	{name: "server-arrow-wire", crate: "fraiseql-server", features: []string{"arrow", "wire-backend"}},

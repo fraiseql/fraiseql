@@ -212,6 +212,34 @@ mod key_tests {
     fn empty_path_does_not_match_prefix() {
         assert!(!path_matches_rule("", "/auth/start"));
     }
+
+    // ── #368/#788: one shared rule builder for both backends ────────────────
+
+    #[test]
+    fn security_path_rules_cover_the_social_v1_endpoints() {
+        use super::super::{config::RateLimitingSecurityConfig, key::PathRateLimit};
+
+        let sec = RateLimitingSecurityConfig {
+            auth_start_max_requests: 10,
+            auth_start_window_secs: 60,
+            auth_callback_max_requests: 20,
+            auth_callback_window_secs: 60,
+            ..RateLimitingSecurityConfig::default()
+        };
+        let rules = PathRateLimit::rules_from_security(&sec);
+        let burst_of =
+            |prefix: &str| rules.iter().find(|r| r.path_prefix == prefix).map(|r| r.burst as u32);
+        // The PKCE endpoints keep their rules…
+        assert_eq!(burst_of("/auth/start"), Some(10), "{rules:?}");
+        assert_eq!(burst_of("/auth/callback"), Some(20), "{rules:?}");
+        // …and the social endpoints (#368) are governed by the same settings —
+        // an authorize flood fills the bounded CSRF state store (#788/H25), so
+        // it faces the auth_start budget; the callback the callback budget.
+        assert_eq!(burst_of("/auth/v1/authorize"), Some(10), "{rules:?}");
+        assert_eq!(burst_of("/auth/v1/callback"), Some(20), "{rules:?}");
+        // Unconfigured groups (refresh/logout) build no rule.
+        assert_eq!(burst_of("/auth/refresh"), None);
+    }
 }
 
 // ── middleware_fn_tests ──────────────────────────────────────────────────────
@@ -475,7 +503,9 @@ fn test_with_path_rules_generates_auth_start_rule() {
     };
     let config = RateLimitConfig::from_security_config(&sec);
     let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
-    assert_eq!(limiter.path_rule_count(), 1);
+    // auth_start governs both the PKCE /auth/start and the social
+    // /auth/v1/authorize (#368) — one setting, two rules.
+    assert_eq!(limiter.path_rule_count(), 2);
 }
 
 #[tokio::test]

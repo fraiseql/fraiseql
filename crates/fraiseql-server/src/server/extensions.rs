@@ -105,7 +105,11 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         ));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
-        let mut server = Self::from_executor(
+        // Boxed: `from_executor` constructs every subsystem, and its future is
+        // large enough that inlining it tips each public constructor past
+        // clippy's `large_futures` stack budget — and, more to the point, puts a
+        // multi-KiB frame on every caller's stack.
+        let mut server = Box::pin(Self::from_executor(
             config,
             executor,
             subscription_manager,
@@ -113,7 +117,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
             db_pool,
             #[cfg(feature = "arrow")]
             None,
-        )
+        ))
         .await?;
 
         server.adapter_cache_enabled = cache_config.enabled;
@@ -185,14 +189,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let executor = Arc::new(Executor::with_config(schema.clone(), adapter, executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
-        let server = Self::from_executor(
+        // Boxed: `from_executor` constructs every subsystem, and its future is
+        // large enough that inlining it tips each public constructor past
+        // clippy's `large_futures` stack budget — and, more to the point, puts a
+        // multi-KiB frame on every caller's stack.
+        let server = Box::pin(Self::from_executor(
             config,
             executor,
             subscription_manager,
             subsystems,
             db_pool,
             flight_service,
-        )
+        ))
         .await?;
 
         server.apply_compiled_config()

@@ -602,25 +602,47 @@ impl SchemaMerger {
                     .context("Failed to serialize federation config")?;
         }
 
-        // Embed the `[auth]` PKCE OAuth-client group (#621). The group is all-four
-        // -or-none (enforced by `OidcClientConfig::validate` at load time), so if
-        // `client_id` is present the whole group is. The compiled `auth` object
-        // carries the client identity and the provider `discovery_url` only — the
-        // runtime resolves the authorization/token endpoints at boot, and the
-        // secret is read from `client_secret_env`, never embedded.
+        // Embed the `[auth]` OAuth-client groups. The PKCE group (#621) is
+        // all-four-or-none (enforced by `OidcClientConfig::validate` at load
+        // time), so if `client_id` is present the whole group is; it lowers into
+        // the compiled `auth.pkce` object, which carries the client identity and
+        // the provider `discovery_url` only — the runtime resolves the
+        // authorization/token endpoints at boot, and the secret is read from
+        // `client_secret_env`, never embedded. The social group (#368,
+        // `[auth.social.*]`) is already authored in the compiled type and is
+        // embedded verbatim under `auth.social`.
         if let Some(auth) = &toml_schema.auth {
+            let mut auth_obj = serde_json::Map::new();
             if let (Some(discovery_url), Some(client_id), Some(client_secret_env), Some(redirect)) = (
                 auth.discovery_url.as_ref(),
                 auth.client_id.as_ref(),
                 auth.client_secret_env.as_ref(),
                 auth.server_redirect_uri.as_ref(),
             ) {
-                merged["auth"] = json!({
-                    "discovery_url": discovery_url,
-                    "client_id": client_id,
-                    "client_secret_env": client_secret_env,
-                    "server_redirect_uri": redirect,
-                });
+                auth_obj.insert(
+                    "pkce".to_string(),
+                    json!({
+                        "discovery_url": discovery_url,
+                        "client_id": client_id,
+                        "client_secret_env": client_secret_env,
+                        "server_redirect_uri": redirect,
+                    }),
+                );
+            }
+            if let Some(social) = &auth.social {
+                auth_obj.insert(
+                    "social".to_string(),
+                    serde_json::to_value(social).context("Failed to serialize [auth.social]")?,
+                );
+            }
+            if let Some(local) = &auth.local {
+                auth_obj.insert(
+                    "local".to_string(),
+                    serde_json::to_value(local).context("Failed to serialize [auth.local]")?,
+                );
+            }
+            if !auth_obj.is_empty() {
+                merged["auth"] = serde_json::Value::Object(auth_obj);
             }
         }
 

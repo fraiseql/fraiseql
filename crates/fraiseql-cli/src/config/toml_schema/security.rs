@@ -653,6 +653,22 @@ pub struct OidcClientConfig {
     /// **Not yet functional (#621).**
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_redirect_uri: Option<String>,
+
+    /// Social-login providers (`[auth.social.google]` / `[auth.social.github]`,
+    /// #368). Deserializes directly into the **compiled** type so the authored
+    /// and compiled shapes cannot drift; the merger embeds it verbatim under
+    /// the compiled `auth.social` object. An unimplemented provider key
+    /// (`apple`, `discord`, …) is an unknown-field load error, not a
+    /// silently-ignored table.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub social: Option<fraiseql_core::schema::SocialAuthConfig>,
+
+    /// First-party auth methods the server operates itself (`[auth.local]`,
+    /// #367): email+password, email `OTP`/magic link, `TOTP` `MFA`, anonymous
+    /// guest sessions. Deserializes directly into the compiled type so the
+    /// authored and compiled shapes cannot drift.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local: Option<fraiseql_core::schema::LocalAuthConfig>,
 }
 
 impl OidcClientConfig {
@@ -678,6 +694,8 @@ impl OidcClientConfig {
         ];
         let client_set = client_fields.iter().filter(|(_, set)| *set).count();
         let has_client_group = client_set > 0;
+        let has_social_group = self.social.is_some();
+        let has_local_group = self.local.is_some();
         // A JWT-validation group exists if either `issuer` (used for discovery
         // and `iss` validation) or a pinned `jwks_uri` (issuer-less mode, for
         // IdPs that omit `iss`) is set. Mirrors the server's `OidcConfig`.
@@ -708,15 +726,98 @@ impl OidcClientConfig {
             );
         }
 
+        // #368: [auth.social] must name at least one provider, and every named
+        // provider's fields must be non-empty — an empty block or blank
+        // client_id would compile into a registry that can never serve a login.
+        if let Some(social) = &self.social {
+            if social.google.is_none() && social.github.is_none() {
+                anyhow::bail!(
+                    "[auth.social] is configured but names no provider. Add an \
+                     [auth.social.google] or [auth.social.github] block (Apple/Discord/Facebook \
+                     are not implemented and are refused as unknown fields)."
+                );
+            }
+            let providers = [
+                (
+                    "google",
+                    social.google.as_ref().map(|g| {
+                        [
+                            ("client_id", &g.client_id),
+                            ("client_secret_env", &g.client_secret_env),
+                            ("redirect_uri", &g.redirect_uri),
+                        ]
+                    }),
+                ),
+                (
+                    "github",
+                    social.github.as_ref().map(|g| {
+                        [
+                            ("client_id", &g.client_id),
+                            ("client_secret_env", &g.client_secret_env),
+                            ("redirect_uri", &g.redirect_uri),
+                        ]
+                    }),
+                ),
+            ];
+            for (provider, fields) in providers {
+                for (field, value) in fields.into_iter().flatten() {
+                    if value.trim().is_empty() {
+                        anyhow::bail!("[auth.social.{provider}] {field} must not be empty.");
+                    }
+                }
+            }
+        }
+
+        // #367: [auth.local] must enable at least one method, and every method
+        // that sends mail or issues links must have what it needs to do so.
+        // Refusing at compile time keeps the operator's feedback loop at the
+        // file they are editing rather than at server boot.
+        if let Some(local) = &self.local {
+            if !local.password && !local.otp && !local.mfa && !local.anonymous {
+                anyhow::bail!(
+                    "[auth.local] is configured but enables no method. Set at least one of \
+                     password / otp / mfa / anonymous, or remove the block."
+                );
+            }
+            if (local.otp || local.password) && local.email_from.is_none() {
+                anyhow::bail!(
+                    "[auth.local] enables {} but sets no email_from. Both flows deliver mail \
+                     (OTP codes, reset links); name the [mailbox.<name>] account whose SMTP \
+                     half should send them.",
+                    if local.otp { "otp" } else { "password" }
+                );
+            }
+            if local.password && local.reset_url_template.is_none() {
+                anyhow::bail!(
+                    "[auth.local] password = true needs reset_url_template — the reset link \
+                     points at your front end, which FraiseQL cannot guess. Example: \
+                     reset_url_template = \"https://app.example.com/reset?token={{token}}\""
+                );
+            }
+            for (field, template, placeholder) in [
+                ("reset_url_template", local.reset_url_template.as_ref(), "{token}"),
+                ("magic_link_template", local.magic_link_template.as_ref(), "{code}"),
+            ] {
+                if let Some(t) = template {
+                    if !t.contains(placeholder) {
+                        anyhow::bail!(
+                            "[auth.local] {field} must contain the {placeholder} placeholder, \
+                             or every link it builds is the same dead link: {t}"
+                        );
+                    }
+                }
+            }
+        }
+
         // A PKCE client group alone (no JWT group) is a valid configuration:
         // server-side OAuth login without also validating bearer JWTs. Only an
         // entirely empty block is refused.
-        if !has_jwt_group && !has_client_group {
+        if !has_jwt_group && !has_client_group && !has_social_group && !has_local_group {
             anyhow::bail!(
                 "[auth] is empty. Configure JWT validation with issuer (or jwks_uri for IdPs \
-                 whose tokens omit `iss`, e.g. Hanko), or a PKCE OAuth-client group \
-                 (discovery_url, client_id, client_secret_env, server_redirect_uri). An empty \
-                 [auth] block does nothing."
+                 whose tokens omit `iss`, e.g. Hanko), a PKCE OAuth-client group \
+                 (discovery_url, client_id, client_secret_env, server_redirect_uri), or \
+                 [auth.social.*] providers. An empty [auth] block does nothing."
             );
         }
 

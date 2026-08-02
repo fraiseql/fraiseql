@@ -233,22 +233,23 @@ async fn test_account_store_as_trait_object() {
 // ── #368 — TrustedEmailProviders policy ───────────────────────────────
 
 #[test]
-fn trusted_default_contains_google_and_apple() {
+fn trusted_default_contains_google_apple_and_github() {
     let trusted = TrustedEmailProviders::default();
     assert!(trusted.is_trusted("google"), "google is trusted by default");
     assert!(trusted.is_trusted("apple"), "apple is trusted by default");
+    // #368: the /user/emails second hop resolves the primary VERIFIED email
+    // (fail-closed on any hop failure), which is what makes GitHub trustable.
+    assert!(trusted.is_trusted("github"), "github is trusted by default since the email hop");
 }
 
 #[test]
-fn trusted_default_excludes_microsoft_github_and_unknown() {
-    // nOAuth: Azure AD's email is tenant-mutable; GitHub needs the unimplemented
-    // /user/emails second hop. Both are opt-in, never trusted by default.
+fn trusted_default_excludes_microsoft_and_unknown() {
+    // nOAuth: Azure AD's email is tenant-mutable — opt-in, never trusted by default.
     let trusted = TrustedEmailProviders::default();
     assert!(
         !trusted.is_trusted("azure_ad"),
         "Microsoft/Azure AD is NOT trusted by default (nOAuth)"
     );
-    assert!(!trusted.is_trusted("github"), "GitHub is NOT trusted by default");
     assert!(!trusted.is_trusted("evilcorp"), "an unknown provider is never trusted");
 }
 
@@ -290,7 +291,10 @@ fn trusted_distrust_removes_a_default() {
 
 #[test]
 fn trusted_can_be_emptied_down_to_none_via_builder() {
-    // The "trust no one" posture must be reachable; distrusting both defaults empties it.
-    let trusted = TrustedEmailProviders::default().distrust("google").distrust("apple");
+    // The "trust no one" posture must be reachable; distrusting every default empties it.
+    let trusted = TrustedEmailProviders::default()
+        .distrust("google")
+        .distrust("apple")
+        .distrust("github");
     assert!(trusted.is_empty());
 }

@@ -225,13 +225,26 @@ impl SamlIdpConfigBuilder {
             .build()
             .map_err(|e| SamlError::Config(format!("service provider build failed: {e}")))?;
 
-        Ok(SamlIdpConfig {
+        let config = SamlIdpConfig {
             idp_name: self.idp_name,
             tenant_id: self.tenant_id,
             trust_asserted_email: self.trust_asserted_email,
             attribute_mapping: self.attribute_mapping,
             sp,
-        })
+        };
+        // Refuse metadata that can never start a login: samael's metadata parse
+        // is lenient (an arbitrary XML document deserializes to an empty
+        // EntityDescriptor), so without this check a typo'd metadata file
+        // builds an IdP whose /auth/saml/login can only ever 500 — a
+        // configured-but-broken shape that must fail at build time instead.
+        if config.sso_redirect_url().is_none() {
+            return Err(SamlError::Config(
+                "IdP metadata declares no HTTP-Redirect SingleSignOnService binding — \
+                 SP-initiated login would be impossible. Check the metadata XML."
+                    .to_string(),
+            ));
+        }
+        Ok(config)
     }
 }
 

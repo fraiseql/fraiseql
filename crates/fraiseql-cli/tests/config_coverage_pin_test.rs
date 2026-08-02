@@ -185,9 +185,30 @@ fn observability_section_is_rejected_at_compile() {
     assert!(err.contains("/issues/625"), "err = {err}");
 }
 
-/// #7 `[security.api_keys] storage` — only `env` is implemented; `postgres` authenticates nothing.
+/// #7 `[security.api_keys] storage` — `env` and `postgres` are both implemented
+/// (#627 shipped `PgApiKeyStore`); anything else authenticates nothing and is
+/// still rejected at compile.
 #[test]
-fn api_keys_non_env_storage_is_rejected_at_compile() {
+fn api_keys_storage_accepts_implemented_backends_and_rejects_the_rest() {
+    for storage in ["env", "postgres"] {
+        let schema = TomlSchema::parse_toml(&format!(
+            r#"
+            [schema]
+            name = "t"
+
+            [security.api_keys]
+            enabled = true
+            storage = "{storage}"
+        "#
+        ))
+        .expect("TOML should parse");
+        assert!(
+            schema.validate().is_ok(),
+            "storage = \"{storage}\" must validate: {:?}",
+            schema.validate().err()
+        );
+    }
+
     let err = validate_err(
         r#"
         [schema]
@@ -195,26 +216,11 @@ fn api_keys_non_env_storage_is_rejected_at_compile() {
 
         [security.api_keys]
         enabled = true
-        storage = "postgres"
+        storage = "redis"
     "#,
     );
     assert!(err.contains("[security.api_keys]"), "err = {err}");
-    assert!(err.contains("postgres"), "err = {err}");
-    assert!(err.contains("/issues/627"), "err = {err}");
-
-    // The implemented value (`env`) still validates.
-    let schema = TomlSchema::parse_toml(
-        r#"
-        [schema]
-        name = "t"
-
-        [security.api_keys]
-        enabled = true
-        storage = "env"
-    "#,
-    )
-    .expect("TOML should parse");
-    schema.validate().expect("storage = \"env\" must remain valid");
+    assert!(err.contains("redis"), "err = {err}");
 }
 
 /// #8 `[[observers.handlers]]` — compiled but never run at runtime. Runtime
