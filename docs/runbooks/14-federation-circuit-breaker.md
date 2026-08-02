@@ -22,7 +22,7 @@
 ```bash
 # Check Prometheus metrics for breaker state
 # 0=closed (normal), 1=open (rejecting), 2=half_open (probing recovery)
-curl -s http://localhost:8815/metrics | grep fraiseql_federation_circuit_breaker_state
+curl -s http://localhost:8000/metrics | grep fraiseql_federation_circuit_breaker_state
 
 # Example output:
 # fraiseql_federation_circuit_breaker_state{entity="Product"} 1
@@ -33,7 +33,7 @@ curl -s http://localhost:8815/metrics | grep fraiseql_federation_circuit_breaker
 ### 2. Check Health Endpoint for Federation Status
 
 ```bash
-curl -s http://localhost:8815/health | jq '.federation'
+curl -s http://localhost:8000/health | jq '.federation'
 
 # Example output when breaker is open:
 # {
@@ -93,7 +93,7 @@ The circuit breaker follows a 3-state recovery cycle:
 
 ```bash
 # Monitor for automatic recovery
-watch -n 5 'curl -s http://localhost:8815/metrics | grep circuit_breaker_state'
+watch -n 5 'curl -s http://localhost:8000/metrics | grep circuit_breaker_state'
 
 # Watch for state transitions in logs
 docker logs -f fraiseql-server 2>&1 | grep -i "circuit"
@@ -163,16 +163,16 @@ fraiseql-cli compile schema.json -c fraiseql.toml -o schema.compiled.json
 
 ```bash
 # 1. Confirm all breakers are closed
-curl -s http://localhost:8815/metrics | grep circuit_breaker_state
+curl -s http://localhost:8000/metrics | grep circuit_breaker_state
 # All values should be 0 (closed)
 
 # 2. Verify federation queries work end-to-end
-curl -s http://localhost:8815/graphql \
+curl -s http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ _entities(representations: [{__typename: \"Product\", id: \"1\"}]) { ... on Product { name } } }"}'
 
 # 3. Check health endpoint
-curl -s http://localhost:8815/health | jq '.federation.subgraphs'
+curl -s http://localhost:8000/health | jq '.federation.subgraphs'
 ```
 
 ## Prevention

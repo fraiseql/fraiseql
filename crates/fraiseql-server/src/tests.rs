@@ -232,6 +232,30 @@ mod cli_tests {
         assert_eq!(config.bind_addr, original_addr);
     }
 
+    // #838: `shutdown_timeout_secs`'s rustdoc promised a FRAISEQL_SHUTDOWN_TIMEOUT_SECS
+    // override that no code read — the only occurrence of the variable in the whole
+    // workspace was that comment. These two pin the implemented override.
+    #[test]
+    fn cli_parse_shutdown_timeout_secs() {
+        let cli = Cli::parse_from(["fraiseql-server", "--shutdown-timeout-secs", "10"]);
+        assert_eq!(cli.server.shutdown_timeout_secs, Some(10));
+    }
+
+    #[test]
+    fn apply_shutdown_timeout_override() {
+        let args = ServerArgs {
+            shutdown_timeout_secs: Some(11),
+            ..Default::default()
+        };
+        let mut config = ServerConfig::default();
+        assert_ne!(
+            config.shutdown_timeout_secs, 11,
+            "override value must differ from the default for this test to prove anything"
+        );
+        args.apply_to_config(&mut config);
+        assert_eq!(config.shutdown_timeout_secs, 11);
+    }
+
     #[test]
     fn apply_metrics_enabled_override() {
         let args = ServerArgs {

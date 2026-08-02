@@ -23,7 +23,7 @@
 
 ```bash
 # Check current p99 and p95 latencies
-curl -s http://localhost:8815/metrics | grep "request_duration_seconds_bucket"
+curl -s http://localhost:8000/metrics | grep "request_duration_seconds_bucket"
 
 # Example output:
 # request_duration_seconds_bucket{le="0.1"} 100
@@ -33,7 +33,7 @@ curl -s http://localhost:8815/metrics | grep "request_duration_seconds_bucket"
 # If most requests are in high buckets, latency is a problem
 
 # Calculate approximate percentiles manually
-curl -s http://localhost:8815/metrics | grep "request_duration_seconds" | grep -E "(sum|count)"
+curl -s http://localhost:8000/metrics | grep "request_duration_seconds" | grep -E "(sum|count)"
 ```
 
 ### 2. Identify Slow Queries
@@ -42,7 +42,7 @@ curl -s http://localhost:8815/metrics | grep "request_duration_seconds" | grep -
 # Enable query logging if not already enabled (temporary)
 # Set RUST_LOG=fraiseql=debug to log all queries with timing
 
-docker exec fraiseql-server env RUST_LOG=fraiseql=debug curl http://localhost:8815/metrics
+docker exec fraiseql-server env RUST_LOG=fraiseql=debug curl http://localhost:8000/metrics
 
 # Or check existing logs for slow operations
 docker logs fraiseql-server | grep -E "duration|elapsed|slow" | tail -30
@@ -112,7 +112,7 @@ iostat -x 1 5           # Disk I/O
 vmstat 1 5              # Memory and swap
 
 # Check for memory leaks in FraiseQL
-curl -s http://localhost:8815/metrics | grep "memory" || echo "Memory metrics not available"
+curl -s http://localhost:8000/metrics | grep "memory" || echo "Memory metrics not available"
 
 # Monitor database connections
 psql $DATABASE_URL << 'EOF'
@@ -197,19 +197,25 @@ netstat -an | grep postgres | awk '{print $6}' | sort | uniq -c
    EOF
    ```
 
-3. **Enable query result caching** (if available)
+3. **Enable query result caching** (config-file key — there is no env override)
+
+   ```toml
+   # server.toml
+   cache_enabled = true
+   ```
 
    ```bash
-   # Set environment variable for cache duration
-   export FRAISEQL_QUERY_CACHE_TTL=300  # 5 minute cache
    docker restart fraiseql-server
    ```
 
-4. **Reduce database connection pool timeout**
+4. **Reduce database connection pool timeout** (config-file key)
+
+   ```toml
+   # server.toml — fail fast instead of waiting for pool exhaustion
+   pool_timeout_secs = 5
+   ```
 
    ```bash
-   # Fail fast instead of waiting for pool exhaustion
-   export FRAISEQL_DB_POOL_TIMEOUT=5  # seconds
    docker restart fraiseql-server
    ```
 

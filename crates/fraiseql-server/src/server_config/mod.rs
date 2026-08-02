@@ -39,7 +39,13 @@ pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
 use crate::middleware::{RateLimitConfig, RateLimitOverrides};
 
 /// Server configuration.
+///
+/// Deserialized **directly** from the `--config` TOML file — the keys below are
+/// top-level (no `[server]`/`[database]` grouping tables), and an unknown key
+/// refuses to parse rather than being silently discarded (#839: a config whose
+/// every key landed in an unknown table booted on defaults with zero warnings).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServerConfig {
     /// Path to compiled schema JSON file.
     #[serde(default = "defaults::default_schema_path")]
@@ -54,7 +60,8 @@ pub struct ServerConfig {
     #[serde(default)]
     pub validate_sql_sources: bool,
 
-    /// Database connection URL (PostgreSQL, MySQL, SQLite, SQL Server).
+    /// Database connection URL (PostgreSQL — the only supported backend since
+    /// v2.15.0).
     #[serde(default = "defaults::default_database_url")]
     pub database_url: String,
 

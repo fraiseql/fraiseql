@@ -108,7 +108,7 @@ echo "FRAISEQL_SECRETS_BACKEND=${FRAISEQL_SECRETS_BACKEND:-<unset>}"
 env | grep -E "^(FRAISEQL_SECRETS_BACKEND|VAULT_)" | sed 's/\(SECRET_ID\|TOKEN\)=.*/\1=<redacted>/'
 
 # Ask the running server which backend it loaded and whether it is reachable:
-curl -s http://localhost:8815/health | jq '.secrets'
+curl -s http://localhost:8000/health | jq '.secrets'
 # -> { "backend": "vault", "connected": true|false }   (absent when no backend is configured)
 ```
 
@@ -260,7 +260,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 
    ```bash
    # Last resort: Run without Vault (limited functionality). There is no
-   # FRAISEQL_VAULT_REQUIRED switch — instead select the environment backend and
+   # "require Vault" env switch — instead select the environment backend and
    # supply the secrets directly.
    export FRAISEQL_SECRETS_BACKEND=env
    export DATABASE_PASSWORD="fallback-password"  # Must have backup
@@ -381,7 +381,7 @@ sleep 5
 # 6. Verify FraiseQL is online
 echo ""
 echo "6. Verifying FraiseQL..."
-if curl -s http://localhost:8815/health | jq -e '.status == "healthy"' > /dev/null; then
+if curl -s http://localhost:8000/health | jq -e '.status == "healthy"' > /dev/null; then
     echo "   ✓ FraiseQL is healthy"
     exit 0
 else
@@ -490,7 +490,7 @@ EOF
 curl -s "$VAULT_ADDR/v1/sys/health" | jq '.'
 
 # Weekly: Check FraiseQL can access Vault
-curl -s http://localhost:8815/health | jq '.secrets.connected'
+curl -s http://localhost:8000/health | jq '.secrets.connected'
 
 # Monthly: Rotate service account credentials
 # curl -X POST "$VAULT_ADDR/v1/auth/approle/role/fraiseql/secret-id"

@@ -230,19 +230,13 @@ If a service crashes mid-saga:
 
 ## Saga Configuration
 
-The saga coordinator is configured via environment variables (see docker-compose.yml):
-
-```yaml
-environment:
-  # Saga settings
-  FRAISEQL_SAGA_ENABLED: "true"
-  FRAISEQL_SAGA_STORE_TYPE: "postgres"
-  FRAISEQL_SAGA_MAX_RETRIES: "3"
-  FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS: "30"
-  FRAISEQL_SAGA_TIMEOUT_SECONDS: "300"
-  FRAISEQL_SAGA_RECOVERY_ENABLED: "true"
-  FRAISEQL_SAGA_RECOVERY_POLL_INTERVAL_SECONDS: "60"
-```
+There are **no saga environment variables** — the saga coordinator, store, and
+recovery manager are library components of `fraiseql-federation`, and their retry
+counts, step/saga timeouts and recovery poll interval are constructor parameters set
+in code by the embedding service. See
+`crates/fraiseql-federation/src/saga_coordinator/` and
+`crates/fraiseql-federation/src/saga_recovery_manager/` for the current parameters
+and their defaults.
 
 ## Troubleshooting
 

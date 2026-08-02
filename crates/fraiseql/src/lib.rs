@@ -10,7 +10,8 @@
 //! use std::sync::Arc;
 //!
 //! // 1. Load compiled schema
-//! let schema = CompiledSchema::from_file("schema.compiled.json")?;
+//! let schema_json = std::fs::read_to_string("schema.compiled.json")?;
+//! let schema = CompiledSchema::from_json(&schema_json, true)?;
 //!
 //! // 2. Create database adapter
 //! let adapter = Arc::new(
@@ -21,7 +22,7 @@
 //! #[cfg(feature = "server")]
 //! {
 //!     use fraiseql::server::{Server, ServerConfig};
-//!     let config = ServerConfig::from_file("fraiseql.toml")?;
+//!     let config = ServerConfig::from_file("server.toml")?;
 //!     let server = Server::new(config, schema, adapter, None).await?;
 //!     server.serve().await?;
 //! }

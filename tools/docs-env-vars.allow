@@ -1,0 +1,8 @@
+# Deliberate exceptions for tools/check-docs-env-vars.sh — one token per line, with a reason.
+# Only operator-chosen names are eligible: variables a config example *names* via an
+# `*_env = "…"` indirection, where any name is valid and the code reads whatever is named.
+# A variable the docs present as a built-in knob never belongs here — implement it or fix the doc.
+
+# ADR-0018 `[service_accounts.<name>] secret_env` example: the operator picks the variable
+# name; service_account.rs reads whatever `secret_env` names.
+FRAISEQL_SA_RECONCILER_SECRET

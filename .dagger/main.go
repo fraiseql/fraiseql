@@ -39,8 +39,8 @@ const (
 
 	// SYNC:* feature sets lifted verbatim from ci.yml's Test Suite job — keep in
 	// lockstep with the YAML (the ci.yml steps carry the same SYNC: tags).
-	coreTestFeatures   = "arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
-	dbTestFeatures     = "postgres,wire-backend"
+	coreTestFeatures = "arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
+	dbTestFeatures   = "postgres,wire-backend"
 	// redis-pkce + redis-rate-limiting are compiled in so the #770/#777 boot-guard
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
 	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
@@ -237,6 +237,8 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-audit-lockstep.sh",
 		"bash tools/check-deadlines.sh",
+		"bash tools/check-docs-env-vars.sh",
+		"bash tools/check-docs-version.sh",
 	}, "\n")
 
 	return m.shellBase().
@@ -442,8 +444,8 @@ func (m *FraiseqlCi) Test(
 		// run. It needs the export/sources/inbound features on top of
 		// SYNC:SERVER_FEATURES so every feature-gated manifest entry matches a
 		// real leaf.
-		"echo '### cargo test -p fraiseql-server config coverage manifest (not covered by --lib)'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email' --test config_coverage_manifest_test",
+		"echo '### cargo test -p fraiseql-server config coverage manifest + doc config examples (not covered by --lib)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email' --test config_coverage_manifest_test --test doc_config_examples_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
 		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
 		// and run in the integration legs; `--features cli` pulls in the CLI

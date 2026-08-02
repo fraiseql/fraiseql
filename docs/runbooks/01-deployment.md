@@ -23,7 +23,7 @@
    docker ps | grep fraiseql
 
    # Check server version
-   curl http://localhost:8815/health | jq '.version'
+   curl http://localhost:8000/health | jq '.version'
 
    # View deployment logs
    docker logs fraiseql-server --tail 50
@@ -81,7 +81,10 @@
 
 ```bash
 # 1. Pull latest image
-docker pull fraiseql:latest
+# Pin the version you are deploying — never :latest (the repo's own
+# deploy-security gate forbids it)
+IMAGE_TAG=2.14.1
+docker pull ghcr.io/fraiseql/server:$IMAGE_TAG
 
 # 2. Stop current container gracefully (allows existing connections to finish)
 docker stop -t 30 fraiseql-server
@@ -93,22 +96,22 @@ docker rename fraiseql-server fraiseql-server-backup-$(date +%s)
 docker run -d \
   --name fraiseql-server \
   --restart unless-stopped \
-  -p 8815:8815 \
-  -p 9090:9090 \
+  -p 8000:8000 \
   -e DATABASE_URL="$DATABASE_URL" \
-  -e REDIS_URL="$REDIS_URL" \
+  -e FRAISEQL_BIND_ADDR="0.0.0.0:8000" \
+  -e FRAISEQL_ENV=production \
   -e VAULT_ADDR="$VAULT_ADDR" \
   -e VAULT_TOKEN="$VAULT_TOKEN" \
   -e RUST_LOG=info \
   -v /etc/fraiseql:/etc/fraiseql:ro \
-  fraiseql:latest
+  ghcr.io/fraiseql/server:$IMAGE_TAG --config /etc/fraiseql/server.toml
 
 # 5. Wait for server to be ready
 sleep 5
-curl -v http://localhost:8815/health
+curl -v http://localhost:8000/health
 
 # 6. Verify metrics are being generated
-curl http://localhost:8815/metrics | head -20
+curl http://localhost:8000/metrics | head -20
 ```
 
 ### Option 2: Restart Current Version
@@ -121,7 +124,7 @@ docker restart fraiseql-server
 sleep 5
 
 # Verify it came back online
-curl http://localhost:8815/health
+curl http://localhost:8000/health
 
 # Check logs for any startup errors
 docker logs fraiseql-server | tail -20
@@ -145,7 +148,7 @@ docker restart fraiseql-server
 
 # 5. Verify schema was loaded
 sleep 3
-curl http://localhost:8815/health | jq '.schema.version'
+curl http://localhost:8000/health | jq '.schema.version'
 ```
 
 ## Resolution
@@ -177,24 +180,27 @@ docker rename fraiseql-server fraiseql-server-backup-$(date +%s) 2>/dev/null || 
 
 # Deploy
 echo "5. Deploying..."
-docker pull fraiseql:latest
+# Pin the version you are deploying — never :latest (the repo's own
+# deploy-security gate forbids it)
+IMAGE_TAG=2.14.1
+docker pull ghcr.io/fraiseql/server:$IMAGE_TAG
 docker run -d \
   --name fraiseql-server \
   --restart unless-stopped \
-  -p 8815:8815 \
-  -p 9090:9090 \
+  -p 8000:8000 \
   -e DATABASE_URL="$DATABASE_URL" \
-  -e REDIS_URL="$REDIS_URL" \
+  -e FRAISEQL_BIND_ADDR="0.0.0.0:8000" \
+  -e FRAISEQL_ENV=production \
   -e VAULT_ADDR="$VAULT_ADDR" \
   -e VAULT_TOKEN="$VAULT_TOKEN" \
   -e RUST_LOG=info \
   -v /etc/fraiseql:/etc/fraiseql:ro \
-  fraiseql:latest
+  ghcr.io/fraiseql/server:$IMAGE_TAG --config /etc/fraiseql/server.toml
 
 # Wait for startup
 echo "6. Waiting for startup..."
 for i in {1..30}; do
-  if curl -s http://localhost:8815/health > /dev/null; then
+  if curl -s http://localhost:8000/health > /dev/null; then
     echo "Server online!"
     break
   fi
@@ -204,7 +210,7 @@ done
 
 # Verify
 echo "7. Verification..."
-HEALTH=$(curl -s http://localhost:8815/health)
+HEALTH=$(curl -s http://localhost:8000/health)
 if echo "$HEALTH" | jq -e '.status == "healthy"' > /dev/null; then
   echo "✓ Deployment successful"
   exit 0
@@ -235,7 +241,7 @@ docker start fraiseql-server
 
 # 6. Verify
 sleep 3
-curl http://localhost:8815/health
+curl http://localhost:8000/health
 ```
 
 ## Prevention
@@ -255,23 +261,28 @@ curl http://localhost:8815/health
 
 ### Post-Deployment Verification
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 # 1. Check all endpoints are responsive
 for endpoint in /health /metrics /graphql; do
-  curl -s http://localhost:8815$endpoint > /dev/null && echo "✓ $endpoint" || echo "✗ $endpoint"
+  curl -s http://localhost:8000$endpoint > /dev/null && echo "✓ $endpoint" || echo "✗ $endpoint"
 done
 
 # 2. Verify database connections
-curl -s http://localhost:8815/metrics | grep "db_pool_connections_active"
+curl -s http://localhost:8000/metrics | grep "db_pool_connections_active"
 
 # 3. Run smoke tests
 # Execute key GraphQL queries against test data
 
 # 4. Monitor error rate
-curl -s http://localhost:8815/metrics | grep "request_errors_total"
+curl -s http://localhost:8000/metrics | grep "request_errors_total"
 
 # 5. Check response times
-curl -s http://localhost:8815/metrics | grep "request_duration_seconds"
+curl -s http://localhost:8000/metrics | grep "request_duration_seconds"
 ```
 
 ## Escalation

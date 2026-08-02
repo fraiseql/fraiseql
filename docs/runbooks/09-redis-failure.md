@@ -1,23 +1,28 @@
-# Runbook: Redis Failure (Cache/Rate Limiting Backend Down)
+# Runbook: Redis Failure (PKCE Store / Observers Backend Down)
+
+FraiseQL uses Redis for an **explicit, configured** set of subsystems: the PKCE login
+state store (`[fraiseql.security.pkce] redis_url`, compiled into the schema), the
+observers cache/dedup backend
+(`FRAISEQL_REDIS_URL`), and the Redis-backed auth rate limiter (opt-in
+`redis-rate-limiting` build feature). The GraphQL query result cache is **in-process,
+not Redis**. A configured Redis backend is never silently downgraded to in-memory
+(#898): a server restarted while its configured Redis is unreachable **refuses to
+boot**, naming Redis in the error.
 
 ## Symptoms
 
-- Rate limiting not working (all requests go through despite limits)
-- Query cache misses everything (high cache miss rate)
+- A restart fails fast with a boot error naming Redis / the PKCE store
+- OAuth logins fail mid-flow (`state not found` on `/auth/callback`)
 - Redis connection refused errors in logs
-- Metrics show `redis_connection_errors_total` increasing
-- `NOAUTH Authentication required` errors (auth failure)
-- Performance degraded (without Redis caching)
-- Real-time features using Redis pub/sub failing
-- Session storage unavailable (if using Redis for sessions)
+- `NOAUTH Authentication required` errors (Redis auth failure)
+- Observer actions erroring on dedup/cache operations
 
 ## Impact
 
-- **Medium**: Service still works but degraded
-- Rate limiting disabled (potential abuse)
-- Query cache unavailable (more database load)
-- Performance reduced (queries not cached)
-- Real-time subscriptions may disconnect
+- **Medium** while the server keeps running; **High** if it restarts (it will refuse
+  to boot until Redis is back or the Redis config is removed)
+- In-flight OAuth logins fail
+- Observer dedup/cache operations error loudly
 
 ## Investigation
 
@@ -92,20 +97,13 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT -a "$REDIS_PASS" PING
 ### 4. FraiseQL Redis Configuration
 
 ```bash
-# Check if Redis is enabled in FraiseQL
-jq '.cache.backend, .rate_limiting.backend' /etc/fraiseql/schema.compiled.json
+# Which subsystems name Redis? (each is explicit — there is no global backend key)
+jq '.security.pkce.redis_url' /etc/fraiseql/schema.compiled.json   # PKCE state store
+env | grep -E "FRAISEQL_(REDIS|REQUIRE_REDIS)"                     # observers cache/dedup
 
-# Check feature flags using Redis
-env | grep -E "FRAISEQL.*(CACHE|RATE_LIMIT|REDIS)"
-
-# Verify Redis is actually being used
-curl -s http://localhost:8815/metrics | grep "redis\|cache" | head -20
-
-# Check cache metrics
-curl -s http://localhost:8815/metrics | grep -E "cache_hits|cache_misses|cache_size"
-
-# Check rate limit metrics
-curl -s http://localhost:8815/metrics | grep -E "rate_limit|redis_connection"
+# Redis error counters the server actually exports:
+curl -s -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" http://localhost:8000/metrics \
+  | grep -E "fraiseql_(apq|pkce|rate_limit)_redis_errors_total"
 ```
 
 ### 5. Redis Cluster Status (if applicable)
@@ -154,18 +152,27 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    redis-cli -u $REDIS_URL PING
    ```
 
-2. **Disable Redis feature temporarily** (if restart doesn't work quickly)
+2. **De-configure the Redis-backed subsystems temporarily** (if restart doesn't work
+   quickly)
+
+   There is no "fallback to memory" switch — a configured Redis backend that is
+   unreachable refuses to boot. To run without Redis you must explicitly remove the
+   configuration that names it:
 
    ```bash
-   # Disable cache
-   export FRAISEQL_QUERY_CACHE_BACKEND="none"
+   # PKCE state store: its config is COMPILED — remove `redis_url` from
+   # [fraiseql.security.pkce] in the project fraiseql.toml, re-run
+   # `fraiseql compile`, redeploy the compiled schema — and make sure the
+   # enforcement flag is unset:
+   unset FRAISEQL_REQUIRE_REDIS
+   # ⚠ In-memory PKCE state is only safe on a SINGLE replica: behind a load
+   # balancer, logins fail whenever /auth/start and /auth/callback hit
+   # different replicas.
 
-   # Disable rate limiting on Redis
-   export FRAISEQL_RATE_LIMIT_BACKEND="memory"
+   # Observers cache/dedup:
+   unset FRAISEQL_REDIS_URL
 
    docker restart fraiseql-server
-
-   # Service continues but degraded (without caching/rate limiting)
    ```
 
 3. **Check for persistent issues**
@@ -233,21 +240,20 @@ docker logs fraiseql-server | grep -i "redis" | head -1
 
 ### Extended Outage (30+ minutes)
 
-1. **Switch to non-Redis backend**
+1. **Run without Redis, deliberately**
+
+   Remove every piece of configuration that names Redis (see "De-configure the
+   Redis-backed subsystems" above: the compiled `[fraiseql.security.pkce] redis_url`,
+   `FRAISEQL_REDIS_URL`, `FRAISEQL_REQUIRE_REDIS`), then restart.
 
    ```bash
-   # Disable Redis-dependent features
-   export FRAISEQL_QUERY_CACHE_BACKEND="memory"  # In-memory cache
-   export FRAISEQL_QUERY_CACHE_SIZE="10000"      # Reduce size for memory
-   export FRAISEQL_RATE_LIMIT_BACKEND="memory"   # In-memory rate limiter
-   export FRAISEQL_RATE_LIMIT_WINDOW_SECS=60
-
    docker restart fraiseql-server
 
    # Service works but:
-   # - Cache limited to one instance (not shared across servers)
-   # - Rate limiting per-instance (not global)
-   # - More memory usage on FraiseQL
+   # - PKCE login state is per-instance: only safe with ONE replica
+   # - Observer dedup/cache is unavailable
+   # - Rate limiting was per-instance already (the request throttle is in-process);
+   #   with N replicas the effective budget is N × the configured limit
    ```
 
 2. **Provision new Redis instance**
@@ -266,7 +272,7 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    docker restart fraiseql-server
 
    # Verify
-   curl -s http://localhost:8815/metrics | grep redis_connection
+   curl -s http://localhost:8000/metrics | grep redis_connection
    ```
 
 ## Resolution
@@ -328,12 +334,12 @@ echo "   Total keys: $KEY_COUNT"
 # 5. Verify FraiseQL connectivity
 echo ""
 echo "5. Checking FraiseQL Redis connection:"
-curl -s http://localhost:8815/metrics | grep "redis_connection" || echo "   (No redis_connection metrics)"
+curl -s http://localhost:8000/metrics | grep "redis_connection" || echo "   (No redis_connection metrics)"
 
 # 6. Check cache metrics
 echo ""
 echo "6. Cache metrics:"
-curl -s http://localhost:8815/metrics | grep -E "cache_hits|cache_misses|cache_size" | head -5
+curl -s http://localhost:8000/metrics | grep -E "cache_hits|cache_misses|cache_size" | head -5
 
 # 7. Verify FraiseQL is using Redis
 echo ""
@@ -386,6 +392,11 @@ docker run -d --name redis --restart unless-stopped -p 6379:6379 redis:7
 ## Prevention
 
 ### Monitoring and Alerting
+
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
 
 ```bash
 # Prometheus alerts for Redis
@@ -453,10 +464,10 @@ redis-cli -u $REDIS_URL INFO memory | grep "used_memory_human"
 redis-cli -u $REDIS_URL DBSIZE
 
 # Weekly: Verify FraiseQL connectivity
-curl -s http://localhost:8815/metrics | grep "redis_connection"
+curl -s http://localhost:8000/metrics | grep "redis_connection"
 
 # Monthly: Analyze cache hit rate
-curl -s http://localhost:8815/metrics | grep -E "cache_hits|cache_misses"
+curl -s http://localhost:8000/metrics | grep -E "cache_hits|cache_misses"
 
 # Monthly: Check for stale keys
 redis-cli -u $REDIS_URL RANDOMKEY  # Ensure keys still exist

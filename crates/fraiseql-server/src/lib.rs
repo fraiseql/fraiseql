@@ -79,7 +79,7 @@ pub mod metrics_recorder;
 
 // fraiseql-runtime modules (merged)
 
-/// Runtime configuration types loaded from `fraiseql.toml` or environment variables.
+/// Auxiliary configuration types referenced by `ServerConfig` sections.
 pub mod config;
 /// Resilience primitives: backpressure and retry policies.
 pub mod resilience;

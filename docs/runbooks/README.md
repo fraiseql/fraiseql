@@ -37,7 +37,7 @@ This directory contains operational runbooks for managing, troubleshooting, and 
 
 ```bash
 # Check server status and health
-curl http://localhost:8815/health || echo "Server unavailable"
+curl http://localhost:8000/health || echo "Server unavailable"
 
 # View recent logs
 docker logs fraiseql-server | tail -50
@@ -45,11 +45,11 @@ docker logs fraiseql-server | tail -50
 # Check database connectivity
 psql $DATABASE_URL -c "SELECT now(), version();"
 
-# Monitor metrics
-curl http://localhost:9090/metrics | grep fraiseql
+# Monitor metrics (served on the main port; bearer token required when configured)
+curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" http://localhost:8000/metrics | grep fraiseql
 
 # Check environment and configuration
-env | grep -E "^(DB_|REDIS_|VAULT_|RUST_LOG)"
+env | grep -E "^(DATABASE_URL|FRAISEQL_|VAULT_|RUST_LOG)"
 
 # Restart service
 docker restart fraiseql-server
@@ -60,28 +60,42 @@ docker ps | grep fraiseql
 
 ## Environment Variables
 
-FraiseQL respects these standard configuration environment variables:
+The server reads an **explicit** set of environment variables — there is no generic
+`FRAISEQL_*` mapping onto config keys. The operator-relevant ones (the authoritative list
+is `fraiseql-server --help`):
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
-| `DB_PASSWORD` | Database password (alternative) | `securepassword` |
-| `REDIS_URL` | Redis connection (optional) | `redis://localhost:6379` |
-| `VAULT_ADDR` | HashiCorp Vault address | `https://vault.example.com:8200` |
-| `VAULT_TOKEN` | Vault authentication token | `s.xxxxx` |
-| `PORT` | HTTP server port | `8815` |
-| `PROMETHEUS_PORT` | Metrics port | `9090` |
-| `RUST_LOG` | Log level | `debug`, `info`, `warn`, `error` |
-| `SCHEMA_PATH` | Path to compiled schema | `/etc/fraiseql/schema.compiled.json` |
+| `FRAISEQL_BIND_ADDR` | HTTP bind address (default `127.0.0.1:8000`) | `0.0.0.0:8000` |
+| `FRAISEQL_SCHEMA_PATH` | Path to compiled schema | `/etc/fraiseql/schema.compiled.json` |
+| `FRAISEQL_CONFIG` | Path to the server TOML config | `/etc/fraiseql/server.toml` |
+| `FRAISEQL_ENV` | Deployment posture (`production` fail-closes CORS etc.) | `production` |
+| `FRAISEQL_METRICS_ENABLED` / `FRAISEQL_METRICS_TOKEN` | Metrics endpoint + its bearer token | `true` / `<token>` |
+| `FRAISEQL_ADMIN_API_ENABLED` / `FRAISEQL_ADMIN_TOKEN` | Admin API + its bearer token | `true` / `<token>` |
+| `FRAISEQL_RATE_LIMITING_ENABLED`, `FRAISEQL_RATE_LIMIT_RPS_PER_IP`, `FRAISEQL_RATE_LIMIT_RPS_PER_USER`, `FRAISEQL_RATE_LIMIT_BURST_SIZE` | Per-field rate-limit overrides (win over file and compiled schema) | `true` / `100` |
+| `FRAISEQL_LOG_FORMAT` | `json` or `pretty` log output | `json` |
+| `RUST_LOG` | Log filter | `debug`, `info`, `warn`, `error` |
+| `FRAISEQL_SECRETS_BACKEND` | Secrets backend selection (`env`, `file`, `vault`) | `vault` |
+| `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_ROLE_ID`, `VAULT_NAMESPACE`, `VAULT_TLS_VERIFY` | Vault address + authentication | `s.xxxxx` |
+| `FRAISEQL_REQUIRE_REDIS` | Refuse to boot if the Redis PKCE store is unavailable | `1` |
+
+Every other knob (pool sizing, cache toggle, timeouts, …) lives in the `--config` TOML
+file: **edit the file and restart** — exporting an invented `FRAISEQL_*` variable does
+nothing, and CI now rejects runbooks that name a variable no code reads (#838).
+
+`/metrics` requires `Authorization: Bearer $FRAISEQL_METRICS_TOKEN` when a metrics token
+is configured (it should be, in production). The admin API lives under `/api/v1/admin/…`
+and requires `Authorization: Bearer $FRAISEQL_ADMIN_TOKEN`.
 
 ## Health Checks
 
-All runbooks assume FraiseQL server is running on `localhost:8815` (default). Adjust hostname/port as needed.
+All runbooks assume FraiseQL server is running on `localhost:8000` (default). Adjust hostname/port as needed.
 
 ### Basic Health Check
 
 ```bash
-curl -v http://localhost:8815/health
+curl -v http://localhost:8000/health
 ```
 
 Expected response: `200 OK` with JSON containing health status.
@@ -89,7 +103,7 @@ Expected response: `200 OK` with JSON containing health status.
 ### Detailed Metrics Check
 
 ```bash
-curl http://localhost:8815/metrics
+curl http://localhost:8000/metrics
 ```
 
 Returns Prometheus metrics including:
@@ -114,10 +128,9 @@ See individual runbooks for specific escalation contacts.
 
 ## Related Documentation
 
-- [ARCHITECTURE_PRINCIPLES.md](../ARCHITECTURE_PRINCIPLES.md) - System design and principles
-- [Deployment Guide](../deployment.md) - Standard deployment procedures
-- [Configuration Reference](../configuration.md) - All FraiseQL configuration options
-- [Troubleshooting Guide](../troubleshooting.md) - Common issues and solutions
+- [Architecture Overview](../architecture/overview.md) - System design and principles
+- [Config vs Settings](../architecture/config-vs-settings.md) - Configuration model and the real env-var override list
+- [Troubleshooting Guide](../operations/troubleshooting.md) - Common issues and solutions
 - [Performance Tuning](../performance.md) - Optimization guidelines
 
 ## Contributing to Runbooks

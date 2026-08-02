@@ -22,84 +22,71 @@
 ### 1. Rate Limiting Configuration
 
 ```bash
-# Check rate limiting settings in compiled schema
+# Check rate limiting settings in the compiled schema (request throttle +
+# auth-endpoint brute-force limits)
 jq '.security.rate_limiting' /etc/fraiseql/schema.compiled.json
 
-# Get current limits
-jq '.security.rate_limiting | {
-  enabled: .enabled,
-  auth_start_max_requests: .auth_start_max_requests,
-  auth_start_window_secs: .auth_start_window_secs,
-  auth_max_requests: .auth_max_requests,
-  auth_max_window_secs: .auth_max_window_secs,
-  anon_max_requests: .anon_max_requests,
-  anon_max_window_secs: .anon_max_window_secs,
-  backend: .backend
-}' /etc/fraiseql/schema.compiled.json
+# Key fields: enabled, requests_per_second (per-IP), burst_size,
+# trust_proxy_headers, trusted_proxy_cidrs, and the per-auth-endpoint pairs
+# auth_start_max_requests / auth_start_window_secs (likewise auth_callback_*,
+# auth_refresh_*, auth_logout_*, failed_login_*).
 
-# Check which backend is being used (redis or in-memory)
-echo "Rate limiter backend: $(jq -r '.security.rate_limiting.backend' /etc/fraiseql/schema.compiled.json)"
+# The server [rate_limiting] table (server.toml) and the env overrides
+# (FRAISEQL_RATE_LIMITING_ENABLED, FRAISEQL_RATE_LIMIT_RPS_PER_IP,
+# FRAISEQL_RATE_LIMIT_RPS_PER_USER, FRAISEQL_RATE_LIMIT_BURST_SIZE) layer on
+# top: server table < compiled schema < env, guards run on the result.
+env | grep FRAISEQL_RATE
+grep -A8 '^\[rate_limiting\]' /etc/fraiseql/server.toml 2>/dev/null || echo "(no [rate_limiting] table in server.toml)"
 ```
 
 ### 2. Current Rate Limit State
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
-# Check rate limit metrics
-curl -s http://localhost:8815/metrics | grep "rate_limit"
+# Rate-limit related metrics the server exports (Redis backend errors only —
+# there is no per-IP exceeded counter; count 429s at your load balancer):
+curl -s -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" http://localhost:8000/metrics \
+  | grep "rate_limit"
 
-# Example metrics:
-# rate_limit_exceeded_total{client_type="authenticated"} 42
-# rate_limit_exceeded_total{client_type="anonymous"} 128
-# rate_limit_current_requests{ip="192.168.1.100"} 95
-# rate_limit_window_remaining_secs 45
-
-# Check which IPs are being rate limited
-curl -s http://localhost:8815/metrics | grep "rate_limit_exceeded" | sort
-
-# Monitor in real-time
-watch -n 1 'curl -s http://localhost:8815/metrics | grep rate_limit'
+# Which callers are being limited: the server logs each 429; aggregate from logs
+docker logs fraiseql-server 2>&1 | grep -c "429"
 ```
 
 ### 3. Request Volume Analysis
 
 ```bash
 # Check current request rate
-curl -s http://localhost:8815/metrics | grep "requests_total"
+curl -s http://localhost:8000/metrics | grep "requests_total"
 
 # Calculate requests per second
 # Sum recent increment in requests_total counter
 
 # Check requests by client type
-curl -s http://localhost:8815/metrics | grep "requests_" | grep -E "authenticated|anonymous"
+curl -s http://localhost:8000/metrics | grep "requests_" | grep -E "authenticated|anonymous"
 
 # Identify top clients hitting rate limits
 docker logs fraiseql-server | grep "rate limit" | tail -50 | \
   cut -d' ' -f1 | sort | uniq -c | sort -rn | head -10
 
-# If using Redis, query rate limit state directly
-redis-cli -u $REDIS_URL KEYS "rate_limit:*" | head -20
-redis-cli -u $REDIS_URL GET "rate_limit:user:12345"
+# Note: the request throttle's token buckets are in process memory — there is
+# no Redis state to inspect for it. (The opt-in redis-rate-limiting feature
+# covers the auth endpoints only.)
 ```
 
-### 4. Backend State (Redis if configured)
+### 4. Backend State
+
+The request throttle keeps its token buckets **in process memory** — there is no
+Redis state to inspect, and a server restart resets every bucket. Only the opt-in
+`redis-rate-limiting` build feature (auth endpoints) touches Redis; if enabled,
+check its health via the exported error counter:
 
 ```bash
-# Check if Redis is connected
-curl -s http://localhost:8815/metrics | grep "redis\|cache" | head -10
-
-# If using Redis for rate limiting
-REDIS_ADDR=$(echo "$REDIS_URL" | cut -d':' -f2 | tr -d '/')
-REDIS_PORT=$(echo "$REDIS_URL" | cut -d':' -f3)
-
-redis-cli -h $REDIS_ADDR -p $REDIS_PORT ping
-
-# Check rate limit keys in Redis
-redis-cli -u $REDIS_URL DBSIZE
-redis-cli -u $REDIS_URL KEYS "rate_limit:*" | wc -l
-
-# Check specific client's rate limit
-redis-cli -u $REDIS_URL GET "rate_limit:client:my_client_id"
-redis-cli -u $REDIS_URL TTL "rate_limit:client:my_client_id"  # Time until reset
+curl -s -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" http://localhost:8000/metrics \
+  | grep "fraiseql_rate_limit_redis_errors_total"
 ```
 
 ### 5. Check for DDoS/Attack
@@ -145,45 +132,36 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
 
 ### Immediate Actions (< 5 minutes)
 
-1. **Increase rate limits temporarily** (if legitimate traffic)
+1. **Increase request-throttle limits temporarily** (if legitimate traffic)
+
+   The env overrides below are read by the server and win over both the config file
+   and the compiled schema:
 
    ```bash
-   # Option 1: Update compiled schema and reload
-   jq '.security.rate_limiting.auth_max_requests = 1000' \
-      /etc/fraiseql/schema.compiled.json > /tmp/schema_updated.json
-   mv /tmp/schema_updated.json /etc/fraiseql/schema.compiled.json
-
-   docker restart fraiseql-server
-
-   # Option 2: Set environment variable override
-   export FRAISEQL_RATE_LIMIT_AUTH_MAX_REQUESTS=1000
+   export FRAISEQL_RATE_LIMIT_RPS_PER_IP=500
+   export FRAISEQL_RATE_LIMIT_RPS_PER_USER=5000
+   export FRAISEQL_RATE_LIMIT_BURST_SIZE=1000
    docker restart fraiseql-server
    ```
 
-2. **Whitelist specific client or IP** (if legitimate)
+   The **auth-endpoint brute-force limits** (`auth_start_max_requests`, …) are compiled
+   settings with no runtime override: change `[fraiseql.security.rate_limiting]` in the
+   project `fraiseql.toml`, re-run `fraiseql compile`, and redeploy the compiled schema.
+   Do not hand-edit `schema.compiled.json`.
+
+2. **Allow a specific client or IP** (if legitimate)
+
+   There is **no application-level whitelist** — allow-listing is done in front of the
+   server (load balancer, WAF, or firewall rules), or by authenticating the client so it
+   is limited per-user (`rps_per_user`) instead of sharing the per-IP budget.
+
+3. **Reset rate-limit counters**
+
+   The request throttle's token buckets are held in process memory — a restart clears
+   them:
 
    ```bash
-   # Add to rate limit whitelist
-   # Method depends on configuration, but typically:
-   export FRAISEQL_RATE_LIMIT_WHITELIST="192.168.1.100,api_key_xyz"
    docker restart fraiseql-server
-
-   # Or update compiled schema
-   jq '.security.rate_limiting.whitelist += ["192.168.1.100"]' \
-      /etc/fraiseql/schema.compiled.json > /tmp/schema.json
-   mv /tmp/schema.json /etc/fraiseql/schema.compiled.json
-   ```
-
-3. **Clear rate limit state in Redis** (reset counters)
-
-   ```bash
-   # If using Redis backend, flush rate limit keys
-   redis-cli -u $REDIS_URL FLUSHDB  # CAREFUL: Clears entire DB!
-
-   # Safer: Clear only rate_limit keys
-   redis-cli -u $REDIS_URL EVAL \
-     'return redis.call("del", unpack(redis.call("keys", ARGV[1])))' \
-     0 'rate_limit:*'
    ```
 
 4. **Temporarily disable rate limiting** (emergency only)
@@ -191,10 +169,6 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    ```bash
    # Only if under attack or critical service outage
    export FRAISEQL_RATE_LIMITING_ENABLED=false
-   docker restart fraiseql-server
-
-   # Or set to very high limits
-   export FRAISEQL_RATE_LIMIT_AUTH_MAX_REQUESTS=999999
    docker restart fraiseql-server
    ```
 
@@ -216,24 +190,20 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    # Update firewall rules to drop traffic from attack source
    ```
 
-2. **Enable stricter rate limiting for anonymous clients**
+2. **Tighten the anonymous budget, keep the authenticated one generous**
+
+   Anonymous clients share the per-IP budget; authenticated clients get the per-user
+   budget:
 
    ```bash
-   # Separate limits for authenticated vs anonymous
-   export FRAISEQL_RATE_LIMIT_ANON_MAX_REQUESTS=10    # Very strict
-   export FRAISEQL_RATE_LIMIT_ANON_WINDOW_SECS=60
-
-   export FRAISEQL_RATE_LIMIT_AUTH_MAX_REQUESTS=1000  # Generous for auth
+   export FRAISEQL_RATE_LIMIT_RPS_PER_IP=10      # strict for anonymous traffic
+   export FRAISEQL_RATE_LIMIT_RPS_PER_USER=1000  # generous for authenticated clients
    docker restart fraiseql-server
    ```
 
-3. **Implement per-client rate limiting**
-
-   ```bash
-   # If specific API key is misbehaving, limit just that key
-   redis-cli -u $REDIS_URL SET "rate_limit:key:bad_key" 5  # 5 requests
-   redis-cli -u $REDIS_URL EXPIRE "rate_limit:key:bad_key" 3600  # 1 hour
-   ```
+3. **Per-client (per-key) limits** are not a runtime knob — if one API client is
+   misbehaving, revoke or rotate its credential, or block it upstream at the load
+   balancer/WAF.
 
 ## Resolution
 
@@ -252,14 +222,14 @@ docker logs fraiseql-server | grep "rate limit" | tail -20
 # 2. Check request volume
 echo ""
 echo "2. Request volume metrics:"
-curl -s http://localhost:8815/metrics | grep "requests_total"
+curl -s http://localhost:8000/metrics | grep "requests_total"
 
 # 3. Calculate current RPS
 echo ""
 echo "3. Calculating requests per second..."
-BEFORE=$(curl -s http://localhost:8815/metrics | grep "requests_total\[^a-z\]" | head -1 | awk '{print $NF}')
+BEFORE=$(curl -s http://localhost:8000/metrics | grep "requests_total\[^a-z\]" | head -1 | awk '{print $NF}')
 sleep 10
-AFTER=$(curl -s http://localhost:8815/metrics | grep "requests_total\[^a-z\]" | head -1 | awk '{print $NF}')
+AFTER=$(curl -s http://localhost:8000/metrics | grep "requests_total\[^a-z\]" | head -1 | awk '{print $NF}')
 RPS=$(echo "scale=2; ($AFTER - $BEFORE) / 10" | bc)
 echo "Current rate: ${RPS} requests/sec"
 
@@ -344,14 +314,20 @@ done
 # Contact cloud provider for DDoS mitigation
 
 # 5. Temporary: Reduce rate limits to minimum
-export FRAISEQL_RATE_LIMIT_ANON_MAX_REQUESTS=1
-export FRAISEQL_RATE_LIMIT_ANON_WINDOW_SECS=60
+export FRAISEQL_RATE_LIMITING_ENABLED=true
+export FRAISEQL_RATE_LIMIT_RPS_PER_IP=1
+export FRAISEQL_RATE_LIMIT_BURST_SIZE=1
 docker restart fraiseql-server
 ```
 
 ## Prevention
 
 ### Monitoring and Alerting
+
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
 
 ```bash
 # Prometheus alert rules for rate limiting
@@ -384,20 +360,20 @@ EOF
 # - Standard: 1000 req/min
 # - Premium: 10000 req/min
 
-# 2. Use Redis for distributed rate limiting
-export REDIS_URL="redis://redis:6379/0"
-export FRAISEQL_RATE_LIMIT_BACKEND="redis"
+# 2. Distributed enforcement: the request throttle is per-process — with N replicas
+# the effective limit is N × the configured budget. Size the per-replica budget
+# accordingly, and set FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE=true to get a startup
+# reminder when no distributed backend is configured.
 
 # 3. Implement smart rate limiting
-# - Higher limits for authenticated users
-# - Credential-based limits (API key tier)
-# - Burst allowances (short spikes allowed)
+# - Higher per-user budgets for authenticated users (rps_per_user)
+# - Strict per-IP budgets for anonymous traffic (rps_per_ip)
+# - Burst allowances via burst_size (short spikes allowed)
 
 # Example configuration:
-export FRAISEQL_RATE_LIMIT_AUTH_MAX_REQUESTS=1000
-export FRAISEQL_RATE_LIMIT_AUTH_WINDOW_SECS=60
-export FRAISEQL_RATE_LIMIT_ANON_MAX_REQUESTS=100
-export FRAISEQL_RATE_LIMIT_ANON_WINDOW_SECS=60
+export FRAISEQL_RATE_LIMIT_RPS_PER_USER=1000
+export FRAISEQL_RATE_LIMIT_RPS_PER_IP=100
+export FRAISEQL_RATE_LIMIT_BURST_SIZE=200
 
 # 4. Monitor and adjust based on actual usage
 # Review metrics monthly to update limits as traffic grows
@@ -408,12 +384,17 @@ export FRAISEQL_RATE_LIMIT_ANON_WINDOW_SECS=60
 
 ### Rate Limiting Maintenance
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 # Weekly: Monitor rate limit hit rate
-curl -s http://localhost:8815/metrics | grep "rate_limit_exceeded_total"
+curl -s http://localhost:8000/metrics | grep "rate_limit_exceeded_total"
 
 # Monthly: Review limits based on traffic growth
-curl -s http://localhost:8815/metrics | grep "requests_total"
+curl -s http://localhost:8000/metrics | grep "requests_total"
 
 # Quarterly: Audit rate limit configuration
 jq '.security.rate_limiting' /etc/fraiseql/schema.compiled.json

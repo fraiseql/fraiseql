@@ -341,16 +341,11 @@ retry(txn-123):    Returns cached result (idempotent)
 
 ## Configuration
 
-Environment variables in docker-compose.yml:
-
-```yaml
-FRAISEQL_SAGA_ENABLED: "true"
-FRAISEQL_SAGA_STORE_TYPE: "postgres"
-FRAISEQL_SAGA_MAX_RETRIES: "3"
-FRAISEQL_SAGA_STEP_TIMEOUT_SECONDS: "30"
-FRAISEQL_SAGA_TIMEOUT_SECONDS: "60"
-# Manual compensation means longer timeout for business logic
-```
+There are **no saga environment variables** — retries, step timeouts and the saga
+timeout are constructor parameters of the `fraiseql-federation` saga components, set
+in code by the embedding service (manual compensation typically warrants a longer
+saga timeout for the business logic). See
+`crates/fraiseql-federation/src/saga_coordinator/` for the parameters and defaults.
 
 ## Troubleshooting
 

@@ -810,7 +810,7 @@ mod middleware_tests {
     fn test_auth_request_debug_redacts_bearer_token() {
         // SECURITY: AuthRequest must never expose the raw Authorization header
         // in its Debug output, or `debug!(?req)` calls will leak bearer tokens
-        // to structured logs. See IMPROVEMENTS.md F010.
+        // to structured logs. See docs/history/IMPROVEMENTS.md F010.
         let secret_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.SUPERSECRET.signature";
         let req = AuthRequest::new(Some(format!("Bearer {secret_token}")));
 

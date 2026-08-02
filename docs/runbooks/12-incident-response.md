@@ -27,10 +27,10 @@ docker ps | grep fraiseql-server
 SERVER_STATUS=$?
 
 # 2. Is it responding to requests?
-curl -s -m 5 http://localhost:8815/health 2>&1 | head -5
+curl -s -m 5 http://localhost:8000/health 2>&1 | head -5
 
 # 3. Check basic metrics
-curl -s http://localhost:8815/metrics | head -20
+curl -s http://localhost:8000/metrics | head -20
 
 # 4. Get recent logs
 docker logs fraiseql-server --tail 20 2>&1
@@ -49,7 +49,7 @@ fi
 # Use this decision tree to identify runbook
 
 # Question 1: Is FraiseQL server responding?
-if curl -s http://localhost:8815/health > /dev/null 2>&1; then
+if curl -s http://localhost:8000/health > /dev/null 2>&1; then
     echo "Server is responding"
 
     # Question 2: Is database working?
@@ -101,6 +101,11 @@ fi
 
 ### 3. Gather Information
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 #!/bin/bash
 
@@ -140,7 +145,7 @@ echo ""
 # Network/connectivity
 echo "=== CONNECTIVITY ==="
 echo "FraiseQL HTTP:"
-curl -v -m 5 http://localhost:8815/health 2>&1 | grep -E "< HTTP|Connected"
+curl -v -m 5 http://localhost:8000/health 2>&1 | grep -E "< HTTP|Connected"
 echo ""
 echo "Database:"
 psql $DATABASE_URL -c "SELECT now();" 2>&1 | head -3
@@ -155,16 +160,16 @@ echo ""
 # Metrics
 echo "=== KEY METRICS ==="
 echo "Requests per second:"
-curl -s http://localhost:8815/metrics 2>&1 | grep "requests_total" | head -3
+curl -s http://localhost:8000/metrics 2>&1 | grep "requests_total" | head -3
 echo ""
 echo "Error rate:"
-curl -s http://localhost:8815/metrics 2>&1 | grep "request_errors_total" | head -3
+curl -s http://localhost:8000/metrics 2>&1 | grep "request_errors_total" | head -3
 echo ""
 echo "Latency:"
-curl -s http://localhost:8815/metrics 2>&1 | grep "request_duration_seconds_bucket" | head -5
+curl -s http://localhost:8000/metrics 2>&1 | grep "request_duration_seconds_bucket" | head -5
 echo ""
 echo "Database pool:"
-curl -s http://localhost:8815/metrics 2>&1 | grep "db_pool_connections" | head -3
+curl -s http://localhost:8000/metrics 2>&1 | grep "db_pool_connections" | head -3
 echo ""
 
 # Environment
@@ -177,6 +182,11 @@ chmod +x /tmp/incident-info.sh
 ```
 
 ### 4. Determine Severity
+
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
 
 ```bash
 # Use this matrix to determine severity
@@ -191,7 +201,7 @@ echo "   - Single user: MEDIUM"
 echo "   - Internal/monitoring: LOW"
 
 # Check error rate
-ERROR_RATE=$(curl -s http://localhost:8815/metrics 2>/dev/null | grep "request_errors_total" | awk '{print $NF}' | head -1 || echo "0")
+ERROR_RATE=$(curl -s http://localhost:8000/metrics 2>/dev/null | grep "request_errors_total" | awk '{print $NF}' | head -1 || echo "0")
 echo ""
 echo "2. Error rate: $ERROR_RATE"
 echo "   - > 50%: CRITICAL"
@@ -200,7 +210,7 @@ echo "   - 1-10%: MEDIUM"
 echo "   - < 1%: LOW"
 
 # Check latency
-P99=$(curl -s http://localhost:8815/metrics 2>/dev/null | grep 'request_duration_seconds_bucket{.*="0.5"}' | awk '{print $NF}' | head -1 || echo "0")
+P99=$(curl -s http://localhost:8000/metrics 2>/dev/null | grep 'request_duration_seconds_bucket{.*="0.5"}' | awk '{print $NF}' | head -1 || echo "0")
 echo ""
 echo "3. P99 latency:"
 echo "   - > 5s: CRITICAL"
@@ -271,6 +281,11 @@ echo "(Assign based on above criteria)"
 
 ### Incident Resolution Workflow
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 #!/bin/bash
 
@@ -291,7 +306,7 @@ echo ""
 echo "3. Verification:"
 
 # Health check
-if curl -s http://localhost:8815/health | jq -e '.status == "healthy"' > /dev/null; then
+if curl -s http://localhost:8000/health | jq -e '.status == "healthy"' > /dev/null; then
     echo "   ✓ Server is healthy"
 else
     echo "   ✗ Server health check failed"
@@ -299,7 +314,7 @@ else
 fi
 
 # Error rate check
-ERROR_RATE=$(curl -s http://localhost:8815/metrics 2>/dev/null | grep "request_errors_total" | awk '{print $NF}' | head -1 || echo "0")
+ERROR_RATE=$(curl -s http://localhost:8000/metrics 2>/dev/null | grep "request_errors_total" | awk '{print $NF}' | head -1 || echo "0")
 if (( $(echo "$ERROR_RATE < 0.01" | bc -l) )); then
     echo "   ✓ Error rate acceptable: $ERROR_RATE"
 else
@@ -308,7 +323,7 @@ fi
 
 # Latency check
 echo "   Checking latency..."
-curl -s http://localhost:8815/metrics 2>/dev/null | grep "request_duration_seconds_bucket" | head -5
+curl -s http://localhost:8000/metrics 2>/dev/null | grep "request_duration_seconds_bucket" | head -5
 
 # Step 4: Monitor recovery
 echo ""
@@ -390,6 +405,11 @@ echo "Complete and share with team within 24 hours"
 
 ### Observability Setup
 
+> **Illustrative alert rules** — verify metric names against what your build's
+> `/metrics` endpoint actually exports (`curl -H "Authorization: Bearer $FRAISEQL_METRICS_TOKEN" …/metrics`).
+> Names below that FraiseQL does not export directly (e.g. request/auth failure
+> counters) must be derived from your load balancer, access logs, or exporters.
+
 ```bash
 # Comprehensive monitoring to prevent future incidents
 
@@ -465,7 +485,7 @@ EOF
 cat > /usr/local/bin/fraiseql-health-check.sh << 'EOF'
 #!/bin/bash
 # Run every 5 minutes
-curl -s -m 10 http://localhost:8815/health | jq -e '.status == "healthy"' || \
+curl -s -m 10 http://localhost:8000/health | jq -e '.status == "healthy"' || \
   send_alert "FraiseQL health check failed"
 EOF
 ```

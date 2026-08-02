@@ -445,72 +445,41 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 
 /// Get sanitized runtime configuration.
 ///
-/// Returns server version and runtime configuration with secrets redacted.
-/// Configuration includes database settings, cache settings, etc.
-/// but excludes API keys, passwords, and other sensitive data.
+/// Returns the server version and the cache state, with secrets redacted.
+///
+/// This used to *promise* port/host/workers/limits too, read from an
+/// `AppState` config slot that no production constructor ever filled — so the
+/// branch never ran and the endpoint always reported `cache_enabled = false`
+/// regardless of the actual adapter cache (#839's dead `RuntimeConfig` layer).
+/// It now reports only what it actually knows, truthfully.
 ///
 /// # Errors
 ///
 /// This handler currently always succeeds; it is infallible.
 ///
 /// Requires admin token authentication.
-// Reason: `cache_enabled = "false"` appears in both the else-branch and the
-// `#[cfg(not(feature = "arrow"))]` inner path. Clippy sees them as shared code, but
-// extracting it would break the `#[cfg]` conditional logic that sets a different value
-// when `arrow` is enabled.
-#[allow(clippy::branches_sharing_code)] // Reason: branches are logically distinct; extracting shared code would obscure intent
 pub async fn config_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<AdminConfigResponse>>, ApiError> {
     let mut config = HashMap::new();
 
-    // Get actual server configuration
-    if let Some(server_config) = state.server_config() {
-        // Safe configuration values - no secrets
-        config.insert("port".to_string(), server_config.port.to_string());
-        config.insert("host".to_string(), server_config.host.clone());
-
-        if let Some(workers) = server_config.workers {
-            config.insert("workers".to_string(), workers.to_string());
-        }
-
-        // TLS status (boolean only, paths are redacted)
-        config.insert("tls_enabled".to_string(), server_config.tls.is_some().to_string());
-
-        // Request limits
-        if let Some(limits) = &server_config.limits {
-            config.insert("max_request_size".to_string(), limits.max_request_size.clone());
-            config.insert("request_timeout".to_string(), limits.request_timeout.clone());
-            config.insert(
-                "max_concurrent_requests".to_string(),
-                limits.max_concurrent_requests.to_string(),
-            );
-            config.insert("max_queue_depth".to_string(), limits.max_queue_depth.to_string());
-        }
-
-        // Cache status: read from adapter_cache_enabled (set at startup by ServerBuilder).
-        // This reflects the CachedDatabaseAdapter state, independent of the Arrow cache.
-        let cache_active = state.adapter_cache_enabled;
-
-        config.insert("cache_enabled".to_string(), cache_active.to_string());
-        let cache_status = if cache_active {
-            CacheStatus::Active
-        } else {
-            CacheStatus::Disabled
-        };
-        config.insert(
-            "cache_status".to_string(),
-            serde_json::to_string(&cache_status)
-                .unwrap_or_else(|_| "\"disabled\"".to_string())
-                .trim_matches('"')
-                .to_string(),
-        );
-        let _ = server_config; // consumed above for other fields
+    // Cache status: read from adapter_cache_enabled (set at startup by
+    // ServerBuilder). This reflects the CachedDatabaseAdapter state,
+    // independent of the Arrow cache.
+    let cache_active = state.adapter_cache_enabled;
+    config.insert("cache_enabled".to_string(), cache_active.to_string());
+    let cache_status = if cache_active {
+        CacheStatus::Active
     } else {
-        // Minimal configuration if not available
-        config.insert("cache_enabled".to_string(), "false".to_string());
-        config.insert("cache_status".to_string(), "disabled".to_string());
-    }
+        CacheStatus::Disabled
+    };
+    config.insert(
+        "cache_status".to_string(),
+        serde_json::to_string(&cache_status)
+            .unwrap_or_else(|_| "\"disabled\"".to_string())
+            .trim_matches('"')
+            .to_string(),
+    );
 
     let response = AdminConfigResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),

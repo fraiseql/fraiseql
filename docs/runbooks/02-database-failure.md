@@ -48,7 +48,7 @@ traceroute $HOST
 
 ```bash
 # Check metrics for connection pool state
-curl -s http://localhost:8815/metrics | grep -A 5 "db_pool"
+curl -s http://localhost:8000/metrics | grep -A 5 "db_pool"
 
 # Expected output shows:
 # db_pool_connections_active{} N
@@ -139,7 +139,7 @@ ip route
    ```bash
    docker restart fraiseql-server
    sleep 5
-   curl http://localhost:8815/health
+   curl http://localhost:8000/health
    ```
 
 2. **Check database is actually down**
@@ -149,13 +149,10 @@ ip route
    docker run --rm postgres:15 psql "$DATABASE_URL" -c "SELECT 1"
    ```
 
-3. **Enable read-only mode or graceful degradation** (if supported)
-
-   ```bash
-   # Set environment variable to enable cached responses only
-   export FRAISEQL_FALLBACK_MODE=cache_only
-   docker restart fraiseql-server
-   ```
+3. **Do not look for a cache-only fallback mode — there isn't one.** FraiseQL fails
+   loud when the database is unreachable rather than serving possibly-stale cached
+   responses; readiness (`/readiness`) goes red so your orchestrator stops routing to
+   the instance. Fix the database path; there is no degraded serving mode to switch on.
 
 4. **Isolate the problem** - Is it PostgreSQL or just FraiseQL?
 
@@ -294,7 +291,7 @@ sleep 5
 
 # 7. Verify FraiseQL recovery
 echo "7. Verifying FraiseQL..."
-if curl -s http://localhost:8815/health | jq -e '.status == "healthy"' > /dev/null; then
+if curl -s http://localhost:8000/health | jq -e '.status == "healthy"' > /dev/null; then
     echo "   ✓ FraiseQL recovered successfully"
     exit 0
 else
@@ -323,7 +320,7 @@ export DATABASE_URL="postgresql://user:pass@replica_host:5432/database"
 docker restart fraiseql-server
 
 # 5. Verify
-curl http://localhost:8815/health
+curl http://localhost:8000/health
 ```
 
 ## Prevention

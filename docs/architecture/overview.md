@@ -189,8 +189,10 @@ cargo build --all-features
 
 ```rust
 // Construct config — always load from file in production.
-// FRAISEQL_DATABASE_URL, FRAISEQL_BIND_ADDR, etc. override any field
-let config = ServerConfig::from_file("fraiseql.toml")?;
+// `from_file` reads the TOML only; it applies no env-var layer. The
+// `fraiseql-server` binary additionally applies its explicit CLI/env
+// overrides (DATABASE_URL, FRAISEQL_BIND_ADDR, … — see `--help`) on top.
+let config = ServerConfig::from_file("server.toml")?;
 
 // Start server
 let server = Server::new(config, schema, adapter, db_pool).await?;
@@ -200,35 +202,37 @@ server.serve().await?;
 > **Never use `ServerConfig::default()` in production.** It disables TLS,
 > authentication, and rate limiting. It exists for unit tests and local development only.
 
-> **Note on TOML configuration**: `ServerConfig::from_file` loads a `fraiseql.toml`
-> file directly. When using the `fraiseql-server` binary, pass `--config fraiseql.toml`;
-> the binary loads `RuntimeConfig` (an internal type) and translates it to `ServerConfig`
-> before calling `Server::new()`. For library users, construct `ServerConfig` directly
-> or via `from_file`.
+> **Note on TOML configuration**: the file passed to the `fraiseql-server` binary via
+> `--config` is deserialized **directly into `ServerConfig`** — there is no intermediate
+> type and no translation step, and the keys are **top-level**, not grouped under
+> `[server]`/`[database]` tables. An unknown key refuses to boot with an error naming it.
+> (The project `fraiseql.toml` consumed by `fraiseql compile` / `fraiseql run` is a
+> different file with a different shape; see the compiled-schema lifecycle doc.)
 
 **Example Configuration:**
 
 ```toml
-[server]
+# server.toml — deserialized directly into ServerConfig; keys are top-level.
 bind_addr = "0.0.0.0:4000"
 schema_path = "schema.compiled.json"
 
-[database]
-url_env = "DATABASE_URL"
+# Database: URL plus pool sizing. In containers, prefer leaving `database_url`
+# out of the file and setting the DATABASE_URL environment variable instead
+# (the binary's env override wins over the file).
 pool_min_size = 5
 pool_max_size = 20
 
 # Optional: OIDC authentication
 [auth]
 issuer = "https://accounts.google.com"
-client_id_env = "GOOGLE_CLIENT_ID"
+audience = "your-api-audience"   # REQUIRED for security when auth is enabled
 
 # Optional: Observers
 [observers]
 enabled = true
 
-# Server runtime tuning lives under [observers.runtime] (see #342) so the same
-# fraiseql.toml can also be consumed by `fraiseql compile`.
+# Server runtime tuning lives under [observers.runtime] (see #342) so the
+# [observers] table keeps the same shape the compiler schema uses.
 [observers.runtime]
 channel_capacity = 1000
 max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
@@ -316,7 +320,8 @@ Router::new()
 For local development and testing:
 
 ```rust
-let schema = CompiledSchema::from_file("schema.compiled.json")?;
+let schema_json = std::fs::read_to_string("schema.compiled.json")?;
+let schema = CompiledSchema::from_json(&schema_json, true)?;
 let adapter = Arc::new(PostgresAdapter::new(&db_url).await?);
 let config = ServerConfig::default();   // sensible dev defaults, no TLS
 let server = Server::new(config, schema, adapter, None).await?;
@@ -328,48 +333,57 @@ This starts a fully functional GraphQL server on `127.0.0.1:8000` (the `ServerCo
 ### Production setup
 
 Production deployments additionally require TLS, authentication, rate limiting, connection
-pool sizing, and structured logging. These are all configured via `fraiseql.toml`:
+pool sizing, and structured logging. TLS, auth, rate limiting and pool sizing are
+configured in the `--config` TOML file (top-level `ServerConfig` keys); logging is
+configured via environment variables (`RUST_LOG` filter, `FRAISEQL_LOG_FORMAT=json`):
 
 ```toml
-# fraiseql.toml
+# server.toml — top-level ServerConfig keys; no [server]/[database] grouping tables.
 
-[server]
 bind_addr = "0.0.0.0:4000"
 schema_path = "schema.compiled.json"
 shutdown_timeout_secs = 30   # drain in-flight requests on SIGTERM
 
+# Set DATABASE_URL in the environment rather than writing database_url here.
+pool_min_size = 5
+pool_max_size = 20
+
 [tls]
+enabled = true
 cert_path = "/etc/ssl/certs/server.crt"
 key_path = "/etc/ssl/private/server.key"
 
 [auth]
 issuer = "https://your-auth-provider.example.com"
-client_id_env = "OIDC_CLIENT_ID"
 audience = "your-api-audience"
 
-[security.rate_limiting]
+# Request throttling (token bucket, per IP / per user). All keys below are
+# required — a partial table is a parse error, not a silent default. The auth
+# endpoint brute-force limits are separate: they are compiled settings
+# ([fraiseql.security.rate_limiting] in the project fraiseql.toml).
+[rate_limiting]
 enabled = true
-auth_start_max_requests = 100
-auth_start_window_secs = 60
-
-[database]
-url_env = "DATABASE_URL"
-pool_min_size = 5
-pool_max_size = 20
-
-[logging]
-level = "info"
-format = "json"   # structured logs for log aggregation
+rps_per_ip = 100
+rps_per_user = 1000
+burst_size = 200
+cleanup_interval_secs = 60
+trust_proxy_headers = false   # true requires trusted_proxy_cidrs in production
+trusted_proxy_cidrs = []
 ```
 
-The Rust entry point remains the same 5 substantive lines — `ServerConfig::from_file`
+The Rust entry point remains the same few substantive lines — `ServerConfig::from_file`
 loads TLS, auth, rate limiting, and pool sizing from the TOML file:
 
 ```rust
-tracing_subscriber::fmt().json().with_env_filter(EnvFilter::from_env("FRAISEQL_LOG")).init();
-let config = ServerConfig::from_file("fraiseql.toml")?;
-let schema = CompiledSchema::from_file(&config.schema_path)?;
-let adapter = Arc::new(PostgresAdapter::new(&config.database.url()?).await?);
+tracing_subscriber::fmt()
+    .json()
+    .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "info".into()))   // RUST_LOG
+    .init();
+let config = ServerConfig::from_file("server.toml").map_err(anyhow::Error::msg)?;
+let schema_json = std::fs::read_to_string(&config.schema_path)?;
+let schema = CompiledSchema::from_json(&schema_json, true)?;
+let adapter = Arc::new(PostgresAdapter::new(&config.database_url).await?);
 let server = Server::new(config, schema, adapter, None).await?;
 server.serve().await?;
 ```
@@ -377,11 +391,13 @@ server.serve().await?;
 **Minimum production checklist:**
 
 - [ ] TLS configured (or terminated at load balancer with mTLS inside cluster)
-- [ ] Auth provider configured (`[auth]` section or `FRAISEQL_AUTH_*` env vars)
-- [ ] Rate limiting enabled on auth endpoints
+- [ ] Auth provider configured (`[auth]` section of the `--config` file)
+- [ ] Rate limiting enabled (`[rate_limiting]` above for request throttling; compiled
+      `[fraiseql.security.rate_limiting]` for auth-endpoint brute-force limits)
 - [ ] `pool_max_size` sized for expected concurrency
 - [ ] `shutdown_timeout_secs` set (default 30 is usually appropriate)
-- [ ] Structured logging initialised and shipped to a log aggregator
+- [ ] Structured logging initialised (`FRAISEQL_LOG_FORMAT=json`, `RUST_LOG=info`) and
+      shipped to a log aggregator
 - [ ] Health check endpoints verified with your orchestrator (`/health`, `/readiness`)
 
 ---
@@ -785,9 +801,9 @@ accordingly and configure `max_concurrency`, `channel_capacity`, and
 | Approach | Method | When to Use |
 |----------|--------|-------------|
 | Defaults | `ServerConfig::default()` | Development, tests |
-| TOML file | `ServerConfig::from_file("fraiseql.toml")` | Production |
-| Env vars | `FRAISEQL_DATABASE_URL`, `FRAISEQL_BIND_ADDR`, etc. | Container deployments |
-| Binary | `fraiseql-server --config fraiseql.toml` | Managed deployments |
+| TOML file | `ServerConfig::from_file("server.toml")` | Production |
+| Env vars | `DATABASE_URL`, `FRAISEQL_BIND_ADDR`, … (the explicit list in `fraiseql-server --help`) | Container deployments |
+| Binary | `fraiseql-server --config server.toml` | Managed deployments |
 
 ### Key Commands
 
@@ -799,7 +815,7 @@ cargo build --no-default-features
 cargo build --all-features
 
 # Run server
-cargo run -- --config fraiseql.toml
+cargo run -- --config server.toml
 
 # Run tests
 cargo test --all-features

@@ -2,8 +2,58 @@ use fraiseql_core::db::postgres::PostgresTlsConfig;
 
 use super::{DatabaseTlsConfig, ServerConfig};
 
+/// `ServerConfig` sections that only exist when their build feature is compiled in.
+///
+/// With `deny_unknown_fields` (#839), a binary built without a feature refuses a
+/// config that declares the feature's section. serde's "unknown field" message
+/// cannot say *why* the field is unknown, so [`ServerConfig::from_file`] appends
+/// the build-feature hint for any of these keys found in the raw TOML.
+const FEATURE_GATED_SECTIONS: &[(&str, &str, bool)] = &[
+    ("flight_bind_addr", "arrow", cfg!(feature = "arrow")),
+    ("observers", "observers", cfg!(feature = "observers")),
+    ("sources", "sources", cfg!(feature = "sources")),
+    ("webhooks", "inbound", cfg!(feature = "inbound")),
+    ("mailbox", "inbound-email", cfg!(feature = "inbound-email")),
+    ("send", "inbound-email", cfg!(feature = "inbound-email")),
+    ("export", "rest", cfg!(feature = "rest")),
+    ("identity", "auth", cfg!(feature = "auth")),
+];
+
+/// Append a build-feature hint to a config parse error for every compiled-out
+/// section the raw TOML declares.
+///
+/// Takes the section table as a parameter so the mechanism is testable under any
+/// feature set — a test gated on `cfg(not(feature = …))` would silently never run
+/// in the all-features CI leg.
+pub(super) fn enrich_parse_error(
+    sections: &[(&str, &str, bool)],
+    content: &str,
+    mut msg: String,
+) -> String {
+    use std::fmt::Write as _;
+    if let Ok(table) = toml::from_str::<toml::Table>(content) {
+        for (key, feature, compiled_in) in sections {
+            if !compiled_in && table.contains_key(*key) {
+                // Infallible on String; the write! form avoids format!'s extra allocation.
+                let _ = write!(
+                    msg,
+                    "\nnote: `{key}` requires a binary built with the `{feature}` feature; \
+                     this build compiled it out, so the key is unknown here. Rebuild with \
+                     `--features {feature}` or remove the section."
+                );
+            }
+        }
+    }
+    msg
+}
+
 impl ServerConfig {
     /// Load server configuration from a TOML file.
+    ///
+    /// The file is deserialized directly into `ServerConfig` — keys are top-level,
+    /// and an unknown key is a hard error rather than a silent drop (#839). When
+    /// the unknown key is a section this build compiled out (e.g. `[observers]`
+    /// without the `observers` feature), the error names the missing build feature.
     ///
     /// # Errors
     ///
@@ -11,7 +61,13 @@ impl ServerConfig {
     pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
         let content = std::fs::read_to_string(path.as_ref())
             .map_err(|e| format!("Cannot read config file: {e}"))?;
-        toml::from_str(&content).map_err(|e| format!("Invalid TOML config: {e}"))
+        toml::from_str(&content).map_err(|e| {
+            enrich_parse_error(
+                FEATURE_GATED_SECTIONS,
+                &content,
+                format!("Invalid TOML config: {e}"),
+            )
+        })
     }
 
     /// Check if running in production mode.

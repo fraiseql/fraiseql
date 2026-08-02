@@ -160,6 +160,90 @@ fn test_subscription_config_with_partial_toml() {
     assert!(!decoded.subscriptions_enabled);
 }
 
+// #839: overview.md shipped a production config whose keys sat in [server]/[database]
+// grouping tables that ServerConfig does not have. serde silently discarded both tables,
+// so the server booted on 127.0.0.1:8000 with a default database URL while the operator
+// believed they had configured 0.0.0.0:4000 and pool sizing. An unknown top-level key
+// must refuse to parse, naming the key.
+#[test]
+fn unknown_top_level_table_is_rejected_not_discarded() {
+    let toml_str = r#"
+        [server]
+        bind_addr = "0.0.0.0:4000"
+        schema_path = "schema.compiled.json"
+
+        [database]
+        url_env = "DATABASE_URL"
+        pool_min_size = 5
+        pool_max_size = 20
+    "#;
+
+    let err = toml::from_str::<ServerConfig>(toml_str)
+        .expect_err("a [server] grouping table is not a ServerConfig key and must be refused");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("server") || msg.contains("unknown field"),
+        "the error must name the unknown key so the operator can fix the file; got: {msg}"
+    );
+}
+
+// A section compiled out of a build must be refused with an error that names the
+// missing build feature, not a bare serde "unknown field" (the operator's fix is a
+// rebuild or a config edit — the message must say which). Tested through the
+// parameterized helper so it runs under EVERY feature set — a cfg(not(feature))
+// gate would make it a never-run test in the all-features CI leg.
+#[test]
+fn compiled_out_section_error_names_the_build_feature() {
+    let sections: &[(&str, &str, bool)] = &[
+        ("observers", "observers", false),
+        ("sources", "sources", true),
+    ];
+    let content = "[observers]\nenabled = true\n[sources]\nenabled = true\n";
+
+    let msg = super::methods::enrich_parse_error(
+        sections,
+        content,
+        "Invalid TOML config: unknown field `observers`".to_string(),
+    );
+
+    assert!(
+        msg.contains("`observers` feature"),
+        "a compiled-out section must get a build-feature hint; got: {msg}"
+    );
+    assert!(
+        !msg.contains("`sources` feature"),
+        "a compiled-in section must NOT get a hint; got: {msg}"
+    );
+}
+
+// End-to-end twin of the helper test, exercising the real cfg! table through
+// from_file. Only compiled when `observers` is off (default local build); the
+// helper test above is the gate of record in the all-features CI leg.
+#[cfg(not(feature = "observers"))]
+#[test]
+fn from_file_names_the_build_feature_for_a_compiled_out_section() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, "[observers]\nenabled = true\n").expect("write config");
+
+    let err = ServerConfig::from_file(&path)
+        .expect_err("[observers] without the observers feature must refuse to parse");
+    assert!(
+        err.contains("`observers` feature"),
+        "the error must name the missing build feature; got: {err}"
+    );
+}
+
+#[test]
+fn unknown_scalar_key_is_rejected_not_discarded() {
+    let err = toml::from_str::<ServerConfig>("bind_adr = \"0.0.0.0:4000\"\n")
+        .expect_err("a typoed key must be refused, not silently dropped");
+    assert!(
+        err.to_string().contains("bind_adr") || err.to_string().contains("unknown field"),
+        "got: {err}"
+    );
+}
+
 #[test]
 fn test_tls_config_defaults() {
     let config = ServerConfig::default();

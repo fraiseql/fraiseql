@@ -262,7 +262,7 @@ impl QueryMatcher {
     /// `extract_arguments`) that walked the same JSON object and cloned every
     /// key-value pair twice per request. Folding them into a single conversion
     /// halves the per-request allocation cost for variable-heavy mutations
-    /// (see F005, F024 in `IMPROVEMENTS.md`).
+    /// (see F005, F024 in `docs/history/IMPROVEMENTS.md`).
     fn variables_to_map(
         variables: Option<&serde_json::Value>,
     ) -> HashMap<String, serde_json::Value> {
