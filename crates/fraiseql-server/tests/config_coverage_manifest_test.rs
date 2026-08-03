@@ -80,6 +80,16 @@ const MANIFEST: &[(&str, &str)] = &[
     ("pool_min_size", "DB pool min size"),
     ("pool_max_size", "DB pool max size"),
     ("pool_timeout_secs", "DB pool acquire timeout"),
+    (
+        "read_replica_urls",
+        "read replica pool URLs (#407) — lowered by ServerConfig::read_replicas() into \
+         PoolPrewarmConfig.read_replicas at both binaries' pool sites",
+    ),
+    (
+        "read_replica_pin_after_write_ms",
+        "read-your-writes pin window (#407; Option, defaults to 5000 ms in \
+         ServerConfig::read_replicas(); inert without read_replica_urls → validate() error)",
+    ),
     ("pool_tuning", "pool-pressure monitor config (Option)"),
     // ── Request limits / admission ───────────────────────────────────────────
     ("max_request_body_bytes", "request body size cap"),

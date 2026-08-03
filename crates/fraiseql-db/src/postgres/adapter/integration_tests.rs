@@ -671,11 +671,12 @@ async fn pool_prewarms_to_min_size() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:     5,
-            max_size:     20,
-            timeout_secs: None,
-            search_path:  None,
-            tls:          PostgresTlsConfig::default(),
+            min_size:      5,
+            max_size:      20,
+            timeout_secs:  None,
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: None,
         },
     )
     .await
@@ -694,11 +695,12 @@ async fn pool_prewarm_zero_min_size_creates_one_connection() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:     0,
-            max_size:     10,
-            timeout_secs: None,
-            search_path:  None,
-            tls:          PostgresTlsConfig::default(),
+            min_size:      0,
+            max_size:      10,
+            timeout_secs:  None,
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: None,
         },
     )
     .await
@@ -716,11 +718,12 @@ async fn pool_prewarm_min_capped_at_max() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:     100,
-            max_size:     3,
-            timeout_secs: None,
-            search_path:  None,
-            tls:          PostgresTlsConfig::default(),
+            min_size:      100,
+            max_size:      3,
+            timeout_secs:  None,
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: None,
         },
     )
     .await
@@ -739,11 +742,12 @@ async fn pool_timeout_causes_fast_failure_when_exhausted() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:     1,
-            max_size:     1,
-            timeout_secs: Some(1),
-            search_path:  None,
-            tls:          PostgresTlsConfig::default(),
+            min_size:      1,
+            max_size:      1,
+            timeout_secs:  Some(1),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: None,
         },
     )
     .await
@@ -771,11 +775,12 @@ async fn acquire_does_not_retry_on_timeout_error() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:     1,
-            max_size:     1,
-            timeout_secs: Some(1),
-            search_path:  None,
-            tls:          PostgresTlsConfig::default(),
+            min_size:      1,
+            max_size:      1,
+            timeout_secs:  Some(1),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: None,
         },
     )
     .await
@@ -1052,4 +1057,363 @@ async fn relay_order_by_numeric_field_sorts_numerically_not_lexicographically() 
         "a Numeric orderBy must sort numerically; lexicographic order would be 10, 100, 9"
     );
     drop_relay_order_fixture(&adapter, "numeric").await;
+}
+
+// ========================================================================
+// Read replica routing (#407)
+// ========================================================================
+//
+// A real streaming replica is not available in the test rig, so a second,
+// independent database stands in for a replica with unbounded lag: whatever is
+// seeded there at setup is all a replica-routed read can ever see. That makes
+// routing *observable*: a row marker says which database served the read, and a
+// write that appears in a subsequent read can only have come from the primary.
+
+/// Derive a URL for `db` on the same server as `base` (the rig URL).
+fn url_for_db(base: &str, db: &str) -> String {
+    assert!(!base.contains('?'), "rig URL is expected to carry no query string");
+    let slash = base.rfind('/').expect("connection URL has a path segment");
+    format!("{}/{db}", &base[..slash])
+}
+
+/// Admin connection to `url` for fixture DDL (simple-query protocol, so
+/// multi-statement batches are fine).
+async fn rr_admin_connect(url: &str) -> tokio_postgres::Client {
+    let (client, connection) = tokio_postgres::connect(url, tokio_postgres::NoTls)
+        .await
+        .expect("admin connection to test server");
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            tracing::warn!(error = %e, "rr admin connection error");
+        }
+    });
+    client
+}
+
+/// Create the primary/replica database pair for one test, with a marker row
+/// telling us which database served a read. Returns (primary_url, replica_url).
+async fn rr_fixture(test_tag: &str) -> (String, String) {
+    let base = test_db_url();
+    let admin = rr_admin_connect(&base).await;
+
+    let primary_db = format!("rr407_{test_tag}_primary");
+    let replica_db = format!("rr407_{test_tag}_replica");
+    for db in [&primary_db, &replica_db] {
+        admin
+            .batch_execute(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
+            .await
+            .expect("drop scratch db");
+        admin
+            .batch_execute(&format!("CREATE DATABASE {db}"))
+            .await
+            .expect("create scratch db");
+    }
+
+    let primary_url = url_for_db(&base, &primary_db);
+    let replica_url = url_for_db(&base, &replica_db);
+
+    let primary = rr_admin_connect(&primary_url).await;
+    primary
+        .batch_execute(
+            "CREATE TABLE tb_rr_item (id int PRIMARY KEY, label text NOT NULL);
+             INSERT INTO tb_rr_item VALUES (1, 'from-primary');
+             CREATE VIEW v_rr_item AS
+               SELECT jsonb_build_object('id', id, 'label', label) AS data FROM tb_rr_item;
+             CREATE FUNCTION fn_rr_insert(p jsonb) RETURNS jsonb LANGUAGE plpgsql AS $$
+             BEGIN
+               INSERT INTO tb_rr_item (id, label) VALUES ((p->>'id')::int, p->>'label');
+               RETURN jsonb_build_object('status', 'ok');
+             END $$;",
+        )
+        .await
+        .expect("primary fixture DDL");
+
+    let replica = rr_admin_connect(&replica_url).await;
+    replica
+        .batch_execute(
+            "CREATE TABLE tb_rr_item (id int PRIMARY KEY, label text NOT NULL);
+             INSERT INTO tb_rr_item VALUES (1, 'from-replica');
+             CREATE VIEW v_rr_item AS
+               SELECT jsonb_build_object('id', id, 'label', label) AS data FROM tb_rr_item;",
+        )
+        .await
+        .expect("replica fixture DDL");
+
+    (primary_url, replica_url)
+}
+
+/// Build an adapter over the fixture pair with the given pin window.
+async fn rr_adapter(
+    primary_url: &str,
+    replica_url: &str,
+    pin_after_write: std::time::Duration,
+) -> PostgresAdapter {
+    PostgresAdapter::with_pool_config(
+        primary_url,
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(10),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                urls: vec![replica_url.to_string()],
+                pin_after_write,
+            }),
+        },
+    )
+    .await
+    .expect("replica-routed adapter should boot")
+}
+
+/// The label of the single `id = 1` row `v_rr_item` serves — the marker for
+/// which database answered.
+async fn rr_read_marker(adapter: &PostgresAdapter) -> String {
+    let rows = adapter
+        .execute_where_query(
+            "v_rr_item",
+            Some(&WhereClause::Field {
+                path:     vec!["id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!(1),
+            }),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("marker read");
+    assert_eq!(rows.len(), 1, "exactly one marker row expected");
+    rows[0].as_value()["label"].as_str().expect("label marker").to_string()
+}
+
+#[tokio::test]
+async fn reads_route_to_replica_when_no_recent_write() {
+    let (primary_url, replica_url) = rr_fixture("route").await;
+    let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
+
+    assert_eq!(
+        rr_read_marker(&adapter).await,
+        "from-replica",
+        "with replicas configured and no writes yet, a compiled read must be served by \
+         the replica"
+    );
+}
+
+#[tokio::test]
+async fn writes_route_to_primary_with_replicas_configured() {
+    let (primary_url, replica_url) = rr_fixture("writes").await;
+    let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
+
+    adapter
+        .execute_function_call("fn_rr_insert", &[json!({"id": 2, "label": "written"})])
+        .await
+        .expect("mutation through the replica-routed adapter");
+
+    // The write must exist on the primary and must NOT have touched the replica.
+    let primary = rr_admin_connect(&primary_url).await;
+    let n: i64 = primary
+        .query_one("SELECT count(*) FROM tb_rr_item WHERE id = 2", &[])
+        .await
+        .expect("primary count")
+        .get(0);
+    assert_eq!(n, 1, "the mutation must land on the primary");
+
+    let replica = rr_admin_connect(&replica_url).await;
+    let n: i64 = replica
+        .query_one("SELECT count(*) FROM tb_rr_item WHERE id = 2", &[])
+        .await
+        .expect("replica count")
+        .get(0);
+    assert_eq!(n, 0, "the mutation must never execute on a replica");
+}
+
+#[tokio::test]
+async fn read_after_write_cannot_serve_the_stale_replica_row() {
+    let (primary_url, replica_url) = rr_fixture("raw").await;
+    let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
+
+    // Sanity: before the write, reads are replica-served (the routing is live —
+    // without this, a broken router that always reads the primary would pass
+    // the assertion below for the wrong reason).
+    assert_eq!(rr_read_marker(&adapter).await, "from-replica");
+
+    adapter
+        .execute_function_call("fn_rr_insert", &[json!({"id": 2, "label": "own-write"})])
+        .await
+        .expect("mutation");
+
+    // The replica never receives the write (it simulates unbounded lag), so
+    // this row can only come back if the post-write pin routed the read to the
+    // primary: the read-your-writes guarantee.
+    let rows = adapter
+        .execute_where_query(
+            "v_rr_item",
+            Some(&WhereClause::Field {
+                path:     vec!["id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!(2),
+            }),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("read-after-write");
+    assert_eq!(
+        rows.len(),
+        1,
+        "a client must read its own write immediately after a mutation; an empty result \
+         means the read was served by the lagging replica"
+    );
+    assert_eq!(rows[0].as_value()["label"], json!("own-write"));
+}
+
+#[tokio::test]
+async fn reads_return_to_the_replica_after_the_pin_expires() {
+    let (primary_url, replica_url) = rr_fixture("expiry").await;
+    let adapter =
+        rr_adapter(&primary_url, &replica_url, std::time::Duration::from_millis(300)).await;
+
+    adapter
+        .execute_function_call("fn_rr_insert", &[json!({"id": 2, "label": "written"})])
+        .await
+        .expect("mutation");
+
+    // Inside the window: pinned to primary.
+    assert_eq!(rr_read_marker(&adapter).await, "from-primary");
+
+    // Sleeping past a fixed lower bound is deterministic for expiry (the pin can
+    // only be *shorter* than the sleep, never longer).
+    tokio::time::sleep(std::time::Duration::from_millis(900)).await;
+    assert_eq!(
+        rr_read_marker(&adapter).await,
+        "from-replica",
+        "the primary pin must expire so read load returns to the replicas"
+    );
+}
+
+#[tokio::test]
+async fn replica_pool_carries_the_tenant_search_path() {
+    let (primary_url, replica_url) = rr_fixture("sp").await;
+
+    // A same-named probe view in a tenant schema on BOTH databases; only the
+    // search path decides which schema resolves, and only the routing decides
+    // which database. The view also projects the *established*
+    // (`pg_settings.reset_val`) search path — the #809 guard: a session-level
+    // SET cannot fake it.
+    let probe_ddl = |origin: &str| {
+        format!(
+            "CREATE SCHEMA tenant_rr;
+             CREATE VIEW tenant_rr.v_rr_probe AS
+               SELECT jsonb_build_object(
+                 'origin', '{origin}',
+                 'established_path',
+                 (SELECT reset_val FROM pg_settings WHERE name = 'search_path')
+               ) AS data;"
+        )
+    };
+    rr_admin_connect(&primary_url)
+        .await
+        .batch_execute(&probe_ddl("primary"))
+        .await
+        .unwrap();
+    rr_admin_connect(&replica_url)
+        .await
+        .batch_execute(&probe_ddl("replica"))
+        .await
+        .unwrap();
+
+    let adapter = PostgresAdapter::with_pool_config(
+        &primary_url,
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(10),
+            search_path:   Some(SearchPath::new(["tenant_rr", "public"]).unwrap()),
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                urls:            vec![replica_url.clone()],
+                pin_after_write: std::time::Duration::from_secs(30),
+            }),
+        },
+    )
+    .await
+    .expect("adapter with search path + replica");
+
+    let rows = adapter
+        .execute_where_query("v_rr_probe", None, None, None, None)
+        .await
+        .expect("probe read resolves through the search path");
+    assert_eq!(rows.len(), 1);
+    let probe = rows[0].as_value().clone();
+    assert_eq!(probe["origin"], json!("replica"), "an unpinned read must be replica-served");
+    let established = probe["established_path"].as_str().unwrap_or_default();
+    assert!(
+        established.contains("tenant_rr"),
+        "the replica pool's connections must carry the tenant search path in their \
+         ESTABLISHED (startup) settings, not a session SET; got: {established}"
+    );
+}
+
+#[tokio::test]
+async fn unreachable_replica_refuses_to_boot() {
+    let (primary_url, _replica_url) = rr_fixture("boot").await;
+
+    let result = PostgresAdapter::with_pool_config(
+        &primary_url,
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(2),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                // Port 9 (discard) on loopback: reliably connection-refused.
+                urls:            vec!["postgres://nobody:nothing@127.0.0.1:9/nowhere".to_string()],
+                pin_after_write: std::time::Duration::from_secs(5),
+            }),
+        },
+    )
+    .await;
+
+    match result {
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("unreachable at boot"),
+                "the refusal must say which replica failed and why; got: {msg}"
+            );
+        },
+        Ok(_) => panic!(
+            "an adapter with an unreachable configured replica must refuse to boot, not \
+             silently serve every read from the primary"
+        ),
+    }
+}
+
+#[tokio::test]
+async fn empty_replica_url_list_is_refused() {
+    let (primary_url, _replica_url) = rr_fixture("empty").await;
+
+    let result = PostgresAdapter::with_pool_config(
+        &primary_url,
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(2),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                urls:            vec![],
+                pin_after_write: std::time::Duration::from_secs(5),
+            }),
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(FraiseQLError::Validation { .. })),
+        "an empty replica URL list is an inert configuration and must be refused loudly"
+    );
 }

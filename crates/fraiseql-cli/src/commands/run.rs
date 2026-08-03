@@ -223,14 +223,15 @@ async fn serve_postgres(
         PostgresAdapter::with_pool_config(
             &config.database_url,
             fraiseql_core::db::postgres::PoolPrewarmConfig {
-                min_size:     config.pool_min_size,
-                max_size:     config.pool_max_size,
-                timeout_secs: Some(config.pool_timeout_secs),
-                search_path:  None,
+                min_size:      config.pool_min_size,
+                max_size:      config.pool_max_size,
+                timeout_secs:  Some(config.pool_timeout_secs),
+                search_path:   None,
                 // `[database] ssl_mode` arrives here through `ServerConfig.database_tls`,
                 // the single seam both binaries read. It used to stop at `validate()`
                 // (#824).
-                tls:          tls.clone(),
+                tls:           tls.clone(),
+                read_replicas: config.read_replicas(),
             },
         )
         .await

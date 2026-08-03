@@ -346,6 +346,28 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_pool_timeout")]
     pub pool_timeout_secs: u64,
 
+    /// Read replica connection URLs (#407). Empty = no replicas.
+    ///
+    /// When set, compiled GraphQL *queries* (and every other structurally
+    /// read-only adapter path) are served round-robin from these replicas, while
+    /// mutations and all mixed-use surfaces stay on
+    /// [`database_url`](Self::database_url). Each replica pool inherits the
+    /// primary pool's sizing, timeout and `[database_tls]` settings. A replica
+    /// that is unreachable at boot refuses startup; one that fails at runtime is
+    /// skipped, falling back to the primary.
+    #[serde(default)]
+    pub read_replica_urls: Vec<String>,
+
+    /// Read-your-writes pin window in milliseconds (#407).
+    ///
+    /// After any mutation, reads keep routing to the primary for this long so
+    /// replication lag cannot serve a client its own stale write. Set it to at
+    /// least the worst replica lag you tolerate. Defaults to 5000 ms when
+    /// replicas are configured; setting it **without**
+    /// [`read_replica_urls`](Self::read_replica_urls) is a configuration error.
+    #[serde(default)]
+    pub read_replica_pin_after_write_ms: Option<u64>,
+
     /// OIDC authentication configuration (optional).
     ///
     /// When set, enables JWT authentication using OIDC discovery.
@@ -979,6 +1001,9 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
+            read_replica_urls: Vec::new(), // Primary-only by default
+            read_replica_pin_after_write_ms: None, // 5000 ms when replicas are set
+
             auth: None, // No auth by default
             auth_hs256: None,
             #[cfg(feature = "auth-saml")]

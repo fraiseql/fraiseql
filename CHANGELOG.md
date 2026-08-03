@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Read replica support (#407).** `read_replica_urls` (plus optional
+  `read_replica_pin_after_write_ms`, default 5000) route compiled GraphQL queries —
+  and every other structurally read-only adapter path: field projections,
+  aggregates, relay pagination, `EXPLAIN` — round-robin across PostgreSQL replicas,
+  while mutations and every mixed-use surface (raw SQL, DDL, stats, health, auth
+  stores, observers, CDC) stay on the primary. The partition is static: a surface
+  that *can* write is never replica-routed. Consistency: every mutation arms a
+  shared watermark and reads route to the primary for the pin window afterwards,
+  so replication lag cannot serve a client its own stale write (proven by an
+  integration test whose stand-in replica never receives the write). Safety rails:
+  each replica pool is built from the same configuration as the primary — same
+  TLS, same sizing, and the same per-tenant `search_path` in the startup packet
+  (#809 generalised to every pool) — an unreachable replica refuses boot, a
+  replica that is not actually in recovery is loudly flagged, a runtime replica
+  failure falls back to the primary, an inert pin-without-replicas config and a
+  wire-backend build with replicas configured are both refused. See
+  `docs/operations/read-replicas.md`.
+
 - **`[[analytics.queries]]` is real (#624).** The `[analytics]` section — inert since
   its first commit and rejected since #612 — now lowers each entry at compile time
   into an ordinary compiled query: a list-returning, view-backed `QueryDefinition`
@@ -72,6 +90,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     documents are refused on POST, GET, and QUERY alike.
 
 ### Breaking
+
+- **`PoolPrewarmConfig` gains the mandatory `read_replicas` field (#407).** Every
+  pool construction site must now state its replica topology (`None` for a
+  single-primary pool), the same compile-time-visible decision the `tls` field
+  imposes: replica pools are built from the very same config, so tenant isolation
+  and transport security cannot silently differ between the primary and a replica.
 
 - **Cost rejections changed shape (#379).** A per-tenant `cost_budget` rejection was
   HTTP 429 `RATE_LIMIT_EXCEEDED` with `retry_after_secs: 1`; it is now

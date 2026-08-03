@@ -506,7 +506,9 @@ impl DatabaseAdapter for PostgresAdapter {
 
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
-        let client = self.acquire_connection_with_retry().await?;
+        // EXPLAIN ANALYZE of a compiled SELECT: read-only, and most truthful when
+        // it runs where the reads it describes run — the replica route (#407).
+        let client = self.acquire_read_connection_with_retry().await?;
         let rows = client.query(explain_sql.as_str(), &param_refs).await.map_err(|e| {
             FraiseQLError::Database {
                 message:   format!("EXPLAIN ANALYZE failed: {e}"),
@@ -587,7 +589,8 @@ impl DatabaseAdapter for PostgresAdapter {
         let typed: Vec<QueryParam> = params.iter().cloned().map(QueryParam::from).collect();
         let param_refs = crate::types::as_sql_param_refs(&typed);
 
-        let client = self.acquire_connection_with_retry().await?;
+        // Compiled aggregate SELECT: read-only, replica-eligible (#407).
+        let client = self.acquire_read_connection_with_retry().await?;
         let rows: Vec<Row> =
             client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Parameterized aggregate query failed: {e}"),
@@ -613,7 +616,8 @@ impl DatabaseAdapter for PostgresAdapter {
         let typed: Vec<QueryParam> = params.iter().cloned().map(QueryParam::from).collect();
         let param_refs = crate::types::as_sql_param_refs(&typed);
 
-        let mut client = self.acquire_connection_with_retry().await?;
+        // Read-only aggregate with session vars; standby-safe → replica-eligible.
+        let mut client = self.acquire_read_connection_with_retry().await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to start session-var transaction: {e}"),
@@ -638,6 +642,9 @@ impl DatabaseAdapter for PostgresAdapter {
         function_name: &str,
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Arm the read-your-writes pin at entry (a read racing a slow write
+        // already pins) and again after commit (lag counts from commit) — #407.
+        self.mark_write();
         // Build: SELECT * FROM "fn_name"($1, $2, ...)
         // Use the standard identifier quoting utility so that schema-qualified
         // names like "benchmark.fn_update_user" are correctly split into
@@ -706,6 +713,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 message:   format!("Failed to commit mutation timing transaction: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
+            self.mark_write();
 
             let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
                 rows.iter().map(row_to_map).collect();
@@ -719,6 +727,7 @@ impl DatabaseAdapter for PostgresAdapter {
                     sql_state: e.code().map(|c| c.code().to_string()),
                 }
             })?;
+            self.mark_write();
 
             let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
                 rows.iter().map(row_to_map).collect();
@@ -808,6 +817,8 @@ impl DatabaseAdapter for PostgresAdapter {
             return self.execute_function_call(function_name, args).await;
         }
 
+        // Arm the read-your-writes pin (entry + post-commit) — #407.
+        self.mark_write();
         let quoted_fn = quote_postgres_identifier(function_name);
         let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
         let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
@@ -869,6 +880,7 @@ impl DatabaseAdapter for PostgresAdapter {
             message:   format!("Failed to commit session-var transaction: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
+        self.mark_write();
 
         Ok(rows.iter().map(row_to_map).collect())
     }
@@ -888,6 +900,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 .await;
         };
 
+        // Arm the read-your-writes pin (entry + post-commit) — #407.
+        self.mark_write();
         let quoted_fn = quote_postgres_identifier(function_name);
         // One statement: run the function once and INSERT its outbox row in the
         // same txn, atomically, with no extra connection acquire (Change Spine).
@@ -1009,6 +1023,7 @@ impl DatabaseAdapter for PostgresAdapter {
             message:   format!("Failed to commit change-log outbox transaction: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
+        self.mark_write();
 
         Ok(rows.iter().map(row_to_map).collect())
     }
@@ -1090,7 +1105,8 @@ impl DatabaseAdapter for PostgresAdapter {
             });
         }
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
-        let client = self.acquire_connection_with_retry().await?;
+        // Read-only (plan only, ANALYZE false): replica-eligible (#407).
+        let client = self.acquire_read_connection_with_retry().await?;
         let rows: Vec<Row> =
             client
                 .query(explain_sql.as_str(), &[])

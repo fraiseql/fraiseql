@@ -10,7 +10,14 @@ mod tests;
 #[cfg(all(test, feature = "test-postgres"))]
 mod integration_tests;
 
-use std::{fmt::Write, time::Duration};
+use std::{
+    fmt::Write,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use fraiseql_error::{FraiseQLError, Result};
@@ -93,12 +100,14 @@ const CONNECTION_RETRY_DELAY_MS: u64 = 50;
 /// use fraiseql_db::postgres::{PoolPrewarmConfig, PostgresTlsConfig};
 ///
 /// let cfg = PoolPrewarmConfig {
-///     min_size:     5,
-///     max_size:     20,
-///     timeout_secs: Some(30),
-///     search_path:  None,
+///     min_size:      5,
+///     max_size:      20,
+///     timeout_secs:  Some(30),
+///     search_path:   None,
 ///     // Mandatory: every pool site must state its transport security (#801/#824).
-///     tls:          PostgresTlsConfig::default(),
+///     tls:           PostgresTlsConfig::default(),
+///     // Mandatory: every pool site must state its replica topology (#407).
+///     read_replicas: None,
 /// };
 /// ```
 #[derive(Debug, Clone)]
@@ -138,6 +147,57 @@ pub struct PoolPrewarmConfig {
     /// new pool site cannot compile without deciding (#801, #824). Callers with no
     /// opinion pass [`PostgresTlsConfig::default`] (libpq's `prefer`).
     pub tls: PostgresTlsConfig,
+
+    /// Read replicas for this pool set, or `None` for a single-primary adapter.
+    ///
+    /// Like [`tls`](Self::tls), this is a mandatory decision at every pool site:
+    /// replica pools are built **from this same config** — the same
+    /// [`search_path`](Self::search_path), the same [`tls`](Self::tls), the same
+    /// sizing — so tenant isolation and transport security cannot silently differ
+    /// between the primary and a replica (#809 generalised: isolation is a
+    /// property of how *every* pool's connections are made). See
+    /// [`ReadReplicaConfig`] for the routing and consistency rules (#407).
+    pub read_replicas: Option<ReadReplicaConfig>,
+}
+
+/// Read-replica configuration for a PostgreSQL adapter (#407).
+///
+/// # Routing model
+///
+/// FraiseQL's read/write partition is **static**: compiled GraphQL queries execute
+/// through the adapter's structurally read-only methods (`execute_where_query*`,
+/// `execute_with_projection*`, `execute_parameterized_aggregate*`, `explain_*`,
+/// relay pagination), and those route to a replica selected round-robin. The
+/// mutation pipeline (`execute_function_call*`) and every mixed-use or
+/// administrative surface (`execute_raw_query`, `execute_row_query`, query stats,
+/// health checks, schema DDL) always run on the primary — a surface that *can*
+/// write is never routed to a replica.
+///
+/// # Read-your-writes
+///
+/// Every mutation-pipeline write arms a shared watermark; for
+/// [`pin_after_write`](Self::pin_after_write) afterwards, reads route to the
+/// primary so replication lag cannot serve a client its own stale write. The
+/// window is an operator assertion about worst-case replica lag: writes that
+/// bypass the mutation pipeline (raw SQL, out-of-band jobs) do not arm it, and a
+/// replica lagging beyond the window can serve stale — but never torn — rows.
+///
+/// # Failure behaviour
+///
+/// A replica that is unreachable at boot **refuses to boot** (a configured-but-
+/// unusable pool must not downgrade silently). A replica that fails at runtime is
+/// skipped for that acquisition — the next replica is tried, then the primary —
+/// so replica loss degrades read capacity, never read availability.
+#[derive(Debug, Clone)]
+pub struct ReadReplicaConfig {
+    /// Connection URLs of the read replicas, tried round-robin. Must be non-empty.
+    pub urls: Vec<String>,
+
+    /// How long after a mutation-pipeline write reads keep routing to the primary.
+    ///
+    /// Must be at least the worst replication lag the operator is prepared to
+    /// tolerate; within it, a client is guaranteed to read its own writes.
+    pub pin_after_write: Duration,
 }
 
 /// A validated PostgreSQL `search_path`, applied at connection establishment.
@@ -312,6 +372,78 @@ fn build_pool(
     })
 }
 
+/// Build and boot-verify the replica pool set (#407).
+///
+/// Each replica pool inherits the primary's `search_path`, TLS, sizing and
+/// timeouts from `cfg`. Every replica is health-checked at boot; an unreachable
+/// replica refuses to boot rather than silently shrinking the read fleet, and a
+/// reachable server that is not in recovery (not actually a standby) is allowed
+/// but loudly logged — dev rigs legitimately stand in a plain database for a
+/// replica, but in production that warning means reads may diverge from the
+/// primary in both directions.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when `rc.urls` is empty, and
+/// [`FraiseQLError::ConnectionPool`] / [`FraiseQLError::Database`] when a replica
+/// pool cannot be created or its boot health check fails.
+async fn build_read_replica_set(
+    rc: &ReadReplicaConfig,
+    cfg: &PoolPrewarmConfig,
+) -> Result<ReadReplicaSet> {
+    if rc.urls.is_empty() {
+        return Err(FraiseQLError::validation(
+            "read_replicas was configured with an empty URL list; remove the configuration \
+             or list at least one replica",
+        ));
+    }
+
+    let mut pools = Vec::with_capacity(rc.urls.len());
+    for (index, url) in rc.urls.iter().enumerate() {
+        let pool =
+            build_pool(url, cfg.max_size, cfg.timeout_secs, cfg.search_path.as_ref(), &cfg.tls)?;
+
+        // Boot health check: a configured replica that cannot serve refuses to
+        // boot — the alternative is a read fleet that silently collapsed onto
+        // the primary before the first request.
+        let client = pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!(
+                "Read replica {index} is unreachable at boot ({e}); refusing to start"
+            ),
+        })?;
+        let row = client.query_one("SELECT pg_is_in_recovery()", &[]).await.map_err(|e| {
+            FraiseQLError::Database {
+                message:   format!("Read replica {index} failed its boot health check: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+        let in_recovery: bool = row.get(0);
+        if !in_recovery {
+            tracing::warn!(
+                replica = index,
+                "Configured read replica is not in recovery (pg_is_in_recovery() = false); it \
+                 is a writable server, not a standby. Reads routed to it may diverge from the \
+                 primary."
+            );
+        }
+        drop(client);
+
+        pools.push(pool);
+    }
+
+    // Reason (fallible u64::try_from + saturation): a pin window beyond u64::MAX
+    // milliseconds (~585 million years) saturates to "pin forever", which is the
+    // conservative, primary-only side.
+    let pin_after_write_ms = u64::try_from(rc.pin_after_write.as_millis()).unwrap_or(u64::MAX);
+
+    Ok(ReadReplicaSet {
+        pools,
+        next: AtomicUsize::new(0),
+        pin_after_write_ms,
+        last_write_unix_ms: AtomicU64::new(0),
+    })
+}
+
 /// PostgreSQL database adapter with connection pooling.
 ///
 /// Uses `deadpool-postgres` for connection pooling and `tokio-postgres` for async queries.
@@ -345,10 +477,47 @@ fn build_pool(
 #[derive(Clone)]
 pub struct PostgresAdapter {
     pub(super) pool:         Pool,
+    /// Read-replica pool set, or `None` for a single-primary adapter (#407).
+    read_replicas:           Option<Arc<ReadReplicaSet>>,
     /// Whether mutation timing injection is enabled.
     mutation_timing_enabled: bool,
     /// The PostgreSQL session variable name for timing.
     timing_variable_name:    String,
+}
+
+/// The built replica pools plus the shared read-your-writes watermark.
+///
+/// Held behind one `Arc` so adapter clones share a single round-robin cursor and
+/// a single write watermark — a clone that kept its own watermark would let a
+/// write through one clone go unseen by reads through another.
+struct ReadReplicaSet {
+    pools:              Vec<Pool>,
+    /// Round-robin cursor over `pools`.
+    next:               AtomicUsize,
+    /// [`ReadReplicaConfig::pin_after_write`], in milliseconds.
+    pin_after_write_ms: u64,
+    /// Unix-epoch milliseconds of the most recent mutation-pipeline write;
+    /// `0` = never written.
+    last_write_unix_ms: AtomicU64,
+}
+
+/// Whether a read at `now_ms` falls inside the post-write primary pin.
+///
+/// Pure so the boundary cases are unit-testable without a clock: a never-armed
+/// watermark (`last_write_ms == 0`) is only "recent" while the process's clock
+/// is within `pin_ms` of the epoch, i.e. never in practice.
+const fn pin_active(now_ms: u64, last_write_ms: u64, pin_ms: u64) -> bool {
+    now_ms.saturating_sub(last_write_ms) < pin_ms
+}
+
+/// Current Unix time in milliseconds.
+fn now_unix_ms() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    // Reason (map_or 0): a pre-epoch system clock degrades to "always pinned",
+    // which is the safe (primary-only) side.
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 impl std::fmt::Debug for PostgresAdapter {
@@ -357,6 +526,10 @@ impl std::fmt::Debug for PostgresAdapter {
             .field("mutation_timing_enabled", &self.mutation_timing_enabled)
             .field("timing_variable_name", &self.timing_variable_name)
             .field("pool", &"<Pool>")
+            .field(
+                "read_replicas",
+                &self.read_replicas.as_ref().map(|r| r.pools.len()).unwrap_or_default(),
+            )
             .finish()
     }
 }
@@ -385,13 +558,14 @@ impl PostgresAdapter {
         Self::with_pool_config(
             connection_string,
             PoolPrewarmConfig {
-                min_size:     0,
-                max_size:     DEFAULT_POOL_SIZE,
-                timeout_secs: None,
-                search_path:  None,
+                min_size:      0,
+                max_size:      DEFAULT_POOL_SIZE,
+                timeout_secs:  None,
+                search_path:   None,
                 // libpq's default: negotiate TLS when the server offers it. Callers
                 // that need a guarantee go through `with_pool_config`.
-                tls:          PostgresTlsConfig::default(),
+                tls:           PostgresTlsConfig::default(),
+                read_replicas: None,
             },
         )
         .await
@@ -434,8 +608,17 @@ impl PostgresAdapter {
         // connection counts as idle slot #1.
         drop(client);
 
+        // Replica pools are built from the SAME config as the primary — search
+        // path, TLS, sizing — so per-tenant isolation applies to every pool this
+        // adapter ever reads through, not just the one it writes through (#407).
+        let read_replicas = match &cfg.read_replicas {
+            None => None,
+            Some(rc) => Some(Arc::new(build_read_replica_set(rc, &cfg).await?)),
+        };
+
         let adapter = Self {
             pool,
+            read_replicas,
             mutation_timing_enabled: false,
             timing_variable_name: "fraiseql.started_at".to_string(),
         };
@@ -473,6 +656,7 @@ impl PostgresAdapter {
                 timeout_secs: None,
                 search_path: None,
                 tls: PostgresTlsConfig::default(),
+                read_replicas: None,
             },
         )
         .await
@@ -566,7 +750,8 @@ impl PostgresAdapter {
         sql: &str,
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
     ) -> Result<Vec<JsonbValue>> {
-        let client = self.acquire_connection_with_retry().await?;
+        // Read-only by construction (`SELECT data FROM <view>`): replica-eligible.
+        let client = self.acquire_read_connection_with_retry().await?;
 
         let rows: Vec<Row> =
             client.query(sql, params).await.map_err(|e| FraiseQLError::Database {
@@ -600,7 +785,9 @@ impl PostgresAdapter {
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
         session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
-        let mut client = self.acquire_connection_with_retry().await?;
+        // Read-only by construction; `set_config` + SELECT run fine inside a
+        // hot-standby read-only transaction, so this stays replica-eligible.
+        let mut client = self.acquire_read_connection_with_retry().await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to start session-var transaction: {e}"),
@@ -620,6 +807,68 @@ impl PostgresAdapter {
         })?;
 
         rows.into_iter().map(|row| jsonb_cell(&row, 0, sql)).collect()
+    }
+
+    /// Record a mutation-pipeline write for read-your-writes pinning (#407).
+    ///
+    /// Called at both entry and successful exit of every mutation-pipeline
+    /// method: entry so a read racing a slow write already pins, exit because
+    /// replication lag is measured from commit. A no-op without replicas.
+    pub(super) fn mark_write(&self) {
+        if let Some(replicas) = &self.read_replicas {
+            replicas.last_write_unix_ms.store(now_unix_ms(), Ordering::Relaxed);
+        }
+    }
+
+    /// Acquire a connection for a **structurally read-only** statement (#407).
+    ///
+    /// Routing, in order:
+    /// 1. no replicas configured → primary;
+    /// 2. inside the post-write pin window → primary (read-your-writes);
+    /// 3. otherwise round-robin over the replicas, skipping any whose acquisition fails, falling
+    ///    back to the primary when all do.
+    ///
+    /// Only methods that can never write may call this; anything mixed-use
+    /// (`execute_raw_query`, stats, health, DDL) stays on
+    /// [`acquire_connection_with_retry`](Self::acquire_connection_with_retry).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::ConnectionPool` when every replica *and* the
+    /// primary fallback fail to yield a connection.
+    pub(super) async fn acquire_read_connection_with_retry(
+        &self,
+    ) -> Result<deadpool_postgres::Client> {
+        let Some(replicas) = &self.read_replicas else {
+            return self.acquire_connection_with_retry().await;
+        };
+
+        if pin_active(
+            now_unix_ms(),
+            replicas.last_write_unix_ms.load(Ordering::Relaxed),
+            replicas.pin_after_write_ms,
+        ) {
+            return self.acquire_connection_with_retry().await;
+        }
+
+        let count = replicas.pools.len();
+        let start = replicas.next.fetch_add(1, Ordering::Relaxed);
+        for offset in 0..count {
+            let index = (start.wrapping_add(offset)) % count;
+            match replicas.pools[index].get().await {
+                Ok(client) => return Ok(client),
+                Err(e) => {
+                    tracing::warn!(
+                        replica = index,
+                        error = %e,
+                        "Read replica connection acquisition failed; trying the next candidate"
+                    );
+                },
+            }
+        }
+
+        tracing::warn!("All read replicas unavailable; serving the read from the primary");
+        self.acquire_connection_with_retry().await
     }
 
     /// Acquire a connection from the pool with retry logic.

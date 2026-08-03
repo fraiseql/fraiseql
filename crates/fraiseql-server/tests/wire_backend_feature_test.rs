@@ -91,11 +91,12 @@ mod postgres_adapter_tests {
         let adapter = PostgresAdapter::with_pool_config(
             &db_url,
             fraiseql_core::db::postgres::PoolPrewarmConfig {
-                min_size:     5,
-                max_size:     20,
-                timeout_secs: None,
-                search_path:  None,
-                tls:          fraiseql_core::db::postgres::PostgresTlsConfig::default(),
+                min_size:      5,
+                max_size:      20,
+                timeout_secs:  None,
+                search_path:   None,
+                tls:           fraiseql_core::db::postgres::PostgresTlsConfig::default(),
+                read_replicas: None,
             },
         )
         .await;
@@ -196,11 +197,12 @@ async fn test_feature_gated_main_initialization_postgres() {
     let adapter = PostgresAdapter::with_pool_config(
         &db_url,
         PoolPrewarmConfig {
-            min_size:     5,
-            max_size:     20,
-            timeout_secs: None,
-            search_path:  None,
-            tls:          fraiseql_core::db::postgres::PostgresTlsConfig::default(),
+            min_size:      5,
+            max_size:      20,
+            timeout_secs:  None,
+            search_path:   None,
+            tls:           fraiseql_core::db::postgres::PostgresTlsConfig::default(),
+            read_replicas: None,
         },
     )
     .await;
@@ -309,4 +311,27 @@ fn test_feature_compilation_contract() {
     println!("✓ arrow feature");
     #[cfg(all(feature = "arrow", feature = "wire-backend"))]
     println!("✓ arrow + wire-backend features");
+}
+
+// ============================================================================
+// Read replicas are refused on wire-backend builds (#407)
+// ============================================================================
+
+/// A wire-backend server has no replica routing; a configured replica list must
+/// refuse boot (via `build_wire_adapter`) rather than silently serving every
+/// read from the primary.
+#[cfg(feature = "wire-backend")]
+#[test]
+fn wire_backend_refuses_read_replica_configuration() {
+    let config = fraiseql_server::ServerConfig {
+        read_replica_urls: vec!["postgres://replica1/db".to_string()],
+        ..fraiseql_server::ServerConfig::default()
+    };
+    let err = config
+        .wire_backend_rejects_read_replicas()
+        .expect_err("a wire-backend build must refuse configured read replicas");
+    assert!(err.contains("wire-backend"), "the refusal must explain itself; got: {err}");
+
+    let no_replicas = fraiseql_server::ServerConfig::default();
+    assert!(no_replicas.wire_backend_rejects_read_replicas().is_ok());
 }

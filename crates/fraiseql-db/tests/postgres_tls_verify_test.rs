@@ -49,6 +49,7 @@ fn probe_config(tls: PostgresTlsConfig) -> PoolPrewarmConfig {
         timeout_secs: Some(10),
         search_path: None,
         tls,
+        read_replicas: None,
     }
 }
 

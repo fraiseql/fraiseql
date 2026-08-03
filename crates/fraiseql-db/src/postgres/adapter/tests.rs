@@ -30,11 +30,12 @@ fn test_build_where_select_sql_with_limit_offset() {
 #[test]
 fn pool_prewarm_config_carries_all_fields() {
     let cfg = PoolPrewarmConfig {
-        min_size:     5,
-        max_size:     20,
-        timeout_secs: Some(30),
-        search_path:  None,
-        tls:          PostgresTlsConfig::default(),
+        min_size:      5,
+        max_size:      20,
+        timeout_secs:  Some(30),
+        search_path:   None,
+        tls:           PostgresTlsConfig::default(),
+        read_replicas: None,
     };
     assert_eq!(cfg.min_size, 5);
     assert_eq!(cfg.max_size, 20);
@@ -44,11 +45,12 @@ fn pool_prewarm_config_carries_all_fields() {
 #[test]
 fn pool_prewarm_config_no_timeout_is_none() {
     let cfg = PoolPrewarmConfig {
-        min_size:     0,
-        max_size:     10,
-        timeout_secs: None,
-        search_path:  None,
-        tls:          PostgresTlsConfig::default(),
+        min_size:      0,
+        max_size:      10,
+        timeout_secs:  None,
+        search_path:   None,
+        tls:           PostgresTlsConfig::default(),
+        read_replicas: None,
     };
     assert!(cfg.timeout_secs.is_none());
 }
@@ -56,11 +58,12 @@ fn pool_prewarm_config_no_timeout_is_none() {
 #[test]
 fn pool_prewarm_config_min_zero_is_valid() {
     let cfg = PoolPrewarmConfig {
-        min_size:     0,
-        max_size:     5,
-        timeout_secs: None,
-        search_path:  None,
-        tls:          PostgresTlsConfig::default(),
+        min_size:      0,
+        max_size:      5,
+        timeout_secs:  None,
+        search_path:   None,
+        tls:           PostgresTlsConfig::default(),
+        read_replicas: None,
     };
     assert_eq!(cfg.min_size, 0);
     assert_eq!(cfg.max_size, 5);
@@ -69,11 +72,12 @@ fn pool_prewarm_config_min_zero_is_valid() {
 #[test]
 fn pool_prewarm_config_min_equals_max_is_valid() {
     let cfg = PoolPrewarmConfig {
-        min_size:     10,
-        max_size:     10,
-        timeout_secs: Some(60),
-        search_path:  None,
-        tls:          PostgresTlsConfig::default(),
+        min_size:      10,
+        max_size:      10,
+        timeout_secs:  Some(60),
+        search_path:   None,
+        tls:           PostgresTlsConfig::default(),
+        read_replicas: None,
     };
     assert_eq!(cfg.min_size, cfg.max_size);
 }
@@ -363,4 +367,34 @@ fn changelog_cte_records_the_pre_image_when_opted_in() {
         "object_type fallback still $n+1: {sql}"
     );
     assert!(sql.contains("$10::uuid"), "acting_for still $n+8: {sql}");
+}
+
+// ── read-your-writes pin window (#407) ─────────────────────────────────────
+
+#[test]
+fn pin_is_active_inside_the_window() {
+    assert!(super::pin_active(1_000, 900, 200), "100ms after a write with a 200ms pin");
+}
+
+#[test]
+fn pin_expires_at_the_window_boundary() {
+    assert!(!super::pin_active(1_000, 900, 100), "exactly pin_ms after a write is unpinned");
+}
+
+#[test]
+fn pin_is_inactive_when_never_written() {
+    // last_write = 0 (never armed) with a realistic clock: not pinned.
+    assert!(!super::pin_active(1_700_000_000_000, 0, 5_000));
+}
+
+#[test]
+fn pin_with_zero_window_never_activates() {
+    assert!(!super::pin_active(1_000, 1_000, 0), "pin_after_write = 0 disables pinning");
+}
+
+#[test]
+fn pin_saturates_on_clock_regression() {
+    // A clock that steps backwards must land on the safe (pinned) side rather
+    // than underflowing.
+    assert!(super::pin_active(900, 1_000, 100));
 }
