@@ -226,8 +226,60 @@ mod mod_tests {
     #[test]
     fn test_shell_contains_all_sections() {
         let html = studio_shell_html();
-        for s in ["Data", "Auth", "Storage", "Functions", "Metrics"] {
+        for s in [
+            "Schema",
+            "Data",
+            "Auth",
+            "Storage",
+            "Functions",
+            "Observers",
+            "Logs",
+            "Metrics",
+        ] {
             assert!(html.contains(s), "shell must contain section '{s}'");
+        }
+    }
+
+    /// #373 — every shell tab has a renderer in the SPA source, and each of the
+    /// new tabs is wired to its real admin endpoint. `include_str!` makes a
+    /// moved/renamed SPA source a build error, not a silent skip, and an
+    /// endpoint rename (server-side) must be made here too or this pins it.
+    #[test]
+    fn spa_wires_every_tab_to_its_admin_endpoint() {
+        const APP_TS: &str = include_str!("../../../studio/src/app.ts");
+        for (section, endpoint) in [
+            ("renderSchema", "/admin/v1/schema"),
+            ("renderObservers", "/api/observers/dlq"),
+            ("renderObservers", "/api/observers/delivery/health"),
+            ("renderLogs", "/api/observers/logs"),
+            ("renderData", "/admin/v1/schema"),
+            ("renderAuth", "/admin/v1/users"),
+            ("renderStorage", "/admin/v1/storage/buckets"),
+            ("renderFunctions", "/admin/v1/functions"),
+            ("renderMetrics", "/admin/v1/metrics/summary"),
+        ] {
+            assert!(APP_TS.contains(section), "SPA must define {section}");
+            assert!(APP_TS.contains(endpoint), "SPA must call {endpoint}");
+        }
+        // The DLQ retry ACTIONS are wired (the backend effect is pinned by
+        // observers::dlq_handlers::tests::concurrent_retry_dispatches_at_most_once).
+        assert!(APP_TS.contains("/retry"), "SPA must wire the DLQ retry action");
+        assert!(APP_TS.contains("dlq/retry-all"), "SPA must wire retry-all");
+        // Every shell tab value has a SECTIONS renderer entry.
+        for tab in [
+            "schema",
+            "data",
+            "auth",
+            "storage",
+            "functions",
+            "observers",
+            "logs",
+            "metrics",
+        ] {
+            assert!(
+                APP_TS.contains(&format!("{tab}:")) || APP_TS.contains(&format!("{tab}: ")),
+                "SECTIONS must route tab '{tab}'"
+            );
         }
     }
 
