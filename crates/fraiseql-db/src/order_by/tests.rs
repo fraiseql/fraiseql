@@ -102,6 +102,7 @@ fn test_append_order_by_native_column() {
         direction:     OrderDirection::Desc,
         field_type:    crate::types::sql_hints::ScalarFieldType::DateTime,
         native_column: Some("created_at".to_string()),
+        vector:        None,
     };
     let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
     assert!(appended);
@@ -120,6 +121,7 @@ fn test_append_order_by_mixed_native_and_jsonb() {
             direction:     OrderDirection::Desc,
             field_type:    ScalarFieldType::DateTime,
             native_column: Some("created_at".to_string()),
+            vector:        None,
         },
         {
             let mut c = OrderByClause::new("name".to_string(), OrderDirection::Asc);

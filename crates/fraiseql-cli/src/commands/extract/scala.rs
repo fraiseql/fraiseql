@@ -95,6 +95,7 @@ pub(super) fn extract_scala_fields(body: &str) -> Vec<IntermediateField> {
         let (graphql_type, nullable) = map_type(Language::Scala, type_str);
 
         fields.push(IntermediateField {
+            vector_config: None,
             name: field_name,
             field_type: graphql_type,
             nullable,

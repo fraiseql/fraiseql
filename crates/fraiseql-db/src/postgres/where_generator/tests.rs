@@ -139,17 +139,20 @@ fn test_in_operator() {
 }
 
 #[test]
-fn test_vector_cosine_distance() {
+fn test_vector_cosine_distance_threshold_predicate() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
         path:     vec!["embedding".to_string()],
         operator: WhereOperator::CosineDistance,
-        value:    json!([0.1, 0.2, 0.3]),
+        value:    json!({"vector": [0.1, 0.2, 0.3], "threshold": 0.25}),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
-    assert!(sql.contains("<=>"), "Expected <=>: {sql}");
-    assert_eq!(params.len(), 1);
+    assert_eq!(
+        sql, "((data->>'embedding')::vector <=> $1::text::vector) <= $2::text::float8",
+        "#386: boolean predicate, parenthesised cast, parameterised text vector"
+    );
+    assert_eq!(params, vec![json!("[0.1,0.2,0.3]"), json!(0.25)]);
 }
 
 #[test]

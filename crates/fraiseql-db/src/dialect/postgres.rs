@@ -151,19 +151,9 @@ impl SqlDialect for PostgresDialect {
     }
 
     // ── PostgreSQL-only operators ──────────────────────────────────────────────
-
-    fn vector_distance_sql(
-        &self,
-        pg_op: &str,
-        lhs: &str,
-        rhs: &str,
-    ) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::vector {pg_op} {rhs}::vector"))
-    }
-
-    fn jaccard_distance_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
-        Ok(format!("({lhs})::text[] <%> ({rhs})::text[]"))
-    }
+    // Vector distance emission moved into `GenericWhereGenerator::vector_threshold_sql`
+    // (#386): the old `vector_distance_sql`/`jaccard_distance_sql` dialect seam emitted
+    // a non-boolean fragment over a mis-parenthesised cast and had no other caller.
 
     fn inet_check_sql(&self, lhs: &str, check_name: &str) -> Result<String, UnsupportedOperator> {
         match check_name {

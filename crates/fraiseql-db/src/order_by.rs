@@ -88,6 +88,34 @@ pub fn render_order_by_columns(
         if i > 0 {
             columns.push_str(", ");
         }
+        // Vector-distance ordering (#386): `{col} {op} '{vec}'::vector` — the
+        // pgvector ANN shape. Only valid against a native column (a JSONB
+        // extraction would re-parse text per row and defeat every index).
+        if let Some(ref vector) = clause.vector {
+            let Some(ref col) = clause.native_column else {
+                return Err(fraiseql_error::FraiseQLError::validation(
+                    "vector-distance ordering requires the view to expose the vector as a \
+                     native column",
+                ));
+            };
+            if db_type != DatabaseType::PostgreSQL {
+                return Err(fraiseql_error::FraiseQLError::validation(
+                    "vector-distance ordering is PostgreSQL-only (pgvector)",
+                ));
+            }
+            validate_vector_operator(&vector.operator)?;
+            validate_vector_literal(&vector.query_vector)?;
+            // Reason: fmt::Write for String is infallible
+            write!(
+                columns,
+                "{col} {} '{}'::vector {}",
+                vector.operator,
+                vector.query_vector,
+                clause.direction.as_sql()
+            )
+            .expect("write to String is infallible");
+            continue;
+        }
         // When a native typed column is available, use it directly — this
         // enables index support and avoids JSON extraction + cast overhead.
         let expr = if let Some(ref col) = clause.native_column {
@@ -101,6 +129,35 @@ pub fn render_order_by_columns(
             .expect("write to String is infallible");
     }
     Ok(Some(columns))
+}
+
+/// The three pgvector distance operators reachable through `nearest` (#386).
+fn validate_vector_operator(op: &str) -> crate::Result<()> {
+    match op {
+        "<=>" | "<->" | "<#>" => Ok(()),
+        other => Err(fraiseql_error::FraiseQLError::validation(format!(
+            "unsupported vector distance operator '{other}'"
+        ))),
+    }
+}
+
+/// Defence in depth for the interpolated vector literal: the builder constructs
+/// it exclusively from formatted `f64` values, so anything outside a numeric
+/// literal's character set is a bug — refuse rather than emit.
+fn validate_vector_literal(literal: &str) -> crate::Result<()> {
+    let ok = literal.starts_with('[')
+        && literal.ends_with(']')
+        && literal.chars().all(|c| {
+            c.is_ascii_digit() || matches!(c, '[' | ']' | ',' | '.' | '-' | '+' | 'e' | 'E')
+        });
+    if ok {
+        Ok(())
+    } else {
+        Err(fraiseql_error::FraiseQLError::validation(
+            "malformed vector literal in ORDER BY (expected a pgvector text literal built \
+             from numeric values)",
+        ))
+    }
 }
 
 #[cfg(test)]

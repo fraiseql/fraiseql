@@ -319,6 +319,7 @@ mod compile_tests {
             types: vec![IntermediateType {
                 name: "User".into(),
                 fields: vec![IntermediateField {
+                    vector_config:  None,
                     name:           "id".into(),
                     field_type:     "ID".into(),
                     nullable:       false,

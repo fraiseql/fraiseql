@@ -29,6 +29,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(), // matches Node interface
                     nullable:       false,
@@ -40,6 +41,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "name".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       false,

@@ -564,6 +564,16 @@ impl SchemaMerger {
                         if let Some(ref h) = fdef.hierarchy {
                             field["hierarchy"] = json!(h);
                         }
+                        // #386: carried under the intermediate-format key the
+                        // converter reads. This is the second hand-built copy of
+                        // the TOML field emission (the first is
+                        // `TomlSchema::to_intermediate_schema`) — keep both in
+                        // sync or a TOML-authored key silently vanishes on one
+                        // path only.
+                        if let Some(ref vector) = fdef.vector {
+                            field["vector_config"] = serde_json::to_value(vector)
+                                .expect("VectorConfig holds only plain enums and integers");
+                        }
                         field
                     }).collect::<Vec<_>>(),
                 }));

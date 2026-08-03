@@ -144,6 +144,7 @@ fn sample_schema() -> IntermediateSchema {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    vector_config:  None,
                     name:           "pk".to_string(),
                     field_type:     "Int".to_string(),
                     nullable:       false,
@@ -155,6 +156,7 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -166,6 +168,7 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "name".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       false,
@@ -177,6 +180,7 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "bio".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       true,

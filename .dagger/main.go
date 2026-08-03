@@ -522,7 +522,10 @@ func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
 
 const (
 	// pgImage pins the integration Postgres (matches ci.yml's integration jobs).
-	pgImage = "ghcr.io/fraiseql/postgres:16"
+	// pgvector/pgvector:pg16 = the official postgres:16 plus the pgvector
+	// extension (#386's executed vector-similarity suites CREATE and query it);
+	// mirrored by mirror-base-images.yml like every other base image.
+	pgImage = "ghcr.io/fraiseql/pgvector:pg16"
 	// pgUser/pgPassword/pgDatabase are the test-only Postgres credentials from ci.yml.
 	pgUser     = "fraiseql_test"
 	pgPassword = "fraiseql_test_password"
@@ -877,6 +880,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// real database and asserts both that the request is refused and that no catalog
 		// data reaches the response.
 		"cargo test -p fraiseql-server --test analytics_injection_e2e_pg -- --test-threads=1",
+		// #386 — pgvector similarity search, executed: `nearest` row ORDER per
+		// metric against real pgvector (the service image ships the extension),
+		// threshold WHERE filters returning rows, dimension-mismatch and
+		// binary-metric refusals. The first vector suite that runs SQL at all —
+		// every prior "vector test" was sql.contains("<=>").
+		"cargo test -p fraiseql-server --test graphql_vector_e2e_pg -- --test-threads=1",
 		// #387 — GraphQL-over-SSE + root-field @stream, through the real
 		// `Server::serve_on_listener` mount: negotiation is opt-in, batches
 		// re-enter the full pipeline, auth is enforced before the stream and

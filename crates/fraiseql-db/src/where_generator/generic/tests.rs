@@ -159,13 +159,78 @@ fn no_value_in_sql_string() {
 // ── PG-only: Vector operators ─────────────────────────────────────────────
 
 #[test]
-fn generic_pg_cosine_distance() {
+fn generic_pg_cosine_distance_threshold_predicate_exact_sql() {
+    // #386: exact-SQL assertion, deliberately not `contains` — the previous
+    // `contains("<=>")` test could not see that the emission was a non-boolean
+    // expression over a mis-parenthesised cast with a jsonb-bound operand.
     let gen = GenericWhereGenerator::new(PostgresDialect);
-    let clause = field("embedding", WhereOperator::CosineDistance, json!([0.1, 0.2]));
+    let clause = field(
+        "embedding",
+        WhereOperator::CosineDistance,
+        json!({"vector": [0.1, 0.2], "threshold": 0.5}),
+    );
     let (sql, params) = gen.generate(&clause).unwrap();
-    assert!(sql.contains("<=>"), "Expected <=> operator, got: {sql}");
-    assert!(sql.contains("::vector"), "Expected ::vector cast, got: {sql}");
-    assert_eq!(params.len(), 1);
+    assert_eq!(
+        sql, "((data->>'embedding')::vector <=> $1::text::vector) <= $2::text::float8",
+        "the predicate must be boolean, the cast parenthesised, the vector parameterised"
+    );
+    assert_eq!(params[0], json!("[0.1,0.2]"), "query vector binds as a text literal");
+    assert_eq!(params[1], json!(0.5));
+}
+
+#[test]
+fn generic_pg_inner_product_negates_the_bound_threshold() {
+    // pgvector's `<#>` returns the NEGATED inner product; `threshold` is the
+    // minimum raw inner product, so the bound value is negated and the
+    // comparison stays `<=`.
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = field(
+        "embedding",
+        WhereOperator::InnerProduct,
+        json!({"vector": [1.0, 0.0], "threshold": 0.8}),
+    );
+    let (sql, params) = gen.generate(&clause).unwrap();
+    assert_eq!(sql, "((data->>'embedding')::vector <#> $1::text::vector) <= $2::text::float8");
+    assert_eq!(params[1], json!(-0.8));
+}
+
+#[test]
+fn generic_pg_vector_operator_refuses_the_old_bare_array_shape() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = field("embedding", WhereOperator::L2Distance, json!([0.1, 0.2]));
+    let err = gen.generate(&clause).unwrap_err().to_string();
+    assert!(
+        err.contains("threshold"),
+        "the refusal must teach the {{vector, threshold}} shape: {err}"
+    );
+}
+
+#[test]
+fn generic_pg_hamming_and_jaccard_are_loudly_unsupported() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for op in [
+        WhereOperator::HammingDistance,
+        WhereOperator::JaccardDistance,
+    ] {
+        let clause = field("embedding", op, json!({"vector": [1.0], "threshold": 1.0}));
+        let err = gen.generate(&clause).unwrap_err().to_string();
+        assert!(
+            err.contains("binary") && err.contains("nearest"),
+            "the refusal names the reason and the alternatives: {err}"
+        );
+    }
+}
+
+#[test]
+fn generic_pg_vector_operand_rejects_non_numeric_components() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = field(
+        "embedding",
+        WhereOperator::CosineDistance,
+        json!({"vector": [0.1, "0.2); DROP TABLE x;--"], "threshold": 0.5}),
+    );
+    let err = gen.generate(&clause).unwrap_err().to_string();
+    assert!(err.contains("finite numbers"), "got: {err}");
 }
 
 #[test]

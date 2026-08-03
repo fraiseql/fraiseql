@@ -95,6 +95,7 @@ pub(super) fn extract_java_record_fields(body: &str) -> Vec<IntermediateField> {
         let graphql_type = map_primitive_type(type_str);
 
         fields.push(IntermediateField {
+            vector_config: None,
             name: field_name,
             field_type: graphql_type,
             nullable,

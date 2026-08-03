@@ -690,7 +690,16 @@ fn build_create_table_ddl(
         .iter()
         .map(|field| {
             let col_name = to_snake_case(field.name.as_str());
-            let pg_type = field_type_to_pg(&field.field_type);
+            // #386: a dimensioned `vector(N)` column — a bare `vector` column
+            // cannot carry an HNSW/IVFFlat index, so a dimension-less emission
+            // silently produced unindexable DDL.
+            let pg_type = if let (FieldType::Vector, Some(config)) =
+                (&field.field_type, field.vector_config.as_ref())
+            {
+                format!("vector({})", config.dimensions)
+            } else {
+                field_type_to_pg(&field.field_type)
+            };
             let nullable = if field.nullable { "" } else { " NOT NULL" };
             format!("    {col_name} {pg_type}{nullable}")
         })
@@ -706,6 +715,28 @@ fn build_create_table_ddl(
     }
 
     lines.push(");".to_string());
+
+    // #386: vector columns need the extension and their declared ANN index.
+    let vector_fields: Vec<_> = type_def
+        .fields
+        .iter()
+        .filter_map(|f| f.vector_config.as_ref().map(|c| (f, c)))
+        .collect();
+    if !vector_fields.is_empty() {
+        lines.push(String::new());
+        lines.push("CREATE EXTENSION IF NOT EXISTS vector;".to_string());
+        for (field, config) in vector_fields {
+            let col_name = to_snake_case(field.name.as_str());
+            if let Some(index_ddl) = config.index_type.index_sql(
+                &format!("tb_{table_name}"),
+                &col_name,
+                config.distance_metric,
+            ) {
+                lines.push(format!("{index_ddl};"));
+            }
+        }
+    }
+
     lines.push(String::new());
     lines.join("\n")
 }

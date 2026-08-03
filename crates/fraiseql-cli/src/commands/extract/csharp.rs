@@ -118,6 +118,7 @@ pub(super) fn extract_csharp_record_fields(body: &str) -> Vec<IntermediateField>
         let nullable = nullable_marker == "?";
 
         fields.push(IntermediateField {
+            vector_config: None,
             name: field_name,
             field_type: graphql_type,
             nullable,

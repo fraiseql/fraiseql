@@ -91,7 +91,9 @@ pub use traits::{
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
-    sql_hints::{OrderByClause, OrderDirection, ScalarFieldType, SqlProjectionHint},
+    sql_hints::{
+        OrderByClause, OrderDirection, ScalarFieldType, SqlProjectionHint, VectorDistanceOrder,
+    },
 };
 pub use view_name::ViewName;
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};

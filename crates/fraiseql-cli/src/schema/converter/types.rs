@@ -283,6 +283,33 @@ impl SchemaConverter {
     pub(super) fn convert_field(intermediate: IntermediateField) -> Result<FieldDefinition> {
         let field_type = Self::parse_field_type(&intermediate.field_type)?;
 
+        // #386: vector_config is required on Vector fields (DDL and request-time
+        // dimension validation both need it) and meaningless anywhere else —
+        // both inert shapes are compile errors, not silent drops.
+        let is_vector = matches!(field_type, FieldType::Vector);
+        match (&intermediate.vector_config, is_vector) {
+            (None, true) => anyhow::bail!(
+                "Field '{}' has type Vector but no vector_config; declare \
+                 {{\"dimensions\": N, \"index_type\": ..., \"distance_metric\": ...}} \
+                 (dimensions is required)",
+                intermediate.name
+            ),
+            (Some(_), false) => anyhow::bail!(
+                "Field '{}' declares vector_config but its type is '{}', not Vector",
+                intermediate.name,
+                intermediate.field_type
+            ),
+            _ => {},
+        }
+        if let Some(ref config) = intermediate.vector_config {
+            if config.dimensions == 0 {
+                anyhow::bail!(
+                    "Field '{}': vector_config.dimensions must be at least 1",
+                    intermediate.name
+                );
+            }
+        }
+
         // Extract deprecation info from @deprecated directive if present
         let deprecation = intermediate.directives.as_ref().and_then(|directives| {
             directives.iter().find(|d| d.name == "deprecated").map(|d| {
@@ -300,7 +327,7 @@ impl SchemaConverter {
             nullable: intermediate.nullable,
             default_value: None,
             description: intermediate.description,
-            vector_config: None,
+            vector_config: intermediate.vector_config,
             alias: None,
             deprecation,
             requires_scope: intermediate.requires_scope,

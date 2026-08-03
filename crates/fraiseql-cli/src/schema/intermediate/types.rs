@@ -167,6 +167,25 @@ pub struct IntermediateField {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_deny: Option<String>,
 
+    /// pgvector configuration for `Vector` fields (#386).
+    ///
+    /// Required when `type` is `"Vector"` (the compiler needs the dimension for
+    /// DDL and request-time validation); an error on any other type. Reuses the
+    /// compiled-schema type so the authored and compiled shapes cannot drift.
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "name": "embedding",
+    ///   "type": "Vector",
+    ///   "nullable": false,
+    ///   "vector_config": { "dimensions": 1536, "index_type": "hnsw", "distance_metric": "cosine" }
+    /// }
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vector_config: Option<fraiseql_core::schema::VectorConfig>,
+
     /// Whether this field is gated by the dynamic field authorizer at runtime.
     ///
     /// When `true`, the compiled field is marked policy-gated

@@ -355,38 +355,6 @@ pub trait SqlDialect: Send + Sync + 'static {
     // overrides them.  Callers push parameter values before calling these methods
     // and pass the already-generated placeholder strings.
 
-    /// Generate SQL for a pgvector distance operator.
-    ///
-    /// `pg_op` is one of `<=>`, `<->`, `<+>`, `<~>`, `<#>`.
-    /// `lhs` / `rhs` are the field expression and the placeholder string.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`UnsupportedOperator`] if this dialect does not support vector distance.
-    fn vector_distance_sql(
-        &self,
-        _pg_op: &str,
-        _lhs: &str,
-        _rhs: &str,
-    ) -> Result<String, UnsupportedOperator> {
-        Err(UnsupportedOperator {
-            dialect:  self.name(),
-            operator: "VectorDistance",
-        })
-    }
-
-    /// Generate SQL for Jaccard distance (`::text[] <%> ::text[]`).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`UnsupportedOperator`] if this dialect does not support Jaccard distance.
-    fn jaccard_distance_sql(&self, _lhs: &str, _rhs: &str) -> Result<String, UnsupportedOperator> {
-        Err(UnsupportedOperator {
-            dialect:  self.name(),
-            operator: "JaccardDistance",
-        })
-    }
-
     /// Generate SQL for an INET unary check (IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback,
     /// IsNotLoopback).
     ///

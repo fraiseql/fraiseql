@@ -42,6 +42,13 @@ pub struct FieldDefinition {
     /// References a key in `[hierarchies.<name>]` config.
     #[serde(default)]
     pub hierarchy:   Option<String>,
+    /// pgvector configuration for `Vector` fields (#386): dimensions
+    /// (required), index type and distance metric. Authored as
+    /// `vector = { dimensions = 1536, index_type = "hnsw", distance_metric = "cosine" }`.
+    /// Reuses the compiled-schema type directly so the authored and compiled
+    /// shapes cannot drift.
+    #[serde(default)]
+    pub vector:      Option<fraiseql_core::schema::VectorConfig>,
 }
 
 /// Argument definition

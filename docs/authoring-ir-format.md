@@ -34,10 +34,35 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 | `"Json"`     | `JSON`         |                                |
 | `"UUID"`     | `UUID`         |                                |
 | `"Decimal"`  | `Decimal`      | Arbitrary-precision numeric    |
-| `"Vector"`   | `[Float!]!`    | pgvector embedding             |
+| `"Vector"`   | `[Float!]!`    | pgvector embedding — requires `vector_config` |
 
 Any unrecognized type name (e.g. `"User"`, `"Post"`) is treated as a reference
 to a GraphQL **object type** defined elsewhere in the schema.
+
+### Vector fields (#386)
+
+A `"Vector"` field **must** carry a `vector_config` object (and `vector_config`
+on any other type is a compile error):
+
+```json
+{
+  "name": "embedding",
+  "type": "Vector",
+  "nullable": false,
+  "vector_config": {
+    "dimensions": 1536,
+    "index_type": "hnsw",
+    "distance_metric": "cosine"
+  }
+}
+```
+
+`dimensions` is required (≥ 1); `index_type` (`"hnsw"` | `"ivf_flat"` | `"none"`,
+default `"hnsw"`) and `distance_metric` (`"cosine"` | `"l2"` | `"inner_product"`,
+default `"cosine"`) drive the emitted index DDL and the default metric of the
+`nearest` query argument. The backing view must expose the vector as a native
+`vector(N)` column named after the field (snake_case) — the JSONB `data` payload
+does not carry embeddings.
 
 ### Nullability is separate from the type
 

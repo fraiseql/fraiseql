@@ -24,6 +24,7 @@ fn order_type() -> IntermediateType {
     IntermediateType {
         name: "Order".to_string(),
         fields: vec![IntermediateField {
+            vector_config:  None,
             field_type:     "ID".to_string(),
             name:           "id".to_string(),
             nullable:       false,
