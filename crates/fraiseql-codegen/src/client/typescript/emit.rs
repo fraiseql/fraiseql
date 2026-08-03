@@ -11,11 +11,12 @@ use fraiseql_core::schema::{
 use super::{
     Ctx, input_base_name, leaf_fields, referenced_named_type,
     render::{
-        arg_graphql_type, custom_scalar_name, field_type_ts, field_type_ts_nullable,
-        named_scalar_ts, parse_input_type,
+        custom_scalar_name, field_type_ts, field_type_ts_nullable, named_scalar_ts,
+        parse_input_type,
     },
     render_imports,
 };
+use crate::client::common::{self, const_name, finish, selection_for_return};
 
 const RELAY_HELPERS: &str = "export interface PageInfo {\n  hasNextPage: boolean;\n  hasPreviousPage: boolean;\n  startCursor: string | null;\n  endCursor: string | null;\n}\n\nexport interface Edge<T> {\n  cursor: string;\n  node: T;\n}\n\nexport interface Connection<T> {\n  edges: Edge<T>[];\n  pageInfo: PageInfo;\n  totalCount?: number;\n}\n";
 
@@ -376,25 +377,21 @@ pub(super) fn index(modules: &[&str]) -> String {
 // Operation building (shared by queries & mutations)
 // =============================================================================
 
-/// A built operation: `GraphQL` variable declarations, the field-call arguments,
-/// and the `TypeScript` `variables` object fields.
+/// A built operation: the shared `GraphQL` half plus the `TypeScript`
+/// `variables` object fields.
 struct Operation {
-    var_decls:    Vec<String>, // e.g. "$id: ID!"
-    call_args:    Vec<String>, // e.g. "id: $id"
+    gql:          common::GqlOperation,
     ts_fields:    Vec<String>, // e.g. "id: string" / "first?: number"
     all_optional: bool,
 }
 
 fn build_operation(arguments: &[ArgumentDefinition], relay: bool) -> Operation {
-    let mut var_decls = Vec::new();
-    let mut call_args = Vec::new();
+    let gql = common::build_gql_operation(arguments, relay);
     let mut ts_fields = Vec::new();
     let mut all_optional = true;
 
     for arg in arguments {
         let name = &arg.name;
-        var_decls.push(format!("${name}: {}", arg_graphql_type(&arg.arg_type, arg.nullable)));
-        call_args.push(format!("{name}: ${name}"));
         let ts = field_type_ts(&arg.arg_type);
         if arg.nullable {
             ts_fields.push(format!("{name}?: {ts} | null"));
@@ -403,20 +400,14 @@ fn build_operation(arguments: &[ArgumentDefinition], relay: bool) -> Operation {
             all_optional = false;
         }
     }
-
     if relay {
         // Spec-standard forward pagination; both optional.
-        var_decls.push("$first: Int".to_string());
-        var_decls.push("$after: String".to_string());
-        call_args.push("first: $first".to_string());
-        call_args.push("after: $after".to_string());
         ts_fields.push("first?: number".to_string());
         ts_fields.push("after?: string".to_string());
     }
 
     Operation {
-        var_decls,
-        call_args,
+        gql,
         ts_fields,
         all_optional,
     }
@@ -424,21 +415,7 @@ fn build_operation(arguments: &[ArgumentDefinition], relay: bool) -> Operation {
 
 /// Build the `query`/`mutation` document string (a backtick template literal).
 fn render_document(kind: &str, name: &str, op: &Operation, selection: &str) -> String {
-    let var_sig = if op.var_decls.is_empty() {
-        String::new()
-    } else {
-        format!("({})", op.var_decls.join(", "))
-    };
-    let call_sig = if op.call_args.is_empty() {
-        String::new()
-    } else {
-        format!("({})", op.call_args.join(", "))
-    };
-
-    let mut doc = format!("`{kind} {name}{var_sig} {{\n  {name}{call_sig} {{\n");
-    doc.push_str(selection);
-    doc.push_str("  }\n}`");
-    doc
+    format!("`{}`", common::render_document(kind, name, &op.gql, selection))
 }
 
 /// Emit the `export async function ...` wrapper that calls `client.request`.
@@ -473,50 +450,6 @@ fn emit_operation_fn(out: &mut String, name: &str, op: &Operation, result: &str)
 // Selection sets
 // =============================================================================
 
-/// Build the indented selection-set lines for an operation's return type.
-///
-/// For relay queries the node selection is wrapped in the connection shape; for
-/// union return types inline fragments are emitted per member.
-fn selection_for_return(ctx: &Ctx, return_type: &str, relay: bool) -> String {
-    if relay {
-        let mut sel = String::new();
-        sel.push_str("    edges {\n      cursor\n      node {\n");
-        sel.push_str(&type_selection(ctx, return_type, "        "));
-        sel.push_str("      }\n    }\n");
-        sel.push_str("    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n");
-        return sel;
-    }
-    type_selection(ctx, return_type, "    ")
-}
-
-/// Selection-set lines for a type name (object, union, or — degenerate — scalar).
-fn type_selection(ctx: &Ctx, type_name: &str, indent: &str) -> String {
-    let mut sel = String::new();
-    let _ = writeln!(sel, "{indent}__typename");
-
-    if let Some(union) = ctx.unions.get(type_name) {
-        for member in &union.member_types {
-            let _ = writeln!(sel, "{indent}... on {member} {{");
-            sel.push_str(&leaf_name_lines(ctx, member, &format!("{indent}  ")));
-            let _ = writeln!(sel, "{indent}}}");
-        }
-    } else {
-        sel.push_str(&leaf_name_lines(ctx, type_name, indent));
-    }
-    sel
-}
-
-/// The leaf field names of an object type, one indented line each.
-fn leaf_name_lines(ctx: &Ctx, type_name: &str, indent: &str) -> String {
-    let mut out = String::new();
-    if let Some(ty) = ctx.object_types.get(type_name) {
-        for field in leaf_fields(&ty.fields) {
-            let _ = writeln!(out, "{indent}{}", field.name);
-        }
-    }
-    out
-}
-
 // =============================================================================
 // Small shared helpers
 // =============================================================================
@@ -524,28 +457,6 @@ fn leaf_name_lines(ctx: &Ctx, type_name: &str, indent: &str) -> String {
 /// Resolve a schema type name to its `TypeScript` type (scalars mapped, else name).
 fn type_name_to_ts(name: &str) -> String {
     named_scalar_ts(name).map_or_else(|| name.to_string(), str::to_string)
-}
-
-/// `getUser` → `GET_USER`, `postsConnection` → `POSTS_CONNECTION`.
-fn const_name(name: &str) -> String {
-    let mut out = String::new();
-    let mut prev_lower = false;
-    for ch in name.chars() {
-        if ch == '_' {
-            out.push('_');
-            prev_lower = false;
-        } else if ch.is_ascii_uppercase() {
-            if prev_lower {
-                out.push('_');
-            }
-            out.push(ch);
-            prev_lower = false;
-        } else {
-            out.push(ch.to_ascii_uppercase());
-            prev_lower = ch.is_ascii_lowercase() || ch.is_ascii_digit();
-        }
-    }
-    out
 }
 
 /// Emit one author-supplied description as a single-line `JSDoc` comment.
@@ -571,17 +482,6 @@ fn push_imports(out: &mut String, imports: &str) {
         out.push_str(imports);
         out.push('\n');
     }
-}
-
-/// Normalize trailing whitespace: collapse to a single trailing newline.
-fn finish(mut out: String) -> String {
-    while out.ends_with("\n\n") {
-        out.pop();
-    }
-    if !out.ends_with('\n') {
-        out.push('\n');
-    }
-    out
 }
 
 #[cfg(test)]

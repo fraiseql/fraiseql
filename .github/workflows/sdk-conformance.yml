@@ -124,3 +124,79 @@ jobs:
       # see the script's exclusion list.
       - name: SDK examples compile
         run: sdks/official/conformance/check_examples.sh target/debug/fraiseql-cli
+
+  # The reverse direction of the conformance gate (#372): the compiled schema →
+  # generated typed clients, which must COMPILE in their target languages — not
+  # just match strings. Both consumer gates run here because they need network
+  # toolchains (npx typescript / uvx ty) the Dagger legs deliberately avoid:
+  # the cargo tests they wrap are #[ignore]d and execute in no other leg.
+  generated-clients:
+    name: Generated clients compile (tsc --strict / ty)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1  # v2
+        with:
+          shared-key: sdk-conformance
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+      - run: pip install uv
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: '20'
+
+      - name: Build fraiseql-cli
+        run: cargo build -p fraiseql-cli
+
+      - name: Compile the canonical conformance fixture
+        run: >
+          ./target/debug/fraiseql-cli compile
+          sdks/official/conformance/reference/full.json
+          --skip-hash -o /tmp/schema.compiled.json
+
+      - name: Generate + type-check the TypeScript client
+        run: |
+          set -euo pipefail
+          ./target/debug/fraiseql-cli generate-client typescript \
+            --schema /tmp/schema.compiled.json --out /tmp/gen-ts/generated
+          cat > /tmp/gen-ts/tsconfig.json <<'JSON'
+          {
+            "compilerOptions": {
+              "strict": true,
+              "noUncheckedIndexedAccess": true,
+              "noEmit": true,
+              "target": "ES2022",
+              "module": "ESNext",
+              "moduleResolution": "Bundler",
+              "lib": ["ES2022", "DOM"],
+              "skipLibCheck": true
+            },
+            "include": ["generated/**/*.ts"]
+          }
+          JSON
+          cd /tmp/gen-ts && npx -y -p typescript@5 tsc -p tsconfig.json
+
+      - name: Generate + type-check the Python client
+        run: |
+          set -euo pipefail
+          ./target/debug/fraiseql-cli generate-client python \
+            --schema /tmp/schema.compiled.json --out /tmp/gen-py/fraiseql_client
+          cd /tmp/gen-py
+          python3 -m compileall -q .
+          uvx ty check --python-version 3.12 .
+
+      # The consumer-usage direction: a realistic caller imports the generated
+      # client and exercises every operation; tsc/ty must accept the whole
+      # project. These are the #[ignore]d cargo tests, run for real.
+      - name: Consumer-usage gates
+        run: >
+          cargo test -p fraiseql-codegen
+          --test client_ts_consumer --test client_py_consumer
+          -- --ignored

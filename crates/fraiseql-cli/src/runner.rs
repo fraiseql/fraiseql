@@ -316,6 +316,14 @@ pub async fn run() {
                     force,
                 )
             },
+            GenerateClientCommands::Python { schema, out, force } => {
+                commands::generate_client::run(
+                    commands::generate_client::ClientLanguage::Python,
+                    schema.as_deref(),
+                    &out,
+                    force,
+                )
+            },
         },
 
         Commands::Init {

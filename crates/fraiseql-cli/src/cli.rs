@@ -428,7 +428,8 @@ EXAMPLES:
     #[command(after_help = "\
 EXAMPLES:
     fraiseql generate-client typescript --out ./src/generated
-    fraiseql generate-client typescript --schema ./schema.compiled.json --out ./gen --force")]
+    fraiseql generate-client typescript --schema ./schema.compiled.json --out ./gen --force
+    fraiseql generate-client python --out ./app/fraiseql_client")]
     GenerateClient {
         #[command(subcommand)]
         language: GenerateClientCommands,
@@ -982,6 +983,23 @@ pub(crate) enum GenerateClientCommands {
         schema: Option<std::path::PathBuf>,
 
         /// Output directory for the generated client.
+        #[arg(long, value_name = "DIR")]
+        out: std::path::PathBuf,
+
+        /// Overwrite an existing generated client in the output directory.
+        #[arg(long, default_value_t = false)]
+        force: bool,
+    },
+
+    /// Generate a Python client (TypedDicts + typed query/mutation functions;
+    /// requires Python >= 3.12).
+    Python {
+        /// Path to schema.compiled.json (auto-detected from conventional
+        /// locations if omitted).
+        #[arg(long, value_name = "SCHEMA")]
+        schema: Option<std::path::PathBuf>,
+
+        /// Output directory for the generated client (becomes a Python package).
         #[arg(long, value_name = "DIR")]
         out: std::path::PathBuf,
 

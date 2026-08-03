@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Typed Python clients + compile-the-output CI gates (#372).**
+  `fraiseql generate-client python` emits a fully typed, standard-library-only
+  Python (≥ 3.12) client from `schema.compiled.json`: `TypedDict`s for every
+  object/interface/input type, `Literal` enum aliases, PEP 695 union aliases,
+  relay `Connection[T]`, per-operation functions embedding their GraphQL
+  documents, an `is_error_result` runtime guard, and a `urllib`-based
+  `FraiseqlClient` — every file stamped with the canonical schema hash. The
+  document/selection builders moved into a language-independent core shared
+  with the TypeScript generator, pinned by a cross-language test asserting the
+  generated GraphQL documents are byte-identical. And the acceptance direction
+  that had never executed now runs in CI: the `generated-clients` job in
+  `sdk-conformance.yml` compiles the canonical conformance fixture, generates
+  both clients, and type-checks them (`tsc --strict`, `ty check`) plus
+  consumer-usage projects exercising every operation — including the
+  previously `#[ignore]`d-everywhere `client_ts_consumer` gate. Go/Rust
+  generators are tracked in #961.
+
 - **The schema↔database drift linter can fail, and covers dropped inputs
   (#384).** `compile --database` findings now carry a severity: a `sql_source`
   that resolves to no relation or function, a missing/mis-typed JSONB or relay
