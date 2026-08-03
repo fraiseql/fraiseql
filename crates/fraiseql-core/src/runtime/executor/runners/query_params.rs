@@ -11,8 +11,167 @@ use crate::{
 /// Auto-wired argument names that are handled by the `auto_params` system.
 /// These are never treated as explicit WHERE filters.
 pub const AUTO_PARAM_NAMES: &[&str] = &[
-    "where", "limit", "offset", "orderBy", "first", "last", "after", "before",
+    "where", "limit", "offset", "orderBy", "first", "last", "after", "before", "nearest",
 ];
+
+/// Parse the `nearest` similarity-search argument (#386).
+///
+/// `nearest: {vector: [Float!], k: Int!, metric: "cosine"|"l2"|"inner_product"}`
+/// on a list query whose return type declares exactly one vector field lowers to
+/// `ORDER BY "<column>" <op> '[…]'::vector LIMIT k` — the pgvector ANN shape,
+/// index-eligible because the backing view must expose the vector as a native
+/// column (the storage contract; the JSONB `data` payload does not carry
+/// embeddings).
+///
+/// Returns `Ok(None)` when no `nearest` argument is present; every malformed or
+/// unsupported shape is a loud validation error — a similarity request that
+/// silently ran unordered would read as "search worked".
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when the query is not an eligible list
+/// query, the type has no (or more than one) vector field, the vector's
+/// dimension does not match the declared `vector_config.dimensions`, `k` is
+/// missing or zero, the metric is unknown, or `nearest` is combined with
+/// `limit` / `orderBy`.
+pub fn nearest_order_and_limit(
+    arguments: &std::collections::HashMap<String, serde_json::Value>,
+    schema: &crate::schema::CompiledSchema,
+    query_def: &crate::schema::QueryDefinition,
+) -> Result<Option<(crate::db::OrderByClause, u32)>> {
+    let Some(raw) = arguments.get("nearest") else {
+        return Ok(None);
+    };
+
+    if query_def.relay {
+        return Err(FraiseQLError::validation(
+            "`nearest` is not supported on relay (connection) queries",
+        ));
+    }
+    if !query_def.returns_list {
+        return Err(FraiseQLError::validation("`nearest` requires a list-returning query"));
+    }
+    if arguments.contains_key("limit") {
+        return Err(FraiseQLError::validation(
+            "`nearest.k` sets the page size; do not combine `nearest` with `limit`",
+        ));
+    }
+    if arguments.contains_key("orderBy") {
+        return Err(FraiseQLError::validation(
+            "`nearest` orders by vector distance; do not combine it with `orderBy`",
+        ));
+    }
+
+    let type_def = schema.find_type(&query_def.return_type).ok_or_else(|| {
+        FraiseQLError::validation(format!(
+            "`nearest` target type '{}' is not defined",
+            query_def.return_type
+        ))
+    })?;
+    let mut vector_fields = type_def.fields.iter().filter(|f| f.vector_config.is_some());
+    let Some(field) = vector_fields.next() else {
+        return Err(FraiseQLError::validation(format!(
+            "`nearest` requires a vector field on type '{}', and it declares none",
+            type_def.name
+        )));
+    };
+    if vector_fields.next().is_some() {
+        return Err(FraiseQLError::validation(format!(
+            "type '{}' declares more than one vector field; `nearest` does not yet \
+             support selecting between them",
+            type_def.name
+        )));
+    }
+    let config = field.vector_config.as_ref().expect("filtered on vector_config.is_some() above");
+
+    let shape_err = || {
+        FraiseQLError::validation(
+            "`nearest` takes {vector: [Float, ...], k: Int, metric: \
+             \"cosine\"|\"l2\"|\"inner_product\"} (metric optional — defaults to the \
+             field's declared distance metric)",
+        )
+    };
+    let obj = raw.as_object().ok_or_else(shape_err)?;
+    for key in obj.keys() {
+        if !matches!(key.as_str(), "vector" | "k" | "metric") {
+            return Err(FraiseQLError::validation(format!(
+                "unknown `nearest` argument key '{key}' (expected vector, k, metric)"
+            )));
+        }
+    }
+    let vector = obj.get("vector").and_then(serde_json::Value::as_array).ok_or_else(shape_err)?;
+    let k = obj
+        .get("k")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|k| u32::try_from(k).ok())
+        .filter(|k| *k > 0)
+        .ok_or_else(|| FraiseQLError::validation("`nearest.k` must be a positive integer"))?;
+
+    // Dimension check against the declared config — the request-time consumer
+    // vector_config previously never had.
+    let declared = config.dimensions as usize;
+    if vector.len() != declared {
+        return Err(FraiseQLError::validation(format!(
+            "`nearest.vector` has {} components but '{}.{}' declares {} dimensions",
+            vector.len(),
+            type_def.name,
+            field.name,
+            declared
+        )));
+    }
+
+    let metric = match obj.get("metric").and_then(serde_json::Value::as_str) {
+        None => config.distance_metric,
+        Some("cosine") => crate::schema::DistanceMetric::Cosine,
+        Some("l2") => crate::schema::DistanceMetric::L2,
+        Some("inner_product") => crate::schema::DistanceMetric::InnerProduct,
+        Some(other) => {
+            return Err(FraiseQLError::validation(format!(
+                "unknown `nearest.metric` '{other}' (expected cosine, l2 or inner_product)"
+            )));
+        },
+    };
+
+    // pgvector text literal, built exclusively from finite numbers — this is
+    // what makes the interpolated form injection-impossible (and the SQL
+    // builder re-validates the character set as defence in depth).
+    let mut literal = String::with_capacity(vector.len() * 8 + 2);
+    literal.push('[');
+    for (i, component) in vector.iter().enumerate() {
+        let n = component.as_f64().filter(|n| n.is_finite()).ok_or_else(|| {
+            FraiseQLError::validation("`nearest.vector` components must all be finite numbers")
+        })?;
+        if i > 0 {
+            literal.push(',');
+        }
+        // Reason: fmt::Write for String is infallible
+        std::fmt::Write::write_fmt(&mut literal, format_args!("{n}"))
+            .expect("write to String is infallible");
+    }
+    literal.push(']');
+
+    // The storage contract: the view exposes the vector as a native snake_case
+    // column. Validated as a bare identifier, then quoted.
+    let column = crate::utils::to_snake_case(field.name.as_str());
+    let valid_ident = column.chars().next().is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+        && column.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if !valid_ident {
+        return Err(FraiseQLError::validation(format!(
+            "vector field name '{}' does not resolve to a bare SQL identifier",
+            field.name
+        )));
+    }
+
+    let mut clause =
+        crate::db::OrderByClause::new(field.name.to_string(), crate::db::OrderDirection::Asc);
+    clause.native_column = Some(format!("\"{column}\""));
+    clause.vector = Some(crate::db::VectorDistanceOrder {
+        operator:     metric.operator().to_string(),
+        query_vector: literal,
+    });
+
+    Ok(Some((clause, k)))
+}
 
 /// Build a `WhereClause` for a single inject param, respecting `native_columns`.
 pub fn inject_param_where_clause(

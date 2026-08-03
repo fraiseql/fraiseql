@@ -204,6 +204,7 @@ fn test_convert_minimal_schema() {
 #[test]
 fn convert_field_maps_authorize_true() {
     let intermediate = IntermediateField {
+        vector_config:  None,
         name:           "email".to_string(),
         field_type:     "String".to_string(),
         nullable:       true,
@@ -221,6 +222,7 @@ fn convert_field_maps_authorize_true() {
 #[test]
 fn convert_field_authorize_absent_defaults_false() {
     let intermediate = IntermediateField {
+        vector_config:  None,
         name:           "id".to_string(),
         field_type:     "Int".to_string(),
         nullable:       false,
@@ -295,6 +297,7 @@ fn parse_field_type_plain_scalar_and_object_unchanged() {
 #[test]
 fn convert_field_list_type_compiles_to_list() {
     let intermediate = IntermediateField {
+        vector_config:  None,
         name:           "items".to_string(),
         field_type:     "[Item!]".to_string(),
         nullable:       false,
@@ -325,6 +328,7 @@ fn test_convert_type_with_fields() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "Int".to_string(),
                     nullable:       false,
@@ -336,6 +340,7 @@ fn test_convert_type_with_fields() {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "name".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       false,
@@ -712,6 +717,7 @@ fn test_convert_field_with_deprecated_directive() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    vector_config:  None,
                     name:           "oldId".to_string(),
                     field_type:     "Int".to_string(),
                     nullable:       false,
@@ -726,6 +732,7 @@ fn test_convert_field_with_deprecated_directive() {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "Int".to_string(),
                     nullable:       false,
@@ -1080,6 +1087,7 @@ fn test_convert_interface() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                vector_config:  None,
                 name:           "id".to_string(),
                 field_type:     "ID".to_string(),
                 nullable:       false,
@@ -1144,6 +1152,7 @@ fn test_convert_type_implements_interface() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1155,6 +1164,7 @@ fn test_convert_type_implements_interface() {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "name".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       false,
@@ -1181,6 +1191,7 @@ fn test_convert_type_implements_interface() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                vector_config:  None,
                 name:           "id".to_string(),
                 field_type:     "ID".to_string(),
                 nullable:       false,
@@ -1244,6 +1255,7 @@ fn test_validate_unknown_interface() {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![IntermediateField {
+                vector_config:  None,
                 name:           "id".to_string(),
                 field_type:     "ID".to_string(),
                 nullable:       false,
@@ -1314,6 +1326,7 @@ fn test_validate_missing_interface_field() {
             fields:                 vec![
                 // Missing the required 'id' field from Node interface!
                 IntermediateField {
+                    vector_config:  None,
                     name:           "name".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       false,
@@ -1340,6 +1353,7 @@ fn test_validate_missing_interface_field() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                vector_config:  None,
                 name:           "id".to_string(),
                 field_type:     "ID".to_string(),
                 nullable:       false,
@@ -1398,6 +1412,7 @@ fn test_convert_union() {
                 name:                   "User".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1422,6 +1437,7 @@ fn test_convert_union() {
                 name:                   "Post".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1501,6 +1517,7 @@ fn test_convert_field_requires_scope() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    vector_config:  None,
                     name:           "id".to_string(),
                     field_type:     "ID".to_string(),
                     nullable:       false,
@@ -1512,6 +1529,7 @@ fn test_convert_field_requires_scope() {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "name".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       false,
@@ -1523,6 +1541,7 @@ fn test_convert_field_requires_scope() {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "salary".to_string(),
                     field_type:     "Float".to_string(),
                     nullable:       false,
@@ -1534,6 +1553,7 @@ fn test_convert_field_requires_scope() {
                     hierarchy:      None,
                 },
                 IntermediateField {
+                    vector_config:  None,
                     name:           "ssn".to_string(),
                     field_type:     "String".to_string(),
                     nullable:       true,
@@ -1697,6 +1717,7 @@ mod tenancy_tests {
 
     fn make_field(name: &str, field_type: &str) -> IntermediateField {
         IntermediateField {
+            vector_config:  None,
             name:           name.to_string(),
             field_type:     field_type.to_string(),
             nullable:       false,
@@ -1711,6 +1732,7 @@ mod tenancy_tests {
 
     fn make_tenant_id_field(name: &str) -> IntermediateField {
         IntermediateField {
+            vector_config:  None,
             name:           name.to_string(),
             field_type:     "String".to_string(),
             nullable:       false,
@@ -2616,6 +2638,7 @@ mod changelog_cascade_conformance_tests {
 
     fn field(name: &str, field_type: &str) -> IntermediateField {
         IntermediateField {
+            vector_config:  None,
             name:           name.to_string(),
             field_type:     field_type.to_string(),
             nullable:       false,

@@ -9,7 +9,7 @@ use super::{
     query::QueryRunner,
     query_params::{
         combine_explicit_arg_where, compute_projection_reduction, enforce_max_page_size,
-        inject_param_where_clause,
+        inject_param_where_clause, nearest_order_and_limit,
     },
     query_projection::{build_typed_projection_fields, enrich_order_by_clauses, where_field_types},
 };
@@ -361,6 +361,22 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 })
         } else {
             None
+        };
+
+        // `nearest` similarity search (#386): lowers to a vector-distance
+        // ORDER BY + LIMIT k. Conflicts with limit/orderBy error inside the
+        // helper, so overriding both here cannot discard a client value.
+        let (limit, order_by_clauses) = if let Some((clause, k)) = nearest_order_and_limit(
+            &query_match.arguments,
+            &self.ctx.schema,
+            &query_match.query_def,
+        )? {
+            (
+                enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
+                Some(vec![clause]),
+            )
+        } else {
+            (limit, order_by_clauses)
         };
 
         // 9. Execute query with combined WHERE clause filter, pinning session variables to the
@@ -723,6 +739,22 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None
         };
 
+        // `nearest` similarity search (#386): lowers to a vector-distance
+        // ORDER BY + LIMIT k. Conflicts with limit/orderBy error inside the
+        // helper, so overriding both here cannot discard a client value.
+        let (limit, order_by_clauses) = if let Some((clause, k)) = nearest_order_and_limit(
+            &query_match.arguments,
+            &self.ctx.schema,
+            &query_match.query_def,
+        )? {
+            (
+                enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
+                Some(vec![clause]),
+            )
+        } else {
+            (limit, order_by_clauses)
+        };
+
         // No session vars: this is the unauthenticated entrypoint (no
         // SecurityContext), so there is nothing to resolve session variables
         // from. See #329 / resolve_session_vars.
@@ -896,6 +928,21 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     &query_match.query_def.native_columns,
                 )
             });
+
+        // `nearest` similarity search (#386) — same lowering as the two
+        // GraphQL runners above, so the direct path cannot drift (#739's class).
+        let (limit, order_by_clauses) = if let Some((clause, k)) = nearest_order_and_limit(
+            &query_match.arguments,
+            &self.ctx.schema,
+            &query_match.query_def,
+        )? {
+            (
+                enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
+                Some(vec![clause]),
+            )
+        } else {
+            (limit, order_by_clauses)
+        };
 
         // Convert explicit arguments to WHERE conditions.
         let user_where = combine_explicit_arg_where(

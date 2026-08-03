@@ -12,7 +12,10 @@
 
 services:
   postgres-test:
-    image: postgres:16-alpine
+    # pgvector/pgvector:pg16 = the official postgres:16 (bookworm) image plus the
+    # pgvector extension, which the #386 vector-similarity suites CREATE and
+    # execute against. Matches CI's `ghcr.io/fraiseql/pgvector:pg16` mirror.
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: test_fraiseql
       POSTGRES_USER: fraiseql_test

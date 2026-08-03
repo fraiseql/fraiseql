@@ -60,6 +60,7 @@ jobs:
           docker.io/library/rust:1.92|ghcr.io/fraiseql/rust:1.92
           docker.io/library/ubuntu:24.04|ghcr.io/fraiseql/ubuntu:24.04
           docker.io/library/postgres:16|ghcr.io/fraiseql/postgres:16
+          docker.io/pgvector/pgvector:pg16|ghcr.io/fraiseql/pgvector:pg16
           docker.io/library/redis:7-alpine|ghcr.io/fraiseql/redis:7-alpine
           docker.io/library/nats:2.10-alpine|ghcr.io/fraiseql/nats:2.10-alpine
           docker.io/hashicorp/vault:1.17|ghcr.io/fraiseql/vault:1.17

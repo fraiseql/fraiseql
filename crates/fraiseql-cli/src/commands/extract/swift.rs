@@ -46,6 +46,7 @@ impl SchemaExtractor for SwiftExtractor {
                     let (graphql_type, nullable) = map_type(Language::Swift, type_str);
 
                     fields.push(IntermediateField {
+                        vector_config: None,
                         name: field_name,
                         field_type: graphql_type,
                         nullable,

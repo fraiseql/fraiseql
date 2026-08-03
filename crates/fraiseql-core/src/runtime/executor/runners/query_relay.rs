@@ -170,6 +170,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // Extract relay pagination arguments from variables.
         let vars = variables.and_then(|v| v.as_object());
+        // `nearest` (#386) has no relay lowering; ignoring it here would return
+        // an unordered page that reads as a successful similarity search.
+        if vars.is_some_and(|v| v.contains_key("nearest")) {
+            return Err(FraiseQLError::validation(
+                "`nearest` is not supported on relay (connection) queries; use a plain \
+                 list query for similarity search",
+            ));
+        }
         let first: Option<u32> = vars
             .and_then(|v| v.get("first"))
             .and_then(|v| v.as_u64())

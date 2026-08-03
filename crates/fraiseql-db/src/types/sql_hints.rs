@@ -69,6 +69,27 @@ pub struct OrderByClause {
     /// enabling index support and correct typing without casts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_column: Option<String>,
+    /// Vector-distance ordering (#386): when set, this clause orders by
+    /// `{column} {operator} '{query_vector}'::vector` — the pgvector ANN shape.
+    /// Requires [`native_column`](Self::native_column) (a JSONB-extracted text
+    /// value would defeat every vector index and re-parse per row).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vector:        Option<VectorDistanceOrder>,
+}
+
+/// The vector-distance operand of an ORDER BY clause (#386).
+///
+/// `query_vector` is carried as the *body* of a pgvector text literal
+/// (`[0.1,0.2,…]`) rather than a bind parameter: it is constructed exclusively
+/// by formatting `f64` values parsed from the request, so it can only contain
+/// digits, `.`, `-`, `e`, commas and brackets — and the SQL builder re-validates
+/// that character set before interpolating (defence in depth).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VectorDistanceOrder {
+    /// pgvector distance operator: `<=>` (cosine), `<->` (L2), `<#>` (inner product).
+    pub operator:     String,
+    /// The query vector literal body, e.g. `[0.1,0.2,0.3]`.
+    pub query_vector: String,
 }
 
 /// Sort direction
@@ -101,6 +122,7 @@ impl OrderByClause {
             direction,
             field_type: ScalarFieldType::default(),
             native_column: None,
+            vector: None,
         }
     }
 

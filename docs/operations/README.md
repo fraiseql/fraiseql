@@ -9,3 +9,4 @@ Guides for running FraiseQL in production.
 | [observer-idempotency.md](observer-idempotency.md) | `EffectivelyOnce` checkpoint table schema, growth rates, cleanup strategy, failure modes |
 | [read-replicas.md](read-replicas.md) | Serving compiled queries from PostgreSQL replicas: static read/write routing, the read-your-writes pin window, failure behaviour, tenant isolation on every pool |
 | [graphql-sse-streaming.md](graphql-sse-streaming.md) | GraphQL responses over Server-Sent Events: negotiation, root-field `@stream` incremental delivery, per-batch auth re-checks, consistency caveats |
+| [vector-search.md](vector-search.md) | pgvector similarity search: declaring vector fields, the `nearest` top-K argument, threshold WHERE filters, the native-column storage contract, emitted DDL |

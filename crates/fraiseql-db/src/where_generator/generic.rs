@@ -308,6 +308,81 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         self.dialect.placeholder(self.counter.next())
     }
 
+    /// Vector threshold predicate (#386): `((expr)::vector <op> $v::vector) <= $t`.
+    ///
+    /// Operand shape: `{vector: [Float, …], threshold: Float}`.
+    ///
+    /// - For the distance operators (`<=>`, `<->`, `<+>`), `threshold` is the **maximum distance**:
+    ///   rows within it (inclusive) match.
+    /// - For inner product, `threshold` is the **minimum (raw) inner product**: rows at least that
+    ///   similar match. pgvector's `<#>` returns the *negated* inner product, so the comparison
+    ///   stays `<=` and the bound threshold value is negated instead (`ip >= t  ⇔  -ip <= -t`).
+    ///
+    /// The query vector binds as a **text** parameter (`$n::vector` — jsonb has
+    /// no cast to vector), built from the operand's numbers, so its dimension
+    /// and syntax are checked by pgvector itself. The field expression is
+    /// parenthesised before the cast: `data->>'f'::vector` would parse as
+    /// `data->>('f'::vector)` because `::` binds tighter than `->>`.
+    fn vector_threshold_sql(
+        &self,
+        field_expr: &str,
+        op: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+        negate_threshold: bool,
+    ) -> Result<String> {
+        let shape_err = || {
+            FraiseQLError::validation(
+                "vector operators take {vector: [Float, ...], threshold: Float} — e.g. \
+                 {cosine_distance: {vector: [0.1, 0.2], threshold: 0.5}}",
+            )
+        };
+        let obj = value.as_object().ok_or_else(shape_err)?;
+        let vector =
+            obj.get("vector").and_then(serde_json::Value::as_array).ok_or_else(shape_err)?;
+        let threshold =
+            obj.get("threshold").and_then(serde_json::Value::as_f64).ok_or_else(shape_err)?;
+        if !threshold.is_finite() {
+            return Err(FraiseQLError::validation("vector threshold must be a finite number"));
+        }
+        if vector.is_empty() {
+            return Err(FraiseQLError::validation("vector operand must not be empty"));
+        }
+        let mut literal = String::with_capacity(vector.len() * 8 + 2);
+        literal.push('[');
+        for (i, component) in vector.iter().enumerate() {
+            let n = component.as_f64().filter(|n| n.is_finite()).ok_or_else(|| {
+                FraiseQLError::validation("vector operand components must all be finite numbers")
+            })?;
+            if i > 0 {
+                literal.push(',');
+            }
+            // Reason: fmt::Write for String is infallible
+            std::fmt::Write::write_fmt(&mut literal, format_args!("{n}"))
+                .expect("write to String is infallible");
+        }
+        literal.push(']');
+
+        let vector_param = self.push_param(params, serde_json::Value::String(literal));
+        let bound = if negate_threshold {
+            -threshold
+        } else {
+            threshold
+        };
+        let threshold_param = self.push_param(params, serde_json::json!(bound));
+        // `$n::text::vector`, not `$n::vector`: a bare `::vector` cast makes the
+        // prepared-statement protocol infer the *parameter type* as vector, and
+        // the driver binds text — a wire-format mismatch. The double cast pins
+        // the parameter as text and converts server-side.
+        // The threshold likewise goes through text (`::text::float8`): this
+        // crate's parameter convention sends JSON numbers as text (see
+        // `QueryParam::from`), so the placeholder must be inferred as text.
+        Ok(format!(
+            "(({field_expr})::vector {op} {vector_param}::text::vector) <= \
+             {threshold_param}::text::float8"
+        ))
+    }
+
     // ── Field visitor ─────────────────────────────────────────────────────────
 
     fn visit_field(
@@ -566,42 +641,34 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
-            // ── Vector (pgvector) ─────────────────────────────────────────────
+            // ── Vector (pgvector) threshold predicates (#386) ─────────────────
+            // Operand: `{vector: [Float,…], threshold: Float}`; semantics and
+            // the three repairs over the original never-executable emission are
+            // documented on `vector_threshold_sql`.
             WhereOperator::CosineDistance => {
-                let p = self.push_param(params, value.clone());
-                self.dialect
-                    .vector_distance_sql("<=>", &field_expr, &p)
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+                self.vector_threshold_sql(&field_expr, "<=>", value, params, false)
             },
             WhereOperator::L2Distance => {
-                let p = self.push_param(params, value.clone());
-                self.dialect
-                    .vector_distance_sql("<->", &field_expr, &p)
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+                self.vector_threshold_sql(&field_expr, "<->", value, params, false)
             },
             WhereOperator::L1Distance => {
-                let p = self.push_param(params, value.clone());
-                self.dialect
-                    .vector_distance_sql("<+>", &field_expr, &p)
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
-            },
-            WhereOperator::HammingDistance => {
-                let p = self.push_param(params, value.clone());
-                self.dialect
-                    .vector_distance_sql("<~>", &field_expr, &p)
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+                self.vector_threshold_sql(&field_expr, "<+>", value, params, false)
             },
             WhereOperator::InnerProduct => {
-                let p = self.push_param(params, value.clone());
-                self.dialect
-                    .vector_distance_sql("<#>", &field_expr, &p)
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+                self.vector_threshold_sql(&field_expr, "<#>", value, params, true)
             },
-            WhereOperator::JaccardDistance => {
-                let p = self.push_param(params, value.clone());
-                self.dialect
-                    .jaccard_distance_sql(&field_expr, &p)
-                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            // Hamming and Jaccard operate on pgvector's *binary* (`bit`)
+            // vectors; FraiseQL's Vector type models float vectors ([Float!]!
+            // with dimensions), so no column these operators could apply to can
+            // currently be declared. Loudly unsupported until a binary-vector
+            // type exists, rather than emitting SQL PostgreSQL refuses.
+            WhereOperator::HammingDistance | WhereOperator::JaccardDistance => {
+                Err(FraiseQLError::validation(format!(
+                    "'{operator:?}' operates on binary (bit) vectors, which FraiseQL's \
+                     float Vector type cannot declare; this operator is unsupported. \
+                     Use cosine_distance / l2_distance / l1_distance / inner_product \
+                     threshold filters, or the `nearest` query argument for top-K search."
+                )))
             },
 
             // ── Network (INET/CIDR) ───────────────────────────────────────────

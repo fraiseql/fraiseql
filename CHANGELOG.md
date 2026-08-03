@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **pgvector similarity search is real (#386).** The vector type vocabulary
+  (`FieldType::Vector`, `VectorConfig`) existed with no producer and no
+  executable query path; both now exist end to end. Authoring: TOML
+  (`vector = { dimensions = N, index_type = "hnsw", distance_metric = "cosine" }`)
+  and the authoring IR (`vector_config`) carry the config into the compiled
+  schema — required on `Vector` fields, refused on any other type. Query DSL:
+  `docs(nearest: {vector: $q, k: 10, metric: "l2"})` lowers to the
+  index-eligible `ORDER BY "embedding" <op> '[…]'::vector LIMIT k` against a
+  native `vector(N)` view column, with request-time dimension validation, the
+  field's declared metric as default, and full composition with `where`/RLS;
+  the four float-vector WHERE operators (`cosine_distance`, `l2_distance`,
+  `l1_distance`, `inner_product`) become executable threshold predicates
+  (`{vector, threshold}` operand). `--emit-ddl` emits dimensioned `vector(N)`
+  columns (a bare `vector` column cannot be indexed), the declared HNSW/IVFFlat
+  index, and `CREATE EXTENSION IF NOT EXISTS vector`. The test rigs run
+  `pgvector/pgvector:pg16` (local compose and the CI mirror), and the first
+  executed vector suite asserts row identity and order per metric — every prior
+  vector test was a `sql.contains("<=>")` string assertion.
+
 - **GraphQL over SSE with root-field `@stream` (#387).** Opt-in
   (`enable_graphql_sse`, default off): a GraphQL request carrying
   `Accept: text/event-stream` is answered as Server-Sent Events — any operation
@@ -111,6 +130,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     documents are refused on POST, GET, and QUERY alike.
 
 ### Breaking
+
+- **The vector WHERE operand shape changed (#386).** `cosine_distance: [0.1, …]`
+  (a bare array) generated SQL PostgreSQL always refused — a non-boolean
+  float8 expression over a mis-parenthesised cast with a jsonb-bound operand —
+  so no working query used it. The operand is now
+  `{vector: [Float!], threshold: Float}` with distance-≤ (or, for
+  `inner_product`, raw-inner-product-≥) semantics. `hamming_distance` and
+  `jaccard_distance` are refused loudly: pgvector defines them over binary
+  (`bit`) vectors, which the float `Vector` type cannot declare. The
+  `SqlDialect::vector_distance_sql`/`jaccard_distance_sql` trait methods
+  (unreachable outside that broken path) are removed.
 
 - **`PoolPrewarmConfig` gains the mandatory `read_replicas` field (#407).** Every
   pool construction site must now state its replica topology (`None` for a

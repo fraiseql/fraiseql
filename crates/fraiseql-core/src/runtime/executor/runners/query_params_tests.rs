@@ -224,3 +224,139 @@ fn inject_param_native_camel_is_recased_to_snake_column() {
         other => panic!("expected WhereClause::NativeField, got {other:?}"),
     }
 }
+
+// ── nearest similarity argument (#386) ──────────────────────────────────────
+
+fn vector_schema() -> crate::schema::CompiledSchema {
+    use crate::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition, VectorConfig};
+    let mut schema = CompiledSchema::new();
+    let mut doc = TypeDefinition::new("Doc", "v_doc");
+    doc.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("embedding", FieldType::Vector)
+            .with_vector_config(VectorConfig::new(3)),
+    ];
+    schema.types.push(doc);
+    schema.build_indexes();
+    schema
+}
+
+fn list_query_def() -> crate::schema::QueryDefinition {
+    crate::schema::QueryDefinition::new("docs", "Doc")
+        .returning_list()
+        .with_sql_source("v_doc")
+}
+
+fn args(json: &serde_json::Value) -> std::collections::HashMap<String, serde_json::Value> {
+    json.as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+}
+
+#[test]
+fn nearest_absent_is_none() {
+    let got =
+        nearest_order_and_limit(&args(&serde_json::json!({})), &vector_schema(), &list_query_def())
+            .unwrap();
+    assert!(got.is_none());
+}
+
+#[test]
+fn nearest_lowers_to_vector_order_and_k() {
+    let got = nearest_order_and_limit(
+        &args(&serde_json::json!({"nearest": {"vector": [1.0, 0.0, 0.25], "k": 5}})),
+        &vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap()
+    .expect("plan");
+    let (clause, k) = got;
+    assert_eq!(k, 5);
+    assert_eq!(clause.native_column.as_deref(), Some("\"embedding\""));
+    let vector = clause.vector.expect("vector operand");
+    assert_eq!(vector.operator, "<=>", "defaults to the field's declared cosine metric");
+    assert_eq!(vector.query_vector, "[1,0,0.25]");
+}
+
+#[test]
+fn nearest_metric_override_and_defaults() {
+    let got = nearest_order_and_limit(
+        &args(&serde_json::json!({"nearest": {"vector": [1, 2, 3], "k": 2, "metric": "l2"}})),
+        &vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap()
+    .expect("plan");
+    assert_eq!(got.0.vector.unwrap().operator, "<->");
+}
+
+#[test]
+fn nearest_dimension_mismatch_is_refused() {
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({"nearest": {"vector": [1.0, 2.0], "k": 2}})),
+        &vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("2 components") && err.contains("3 dimensions"), "got: {err}");
+}
+
+#[test]
+fn nearest_conflicts_with_limit_and_order_by() {
+    for (extra, needle) in [
+        (serde_json::json!(3), "limit"),
+        (serde_json::json!({"id": "ASC"}), "orderBy"),
+    ] {
+        let mut a = args(&serde_json::json!({"nearest": {"vector": [1, 2, 3], "k": 2}}));
+        a.insert(
+            if needle == "limit" {
+                "limit".into()
+            } else {
+                "orderBy".into()
+            },
+            extra,
+        );
+        let err = nearest_order_and_limit(&a, &vector_schema(), &list_query_def())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains(needle), "got: {err}");
+    }
+}
+
+#[test]
+fn nearest_on_a_type_without_vector_fields_is_refused() {
+    use crate::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
+    let mut schema = CompiledSchema::new();
+    let mut user = TypeDefinition::new("Doc", "v_doc");
+    user.fields = vec![FieldDefinition::new("id", FieldType::Int)];
+    schema.types.push(user);
+    schema.build_indexes();
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({"nearest": {"vector": [1], "k": 1}})),
+        &schema,
+        &list_query_def(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("declares none"), "got: {err}");
+}
+
+#[test]
+fn nearest_rejects_unknown_keys_zero_k_and_bad_metric() {
+    let schema = vector_schema();
+    let q = list_query_def();
+    for (nearest, needle) in [
+        (serde_json::json!({"vector": [1, 2, 3], "k": 2, "knn": true}), "unknown"),
+        (serde_json::json!({"vector": [1, 2, 3], "k": 0}), "positive integer"),
+        (
+            serde_json::json!({"vector": [1, 2, 3], "k": 2, "metric": "manhattan"}),
+            "manhattan",
+        ),
+        (serde_json::json!({"vector": [1, "x", 3], "k": 2}), "finite numbers"),
+    ] {
+        let err =
+            nearest_order_and_limit(&args(&serde_json::json!({"nearest": nearest})), &schema, &q)
+                .unwrap_err()
+                .to_string();
+        assert!(err.contains(needle), "expected '{needle}' in: {err}");
+    }
+}
