@@ -63,17 +63,23 @@ pub trait DatabaseIntrospector: Send + Sync {
         Ok(Vec::new())
     }
 
-    /// Get sample JSON rows from a column for schema inference.
+    /// Get sample JSON rows from a column for schema inference and the L3
+    /// JSONB-key drift check (#384).
     ///
-    /// Returns: Vec of parsed JSON values from the column. Default returns an empty list.
+    /// Returns: Vec of parsed JSON values from the column.
+    ///
+    /// Deliberately has **no default implementation**: a default returning an
+    /// empty Vec made "cannot sample" indistinguishable from "table is empty",
+    /// which silently blinded the L3 drift check for every connector that
+    /// forgot to override it (the `PostgresIntrospector` did, so the check had
+    /// never sampled a row). Implementors that genuinely cannot sample must
+    /// return an error, not fabricate an empty result.
     async fn get_sample_json_rows(
         &self,
-        _table_name: &str,
-        _column_name: &str,
-        _limit: usize,
-    ) -> Result<Vec<serde_json::Value>> {
-        Ok(Vec::new())
-    }
+        table_name: &str,
+        column_name: &str,
+        limit: usize,
+    ) -> Result<Vec<serde_json::Value>>;
 
     /// Probe whether a callable SQL **function** named `name` exists — in `schema`
     /// when given, else resolved against the connection `search_path`.

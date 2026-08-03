@@ -249,6 +249,45 @@ impl DatabaseIntrospector for PostgresIntrospector {
         }
     }
 
+    async fn get_sample_json_rows(
+        &self,
+        table_name: &str,
+        column_name: &str,
+        limit: usize,
+    ) -> Result<Vec<serde_json::Value>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        // Quote each dot-separated part (with `"` doubled) so a schema-qualified
+        // source like `analytics.v_thing` resolves as schema + relation instead
+        // of one bogus identifier.
+        let table = table_name
+            .split('.')
+            .map(|part| format!("\"{}\"", part.replace('"', "\"\"")))
+            .collect::<Vec<_>>()
+            .join(".");
+        let column = format!("\"{}\"", column_name.replace('"', "\"\""));
+        let query =
+            format!("SELECT {column}::text FROM {table} WHERE {column} IS NOT NULL LIMIT {limit}");
+
+        let rows: Vec<Row> =
+            client.query(&query, &[]).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to query sample JSON rows: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        rows.iter()
+            .filter_map(|row| row.get::<_, Option<String>>(0))
+            .map(|text| {
+                serde_json::from_str(&text).map_err(|e| FraiseQLError::Parse {
+                    message:  format!("Failed to parse JSON sample: {e}"),
+                    location: format!("{table_name}.{column_name}"),
+                })
+            })
+            .collect()
+    }
+
     async fn function_exists(&self, schema: Option<&str>, name: &str) -> Result<Option<bool>> {
         let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
             message: format!("Failed to acquire connection: {e}"),

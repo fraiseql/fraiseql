@@ -60,6 +60,11 @@ pub struct ExpectedCall {
     pub inject_names:           Vec<String>,
     /// Whether the first argument is the jsonb payload (update path).
     pub first_is_jsonb_payload: bool,
+    /// Canonical (stored) key names the runtime writes into the single-JSONB
+    /// payload — the declared input type's field names. Only populated on the
+    /// single-JSONB path with a known input type; drives the payload-key
+    /// consumption scan (#384 category 2).
+    pub payload_keys:           Vec<String>,
 }
 
 impl ExpectedCall {
@@ -135,6 +140,15 @@ pub enum ContractViolation {
         /// Its actual type.
         actual:   String,
     },
+    /// A declared input field's payload key is never referenced in the function
+    /// body, while the body does extract *other* keys — the classic
+    /// silently-dropped input (#384 category 2). Text-scan based, so advisory.
+    PayloadKeyUnreferenced {
+        /// The declared input field.
+        field:     String,
+        /// The canonical (stored) key probed for, when it differs from `field`.
+        snake_key: String,
+    },
     /// The function returns a scalar / bare `record` — its response shape cannot
     /// be introspected.
     ResponseShapeUnverifiable,
@@ -153,6 +167,7 @@ impl ContractViolation {
             | Self::RequiredColumnWrongType { .. } => Severity::Error,
             Self::InjectNameMismatch { .. }
             | Self::OptionalColumnWrongType { .. }
+            | Self::PayloadKeyUnreferenced { .. }
             | Self::ResponseShapeUnverifiable => Severity::Warn,
         }
     }
@@ -183,6 +198,18 @@ impl fmt::Display for ContractViolation {
                 f,
                 "inject param #{position} is bound positionally to parameter `{actual}` but the inject key is `{expected}`"
             ),
+            Self::PayloadKeyUnreferenced { field, snake_key } => {
+                let probed = if field == snake_key {
+                    format!("'{field}'")
+                } else {
+                    format!("'{field}' / '{snake_key}'")
+                };
+                write!(
+                    f,
+                    "input field `{field}`: the function body extracts other payload keys but \
+                     never references {probed} — the value would be silently dropped (text scan)"
+                )
+            },
             Self::MissingRequiredColumn { column } => write!(
                 f,
                 "response row is missing required column `{column}` (the server cannot decode MutationResponse)"
@@ -237,12 +264,25 @@ pub fn expected_call(
         (CallShape::FlatArgs, mutation.arguments.len(), false)
     };
 
+    // Payload keys for the consumption scan (#384 category 2): only on the
+    // single-JSONB path with a *known* input type — those field names are the
+    // canonical keys the runtime writes into the payload.
+    let payload_keys = if matches!(shape, CallShape::JsonbPayload) {
+        input_type_name
+            .and_then(|n| schema.find_input_type(n))
+            .map(|t| t.fields.iter().map(|f| f.name.clone()).collect())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
     Some(ExpectedCall {
         sql_source,
         shape,
         base_arity,
         inject_names: mutation.inject_params.keys().cloned().collect(),
         first_is_jsonb_payload,
+        payload_keys,
     })
 }
 
@@ -348,6 +388,10 @@ pub fn check_mutation(
         }
     }
 
+    // Payload-key consumption (#384 category 2): a declared input field whose
+    // key the function body never reads is silently dropped at runtime.
+    check_payload_key_consumption(expected, func, &mut violations);
+
     // Call binding: trailing parameter names should match the inject keys, in
     // order. Advisory — the runtime binds positionally — and only checkable when
     // the function declares parameter names.
@@ -368,6 +412,61 @@ pub fn check_mutation(
 
     check_response_shape(func, &mut violations);
     violations
+}
+
+/// Scan the function body for each declared payload key (#384 category 2).
+///
+/// Emits [`ContractViolation::PayloadKeyUnreferenced`] (warn-grade) for every
+/// declared input field whose key — probed in both its declared and snake_case
+/// form, single-quoted — never appears in the body. Deliberately conservative
+/// about when it runs at all, because it is a text scan, not a parse:
+///
+/// - only `plpgsql` / `sql` bodies are scannable source text (for other languages `prosrc` is a
+///   symbol name);
+/// - a body containing a whole-payload consumer (`jsonb_populate_record` and kin) reads every key
+///   without naming any — skip;
+/// - a body with **no** jsonb extraction operator (`->`, `->>`, `#>`, `?`) never reads keys inline
+///   (it forwards the payload to a helper) — skip. This also means the scan only fires when the
+///   body demonstrably extracts *some* keys but not the declared one, which is exactly the
+///   silently-dropped-input shape.
+fn check_payload_key_consumption(
+    expected: &ExpectedCall,
+    func: &PgFunction,
+    violations: &mut Vec<ContractViolation>,
+) {
+    const WHOLE_PAYLOAD_MARKERS: &[&str] = &[
+        "jsonb_populate_record",
+        "json_populate_record",
+        "jsonb_to_record",
+        "jsonb_each",
+        "jsonb_object_keys",
+    ];
+    const EXTRACTION_OPS: &[&str] = &["->", "#>", "?"];
+
+    if !expected.first_is_jsonb_payload || expected.payload_keys.is_empty() {
+        return;
+    }
+    if !matches!(func.language.as_str(), "plpgsql" | "sql") {
+        return;
+    }
+    if WHOLE_PAYLOAD_MARKERS.iter().any(|m| func.source.contains(m)) {
+        return;
+    }
+    if !EXTRACTION_OPS.iter().any(|op| func.source.contains(op)) {
+        return;
+    }
+
+    for key in &expected.payload_keys {
+        let snake_key = fraiseql_core::utils::to_snake_case(key);
+        let quoted = format!("'{key}'");
+        let quoted_snake = format!("'{snake_key}'");
+        if !func.source.contains(&quoted) && !func.source.contains(&quoted_snake) {
+            violations.push(ContractViolation::PayloadKeyUnreferenced {
+                field: key.clone(),
+                snake_key,
+            });
+        }
+    }
 }
 
 /// Optional response columns and their expected type family.

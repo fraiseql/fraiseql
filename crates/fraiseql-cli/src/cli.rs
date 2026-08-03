@@ -113,6 +113,16 @@ EXAMPLES:
         /// Exits non-zero when the compiled schema diverges from the database.
         #[arg(long)]
         check_migrations: bool,
+
+        /// Compile despite error-severity schema↔database drift (advisory mode)
+        ///
+        /// With `--database`, drift the linter classifies as an error (a
+        /// `sql_source` that does not exist, a required field's JSONB key
+        /// absent from every sampled row, a mutation with no backing function)
+        /// fails the compile. This flag downgrades those findings to reported
+        /// advisories and writes the artifact anyway.
+        #[arg(long, requires = "database")]
+        allow_drift: bool,
     },
 
     /// Extract schema from annotated source files
@@ -704,9 +714,11 @@ EXAMPLES:
         /// Run the live-database passes against this PostgreSQL database: the
         /// change-log contract drift check (compares core.tb_entity_change_log
         /// against the shipped contract — #380), the PL/pgSQL body-resolution
-        /// pass (reports internal calls that no longer resolve — #409), and the
+        /// pass (reports internal calls that no longer resolve — #409), the
         /// mutation→function contract drift check (every declared mutation has a
         /// matching backing function with a mutation_response-shaped return —
+        /// #384), and the view-drift check (the same L1/L2/L3 view-composition
+        /// linter `compile --database` runs, reported as structured checks —
         /// #384).
         ///
         /// The body-resolution pass requires the `plpgsql_check` extension and

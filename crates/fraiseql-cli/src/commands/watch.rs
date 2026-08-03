@@ -139,6 +139,7 @@ async fn compile_once(input: &str, output: &str, database: Option<&str>) {
         None,  // emit_ddl
         false, // check_migrations
         false, // skip_hash
+        false, // allow_drift: a drifted save must fail loudly; the loop keeps the old artifact
     )
     .await
     {

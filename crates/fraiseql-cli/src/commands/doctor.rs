@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::toml_schema::TomlSchema,
     schema::{
+        database_validator::{create_introspector, validate_schema_against_database},
         mutation_contract::{ContractReport, Severity, validate_mutation_contract},
         pg_catalog::{
             CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
@@ -667,6 +668,7 @@ pub async fn run_with_db_checks(
         checks.extend(capture_fn_security_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
         checks.extend(mutation_contract_checks(url, schema).await);
+        checks.extend(view_drift_checks(url, schema).await);
         checks.extend(rls_security_invoker_checks(url, schema).await);
     }
 
@@ -1015,6 +1017,75 @@ async fn mutation_contract_checks(db_url: &str, schema_path: &Path) -> Vec<Docto
             MUTATION_CONTRACT_NAME,
             format!("contract check failed: {e}"),
             "Ensure the connecting role can read pg_catalog for the function schema",
+        )],
+    }
+}
+
+const VIEW_DRIFT_NAME: &str = "View drift";
+
+/// Run the view-composition linter against a live database (#384: L1
+/// `sql_source` relation existence, L2 column shape, L3 JSONB key sampling).
+///
+/// The same pass `compile --database` runs, surfaced as structured checks so
+/// CI can consume the report via `--json`: an error-severity finding becomes a
+/// `Fail`, a warn-severity finding a `Warn`, a clean report a single `Pass`.
+/// A connection or introspection failure becomes a single `Fail` check (never
+/// panics).
+async fn view_drift_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+    let schema = match std::fs::read_to_string(schema_path)
+        .map_err(|e| format!("cannot read schema: {e}"))
+        .and_then(|c| {
+            serde_json::from_str::<CompiledSchema>(&c)
+                .map_err(|e| format!("schema parse error: {e}"))
+        }) {
+        Ok(s) => s,
+        Err(detail) => {
+            return vec![DoctorCheck::warn(
+                VIEW_DRIFT_NAME,
+                format!("skipped — {detail}"),
+                "Run `fraiseql compile` to produce a valid schema.compiled.json",
+            )];
+        },
+    };
+
+    let introspector = match create_introspector(db_url).await {
+        Ok(i) => i,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                VIEW_DRIFT_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    match validate_schema_against_database(&schema, &introspector).await {
+        Ok(report) if report.warnings.is_empty() => {
+            vec![DoctorCheck::pass(
+                VIEW_DRIFT_NAME,
+                "no schema↔database drift found",
+            )]
+        },
+        Ok(report) => report
+            .warnings
+            .iter()
+            .map(|w| match w.severity() {
+                Severity::Error => DoctorCheck::fail(
+                    VIEW_DRIFT_NAME,
+                    w.to_string(),
+                    "Fix the declaration or the database object it names",
+                ),
+                Severity::Warn => DoctorCheck::warn(
+                    VIEW_DRIFT_NAME,
+                    w.to_string(),
+                    "Advisory — see `compile --database` for the same finding at build time",
+                ),
+            })
+            .collect(),
+        Err(e) => vec![DoctorCheck::fail(
+            VIEW_DRIFT_NAME,
+            format!("view-drift check failed: {e}"),
+            "Ensure the connecting role can read the relation catalogs",
         )],
     }
 }

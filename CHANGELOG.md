@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The schema↔database drift linter can fail, and covers dropped inputs
+  (#384).** `compile --database` findings now carry a severity: a `sql_source`
+  that resolves to no relation or function, a missing/mis-typed JSONB or relay
+  cursor column, a type-inconvertible native-column argument, or a **required**
+  field whose JSONB key is absent from every sampled row fail the compile with
+  a non-zero exit and no artifact written; nullable-field key absences and
+  performance advisories stay warnings. `--allow-drift` (requires `--database`)
+  restores the advisory behaviour, loudly. The mutation→function contract
+  check gained the silently-dropped-input scan (#384 category 2): a declared
+  input field on the single-JSONB payload path whose key the `plpgsql`/`sql`
+  function body never references — while the body demonstrably extracts other
+  keys — is reported (warn-grade; whole-payload consumers such as
+  `jsonb_populate_record` are recognised). `doctor --against-db` now also runs
+  the same L1/L2/L3 view-composition linter and reports each finding as a
+  structured check, so `--json` gives CI and editors a machine-readable drift
+  report. Fixing the L3 pass exposed that it had never sampled a row: the
+  Postgres introspector inherited a trait default that fabricated an empty
+  sample set, so the JSONB-key check silently passed on every schema since it
+  shipped. `get_sample_json_rows` is now a required trait method with a real
+  (schema-qualification-aware) PostgreSQL implementation, and the executed
+  `compile_drift_fail_pg` suite proves every direction — including that the
+  linter fails — against a live database.
+
 - **pgvector similarity search is real (#386).** The vector type vocabulary
   (`FieldType::Vector`, `VectorConfig`) existed with no producer and no
   executable query path; both now exist end to end. Authoring: TOML
@@ -130,6 +153,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     documents are refused on POST, GET, and QUERY alike.
 
 ### Breaking
+
+- **`compile --database` fails on error-severity drift (#384).** Previously
+  every schema↔database drift finding was advisory (`warn!` + exit 0, artifact
+  written). A schema whose declarations name database objects that do not
+  exist — or cannot serve the declared shape — no longer compiles; pass
+  `--allow-drift` for the old behaviour. `DatabaseIntrospector::
+  get_sample_json_rows` lost its silently-empty default implementation and is
+  now required.
 
 - **The vector WHERE operand shape changed (#386).** `cosine_distance: [0.1, …]`
   (a bare array) generated SQL PostgreSQL always refused — a non-boolean

@@ -5,7 +5,10 @@
 //! - **L2**: Columns and JSON column types match
 //! - **L3**: JSONB keys exist in sampled rows (best-effort)
 //!
-//! All diagnostics are warnings — compilation never fails due to validation.
+//! Each finding carries a [`Severity`]: error-severity drift (a relation that
+//! does not exist, a required field's key absent from every sampled row) fails
+//! `compile --database` unless `--allow-drift` is passed (#384); warn-severity
+//! findings are always advisory.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -19,6 +22,8 @@ use fraiseql_core::{
     },
     schema::{CompiledSchema, FieldType, SourceKind, SourceProbe, sql_source_probes},
 };
+
+use super::mutation_contract::Severity;
 
 /// Report containing all database validation warnings and discovered metadata.
 pub struct DatabaseValidationReport {
@@ -108,17 +113,21 @@ pub enum DatabaseWarning {
     /// L3: a JSON key path is declared but not found in sampled data.
     MissingJsonKey {
         /// Name of the query.
-        query_name:  String,
+        query_name:     String,
         /// The GraphQL type that declares the field (where to fix it).
-        type_name:   String,
+        type_name:      String,
         /// The `sql_source` relation.
-        sql_source:  String,
+        sql_source:     String,
         /// The JSON column being sampled.
-        json_column: String,
+        json_column:    String,
         /// The GraphQL field name.
-        field_name:  String,
+        field_name:     String,
         /// The snake_case key looked up in the JSON.
-        json_key:    String,
+        json_key:       String,
+        /// Whether the field is declared non-nullable. A required field's key
+        /// cannot legitimately be absent from every sampled row, so this drives
+        /// the finding's [`Severity`]: required → error, nullable → warning.
+        field_required: bool,
     },
     /// L2: a direct query argument has no matching native column — will fall back to JSONB
     /// extraction.
@@ -149,6 +158,43 @@ pub enum DatabaseWarning {
         /// The native column's SQL type (e.g. `uuid`).
         column_type:  String,
     },
+}
+
+impl DatabaseWarning {
+    /// The severity of this finding under `compile --database` (#384).
+    ///
+    /// `Error`-severity drift fails the compile (unless `--allow-drift`):
+    /// the declared schema names database objects that do not exist or cannot
+    /// serve the declared shape, so the first query/mutation against them fails
+    /// at runtime. `Warn`-severity findings are advisory:
+    ///
+    /// - [`MissingTypeSource`](Self::MissingTypeSource) is warn-grade by design (#653): synthesized
+    ///   value-object sources would drown a hard gate.
+    /// - [`MissingJsonKey`](Self::MissingJsonKey) is sampling-based; a *nullable* field may
+    ///   legitimately be unset in every sampled row, so only a **required** field's absent key is
+    ///   an error.
+    /// - [`NativeColumnFallback`](Self::NativeColumnFallback) is a performance advisory — the JSONB
+    ///   path is correct, just slower.
+    #[must_use]
+    pub const fn severity(&self) -> Severity {
+        match self {
+            Self::MissingRelation { .. }
+            | Self::MissingFunction { .. }
+            | Self::MissingAdditionalView { .. }
+            | Self::MissingJsonColumn { .. }
+            | Self::WrongJsonColumnType { .. }
+            | Self::MissingCursorColumn { .. }
+            | Self::TypeConvertibility { .. } => Severity::Error,
+            Self::MissingJsonKey { field_required, .. } => {
+                if *field_required {
+                    Severity::Error
+                } else {
+                    Severity::Warn
+                }
+            },
+            Self::MissingTypeSource { .. } | Self::NativeColumnFallback { .. } => Severity::Warn,
+        }
+    }
 }
 
 impl fmt::Display for DatabaseWarning {
@@ -231,10 +277,16 @@ impl fmt::Display for DatabaseWarning {
                 json_column,
                 field_name,
                 json_key,
+                field_required,
             } => {
+                let requiredness = if *field_required {
+                    "required"
+                } else {
+                    "nullable"
+                };
                 write!(
                     f,
-                    "query `{query_name}`: field `{type_name}.{field_name}` (key `{json_key}`) not found in `{sql_source}.{json_column}` sample data"
+                    "query `{query_name}`: {requiredness} field `{type_name}.{field_name}` (key `{json_key}`) not found in `{sql_source}.{json_column}` sample data"
                 )
             },
             Self::NativeColumnFallback {
@@ -730,6 +782,7 @@ async fn validate_json_keys(
                     json_column: jsonb_col.to_string(),
                     field_name: field_str.to_string(),
                     json_key,
+                    field_required: !field.nullable,
                 });
             }
         }
