@@ -567,6 +567,7 @@ impl SchemaMerger {
             "token_revocation": toml_schema.security.token_revocation,
             "trusted_documents": toml_schema.security.trusted_documents,
             "persisted_queries_only": toml_schema.security.persisted_queries_only,
+            "cost_budget": toml_schema.security.cost_budget,
         });
 
         // Embed observers configuration if enabled or if any backend URL is set

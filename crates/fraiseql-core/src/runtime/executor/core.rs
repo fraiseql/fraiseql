@@ -44,6 +44,39 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
     introspection
 }
 
+/// Resolve the GATE-1 validator for an executor (#379).
+///
+/// The embedder-installed `RuntimeConfig::query_validation` wins (it is the
+/// programmatic API, preserved across hot-reloads). Otherwise the compiled
+/// schema's declared `[validation]` limits are derived into a gate so the
+/// operator's declared bound binds on **every** transport that reaches the
+/// executor — MCP, the functions bridge, direct embedders — not only on the
+/// `/graphql` HTTP stage, which applies the same limits independently.
+///
+/// Derivation enforces exactly what the schema declares: an undeclared depth or
+/// complexity limit stays unbounded rather than acquiring a new default, and a
+/// schema with no `[validation]` section derives no gate at all. An embedder
+/// that must disable validation despite declared schema limits can install an
+/// explicit all-`usize::MAX` config.
+fn resolve_gate1(
+    config: &RuntimeConfig,
+    schema: &CompiledSchema,
+) -> Option<crate::security::QueryValidator> {
+    let effective = config.query_validation.clone().or_else(|| {
+        let declared = schema.validation_config.as_ref()?;
+        if declared.max_query_depth.is_none() && declared.max_query_complexity.is_none() {
+            return None;
+        }
+        Some(crate::security::QueryValidatorConfig {
+            max_depth:      declared.max_query_depth.map_or(usize::MAX, |d| d as usize),
+            max_complexity: declared.max_query_complexity.map_or(usize::MAX, |c| c as usize),
+            max_size_bytes: usize::MAX,
+            max_aliases:    usize::MAX,
+        })
+    })?;
+    Some(crate::security::QueryValidator::from_config(effective))
+}
+
 /// Maximum number of distinct query strings whose parsed ASTs are cached in memory.
 ///
 /// 1 024 entries covers the full distinct-query vocabulary of any realistic workload.
@@ -159,6 +192,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // every change-log outbox row and is too expensive to recompute per call.
         let schema_version: Arc<str> = Arc::from(schema.content_hash());
 
+        let gate1 = resolve_gate1(&config, &schema);
         let ctx = Arc::new(ExecutorContext {
             schema,
             schema_version,
@@ -169,6 +203,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             config,
             introspection,
             node_type_index,
+            gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
             response_cache: None,
         });
@@ -417,6 +452,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
         // every change-log outbox row and is too expensive to recompute per call.
         let schema_version: Arc<str> = Arc::from(schema.content_hash());
 
+        let gate1 = resolve_gate1(&config, &schema);
         let ctx = Arc::new(ExecutorContext {
             schema,
             schema_version,
@@ -427,6 +463,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             config,
             introspection,
             node_type_index,
+            gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
             response_cache: None,
         });

@@ -71,6 +71,16 @@ pub enum ErrorCode {
     /// authenticated users). A well-formed GraphQL request, so it returns
     /// 200 + `errors[]`.
     IntrospectionDisabled,
+    /// Operation cost exceeded a per-request cost budget (#379). A well-formed
+    /// request rejected by policy; retrying the same operation cannot succeed,
+    /// so this is 200 + `errors[]` (spec §7.1.2) — never a 429 inviting a
+    /// pointless retry.
+    OperationCostExceeded,
+    /// The rolling per-tenant cost budget window is exhausted (#379).
+    /// Retryable once the window resets: 429 with a `Retry-After` hint.
+    /// Distinct from [`RateLimitExceeded`](Self::RateLimitExceeded) so a
+    /// client can tell cost throttling from request-count throttling.
+    CostBudgetExhausted,
 }
 
 impl ErrorCode {
@@ -93,7 +103,8 @@ impl ErrorCode {
             Self::ValidationError
             | Self::ParseError
             | Self::PersistedQueryNotFound
-            | Self::IntrospectionDisabled => StatusCode::OK,
+            | Self::IntrospectionDisabled
+            | Self::OperationCostExceeded => StatusCode::OK,
             // Truly malformed HTTP request (missing `query` field, unparseable JSON body),
             // APQ hash mismatch, forbidden queries, or missing trusted documents.
             Self::RequestError
@@ -106,7 +117,7 @@ impl ErrorCode {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict => StatusCode::CONFLICT,
-            Self::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
+            Self::RateLimitExceeded | Self::CostBudgetExhausted => StatusCode::TOO_MANY_REQUESTS,
             // 408 means "the client took too long to send its request". A
             // server-side execution timeout is a 504 (#731).
             Self::Timeout => StatusCode::GATEWAY_TIMEOUT,
@@ -346,6 +357,26 @@ impl GraphQLError {
     /// Rate limit error - too many requests from client.
     pub fn rate_limited(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::RateLimitExceeded)
+    }
+
+    /// Create an operation-cost-exceeded error (#379): the operation's
+    /// estimated cost is over a per-request budget. Not retryable.
+    #[must_use]
+    pub fn operation_cost_exceeded(message: impl Into<String>) -> Self {
+        Self::new(message, ErrorCode::OperationCostExceeded)
+    }
+
+    /// Create a cost-budget-exhausted error (#379): the rolling per-tenant
+    /// cost window is spent. Retryable after `retry_after_secs`.
+    #[must_use]
+    pub fn cost_budget_exhausted(message: impl Into<String>, retry_after_secs: u64) -> Self {
+        Self::new(message, ErrorCode::CostBudgetExhausted).with_extensions(ErrorExtensions {
+            category:         Some("COST_BUDGET_EXHAUSTED".to_string()),
+            status:           Some(429),
+            request_id:       None,
+            retry_after_secs: Some(retry_after_secs),
+            detail:           None,
+        })
     }
 
     /// Construct a typed [`GraphQLError`] from a [`fraiseql_core::error::FraiseQLError`] executor

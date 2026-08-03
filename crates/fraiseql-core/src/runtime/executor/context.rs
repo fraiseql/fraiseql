@@ -57,6 +57,14 @@ pub(super) struct ExecutorContext<A: DatabaseAdapter> {
     /// O(1) lookup index for Relay `node(id)` queries.
     pub(super) node_type_index: HashMap<String, Arc<str>>,
 
+    /// GATE-1 query-structure validator (depth / complexity / alias / size),
+    /// resolved once at construction: the embedder-installed
+    /// `RuntimeConfig::query_validation` when set, otherwise derived from the
+    /// compiled schema's declared `[validation]` limits (#379). `None` only
+    /// when neither declares anything — a declared bound binds on every
+    /// transport that reaches the executor, not just the `/graphql` stage.
+    pub(super) gate1: Option<crate::security::QueryValidator>,
+
     /// Parsed GraphQL AST cache, keyed by xxHash64 of the query string.
     pub(super) parse_cache: MokaCache<u64, Arc<(QueryType, Option<ParsedQuery>)>>,
 

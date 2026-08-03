@@ -94,6 +94,11 @@ const MANIFEST: &[(&str, &str)] = &[
     ("security.state_encryption", "server PKCE state encryption"),
     ("security.pkce", "server PKCE OAuth config"),
     ("security.persisted_queries_only", "server persisted-queries-only gate (#379)"),
+    (
+        "security.cost_budget",
+        "executor per-request cost cap (RuntimeConfig::max_operation_cost) + tenant-registry \
+         per-minute window default (#379)",
+    ),
     ("security.trusted_documents", "server trusted-documents allowlist"),
     ("security.default_policy", "server default authorization policy"),
     (

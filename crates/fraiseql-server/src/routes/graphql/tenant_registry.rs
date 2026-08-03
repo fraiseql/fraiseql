@@ -98,9 +98,63 @@ pub struct TenantQuota {
     pub max_storage_bytes_advisory: Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` means
     /// no cost budget. A request whose `estimate_query_cost` exceeds this is
-    /// rejected at the same chokepoint as the rate/concurrency quotas (429).
+    /// rejected at the same chokepoint as the rate/concurrency quotas with
+    /// `OPERATION_COST_EXCEEDED` — permanent for the operation, not retryable.
     #[serde(default)]
     pub cost_budget:                Option<usize>,
+    /// Rolling per-minute cost budget (#379): the sum of estimated operation
+    /// costs a tenant may spend per fixed 60-second window. `None` means no
+    /// window budget. An exhausted window rejects with `COST_BUDGET_EXHAUSTED`
+    /// (429 + `Retry-After` until the window resets).
+    #[serde(default)]
+    pub cost_budget_per_minute:     Option<usize>,
+}
+
+/// Fixed-window per-minute cost accumulator (#379).
+///
+/// The same window model as the per-second RPS gate one field up: a fixed
+/// 60-second window keyed from the first charge, reset lazily on the first
+/// charge after it elapses. Time is passed in as unix seconds so tests drive
+/// rollover deterministically without a clock trait.
+struct CostWindow {
+    /// The per-window budget, in cost units.
+    budget: u64,
+    /// `(window_start_unix_secs, spent)` under one mutex so a charge is atomic.
+    state:  std::sync::Mutex<(u64, u64)>,
+}
+
+/// Window length for [`CostWindow`], in seconds.
+const COST_WINDOW_SECS: u64 = 60;
+
+impl CostWindow {
+    const fn new(budget: u64) -> Self {
+        Self {
+            budget,
+            state: std::sync::Mutex::new((0, 0)),
+        }
+    }
+
+    /// Charge `cost` against the window at time `now_secs`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the seconds until the window resets when the charge would
+    /// overspend the budget. The charge is not applied on rejection, so a
+    /// cheaper follow-up operation can still fit in the remainder.
+    fn try_charge(&self, now_secs: u64, cost: u64) -> Result<(), u64> {
+        // Reason: a poisoned mutex means a panic mid-charge; failing closed by
+        // propagating the panic is preferable to unbounded spend.
+        #[allow(clippy::unwrap_used)]
+        let mut state = self.state.lock().unwrap();
+        if now_secs >= state.0 + COST_WINDOW_SECS {
+            *state = (now_secs, 0);
+        }
+        if state.1.saturating_add(cost) > self.budget {
+            return Err((state.0 + COST_WINDOW_SECS).saturating_sub(now_secs));
+        }
+        state.1 = state.1.saturating_add(cost);
+        Ok(())
+    }
 }
 
 /// A single tenant entry in the registry: executor + lifecycle status + quotas.
@@ -119,6 +173,9 @@ struct TenantEntry<A: DatabaseAdapter> {
     /// in that case so the gap is never silent.
     #[cfg(feature = "auth")]
     rps:         Option<Arc<KeyedRateLimiter>>,
+    /// Rolling per-minute cost window — `None` when `cost_budget_per_minute`
+    /// is unset (#379).
+    cost_window: Option<CostWindow>,
     /// Quota configuration (cloned from registration request).
     quota:       TenantQuota,
 }
@@ -131,6 +188,7 @@ impl<A: DatabaseAdapter> TenantEntry<A> {
             concurrency: None,
             #[cfg(feature = "auth")]
             rps: None,
+            cost_window: None,
             quota: TenantQuota::default(),
         }
     }
@@ -157,7 +215,19 @@ impl<A: DatabaseAdapter> TenantEntry<A> {
                  the `auth` feature; the limit will NOT be enforced in this build."
             );
         }
+        self.cost_window =
+            quota.cost_budget_per_minute.map(|budget| CostWindow::new(budget as u64));
         self.quota = quota;
+        self
+    }
+
+    /// Seed the per-minute cost window from the schema-wide default (#379) when
+    /// the tenant did not set its own `cost_budget_per_minute`. An explicit
+    /// per-tenant budget always wins.
+    fn with_default_minute_budget(mut self, default: Option<u64>) -> Self {
+        if self.cost_window.is_none() {
+            self.cost_window = default.map(CostWindow::new);
+        }
         self
     }
 
@@ -187,18 +257,35 @@ const SUSPENDED_RETRY_AFTER_SECS: u64 = 60;
 /// serve the wrong tenant's data.
 pub struct TenantExecutorRegistry<A: DatabaseAdapter> {
     /// Default executor used when no tenant key is provided (single-tenant compat).
-    default: Arc<ArcSwap<Executor<A>>>,
+    default:               Arc<ArcSwap<Executor<A>>>,
     /// Per-tenant entries keyed by tenant identifier.
-    tenants: DashMap<String, TenantEntry<A>>,
+    tenants:               DashMap<String, TenantEntry<A>>,
+    /// Compiled `[security.cost_budget] per_tenant_per_minute_default` (#379),
+    /// read once from the default executor's schema at construction. Seeds a
+    /// cost window for every registered tenant that does not set its own
+    /// `cost_budget_per_minute`.
+    default_minute_budget: Option<u64>,
 }
 
 impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// Create a new registry with the given default executor.
+    ///
+    /// Reads the compiled schema's `[security.cost_budget]
+    /// per_tenant_per_minute_default` here, in the constructor, so a second
+    /// construction site cannot forget it.
     #[must_use]
     pub fn new(default: Arc<ArcSwap<Executor<A>>>) -> Self {
+        let default_minute_budget = default
+            .load()
+            .schema()
+            .security
+            .as_ref()
+            .and_then(|s| s.cost_budget.as_ref())
+            .and_then(|c| c.per_tenant_per_minute_default);
         Self {
             default,
             tenants: DashMap::new(),
+            default_minute_budget,
         }
     }
 
@@ -276,7 +363,10 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
             existing.value().executor.store(executor);
             false
         } else {
-            self.tenants.insert(key, TenantEntry::new(executor));
+            self.tenants.insert(
+                key,
+                TenantEntry::new(executor).with_default_minute_budget(self.default_minute_budget),
+            );
             true
         }
     }
@@ -299,12 +389,19 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
             let prev_status = existing.value().status();
             drop(existing);
             self.tenants.remove(&key);
-            let entry = TenantEntry::new(executor).with_quota(quota);
+            let entry = TenantEntry::new(executor)
+                .with_quota(quota)
+                .with_default_minute_budget(self.default_minute_budget);
             entry.set_status(prev_status);
             self.tenants.insert(key, entry);
             false
         } else {
-            self.tenants.insert(key, TenantEntry::new(executor).with_quota(quota));
+            self.tenants.insert(
+                key,
+                TenantEntry::new(executor)
+                    .with_quota(quota)
+                    .with_default_minute_budget(self.default_minute_budget),
+            );
             true
         }
     }
@@ -372,13 +469,18 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
         }
     }
 
-    /// Returns `true` if the tenant has a per-operation cost budget configured.
+    /// Returns `true` if the tenant has any cost budget configured — the
+    /// per-request ceiling or the rolling per-minute window (#379).
     ///
     /// Lets the caller skip the (otherwise wasted) cost estimation + query re-parse
-    /// for tenants with no budget.
+    /// for tenants with no budget of either kind.
     #[must_use]
     pub fn has_cost_budget(&self, key: &str) -> bool {
-        self.tenants.get(key).is_some_and(|e| e.value().quota.cost_budget.is_some())
+        self.tenants.get(key).is_some_and(|e| {
+            // The window covers both the explicit per-tenant budget and the
+            // schema-default-seeded one.
+            e.value().quota.cost_budget.is_some() || e.value().cost_window.is_some()
+        })
     }
 
     /// Reject a request whose estimated `cost` exceeds the tenant's per-operation
@@ -391,19 +493,56 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// # Errors
     ///
     /// Returns [`FraiseQLError::NotFound`] if the tenant key is not registered, or
-    /// [`FraiseQLError::RateLimited`] when `cost` exceeds the configured budget.
+    /// [`FraiseQLError::CostExceeded`] when `cost` exceeds the configured budget
+    /// (`retry_after_secs: None` — a per-request ceiling is permanent for the
+    /// operation, so it must not surface as a retryable rate limit).
     pub fn check_cost_budget(&self, key: &str, cost: usize) -> fraiseql_error::Result<()> {
         let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
         match entry.value().quota.cost_budget {
-            Some(budget) if cost > budget => Err(FraiseQLError::RateLimited {
+            Some(budget) if cost > budget => Err(FraiseQLError::CostExceeded {
                 message:          format!(
                     "Tenant '{key}' operation cost {cost} exceeds the per-request cost budget of \
                      {budget}"
                 ),
-                retry_after_secs: 1,
+                cost:             cost as u64,
+                limit:            budget as u64,
+                retry_after_secs: None,
             }),
             _ => Ok(()),
         }
+    }
+
+    /// Charge `cost` against the tenant's rolling per-minute budget (#379).
+    ///
+    /// A no-op for a tenant with no `cost_budget_per_minute`. The window is a
+    /// fixed 60 seconds from its first charge, reset lazily; a rejected charge
+    /// is not applied, so a cheaper follow-up can still fit the remainder.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::NotFound`] if the tenant key is not registered,
+    /// or [`FraiseQLError::CostExceeded`] with `retry_after_secs: Some(_)` when
+    /// the window budget is spent — retryable once the window resets.
+    pub fn charge_cost_window(&self, key: &str, cost: usize) -> fraiseql_error::Result<()> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        let Some(ref window) = entry.value().cost_window else {
+            return Ok(());
+        };
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        window.try_charge(now_secs, cost as u64).map_err(|retry_after_secs| {
+            FraiseQLError::CostExceeded {
+                message:          format!(
+                    "Tenant '{key}' per-minute cost budget of {budget} is exhausted; retry in \
+                     {retry_after_secs}s",
+                    budget = window.budget
+                ),
+                cost:             cost as u64,
+                limit:            window.budget,
+                retry_after_secs: Some(retry_after_secs),
+            }
+        })
     }
 
     // `is_quota_exceeded` / `set_quota_exceeded` are gone. They were a public pair
@@ -528,6 +667,39 @@ fn rps_gate_check<C: Clock>(
         ),
         retry_after_secs: 1,
     })
+}
+
+#[cfg(test)]
+mod cost_window_tests {
+    #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code.
+
+    use super::{COST_WINDOW_SECS, CostWindow};
+
+    /// The fixed window admits charges up to the budget, rejects the
+    /// overspending charge without applying it, and reports the time to reset.
+    #[test]
+    fn admits_to_budget_then_rejects_without_charging() {
+        let w = CostWindow::new(1_000);
+        assert!(w.try_charge(1_000, 600).is_ok());
+        assert!(w.try_charge(1_010, 400).is_ok());
+        // Overspend rejected with the remaining window time…
+        assert_eq!(w.try_charge(1_030, 1), Err(30));
+        // …and NOT charged: a charge that still fits is admitted after.
+        assert!(w.try_charge(1_030, 0).is_ok());
+    }
+
+    /// The window resets `COST_WINDOW_SECS` after its first charge, not on a
+    /// sliding basis.
+    #[test]
+    fn window_resets_after_sixty_seconds() {
+        let w = CostWindow::new(100);
+        assert!(w.try_charge(1_000, 100).is_ok());
+        assert_eq!(w.try_charge(1_059, 1), Err(1), "still inside the window");
+        assert!(
+            w.try_charge(1_000 + COST_WINDOW_SECS, 100).is_ok(),
+            "a fresh window admits a full budget"
+        );
+    }
 }
 
 #[cfg(all(test, feature = "auth"))]

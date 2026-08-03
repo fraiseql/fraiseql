@@ -84,6 +84,10 @@ pub struct TenantRegistrationRequest {
     /// cost budget.
     #[serde(default)]
     pub cost_budget:                Option<usize>,
+    /// Rolling per-minute cost budget (#379): total estimated cost the tenant
+    /// may spend per fixed 60-second window. `None` = no window budget.
+    #[serde(default)]
+    pub cost_budget_per_minute:     Option<usize>,
 }
 
 /// Response for tenant write operations.
@@ -279,6 +283,7 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         max_concurrent:             body.max_concurrent,
         max_storage_bytes_advisory: body.max_storage_bytes_advisory,
         cost_budget:                body.cost_budget,
+        cost_budget_per_minute:     body.cost_budget_per_minute,
     };
 
     let was_insert = registry.upsert_with_quota(&key, executor, quota);

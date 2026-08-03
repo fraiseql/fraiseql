@@ -576,6 +576,7 @@ fn test_tenant_rate_limit_independence() {
         max_requests_per_sec:       None,
         max_storage_bytes_advisory: None,
         cost_budget:                None,
+        cost_budget_per_minute:     None,
     };
     registry.upsert_with_quota("tenant-a", make_executor("a", "users"), quota.clone());
     registry.upsert_with_quota("tenant-b", make_executor("b", "orders"), quota);
@@ -604,6 +605,7 @@ fn test_tenant_rps_limit_enforced_and_independent() {
         max_requests_per_sec:       Some(1),
         max_storage_bytes_advisory: None,
         cost_budget:                None,
+        cost_budget_per_minute:     None,
     };
     registry.upsert_with_quota("tenant-a", make_executor("a", "users"), quota.clone());
     registry.upsert_with_quota("tenant-b", make_executor("b", "orders"), quota);
@@ -641,6 +643,7 @@ fn test_tenant_rps_unset_is_unlimited() {
         max_requests_per_sec:       None,
         max_storage_bytes_advisory: None,
         cost_budget:                None,
+        cost_budget_per_minute:     None,
     };
     registry.upsert_with_quota("tenant-a", make_executor("a", "users"), quota);
 

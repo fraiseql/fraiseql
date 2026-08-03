@@ -8,7 +8,7 @@ use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
-    runtime::{Executor, RuntimeConfig, SubscriptionManager},
+    runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
 };
 #[cfg(feature = "observers")]
@@ -77,7 +77,10 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         crate::server::initialization::field_encryption_unsupported_check(&schema)?;
         // Build the runtime config from the compiled schema (validates format version,
         // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
-        let executor_config = RuntimeConfig::from_compiled_schema(&schema).map_err(|msg| {
+        let executor_config = crate::server::initialization::executor_runtime_config(
+            &schema, &config,
+        )
+        .map_err(|msg| {
             super::ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
         })?;
 
@@ -161,7 +164,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         crate::server::initialization::field_encryption_unsupported_check(&schema)?;
         // Build the runtime config from the compiled schema (validates format version,
         // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
-        let executor_config = RuntimeConfig::from_compiled_schema(&schema).map_err(|msg| {
+        let executor_config = crate::server::initialization::executor_runtime_config(
+            &schema, &config,
+        )
+        .map_err(|msg| {
             super::ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
         })?;
 

@@ -485,17 +485,13 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
     let executor = &dispatch.executor;
 
-    // M-quotas (cost): reject a query whose estimated cost exceeds the tenant's
-    // per-operation cost budget (#379). Same chokepoint and 429 surfacing as the
-    // other per-tenant quotas, and in the shared seam for the same reason (#858).
-    super::tenant_dispatch::charge_cost_budget(
-        &state,
-        tenant_key.as_deref(),
-        &query,
-        variables.as_ref(),
-        executor,
-    )
-    .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+    // M-quotas (cost): one estimate serves both budget enforcement and
+    // observability (#379). Rejection surfaces at the same chokepoint as the
+    // other per-tenant quotas, in the shared seam for the same reason (#858).
+    let estimated_cost =
+        super::tenant_dispatch::estimate_request_cost(&query, variables.as_ref(), executor);
+    super::tenant_dispatch::charge_cost_budget(&state, tenant_key.as_deref(), estimated_cost)
+        .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
 
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
@@ -587,6 +583,23 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     metrics.db_queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
     metrics.operation_metrics.record(op_name, elapsed_us, false);
 
+    // #379 acceptance: the audit trail records the estimated cost alongside
+    // tenant and operation for every executed request, and the running sum is
+    // exported at /metrics so budgets can be sized from observed traffic.
+    // Per-request, but on a dedicated target (the `mutation_audit` pattern) so
+    // operators subscribe to it explicitly instead of it flooding the default
+    // `info!` stream.
+    if let Some(cost) = estimated_cost {
+        metrics.queries_cost_total.fetch_add(cost, Ordering::Relaxed);
+        tracing::info!(
+            target: "fraiseql::cost_audit",
+            cost,
+            tenant = tenant_key.as_deref().unwrap_or(""),
+            operation = %op_name,
+            "operation cost"
+        );
+    }
+
     // Record federation-specific metrics for federation queries
     #[cfg(feature = "federation")]
     if fraiseql_core::federation::is_federation_query(&query) {
@@ -669,13 +682,22 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 /// tenant key (→ 403 Forbidden) and [`FraiseQLError::ServiceUnavailable`] for a
 /// suspended tenant (→ 503 with a `Retry-After` header carrying `retry_after`).
 /// Previously both collapsed to 403, discarding the variant and the retry hint.
-fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
+pub(super) fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
     match error {
         FraiseQLError::ServiceUnavailable { retry_after, .. } => {
             GraphQLError::service_unavailable(error.to_string(), *retry_after)
         },
         // Per-tenant concurrency limit reached (M-quotas) → 429 Too Many Requests.
         FraiseQLError::RateLimited { .. } => GraphQLError::rate_limited(error.to_string()),
+        // Cost rejections carry their own codes (#379): a per-request ceiling
+        // is permanent for the operation (200 + errors[], no retry invitation),
+        // an exhausted rolling window is retryable (429 + Retry-After).
+        FraiseQLError::CostExceeded {
+            retry_after_secs, ..
+        } => match retry_after_secs {
+            Some(secs) => GraphQLError::cost_budget_exhausted(error.to_string(), *secs),
+            None => GraphQLError::operation_cost_exceeded(error.to_string()),
+        },
         // Unknown tenant key (Authorization) and any other dispatch error stay
         // 403 Forbidden, preserving the prior behaviour.
         _ => GraphQLError::new(error.to_string(), crate::error::ErrorCode::Forbidden),

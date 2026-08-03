@@ -1292,6 +1292,7 @@ mod tenant_registry_tests {
             max_requests_per_sec:       None,
             max_storage_bytes_advisory: None,
             cost_budget:                None,
+            cost_budget_per_minute:     None,
         };
         let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
         assert!(was_insert);
@@ -1318,6 +1319,7 @@ mod tenant_registry_tests {
             max_requests_per_sec:       None,
             max_storage_bytes_advisory: None,
             cost_budget:                Some(100),
+            cost_budget_per_minute:     None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1327,9 +1329,56 @@ mod tenant_registry_tests {
             .check_cost_budget("tenant-abc", 100)
             .expect("cost == budget is admitted");
         registry.check_cost_budget("tenant-abc", 1).expect("cheap query admitted");
-        // Over budget → RateLimited (429).
+        // Over budget → CostExceeded with no retry hint: a per-request ceiling
+        // is permanent for this operation, so it must NOT surface as a
+        // rate-limit (#379) — retrying cannot succeed.
         let err = registry.check_cost_budget("tenant-abc", 101).unwrap_err();
-        assert!(matches!(err, FraiseQLError::RateLimited { .. }), "got {err:?}");
+        assert!(
+            matches!(
+                err,
+                FraiseQLError::CostExceeded {
+                    cost: 101,
+                    limit: 100,
+                    retry_after_secs: None,
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
+    }
+
+    /// #379: the dispatch-error mapping must give a cost rejection its own
+    /// error code — a client (and an operator's dashboard) must be able to
+    /// tell "this operation is too expensive, ever" (`OPERATION_COST_EXCEEDED`,
+    /// 200 + errors[] per GraphQL-over-HTTP §7.1.2) from "slow down"
+    /// (`COST_BUDGET_EXHAUSTED`, 429 + Retry-After) and from request-count
+    /// throttling (`RATE_LIMIT_EXCEEDED`).
+    #[test]
+    fn cost_rejections_carry_their_own_error_codes() {
+        use axum::http::StatusCode;
+
+        let per_request = FraiseQLError::CostExceeded {
+            message:          "cost 101 exceeds budget 100".to_string(),
+            cost:             101,
+            limit:            100,
+            retry_after_secs: None,
+        };
+        let gql = super::super::handler::tenant_dispatch_error(&per_request);
+        assert_eq!(gql.code, crate::error::ErrorCode::OperationCostExceeded, "{gql:?}");
+        assert_eq!(crate::error::ErrorCode::OperationCostExceeded.status_code(), StatusCode::OK);
+
+        let window = FraiseQLError::CostExceeded {
+            message:          "minute budget exhausted".to_string(),
+            cost:             50,
+            limit:            1000,
+            retry_after_secs: Some(37),
+        };
+        let gql = super::super::handler::tenant_dispatch_error(&window);
+        assert_eq!(gql.code, crate::error::ErrorCode::CostBudgetExhausted, "{gql:?}");
+        assert_eq!(
+            crate::error::ErrorCode::CostBudgetExhausted.status_code(),
+            StatusCode::TOO_MANY_REQUESTS
+        );
     }
 
     #[test]
@@ -1340,6 +1389,124 @@ mod tenant_registry_tests {
         registry
             .check_cost_budget("tenant-abc", usize::MAX)
             .expect("no budget → unlimited");
+    }
+
+    /// #379: the rolling per-minute budget accumulates cost across requests —
+    /// each within the per-request ceiling — and rejects with a retryable
+    /// `CostExceeded` (carrying a `Retry-After` hint) once the window is spent.
+    #[test]
+    fn cost_window_accumulates_and_rejects_with_retry_hint() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        let quota = TenantQuota {
+            max_concurrent:             None,
+            max_requests_per_sec:       None,
+            max_storage_bytes_advisory: None,
+            cost_budget:                None,
+            cost_budget_per_minute:     Some(1_000),
+        };
+        registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
+
+        // A per-minute budget alone must trigger cost estimation.
+        assert!(registry.has_cost_budget("tenant-abc"));
+
+        registry.charge_cost_window("tenant-abc", 600).expect("600/1000 admitted");
+        registry.charge_cost_window("tenant-abc", 400).expect("1000/1000 admitted");
+        let err = registry.charge_cost_window("tenant-abc", 1).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                FraiseQLError::CostExceeded {
+                    retry_after_secs: Some(secs),
+                    ..
+                } if secs <= 60
+            ),
+            "an exhausted window is retryable with a bounded hint, got {err:?}"
+        );
+    }
+
+    /// #379: `[security.cost_budget] per_tenant_per_minute_default` in the
+    /// default executor's compiled schema seeds a window for every registered
+    /// tenant that does not set its own `cost_budget_per_minute`.
+    #[test]
+    fn schema_default_seeds_cost_window_for_plain_tenants() {
+        use fraiseql_core::schema::{CostBudgetConfig, SecurityConfig};
+
+        let mut schema = CompiledSchema::default();
+        let mut security = SecurityConfig::new();
+        security.cost_budget = Some(CostBudgetConfig {
+            per_request_max:               None,
+            per_tenant_per_minute_default: Some(1_000),
+        });
+        schema.security = Some(security);
+        let default = Arc::new(ArcSwap::from(Arc::new(Executor::new(
+            schema,
+            Arc::new(StubAdapter::new("default")),
+        ))));
+
+        let registry = TenantExecutorRegistry::new(default);
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+
+        assert!(
+            registry.has_cost_budget("tenant-abc"),
+            "the schema-wide default must count as a budget"
+        );
+        registry.charge_cost_window("tenant-abc", 600).expect("600/1000 admitted");
+        registry.charge_cost_window("tenant-abc", 400).expect("1000/1000 admitted");
+        let err = registry.charge_cost_window("tenant-abc", 1).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                FraiseQLError::CostExceeded {
+                    retry_after_secs: Some(_),
+                    ..
+                }
+            ),
+            "the default-seeded window must throttle, got {err:?}"
+        );
+    }
+
+    /// #379: an explicit per-tenant budget wins over the schema default.
+    #[test]
+    fn explicit_minute_budget_wins_over_schema_default() {
+        use fraiseql_core::schema::{CostBudgetConfig, SecurityConfig};
+
+        let mut schema = CompiledSchema::default();
+        let mut security = SecurityConfig::new();
+        security.cost_budget = Some(CostBudgetConfig {
+            per_request_max:               None,
+            per_tenant_per_minute_default: Some(10),
+        });
+        schema.security = Some(security);
+        let default = Arc::new(ArcSwap::from(Arc::new(Executor::new(
+            schema,
+            Arc::new(StubAdapter::new("default")),
+        ))));
+
+        let registry = TenantExecutorRegistry::new(default);
+        let quota = TenantQuota {
+            max_concurrent:             None,
+            max_requests_per_sec:       None,
+            max_storage_bytes_advisory: None,
+            cost_budget:                None,
+            cost_budget_per_minute:     Some(500),
+        };
+        registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
+
+        registry
+            .charge_cost_window("tenant-abc", 400)
+            .expect("the explicit 500 budget applies, not the default 10");
+    }
+
+    /// #379: a tenant with no per-minute budget is never window-throttled.
+    #[test]
+    fn no_cost_window_admits_any_volume() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+        for _ in 0..10 {
+            registry
+                .charge_cost_window("tenant-abc", usize::MAX / 20)
+                .expect("no per-minute budget → unlimited");
+        }
     }
 
     #[test]
@@ -1359,6 +1526,7 @@ mod tenant_registry_tests {
             max_requests_per_sec:       None,
             max_storage_bytes_advisory: None,
             cost_budget:                None,
+            cost_budget_per_minute:     None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1414,6 +1582,7 @@ mod tenant_registry_tests {
             max_concurrent:             Some(10),
             max_storage_bytes_advisory: Some(1_000_000),
             cost_budget:                None,
+            cost_budget_per_minute:     None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 

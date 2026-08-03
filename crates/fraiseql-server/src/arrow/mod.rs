@@ -57,6 +57,12 @@ use fraiseql_core::db::postgres::PostgresAdapter;
 
 /// Create an Arrow Flight service with a real database adapter.
 ///
+/// **No `QueryExecutor` is attached — deliberately.** The Flight GraphQL paths
+/// therefore refuse every ad-hoc query fail-closed ("no executor configured").
+/// Wiring one in must go through the tenant-dispatch/policy seam (tenant
+/// resolution, suspension, quotas, trusted documents), not a bare
+/// `set_executor`, or Flight becomes the one transport that skips them.
+///
 /// Supports both PostgreSQL and FraiseQL Wire adapters depending on feature flags:
 /// - Default: PostgreSQL adapter for traditional database connections
 /// - `wire-backend` feature: FraiseQL Wire adapter for streaming JSON queries with low memory

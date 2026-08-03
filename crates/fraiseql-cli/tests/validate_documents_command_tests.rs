@@ -174,3 +174,84 @@ fn validate_documents_hash_without_prefix_is_accepted() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+// ── validate-documents --max-cost (#379) ─────────────────────────
+
+/// A document whose estimated cost exceeds `--max-cost` fails validation
+/// (exit 2) and the output names the document and its cost. With no request
+/// variables, a variable-valued pagination argument is ceiling-scored — the
+/// registered document's cost is its worst case, consistent with #869.
+#[test]
+fn validate_documents_max_cost_rejects_expensive_document() {
+    let dir = tempfile::tempdir().unwrap();
+    let expensive = "{ users(limit: 100) { a b } }"; // 1 + 2×100 = 201
+    let manifest = serde_json::json!({
+        "version": 1,
+        "documents": { sha256_key(expensive): expensive }
+    });
+    let path = write_manifest(&dir, &manifest);
+
+    let out = cli().args(["validate-documents", &path, "--max-cost", "100"]).output().unwrap();
+    assert_eq!(out.status.code(), Some(2), "cost 201 must fail --max-cost 100");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("201"), "output must name the offending cost: {stderr}");
+}
+
+/// Documents within the cap pass (exit 0), and the per-document cost is
+/// reported so an operator can size budgets from the manifest.
+#[test]
+fn validate_documents_max_cost_admits_cheap_documents() {
+    let dir = tempfile::tempdir().unwrap();
+    let cheap = "{ users { id name } }"; // cost 3
+    let manifest = serde_json::json!({
+        "version": 1,
+        "documents": { sha256_key(cheap): cheap }
+    });
+    let path = write_manifest(&dir, &manifest);
+
+    let out = cli().args(["validate-documents", &path, "--max-cost", "100"]).output().unwrap();
+    assert!(
+        out.status.success(),
+        "cost 3 must pass --max-cost 100; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// `--schema` supplies the compiled `operation_cost_weights`, so a root field
+/// carrying an `@cost` weight is scored at that weight — the same numbers the
+/// runtime enforces.
+#[test]
+fn validate_documents_max_cost_applies_schema_weights() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = "{ users { id } }"; // complexity 2, but the weight below says 500
+    let manifest = serde_json::json!({
+        "version": 1,
+        "documents": { sha256_key(doc): doc }
+    });
+    let manifest_path = write_manifest(&dir, &manifest);
+
+    let schema = serde_json::json!({
+        "types": [],
+        "queries": [],
+        "operation_cost_weights": { "users": 500 }
+    });
+    let schema_path = dir.path().join("schema.compiled.json");
+    std::fs::write(&schema_path, serde_json::to_string(&schema).unwrap()).unwrap();
+
+    let out = cli()
+        .args([
+            "validate-documents",
+            &manifest_path,
+            "--max-cost",
+            "100",
+            "--schema",
+            schema_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "the 500-weighted root must fail --max-cost 100");
+    // Guard against passing for the wrong reason: a clap usage error also
+    // exits 2 but never mentions the weighted cost.
+    assert!(stderr.contains("500"), "output must show the weighted cost: {stderr}");
+}

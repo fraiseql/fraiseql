@@ -7,7 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Operation cost budgets are now a full surface (#379).** What already shipped in
+  June (the request-time cost estimator, `[fraiseql.cost_weights]`, the per-tenant
+  per-request `cost_budget`, `[security] persisted_queries_only`) gains the missing
+  half:
+  - `[security.cost_budget] per_request_max` — a schema-wide per-operation cost
+    ceiling enforced **inside the executor**, so it binds on every transport that
+    executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions
+    bridge, direct embedders), not only the HTTP handler.
+  - Declared `[validation]` depth/complexity limits are likewise derived into the
+    executor's GATE-1 at construction (embedder-installed validators still win, and
+    the server merges its runtime `[validation]` override per field), closing the
+    gap where the functions bridge — and any future transport — executed documents
+    no declared bound applied to. GATE-1 is now variables-aware: `first: $n` is
+    scored at its resolved value instead of the fail-closed ceiling (#869).
+  - Per-tenant **rolling per-minute budgets**: `cost_budget_per_minute` on the
+    tenant-quota admin API, with `[security.cost_budget]
+    per_tenant_per_minute_default` seeding tenants that set none.
+  - Distinct error codes: a per-request rejection is `OPERATION_COST_EXCEEDED`
+    (200 + `errors[]`; retrying cannot succeed), an exhausted window is
+    `COST_BUDGET_EXHAUSTED` (429 + `Retry-After`). Both were previously
+    indistinguishable from `RATE_LIMIT_EXCEEDED` with a misleading 1-second retry
+    hint.
+  - Cost observability: every `/graphql` request logs `cost`, `tenant`, and
+    `operation` on the `fraiseql::cost_audit` tracing target and feeds
+    `fraiseql_graphql_queries_cost_total` at `/metrics`, so budgets can be sized
+    from observed traffic before enforcement.
+  - `fraiseql validate-documents --max-cost N [--schema schema.compiled.json]`
+    scores each persisted document (worst-case: unresolvable pagination variables
+    cost the ceiling) and fails validation for documents over the cap.
+  - `[security] persisted_queries_only` is now pinned per HTTP method: ad-hoc
+    documents are refused on POST, GET, and QUERY alike.
+
 ### Breaking
+
+- **Cost rejections changed shape (#379).** A per-tenant `cost_budget` rejection was
+  HTTP 429 `RATE_LIMIT_EXCEEDED` with `retry_after_secs: 1`; it is now
+  `OPERATION_COST_EXCEEDED` in a 200 GraphQL error response, because retrying an
+  over-budget operation can never succeed. `FraiseQLError` gains the `CostExceeded`
+  variant carrying `cost`, `limit`, and an optional retry hint.
+
+- **`RuntimeConfig.max_query_depth` and `max_query_complexity` are deleted (#379).**
+  Both were declared, defaulted, debug-printed — and read by nothing. The one
+  enforcement surface is `query_validation` (embedder-installed, or derived from the
+  compiled `[validation]` limits at executor construction). An embedder that set the
+  dead fields and expected enforcement never had it; set `query_validation` instead.
 
 - **The compiled `auth` object is nested (#368, #367).** `CompiledSchema.auth` was
   the flat PKCE quadruple; it is now a container with `pkce`, `social` and `local`

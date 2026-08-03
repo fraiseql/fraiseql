@@ -22,6 +22,8 @@ mod mount_authz_tests;
 #[cfg(feature = "observers")]
 pub(in crate::server) mod observers;
 #[cfg(test)]
+mod persisted_only_transport_tests;
+#[cfg(test)]
 mod realtime_removal_survival_tests;
 mod state;
 

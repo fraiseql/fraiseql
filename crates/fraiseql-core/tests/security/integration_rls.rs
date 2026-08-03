@@ -212,7 +212,7 @@ fn test_runtime_config_accepts_rls_policy_configuration() {
 
     // Should have default values
     assert_eq!(config.query_timeout_ms, 30_000);
-    assert_eq!(config.max_query_depth, 10);
+    assert!(config.query_validation.is_none());
 
     // Can configure with RLS policy
     let config_with_rls =

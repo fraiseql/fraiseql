@@ -277,6 +277,67 @@ default_policy = "public"
     );
 }
 
+/// #379: `[security.cost_budget]` must survive emit → parse into the **typed**
+/// `SecurityConfig::cost_budget` field the executor and tenant registry read —
+/// not into the untyped `additional` map, where a key rename would silently
+/// disable the ceiling.
+#[test]
+fn cost_budget_survives_emit_parse_into_typed_field() {
+    let toml = r#"
+[schema]
+name = "contract_cost_budget"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[security]
+default_policy = "public"
+
+[security.cost_budget]
+per_request_max = 50
+per_tenant_per_minute_default = 1000
+"#;
+    let compiled_json = compile(TYPES_JSON, toml);
+    let schema = CompiledSchema::from_json(&compiled_json, false)
+        .expect("core must parse CLI-produced schema");
+    let security = schema.security.expect("security must be present");
+    let budget = security.cost_budget.expect("cost_budget must land in the typed field");
+    assert_eq!(budget.per_request_max, Some(50));
+    assert_eq!(budget.per_tenant_per_minute_default, Some(1000));
+    assert!(
+        !security.additional.contains_key("cost_budget"),
+        "cost_budget must not fall through to the untyped additional map"
+    );
+}
+
+/// Omitting `[security.cost_budget]` must compile to no budget — never a
+/// surprise default ceiling.
+#[test]
+fn cost_budget_defaults_to_absent() {
+    let toml = r#"
+[schema]
+name = "contract_cost_budget_off"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[security]
+default_policy = "public"
+"#;
+    let compiled_json = compile(TYPES_JSON, toml);
+    let schema = CompiledSchema::from_json(&compiled_json, false).unwrap();
+    let security = schema.security.expect("security must be present");
+    assert!(
+        security.cost_budget.is_none(),
+        "omitting [security.cost_budget] must mean no budget, got {:?}",
+        security.cost_budget
+    );
+}
+
 /// Collect the set of JSON paths whose value is a non-null scalar or a container,
 /// so a field present in one document but absent in the other is detectable.
 fn collect_nonnull_paths(value: &serde_json::Value, prefix: &str, out: &mut BTreeSet<String>) {

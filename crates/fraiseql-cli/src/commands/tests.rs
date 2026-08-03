@@ -2921,7 +2921,7 @@ mod validate_documents_tests {
         std::fs::write(&path, vec![b'x'; size]).unwrap();
 
         let formatter = crate::output::OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter);
+        let result = run(path.to_str().unwrap(), None, None, &formatter);
         let msg = result.expect_err("expected Err for oversized manifest").to_string();
         assert!(msg.contains("too large"), "expected size error, got: {msg}");
     }
@@ -2938,7 +2938,7 @@ mod validate_documents_tests {
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
         let formatter = crate::output::OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter);
+        let result = run(path.to_str().unwrap(), None, None, &formatter);
         let msg = result.expect_err("expected Err for unknown manifest version").to_string();
         assert!(
             msg.contains("Unsupported manifest version"),
@@ -2962,7 +2962,7 @@ mod validate_documents_tests {
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
         let formatter = crate::output::OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter).unwrap();
+        let result = run(path.to_str().unwrap(), None, None, &formatter).unwrap();
         assert!(result);
     }
 
@@ -2980,7 +2980,7 @@ mod validate_documents_tests {
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
         let formatter = crate::output::OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter).unwrap();
+        let result = run(path.to_str().unwrap(), None, None, &formatter).unwrap();
         assert!(!result);
     }
 
@@ -2998,7 +2998,7 @@ mod validate_documents_tests {
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
         let formatter = crate::output::OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter).unwrap();
+        let result = run(path.to_str().unwrap(), None, None, &formatter).unwrap();
         assert!(!result);
     }
 }

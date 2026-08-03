@@ -581,11 +581,24 @@ TOML CONFIG:
     /// is a valid SHA-256 hex string matching its query body.
     #[command(after_help = "\
 EXAMPLES:
-    fraiseql validate-documents manifest.json")]
+    fraiseql validate-documents manifest.json
+    fraiseql validate-documents manifest.json --max-cost 1000 --schema schema.compiled.json")]
     ValidateDocuments {
         /// Path to the trusted documents manifest JSON file
         #[arg(value_name = "MANIFEST")]
         manifest: String,
+
+        /// Fail validation when any document's estimated operation cost exceeds
+        /// this ceiling (#379). Costs are worst-case: a variable-valued
+        /// pagination argument is scored at its fail-closed ceiling.
+        #[arg(long, value_name = "COST")]
+        max_cost: Option<u64>,
+
+        /// Compiled schema (`schema.compiled.json`) supplying the
+        /// `[fraiseql.cost_weights]` used to score documents — the same numbers
+        /// the runtime enforces. Without it, cost equals the complexity score.
+        #[arg(long, value_name = "SCHEMA")]
+        schema: Option<String>,
     },
 
     /// Install FraiseQL mutation helper functions

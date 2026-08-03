@@ -125,8 +125,7 @@ use crate::security::{
 /// | Field | Default | Notes |
 /// |-------|---------|-------|
 /// | `cache_query_plans` | `true` | Caches parsed query plans for repeated queries |
-/// | `max_query_depth` | `10` | Prevents stack overflow on recursive GraphQL |
-/// | `max_query_complexity` | `1000` | Rough cost model; tune per workload |
+/// | `query_validation` | `None` | Derived from compiled `[validation]` limits (#379) |
 /// | `enable_tracing` | `false` | Emit `OpenTelemetry` spans for each query |
 /// | `query_timeout_ms` | `30 000` | Hard limit; 0 disables the timeout |
 /// | `field_filter` | `None` | No field-level access control |
@@ -140,8 +139,6 @@ use crate::security::{
 /// use fraiseql_core::security::FieldFilterConfig;
 ///
 /// let config = RuntimeConfig {
-///     max_query_depth: 5,
-///     max_query_complexity: 500,
 ///     enable_tracing: true,
 ///     query_timeout_ms: 5_000,
 ///     ..RuntimeConfig::default()
@@ -161,12 +158,6 @@ use crate::security::{
 pub struct RuntimeConfig {
     /// Enable query plan caching.
     pub cache_query_plans: bool,
-
-    /// Maximum query depth (prevents deeply nested queries).
-    pub max_query_depth: usize,
-
-    /// Maximum query complexity score.
-    pub max_query_complexity: usize,
 
     /// Maximum number of rows a top-level `first`/`last`/`limit` argument may
     /// request, guarding against unbounded-pagination denial of service (#421):
@@ -216,16 +207,29 @@ pub struct RuntimeConfig {
 
     /// Optional query validation config.
     ///
-    /// When `Some`, `QueryValidator::validate()` runs at the start of every
+    /// When `Some`, `QueryValidator` runs at the start of every
     /// `Executor::execute()` call, before any parsing or SQL dispatch.
     /// This provides `DoS` protection for direct `fraiseql-core` embedders that
     /// do not route through `fraiseql-server` (which already runs `RequestValidator`
     /// at the HTTP layer). Enforces: query size, depth, complexity, and alias count
     /// (alias amplification protection).
     ///
-    /// Set `None` to disable (default) — useful when the caller applies
-    /// validation at a higher layer, or when `fraiseql-server` is in use.
+    /// When `None` (the default), the executor derives the gate from the
+    /// compiled schema's declared `[validation]` limits at construction (#379),
+    /// so an operator's declared bound binds on every transport that reaches
+    /// the executor. An embedder that must disable validation despite declared
+    /// schema limits can install an explicit all-`usize::MAX` config.
     pub query_validation: Option<QueryValidatorConfig>,
+
+    /// Hard ceiling on a single operation's estimated cost (#379).
+    ///
+    /// **Schema-derived** — recomputed from the compiled
+    /// `[security.cost_budget] per_request_max` on every
+    /// [`with_compiled_schema`](Self::with_compiled_schema), never set by the
+    /// caller. Enforced in the executor's dispatch alongside GATE-1, so the
+    /// operator's declared ceiling binds on every transport that executes a
+    /// GraphQL document — not only on `/graphql`.
+    pub max_operation_cost: Option<u64>,
 
     /// Emit structured `tracing` events for every successfully-executed mutation.
     ///
@@ -310,8 +314,6 @@ impl std::fmt::Debug for RuntimeConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuntimeConfig")
             .field("cache_query_plans", &self.cache_query_plans)
-            .field("max_query_depth", &self.max_query_depth)
-            .field("max_query_complexity", &self.max_query_complexity)
             .field("max_page_size", &self.max_page_size)
             .field("enable_tracing", &self.enable_tracing)
             .field("field_filter", &self.field_filter.is_some())
@@ -321,6 +323,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
             .field("query_validation", &self.query_validation)
+            .field("max_operation_cost", &self.max_operation_cost)
             .field("audit_mutations", &self.audit_mutations)
             .field("changelog_enabled", &self.changelog_enabled)
             .field("dry_run_mutations", &self.dry_run_mutations)
@@ -332,22 +335,21 @@ impl std::fmt::Debug for RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            cache_query_plans:    true,
-            max_query_depth:      10,
-            max_query_complexity: 1000,
-            max_page_size:        Some(1000),
-            enable_tracing:       false,
-            field_filter:         None,
-            rls_policy:           None,
-            field_authorizer:     None,
-            authorizer:           None,
-            query_timeout_ms:     30_000, // 30 second default timeout
-            jsonb_optimization:   JsonbOptimizationOptions::default(),
-            query_validation:     None,
-            audit_mutations:      false,
-            changelog_enabled:    true,
-            dry_run_mutations:    false,
-            cascade_limits:       CascadeLimits::default(),
+            cache_query_plans:  true,
+            max_page_size:      Some(1000),
+            enable_tracing:     false,
+            field_filter:       None,
+            rls_policy:         None,
+            field_authorizer:   None,
+            authorizer:         None,
+            query_timeout_ms:   30_000, // 30 second default timeout
+            jsonb_optimization: JsonbOptimizationOptions::default(),
+            query_validation:   None,
+            max_operation_cost: None,
+            audit_mutations:    false,
+            changelog_enabled:  true,
+            dry_run_mutations:  false,
+            cascade_limits:     CascadeLimits::default(),
         }
     }
 }
@@ -565,10 +567,16 @@ impl RuntimeConfig {
         // Declaration order throughout (clippy::inconsistent_struct_constructor).
         // `_`-bound fields are the schema-derived ones, recomputed above; every
         // other field is caller-owned and carried through unchanged.
+        // #379: the per-request cost ceiling is declared in the compiled
+        // [security.cost_budget] and owned by the schema.
+        let max_operation_cost = schema
+            .security
+            .as_ref()
+            .and_then(|s| s.cost_budget.as_ref())
+            .and_then(|c| c.per_request_max);
+
         let Self {
             cache_query_plans,
-            max_query_depth,
-            max_query_complexity,
             max_page_size: _, // schema-derived
             enable_tracing,
             field_filter,
@@ -578,16 +586,15 @@ impl RuntimeConfig {
             query_timeout_ms,
             jsonb_optimization,
             query_validation,
-            audit_mutations: _,   // schema-derived
-            changelog_enabled: _, // schema-derived
+            max_operation_cost: _, // schema-derived
+            audit_mutations: _,    // schema-derived
+            changelog_enabled: _,  // schema-derived
             dry_run_mutations,
             cascade_limits,
         } = self;
 
         Ok(Self {
             cache_query_plans,
-            max_query_depth,
-            max_query_complexity,
             max_page_size,
             enable_tracing,
             field_filter,
@@ -597,6 +604,7 @@ impl RuntimeConfig {
             query_timeout_ms,
             jsonb_optimization,
             query_validation,
+            max_operation_cost,
             audit_mutations,
             changelog_enabled,
             dry_run_mutations,

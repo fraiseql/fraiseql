@@ -158,17 +158,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Build RequestValidator from validation config.
-        // Priority: runtime TOML > compiled schema > defaults.
+        // Priority: runtime TOML > compiled schema > defaults. The merge is the
+        // shared `effective_validation_limits`, also used to install the
+        // executor gate (#379), so the two enforcement points cannot disagree.
         let mut validator = crate::validation::RequestValidator::new();
         let runtime_vc = self.config.validation.as_ref();
         let compiled_vc = self.executor.schema().validation_config.as_ref();
 
-        let effective_depth = runtime_vc
-            .and_then(|v| v.max_query_depth)
-            .or_else(|| compiled_vc.and_then(|v| v.max_query_depth));
-        let effective_complexity = runtime_vc
-            .and_then(|v| v.max_query_complexity)
-            .or_else(|| compiled_vc.and_then(|v| v.max_query_complexity));
+        let (effective_depth, effective_complexity) =
+            crate::server::initialization::effective_validation_limits(runtime_vc, compiled_vc);
 
         if let Some(depth) = effective_depth {
             validator = validator.with_max_depth(depth as usize);

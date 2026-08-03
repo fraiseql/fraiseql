@@ -7,7 +7,7 @@ use super::{Executor, QueryType, pipeline, root_type_name, support};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
-    security::{QueryValidator, SecurityContext},
+    security::SecurityContext,
 };
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -78,14 +78,46 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// The single implementation behind every entry point — `execute_dispatch`
     /// and `execute_with_scopes` both call this, so the gate cannot drift
     /// between them (#736).
-    fn run_gate1(&self, query: &str) -> Result<()> {
-        if let Some(ref cfg) = self.ctx.config.query_validation {
-            QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
+    ///
+    /// The validator is resolved once at construction: the embedder-installed
+    /// `RuntimeConfig::query_validation` when set, otherwise derived from the
+    /// compiled schema's declared `[validation]` limits (#379). Variables are
+    /// threaded through so a variable-valued pagination argument is scored at
+    /// its resolved value, not the fail-closed ceiling (#869).
+    fn run_gate1(&self, query: &str, variables: Option<&serde_json::Value>) -> Result<()> {
+        if let Some(ref gate) = self.ctx.gate1 {
+            gate.validate_with_variables(query, variables).map_err(|e| {
                 FraiseQLError::Validation {
                     message: e.to_string(),
                     path:    Some("query".to_string()),
                 }
             })?;
+        }
+
+        // #379: the compiled [security.cost_budget] per_request_max is enforced
+        // here, at the one chokepoint every document-executing transport
+        // shares, so no transport can serve an operation the operator declared
+        // too expensive. An unparseable document is left for the dispatch's own
+        // parse-error path.
+        if let Some(cap) = self.ctx.config.max_operation_cost {
+            if let Ok(doc) = crate::graphql::parse_graphql_document(query) {
+                let cost = crate::graphql::estimate_query_cost(
+                    &doc,
+                    &self.ctx.schema.operation_cost_weights,
+                    variables,
+                ) as u64;
+                if cost > cap {
+                    return Err(FraiseQLError::CostExceeded {
+                        message: format!(
+                            "operation cost {cost} exceeds the schema-wide per-request maximum of \
+                             {cap} ([security.cost_budget] per_request_max)"
+                        ),
+                        cost,
+                        limit: cap,
+                        retry_after_secs: None,
+                    });
+                }
+            }
         }
         Ok(())
     }
@@ -113,7 +145,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         // GATE 1: query-structure validation (DoS protection for direct embedders).
         // Runs on BOTH the anonymous and authenticated paths (L-gate1-skip).
-        self.run_gate1(query)?;
+        self.run_gate1(query, variables)?;
 
         // 1. Classify query type — also returns the ParsedQuery for Regular
         // queries so we do not parse the same string twice.
@@ -280,7 +312,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         // GATE 1: Query structure validation (mirrors execute() — DoS protection).
         // Same shared gate as execute_dispatch — the two call sites cannot drift (#736).
-        self.run_gate1(query)?;
+        self.run_gate1(query, variables)?;
 
         // 2. Classify query type
         let query_type = self.classify_query(query)?;
