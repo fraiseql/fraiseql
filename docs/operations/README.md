@@ -10,3 +10,4 @@ Guides for running FraiseQL in production.
 | [read-replicas.md](read-replicas.md) | Serving compiled queries from PostgreSQL replicas: static read/write routing, the read-your-writes pin window, failure behaviour, tenant isolation on every pool |
 | [graphql-sse-streaming.md](graphql-sse-streaming.md) | GraphQL responses over Server-Sent Events: negotiation, root-field `@stream` incremental delivery, per-batch auth re-checks, consistency caveats |
 | [vector-search.md](vector-search.md) | pgvector similarity search: declaring vector fields, the `nearest` top-K argument, threshold WHERE filters, the native-column storage contract, emitted DDL |
+| [dev-mode.md](dev-mode.md) | The development edit loop: `fraiseql watch` (compile + zero-downtime reload of a separately running server) vs `run --watch`, failure semantics, drift linting on save |
