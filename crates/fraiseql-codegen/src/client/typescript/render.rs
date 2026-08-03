@@ -75,26 +75,6 @@ pub(super) fn custom_scalar_name(ft: &FieldType) -> Option<&str> {
     }
 }
 
-/// Whether a field is a `GraphQL` **leaf** (selectable without a sub-selection).
-///
-/// Scalars, enums, and lists-of-leaf are leaves and are fetched by the default
-/// document; object/interface/union references (and lists thereof) are composite
-/// and are omitted in v1 (see `DESIGN-CLIENT-TS.md` §2).
-pub(super) fn is_leaf(ft: &FieldType) -> bool {
-    match ft {
-        FieldType::Object(_) | FieldType::Interface(_) | FieldType::Union(_) => false,
-        FieldType::List(inner) => is_leaf(inner),
-        _ => true,
-    }
-}
-
-/// Render a [`FieldType`] argument as a `GraphQL` type reference for a variable
-/// declaration, e.g. `ID!`, `UserFilter`, `[String]`.
-pub(super) fn arg_graphql_type(ft: &FieldType, nullable: bool) -> String {
-    let base = ft.to_graphql_string();
-    if nullable { base } else { format!("{base}!") }
-}
-
 /// A parsed input-field `GraphQL` type string, rendered to `TypeScript`.
 pub(super) struct ParsedInputType {
     /// `TypeScript` type expression (e.g. `string`, `(string | null)[]`).

@@ -1,8 +1,7 @@
 //! Tests for the `TypeScript` render module.
 
-use super::{
-    FieldType, arg_graphql_type, field_type_ts, field_type_ts_nullable, is_leaf, parse_input_type,
-};
+use super::{FieldType, field_type_ts, field_type_ts_nullable, parse_input_type};
+use crate::client::common::{arg_graphql_type, is_leaf};
 
 #[test]
 fn scalars_map_to_ts() {

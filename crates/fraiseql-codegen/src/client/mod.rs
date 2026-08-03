@@ -14,6 +14,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{FraiseQLError, Result};
 
+mod common;
+pub mod python;
 pub mod typescript;
 
 /// Compute the canonical schema hash used to stamp generated files.

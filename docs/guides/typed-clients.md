@@ -1,4 +1,4 @@
-# Typed TypeScript clients
+# Typed clients (TypeScript & Python)
 
 Frontend and backend-to-backend callers of a FraiseQL API can be fully typed from
 the same `schema.compiled.json` the server runs on — no hand-maintained interfaces,
@@ -8,6 +8,10 @@ no silent drift.
 fraiseql generate-client typescript \
   --schema ./schema.compiled.json \
   --out ./src/generated
+
+fraiseql generate-client python \
+  --schema ./schema.compiled.json \
+  --out ./app/fraiseql_client
 ```
 
 `--schema` is auto-detected from conventional locations (`schema.compiled.json`,
@@ -63,6 +67,48 @@ const client = new FraiseqlClient({
   headers: () => ({ authorization: `Bearer ${getToken()}` }),
 });
 ```
+
+## Python
+
+The Python client mirrors the TypeScript one file-for-file — same modules, same
+operations, and **byte-identical GraphQL documents** (both generators share one
+document builder, pinned by a cross-language test). It targets **Python ≥ 3.12**
+and has zero dependencies beyond the standard library (`urllib` transport).
+
+| File | Contents |
+|---|---|
+| `types.py` | object/interface types as `TypedDict`s; PEP 695 union aliases; relay `Connection[T]` |
+| `enums.py` | GraphQL enums as `Literal` aliases |
+| `inputs.py` | input objects as `TypedDict`s (`NotRequired` for optional fields) |
+| `queries.py` / `mutations.py` | typed operation functions + `is_error_result` |
+| `client.py` | `FraiseqlClient` over `urllib` — subclass and override `request` for httpx/async |
+| `__init__.py` | re-exports everything that was generated |
+
+```python
+from fraiseql_client import FraiseqlClient, getUser, createUser
+
+client = FraiseqlClient(
+    "https://api.example.com/graphql",
+    headers=lambda: {"authorization": f"Bearer {get_token()}"},
+)
+
+user = getUser(client, id="abc")          # User | None — fully typed
+result = createUser(client, input={"email": "a@b.c", "role": "EDITOR"})
+if result["__typename"] == "EmailTakenError":   # TypedDict-union narrowing
+    print(result["status"])
+else:
+    print(result["id"])
+```
+
+Two Python-specific notes:
+
+- **Narrow result unions on `__typename`**, as above — that is the discriminant
+  type checkers narrow `TypedDict` unions by. `is_error_result(result)` is the
+  runtime convenience; it returns a plain `bool` and does not narrow (the
+  standard library has no `TypeIs` on 3.12).
+- **Optional arguments default to `None` and are omitted from the request**, so
+  the server applies its own defaults. To send an explicit JSON `null`, call
+  `client.request(document, variables)` directly.
 
 ## How the types are designed (and why)
 
@@ -144,8 +190,8 @@ across serializer settings.
 
 ## Limitations (v1)
 
-- **TypeScript only.** Python / Swift / Kotlin etc. follow the same module
-  structure once the TS pattern is proven.
+- **TypeScript and Python.** Go and Rust generators follow the same shared
+  document core (tracked as a follow-up issue).
 - **Scalar-default documents.** Nested relationship fields are not auto-selected;
   pass a custom document to `client.request` for deep fetches. Bounded-depth
   expansion / a selection builder is a follow-up.
