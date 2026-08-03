@@ -144,7 +144,12 @@ const MANIFEST: &[(&str, &str)] = &[
          MutationDefinition.invalidates_views (the P12-consumed fields); \
          backend/redis_url and no-op shapes REJECTED at load",
     ),
-    ("analytics.*", "REJECTED at load (#2) — fully inert (#624)"),
+    (
+        "analytics.*",
+        "#624: queries lowered by the merger into ordinary compiled QueryDefinitions \
+         (compile-validated sql_source, SELECT list from return_type); no-op shapes \
+         REJECTED at load",
+    ),
     ("observability.*", "REJECTED at load (#3) — use [metrics]/[tracing] (#625)"),
 ];
 

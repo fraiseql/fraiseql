@@ -612,3 +612,144 @@ fn compile_err(types_json: &str, toml_config: &str) -> String {
         String::from_utf8_lossy(&output.stderr)
     )
 }
+
+// ── #624: [[analytics.queries]] lower onto plain compiled QueryDefinitions —
+//    operator-authored sql_source, compiled SELECT list, no new runtime path ──
+
+/// An `[[analytics.queries]]` entry becomes a served, view-backed query:
+/// compile-validated `sql_source`, `returns_list = true`, SELECT list from the
+/// compiled return type. No client-supplied identifier can reach FROM or the
+/// SELECT list because neither exists on this path at request time.
+#[test]
+fn analytics_query_lowers_to_a_served_query() {
+    let toml = format!(
+        r#"{CACHING_TOML_HEAD}
+[analytics]
+enabled = true
+
+[[analytics.queries]]
+name = "daily_orders"
+return_type = "Order"
+sql_source = "v_daily_orders"
+description = "orders rolled up by day"
+"#
+    );
+    let compiled_json = compile(CACHING_TYPES_JSON, &toml);
+    let schema = CompiledSchema::from_json(&compiled_json, false)
+        .expect("core must parse CLI-produced schema");
+    let query = schema
+        .queries
+        .iter()
+        .find(|q| q.name == "daily_orders")
+        .expect("analytics query must be compiled as a query");
+    assert_eq!(query.sql_source.as_deref(), Some("v_daily_orders"));
+    assert_eq!(query.return_type, "Order");
+    assert!(query.returns_list, "analytics queries return row sets");
+}
+
+/// A return type that is not a declared type is a compile error — the SELECT
+/// list comes from the type, so an unknown type has no servable projection.
+#[test]
+fn analytics_query_with_unknown_return_type_fails_compile() {
+    let toml = format!(
+        r#"{CACHING_TOML_HEAD}
+[analytics]
+enabled = true
+
+[[analytics.queries]]
+name = "daily_orders"
+return_type = "NoSuchType"
+sql_source = "v_daily_orders"
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &toml);
+    assert!(err.contains("NoSuchType"), "must name the unknown type: {err}");
+}
+
+/// A name colliding with an existing query, or ending in the `_aggregate` /
+/// `_window` suffixes the executor's classifier hijacks before query
+/// resolution, would be silently unreachable or ambiguous — compile error.
+#[test]
+fn analytics_query_reserved_or_colliding_names_fail_compile() {
+    let colliding = format!(
+        r#"{CACHING_TOML_HEAD}
+[analytics]
+enabled = true
+
+[[analytics.queries]]
+name = "orders"
+return_type = "Order"
+sql_source = "v_daily_orders"
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &colliding);
+    assert!(err.contains("orders"), "must name the colliding query: {err}");
+
+    let reserved = format!(
+        r#"{CACHING_TOML_HEAD}
+[analytics]
+enabled = true
+
+[[analytics.queries]]
+name = "sales_aggregate"
+return_type = "Order"
+sql_source = "v_sales"
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &reserved);
+    assert!(err.contains("_aggregate"), "must explain the reserved suffix: {err}");
+}
+
+/// An `sql_source` that is not a valid SQL identifier is refused by the same
+/// compile-time validator every query goes through (the P01 posture: reject,
+/// never escape).
+#[test]
+fn analytics_query_with_injection_shaped_sql_source_fails_compile() {
+    let toml = format!(
+        r#"{CACHING_TOML_HEAD}
+[analytics]
+enabled = true
+
+[[analytics.queries]]
+name = "daily_orders"
+return_type = "Order"
+sql_source = "v_daily; DROP TABLE tb_user --"
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &toml);
+    assert!(
+        err.to_lowercase().contains("identifier") || err.contains("sql_source"),
+        "must be refused as an invalid identifier: {err}"
+    );
+}
+
+/// `enabled = false` with queries, and `enabled = true` without queries, are
+/// each refused — the same no-silent-no-op rule as [caching].
+#[test]
+fn analytics_dishonest_configurations_fail_compile() {
+    let disabled_with_queries = format!(
+        r#"{CACHING_TOML_HEAD}
+[analytics]
+enabled = false
+
+[[analytics.queries]]
+name = "daily_orders"
+return_type = "Order"
+sql_source = "v_daily_orders"
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &disabled_with_queries);
+    assert!(err.contains("enabled"), "disabled-with-queries must be refused: {err}");
+
+    let enabled_without_queries = format!(
+        r"{CACHING_TOML_HEAD}
+[analytics]
+enabled = true
+"
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &enabled_without_queries);
+    assert!(
+        err.contains("queries"),
+        "enabled-without-queries does nothing and must be refused: {err}"
+    );
+}

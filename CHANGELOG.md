@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`[[analytics.queries]]` is real (#624).** The `[analytics]` section — inert since
+  its first commit and rejected since #612 — now lowers each entry at compile time
+  into an ordinary compiled query: a list-returning, view-backed `QueryDefinition`
+  whose `sql_source` goes through the standard compile-time SQL-identifier
+  validation and whose SELECT list is the declared `return_type`'s fields, so no
+  client-supplied identifier can reach `FROM` or the SELECT list (the P01
+  constraint, satisfied structurally). `AnalyticsQuery` gains the required
+  `return_type` field. Compile errors: unknown `return_type`, a name colliding with
+  an existing query, a name ending in the executor-reserved `_aggregate`/`_window`
+  suffixes (such a query would be unreachable), `enabled = false` with queries, and
+  `enabled = true` without queries. A `[[caching.rules]]` entry can target an
+  analytics query (analytics lowering runs first). Found and filed alongside: the
+  SDK-side `aggregate_queries` seam section is carried and silently dropped (#956).
+
 - **`[[caching.rules]]` is real (#623).** The `[caching]` section — rejected as inert
   since #612 — now lowers each rule at compile time onto the two compiled fields the
   result cache already consumes: the named query's `cache_ttl_seconds` (the per-view

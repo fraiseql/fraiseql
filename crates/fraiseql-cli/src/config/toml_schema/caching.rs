@@ -52,25 +52,39 @@ pub struct CacheRule {
     pub invalidation_triggers: Vec<String>,
 }
 
-/// Analytics configuration
+/// Analytics query definitions (#624).
+///
+/// Each entry is **lowered at compile time into an ordinary compiled query**:
+/// an operator-authored, compile-validated `sql_source` (a view, typically an
+/// aggregate/materialized one) served with the SELECT list of its declared
+/// `return_type`. No client-supplied identifier can reach `FROM` or the
+/// SELECT list because neither exists on this path at request time.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AnalyticsConfig {
-    /// Enable analytics
+    /// Gate for the queries below: `true` with queries lowers them; `false`
+    /// with queries — or `true` without queries — is refused at compile time.
     #[serde(default)]
     pub enabled: bool,
-    /// Analytics queries
+    /// Analytics query definitions.
     pub queries: Vec<AnalyticsQuery>,
 }
 
-/// Analytics query definition
+/// One analytics query (#624), compiled into a list-returning view query.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AnalyticsQuery {
-    /// Query name
+    /// GraphQL field name. Must not collide with an existing query and must
+    /// not end in `_aggregate` / `_window` (the executor classifies those
+    /// suffixes before query resolution, so such a query would be
+    /// unreachable).
     pub name:        String,
-    /// SQL source for the query
+    /// Declared type whose fields form the SELECT list (compile error if the
+    /// type does not exist).
+    pub return_type: String,
+    /// The view to serve — validated as a SQL identifier at compile time
+    /// (reject, never escape).
     pub sql_source:  String,
-    /// Query description
+    /// Query description.
     pub description: Option<String>,
 }
