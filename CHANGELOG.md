@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Studio: Schema, Observers, and Logs tabs (#373).** The embedded Studio SPA
+  gained a **Schema** browser (types with per-field type/nullability and the
+  backing view, queries with their relay/list shape, mutations with their
+  backing function — from `/admin/v1/schema`), an **Observers** tab (delivery
+  health, DLQ viewer with per-item retry and retry-all — the dispatch-at-most-
+  once semantics of retry are pinned server-side), and a **Logs** tab
+  (observer dispatch history). Both observer-backed tabs degrade gracefully
+  when the `observers` feature is off. A new test pins every shell tab to a
+  renderer wired to its real admin endpoint via `include_str!` on the SPA
+  source. The raw-SQL editor tab from the original issue is deliberately NOT
+  shipped: it requires a new arbitrary-SQL admin endpoint, which is a gated
+  decision tracked in #962.
+
 - **Python SDK AI-framework integrations (#388).** `fraiseql.integrations`
   gained `openai` (OpenAI tool/function definitions + a call dispatcher that
   refuses hallucinated names before any server round-trip), `mcp` (raw MCP

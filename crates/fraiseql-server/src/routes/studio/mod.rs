@@ -98,10 +98,13 @@ pub fn studio_shell_html() -> String {
     </header>
 
     <l-tabs value="data" style="border-bottom:1px solid var(--color-border,#e2e2e2)">
+      <l-tab-item value="schema">Schema</l-tab-item>
       <l-tab-item value="data">Data</l-tab-item>
       <l-tab-item value="auth">Auth</l-tab-item>
       <l-tab-item value="storage">Storage</l-tab-item>
       <l-tab-item value="functions">Functions</l-tab-item>
+      <l-tab-item value="observers">Observers</l-tab-item>
+      <l-tab-item value="logs">Logs</l-tab-item>
       <l-tab-item value="metrics">Metrics</l-tab-item>
     </l-tabs>
 
