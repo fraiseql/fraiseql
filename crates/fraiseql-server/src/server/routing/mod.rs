@@ -14,6 +14,8 @@ mod admin;
 mod auth;
 mod extensions;
 mod graphql;
+#[cfg(test)]
+mod http_query_method_tests;
 mod middleware;
 #[cfg(test)]
 mod mount_authz_tests;

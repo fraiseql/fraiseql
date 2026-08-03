@@ -5,8 +5,11 @@ use axum::{Router, extract::DefaultBodyLimit, middleware};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
-use super::super::{Server, cors_layer_restricted, metrics_middleware, trace_layer};
-use crate::{middleware::security_headers_middleware, routes::graphql::AppState};
+use super::super::{Server, metrics_middleware, trace_layer};
+use crate::{
+    middleware::{cors::cors_layer_restricted_with, security_headers_middleware},
+    routes::graphql::AppState,
+};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Apply global middleware layers to the router.
@@ -37,7 +40,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             } else {
                 self.config.cors_origins.clone()
             };
-            app = app.layer(cors_layer_restricted(&origins));
+            app = app.layer(cors_layer_restricted_with(&origins, self.config.enable_http_query));
         }
 
         // Add request body size limit (default 1 MB -- prevents memory exhaustion)

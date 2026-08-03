@@ -8,7 +8,7 @@ use super::{
     super::{Server, graphql_get_handler, graphql_handler, require_json_content_type},
     AuthPosture,
 };
-use crate::routes::graphql::AppState;
+use crate::routes::graphql::{AppState, handler::graphql_query_method_handler};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build the GraphQL endpoint router with optional auth and compression.
@@ -19,11 +19,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Authentication is attached by the shared `attach_auth` helper rather than
         // inline here: `/graphql` and the REST transport had independent mount code, and
         // REST's omitted the layer entirely (#812). One helper, one posture decision.
+        // GET and POST are mounted exactly as before. The HTTP QUERY method
+        // (RFC 10008, #508) is added as a `MethodRouter` **fallback** rather than a
+        // typed arm, because axum 0.8 has no `MethodFilter::QUERY` yet — a fallback
+        // keeps GET/POST dispatch byte-for-byte unchanged, where an `any()` +
+        // manual-match rewrite would put every method through new code.
+        //
+        // The fallback also catches PUT/DELETE/…; the handler answers 405 for
+        // anything that is not QUERY, which is what the router did before.
+        let mut methods = get(graphql_get_handler::<A>).post(graphql_handler::<A>);
+        if self.config.enable_http_query {
+            methods = methods.fallback(graphql_query_method_handler::<A>);
+        }
+
         let router = self.attach_auth(
-            Router::new().route(
-                &self.config.graphql_path,
-                get(graphql_get_handler::<A>).post(graphql_handler::<A>),
-            ),
+            Router::new().route(&self.config.graphql_path, methods),
             AuthPosture::Authenticated,
             "graphql",
         );

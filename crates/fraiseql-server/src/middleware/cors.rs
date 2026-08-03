@@ -52,19 +52,38 @@ pub fn cors_layer() -> CorsLayer {
 /// let layer = cors_layer_restricted(&["https://app.example.com".to_string()]);
 /// ```
 pub fn cors_layer_restricted(allowed_origins: &[String]) -> CorsLayer {
+    cors_layer_restricted_with(allowed_origins, false)
+}
+
+/// [`cors_layer_restricted`], additionally advertising the HTTP `QUERY` method when
+/// `allow_http_query` is set (#508).
+///
+/// `QUERY` is **not** CORS-safelisted, so a browser preflights it; without it in
+/// `Access-Control-Allow-Methods` the preflight fails and the browser never sends the
+/// real request. Advertised only when the server actually accepts the method, so the
+/// header never promises a route that answers 405.
+pub fn cors_layer_restricted_with(allowed_origins: &[String], allow_http_query: bool) -> CorsLayer {
     let origins: Vec<_> = allowed_origins.iter().filter_map(|origin| origin.parse().ok()).collect();
 
-    CorsLayer::new()
-        .allow_origin(origins)
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::OPTIONS,
-        ])
-        .allow_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::AUTHORIZATION,
-        ])
+    let mut methods = vec![
+        axum::http::Method::GET,
+        axum::http::Method::POST,
+        axum::http::Method::OPTIONS,
+    ];
+    if allow_http_query {
+        // `Method::from_bytes` rather than a constant: neither http 1.4.x nor axum
+        // 0.8.x has `Method::QUERY` yet. Same seam as `HTTP_QUERY_METHOD`.
+        if let Ok(query) = axum::http::Method::from_bytes(
+            crate::routes::graphql::handler::HTTP_QUERY_METHOD.as_bytes(),
+        ) {
+            methods.push(query);
+        }
+    }
+
+    CorsLayer::new().allow_origin(origins).allow_methods(methods).allow_headers([
+        axum::http::header::CONTENT_TYPE,
+        axum::http::header::AUTHORIZATION,
+    ])
 }
 
 /// Security headers middleware.
