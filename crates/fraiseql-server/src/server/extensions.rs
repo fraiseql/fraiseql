@@ -70,6 +70,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
             &schema,
             config.cache_enabled,
         )?;
+        // #623: declared cache TTLs with the cache off are silently inert — say so.
+        crate::server::initialization::warn_on_inert_cache_ttls(&schema, config.cache_enabled);
 
         // Same boot gates as `Server::new` — these must not drift by constructor (H16).
         // Refuse to boot if any field is marked for at-rest encryption (H12); the write

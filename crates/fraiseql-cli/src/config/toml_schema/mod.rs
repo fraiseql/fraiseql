@@ -352,15 +352,37 @@ impl TomlSchema {
             );
         }
 
-        // #1 [caching]: never lowered into the compiled schema and never consumed;
-        // server result caching is configured elsewhere. Reject a configured section.
-        if self.caching.enabled || !self.caching.rules.is_empty() {
+        // #1 [caching] (#623): `[[caching.rules]]` are lowered by the merger onto the
+        // compiled per-query `cache_ttl_seconds` and per-mutation `invalidates_views`.
+        // What is refused here is every configuration that would silently do nothing
+        // or claim a backend that does not exist.
+        if self.caching.backend != "memory" {
             anyhow::bail!(
-                "[caching] is accepted but not consumed: the compiler does not lower it into \
-                 the compiled schema and no runtime honors it, so `enabled` / \
-                 `[[caching.rules]]` silently do nothing. Remove the [caching] section. \
-                 Declarative per-rule result caching is tracked at \
-                 https://github.com/fraiseql/fraiseql/issues/623."
+                "[caching] backend = \"{}\" has no runtime counterpart: the result cache is \
+                 in-process; only \"memory\" exists (there is no Redis-backed result cache \
+                 anywhere in the runtime). Remove the `backend` key or set it to \"memory\".",
+                self.caching.backend
+            );
+        }
+        if self.caching.redis_url.is_some() {
+            anyhow::bail!(
+                "[caching] redis_url is set, but there is no Redis-backed result cache to \
+                 connect it to. Remove the key. (Redis features elsewhere — APQ, rate \
+                 limiting, PKCE — are separate subsystems with their own configuration.)"
+            );
+        }
+        if !self.caching.enabled && !self.caching.rules.is_empty() {
+            anyhow::bail!(
+                "[caching] declares {} [[caching.rules]] but `enabled = false`, so none of \
+                 them would take effect. Set `enabled = true` or remove the rules.",
+                self.caching.rules.len()
+            );
+        }
+        if self.caching.enabled && self.caching.rules.is_empty() {
+            anyhow::bail!(
+                "[caching] enabled = true with no [[caching.rules]] does nothing: runtime \
+                 cache enablement is the server's `cache_enabled`, and per-query TTLs come \
+                 from the rules. Add [[caching.rules]] or remove the section."
             );
         }
 

@@ -65,6 +65,86 @@ fn resolve_mutation_sql_source(
     )
 }
 
+/// Lower `[[caching.rules]]` onto the compiled fields the runtime's result
+/// cache consumes (#623): the named query's `cache_ttl_seconds` (per-view TTL
+/// map, opt-in) and each trigger mutation's `invalidates_views`
+/// (mutation-driven invalidation).
+///
+/// Fails loud on an unknown query, an unknown trigger mutation, a query with
+/// no `sql_source`, or a TTL already authored on the query — a cache rule
+/// that silently matches nothing, or silently loses to another authoring
+/// source, is the #612 config-honesty bug this section was rejected over.
+fn apply_caching_rules(
+    caching: &crate::config::toml_schema::CachingConfig,
+    queries_array: &mut [Value],
+    mutations_array: &mut [Value],
+) -> Result<()> {
+    fn named<'a>(items: &'a mut [Value], name: &str) -> Option<&'a mut Value> {
+        items.iter_mut().find(|i| i.get("name").and_then(Value::as_str) == Some(name))
+    }
+    fn names(items: &[Value]) -> String {
+        items
+            .iter()
+            .filter_map(|i| i.get("name").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    for rule in &caching.rules {
+        let Some(query) = named(queries_array, &rule.query) else {
+            anyhow::bail!(
+                "[[caching.rules]] names query '{}', which does not exist. Declared \
+                 queries: {}",
+                rule.query,
+                names(queries_array)
+            );
+        };
+        if query.get("cache_ttl_seconds").is_some_and(|v| !v.is_null()) {
+            anyhow::bail!(
+                "[[caching.rules]] sets ttl_seconds for query '{}', but the query already \
+                 declares cache_ttl_seconds (SDK/JSON-authored, or an earlier rule). Two \
+                 authoring sources for one TTL must not silently last-write-win — remove \
+                 one of them.",
+                rule.query
+            );
+        }
+        let Some(view) = query.get("sql_source").and_then(Value::as_str).map(str::to_owned) else {
+            anyhow::bail!(
+                "[[caching.rules]] targets query '{}', which has no sql_source; only \
+                 view-backed queries are cacheable.",
+                rule.query
+            );
+        };
+        query["cache_ttl_seconds"] = json!(rule.ttl_seconds);
+
+        for trigger in &rule.invalidation_triggers {
+            let Some(mutation) = named(mutations_array, trigger) else {
+                anyhow::bail!(
+                    "[[caching.rules]] for query '{}' names invalidation trigger '{}', \
+                     which is not a declared mutation. Declared mutations: {}",
+                    rule.query,
+                    trigger,
+                    names(mutations_array)
+                );
+            };
+            let views = mutation
+                .as_object_mut()
+                .expect("mutation entries are objects by construction")
+                .entry("invalidates_views")
+                .or_insert_with(|| json!([]));
+            let list = views.as_array_mut().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "mutation '{trigger}' has a non-array invalidates_views; cannot append"
+                )
+            })?;
+            if !list.iter().any(|v| v.as_str() == Some(view.as_str())) {
+                list.push(json!(view));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Serialize TOML-declared arguments through [`IntermediateArgument`].
 ///
 /// The round trip through the typed struct is the point: it is what makes the emitted wire
@@ -467,6 +547,11 @@ impl SchemaMerger {
                 "arguments": lower_toml_args(&toml_mutation.args)?,
             }));
         }
+
+        // #623: lower [[caching.rules]] onto the compiled fields the runtime's
+        // result cache consumes. Runs after both arrays hold every authored
+        // operation (JSON/SDK and TOML alike), so a rule can target either.
+        apply_caching_rules(&toml_schema.caching, &mut queries_array, &mut mutations_array)?;
 
         // Build the merged schema by **carrying the authored document forward** and
         // overwriting only the three sections this function actually transforms.

@@ -135,9 +135,12 @@ fn declared_authorization_is_rejected_at_compile() {
     );
 }
 
-/// #1 `[caching]` — accepted but never lowered into the compiled schema.
+/// #1 `[caching]` (#623): `[[caching.rules]]` are lowered onto the compiled
+/// per-query TTL / per-mutation `invalidates_views` (see
+/// `compiler_runtime_contract.rs`); what stays REJECTED is every shape that
+/// would silently do nothing or claim a backend that does not exist.
 #[test]
-fn caching_section_is_rejected_at_compile() {
+fn caching_nonexistent_backend_is_rejected_at_compile() {
     let err = validate_err(
         r#"
         [schema]
@@ -148,8 +151,39 @@ fn caching_section_is_rejected_at_compile() {
         backend = "redis"
     "#,
     );
-    assert!(err.contains("[caching]"), "err = {err}");
-    assert!(err.contains("/issues/623"), "err = {err}");
+    assert!(err.contains("backend"), "err = {err}");
+    assert!(err.contains("memory"), "err = {err}");
+}
+
+/// A `redis_url` with no Redis result cache to connect to is refused.
+#[test]
+fn caching_redis_url_is_rejected_at_compile() {
+    let err = validate_err(
+        r#"
+        [schema]
+        name = "t"
+
+        [caching]
+        enabled = false
+        redis_url = "redis://localhost:6379"
+    "#,
+    );
+    assert!(err.contains("redis_url"), "err = {err}");
+}
+
+/// `enabled = true` with no rules does nothing and is refused.
+#[test]
+fn caching_enabled_without_rules_is_rejected_at_compile() {
+    let err = validate_err(
+        r#"
+        [schema]
+        name = "t"
+
+        [caching]
+        enabled = true
+    "#,
+    );
+    assert!(err.contains("rules"), "err = {err}");
 }
 
 /// #2 `[analytics]` — fully inert.

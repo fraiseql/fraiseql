@@ -73,18 +73,35 @@ CachedDatabaseAdapter.view_ttl_overrides: HashMap<ViewName, u64>
 CachedResult { data, views_depended_on, cached_at, ttl_seconds }
 ```
 
-**TTL = 0 means: never store this entry.** `put()` is a no-op when `ttl_override = Some(0)`.
-This is how live-data queries (prices, stock levels) opt out of caching entirely.
+**TTL = 0 means: no time-based expiry.** The entry is stored and lives until a
+mutation evicts it — this is how mutation-invalidated-only queries are declared
+(the injected changelog queries use it). It does **not** mean "never cache".
 
-**TTL expiry is checked on read** (`get()`), not lazily. Expired entries are evicted
-immediately rather than accumulating:
+**TTL expiry is delegated to moka** via `expire_after_create`; there is no
+manual read-time expiry check (a deliberate perf decision — see
+`CacheEntryExpiry` in `cache/result.rs`).
 
-```rust
-if now - cached.cached_at > cached.ttl_seconds {
-    cache.pop(key);  // evict
-    return Ok(None); // miss
-}
+### Declarative rules (`[[caching.rules]]`, #623)
+
+`fraiseql.toml` can author per-query caching without the SDK:
+
+```toml
+[caching]
+enabled = true
+
+[[caching.rules]]
+query = "inventory"            # must name an existing query
+ttl_seconds = 120              # lowered onto QueryDefinition.cache_ttl_seconds
+invalidation_triggers = ["createOrder"]  # mutations that must evict this query
 ```
+
+Rules are lowered **at compile time** onto the two compiled fields above:
+the TTL onto the query, and the query's view into each trigger mutation's
+`invalidates_views`. Unknown query/mutation names, a TTL already authored via
+the SDK, `enabled = false` with rules, and a `backend`/`redis_url` (no Redis
+result cache exists) are all compile errors. Runtime enablement remains the
+server's `cache_enabled`; the server warns at boot when TTLs are declared but
+the cache is off.
 
 ---
 
@@ -140,13 +157,14 @@ cache_invalidations_total
 cache_memory_bytes_estimated
 ```
 
-**Manual invalidation** via HTTP:
+**Manual invalidation**: there is no HTTP endpoint for the result cache.
+Invalidation is mutation-driven (per-view / per-entity), and a schema reload
+clears the cache. (`POST /api/v1/admin/cache/clear` operates on the Arrow
+query-plan cache, a different cache.)
 
-```http
-POST /cache/invalidate?view=v_user
-```
-
-**Disabling caching** for a specific query — set `cache_ttl_seconds = 0` in the schema:
+**Mutation-invalidated-only caching** for a specific query — set
+`cache_ttl_seconds = 0` in the schema (cached, no time-based expiry, evicted by
+mutations):
 
 ```python
 @fraiseql.query(sql_source="v_live_prices", cache_ttl_seconds=0)
