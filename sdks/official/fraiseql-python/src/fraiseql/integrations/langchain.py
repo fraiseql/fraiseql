@@ -23,6 +23,7 @@ from typing import Any
 from pydantic import ConfigDict
 
 from fraiseql.client import FraiseQLClient
+from fraiseql.integrations._spec import operation_specs
 
 try:
     from langchain_core.callbacks import (
@@ -119,55 +120,19 @@ class FraiseQLToolkit:
             include: Whitelist of operation names (None = all).
             exclude: Blacklist of operation names (None = none).
         """
-        tools: list[BaseTool] = []
-        schema_info = self._schema_data.get("data", {}).get("__schema", {})
-
-        for type_info in schema_info.get("types", []):
-            type_name = type_info.get("name", "")
-            is_mutation = type_name == "Mutation"
-            is_query = type_name == "Query"
-
-            if not (is_query or is_mutation):
-                continue
-
-            for field in type_info.get("fields", []):
-                name = field["name"]
-                if name.startswith("__"):
-                    continue
-                if include and name not in include:
-                    continue
-                if exclude and name in exclude:
-                    continue
-
-                args = field.get("args", [])
-                arg_names = [a["name"] for a in args]
-                arg_str = ", ".join(f"${a}: String" for a in arg_names)
-                param_str = ", ".join(f"{a}: ${a}" for a in arg_names)
-
-                op_type = "mutation" if is_mutation else "query"
-                if arg_names:
-                    query_template = f"{op_type} ({arg_str}) {{ {name}({param_str}) }}"
-                else:
-                    query_template = f"{{ {name} }}"
-
-                description = field.get("description") or f"Execute {name} {op_type}"
-                if args:
-                    arg_desc = ", ".join(
-                        f"{a['name']}: {a.get('type', {}).get('name', 'String')}" for a in args
-                    )
-                    description += f". Arguments (JSON): {arg_desc}"
-
-                tools.append(
-                    FraiseQLTool(
-                        name=name,
-                        description=description,
-                        client=self._client,
-                        query_template=query_template,
-                        is_mutation=is_mutation,
-                    )
-                )
-
-        return tools
+        # Shared spec extraction (`integrations._spec`): the same normalised
+        # operations — and the same typed documents — every adapter uses, so a
+        # `$limit: Int` argument is declared `Int`, not blanket `String`.
+        return [
+            FraiseQLTool(
+                name=spec.name,
+                description=spec.display_description,
+                client=self._client,
+                query_template=spec.document,
+                is_mutation=spec.kind == "mutation",
+            )
+            for spec in operation_specs(self._schema_data, include=include, exclude=exclude)
+        ]
 
 
 class FraiseQLRetriever(BaseRetriever):

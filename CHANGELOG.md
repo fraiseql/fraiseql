@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Python SDK AI-framework integrations (#388).** `fraiseql.integrations`
+  gained `openai` (OpenAI tool/function definitions + a call dispatcher that
+  refuses hallucinated names before any server round-trip), `mcp` (raw MCP
+  tool descriptors + an in-process `tools/call` dispatcher, no MCP SDK
+  dependency), and `rag` (`as_source` wraps any list query — e.g. over a
+  `v_embedded_documents` view — as a framework-agnostic retrieval source).
+  All adapters, including the existing LangChain/LlamaIndex ones, now share
+  one normalised operation model built from introspection, so tool names,
+  argument types, and generated documents are identical across frameworks —
+  and LangChain tool documents gained true argument types (a `$limit: Int`
+  argument was previously declared blanket `String`). `include`/`exclude`
+  exposure controls are enforced both at advertisement and at the dispatch
+  boundary. Documented in the SDK's `docs/ai-integrations.md`.
+
 - **Typed Python clients + compile-the-output CI gates (#372).**
   `fraiseql generate-client python` emits a fully typed, standard-library-only
   Python (≥ 3.12) client from `schema.compiled.json`: `TypedDict`s for every
