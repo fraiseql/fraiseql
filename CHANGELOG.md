@@ -136,6 +136,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The HTTP `QUERY` method (RFC 10008) on the GraphQL endpoint (#508).** Opt-in via
+  `enable_http_query` (default `false`); `GET` and `POST` behaviour is unchanged either
+  way. `QUERY` is "GET with a request body" — safe, idempotent and cacheable — so routing
+  deterministic GraphQL reads over it stops telling caches, proxies and retry layers
+  "unsafe, do not cache, do not retry". Acceptance is **queries-only**: a `mutation` or
+  `subscription` is refused with `405`, because a method an intermediary may replay must
+  never carry a state-changing operation. The gate parses with the same parser the
+  executor uses, so it cannot disagree with what would actually run. CORS advertises
+  `QUERY` only when the server accepts it, so the header never promises a route that
+  answers 405. axum 0.8 has no `MethodFilter::QUERY` yet, so the method is mounted as a
+  `MethodRouter` fallback — two clearly-marked places (`HTTP_QUERY_METHOD` and the
+  fallback wiring) swap to the typed filter when upstream ships it.
+
 - **Social login is reachable from the shipped binary (#368).** The account-linking
   trust gate and the provider modules were library-only: `Server::with_social_login`
   had zero callers, nothing auto-registered providers, and `[auth.social]` could not

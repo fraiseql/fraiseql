@@ -176,6 +176,82 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         .await
 }
 
+/// The HTTP `QUERY` method (RFC 10008), as a byte string.
+///
+/// **This is the single seam to swap for native support.** Neither `http` 1.4.x nor
+/// axum 0.8.x exposes `Method::QUERY` / `MethodFilter::QUERY` yet
+/// (hyperium/http#798, tokio-rs/axum#3799). When they ship, replace this constant
+/// and the `MethodRouter::fallback` wiring in `server/routing/graphql.rs` with the
+/// typed filter — those two places are the whole workaround.
+pub(crate) const HTTP_QUERY_METHOD: &str = "QUERY";
+
+/// `QUERY /graphql` — RFC 10008 (#508).
+///
+/// Mounted only when `enable_http_query = true`, as a `MethodRouter` fallback, so
+/// `GET` and `POST` dispatch is untouched. The body is parsed exactly like a `POST`,
+/// then the operation is **restricted to queries**.
+///
+/// # Why the restriction is mandatory
+///
+/// `QUERY` is defined as safe and idempotent, which entitles any intermediary —
+/// proxy, CDN, retry layer — to replay it. A mutation carried over it could
+/// therefore be silently executed more than once. Refusing non-query operations is
+/// what makes accepting the method safe at all.
+///
+/// # Errors
+///
+/// - `405` when the request method is not `QUERY` (any other unmatched method).
+/// - `405` when the document is a `mutation` or `subscription`.
+/// - `400` when the body is not a valid `GraphQLRequest`.
+pub async fn graphql_query_method_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    method: axum::http::Method,
+    headers: HeaderMap,
+    PeerIp(peer_ip): PeerIp,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
+    body: axum::body::Bytes,
+) -> Result<GraphQLResponse, ErrorResponse> {
+    // This handler is a method-router fallback, so it also catches PUT/DELETE/…
+    // Anything that is not QUERY gets the same 405 the router would have produced.
+    if method.as_str() != HTTP_QUERY_METHOD {
+        return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+            "Method not allowed on the GraphQL endpoint",
+        )));
+    }
+
+    let request: GraphQLRequest = serde_json::from_slice(&body).map_err(|e| {
+        ErrorResponse::from_error(GraphQLError::request(format!("Invalid QUERY body: {e}")))
+    })?;
+
+    // Queries-only. `detect_operation_type` uses the same parser the executor uses,
+    // so the gate cannot disagree with what would actually execute. A document that
+    // does not parse falls through (like the GET path) and surfaces a GraphQL parse
+    // error from the executor — it executes nothing, so no state can change.
+    if let Some(op) = non_query_operation(request.query.as_deref().unwrap_or_default()) {
+        warn!(operation = op, "Non-query operation sent via QUERY — rejected (use POST)");
+        return Err(ErrorResponse::from_error(GraphQLError::method_not_allowed(
+            "Only query operations may be sent over the QUERY method; use POST",
+        )));
+    }
+
+    let trace_context = tracing_utils::extract_trace_context(&headers);
+
+    execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
+        .await
+}
+
+/// Returns the operation type when `query` is **not** a plain query — i.e.
+/// `Some("mutation")` or `Some("subscription")`. `None` for queries and for
+/// documents that fail to parse (which execute nothing).
+pub(crate) fn non_query_operation(query: &str) -> Option<&'static str> {
+    let parsed = fraiseql_core::graphql::parse_query(query).ok()?;
+    match parsed.operation_type.as_str() {
+        "mutation" => Some("mutation"),
+        "subscription" => Some("subscription"),
+        _ => None,
+    }
+}
+
 /// Extract the mutation name from a GraphQL query string, if the operation is a mutation.
 ///
 /// Returns `Some(root_field_name)` when the query parses successfully and the operation

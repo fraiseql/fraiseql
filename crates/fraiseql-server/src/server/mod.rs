@@ -21,7 +21,7 @@ use crate::{
     Result, ServerError,
     middleware::{
         BearerAuthState, OidcAuthState, RateLimiter, admin_auth_middleware, bearer_auth_middleware,
-        cors_layer_restricted, metrics_middleware, oidc_auth_middleware, require_json_content_type,
+        metrics_middleware, oidc_auth_middleware, require_json_content_type,
         required_auth_middleware, trace_layer,
     },
     routes::{

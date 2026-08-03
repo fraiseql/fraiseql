@@ -24,6 +24,11 @@ const MANIFEST: &[(&str, &str)] = &[
     ("cors_enabled", "CORS layer toggle"),
     ("cors_origins", "CORS allowed origins"),
     ("compression_enabled", "response compression layer"),
+    (
+        "enable_http_query",
+        "HTTP QUERY method acceptance (#508) — build_graphql_router mounts the \
+         queries-only fallback and cors_layer_restricted_with advertises the method",
+    ),
     ("require_json_content_type", "request content-type guard"),
     ("tls", "server TLS config (Option — HTTPS listener)"),
     ("database_tls", "database TLS config (Option)"),

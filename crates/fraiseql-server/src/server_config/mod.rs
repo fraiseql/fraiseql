@@ -102,6 +102,23 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_false")]
     pub compression_enabled: bool,
 
+    /// Accept the HTTP `QUERY` method (RFC 10008) on the GraphQL endpoint (#508).
+    ///
+    /// Default `false`. `QUERY` is "GET with a request body": safe, idempotent and
+    /// cacheable, but carrying a payload. Routing GraphQL reads over `POST` tells
+    /// caches, proxies and retry layers "unsafe, do not cache, do not retry", which
+    /// is the wrong signal for a deterministic read.
+    ///
+    /// When enabled, `QUERY` is parsed exactly like a `POST` body and then
+    /// **restricted to query operations**: a `mutation` or `subscription` is
+    /// refused with `405`. That restriction is the security property, not a
+    /// convenience — an intermediary is entitled to retry a safe method, so a
+    /// state-changing operation must never travel over one.
+    ///
+    /// `GET` and `POST` behaviour is unchanged whether this is on or off.
+    #[serde(default = "defaults::default_false")]
+    pub enable_http_query: bool,
+
     /// Enable request tracing.
     #[serde(default = "defaults::default_true")]
     pub tracing_enabled: bool,
@@ -928,6 +945,7 @@ impl Default for ServerConfig {
             cors_enabled: true,
             cors_origins: Vec::new(),
             compression_enabled: false,
+            enable_http_query: false, // #508: opt-in; POST/GET unchanged
             tracing_enabled: true,
             otlp_endpoint: None,
             otlp_export_timeout_secs: defaults::default_otlp_timeout_secs(),
