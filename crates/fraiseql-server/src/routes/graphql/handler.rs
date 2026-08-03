@@ -50,7 +50,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     Json(request): Json<GraphQLRequest>,
-) -> Result<GraphQLResponse, ErrorResponse> {
+) -> Result<axum::response::Response, ErrorResponse> {
     // Extract trace context from W3C headers
     let trace_context = tracing_utils::extract_trace_context(&headers);
     if trace_context.is_some() {
@@ -61,8 +61,15 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         debug!("Authenticated request with security context");
     }
 
+    // GraphQL-over-SSE (#387): opt-in, negotiated by Accept. This branch runs
+    // INSIDE the authenticated route, so it inherits the full middleware stack.
+    if state.graphql_sse_enabled && sse::accepts_event_stream(&headers) {
+        return Box::pin(sse::handle_sse(state, headers, peer_ip, security_context, request)).await;
+    }
+
     execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
         .await
+        .map(axum::response::IntoResponse::into_response)
 }
 
 /// GraphQL HTTP handler for GET requests.
@@ -100,7 +107,7 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     Query(params): Query<GraphQLGetParams>,
-) -> Result<GraphQLResponse, ErrorResponse> {
+) -> Result<axum::response::Response, ErrorResponse> {
     // Reject oversized GET queries early to prevent DoS via query parsing.
     let max_get_bytes = state.max_get_query_bytes;
     if params.query.len() > max_get_bytes {
@@ -172,8 +179,15 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         debug!("Authenticated GET request with security context");
     }
 
+    // GraphQL-over-SSE (#387): the GET arm is what an `EventSource` client can
+    // reach (it cannot POST). Mutations were already rejected above.
+    if state.graphql_sse_enabled && sse::accepts_event_stream(&headers) {
+        return Box::pin(sse::handle_sse(state, headers, peer_ip, security_context, request)).await;
+    }
+
     execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
         .await
+        .map(axum::response::IntoResponse::into_response)
 }
 
 /// The HTTP `QUERY` method (RFC 10008), as a byte string.
@@ -704,6 +718,7 @@ pub(super) fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
     }
 }
 
+mod sse;
 mod stages;
 
 #[cfg(test)]

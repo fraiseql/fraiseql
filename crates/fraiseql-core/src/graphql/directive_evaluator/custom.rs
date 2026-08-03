@@ -169,6 +169,13 @@ impl CustomDirectiveEvaluator {
                 // If it appears in a query, we just pass through
                 Ok(DirectiveResult::Include)
             },
+            "stream" | "defer" => {
+                // Incremental-delivery directives (#387): advisory per the GraphQL
+                // proposal, honoured by the SSE transport, deliberate include-and-
+                // continue everywhere else — even under strict mode, because they are
+                // known directives, not unknown ones.
+                Ok(DirectiveResult::Include)
+            },
             // Custom directives
             name => {
                 if let Some(handler) = self.handlers.get(name) {

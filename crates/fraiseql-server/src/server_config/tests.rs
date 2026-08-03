@@ -997,3 +997,61 @@ mod read_replicas_407 {
         assert_eq!(rc.urls.len(), 2);
     }
 }
+
+mod graphql_sse_387 {
+    use super::*;
+
+    #[test]
+    fn disabled_by_default() {
+        let config = ServerConfig::default();
+        assert!(!config.enable_graphql_sse, "SSE transport must be opt-in");
+        assert!(config.graphql_sse_stream_batch_size.is_none());
+        assert_eq!(config.graphql_sse_batch_size(), 100, "the batch-size default is 100");
+    }
+
+    #[test]
+    fn batch_size_without_enable_is_refused_as_inert() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            graphql_sse_stream_batch_size: Some(50),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("an inert batch size must be refused");
+        assert!(err.contains("graphql_sse_stream_batch_size"), "got: {err}");
+    }
+
+    #[test]
+    fn zero_batch_size_is_refused() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            enable_graphql_sse: true,
+            graphql_sse_stream_batch_size: Some(0),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("a zero batch size must be refused");
+        assert!(err.contains("at least 1"), "got: {err}");
+    }
+
+    #[test]
+    fn enabled_with_batch_size_validates_and_lowers() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            enable_graphql_sse: true,
+            graphql_sse_stream_batch_size: Some(25),
+            ..ServerConfig::default()
+        };
+        assert!(config.validate().is_ok());
+        assert_eq!(config.graphql_sse_batch_size(), 25);
+    }
+
+    #[test]
+    fn toml_round_trip() {
+        let toml = r"
+            enable_graphql_sse = true
+            graphql_sse_stream_batch_size = 10
+        ";
+        let config: ServerConfig = toml::from_str(toml).expect("SSE keys must deserialize");
+        assert!(config.enable_graphql_sse);
+        assert_eq!(config.graphql_sse_batch_size(), 10);
+    }
+}

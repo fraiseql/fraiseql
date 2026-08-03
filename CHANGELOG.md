@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **GraphQL over SSE with root-field `@stream` (#387).** Opt-in
+  (`enable_graphql_sse`, default off): a GraphQL request carrying
+  `Accept: text/event-stream` is answered as Server-Sent Events — any operation
+  as one `next` result plus `complete`, and a query whose single root list field
+  carries `@stream(initialCount: N)` incrementally: an initial payload with `N`
+  rows, then `graphql_sse_stream_batch_size`-row batches
+  (`{"incremental":[{"items":…,"path":…}],"hasNext":…}`), each **re-executed
+  through the full pipeline** — depth/complexity gates, authorization, RLS
+  session variables, result cache — by re-issuing the document with paginated
+  variables, so there is no second execution path to drift. The SSE branch lives
+  inside the authenticated `/graphql` route (401 before any stream opens);
+  long-lived deliveries re-check principal expiry before every batch and
+  terminate with an `UNAUTHENTICATED` event; deliveries survive
+  `request_timeout_secs` and are exempt from response compression. Ineligible
+  shapes are refused loudly before any event: non-list or relay queries, nested
+  `@stream`, multi-root operations, mutations, and documents declaring
+  `$limit`/`$offset` variables. Outside SSE, `@stream`/`@defer` are now *known*
+  advisory no-ops (parse, include, no warning — even under strict directive
+  mode), per the incremental-delivery proposal's server-may-ignore semantics.
+  See `docs/operations/graphql-sse-streaming.md`.
+
 - **Read replica support (#407).** `read_replica_urls` (plus optional
   `read_replica_pin_after_write_ms`, default 5000) route compiled GraphQL queries —
   and every other structurally read-only adapter path: field projections,

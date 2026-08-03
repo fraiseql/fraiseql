@@ -120,6 +120,15 @@ impl ServerConfig {
         })
     }
 
+    /// Effective `@stream` continuation batch size (#387).
+    ///
+    /// The 100-row default lives here — the single seam — so every consumer
+    /// agrees on it.
+    #[must_use]
+    pub fn graphql_sse_batch_size(&self) -> u32 {
+        self.graphql_sse_stream_batch_size.unwrap_or(100)
+    }
+
     /// Refuse a read-replica configuration on a wire-backend build (#407).
     ///
     /// The wire backend has no replica routing, so accepting the config would
@@ -200,6 +209,20 @@ impl ServerConfig {
                     return Err("admin_readonly_token must differ from admin_token.".to_string());
                 }
             }
+        }
+
+        // GraphQL-over-SSE (#387): refuse inert or degenerate shapes loudly.
+        match self.graphql_sse_stream_batch_size {
+            Some(_) if !self.enable_graphql_sse => {
+                return Err("graphql_sse_stream_batch_size is set but enable_graphql_sse is \
+                     false — the batch size only applies to the SSE transport. Enable \
+                     enable_graphql_sse or remove the setting."
+                    .to_string());
+            },
+            Some(0) => {
+                return Err("graphql_sse_stream_batch_size must be at least 1.".to_string());
+            },
+            _ => {},
         }
 
         // Read replicas (#407): refuse inert or malformed shapes loudly.

@@ -212,6 +212,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Apply GET query size limit from server config.
         state.max_get_query_bytes = self.config.max_get_query_bytes;
 
+        // GraphQL-over-SSE transport (#387): opt-in, with the batch-size default
+        // resolved through the single ServerConfig seam.
+        state.graphql_sse_enabled = self.config.enable_graphql_sse;
+        state.graphql_sse_batch_size = self.config.graphql_sse_batch_size();
+
         // Derive the introspection policy from the two server-config booleans.
         // This is the single source of truth shared with the REST
         // `/introspection` mount decision (`admin.rs`), so the GraphQL request

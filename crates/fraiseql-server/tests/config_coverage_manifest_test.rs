@@ -81,6 +81,17 @@ const MANIFEST: &[(&str, &str)] = &[
     ("pool_max_size", "DB pool max size"),
     ("pool_timeout_secs", "DB pool acquire timeout"),
     (
+        "enable_graphql_sse",
+        "GraphQL-over-SSE transport toggle (#387) — build_app_state → \
+         AppState.graphql_sse_enabled, negotiated in graphql_handler/graphql_get_handler",
+    ),
+    (
+        "graphql_sse_stream_batch_size",
+        "@stream continuation batch size (#387; Option, defaults to 100 in \
+         ServerConfig::graphql_sse_batch_size(); inert without enable_graphql_sse → \
+         validate() error)",
+    ),
+    (
         "read_replica_urls",
         "read replica pool URLs (#407) — lowered by ServerConfig::read_replicas() into \
          PoolPrewarmConfig.read_replicas at both binaries' pool sites",

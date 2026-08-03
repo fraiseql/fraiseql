@@ -2,7 +2,10 @@
 
 use axum::{Router, middleware, routing::get};
 use fraiseql_core::db::traits::DatabaseAdapter;
-use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
+use tower_http::compression::{
+    CompressionLayer,
+    predicate::{NotForContentType, Predicate as _, SizeAbove},
+};
 
 use super::{
     super::{Server, graphql_get_handler, graphql_handler, require_json_content_type},
@@ -51,8 +54,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // (Nginx, Caddy, cloud LB) which offloads CPU and supports brotli.
         // When enabled, skip responses under 1 KiB — gzip overhead dominates
         // on tiny payloads (e.g. short GraphQL results, health responses).
+        //
+        // `compress_when` REPLACES tower-http's default predicate, which is what
+        // normally exempts `text/event-stream`; without re-composing that
+        // exemption here, a large SSE response (#387) would be buffered by the
+        // encoder and its events would stop flushing incrementally.
         if self.config.compression_enabled {
-            graphql_router.layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)))
+            graphql_router.layer(
+                CompressionLayer::new()
+                    .compress_when(SizeAbove::new(1024).and(NotForContentType::SSE)),
+            )
         } else {
             graphql_router
         }
