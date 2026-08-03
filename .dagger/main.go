@@ -877,6 +877,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// real database and asserts both that the request is refused and that no catalog
 		// data reaches the response.
 		"cargo test -p fraiseql-server --test analytics_injection_e2e_pg -- --test-threads=1",
+		// #387 — GraphQL-over-SSE + root-field @stream, through the real
+		// `Server::serve_on_listener` mount: negotiation is opt-in, batches
+		// re-enter the full pipeline, auth is enforced before the stream and
+		// re-checked per batch, the delivery survives request_timeout_secs, and
+		// the compression predicate exempts text/event-stream.
+		"cargo test -p fraiseql-server --test graphql_sse_e2e_pg -- --test-threads=1",
 		// #812/#739/#810: the REST read surface carried no authentication, discarded the
 		// resolved tenant filter, and honoured `require_auth` on one route out of six.
 		// None of it was visible to the existing REST suite, which builds its router with

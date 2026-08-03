@@ -88,6 +88,15 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Defaults to `100_000` (100 `KiB`).  Configurable via
     /// `ServerConfig::max_get_query_bytes`.
     pub max_get_query_bytes: usize,
+    /// Whether the GraphQL-over-SSE response transport is enabled (#387).
+    ///
+    /// Defaults to `false` (the `Accept: text/event-stream` header is ignored).
+    /// Set from `ServerConfig::enable_graphql_sse` in `build_app_state`.
+    pub graphql_sse_enabled: bool,
+    /// Continuation batch size for `@stream` deliveries (#387).
+    ///
+    /// Set from `ServerConfig::graphql_sse_batch_size()` in `build_app_state`.
+    pub graphql_sse_batch_size: u32,
     /// Introspection policy for the GraphQL request path.
     ///
     /// Derived from `ServerConfig::introspection_enabled` /
@@ -237,6 +246,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             #[cfg(feature = "observers")]
             observer_runtime: None,
             max_get_query_bytes: 100_000,
+            graphql_sse_enabled: false,
+            graphql_sse_batch_size: 100,
             introspection_policy: IntrospectionPolicy::Disabled,
             schema_path: None,
             reload_adapter: None,

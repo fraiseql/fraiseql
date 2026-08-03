@@ -78,6 +78,13 @@ impl DirectiveEvaluator {
                         return Ok(false); // Skip if include is false
                     }
                 },
+                // Incremental-delivery directives (#387). They are *advisory* per the
+                // GraphQL incremental-delivery proposal — a server may serve the full
+                // result — and the SSE transport is the component that honours them.
+                // Everywhere else they are known, deliberate no-ops, not unknown
+                // directives to warn about on every execution (a streamed operation
+                // re-executes per batch, which would repeat the warning).
+                "stream" | "defer" => {},
                 _ => {
                     // Unknown directive - for now, pass through with warning
                     // In the future, could support custom directives via hooks

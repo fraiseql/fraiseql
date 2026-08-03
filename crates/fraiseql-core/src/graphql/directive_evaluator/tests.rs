@@ -338,6 +338,27 @@ mod directive_evaluator_tests {
     }
 
     #[test]
+    fn stream_and_defer_are_known_advisory_directives_even_under_strict_mode() {
+        // #387: @stream/@defer are transport-advisory per the GraphQL
+        // incremental-delivery proposal. Strict mode rejects UNKNOWN directives;
+        // these are known no-ops outside the SSE transport, so they must
+        // include-and-continue rather than error.
+        let evaluator = CustomDirectiveEvaluator::new().strict();
+        let context = EvaluationContext::new(HashMap::new());
+        for name in ["stream", "defer"] {
+            let field = make_field(
+                "items",
+                vec![Directive {
+                    name:      name.to_string(),
+                    arguments: vec![],
+                }],
+            );
+            let result = evaluator.evaluate_directives_with_context(&field, &context).unwrap();
+            assert_eq!(result, DirectiveResult::Include, "@{name} must include-and-continue");
+        }
+    }
+
+    #[test]
     fn test_custom_directive_lenient_mode_unknown() {
         let evaluator = CustomDirectiveEvaluator::new();
 

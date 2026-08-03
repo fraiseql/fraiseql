@@ -346,6 +346,27 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_pool_timeout")]
     pub pool_timeout_secs: u64,
 
+    /// Enable the GraphQL-over-SSE response transport (#387). Default `false`.
+    ///
+    /// When enabled, a request to the GraphQL endpoint carrying
+    /// `Accept: text/event-stream` receives its response as Server-Sent Events
+    /// (`next` payload events followed by `complete`), and a query whose root
+    /// field carries `@stream(initialCount: N)` is delivered incrementally:
+    /// an initial payload with `N` items, then batches re-executed through the
+    /// full pipeline (auth, validation, RLS, caching) with paginated variables.
+    /// When disabled (default), the `Accept` header is ignored and behaviour is
+    /// byte-for-byte unchanged; `@stream`/`@defer` remain advisory no-ops.
+    #[serde(default)]
+    pub enable_graphql_sse: bool,
+
+    /// Continuation batch size for `@stream` deliveries (#387).
+    ///
+    /// Rows per incremental batch after the initial payload. Optional; defaults
+    /// to 100. Setting it while [`enable_graphql_sse`](Self::enable_graphql_sse)
+    /// is `false` is a configuration error (the value would be inert).
+    #[serde(default)]
+    pub graphql_sse_stream_batch_size: Option<u32>,
+
     /// Read replica connection URLs (#407). Empty = no replicas.
     ///
     /// When set, compiled GraphQL *queries* (and every other structurally
@@ -1001,6 +1022,8 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
+            enable_graphql_sse: false, // SSE transport is opt-in (#387)
+            graphql_sse_stream_batch_size: None, // 100 when SSE is enabled
             read_replica_urls: Vec::new(), // Primary-only by default
             read_replica_pin_after_write_ms: None, // 5000 ms when replicas are set
 
