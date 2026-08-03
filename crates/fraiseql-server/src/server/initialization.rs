@@ -1253,7 +1253,8 @@ pub fn tenant_isolation_declaration_check(
              Row-Level Security is declared. Cache keys do not carry a tenant, so two \
              tenants issuing the same query would share one cached response. In \
              fraiseql.toml either declare `[security.rls] enabled = true` (and define the \
-             policies in the database), disable caching with `[cache] enabled = false`, or \
+             policies in the database), disable caching with `cache_enabled = false` in the \
+             server configuration, or \
              set `[security] multi_tenant = false` with `[tenancy] mode = \"none\"` to \
              acknowledge single-tenant mode.",
             schema.tenancy_mode()
@@ -1298,6 +1299,32 @@ pub(super) async fn verify_declared_rls<A: DatabaseAdapter>(
         .enforce_rls(schema, enforcement)
         .await
         .map_err(|e| crate::ServerError::ConfigError(e.to_string()))
+}
+
+/// Warn when the compiled schema declares per-query cache TTLs but the server's
+/// result cache is off (#623): every `cache_ttl_seconds` — SDK-authored or
+/// lowered from `[[caching.rules]]` — is silently inert then, and an operator
+/// who wrote cache rules believes caching is active.
+pub(super) fn warn_on_inert_cache_ttls(schema: &CompiledSchema, cache_enabled: bool) {
+    if cache_enabled {
+        return;
+    }
+    let declared: Vec<&str> = schema
+        .queries
+        .iter()
+        .filter(|q| q.cache_ttl_seconds.is_some())
+        .map(|q| q.name.as_str())
+        .collect();
+    if !declared.is_empty() {
+        warn!(
+            queries = ?declared,
+            "The compiled schema declares cache TTLs for {} query/queries, but the server's \
+             result cache is disabled (`cache_enabled = false`) — the TTLs (and any \
+             [[caching.rules]] they came from) have no effect. Enable `cache_enabled` or \
+             remove the declarations.",
+            declared.len()
+        );
+    }
 }
 
 /// Refuse to boot when the compiled schema marks any field for at-rest encryption.

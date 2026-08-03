@@ -150,6 +150,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             &schema,
             config.cache_enabled,
         )?;
+        // #623: declared cache TTLs with the cache off are silently inert — say so.
+        crate::server::initialization::warn_on_inert_cache_ttls(&schema, config.cache_enabled);
 
         // Build cache from config.
         let cache_config = CacheConfig::from(config.cache_enabled);

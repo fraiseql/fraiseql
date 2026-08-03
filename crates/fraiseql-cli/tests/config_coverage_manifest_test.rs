@@ -138,7 +138,12 @@ const MANIFEST: &[(&str, &str)] = &[
         "REJECTED at load (#4) — declared-but-unenforced authz (#626)",
     ),
     // ── Accepted-but-unconsumed sections rejected loud at load (#612) ────────
-    ("caching.*", "REJECTED at load (#1) — no compiled/runtime consumer (#623)"),
+    (
+        "caching.*",
+        "#623: rules lowered by the merger onto QueryDefinition.cache_ttl_seconds + \
+         MutationDefinition.invalidates_views (the P12-consumed fields); \
+         backend/redis_url and no-op shapes REJECTED at load",
+    ),
     ("analytics.*", "REJECTED at load (#2) — fully inert (#624)"),
     ("observability.*", "REJECTED at load (#3) — use [metrics]/[tracing] (#625)"),
 ];

@@ -363,3 +363,252 @@ fn collect_nonnull_paths(value: &serde_json::Value, prefix: &str, out: &mut BTre
         _ => {},
     }
 }
+
+// ── #623: [[caching.rules]] lower onto the compiled per-query TTL and
+//    per-mutation invalidates_views — the fields the runtime already consumes ──
+
+/// Fixture with a TTL-less query, a second query, and a mutation, so the rules
+/// (not SDK annotations) are what the assertions observe.
+const CACHING_TYPES_JSON: &str = r#"
+{
+  "types": [
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        {"name": "id", "type": "ID", "nullable": false}
+      ]
+    },
+    {
+      "name": "Inventory",
+      "sql_source": "v_inventory",
+      "fields": [
+        {"name": "id", "type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_order"
+    },
+    {
+      "name": "inventory",
+      "return_type": "Inventory",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_inventory"
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createOrder",
+      "return_type": "Order",
+      "sql_source": "fn_create_order"
+    }
+  ]
+}
+"#;
+
+const CACHING_TOML_HEAD: &str = r#"
+[schema]
+name = "contract_caching"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+"#;
+
+/// A `[[caching.rules]]` entry lowers its TTL onto the named query's
+/// `cache_ttl_seconds` and appends the query's view to each trigger mutation's
+/// `invalidates_views` — the two compiled fields the P12-tested runtime
+/// (per-view TTL map + mutation-driven invalidation) actually consumes.
+#[test]
+fn caching_rule_lowers_ttl_and_invalidation_triggers() {
+    let toml = format!(
+        r#"{CACHING_TOML_HEAD}
+[caching]
+enabled = true
+
+[[caching.rules]]
+query = "inventory"
+ttl_seconds = 120
+invalidation_triggers = ["createOrder"]
+"#
+    );
+    let compiled_json = compile(CACHING_TYPES_JSON, &toml);
+    let schema = CompiledSchema::from_json(&compiled_json, false)
+        .expect("core must parse CLI-produced schema");
+
+    let query = schema
+        .queries
+        .iter()
+        .find(|q| q.name == "inventory")
+        .expect("inventory query present");
+    assert_eq!(query.cache_ttl_seconds, Some(120), "rule TTL must land on the query");
+
+    let mutation = schema
+        .mutations
+        .iter()
+        .find(|m| m.name == "createOrder")
+        .expect("createOrder mutation present");
+    assert!(
+        mutation.invalidates_views.iter().any(|v| v == "v_inventory"),
+        "the trigger mutation must gain the rule query's view in invalidates_views, got {:?}",
+        mutation.invalidates_views
+    );
+}
+
+/// A rule naming a query that does not exist must fail the compile loudly —
+/// a cache rule that silently matches nothing is the #612 config-honesty bug
+/// this section was rejected over.
+#[test]
+fn caching_rule_with_unknown_query_fails_compile() {
+    let toml = format!(
+        r#"{CACHING_TOML_HEAD}
+[caching]
+enabled = true
+
+[[caching.rules]]
+query = "no_such_query"
+ttl_seconds = 60
+invalidation_triggers = []
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &toml);
+    assert!(err.contains("no_such_query"), "the error must name the unknown query: {err}");
+}
+
+/// A trigger naming a mutation that does not exist must fail the compile.
+#[test]
+fn caching_rule_with_unknown_trigger_fails_compile() {
+    let toml = format!(
+        r#"{CACHING_TOML_HEAD}
+[caching]
+enabled = true
+
+[[caching.rules]]
+query = "inventory"
+ttl_seconds = 60
+invalidation_triggers = ["no_such_mutation"]
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &toml);
+    assert!(
+        err.contains("no_such_mutation"),
+        "the error must name the unknown trigger mutation: {err}"
+    );
+}
+
+/// A rule targeting a query that already carries an SDK-authored
+/// `cache_ttl_seconds` must fail: two authoring sources for the same TTL must
+/// not silently last-write-win.
+#[test]
+fn caching_rule_conflicting_with_sdk_ttl_fails_compile() {
+    // TYPES_JSON's `orders` already declares cache_ttl_seconds = 300.
+    let toml = format!(
+        r#"{CACHING_TOML_HEAD}
+[caching]
+enabled = true
+
+[[caching.rules]]
+query = "orders"
+ttl_seconds = 60
+invalidation_triggers = []
+"#
+    );
+    let err = compile_err(TYPES_JSON, &toml);
+    assert!(
+        err.contains("orders") && err.contains("cache_ttl_seconds"),
+        "the error must name the doubly-declared query and field: {err}"
+    );
+}
+
+/// `enabled = false` with rules, `enabled = true` with no rules, a non-memory
+/// backend, and a set `redis_url` are each refused: every one is a
+/// configuration that silently does nothing (or claims a backend that does
+/// not exist — there is no Redis result cache anywhere in the runtime).
+#[test]
+fn caching_dishonest_configurations_fail_compile() {
+    let disabled_with_rules = format!(
+        r#"{CACHING_TOML_HEAD}
+[caching]
+enabled = false
+
+[[caching.rules]]
+query = "inventory"
+ttl_seconds = 60
+invalidation_triggers = []
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &disabled_with_rules);
+    assert!(err.contains("enabled"), "disabled-with-rules must be refused: {err}");
+
+    let enabled_without_rules = format!(
+        r"{CACHING_TOML_HEAD}
+[caching]
+enabled = true
+"
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &enabled_without_rules);
+    assert!(
+        err.contains("rules"),
+        "enabled-without-rules does nothing and must be refused: {err}"
+    );
+
+    let redis_backend = format!(
+        r#"{CACHING_TOML_HEAD}
+[caching]
+enabled = true
+backend = "redis"
+
+[[caching.rules]]
+query = "inventory"
+ttl_seconds = 60
+invalidation_triggers = []
+"#
+    );
+    let err = compile_err(CACHING_TYPES_JSON, &redis_backend);
+    assert!(
+        err.contains("redis"),
+        "a backend with no runtime counterpart must be refused: {err}"
+    );
+}
+
+/// Compile expecting failure; returns combined stdout+stderr.
+fn compile_err(types_json: &str, toml_config: &str) -> String {
+    let temp_dir = TempDir::new().unwrap();
+    let types_path = temp_dir.path().join("types.json");
+    let toml_path = temp_dir.path().join("fraiseql.toml");
+    let output_path = temp_dir.path().join("schema.compiled.json");
+    fs::write(&types_path, types_json).unwrap();
+    fs::write(&toml_path, toml_config).unwrap();
+
+    let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
+    let output = Command::new(cli_path)
+        .args([
+            "compile",
+            toml_path.to_str().unwrap(),
+            "--types",
+            types_path.to_str().unwrap(),
+            "--output",
+            output_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to run fraiseql-cli");
+    assert!(
+        !output.status.success(),
+        "compile must fail for this configuration; stdout: {} stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}

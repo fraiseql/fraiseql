@@ -511,3 +511,94 @@ async fn a_mutation_on_a_declared_secondary_view_invalidates_the_joined_query() 
         "#761: a query declaring additional_views=[v_user] must be invalidated by a User mutation"
     );
 }
+
+// ---------------------------------------------------------------------------
+// #623 — the exact shape a [[caching.rules]] entry lowers to: a TTL'd query
+// plus a cross-view invalidation trigger declared on an unrelated mutation
+// ---------------------------------------------------------------------------
+
+/// The compiled output of:
+/// `[[caching.rules]] query = "reports", ttl_seconds = 300,
+///  invalidation_triggers = ["updateUser"]`
+/// — a TTL on the query, and the query's view in the trigger mutation's
+/// `invalidates_views`. The mutation's own return type is `User`/`v_user`, so
+/// without the declared edge nothing would connect it to `v_report`.
+fn caching_rule_schema() -> CompiledSchema {
+    let mut trigger = mutation(
+        "updateUser",
+        MutationOperation::Update {
+            table: "tb_user".to_string(),
+        },
+    );
+    trigger.invalidates_views = vec!["v_report".to_string()];
+
+    TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("User", "v_user")
+                .with_field(TestFieldBuilder::new("id", FieldType::Id).build())
+                .with_field(TestFieldBuilder::new("name", FieldType::String).build())
+                .with_field(TestFieldBuilder::new("role", FieldType::String).build())
+                .build(),
+        )
+        .with_type(
+            TestTypeBuilder::new("Report", "v_report")
+                .with_field(TestFieldBuilder::new("id", FieldType::Id).build())
+                .with_field(TestFieldBuilder::new("name", FieldType::String).build())
+                .build(),
+        )
+        .with_query(
+            TestQueryBuilder::new("reports", "Report")
+                .returns_list(true)
+                .with_sql_source("v_report")
+                .with_cache_ttl(300)
+                .build(),
+        )
+        .with_mutation(trigger)
+        .build()
+}
+
+/// #623: a declared invalidation trigger — the compiled form of a
+/// `[[caching.rules]] invalidation_triggers` entry — must serve fresh rows for
+/// the TTL-cached query after the trigger mutation, even though the mutation's
+/// own views share nothing with the query's.
+#[tokio::test]
+async fn a_caching_rule_trigger_invalidates_the_ttl_cached_query() {
+    let inner = SwappableAdapter::new(
+        vec![JsonbValue::new(json!({"id": ALICE, "name": "before"}))],
+        success_row(Some(BOB)),
+    );
+    let cached = Arc::new(CachedDatabaseAdapter::new(
+        inner,
+        QueryResultCache::new(CacheConfig::enabled()),
+        "test-v1".to_string(),
+    ));
+    // The runtime seam every server constructor goes through: the rule's TTL
+    // reaches the cache only via the schema metadata (opt-in mode).
+    let cached = Arc::new(
+        Arc::into_inner(cached)
+            .expect("sole owner")
+            .with_cache_metadata_from_schema(&caching_rule_schema()),
+    );
+    let executor = Executor::new(caching_rule_schema(), Arc::clone(&cached));
+
+    let warm = executor
+        .execute("query { reports { id name } }", None)
+        .await
+        .expect("warm read");
+    assert_eq!(warm["data"]["reports"][0]["name"], json!("before"));
+
+    *cached.inner().rows.lock().expect("rows lock") =
+        vec![JsonbValue::new(json!({"id": ALICE, "name": "after"}))];
+
+    executor
+        .execute("mutation { updateUser { id } }", None)
+        .await
+        .expect("mutation");
+
+    let again = executor.execute("query { reports { id name } }", None).await.expect("re-read");
+    assert_eq!(
+        again["data"]["reports"][0]["name"],
+        json!("after"),
+        "#623: the declared invalidation trigger must evict the TTL-cached query"
+    );
+}

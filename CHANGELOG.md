@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`[[caching.rules]]` is real (#623).** The `[caching]` section — rejected as inert
+  since #612 — now lowers each rule at compile time onto the two compiled fields the
+  result cache already consumes: the named query's `cache_ttl_seconds` (the per-view
+  TTL map, opt-in) and each `invalidation_triggers` mutation's `invalidates_views`
+  (mutation-driven eviction). `fraiseql.toml` can therefore author per-query caching
+  and cross-entity invalidation edges without the SDK. Every silently-inert shape is
+  a compile error: an unknown query or trigger mutation, a TTL already authored via
+  the SDK (no last-write-wins between sources), `enabled = false` with rules,
+  `enabled = true` without rules, and any `backend`/`redis_url` (there is no
+  Redis-backed result cache; the `backend` default is now the honest `"memory"`).
+  The server warns at boot when TTLs are declared but `cache_enabled` is off, and
+  the multi-tenant cache refusal now names the real `cache_enabled` key instead of a
+  nonexistent `[cache]` section. `docs/modules/cache.md` corrected: TTL 0 means
+  mutation-invalidated-only (not "never cache"), expiry is moka-managed (no
+  read-time check), and there is no `POST /cache/invalidate` endpoint.
+
 - **Operation cost budgets are now a full surface (#379).** What already shipped in
   June (the request-time cost estimator, `[fraiseql.cost_weights]`, the per-tenant
   per-request `cost_budget`, `[security] persisted_queries_only`) gains the missing
