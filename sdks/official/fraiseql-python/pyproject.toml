@@ -104,6 +104,9 @@ select = [
 "src/fraiseql/integrations/llamaindex.py" = [
   "TC001"  # Runtime import used in __init__ constructor
 ]
+"src/fraiseql/integrations/rag.py" = [
+  "PLR0913"  # The retrieval-source options are keyword-only configuration, not positional sprawl
+]
 "tests/**/*.py" = [
   "ANN",  # Don't require type annotations in tests
   "ARG",  # Mock handler signatures must accept unused arguments (e.g., request)
