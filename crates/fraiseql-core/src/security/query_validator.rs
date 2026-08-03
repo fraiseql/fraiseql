@@ -179,6 +179,26 @@ impl QueryValidator {
     /// Returns [`SecurityError::QueryTooComplex`] if complexity exceeds `max_complexity`.
     /// Returns [`SecurityError::TooManyAliases`] if alias count exceeds `max_aliases`.
     pub fn validate(&self, query: &str) -> Result<QueryMetrics> {
+        self.validate_with_variables(query, None)
+    }
+
+    /// Validate a GraphQL query with the request's variables available for
+    /// pagination-argument resolution.
+    ///
+    /// Identical to [`validate`](Self::validate), except a variable-valued
+    /// pagination argument (`first: $n`) is scored at its resolved value
+    /// rather than at the fail-closed ceiling (#869). Callers that have the
+    /// request variables must use this entry point, or legitimate
+    /// variable-paginated queries are over-scored and rejected.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`validate`](Self::validate).
+    pub fn validate_with_variables(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<QueryMetrics> {
         // Check 1: Validate query size (O(1) — pre-parse)
         let size_bytes = query.len();
         if size_bytes > self.config.max_size_bytes {
@@ -195,8 +215,9 @@ impl QueryValidator {
             max_aliases:    self.config.max_aliases,
         });
 
-        let metrics =
-            rv.analyze(query).map_err(|e| SecurityError::MalformedQuery(e.to_string()))?;
+        let metrics = rv
+            .analyze_with_variables(query, variables)
+            .map_err(|e| SecurityError::MalformedQuery(e.to_string()))?;
 
         // Check 3: Query depth
         if metrics.depth > self.config.max_depth {

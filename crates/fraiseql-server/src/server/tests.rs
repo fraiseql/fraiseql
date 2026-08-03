@@ -2,6 +2,111 @@
 // tests moved to `fraiseql_core::runtime` alongside `RuntimeConfig::from_compiled_schema`,
 // the single seam every server constructor now routes through (H16).
 
+// ── executor_gate_config_tests: #379 — runtime [validation] merges into the
+//    executor gate (runtime TOML > compiled schema, per field) ───────────────
+
+mod executor_gate_config_tests {
+    use fraiseql_core::schema::{CompiledSchema, ValidationConfig};
+
+    use super::super::initialization::executor_runtime_config;
+    use crate::server_config::ServerConfig;
+
+    fn compiled_with(depth: Option<u32>, complexity: Option<u32>) -> CompiledSchema {
+        CompiledSchema {
+            validation_config: Some(ValidationConfig {
+                max_query_depth:      depth,
+                max_query_complexity: complexity,
+                max_page_size:        None,
+            }),
+            ..CompiledSchema::default()
+        }
+    }
+
+    /// With no runtime `[validation]` override, the helper leaves
+    /// `query_validation` unset so the executor derives the gate from the
+    /// compiled schema's own declared limits.
+    #[test]
+    fn no_runtime_override_leaves_derivation_to_the_executor() {
+        let schema = compiled_with(Some(8), Some(100));
+        let config = ServerConfig::default();
+        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        assert!(
+            rt.query_validation.is_none(),
+            "without a runtime override the executor derives from the compiled schema"
+        );
+    }
+
+    /// A runtime `[validation]` override merges per field: the runtime value
+    /// wins where set, the compiled declared value fills the rest. This is the
+    /// documented precedence (runtime TOML > compiled schema) — without the
+    /// merge, a runtime override that loosens a compiled limit would be
+    /// silently negated by the executor gate.
+    #[test]
+    fn runtime_override_merges_per_field_over_compiled() {
+        let schema = compiled_with(Some(8), Some(100));
+        let config = ServerConfig {
+            validation: Some(ValidationConfig {
+                max_query_depth:      None,
+                max_query_complexity: Some(500),
+                max_page_size:        None,
+            }),
+            ..ServerConfig::default()
+        };
+        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let gate = rt.query_validation.expect("a runtime override must install the gate");
+        assert_eq!(gate.max_complexity, 500, "runtime value wins for complexity");
+        assert_eq!(gate.max_depth, 8, "compiled declared value fills undeclared depth");
+    }
+
+    /// The merged gate actually binds at the executor: a query passing the
+    /// loosened runtime complexity limit executes (reaches the adapter), and a
+    /// too-deep query is refused by the gate before any database access.
+    #[tokio::test]
+    async fn merged_gate_binds_at_the_executor() {
+        use std::sync::Arc;
+
+        use fraiseql_core::runtime::Executor;
+        use fraiseql_test_utils::failing_adapter::FailingAdapter;
+
+        let schema = compiled_with(Some(3), Some(100));
+        let config = ServerConfig {
+            validation: Some(ValidationConfig {
+                max_query_depth:      None,
+                max_query_complexity: Some(500),
+                max_page_size:        None,
+            }),
+            ..ServerConfig::default()
+        };
+        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let executor = Executor::with_config(schema, Arc::new(FailingAdapter::new()), rt);
+
+        // Complexity ~301 (1 + 3×100): over the compiled 100, under the runtime
+        // 500 — must pass the gate and fail *downstream* (the schema declares
+        // no queries), proving the loosened limit is the one enforced.
+        let loosened = "{ users(limit: 100) { id name email } }";
+        let err = executor
+            .execute(loosened, None)
+            .await
+            .expect_err("the empty schema cannot match any query once the gate admits it");
+        assert!(
+            !err.to_string().to_lowercase().contains("complex"),
+            "a complexity-500-limit gate must not reject cost 301: {err}"
+        );
+
+        // Depth 5 against the compiled depth 3 (runtime silent on depth):
+        // refused by the gate, never reaching the adapter.
+        let deep = "{ users { a { b { c { d } } } } }";
+        let err = executor
+            .execute(deep, None)
+            .await
+            .expect_err("depth 5 must be refused by the compiled max_query_depth=3");
+        assert!(
+            err.to_string().to_lowercase().contains("deep"),
+            "rejection must come from the depth gate, not the adapter: {err}"
+        );
+    }
+}
+
 // ── initialization_tests ──────────────────────────────────────────────────────
 
 mod initialization_tests {

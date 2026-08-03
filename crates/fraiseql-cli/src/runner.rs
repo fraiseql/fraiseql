@@ -460,9 +460,18 @@ pub async fn run() {
             .await
         },
 
-        Commands::ValidateDocuments { manifest } => {
+        Commands::ValidateDocuments {
+            manifest,
+            max_cost,
+            schema,
+        } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
-            match commands::validate_documents::run(&manifest, &formatter) {
+            match commands::validate_documents::run(
+                &manifest,
+                max_cost,
+                schema.as_deref(),
+                &formatter,
+            ) {
                 Ok(true) => Ok(()),
                 Ok(false) => {
                     process::exit(2);

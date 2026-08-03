@@ -2070,8 +2070,7 @@ mod runtime_mod_tests {
     fn test_default_config() {
         let config = RuntimeConfig::default();
         assert!(config.cache_query_plans);
-        assert_eq!(config.max_query_depth, 10);
-        assert_eq!(config.max_query_complexity, 1000);
+        assert!(config.query_validation.is_none());
         assert!(!config.enable_tracing);
     }
 

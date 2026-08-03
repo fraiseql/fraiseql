@@ -49,6 +49,12 @@ pub struct SecuritySettings {
     /// (reject any non-persisted operation) regardless of `[security.trusted_documents].mode`.
     /// Requires a configured trusted-documents manifest to have any effect.
     pub persisted_queries_only: bool,
+    /// Operation cost budgets (#379): `per_request_max` (a hard per-operation
+    /// ceiling the executor enforces on every transport) and
+    /// `per_tenant_per_minute_default` (the rolling window seeded for tenants
+    /// without their own budget). Shares the runtime's own type so the
+    /// authoring and consuming shapes cannot drift.
+    pub cost_budget:            Option<fraiseql_core::schema::CostBudgetConfig>,
 }
 
 impl Default for SecuritySettings {
@@ -69,6 +75,7 @@ impl Default for SecuritySettings {
             token_revocation:       None,
             trusted_documents:      None,
             persisted_queries_only: false,
+            cost_budget:            None,
         }
     }
 }

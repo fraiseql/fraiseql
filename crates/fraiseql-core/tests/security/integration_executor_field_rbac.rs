@@ -308,22 +308,21 @@ fn test_executor_projection_fields_filtered_by_scope() {
 #[test]
 fn test_executor_runtime_config_with_field_filter() {
     let config = RuntimeConfig {
-        cache_query_plans:    true,
-        max_query_depth:      10,
-        max_query_complexity: 1000,
-        max_page_size:        Some(1000),
-        enable_tracing:       false,
-        field_filter:         None,
-        rls_policy:           None,
-        field_authorizer:     None,
-        authorizer:           None,
-        query_timeout_ms:     30_000,
-        jsonb_optimization:   JsonbOptimizationOptions::default(),
-        query_validation:     None,
-        audit_mutations:      false,
-        changelog_enabled:    true,
-        dry_run_mutations:    false,
-        cascade_limits:       fraiseql_core::runtime::CascadeLimits::default(),
+        cache_query_plans:  true,
+        max_page_size:      Some(1000),
+        enable_tracing:     false,
+        field_filter:       None,
+        rls_policy:         None,
+        field_authorizer:   None,
+        authorizer:         None,
+        query_timeout_ms:   30_000,
+        jsonb_optimization: JsonbOptimizationOptions::default(),
+        query_validation:   None,
+        max_operation_cost: None,
+        audit_mutations:    false,
+        changelog_enabled:  true,
+        dry_run_mutations:  false,
+        cascade_limits:     fraiseql_core::runtime::CascadeLimits::default(),
     };
 
     // WHEN: Config is created

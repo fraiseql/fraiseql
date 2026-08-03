@@ -7,7 +7,7 @@ use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::traits::DatabaseAdapter,
-    runtime::{Executor, RuntimeConfig, SubscriptionManager},
+    runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
     security::{AuthConfig, AuthMiddleware, OidcValidator},
 };
@@ -127,12 +127,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         // Build the runtime config from the compiled schema. This is the single
         // seam every server constructor routes through (H16): it validates the
         // schema format version (warns on legacy, rejects incompatible), reads the
-        // audit-logging flag, applies the #421 page-size ceiling, and the
-        // change-log toggle. Doing it first preserves "reject bad version before
-        // any further setup".
-        let executor_config = RuntimeConfig::from_compiled_schema(&schema).map_err(|msg| {
-            ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
-        })?;
+        // audit-logging flag, applies the #421 page-size ceiling, the change-log
+        // toggle, and the runtime [validation] override on the executor gate
+        // (#379). Doing it first preserves "reject bad version before any
+        // further setup".
+        let executor_config = crate::server::initialization::executor_runtime_config(
+            &schema, &config,
+        )
+        .map_err(|msg| ServerError::ConfigError(format!("Incompatible compiled schema: {msg}")))?;
 
         // Refuse to boot if any field is marked for at-rest encryption: the write path does
         // not encrypt (H12), so those fields would be stored in plaintext. Fail loud rather

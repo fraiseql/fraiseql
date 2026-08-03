@@ -281,9 +281,35 @@ pub struct SecurityConfig {
     #[serde(default, skip_serializing_if = "is_default_tenancy")]
     pub tenancy: TenancyConfig,
 
+    /// Operation cost budgets (#379), compiled from `[security.cost_budget]`.
+    ///
+    /// `per_request_max` is enforced by the **executor** (every transport that
+    /// executes a GraphQL document), not only by the HTTP handler; the
+    /// per-tenant default seeds the tenant registry's rolling windows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_budget: Option<CostBudgetConfig>,
+
     /// Additional security settings (rate limiting, audit logging, etc.)
     #[serde(flatten)]
     pub additional: HashMap<String, serde_json::Value>,
+}
+
+/// Compiled `[security.cost_budget]` (#379).
+///
+/// `deny_unknown_fields`: a typo'd budget key must fail the load, not silently
+/// leave the budget unenforced (the compiled-schema seam rule).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct CostBudgetConfig {
+    /// Hard ceiling on a single operation's estimated cost, enforced in the
+    /// executor's dispatch for **every** transport. `None` = no ceiling.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_request_max: Option<u64>,
+
+    /// Default rolling per-minute cost budget for registered tenants that do
+    /// not set their own `cost_budget_per_minute`. `None` = no default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_tenant_per_minute_default: Option<u64>,
 }
 
 impl SecurityConfig {

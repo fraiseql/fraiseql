@@ -83,6 +83,21 @@ async fn metrics_endpoint_contains_standard_counters() {
     assert!(body.contains("# TYPE fraiseql_graphql_queries_total counter"));
 }
 
+/// #379: the estimated operation cost is exported as a counter so an operator
+/// can observe real traffic costs before sizing budgets, and dashboards can
+/// derive average cost per query.
+#[tokio::test]
+async fn metrics_endpoint_contains_operation_cost_counter() {
+    let state = make_metrics_state();
+    state.metrics.queries_cost_total.fetch_add(1234, Ordering::Relaxed);
+    let router = metrics_router(state);
+    let (_, body) = get_text(&router, "/metrics").await;
+    assert!(
+        body.contains("fraiseql_graphql_queries_cost_total 1234"),
+        "missing queries_cost_total"
+    );
+}
+
 #[tokio::test]
 async fn metrics_endpoint_contains_db_pool_metrics() {
     let state = make_metrics_state();

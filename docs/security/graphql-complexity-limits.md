@@ -71,11 +71,40 @@ Location: crates/fraiseql-core/src/validation/rate_limiting.rs
 
 ---
 
+## Cost Budgets (#379)
+
+The estimated operation cost (the complexity score, with root-operation
+`[fraiseql.cost_weights]` overriding their subtree walk) is enforced at three
+levels:
+
+| Level | Config | Rejection | Scope |
+|-------|--------|-----------|-------|
+| Schema-wide per-request ceiling | `[security.cost_budget] per_request_max` | `OPERATION_COST_EXCEEDED` (200 + `errors[]`, not retryable) | **Inside the executor** — every transport that executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions bridge, direct embedders) |
+| Per-tenant per-request budget | tenant-quota admin API `cost_budget` | `OPERATION_COST_EXCEEDED` | `/graphql`, at the shared tenant-dispatch seam |
+| Per-tenant rolling minute window | tenant-quota admin API `cost_budget_per_minute`, defaulted by `[security.cost_budget] per_tenant_per_minute_default` | `COST_BUDGET_EXHAUSTED` (429 + `Retry-After`) | `/graphql`, same seam |
+
+Declared `[validation]` depth/complexity limits likewise bind **inside the
+executor** (derived at construction), so a bound declared in the compiled
+schema holds on every transport, not only at the HTTP stage. Transports that
+never execute client-authored documents are bounded structurally: MCP builds
+its documents from the schema (constant cost per tool — the per-tenant budget
+deliberately does not meter it), subscriptions honor only the root field name,
+and the Flight service refuses ad-hoc GraphQL outright (no executor attached).
+
+Observability: every `/graphql` request logs its estimated cost with tenant
+and operation on the `fraiseql::cost_audit` tracing target, and the running
+sum is exported as `fraiseql_graphql_queries_cost_total` — size budgets from
+observed traffic before enforcing them. Registered persisted documents can be
+costed ahead of deployment with
+`fraiseql validate-documents manifest.json --max-cost N [--schema schema.compiled.json]`.
+
+---
+
 ## Not Implemented
 
 | Attack | Status | Notes |
 |--------|--------|-------|
-| **Cost/complexity budget** | ⚠️ Partial (#379) | Per-tenant `cost_budget` and root-operation `@cost` weights are enforced at the rate-limit chokepoint (429 when exceeded). Fine-grained per-field cost scoring is not yet present — the score is the type-agnostic complexity count. |
+| **Per-field cost weights** | ⚠️ Partial (#379) | Cost budgets, root-operation `@cost` weights, per-tenant windows and the schema-wide ceiling are enforced (see above). Fine-grained *per-field* cost scoring is not present — non-weighted roots score the type-agnostic complexity count. |
 | **Fragment cycle detection** | ❓ Unverified | `graphql-parser` crate handles AST parsing; cycle detection depends on the library. |
 | **Introspection disable** | ❓ Unverified | No `disable_introspection` flag found in `validation.rs`. Check `routes/graphql/handler.rs`. |
 | **Batch query amplification** | ❓ Unverified | HTTP batching (array of operations) not confirmed present or absent. |
@@ -94,10 +123,18 @@ max_query_depth = 10
 # Overridable at runtime with FRAISEQL_MAX_PAGE_SIZE (a number, or 0/none to disable).
 max_page_size = 1000
 
+[security.cost_budget]
+# Hard per-operation cost ceiling, enforced inside the executor for every
+# transport (#379). Omit for no ceiling.
+per_request_max = 10000
+# Default rolling per-minute budget for registered tenants without their own
+# cost_budget_per_minute. Omit for no default.
+per_tenant_per_minute_default = 100000
+
 [fraiseql.security]
 # Per-operation @cost weights are declared under [fraiseql.cost_weights]; per-tenant
-# cost budgets are configured via the tenant-quota admin API (cost_budget). (#379)
-# A single global max_query_complexity toggle is not yet implemented.
+# cost budgets are configured via the tenant-quota admin API (cost_budget,
+# cost_budget_per_minute). (#379)
 
 [fraiseql.security.rate_limiting]
 # Rate limit for complexity error responses (default: 30 per 60s)

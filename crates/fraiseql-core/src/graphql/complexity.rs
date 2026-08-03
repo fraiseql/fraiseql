@@ -200,12 +200,30 @@ impl RequestValidator {
     ///
     /// Returns [`ComplexityValidationError::MalformedQuery`] if the query cannot be parsed.
     pub fn analyze(&self, query: &str) -> Result<QueryMetrics, ComplexityValidationError> {
+        self.analyze_with_variables(query, None)
+    }
+
+    /// Compute query metrics without enforcing any limits, resolving
+    /// variable-valued pagination arguments (`first: $n`) against `variables`.
+    ///
+    /// With `variables = None` an unresolvable pagination variable scores at
+    /// the fail-closed ceiling (#869); callers that have the request variables
+    /// must pass them or legitimate variable-paginated queries are over-scored.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ComplexityValidationError::MalformedQuery`] if the query cannot be parsed.
+    pub fn analyze_with_variables(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<QueryMetrics, ComplexityValidationError> {
         if query.trim().is_empty() {
             return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
         }
         let document = graphql_parser::parse_query::<String>(query)
             .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
-        Ok(self.document_metrics(&document, None))
+        Ok(self.document_metrics(&document, variables))
     }
 
     /// Compute depth, complexity, and alias count in a single memoizing pass.

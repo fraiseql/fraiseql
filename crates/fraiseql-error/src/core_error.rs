@@ -192,6 +192,25 @@ pub enum FraiseQLError {
         retry_after_secs: u64,
     },
 
+    /// Operation cost budget exceeded (#379).
+    ///
+    /// Distinct from [`RateLimited`](Self::RateLimited): a per-request cost
+    /// ceiling (`retry_after_secs: None`) is permanent for the operation —
+    /// retrying the same query cannot succeed — while an exhausted rolling
+    /// budget window (`Some`) is retryable once the window resets.
+    #[error("Operation cost exceeded: {message}")]
+    CostExceeded {
+        /// Error message.
+        message:          String,
+        /// Estimated cost of the rejected operation.
+        cost:             u64,
+        /// The budget the cost exceeded.
+        limit:            u64,
+        /// Seconds until the budget window resets; `None` for a per-request
+        /// ceiling.
+        retry_after_secs: Option<u64>,
+    },
+
     // ========================================================================
     // Resource Errors
     // ========================================================================

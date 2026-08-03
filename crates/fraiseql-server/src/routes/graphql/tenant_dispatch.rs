@@ -97,15 +97,37 @@ pub fn dispatch_to_tenant<A: DatabaseAdapter>(
     })
 }
 
-/// Charge the tenant's per-operation cost budget for `document` (#379).
+/// Estimate the cost of `document` for budget enforcement and observability
+/// (#379).
 ///
-/// Only an explicitly-keyed, registered tenant carries a budget, and the re-parse
-/// plus estimate are skipped entirely unless one is configured. A document that
-/// fails to parse here is left for the executor to reject.
+/// Returns `None` for a document that does not parse — rejection is left for
+/// the executor's own parse-error path. Computed unconditionally per request
+/// (one extra parse of an already-size-limited string) so an operator can
+/// observe real traffic costs *before* configuring any budget: the number that
+/// sizes `[security.cost_budget]` has to exist prior to enforcement.
+#[must_use]
+pub fn estimate_request_cost<A: DatabaseAdapter>(
+    document: &str,
+    variables: Option<&serde_json::Value>,
+    executor: &Executor<A>,
+) -> Option<u64> {
+    let doc = fraiseql_core::graphql::parse_graphql_document(document).ok()?;
+    Some(fraiseql_core::graphql::estimate_query_cost(
+        &doc,
+        &executor.schema().operation_cost_weights,
+        variables,
+    ) as u64)
+}
+
+/// Charge the tenant's cost budgets with a precomputed `cost` (#379).
+///
+/// Only an explicitly-keyed, registered tenant carries budgets. `cost` is
+/// `None` for an unparseable document, which is left for the executor to
+/// reject.
 ///
 /// Lives beside the other two because it is the fourth per-tenant quota and
 /// belongs to the same chokepoint; it is separate only because it needs the
-/// document.
+/// document's cost.
 ///
 /// **Deliberately not called by the MCP transport.** `estimate_query_cost` scores
 /// the *shape* of the document — root fields against
@@ -116,33 +138,34 @@ pub fn dispatch_to_tenant<A: DatabaseAdapter>(
 /// either always pass or permanently disable that tool for a budgeted tenant,
 /// rather than metering anything. Volume over MCP is bounded by the concurrency
 /// permit and the per-second limiter in [`dispatch_to_tenant`], which do apply.
-/// If a future MCP surface lets the caller shape the document, this is the call
-/// to add.
+/// (The schema-wide `[security.cost_budget] per_request_max` is different: it
+/// is the operator capping their own schema, enforced inside the executor for
+/// every transport including MCP.) If a future MCP surface lets the caller
+/// shape the document, this is the call to add.
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::RateLimited` when the estimated cost exceeds the
-/// tenant's budget.
+/// Returns `FraiseQLError::CostExceeded` when `cost` exceeds the tenant's
+/// per-request budget (no retry hint) or exhausts its per-minute window
+/// (`Retry-After` hint).
 pub fn charge_cost_budget<A: DatabaseAdapter>(
     state: &AppState<A>,
     tenant_key: Option<&str>,
-    document: &str,
-    variables: Option<&serde_json::Value>,
-    executor: &Executor<A>,
+    cost: Option<u64>,
 ) -> fraiseql_error::Result<()> {
-    let (Some(key), Some(registry)) = (tenant_key, state.tenant_registry()) else {
+    let (Some(key), Some(registry), Some(cost)) = (tenant_key, state.tenant_registry(), cost)
+    else {
         return Ok(());
     };
     if !registry.has_cost_budget(key) {
         return Ok(());
     }
-    if let Ok(doc) = fraiseql_core::graphql::parse_graphql_document(document) {
-        let cost = fraiseql_core::graphql::estimate_query_cost(
-            &doc,
-            &executor.schema().operation_cost_weights,
-            variables,
-        );
-        registry.check_cost_budget(key, cost)?;
-    }
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: cost values are bounded by document size; u64→usize is lossless on 64-bit
+    let cost = cost as usize;
+    // Per-request ceiling first — an operation that can never run must not
+    // consume any of the rolling window (#379).
+    registry.check_cost_budget(key, cost)?;
+    registry.charge_cost_window(key, cost)?;
     Ok(())
 }

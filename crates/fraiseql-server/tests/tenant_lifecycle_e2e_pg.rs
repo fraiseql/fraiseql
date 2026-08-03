@@ -76,6 +76,7 @@ fn registration(url: &str) -> TenantRegistrationRequest {
         max_concurrent:             None,
         max_storage_bytes_advisory: None,
         cost_budget:                None,
+        cost_budget_per_minute:     None,
     }
 }
 

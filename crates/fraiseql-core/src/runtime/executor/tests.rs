@@ -62,27 +62,25 @@ mod query {
         let schema = test_schema();
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let config = RuntimeConfig {
-            cache_query_plans:    false,
-            max_query_depth:      5,
-            max_query_complexity: 500,
-            max_page_size:        Some(1000),
-            enable_tracing:       true,
-            field_filter:         None,
-            rls_policy:           None,
-            field_authorizer:     None,
-            authorizer:           None,
-            query_timeout_ms:     30_000,
-            jsonb_optimization:   JsonbOptimizationOptions::default(),
-            query_validation:     None,
-            audit_mutations:      false,
-            changelog_enabled:    true,
-            dry_run_mutations:    false,
-            cascade_limits:       crate::runtime::CascadeLimits::default(),
+            cache_query_plans:  false,
+            max_page_size:      Some(1000),
+            enable_tracing:     true,
+            field_filter:       None,
+            rls_policy:         None,
+            field_authorizer:   None,
+            authorizer:         None,
+            query_timeout_ms:   30_000,
+            jsonb_optimization: JsonbOptimizationOptions::default(),
+            query_validation:   None,
+            max_operation_cost: None,
+            audit_mutations:    false,
+            changelog_enabled:  true,
+            dry_run_mutations:  false,
+            cascade_limits:     crate::runtime::CascadeLimits::default(),
         };
         let executor = Executor::with_config(schema, adapter, config);
 
         assert!(!executor.config().cache_query_plans);
-        assert_eq!(executor.config().max_query_depth, 5);
         assert!(executor.config().enable_tracing);
     }
 }
@@ -852,22 +850,21 @@ mod config {
     #[test]
     fn test_jsonb_strategy_in_runtime_config() {
         let config = RuntimeConfig {
-            cache_query_plans:    false,
-            max_query_depth:      5,
-            max_query_complexity: 500,
-            max_page_size:        Some(1000),
-            enable_tracing:       true,
-            field_filter:         None,
-            rls_policy:           None,
-            field_authorizer:     None,
-            authorizer:           None,
-            query_timeout_ms:     30_000,
-            jsonb_optimization:   JsonbOptimizationOptions::default(),
-            query_validation:     None,
-            audit_mutations:      false,
-            changelog_enabled:    true,
-            dry_run_mutations:    false,
-            cascade_limits:       crate::runtime::CascadeLimits::default(),
+            cache_query_plans:  false,
+            max_page_size:      Some(1000),
+            enable_tracing:     true,
+            field_filter:       None,
+            rls_policy:         None,
+            field_authorizer:   None,
+            authorizer:         None,
+            query_timeout_ms:   30_000,
+            jsonb_optimization: JsonbOptimizationOptions::default(),
+            query_validation:   None,
+            max_operation_cost: None,
+            audit_mutations:    false,
+            changelog_enabled:  true,
+            dry_run_mutations:  false,
+            cascade_limits:     crate::runtime::CascadeLimits::default(),
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -882,22 +879,21 @@ mod config {
         };
 
         let config = RuntimeConfig {
-            cache_query_plans:    false,
-            max_query_depth:      5,
-            max_query_complexity: 500,
-            max_page_size:        Some(1000),
-            enable_tracing:       true,
-            field_filter:         None,
-            rls_policy:           None,
-            field_authorizer:     None,
-            authorizer:           None,
-            query_timeout_ms:     30_000,
-            jsonb_optimization:   custom_options,
-            query_validation:     None,
-            audit_mutations:      false,
-            changelog_enabled:    true,
-            dry_run_mutations:    false,
-            cascade_limits:       crate::runtime::CascadeLimits::default(),
+            cache_query_plans:  false,
+            max_page_size:      Some(1000),
+            enable_tracing:     true,
+            field_filter:       None,
+            rls_policy:         None,
+            field_authorizer:   None,
+            authorizer:         None,
+            query_timeout_ms:   30_000,
+            jsonb_optimization: custom_options,
+            query_validation:   None,
+            max_operation_cost: None,
+            audit_mutations:    false,
+            changelog_enabled:  true,
+            dry_run_mutations:  false,
+            cascade_limits:     crate::runtime::CascadeLimits::default(),
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
@@ -1191,6 +1187,208 @@ mod security {
     }
 }
 
+// ── mod gate1_schema_derived: declared [validation] limits bind at the
+//    executor, not only at the /graphql stage (#379) ──────────────────────
+
+mod gate1_schema_derived {
+    use super::*;
+    use crate::schema::ValidationConfig;
+
+    fn schema_with_limits(depth: Option<u32>, complexity: Option<u32>) -> CompiledSchema {
+        let mut schema = test_schema();
+        schema.validation_config = Some(ValidationConfig {
+            max_query_depth:      depth,
+            max_query_complexity: complexity,
+            max_page_size:        None,
+        });
+        schema
+    }
+
+    fn executor_from_schema(schema: CompiledSchema) -> Executor<MockAdapter> {
+        let config = RuntimeConfig::from_compiled_schema(&schema)
+            .expect("test schema must produce a valid runtime config");
+        Executor::with_config(schema, Arc::new(MockAdapter::new(mock_user_results())), config)
+    }
+
+    /// A compiled `[validation] max_query_depth` must bind on `execute()`
+    /// itself — not only on the `/graphql` HTTP stage — so every transport
+    /// that reaches the executor (MCP, the functions bridge, a future Flight
+    /// wiring) is bounded by the operator's declared limit.
+    #[tokio::test]
+    async fn declared_depth_limit_binds_on_direct_execute() {
+        let executor = executor_from_schema(schema_with_limits(Some(3), None));
+
+        // Depth 5: users → a → b → c → d.
+        let query = "{ users { a { b { c { d } } } } }";
+        let err = executor
+            .execute(query, None)
+            .await
+            .expect_err("a depth-5 query must be refused by the declared max_query_depth=3");
+        let msg = err.to_string().to_lowercase();
+        assert!(msg.contains("deep"), "rejection must name the depth limit, got: {err:?}");
+    }
+
+    /// The executor gate must resolve pagination variables the way the
+    /// `/graphql` stage does (#869): `limit: $n` with `n = 5` scores ×5, not
+    /// at the fail-closed ×100 ceiling — otherwise enabling the gate rejects
+    /// legitimate variable-paginated queries the stage accepts.
+    #[tokio::test]
+    async fn declared_complexity_limit_resolves_pagination_variables() {
+        let executor = executor_from_schema(schema_with_limits(None, Some(150)));
+        let query = "query Q($n: Int) { users(limit: $n) { id name } }";
+
+        // 1 + 2×5 = 11 ≤ 150: must pass.
+        let small = serde_json::json!({ "n": 5 });
+        executor
+            .execute(query, Some(&small))
+            .await
+            .unwrap_or_else(|e| panic!("cost 11 must pass a complexity limit of 150: {e:?}"));
+
+        // 1 + 2×100 = 201 > 150: must be refused.
+        let large = serde_json::json!({ "n": 100 });
+        let err = executor
+            .execute(query, Some(&large))
+            .await
+            .expect_err("cost 201 must be refused by the declared max_query_complexity=150");
+        let msg = err.to_string().to_lowercase();
+        assert!(
+            msg.contains("complex"),
+            "rejection must name the complexity limit, got: {err:?}"
+        );
+    }
+
+    /// A validator the embedder installed programmatically wins over the
+    /// compiled schema's declared limits (the hot-reload preservation rule of
+    /// `with_compiled_schema`).
+    #[tokio::test]
+    async fn caller_installed_gate_wins_over_compiled_limits() {
+        let schema = schema_with_limits(Some(100), Some(1_000_000));
+        let config = RuntimeConfig {
+            query_validation: Some(crate::security::QueryValidatorConfig {
+                max_depth: 2,
+                ..strict_base()
+            }),
+            ..RuntimeConfig::default()
+        };
+        let config = config
+            .with_compiled_schema(&schema)
+            .expect("test schema must produce a valid runtime config");
+        let executor =
+            Executor::with_config(schema, Arc::new(MockAdapter::new(mock_user_results())), config);
+
+        let err = executor
+            .execute("{ users { a { b } } }", None)
+            .await
+            .expect_err("the caller's max_depth=2 must win over the compiled max_query_depth=100");
+        assert!(
+            err.to_string().to_lowercase().contains("deep"),
+            "rejection must name the depth limit, got: {err:?}"
+        );
+    }
+
+    /// A schema that declares no `[validation]` limits imposes no executor
+    /// gate: paths that were unbounded stay unbounded rather than silently
+    /// acquiring new default limits.
+    #[tokio::test]
+    async fn undeclared_limits_impose_no_executor_gate() {
+        let mut schema = test_schema();
+        schema.validation_config = None;
+        let executor = executor_from_schema(schema);
+
+        // Depth 6 — would trip any accidentally-derived default (10 is fine,
+        // but assert well past the strict profile's 5).
+        let query = "{ users { a { b { c { d { e } } } } } }";
+        executor
+            .execute(query, None)
+            .await
+            .unwrap_or_else(|e| panic!("no declared limits must mean no executor gate: {e:?}"));
+    }
+
+    fn strict_base() -> crate::security::QueryValidatorConfig {
+        crate::security::QueryValidatorConfig::strict()
+    }
+}
+
+// ── mod schema_cost_cap: [security.cost_budget] per_request_max binds at
+//    the executor for every transport (#379) ────────────────────────────────
+
+mod schema_cost_cap {
+    use super::*;
+    use crate::schema::CostBudgetConfig;
+
+    fn schema_with_cap(per_request_max: u64) -> CompiledSchema {
+        let mut schema = test_schema();
+        let mut security = SecurityConfig::new();
+        security.cost_budget = Some(CostBudgetConfig {
+            per_request_max:               Some(per_request_max),
+            per_tenant_per_minute_default: None,
+        });
+        schema.security = Some(security);
+        schema
+    }
+
+    fn executor_from_schema(schema: CompiledSchema) -> Executor<MockAdapter> {
+        let config = RuntimeConfig::from_compiled_schema(&schema)
+            .expect("test schema must produce a valid runtime config");
+        Executor::with_config(schema, Arc::new(MockAdapter::new(mock_user_results())), config)
+    }
+
+    /// A compiled `[security.cost_budget] per_request_max` must bind on
+    /// `execute()` itself — the phase criterion is "a budget one transport
+    /// ignores is not a budget", and the executor is the one chokepoint every
+    /// document-executing transport shares.
+    #[tokio::test]
+    async fn per_request_cost_cap_binds_on_direct_execute() {
+        let executor = executor_from_schema(schema_with_cap(50));
+
+        // Cost 1 + 2×100 = 201 > 50 → refused, and refused as a cost error
+        // (not a validation or rate-limit error).
+        let err = executor
+            .execute("{ users(limit: 100) { id name } }", None)
+            .await
+            .expect_err("cost 201 must be refused by per_request_max=50");
+        assert!(
+            matches!(
+                err,
+                crate::error::FraiseQLError::CostExceeded {
+                    retry_after_secs: None,
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
+
+        // A cheap query executes normally.
+        executor
+            .execute("{ users { id name } }", None)
+            .await
+            .unwrap_or_else(|e| panic!("cost 3 must pass per_request_max=50: {e:?}"));
+    }
+
+    /// The cap resolves pagination variables like the rest of the cost stack:
+    /// `limit: $n` with a small `n` is not scored at the fail-closed ceiling.
+    #[tokio::test]
+    async fn cost_cap_resolves_pagination_variables() {
+        let executor = executor_from_schema(schema_with_cap(50));
+        let query = "query Q($n: Int) { users(limit: $n) { id name } }";
+        let vars = serde_json::json!({ "n": 5 });
+        executor
+            .execute(query, Some(&vars))
+            .await
+            .unwrap_or_else(|e| panic!("cost 11 must pass per_request_max=50: {e:?}"));
+    }
+
+    /// No declared cap → no executor-level cost ceiling.
+    #[tokio::test]
+    async fn no_declared_cap_imposes_no_ceiling() {
+        let executor = executor_from_schema(test_schema());
+        executor
+            .execute("{ users(limit: 100) { id name } }", None)
+            .await
+            .unwrap_or_else(|e| panic!("no cap declared must mean no cost ceiling: {e:?}"));
+    }
+}
+
 // ── mod field_rbac: C16+C17 — RBAC reject/mask through executor ──────────
 
 mod field_rbac {
@@ -1304,6 +1502,7 @@ mod field_rbac {
             multi_tenant:     false,
             rls:              crate::schema::RlsConfig::default(),
             tenancy:          TenancyConfig::default(),
+            cost_budget:      None,
             additional:       HashMap::default(),
         });
 
@@ -1833,6 +2032,7 @@ mod field_authz {
             multi_tenant:     false,
             rls:              crate::schema::RlsConfig::default(),
             tenancy:          TenancyConfig::default(),
+            cost_budget:      None,
             additional:       HashMap::default(),
         });
 

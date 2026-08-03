@@ -44,6 +44,13 @@ pub struct MetricsCollector {
     /// Total query execution time (microseconds)
     pub queries_duration_us: AtomicU64,
 
+    /// Sum of estimated operation costs across executed queries (#379).
+    ///
+    /// Divided by `queries_total` this gives the average operation cost — the
+    /// number an operator needs to size `[security.cost_budget]` and per-tenant
+    /// budgets from observed traffic before enforcing them.
+    pub queries_cost_total: AtomicU64,
+
     /// Total database queries executed
     pub db_queries_total: AtomicU64,
 
@@ -521,6 +528,8 @@ pub struct PrometheusMetrics {
     pub queries_error:              u64,
     /// Average query duration in milliseconds
     pub queries_avg_duration_ms:    f64,
+    /// Sum of estimated operation costs (#379)
+    pub queries_cost_total:         u64,
     /// Total database queries executed
     pub db_queries_total:           u64,
     /// Average database query duration in milliseconds
@@ -567,6 +576,10 @@ fraiseql_graphql_queries_error {}
 # HELP fraiseql_graphql_query_duration_ms Average query execution time in milliseconds
 # TYPE fraiseql_graphql_query_duration_ms gauge
 fraiseql_graphql_query_duration_ms {}
+
+# HELP fraiseql_graphql_queries_cost_total Sum of estimated operation costs (#379)
+# TYPE fraiseql_graphql_queries_cost_total counter
+fraiseql_graphql_queries_cost_total {}
 
 # HELP fraiseql_database_queries_total Total database queries executed
 # TYPE fraiseql_database_queries_total counter
@@ -620,6 +633,7 @@ fraiseql_cache_hit_ratio {:.3}
             self.queries_success,
             self.queries_error,
             self.queries_avg_duration_ms,
+            self.queries_cost_total,
             self.db_queries_total,
             self.db_queries_avg_duration_ms,
             self.validation_errors_total,
@@ -654,6 +668,7 @@ impl From<&MetricsCollector> for PrometheusMetrics {
             queries_total,
             queries_success,
             queries_error,
+            queries_cost_total: collector.queries_cost_total.load(Ordering::Relaxed),
             #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics/statistics
             queries_avg_duration_ms: if queries_total > 0 {
                 (queries_duration_us as f64 / queries_total as f64) / 1000.0

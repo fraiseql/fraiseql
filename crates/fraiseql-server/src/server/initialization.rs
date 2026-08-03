@@ -8,6 +8,60 @@ use tracing::{info, warn};
 
 use super::{RateLimiter, Server, ServerError};
 
+/// Merge the effective query depth/complexity limits by the documented
+/// precedence: runtime TOML `[validation]` > compiled schema `[validation]`,
+/// **per field**. Shared by the HTTP stage validator and the executor gate so
+/// the two enforcement points cannot disagree about the effective limits.
+pub(super) fn effective_validation_limits(
+    runtime: Option<&fraiseql_core::schema::ValidationConfig>,
+    compiled: Option<&fraiseql_core::schema::ValidationConfig>,
+) -> (Option<u32>, Option<u32>) {
+    let depth = runtime
+        .and_then(|v| v.max_query_depth)
+        .or_else(|| compiled.and_then(|v| v.max_query_depth));
+    let complexity = runtime
+        .and_then(|v| v.max_query_complexity)
+        .or_else(|| compiled.and_then(|v| v.max_query_complexity));
+    (depth, complexity)
+}
+
+/// Build the executor's [`RuntimeConfig`] for a server constructor (#379).
+///
+/// Wraps [`RuntimeConfig::from_compiled_schema`] (the H16 seam) and, when a
+/// runtime `[validation]` override is configured, installs the per-field merged
+/// limits as the executor's caller-set gate. Without this, the executor's
+/// schema-derived gate would silently negate a runtime override that loosens a
+/// compiled limit — the stage would admit the query and the engine would then
+/// reject it. Reload safety: `validation_config` is boot-frozen (the reload
+/// gate refuses a schema that changes it), so the values installed here cannot
+/// go stale across a hot reload.
+///
+/// # Errors
+///
+/// Returns the validation message when the schema's format version is
+/// incompatible with this runtime.
+pub(super) fn executor_runtime_config(
+    schema: &CompiledSchema,
+    config: &crate::server_config::ServerConfig,
+) -> Result<fraiseql_core::runtime::RuntimeConfig, String> {
+    let mut rt = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(schema)?;
+    if config.validation.is_some() {
+        let (depth, complexity) = effective_validation_limits(
+            config.validation.as_ref(),
+            schema.validation_config.as_ref(),
+        );
+        if depth.is_some() || complexity.is_some() {
+            rt.query_validation = Some(fraiseql_core::security::QueryValidatorConfig {
+                max_depth:      depth.map_or(usize::MAX, |d| d as usize),
+                max_complexity: complexity.map_or(usize::MAX, |c| c as usize),
+                max_size_bytes: usize::MAX,
+                max_aliases:    usize::MAX,
+            });
+        }
+    }
+    Ok(rt)
+}
+
 /// Which per-replica-capable subsystems are running on per-process state (#874).
 ///
 /// `false` means "distributed or not running" — a disabled subsystem holds no
