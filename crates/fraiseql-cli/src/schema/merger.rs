@@ -65,6 +65,70 @@ fn resolve_mutation_sql_source(
     )
 }
 
+/// Lower `[[analytics.queries]]` into ordinary compiled queries (#624).
+///
+/// Each entry becomes a list-returning, view-backed `QueryDefinition`: the
+/// operator-authored `sql_source` goes through the same compile-time SQL
+/// identifier validation as every other query, and the SELECT list is the
+/// declared `return_type`'s fields — so no client-supplied identifier can
+/// reach `FROM` or the SELECT list (the P01 constraint, satisfied
+/// structurally rather than by a new validator).
+///
+/// Fails loud on an unknown `return_type`, a name that collides with an
+/// existing query, or a name ending in `_aggregate` / `_window` — the
+/// executor's classifier dispatches those suffixes before query resolution,
+/// so such a query would compile and then be unreachable.
+fn apply_analytics_queries(
+    analytics: &crate::config::toml_schema::AnalyticsConfig,
+    queries_array: &mut Vec<Value>,
+    types_array: &[Value],
+) -> Result<()> {
+    for query in &analytics.queries {
+        if queries_array
+            .iter()
+            .any(|q| q.get("name").and_then(Value::as_str) == Some(query.name.as_str()))
+        {
+            anyhow::bail!(
+                "[[analytics.queries]] name '{}' collides with an existing query; analytics \
+                 queries share the query namespace.",
+                query.name
+            );
+        }
+        if query.name.ends_with("_aggregate") || query.name.ends_with("_window") {
+            anyhow::bail!(
+                "[[analytics.queries]] name '{}' ends in a reserved suffix: the executor \
+                 dispatches `_aggregate` / `_window` root fields to the fact-table planners \
+                 before query resolution, so this query would be unreachable. Rename it.",
+                query.name
+            );
+        }
+        let type_exists = types_array
+            .iter()
+            .any(|t| t.get("name").and_then(Value::as_str) == Some(query.return_type.as_str()));
+        if !type_exists {
+            let declared: Vec<&str> = types_array
+                .iter()
+                .filter_map(|t| t.get("name").and_then(Value::as_str))
+                .collect();
+            anyhow::bail!(
+                "[[analytics.queries]] '{}' declares return_type '{}', which is not a \
+                 declared type. Declared types: {}",
+                query.name,
+                query.return_type,
+                declared.join(", ")
+            );
+        }
+        queries_array.push(json!({
+            "name": query.name,
+            "return_type": query.return_type,
+            "returns_list": true,
+            "sql_source": query.sql_source,
+            "description": query.description,
+        }));
+    }
+    Ok(())
+}
+
 /// Lower `[[caching.rules]]` onto the compiled fields the runtime's result
 /// cache consumes (#623): the named query's `cache_ttl_seconds` (per-view TTL
 /// map, opt-in) and each trigger mutation's `invalidates_views`
@@ -547,6 +611,11 @@ impl SchemaMerger {
                 "arguments": lower_toml_args(&toml_mutation.args)?,
             }));
         }
+
+        // #624: lower [[analytics.queries]] into ordinary compiled queries —
+        // before the caching rules, so a [[caching.rules]] entry can target an
+        // analytics query.
+        apply_analytics_queries(&toml_schema.analytics, &mut queries_array, &types_array)?;
 
         // #623: lower [[caching.rules]] onto the compiled fields the runtime's
         // result cache consumes. Runs after both arrays hold every authored

@@ -186,9 +186,11 @@ fn caching_enabled_without_rules_is_rejected_at_compile() {
     assert!(err.contains("rules"), "err = {err}");
 }
 
-/// #2 `[analytics]` — fully inert.
+/// #2 `[analytics]` (#624): `[[analytics.queries]]` are lowered into ordinary
+/// compiled queries (see `compiler_runtime_contract.rs`); the no-op shapes
+/// stay REJECTED.
 #[test]
-fn analytics_section_is_rejected_at_compile() {
+fn analytics_enabled_without_queries_is_rejected_at_compile() {
     let err = validate_err(
         r#"
         [schema]
@@ -198,8 +200,28 @@ fn analytics_section_is_rejected_at_compile() {
         enabled = true
     "#,
     );
-    assert!(err.contains("[analytics]"), "err = {err}");
-    assert!(err.contains("/issues/624"), "err = {err}");
+    assert!(err.contains("queries"), "err = {err}");
+}
+
+/// Declared analytics queries with `enabled = false` would silently compile to
+/// nothing — refused.
+#[test]
+fn analytics_disabled_with_queries_is_rejected_at_compile() {
+    let err = validate_err(
+        r#"
+        [schema]
+        name = "t"
+
+        [analytics]
+        enabled = false
+
+        [[analytics.queries]]
+        name = "daily"
+        return_type = "Order"
+        sql_source = "v_daily"
+    "#,
+    );
+    assert!(err.contains("enabled"), "err = {err}");
 }
 
 /// #3 `[observability]` — inert on the compiled path; points to `[metrics]`/`[tracing]`.

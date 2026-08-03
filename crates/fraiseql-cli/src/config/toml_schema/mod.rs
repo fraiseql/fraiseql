@@ -386,12 +386,20 @@ impl TomlSchema {
             );
         }
 
-        // #2 [analytics]: fully inert — never merged, never read.
-        if self.analytics.enabled || !self.analytics.queries.is_empty() {
+        // #2 [analytics] (#624): [[analytics.queries]] are lowered by the merger into
+        // ordinary compiled queries. What is refused here is every shape that would
+        // silently do nothing.
+        if !self.analytics.enabled && !self.analytics.queries.is_empty() {
             anyhow::bail!(
-                "[analytics] is accepted but fully inert: nothing in the compiler or runtime \
-                 consumes it. Remove the [analytics] section. Analytics query definitions are \
-                 tracked at https://github.com/fraiseql/fraiseql/issues/624."
+                "[analytics] declares {} [[analytics.queries]] but `enabled = false`, so none \
+                 of them would be compiled. Set `enabled = true` or remove the queries.",
+                self.analytics.queries.len()
+            );
+        }
+        if self.analytics.enabled && self.analytics.queries.is_empty() {
+            anyhow::bail!(
+                "[analytics] enabled = true with no [[analytics.queries]] does nothing. Add \
+                 queries or remove the section."
             );
         }
 
