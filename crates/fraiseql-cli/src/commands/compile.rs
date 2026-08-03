@@ -41,6 +41,9 @@ pub struct CompileOptions<'a> {
     pub database:       Option<&'a str>,
     /// Skip embedding content hash in compiled schema (for test fixtures).
     pub skip_hash:      bool,
+    /// Downgrade error-severity schema↔database drift findings to advisories
+    /// (#384). Without this, error-severity drift fails the compile.
+    pub allow_drift:    bool,
 }
 
 impl<'a> CompileOptions<'a> {
@@ -390,8 +393,18 @@ pub async fn compile_to_schema(
         let pg_introspector = build_postgres_introspector(db_url)
             .context("Failed to connect for native column validation")?;
         let db_report = validate_schema_against_database(&schema, &pg_introspector).await?;
+
+        // Error-severity drift fails the compile (#384) — collected here, raised
+        // after every check has reported, so one run surfaces the full list.
+        let mut drift_errors: Vec<String> = Vec::new();
         for w in &db_report.warnings {
-            warn!("{w}");
+            match w.severity() {
+                Severity::Error => {
+                    warn!("{w} [drift error]");
+                    drift_errors.push(w.to_string());
+                },
+                Severity::Warn => warn!("{w}"),
+            }
         }
         // Patch QueryDefinitions with DB-discovered native_columns, overriding inferred values.
         for query in &mut schema.queries {
@@ -401,9 +414,7 @@ pub async fn compile_to_schema(
         }
 
         // Mutation call/response contract (#384 item 3: inject_params resolve to real
-        // function arguments). PostgreSQL-only — the catalog reads `pg_proc`; other
-        // dialects are validated structurally above. Advisory like the rest of
-        // `compile --database`: findings warn, they never fail the compile.
+        // function arguments). PostgreSQL-only — the catalog reads `pg_proc`.
         if db_url.starts_with("postgres") {
             info!("Validating mutation contract against the database...");
             let catalog = PgCatalog::connect(db_url)
@@ -416,7 +427,35 @@ pub async fn compile_to_schema(
                         Severity::Warn => "contract warning",
                     };
                     warn!("mutation `{}` (sql_source: {}): {v} [{kind}]", m.mutation, m.sql_source);
+                    if v.severity() == Severity::Error {
+                        drift_errors.push(format!(
+                            "mutation `{}` (sql_source: {}): {v}",
+                            m.mutation, m.sql_source
+                        ));
+                    }
                 }
+            }
+        }
+
+        // The linter must be able to FAIL (#384): a schema that names database
+        // objects which do not exist — or cannot serve the declared shape —
+        // does not compile. `--allow-drift` restores the advisory behaviour;
+        // the findings above have already been reported either way.
+        if !drift_errors.is_empty() {
+            if opts.allow_drift {
+                warn!(
+                    "{} schema↔database drift error(s) suppressed by --allow-drift",
+                    drift_errors.len()
+                );
+            } else {
+                let list =
+                    drift_errors.iter().map(|e| format!("  - {e}")).collect::<Vec<_>>().join("\n");
+                anyhow::bail!(
+                    "schema↔database drift: {} error(s):\n{list}\n\
+                     Fix the declarations or the database objects, or pass --allow-drift \
+                     to compile anyway (advisory mode).",
+                    drift_errors.len()
+                );
             }
         }
     } else {
@@ -475,6 +514,7 @@ pub async fn compile_to_schema(
 /// * `emit_ddl` - Optional directory to write `CREATE TABLE` DDL files (confiture format)
 /// * `check_migrations` - If true, run `confiture migrate validate` after compilation
 /// * `skip_hash` - Skip embedding content hash (for test fixtures)
+/// * `allow_drift` - Downgrade error-severity schema↔database drift to advisories (#384)
 ///
 /// # Errors
 ///
@@ -487,9 +527,9 @@ pub async fn compile_to_schema(
 /// - DDL output directory cannot be created (when `emit_ddl` is provided)
 /// - `confiture` is not installed (when `check_migrations` is true)
 /// - Migration drift detected (when `check_migrations` is true)
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 // Reason: run() is the CLI entry point that receives individual args from clap; keeping them
-// separate for clarity
+// separate for clarity — each bool is a distinct clap flag
 #[doc(hidden)] // Internal-pub: CLI entry point dispatched by runner.rs; not a stable downstream API.
 pub async fn run(
     input: &str,
@@ -504,6 +544,7 @@ pub async fn run(
     emit_ddl: Option<&str>,
     check_migrations: bool,
     skip_hash: bool,
+    allow_drift: bool,
 ) -> Result<()> {
     // Defense-in-depth: never write the compiled output over the input schema.
     // The removed `serve` command did exactly this (H23) by deriving an output
@@ -525,6 +566,7 @@ pub async fn run(
         mutation_files,
         database,
         skip_hash,
+        allow_drift,
     };
     let (schema, optimization_report) = compile_to_schema(opts).await?;
 

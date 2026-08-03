@@ -772,6 +772,20 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// in a rolled-back transaction; this suite proves it can PASS and FAIL.
 		"echo '### cargo test -p fraiseql-cli --test generate_views_validate_pg (#821 validate can fail)'",
 		"cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1",
+		// #384 — `compile --database` is a drift linter that can FAIL: error-severity
+		// schema↔database drift exits non-zero and writes no artifact; doctor
+		// reports the same drift as structured JSON. Proves both directions.
+		"echo '### cargo test -p fraiseql-cli --test compile_drift_fail_pg (#384 drift linter can fail)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1",
+		// #384 verification suites that had NEVER run with a database in any leg:
+		// each self-skips without DATABASE_URL, and the workspace test leg (which
+		// compiles them under --all-features) binds no Postgres — so all three read
+		// green while running zero tests. The remaining self-skipping -cli suite
+		// (cascade_rls_against_db) is tracked in its own issue.
+		"echo '### cargo test -p fraiseql-cli --test mutation_contract_against_db --test doctor_against_db --test source_probe_against_db (#384 against-db gates)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test mutation_contract_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test doctor_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test source_probe_against_db -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 

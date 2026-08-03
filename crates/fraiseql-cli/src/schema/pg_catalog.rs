@@ -60,6 +60,13 @@ pub struct PgFunction {
     /// Whether the function returns a set (`RETURNS SETOF …` / `RETURNS
     /// TABLE(…)`). Informational only.
     pub returns_set: bool,
+    /// Implementation language (`pg_language.lanname`, e.g. `plpgsql`, `sql`,
+    /// `c`). The payload-key consumption scan (#384) only reads `plpgsql`/`sql`
+    /// bodies — for other languages `source` is a symbol, not scannable text.
+    pub language:    String,
+    /// Function body (`pg_proc.prosrc`). For `plpgsql`/`sql` functions this is
+    /// the actual source text.
+    pub source:      String,
 }
 
 /// A single unresolved internal call surfaced by `plpgsql_check` (#409).
@@ -202,6 +209,7 @@ impl PgCatalog {
         // server binds positionally) plus oid + proretset for follow-up.
         const BASE: &str = "\
             SELECT p.oid, n.nspname, p.proname, p.proretset, \
+              l.lanname, COALESCE(p.prosrc, '') AS prosrc, \
               COALESCE((SELECT array_agg(format_type(t, NULL) ORDER BY ord) \
                 FROM unnest(COALESCE(p.proallargtypes, p.proargtypes::oid[])) \
                   WITH ORDINALITY AS a(t, ord) \
@@ -213,7 +221,9 @@ impl PgCatalog {
                 LEFT JOIN unnest(p.proargmodes) WITH ORDINALITY AS m(mode, mord) ON mord = ord \
                 LEFT JOIN unnest(p.proargnames) WITH ORDINALITY AS nmt(nm, nord) ON nord = ord \
                 WHERE COALESCE(m.mode, 'i') IN ('i','b','v')), ARRAY[]::text[]) AS in_names \
-            FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace ";
+            FROM pg_proc p \
+              JOIN pg_namespace n ON n.oid = p.pronamespace \
+              JOIN pg_language l ON l.oid = p.prolang ";
 
         let client = self.pool.get().await.context("failed to acquire DB connection")?;
         let (schema, name) = split_qualified(sql_source);
@@ -251,6 +261,8 @@ impl PgCatalog {
                     .collect(),
                 out_columns: self.out_columns(oid).await?,
                 returns_set: row.get("proretset"),
+                language:    row.get("lanname"),
+                source:      row.get("prosrc"),
             });
         }
         Ok(functions)

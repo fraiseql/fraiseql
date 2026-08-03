@@ -63,6 +63,8 @@ fn pg_function(in_types: &[&str], in_names: &[Option<&str>], out: Vec<OutColumn>
         in_names:    in_names.iter().map(|n| n.map(str::to_string)).collect(),
         out_columns: out,
         returns_set: true,
+        language:    "plpgsql".to_string(),
+        source:      String::new(),
     }
 }
 
@@ -431,6 +433,7 @@ fn jsonb_update_call() -> ExpectedCall {
         base_arity:             1,
         inject_names:           vec!["tenant_id".to_string()],
         first_is_jsonb_payload: true,
+        payload_keys:           vec![],
     }
 }
 
@@ -534,6 +537,7 @@ fn flat_call() -> ExpectedCall {
         base_arity:             1,
         inject_names:           vec![],
         first_is_jsonb_payload: false,
+        payload_keys:           vec![],
     }
 }
 
@@ -651,4 +655,119 @@ fn report_counts_split_by_severity() {
     assert_eq!(json["warnings"], 1);
     assert_eq!(json["checked"], 2);
     assert_eq!(json["skipped"], 1);
+}
+
+// ─── check_mutation: payload-key consumption (#384 category 2) ──────────────
+
+/// A `JsonbPayload` call whose keys the scan should probe.
+fn payload_call(keys: &[&str]) -> ExpectedCall {
+    ExpectedCall {
+        sql_source:             "fn_update_thing".to_string(),
+        shape:                  CallShape::JsonbPayload,
+        base_arity:             1,
+        inject_names:           vec![],
+        first_is_jsonb_payload: true,
+        payload_keys:           keys.iter().map(ToString::to_string).collect(),
+    }
+}
+
+/// A jsonb-taking plpgsql function with the given body and a full response row.
+fn payload_function(body: &str) -> PgFunction {
+    let mut f = pg_function(&["jsonb"], &[Some("payload")], full_response_columns());
+    f.source = body.to_string();
+    f
+}
+
+#[test]
+fn payload_keys_referenced_in_body_are_clean() {
+    let candidates = vec![payload_function(
+        "BEGIN PERFORM payload->>'author'; PERFORM payload->>'title'; END",
+    )];
+    let v = check_mutation(&payload_call(&["author", "title"]), &candidates);
+    assert_eq!(v, vec![], "keys the body extracts must not be flagged");
+}
+
+#[test]
+fn unreferenced_payload_key_is_flagged() {
+    // The body extracts `author` but never `ownerId` (in either casing) — the
+    // silently-dropped-input shape from the issue comment.
+    let candidates = vec![payload_function("BEGIN PERFORM payload->>'author'; END")];
+    let v = check_mutation(&payload_call(&["author", "ownerId"]), &candidates);
+    assert_eq!(
+        v,
+        vec![ContractViolation::PayloadKeyUnreferenced {
+            field:     "ownerId".to_string(),
+            snake_key: "owner_id".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn snake_case_reference_satisfies_a_camel_case_field() {
+    // The runtime re-cases payload keys to stored names, so a body reading the
+    // snake form consumes the camelCase-declared field.
+    let candidates = vec![payload_function("BEGIN PERFORM payload->>'owner_id'; END")];
+    let v = check_mutation(&payload_call(&["ownerId"]), &candidates);
+    assert_eq!(v, vec![]);
+}
+
+#[test]
+fn whole_payload_consumer_skips_the_scan() {
+    // `jsonb_populate_record` reads every key without naming any.
+    let candidates = vec![payload_function(
+        "BEGIN INSERT INTO tb_thing SELECT * FROM jsonb_populate_record(NULL::tb_thing, payload); \
+         PERFORM payload->>'author'; END",
+    )];
+    let v = check_mutation(&payload_call(&["author", "ownerId"]), &candidates);
+    assert_eq!(v, vec![]);
+}
+
+#[test]
+fn non_sql_language_skips_the_scan() {
+    // For a C function `prosrc` is a symbol name, not scannable source.
+    let mut f = payload_function("thing_update_impl");
+    f.language = "c".to_string();
+    let v = check_mutation(&payload_call(&["author"]), &[f]);
+    assert_eq!(v, vec![]);
+}
+
+#[test]
+fn forwarding_body_without_extraction_skips_the_scan() {
+    // A body that never extracts any key forwards the payload to a helper —
+    // per-key scanning would flag every field of a correct function.
+    let candidates = vec![payload_function(
+        "BEGIN PERFORM app.do_update(payload); END",
+    )];
+    let v = check_mutation(&payload_call(&["author", "ownerId"]), &candidates);
+    assert_eq!(v, vec![]);
+}
+
+#[test]
+fn expected_call_populates_payload_keys_for_known_update_input() {
+    let mut m = MutationDefinition::new("updateThing", "UpdateThingResult");
+    m.sql_source = Some("fn_update_thing".to_string());
+    m.operation = MutationOperation::Update {
+        table: "tb_thing".to_string(),
+    };
+    m.arguments = vec![single_input_arg("UpdateThingInput")];
+    let schema = CompiledSchema {
+        input_types: vec![input_type("UpdateThingInput", 2)],
+        ..CompiledSchema::new()
+    };
+    let call = expected_call(&m, &schema).expect("DB-backed mutation");
+    assert_eq!(call.payload_keys, vec!["f0".to_string(), "f1".to_string()]);
+}
+
+#[test]
+fn expected_call_has_no_payload_keys_for_unknown_input_type() {
+    // Unknown input type → the payload keys cannot be enumerated; the scan
+    // must not fire on guesses.
+    let mut m = MutationDefinition::new("updateThing", "UpdateThingResult");
+    m.sql_source = Some("fn_update_thing".to_string());
+    m.operation = MutationOperation::Update {
+        table: "tb_thing".to_string(),
+    };
+    m.arguments = vec![single_input_arg("NotInSchema")];
+    let call = expected_call(&m, &CompiledSchema::new()).expect("DB-backed mutation");
+    assert!(call.payload_keys.is_empty());
 }

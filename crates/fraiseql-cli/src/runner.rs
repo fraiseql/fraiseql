@@ -40,6 +40,7 @@ pub async fn run() {
             database,
             emit_ddl,
             check_migrations,
+            allow_drift,
         } => {
             commands::compile::run(
                 &input,
@@ -54,6 +55,7 @@ pub async fn run() {
                 emit_ddl.as_deref(),
                 check_migrations,
                 skip_hash,
+                allow_drift,
             )
             .await
         },

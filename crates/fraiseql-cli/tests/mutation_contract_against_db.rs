@@ -71,6 +71,7 @@ fn jsonb_update(sql_source: &str, inject: &[&str]) -> ExpectedCall {
         base_arity:             1,
         inject_names:           inject.iter().map(|s| (*s).to_string()).collect(),
         first_is_jsonb_payload: true,
+        payload_keys:           vec![],
     }
 }
 
@@ -81,6 +82,7 @@ fn flat(sql_source: &str, base_arity: usize) -> ExpectedCall {
         base_arity,
         inject_names: vec![],
         first_is_jsonb_payload: false,
+        payload_keys: vec![],
     }
 }
 
