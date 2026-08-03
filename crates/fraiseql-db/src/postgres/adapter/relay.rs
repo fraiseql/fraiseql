@@ -54,7 +54,8 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         order_by: Option<&[OrderByClause]>,
         include_total_count: bool,
     ) -> Result<RelayPageResult> {
-        let client = self.acquire_connection_with_retry().await?;
+        // Relay pagination is a compiled SELECT pair: replica-eligible (#407).
+        let client = self.acquire_read_connection_with_retry().await?;
         self.run_relay_page(
             &**client,
             view,
@@ -103,7 +104,8 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 
         // Apply set_config and run BOTH the page and count queries inside one
         // transaction on one connection so RLS sees the session variables.
-        let mut client = self.acquire_connection_with_retry().await?;
+        // Read-only and standby-safe: replica-eligible (#407).
+        let mut client = self.acquire_read_connection_with_retry().await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to start relay session-var transaction: {e}"),

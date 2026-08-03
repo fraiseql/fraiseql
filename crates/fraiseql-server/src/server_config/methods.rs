@@ -101,6 +101,47 @@ impl ServerConfig {
             .map_or_else(|| Ok(PostgresTlsConfig::default()), DatabaseTlsConfig::postgres_tls)
     }
 
+    /// Read-replica configuration for the primary pool set, lowered onto the
+    /// `fraiseql-db` type both binaries hand to `PostgresAdapter::with_pool_config`
+    /// (#407). `None` when no replicas are configured.
+    ///
+    /// The 5000 ms pin default lives here — the single seam — so the two binaries
+    /// cannot drift on it.
+    #[must_use]
+    pub fn read_replicas(&self) -> Option<fraiseql_core::db::postgres::ReadReplicaConfig> {
+        if self.read_replica_urls.is_empty() {
+            return None;
+        }
+        Some(fraiseql_core::db::postgres::ReadReplicaConfig {
+            urls:            self.read_replica_urls.clone(),
+            pin_after_write: std::time::Duration::from_millis(
+                self.read_replica_pin_after_write_ms.unwrap_or(5000),
+            ),
+        })
+    }
+
+    /// Refuse a read-replica configuration on a wire-backend build (#407).
+    ///
+    /// The wire backend has no replica routing, so accepting the config would
+    /// serve every read from the primary while the operator believes reads are
+    /// offloaded. Called by the binary's wire adapter construction; a
+    /// wire-backend server with replicas configured must refuse to boot.
+    ///
+    /// # Errors
+    ///
+    /// Returns a human-readable refusal when `read_replica_urls` is non-empty.
+    #[cfg(feature = "wire-backend")]
+    pub fn wire_backend_rejects_read_replicas(&self) -> Result<(), String> {
+        if self.read_replica_urls.is_empty() {
+            Ok(())
+        } else {
+            Err("read_replica_urls is configured, but this binary was built with the \
+                 `wire-backend` feature, which does not support read replicas. Remove the \
+                 replica configuration or use the standard PostgreSQL backend."
+                .to_string())
+        }
+    }
+
     /// Validate configuration.
     ///
     /// # Errors
@@ -159,6 +200,17 @@ impl ServerConfig {
                     return Err("admin_readonly_token must differ from admin_token.".to_string());
                 }
             }
+        }
+
+        // Read replicas (#407): refuse inert or malformed shapes loudly.
+        if self.read_replica_pin_after_write_ms.is_some() && self.read_replica_urls.is_empty() {
+            return Err("read_replica_pin_after_write_ms is set but read_replica_urls is \
+                 empty — the pin window only applies to replica routing. Configure \
+                 read_replica_urls or remove the pin setting."
+                .to_string());
+        }
+        if self.read_replica_urls.iter().any(|u| u.trim().is_empty()) {
+            return Err("read_replica_urls contains an empty URL.".to_string());
         }
 
         // Validate OIDC config if present

@@ -105,6 +105,11 @@ impl FromPoolConfig for PostgresAdapter {
                 timeout_secs: Some(config.connect_timeout_secs),
                 search_path: config.search_path.clone(),
                 tls: config.tls.clone(),
+                // Tenant pools are primary-only: a tenant registration supplies one
+                // connection string, and `[read_replicas]` describes the server's
+                // primary database, not a tenant's. Extending replicas to tenant
+                // pools needs per-tenant replica URLs on the registration API.
+                read_replicas: None,
             },
         )
         .await

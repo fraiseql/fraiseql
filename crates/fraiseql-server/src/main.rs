@@ -298,6 +298,7 @@ async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<Pos
             // Per-tenant schema isolation is installed by `create_tenant_executor`.
             search_path: None,
             tls,
+            read_replicas: config.read_replicas(),
         },
     )
     .await?;
@@ -308,6 +309,10 @@ async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<Pos
 /// Create the FraiseQL Wire adapter (when the `wire-backend` feature is enabled).
 #[cfg(feature = "wire-backend")]
 async fn build_wire_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAdapter>> {
+    // The wire backend has no replica routing; silently ignoring configured
+    // replicas would serve every read from the primary while the operator
+    // believes reads are offloaded (#407).
+    config.wire_backend_rejects_read_replicas().map_err(|e| anyhow::anyhow!(e))?;
     tracing::info!(
         database_url = %config.database_url,
         "Initializing FraiseQL Wire database adapter (low-memory streaming)"

@@ -909,3 +909,91 @@ fn rustdoc_rate_limiting_example_parses() {
     assert_eq!(rl.rps_per_ip, 100);
     assert_eq!(rl.burst_size, 500);
 }
+
+mod read_replicas_407 {
+    use super::*;
+
+    #[test]
+    fn defaults_to_no_replicas() {
+        let config = ServerConfig::default();
+        assert!(config.read_replica_urls.is_empty());
+        assert!(config.read_replica_pin_after_write_ms.is_none());
+        assert!(config.read_replicas().is_none(), "no replica config must lower to None");
+    }
+
+    #[test]
+    fn lowers_urls_with_the_default_pin_window() {
+        let config = ServerConfig {
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            ..ServerConfig::default()
+        };
+        let rc = config.read_replicas().expect("configured replicas must lower to Some");
+        assert_eq!(rc.urls, vec!["postgres://replica1/db".to_string()]);
+        assert_eq!(
+            rc.pin_after_write,
+            std::time::Duration::from_millis(5000),
+            "the pin default is 5000 ms and lives in this one seam"
+        );
+    }
+
+    #[test]
+    fn lowers_an_explicit_pin_window() {
+        let config = ServerConfig {
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            read_replica_pin_after_write_ms: Some(250),
+            ..ServerConfig::default()
+        };
+        let rc = config.read_replicas().expect("configured replicas must lower to Some");
+        assert_eq!(rc.pin_after_write, std::time::Duration::from_millis(250));
+    }
+
+    #[test]
+    fn pin_without_urls_is_refused_as_inert() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_pin_after_write_ms: Some(5000),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("an inert pin setting must be refused");
+        assert!(
+            err.contains("read_replica_pin_after_write_ms"),
+            "the refusal must name the inert key; got: {err}"
+        );
+    }
+
+    #[test]
+    fn empty_url_entries_are_refused() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_urls: vec!["postgres://replica1/db".to_string(), "  ".to_string()],
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("a blank replica URL must be refused");
+        assert!(err.contains("read_replica_urls"), "got: {err}");
+    }
+
+    #[test]
+    fn replica_config_with_urls_validates() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            read_replica_pin_after_write_ms: Some(10_000),
+            ..ServerConfig::default()
+        };
+        assert!(config.validate().is_ok(), "a well-formed replica config must validate");
+    }
+
+    #[test]
+    fn toml_round_trip() {
+        let toml = r#"
+            database_url = "postgres://primary/db"
+            read_replica_urls = ["postgres://replica1/db", "postgres://replica2/db"]
+            read_replica_pin_after_write_ms = 2500
+        "#;
+        let config: ServerConfig = toml::from_str(toml).expect("replica keys must deserialize");
+        assert_eq!(config.read_replica_urls.len(), 2);
+        assert_eq!(config.read_replica_pin_after_write_ms, Some(2500));
+        let rc = config.read_replicas().unwrap();
+        assert_eq!(rc.urls.len(), 2);
+    }
+}
