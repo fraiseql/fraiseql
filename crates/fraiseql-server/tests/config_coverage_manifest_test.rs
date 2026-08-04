@@ -75,6 +75,12 @@ const MANIFEST: &[(&str, &str)] = &[
     ),
     ("hmac_secret_env", "HMAC secret env var name (Option)"),
     ("identity", "enriched-identity resolver config (Option)"),
+    (
+        "session_state*",
+        "session-state subsystem (#389, Option) — Server::build_session_state constructs the \
+         backend (postgres refuses to boot without a pool / on a failed table init) and \
+         spawn_session_state_eviction sweeps at evict_interval_secs",
+    ),
     // ── Database pool ────────────────────────────────────────────────────────
     ("database_url", "primary database connection URL"),
     ("pool_min_size", "DB pool min size"),

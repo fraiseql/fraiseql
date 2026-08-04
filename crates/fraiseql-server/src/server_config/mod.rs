@@ -13,6 +13,7 @@ mod methods;
 pub mod observers;
 #[cfg(feature = "auth-saml")]
 pub mod saml;
+pub mod session_state;
 pub mod storage;
 pub mod tls;
 
@@ -37,6 +38,7 @@ pub use observers::{ObserverConfig, ObserverPoolConfig, ObserverRuntimeSettings}
 #[cfg(feature = "auth-saml")]
 pub use saml::{SamlIdpEntry, SamlServerConfig};
 use serde::{Deserialize, Serialize};
+pub use session_state::SessionStateServerConfig;
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
 
@@ -818,6 +820,16 @@ pub struct ServerConfig {
     #[cfg(feature = "auth")]
     #[serde(default)]
     pub identity: Option<crate::identity::IdentityConfig>,
+
+    /// Durable per-thread conversation / session state (#389):
+    /// `[session_state]`. Presence enables the subsystem — `backend =
+    /// "postgres"` requires a database pool and refuses to boot when its table
+    /// cannot be initialised (never a silent in-memory downgrade). Gated on
+    /// `auth` because the store lives in `fraiseql-auth` and the `session_id`
+    /// comes from the authenticated context.
+    #[cfg(feature = "auth")]
+    #[serde(default)]
+    pub session_state: Option<SessionStateServerConfig>,
 }
 
 /// A single `[storage.<name>]` configuration section.
@@ -1069,6 +1081,8 @@ impl Default for ServerConfig {
             export: crate::routes::rest::export_config::ExportConfig::default(), /* Multi-tenant runtime off by default */
             #[cfg(feature = "auth")]
             identity: None, // Enriched-identity resolution off by default
+            #[cfg(feature = "auth")]
+            session_state: None, // Session-state subsystem off by default
         }
     }
 }

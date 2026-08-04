@@ -1083,3 +1083,95 @@ mod require_redis_874 {
         assert!(!manager.is_distributed(), "the in-memory revocation store is per-process");
     }
 }
+
+// ── session_state_boot_tests: #389 — [session_state] construction refuses to
+//    boot rather than silently downgrade ─────────────────────────────────────
+
+#[cfg(feature = "auth")]
+mod session_state_boot_tests {
+    use crate::{
+        server::Server,
+        server_config::{ServerConfig, SessionStateServerConfig},
+    };
+
+    type TestServer = Server<fraiseql_core::db::postgres::PostgresAdapter>;
+
+    fn config_with(backend: &str) -> ServerConfig {
+        ServerConfig {
+            session_state: Some(SessionStateServerConfig {
+                backend: backend.to_string(),
+                ..SessionStateServerConfig::default()
+            }),
+            ..ServerConfig::default()
+        }
+    }
+
+    /// No `[session_state]` section → no subsystem, no task, no surprises.
+    #[tokio::test]
+    async fn absent_section_builds_none() {
+        let built = TestServer::build_session_state(&ServerConfig::default(), None)
+            .await
+            .expect("absent section is not an error");
+        assert!(built.is_none());
+    }
+
+    /// The volatile dev backend needs no pool.
+    #[tokio::test]
+    async fn memory_backend_builds_without_a_pool() {
+        let built = TestServer::build_session_state(&config_with("memory"), None)
+            .await
+            .expect("memory backend builds");
+        assert!(built.is_some());
+    }
+
+    /// The P21 rule: a configured durable backend with nothing to be durable ON
+    /// is a boot refusal, not a silent in-memory downgrade.
+    #[tokio::test]
+    async fn postgres_backend_without_a_pool_refuses_to_boot() {
+        let err = TestServer::build_session_state(&config_with("postgres"), None)
+            .await
+            .expect_err("must refuse");
+        let msg = err.to_string();
+        assert!(msg.contains("[session_state]"), "error names the section: {msg}");
+        assert!(msg.contains("database pool"), "error names the missing piece: {msg}");
+    }
+
+    /// `validate()` refuses an unknown backend token and zero intervals before
+    /// construction is ever attempted.
+    #[test]
+    fn validate_refuses_bad_values() {
+        let err = config_with("redis").validate().expect_err("unsupported backend");
+        assert!(err.contains("redis"), "names the offending token: {err}");
+
+        let mut zero_ttl = config_with("memory");
+        if let Some(ref mut ss) = zero_ttl.session_state {
+            ss.default_ttl_secs = 0;
+        }
+        assert!(zero_ttl.validate().is_err(), "zero TTL refused");
+
+        let mut zero_evict = config_with("memory");
+        if let Some(ref mut ss) = zero_evict.session_state {
+            ss.evict_interval_secs = 0;
+        }
+        assert!(zero_evict.validate().is_err(), "zero evict interval refused");
+    }
+
+    /// The section is strict: a typo'd key is a parse error, not an inert
+    /// setting (`deny_unknown_fields`).
+    #[test]
+    fn unknown_key_is_a_parse_error() {
+        let toml = r#"
+            [session_state]
+            backend = "memory"
+            default_ttl_seconds = 60
+        "#;
+        let parsed: Result<ServerConfig, _> = toml::from_str(toml);
+        assert!(parsed.is_err(), "default_ttl_seconds (typo) must be refused");
+
+        let ok: ServerConfig = toml::from_str("[session_state]\nbackend = \"memory\"\n")
+            .expect("bare section parses with defaults");
+        let ss = ok.session_state.expect("section present");
+        assert_eq!(ss.default_ttl_secs, 3600);
+        assert_eq!(ss.evict_interval_secs, 300);
+    }
+}

@@ -152,6 +152,11 @@ pub struct Server<A: DatabaseAdapter> {
     /// When `Some`, mounts `/auth/v1/password/{signup,login,reset,reset/confirm}`.
     #[cfg(feature = "auth")]
     pub(super) local_password_state: Option<Arc<crate::auth::LocalPasswordRouteState>>,
+    /// Session-state subsystem (#389) — present when `[session_state]` is
+    /// configured. The lifecycle spawns its periodic eviction sweep; the MCP
+    /// session-continuity binding is its per-request consumer.
+    #[cfg(feature = "auth")]
+    pub(super) session_state: Option<Arc<fraiseql_auth::session_state::SessionState>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     /// SAML SP state (#381) — present when `[saml]` is configured on an
     /// `auth-saml` build; `mount_auth_routes` mounts the login/ACS routes.

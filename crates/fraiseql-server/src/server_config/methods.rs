@@ -165,6 +165,11 @@ impl ServerConfig {
     /// - In production mode: `playground_enabled` is true
     /// - In production mode: `cors_enabled` is true but `cors_origins` is empty
     pub fn validate(&self) -> Result<(), String> {
+        #[cfg(feature = "auth")]
+        if let Some(ref ss) = self.session_state {
+            ss.validate()?;
+        }
+
         if self.metrics_enabled {
             match &self.metrics_token {
                 None => {
