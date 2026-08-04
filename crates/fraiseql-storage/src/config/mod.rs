@@ -69,6 +69,12 @@ pub struct BucketConfig {
     /// active content (`text/html`, `image/svg+xml`, …) are still served as
     /// `attachment`.
     pub serve_inline: bool,
+
+    /// Lifetime of a resumable-upload session in seconds (#369). `None` uses
+    /// the built-in default of 24 hours. An expired session is refused (`410`)
+    /// and reaped: its staged bytes are discarded and, when creation reserved
+    /// the key, the reservation is released.
+    pub upload_ttl_secs: Option<u64>,
 }
 
 /// Storage configuration (from fraiseql-server config).

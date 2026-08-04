@@ -130,6 +130,10 @@ mod minio_tests {
             .execute(&pool)
             .await
             .expect("truncate metadata");
+        sqlx::query("TRUNCATE _fraiseql_storage_uploads")
+            .execute(&pool)
+            .await
+            .expect("truncate upload sessions");
 
         let mut buckets = HashMap::new();
         buckets.insert(
@@ -141,14 +145,16 @@ mod minio_tests {
                 access:             BucketAccess::Private,
                 transform_presets:  None,
                 serve_inline:       false,
+                upload_ttl_secs:    None,
             },
         );
 
         let state = StorageState {
             backend:  Arc::new(backend),
-            metadata: Arc::new(StorageMetadataRepo::new(pool)),
+            metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
             rls:      StorageRlsEvaluator::new(),
             buckets:  Arc::new(buckets),
+            uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(pool)),
         };
         Some((state, (minio, pg, s3)))
     }
@@ -408,6 +414,94 @@ mod minio_tests {
         let fetched = reqwest::get(&url).await.expect("fetch the presigned URL");
         assert_eq!(fetched.status(), 200);
         assert_eq!(fetched.bytes().await.unwrap().as_ref(), payload);
+    }
+
+    /// #369: a resumable upload assembles through REAL S3 multipart — chunks
+    /// become parts, completion assembles the object and settles the shared
+    /// metadata row, and the ordinary download route serves the bytes. The S3
+    /// 5 MiB minimum part size is enforced up front as a clean 400, and a
+    /// foreign session stays invisible through the S3 path too.
+    #[tokio::test]
+    async fn resumable_upload_assembles_through_s3_multipart() {
+        let Some((state, _keep)) = storage_state().await else {
+            return;
+        };
+        let app = router_for(state.clone(), "user-a");
+
+        let declared: usize = 6 * 1024 * 1024;
+        let create = Request::builder()
+            .method("POST")
+            .uri(format!("/storage/v1/uploads/{LOGICAL_BUCKET}/big.bin"))
+            .header("Upload-Length", declared.to_string())
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(create).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let location = resp.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+
+        let patch = |offset: usize, chunk: Vec<u8>| {
+            Request::builder()
+                .method("PATCH")
+                .uri(&location)
+                .header(header::CONTENT_TYPE, "application/offset+octet-stream")
+                .header("Upload-Offset", offset.to_string())
+                .body(Body::from(chunk))
+                .unwrap()
+        };
+
+        // An undersized non-final chunk is refused before any backend call:
+        // S3 would reject the sub-5-MiB part only at completion time.
+        let resp = app.clone().oneshot(patch(0, vec![0xAB; 1024 * 1024])).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::BAD_REQUEST,
+            "a 1 MiB non-final chunk must be refused up front (S3 minimum part size)"
+        );
+
+        // 5 MiB part, then the 1 MiB tail (final part may be undersized).
+        let part1 = 5 * 1024 * 1024;
+        let resp = app.clone().oneshot(patch(0, vec![0xAB; part1])).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        assert_eq!(resp.headers().get("Upload-Offset").unwrap(), &part1.to_string());
+
+        let resp = app.clone().oneshot(patch(part1, vec![0xCD; declared - part1])).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        assert_eq!(resp.headers().get("Upload-Offset").unwrap(), &declared.to_string());
+
+        // The shared metadata row settled with the real size.
+        let row = state
+            .metadata
+            .get(LOGICAL_BUCKET, "big.bin")
+            .await
+            .unwrap()
+            .expect("metadata row exists");
+        assert!(!row.pending, "completion must confirm the metadata row");
+        assert_eq!(row.size_bytes, i64::try_from(declared).unwrap());
+
+        // The assembled object is served by the ordinary download route.
+        let resp = app.clone().oneshot(get_req("big.bin")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(body.len(), declared, "the assembled object has the declared size");
+        assert_eq!(body[0], 0xAB, "part 1 leads");
+        assert_eq!(body[declared - 1], 0xCD, "the tail part closes");
+
+        // A foreign session is invisible through the S3 path as well.
+        let create = Request::builder()
+            .method("POST")
+            .uri(format!("/storage/v1/uploads/{LOGICAL_BUCKET}/foreign.bin"))
+            .header("Upload-Length", declared.to_string())
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(create).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let foreign = resp.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+        let other = router_for(state.clone(), "user-b");
+        let resp = other
+            .oneshot(Request::builder().method("HEAD").uri(&foreign).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
 

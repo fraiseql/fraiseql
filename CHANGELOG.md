@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Resumable uploads — Tus 1.0.0 core + S3 multipart (#369).** New endpoints
+  `POST /storage/v1/uploads/{bucket}/{*key}` (create, `Upload-Length` +
+  optional `Upload-Metadata` filetype), `PATCH`/`HEAD`/`DELETE
+  /storage/v1/uploads/{id}` (append at the proven offset / resume probe /
+  cancel). Interrupted uploads resume from the durable offset; sessions are
+  rows in the new `_fraiseql_storage_uploads` table, so they survive a server
+  restart. Every path funnels through the SAME machinery as single-shot
+  uploads: creation passes the H9/B4 overwrite gate and reserves the metadata
+  row exactly like a presigned upload (#866), completion is one routine that
+  finalises backend staging and confirms that row, and a foreign session is
+  indistinguishable from a missing one (`404`; anonymous `401`; #876 — an
+  interrupted upload cannot be resumed, probed, or cancelled by a different
+  owner). Backends: local (staging under the reserved — and now
+  `validate_key`-fenced — `.fraiseql-uploads/` namespace, rename on
+  completion) and S3/MinIO (real multipart: chunks become parts, sub-5-MiB
+  non-final chunks are refused up front as `400`); GCS/Azure refuse loudly
+  (`NotImplemented`). Concurrency: one in-flight session per key (`409`),
+  appends pinned to the proven offset (`409` on races), size caps enforced at
+  creation and cumulatively, expired sessions answer `410` and are reaped
+  (staging discarded, created reservations released; per-bucket
+  `upload_ttl_secs`, default 24 h). Verified end to end over real MinIO + a
+  real metadata table in the `server-storage` leg.
+
 - **Durable long-running operations (#391).** New `[async_operations]` section
   mounts `POST/GET/DELETE /operations/v1/…` — submit returns an `op_id`
   immediately, background workers execute the stored GraphQL document through

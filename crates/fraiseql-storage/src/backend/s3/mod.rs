@@ -60,6 +60,42 @@ fn storage_err_src(op: &str, err: impl std::error::Error + Send + Sync + 'static
     })
 }
 
+/// Decode the multipart continuation state a session persisted. Corrupt state
+/// is a loud backend error — an upload cannot continue against parts we cannot
+/// name.
+fn parse_multipart_state(state: &serde_json::Value) -> Result<(String, Vec<String>)> {
+    let upload_id = state
+        .get("upload_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            FraiseQLError::File(FileError::Backend {
+                message: "multipart continuation state has no upload_id".to_string(),
+                source:  None,
+            })
+        })?
+        .to_string();
+    let etags = state
+        .get("etags")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            FraiseQLError::File(FileError::Backend {
+                message: "multipart continuation state has no etags array".to_string(),
+                source:  None,
+            })
+        })?
+        .iter()
+        .map(|v| {
+            v.as_str().map(str::to_string).ok_or_else(|| {
+                FraiseQLError::File(FileError::Backend {
+                    message: "multipart continuation state has a non-string etag".to_string(),
+                    source:  None,
+                })
+            })
+        })
+        .collect::<Result<Vec<String>>>()?;
+    Ok((upload_id, etags))
+}
+
 impl S3Backend {
     /// Uploads data and returns the storage key.
     ///
@@ -78,6 +114,139 @@ impl S3Backend {
             .await
             .map_err(|e| storage_err_src("put_object", e))?;
         Ok(key.to_owned())
+    }
+
+    /// Begin an S3 multipart upload for a resumable session (#369). Returns
+    /// the continuation state (`upload_id` + accepted part etags) the session
+    /// persists between chunks.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure.
+    pub async fn multipart_begin(
+        &self,
+        key: &str,
+        content_type: &str,
+    ) -> Result<serde_json::Value> {
+        validate_key(key)?;
+        let created = self
+            .client
+            .create_multipart_upload()
+            .bucket(&self.bucket)
+            .key(key)
+            .content_type(content_type)
+            .send()
+            .await
+            .map_err(|e| storage_err_src("create_multipart_upload", e))?;
+        let upload_id = created.upload_id().ok_or_else(|| {
+            FraiseQLError::File(FileError::Backend {
+                message: "S3 create_multipart_upload returned no upload id".to_string(),
+                source:  None,
+            })
+        })?;
+        Ok(serde_json::json!({ "upload_id": upload_id, "etags": [] }))
+    }
+
+    /// Upload one chunk as the next S3 part. Returns the updated continuation
+    /// state with the part's etag appended.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or corrupted
+    /// continuation state.
+    pub async fn multipart_append(
+        &self,
+        key: &str,
+        state: serde_json::Value,
+        data: &[u8],
+    ) -> Result<serde_json::Value> {
+        validate_key(key)?;
+        let (upload_id, mut etags) = parse_multipart_state(&state)?;
+        // S3 part numbers are 1-based; the accepted-part count is the index.
+        let part_number = i32::try_from(etags.len() + 1).map_err(|_| {
+            FraiseQLError::File(FileError::Backend {
+                message: "S3 multipart upload exceeded the maximum part count".to_string(),
+                source:  None,
+            })
+        })?;
+        let part = self
+            .client
+            .upload_part()
+            .bucket(&self.bucket)
+            .key(key)
+            .upload_id(&upload_id)
+            .part_number(part_number)
+            .body(ByteStream::from(data.to_vec()))
+            .send()
+            .await
+            .map_err(|e| storage_err_src("upload_part", e))?;
+        let etag = part.e_tag().ok_or_else(|| {
+            FraiseQLError::File(FileError::Backend {
+                message: "S3 upload_part returned no etag".to_string(),
+                source:  None,
+            })
+        })?;
+        etags.push(etag.to_string());
+        Ok(serde_json::json!({ "upload_id": upload_id, "etags": etags }))
+    }
+
+    /// Complete an S3 multipart upload. Returns the assembled object's etag.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or corrupted
+    /// continuation state.
+    pub async fn multipart_complete(&self, key: &str, state: &serde_json::Value) -> Result<String> {
+        validate_key(key)?;
+        let (upload_id, etags) = parse_multipart_state(state)?;
+        let parts: Vec<aws_sdk_s3::types::CompletedPart> = etags
+            .iter()
+            .enumerate()
+            .map(|(i, etag)| {
+                // The part count was bounded by `i32::try_from` at append
+                // time, so `i + 1` always fits; the saturation is unreachable.
+                let part_number = i32::try_from(i + 1).unwrap_or(i32::MAX);
+                aws_sdk_s3::types::CompletedPart::builder()
+                    .part_number(part_number)
+                    .e_tag(etag)
+                    .build()
+            })
+            .collect();
+        let completed = self
+            .client
+            .complete_multipart_upload()
+            .bucket(&self.bucket)
+            .key(key)
+            .upload_id(&upload_id)
+            .multipart_upload(
+                aws_sdk_s3::types::CompletedMultipartUpload::builder()
+                    .set_parts(Some(parts))
+                    .build(),
+            )
+            .send()
+            .await
+            .map_err(|e| storage_err_src("complete_multipart_upload", e))?;
+        Ok(completed.e_tag().unwrap_or_default().to_string())
+    }
+
+    /// Abort an S3 multipart upload, discarding its stored parts.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or corrupted
+    /// continuation state.
+    pub async fn multipart_abort(&self, key: &str, state: &serde_json::Value) -> Result<()> {
+        validate_key(key)?;
+        let (upload_id, _) = parse_multipart_state(state)?;
+        self.client
+            .abort_multipart_upload()
+            .bucket(&self.bucket)
+            .key(key)
+            .upload_id(&upload_id)
+            .send()
+            .await
+            .map_err(|e| storage_err_src("abort_multipart_upload", e))?;
+        Ok(())
     }
 
     /// Downloads the contents of the given key.

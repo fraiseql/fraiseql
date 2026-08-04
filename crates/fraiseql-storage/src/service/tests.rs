@@ -20,6 +20,7 @@ fn temp_service(
         access:             BucketAccess::Private,
         transform_presets:  None,
         serve_inline:       false,
+        upload_ttl_secs:    None,
     };
     (BucketService::new(backend, config), tmpdir)
 }

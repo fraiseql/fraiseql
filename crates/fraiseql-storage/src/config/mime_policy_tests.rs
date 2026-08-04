@@ -12,6 +12,7 @@ fn bucket(allowed: Option<&[&str]>) -> BucketConfig {
         access:             BucketAccess::Private,
         transform_presets:  None,
         serve_inline:       false,
+        upload_ttl_secs:    None,
     }
 }
 

@@ -41,6 +41,7 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
         }
     }
     sqlx::query("TRUNCATE _fraiseql_storage_objects").execute(&pool).await.unwrap();
+    sqlx::query("TRUNCATE _fraiseql_storage_uploads").execute(&pool).await.unwrap();
 
     // Create temp dir for local backend
     let tmp = tempfile::tempdir().unwrap();
@@ -56,14 +57,16 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
             access,
             transform_presets: None,
             serve_inline: false,
+            upload_ttl_secs: None,
         },
     );
 
     let state = StorageState {
         backend:  Arc::new(crate::backend::StorageBackend::Local(backend)),
-        metadata: Arc::new(StorageMetadataRepo::new(pool)),
+        metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
         rls:      StorageRlsEvaluator::new(),
         buckets:  Arc::new(buckets),
+        uploads:  Arc::new(crate::uploads::UploadSessionRepo::new(pool)),
     };
 
     (state, (svc, tmp))
@@ -214,6 +217,7 @@ async fn test_put_object_exceeding_size_limit_returns_413() {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            upload_ttl_secs:    None,
         },
     );
     let state = StorageState {
@@ -379,6 +383,7 @@ async fn test_serve_inline_bucket_renders_safe_types_but_attaches_dangerous_ones
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       true,
+            upload_ttl_secs:    None,
         },
     );
     state.buckets = Arc::new(buckets);
@@ -545,6 +550,7 @@ fn add_second_bucket(state: &mut StorageState, name: &str) {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            upload_ttl_secs:    None,
         },
     );
     state.buckets = Arc::new(buckets);
@@ -650,6 +656,7 @@ fn bucket_with_limit(name: &str, max_object_bytes: Option<u64>) -> BucketConfig 
         access: BucketAccess::PublicRead,
         transform_presets: None,
         serve_inline: false,
+        upload_ttl_secs: None,
     }
 }
 
@@ -684,6 +691,7 @@ async fn test_upload_above_axum_default_but_within_bucket_limit_succeeds() {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            upload_ttl_secs:    None,
         },
     );
     state.buckets = Arc::new(buckets);
@@ -721,6 +729,7 @@ async fn test_mime_type_rejection_returns_415() {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            upload_ttl_secs:    None,
         },
     );
     let state = StorageState {
@@ -1386,4 +1395,302 @@ async fn an_owner_can_delete_an_abandoned_reservation() {
         state.metadata.get("docs", "abandoned.txt").await.unwrap().is_none(),
         "the claim must be released, or the key stays squatted against its owner"
     );
+}
+
+// ── #369: resumable (Tus) uploads ───────────────────────────────────────────
+
+fn tus_create_req(bucket: &str, key: &str, length: u64) -> Request<Body> {
+    Request::builder()
+        .method("POST")
+        .uri(format!("/storage/v1/uploads/{bucket}/{key}"))
+        .header("Upload-Length", length.to_string())
+        .body(Body::empty())
+        .unwrap()
+}
+
+fn tus_patch_req(location: &str, offset: u64, chunk: &[u8]) -> Request<Body> {
+    Request::builder()
+        .method("PATCH")
+        .uri(location)
+        .header(header::CONTENT_TYPE, "application/offset+octet-stream")
+        .header("Upload-Offset", offset.to_string())
+        .body(Body::from(chunk.to_vec()))
+        .unwrap()
+}
+
+fn tus_head_req(location: &str) -> Request<Body> {
+    Request::builder().method("HEAD").uri(location).body(Body::empty()).unwrap()
+}
+
+fn tus_delete_req(location: &str) -> Request<Body> {
+    Request::builder().method("DELETE").uri(location).body(Body::empty()).unwrap()
+}
+
+async fn tus_create(router: &axum::Router, bucket: &str, key: &str, length: u64) -> String {
+    let resp = router.clone().oneshot(tus_create_req(bucket, key, length)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED, "upload creation must succeed");
+    resp.headers()
+        .get(header::LOCATION)
+        .expect("creation returns a Location")
+        .to_str()
+        .unwrap()
+        .to_string()
+}
+
+/// The full happy path: create → chunked `PATCH`es (with a `HEAD` resume probe
+/// between them, as a client reconnecting would) → completion settles the
+/// SAME metadata row every other upload path uses, and the object is served
+/// by the ordinary download route.
+#[tokio::test]
+async fn resumable_upload_completes_through_the_shared_metadata_row() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+
+    let location = tus_create(&a, "docs", "video.bin", 10).await;
+
+    // The key is claimed (pending) from creation time: the owner is recorded
+    // before any bytes exist, exactly like a presigned upload (#866).
+    let row = state.metadata.get("docs", "video.bin").await.unwrap().expect("claimed");
+    assert!(row.pending, "the claim is pending until completion");
+    assert_eq!(row.owner_id.as_deref(), Some("user-a"));
+
+    // First chunk.
+    let resp = a.clone().oneshot(tus_patch_req(&location, 0, b"01234")).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    assert_eq!(resp.headers().get("Upload-Offset").unwrap(), "5");
+
+    // Resume probe: a reconnecting client asks where to continue.
+    let resp = a.clone().oneshot(tus_head_req(&location)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.headers().get("Upload-Offset").unwrap(), "5");
+    assert_eq!(resp.headers().get("Upload-Length").unwrap(), "10");
+
+    // Final chunk completes the upload.
+    let resp = a.clone().oneshot(tus_patch_req(&location, 5, b"56789")).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    assert_eq!(resp.headers().get("Upload-Offset").unwrap(), "10");
+
+    // The metadata row settled: not pending, real size, an etag.
+    let row = state.metadata.get("docs", "video.bin").await.unwrap().expect("settled");
+    assert!(!row.pending, "completion must confirm the metadata row");
+    assert_eq!(row.size_bytes, 10);
+    assert!(row.etag.is_some(), "completion records the content etag");
+
+    // The ordinary download route serves the assembled object.
+    let resp = a
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/storage/v1/object/docs/video.bin")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(&body[..], b"0123456789", "the assembled object is byte-identical");
+
+    // The session is gone: the location answers 404 for its (former) owner.
+    let resp = a.clone().oneshot(tus_head_req(&location)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+/// #876 applied to sessions: another identity probing, appending to, or
+/// cancelling someone else's upload gets exactly the not-found a nonexistent
+/// session gets; an unauthenticated caller gets 401.
+#[tokio::test]
+async fn foreign_upload_sessions_are_invisible() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let location = tus_create(&a, "docs", "secret.bin", 10).await;
+
+    let b = router_for(state.clone(), "user-b", &["user"]);
+    for (name, resp) in [
+        ("HEAD", b.clone().oneshot(tus_head_req(&location)).await.unwrap()),
+        ("PATCH", b.clone().oneshot(tus_patch_req(&location, 0, b"xxxxx")).await.unwrap()),
+        ("DELETE", b.clone().oneshot(tus_delete_req(&location)).await.unwrap()),
+    ] {
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "{name}: a foreign session must be indistinguishable from a missing one"
+        );
+    }
+
+    // Unauthenticated: 401, uniformly.
+    let anon = storage_router(state.clone());
+    let resp = anon.clone().oneshot(tus_head_req(&location)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    // The owner still holds the upload: nothing above disturbed it.
+    let resp = a.clone().oneshot(tus_head_req(&location)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.headers().get("Upload-Offset").unwrap(), "0");
+}
+
+/// H9/B4 at the resumable door: creating a session over another user's object
+/// is an overwrite and needs owner-or-admin, exactly like PUT and presign.
+#[tokio::test]
+async fn resumable_create_respects_the_overwrite_gate() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        a.clone().oneshot(put_req("docs", "owned.txt", b"A")).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    let b = router_for(state.clone(), "user-b", &["user"]);
+    let resp = b.clone().oneshot(tus_create_req("docs", "owned.txt", 10)).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "a non-owner must not open a resumable overwrite of another user's object"
+    );
+
+    // The owner may.
+    let resp = a.clone().oneshot(tus_create_req("docs", "owned.txt", 10)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Anonymous creation is refused outright.
+    let anon = storage_router(state.clone());
+    let resp = anon.oneshot(tus_create_req("docs", "fresh.bin", 10)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Tus offset discipline: a PATCH must present exactly the server's offset,
+/// and a second session on a key with one in flight is refused.
+#[tokio::test]
+async fn wrong_offset_and_duplicate_sessions_conflict() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let location = tus_create(&a, "docs", "c.bin", 10).await;
+
+    // Wrong offset (server is at 0).
+    let resp = a.clone().oneshot(tus_patch_req(&location, 3, b"xxx")).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    // A second creation for the same key while one is in flight.
+    let resp = a.clone().oneshot(tus_create_req("docs", "c.bin", 10)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    // Overrunning the declared length is refused.
+    let resp = a.clone().oneshot(tus_patch_req(&location, 0, &[0u8; 11])).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// Cancelling an upload releases everything it held: the staged bytes, the
+/// session, and — when creation reserved the key — the metadata claim, so the
+/// key is immediately reusable.
+#[tokio::test]
+async fn cancel_releases_the_key() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let location = tus_create(&a, "docs", "cancel.bin", 10).await;
+    let resp = a.clone().oneshot(tus_patch_req(&location, 0, b"01234")).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    let resp = a.clone().oneshot(tus_delete_req(&location)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    assert!(
+        state.metadata.get("docs", "cancel.bin").await.unwrap().is_none(),
+        "cancelling must release the reservation, or the key stays squatted"
+    );
+    // The key is free again.
+    let resp = a.clone().oneshot(tus_create_req("docs", "cancel.bin", 10)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
+/// An expired session answers 410 and is reaped — including the reservation it
+/// created — so an abandoned upload cannot squat a key past its TTL.
+#[tokio::test]
+async fn expired_session_is_gone_and_reaped() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+    let location = tus_create(&a, "docs", "stale.bin", 10).await;
+
+    // Force the deadline into the past (the TTL itself is config, not clock)
+    // through a second connection to the same bound database.
+    let svc = fraiseql_test_support::postgres().await.expect("postgres");
+    let admin = sqlx::PgPool::connect(svc.url()).await.unwrap();
+    sqlx::query("UPDATE _fraiseql_storage_uploads SET expires_at = now() - interval '1 hour'")
+        .execute(&admin)
+        .await
+        .unwrap();
+
+    let resp = a.clone().oneshot(tus_head_req(&location)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::GONE);
+
+    assert!(
+        state.metadata.get("docs", "stale.bin").await.unwrap().is_none(),
+        "reaping must release the reservation"
+    );
+    // The key is free again.
+    let resp = a.clone().oneshot(tus_create_req("docs", "stale.bin", 10)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
+/// Creation-side validation: bucket cap, MIME policy, unsafe keys, and the
+/// reserved staging namespace.
+#[tokio::test]
+async fn resumable_create_validates_up_front() {
+    let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+    let a = router_for(state.clone(), "user-a", &["user"]);
+
+    // Over the bucket's 1 MiB cap.
+    let resp = a
+        .clone()
+        .oneshot(tus_create_req("docs", "big.bin", 2 * 1024 * 1024))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+    // Missing Upload-Length.
+    let req = Request::builder()
+        .method("POST")
+        .uri("/storage/v1/uploads/docs/nolen.bin")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(a.clone().oneshot(req).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    // Unsafe key.
+    let resp = a.clone().oneshot(tus_create_req("docs", "a/../b.bin", 10)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    // The staging namespace is fenced off for every upload surface.
+    let resp = a
+        .clone()
+        .oneshot(tus_create_req("docs", ".fraiseql-uploads/alias", 10))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let resp = a
+        .clone()
+        .oneshot(put_req("docs", ".fraiseql-uploads/alias", b"x"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    // Declared MIME type must pass the bucket policy (Upload-Metadata
+    // filetype, base64("text/plain") = dGV4dC9wbGFpbg==).
+    let (state, _keep2) = test_state("images", BucketAccess::Private).await;
+    let mut buckets = HashMap::new();
+    let mut bucket = state.buckets.get("images").unwrap().clone();
+    bucket.allowed_mime_types = Some(vec!["image/*".to_string()]);
+    buckets.insert("images".to_string(), bucket);
+    let state = StorageState {
+        buckets: Arc::new(buckets),
+        ..state
+    };
+    let a = router_for(state, "user-a", &["user"]);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/storage/v1/uploads/images/doc.txt")
+        .header("Upload-Length", "10")
+        .header("Upload-Metadata", "filetype dGV4dC9wbGFpbg==")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(a.oneshot(req).await.unwrap().status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }

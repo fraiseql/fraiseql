@@ -52,6 +52,7 @@ async fn build_storage_state_wires_local_backend_from_config() {
             max_object_bytes:   Some(1024),
             allowed_mime_types: None,
             serve_inline:       None,
+            upload_ttl_secs:    None,
         },
     );
 

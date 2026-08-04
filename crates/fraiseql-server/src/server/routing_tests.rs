@@ -49,6 +49,7 @@ async fn storage_state(bucket: &str) -> StorageState {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            upload_ttl_secs:    None,
         },
     );
     StorageState {
@@ -56,6 +57,7 @@ async fn storage_state(bucket: &str) -> StorageState {
         metadata: Arc::new(StorageMetadataRepo::new(lazy_pool())),
         rls:      StorageRlsEvaluator::new(),
         buckets:  Arc::new(buckets),
+        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(lazy_pool())),
     }
 }
 

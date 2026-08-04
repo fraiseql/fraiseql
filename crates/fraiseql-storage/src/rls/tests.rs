@@ -14,6 +14,7 @@ fn private_bucket() -> BucketConfig {
         access:             BucketAccess::Private,
         transform_presets:  None,
         serve_inline:       false,
+        upload_ttl_secs:    None,
     }
 }
 
@@ -25,6 +26,7 @@ fn public_bucket() -> BucketConfig {
         access:             BucketAccess::PublicRead,
         transform_presets:  None,
         serve_inline:       false,
+        upload_ttl_secs:    None,
     }
 }
 

@@ -1,7 +1,13 @@
 //! Database migrations for storage metadata tables.
 //!
 //! Exposes DDL that `fraiseql-cli migrate up` can execute to create the
-//! `_fraiseql_storage_objects` table and its indexes.
+//! `_fraiseql_storage_objects` table and its indexes, plus the
+//! `_fraiseql_storage_uploads` table backing resumable (Tus) uploads (#369):
+//! one row per in-flight upload session carrying the declared length, the
+//! current offset, the owner, the reserved metadata row it will confirm on
+//! completion, and opaque per-backend continuation state (the S3 multipart
+//! upload id and part etags, or the local temp-file marker). `UNIQUE (bucket,
+//! key)` allows at most one in-flight resumable upload per object key.
 
 #[cfg(test)]
 mod tests;
@@ -64,5 +70,24 @@ ALTER TABLE _fraiseql_storage_objects
 CREATE INDEX IF NOT EXISTS idx_storage_objects_owner
     ON _fraiseql_storage_objects (owner_id)
     WHERE owner_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS _fraiseql_storage_uploads (
+    upload_id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    bucket              TEXT        NOT NULL,
+    key                 TEXT        NOT NULL,
+    content_type        TEXT        NOT NULL,
+    declared_bytes      BIGINT      NOT NULL,
+    received_bytes      BIGINT      NOT NULL DEFAULT 0,
+    owner_id            TEXT,
+    pk_storage_object   BIGINT      NOT NULL,
+    created_reservation BOOLEAN     NOT NULL,
+    backend_state       JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at          TIMESTAMPTZ NOT NULL,
+    UNIQUE (bucket, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_storage_uploads_expires
+    ON _fraiseql_storage_uploads (expires_at);
 "
 }

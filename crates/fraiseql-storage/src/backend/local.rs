@@ -219,6 +219,171 @@ impl LocalBackend {
         }
     }
 
+    /// The staging path for a resumable upload of `key` (#369).
+    ///
+    /// Staged bytes live under the reserved `.fraiseql-uploads/` directory,
+    /// named by the SHA-256 of the object key — NOT under a decorated variant
+    /// of the key itself, which a client could collide with through the normal
+    /// upload surface. [`validate_key`](super::validate_key) rejects client
+    /// keys whose first segment is `.fraiseql-uploads`, so the namespace is
+    /// unreachable from outside.
+    fn staging_path(&self, key: &str) -> std::path::PathBuf {
+        use sha2::{Digest, Sha256};
+        let digest = hex::encode(Sha256::digest(key.as_bytes()));
+        self.root.join(".fraiseql-uploads").join(digest)
+    }
+
+    /// Begin a resumable upload: create (truncate) the staging file.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File(FileError::IoError)` on filesystem failure.
+    pub async fn multipart_begin(&self, key: &str) -> Result<serde_json::Value> {
+        // Validate the FINAL key up front so a session is never opened for a
+        // key its completion rename would refuse.
+        let _ = self.key_path(key)?;
+        let staging = self.staging_path(key);
+        if let Some(parent) = staging.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                FraiseQLError::File(FileError::IoError {
+                    message: format!("Failed to create upload staging directory: {e}"),
+                    source:  Some(Box::new(e)),
+                })
+            })?;
+        }
+        tokio::fs::write(&staging, b"").await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to create upload staging file: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        Ok(serde_json::json!({}))
+    }
+
+    /// Append one chunk to the staging file.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File(FileError::IoError)` on filesystem failure,
+    /// or `NotFound` when no staging file exists (the session was never begun
+    /// or was aborted).
+    pub async fn multipart_append(
+        &self,
+        key: &str,
+        state: serde_json::Value,
+        data: &[u8],
+    ) -> Result<serde_json::Value> {
+        use tokio::io::AsyncWriteExt;
+        let staging = self.staging_path(key);
+        let mut file =
+            tokio::fs::OpenOptions::new().append(true).open(&staging).await.map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    FraiseQLError::File(FileError::NotFound {
+                        id: key.to_string(),
+                    })
+                } else {
+                    FraiseQLError::File(FileError::IoError {
+                        message: format!("Failed to open upload staging file: {e}"),
+                        source:  Some(Box::new(e)),
+                    })
+                }
+            })?;
+        file.write_all(data).await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to append to upload staging file: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        file.flush().await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to flush upload staging file: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        Ok(state)
+    }
+
+    /// Finalise a resumable upload: hash the staged bytes and rename them into
+    /// place as the object at `key`. Returns the etag (the same truncated
+    /// SHA-256 form the read-side reconciliation computes, so a later settle
+    /// agrees with it).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on filesystem failure or a missing
+    /// staging file.
+    pub async fn multipart_complete(&self, key: &str) -> Result<String> {
+        use sha2::{Digest, Sha256};
+        use tokio::io::AsyncReadExt;
+        let staging = self.staging_path(key);
+        let mut file = tokio::fs::File::open(&staging).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                FraiseQLError::File(FileError::NotFound {
+                    id: key.to_string(),
+                })
+            } else {
+                FraiseQLError::File(FileError::IoError {
+                    message: format!("Failed to open upload staging file: {e}"),
+                    source:  Some(Box::new(e)),
+                })
+            }
+        })?;
+        let mut hasher = Sha256::new();
+        let mut buf = vec![0_u8; 64 * 1024];
+        loop {
+            let n = file.read(&mut buf).await.map_err(|e| {
+                FraiseQLError::File(FileError::IoError {
+                    message: format!("Failed to read upload staging file: {e}"),
+                    source:  Some(Box::new(e)),
+                })
+            })?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(buf.get(..n).unwrap_or(&buf));
+        }
+        drop(file);
+        let digest = hasher.finalize();
+        let truncated = digest.get(..16).unwrap_or(&digest);
+        let etag = format!("\"{}\"", hex::encode(truncated));
+
+        let path = self.key_path(key)?;
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                FraiseQLError::File(FileError::IoError {
+                    message: format!("Failed to create directory: {e}"),
+                    source:  Some(Box::new(e)),
+                })
+            })?;
+        }
+        self.ensure_contained(&path).await?;
+        tokio::fs::rename(&staging, &path).await.map_err(|e| {
+            FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to move completed upload into place: {e}"),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        Ok(etag)
+    }
+
+    /// Abort a resumable upload: discard the staging file. Missing staging is
+    /// success — the outcome "no staged bytes remain" already holds.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File(FileError::IoError)` on filesystem failure.
+    pub async fn multipart_abort(&self, key: &str) -> Result<()> {
+        let staging = self.staging_path(key);
+        match tokio::fs::remove_file(&staging).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(FraiseQLError::File(FileError::IoError {
+                message: format!("Failed to remove upload staging file: {e}"),
+                source:  Some(Box::new(e)),
+            })),
+        }
+    }
+
     /// Generates a presigned (time-limited) URL for direct access to an object.
     ///
     /// # Errors

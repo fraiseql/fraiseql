@@ -54,6 +54,9 @@ fn minimal_storage_state() -> fraiseql_storage::StorageState {
         )),
         rls:      fraiseql_storage::StorageRlsEvaluator::new(),
         buckets:  Arc::new(HashMap::new()),
+        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(
+            sqlx::PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap(),
+        )),
     }
 }
 
