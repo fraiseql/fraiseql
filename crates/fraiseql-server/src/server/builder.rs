@@ -1205,8 +1205,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // no headers, but the tenant registry, the suspended-tenant gate and the
         // error sanitizer must apply on both transports, not just the one whose
         // construction path happened to be wired to them.
+        // Same two auth modes as the HTTP mount (#376 parity) — inert on stdio
+        // itself (no per-request credentials there), but kept identical so the
+        // construction paths cannot drift (#858's lesson).
+        let validator = self
+            .oidc_validator
+            .clone()
+            .map(crate::mcp::handler::McpTokenValidator::Oidc)
+            .or_else(|| self.hs256_auth.clone().map(crate::mcp::handler::McpTokenValidator::Hs256));
         let service = crate::mcp::handler::FraiseQLMcpService::new(self.build_app_state(), mcp_cfg)
-            .with_oidc_validator(self.oidc_validator.clone());
+            .with_token_validator(validator);
 
         info!("MCP stdio transport starting — reading from stdin, writing to stdout");
 

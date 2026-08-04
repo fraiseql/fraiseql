@@ -186,6 +186,44 @@ cannot be used to probe for hidden operations.
 
 This is useful for hiding administrative mutations from AI clients while still exposing read queries.
 
+### Authentication
+
+MCP accepts the same two Bearer-token modes as `/graphql`: OIDC (`[auth]`) or
+local HS256 (`[auth_hs256]`). With `require_auth = true` (the default) and
+neither configured, the HTTP endpoint refuses to mount, loudly. A validated
+token becomes the same security context `/graphql` builds — the JWT's `org_id`
+resolves the tenant, custom claims feed RLS session variables, and the #390
+actor classification is derived — so an MCP call is authorized exactly like a
+GraphQL request, by construction.
+
+### Behaviour hints (tool annotations)
+
+Every advertised tool carries MCP `annotations` so agent clients can behave
+appropriately without guessing:
+
+- **Queries**: `readOnlyHint: true`, `openWorldHint: false`.
+- **Mutations**: `readOnlyHint: false`, `destructiveHint: true`,
+  `idempotentHint: false` — deliberately conservative (the schema cannot prove
+  a backing function is additive-only or idempotent), so a well-behaved client
+  asks for confirmation before invoking a write.
+
+### Audit trail
+
+An MCP-originated mutation's change-log row (`core.tb_entity_change_log`) is
+tagged `extra_metadata.transport = "mcp"`, alongside the #390 actor columns —
+so "everything AI agents wrote through MCP" is one query:
+
+```sql
+SELECT created_at, object_type, modification_type, object_id, actor_type
+FROM core.v_entity_change_log
+WHERE extra_metadata->>'transport' = 'mcp'
+ORDER BY created_at DESC;
+```
+
+The tag is stamped server-side from the transport itself (a framework-reserved
+security-context attribute the extractor strips from token claims), so a caller
+cannot forge or suppress it.
+
 ### Tenancy and errors
 
 An MCP tool call goes through the same per-tenant dispatch as `/graphql`: the tenant

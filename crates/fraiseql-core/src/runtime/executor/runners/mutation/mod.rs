@@ -1276,6 +1276,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             .map(serde_json::Value::to_string);
         let actor_type = security_ctx.map(|c| c.actor_type().as_str());
         let acting_for = security_ctx.and_then(SecurityContext::acting_for);
+        // `transport` is the ingress door the request declared (#376) — set by a
+        // transport that stamps itself onto the SecurityContext (today: MCP);
+        // NULL for the HTTP GraphQL path and unauthenticated mutations.
+        let transport = security_ctx.and_then(SecurityContext::transport);
         let changelog = write_changelog.then(|| {
             ChangeLogWrite::new(&mutation_def.return_type, &modification_type)
                 .with_tenant_id(tenant_uuid)
@@ -1284,6 +1288,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 .with_trace_context(trace_context_json.as_deref())
                 .with_actor_type(actor_type)
                 .with_acting_for(acting_for)
+                .with_transport(transport)
                 // Opt-in pre-image: when this mutation sets `changelog_pre_image`, the
                 // outbox CTE also records the entity's before-state (from the
                 // function's `entity_before`) into `object_data_before`. Off by

@@ -95,6 +95,15 @@ pub struct ChangeLogWrite<'a> {
     /// it is stamped without a DB lookup. `None` (→ SQL NULL) for a non-delegated
     /// request, an unauthenticated mutation, or a subject that is not UUID-shaped.
     pub acting_for:        Option<uuid::Uuid>,
+    /// The ingress transport the originating request declared (#376), e.g.
+    /// `"mcp"` — merged into the row's `extra_metadata` JSONB as
+    /// `{"transport": …}` so MCP-originated (and, later, other
+    /// transport-tagged) writes are queryable
+    /// (`extra_metadata->>'transport' = 'mcp'`). From
+    /// `SecurityContext.transport()` at write time; `None` omits the key —
+    /// for the HTTP GraphQL path (which does not stamp one today), an
+    /// unauthenticated mutation, or a cooperative producer.
+    pub transport:         Option<&'a str>,
     /// Whether this outbox write also records the changed entity's **pre-image**
     /// (before-state) into the `object_data_before JSONB` column, sourced from the
     /// function's own `entity_before` (the after-image comes from `entity`). Set
@@ -126,6 +135,7 @@ impl<'a> ChangeLogWrite<'a> {
             trace_context: None,
             actor_type: None,
             acting_for: None,
+            transport: None,
             pre_image: false,
         }
     }
@@ -182,6 +192,16 @@ impl<'a> ChangeLogWrite<'a> {
     #[must_use]
     pub const fn with_acting_for(mut self, acting_for: Option<uuid::Uuid>) -> Self {
         self.acting_for = acting_for;
+        self
+    }
+
+    /// Stamp the ingress transport (e.g. `"mcp"`) onto the outbox row's
+    /// `extra_metadata.transport` key (#376). `None` omits the key — for a
+    /// transport that does not declare itself, an unauthenticated mutation, or
+    /// a cooperative producer.
+    #[must_use]
+    pub const fn with_transport(mut self, transport: Option<&'a str>) -> Self {
+        self.transport = transport;
         self
     }
 

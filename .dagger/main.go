@@ -927,6 +927,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// generated from the route table rather than from the router, so the two could
 		// disagree in both directions.
 		"cargo test -p fraiseql-server --features rest --test rest_write_mount_e2e_pg -- --test-threads=1",
+		// #376: an MCP-originated write is tagged transport=mcp in the change-log and
+		// HS256 Bearer tokens authenticate MCP calls (auth parity with /graphql).
+		// Recreates core.tb_entity_change_log → serial, changelog-owning binary.
+		"cargo test -p fraiseql-server --features mcp --test mcp_transport_stamp_e2e_pg -- --test-threads=1",
 		// #390: every authenticated write path (graphql + REST) records a derived,
 		// unforgeable actor in the change-log; unauthenticated writes are refused, not
 		// recorded unattributed. Recreates core.tb_entity_change_log → serial, and must
