@@ -475,3 +475,74 @@ async fn global_opt_out_writes_no_outbox_row() {
         "globally-disabled change-log writes no outbox row"
     );
 }
+
+#[tokio::test]
+async fn executor_stamps_transport_into_extra_metadata() {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // A SecurityContext whose transport declared itself (the MCP path does) —
+    // the runner merges it into the row's extra_metadata (#376), preserving the
+    // framework's own duration_calc_version key.
+    let ctx = security_ctx_with_tenant(&uuid::Uuid::new_v4().to_string()).with_transport("mcp");
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor
+        .execute_with_security("mutation { updateThing { id } }", Some(&vars), &ctx)
+        .await
+        .unwrap();
+
+    let rows = adapter
+        .execute_raw_query(
+            "SELECT extra_metadata->>'transport' AS transport, \
+                    extra_metadata->>'duration_calc_version' AS calc_version \
+             FROM core.tb_entity_change_log",
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one outbox row");
+    assert_eq!(
+        rows[0].get("transport"),
+        Some(&json!("mcp")),
+        "transport stamped into extra_metadata from the SecurityContext"
+    );
+    assert!(
+        rows[0].get("calc_version").is_some_and(|v| !v.is_null()),
+        "the framework's duration_calc_version key survives the transport merge: {rows:?}"
+    );
+}
+
+#[tokio::test]
+async fn transport_key_is_absent_when_no_transport_declared() {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let id = seed_thing(&adapter).await;
+
+    // The HTTP GraphQL path does not stamp a transport today — the key must be
+    // ABSENT (not null, not empty) so `extra_metadata ? 'transport'` cleanly
+    // partitions tagged from untagged rows.
+    let ctx = security_ctx_with_tenant(&uuid::Uuid::new_v4().to_string());
+    let executor = Executor::new(schema(), Arc::clone(&adapter));
+    let vars = json!({ "id": id, "name": "Acme Updated" });
+    executor
+        .execute_with_security("mutation { updateThing { id } }", Some(&vars), &ctx)
+        .await
+        .unwrap();
+
+    let rows = adapter
+        .execute_raw_query(
+            "SELECT (extra_metadata ? 'transport')::text AS has_key \
+             FROM core.tb_entity_change_log",
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "exactly one outbox row");
+    assert_eq!(
+        rows[0].get("has_key"),
+        Some(&json!("false")),
+        "no transport declared → no transport key"
+    );
+}

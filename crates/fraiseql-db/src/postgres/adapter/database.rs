@@ -318,9 +318,12 @@ pub(super) async fn mark_cdc_mediated(txn: &tokio_postgres::Transaction<'_>) -> 
 /// `$<n+3>` is the envelope `tenant_id` (the Trinity public-facing UUID, NULL
 /// for system / unauthenticated / non-UUID-tenant rows), `$<n+4>` is the
 /// `trace_id` (the request's W3C trace id, plain text), `$<n+5>` is the
-/// `schema_version` (the compiled schema's content hash, plain text), and
-/// `$<n+6>` is the `trace_context` (the full W3C trace context, cast `::jsonb`),
-/// where `n` = `n_args` (the number of function arguments). The envelope params are
+/// `schema_version` (the compiled schema's content hash, plain text), `$<n+6>`
+/// is the `trace_context` (the full W3C trace context, cast `::jsonb`), and
+/// `$<n+9>` is the ingress `transport` (#376), merged into `extra_metadata` as
+/// `{"transport": …}` by a deterministic `CASE` (NULL omits the key, so the SQL
+/// text never depends on the value), where `n` = `n_args` (the number of
+/// function arguments). The envelope params are
 /// appended **after** the function args so the SQL text stays deterministic per
 /// `(function, n_args)` — `prepare_cached` keys the statement by text, so the
 /// column list and placeholder positions must never depend on the param *values*.
@@ -341,6 +344,7 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize, pre_image:
     let trace_context_idx = n_args + 6;
     let actor_type_idx = n_args + 7;
     let acting_for_idx = n_args + 8;
+    let transport_idx = n_args + 9;
     let started_var = crate::changelog::STARTED_AT_VAR;
     let duration = crate::changelog::duration_ms_sql(started_var);
     let calc_version = crate::changelog::DURATION_CALC_VERSION;
@@ -376,7 +380,9 @@ pub(super) fn build_changelog_cte_sql(quoted_fn: &str, n_args: usize, pre_image:
              r.entity_id, {after_before_vals}, r.updated_fields, r.cascade, \
              current_setting('{started_var}')::timestamptz, \
              {duration}, \
-             jsonb_build_object('duration_calc_version', {calc_version}::int), \
+             jsonb_build_object('duration_calc_version', {calc_version}::int) \
+               || CASE WHEN ${transport_idx}::text IS NULL THEN '{{}}'::jsonb \
+                       ELSE jsonb_build_object('transport', ${transport_idx}::text) END, \
              ${tenant_id_idx}::uuid, \
              ${trace_id_idx}, \
              ${schema_version_idx}, \
@@ -912,7 +918,8 @@ impl DatabaseAdapter for PostgresAdapter {
         // tenant_id stamp ($n+3, bound against `::uuid`), the trace_id
         // ($n+4, plain text), the schema_version ($n+5, plain text), the
         // trace_context ($n+6, bound against `::jsonb`), the actor_type ($n+7,
-        // plain text) and the acting_for ($n+8, bound against `::uuid`). Order
+        // plain text), the acting_for ($n+8, bound against `::uuid`) and the
+        // transport ($n+9, plain text merged into extra_metadata — #376). Order
         // matches build_changelog_cte_sql's positional contract; appending the
         // envelope params keeps the SQL text stable for prepare_cached.
         let mut flex_args: Vec<FlexParam> = args
@@ -951,6 +958,10 @@ impl DatabaseAdapter for PostgresAdapter {
         // (the `::uuid` cast pins the param type); None → SQL NULL.
         flex_args
             .push(changelog.acting_for.map_or(FlexParam::Null, |u| FlexParam::Text(u.to_string())));
+        // transport ($n+9): plain text merged into extra_metadata.transport by the
+        // CTE's deterministic CASE; None → SQL NULL → key omitted (#376).
+        flex_args
+            .push(changelog.transport.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
         let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
             .iter()
             .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))

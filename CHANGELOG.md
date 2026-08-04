@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MCP as a first-class transport (#376).** Three gaps closed on the existing
+  (P09-hardened) MCP surface. **Auth parity**: MCP now accepts the same two
+  Bearer modes as `/graphql` — OIDC (`[auth]`) *or* local HS256
+  (`[auth_hs256]`); previously only OIDC validated, so an HS256 deployment
+  could never authenticate an MCP call and `require_auth = true` refused to
+  mount the endpoint (`FraiseQLMcpService::with_oidc_validator` is replaced by
+  `with_token_validator(McpTokenValidator)`). **Behaviour hints**: every
+  advertised tool carries MCP `ToolAnnotations` — queries `readOnlyHint: true`,
+  mutations explicitly `destructiveHint: true` / non-idempotent, so agent
+  clients confirm before invoking writes. **Audit tagging**: an MCP-originated
+  mutation's change-log row is stamped `extra_metadata.transport = "mcp"`
+  (forge-safe: the tag rides a framework-reserved security-context attribute
+  set by the transport itself), making agent writes one query to find. New
+  `mcp_transport_stamp_e2e_pg` suite drives an HS256-authenticated tool call
+  through the real executor into the outbox. Resources / Prompts / session
+  continuity are tracked in #967. Docs: `docs/mcp.md` gained Authentication,
+  Behaviour hints, and Audit trail sections.
+
 - **Session-state subsystem (#389).** New `[session_state]` section: durable
   per-thread conversation memory for agents and multi-turn applications —
   key/value entries scoped to `(session, thread)` with per-entry TTL (expired

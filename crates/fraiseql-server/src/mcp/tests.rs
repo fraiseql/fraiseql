@@ -199,6 +199,41 @@ mod tools_tests {
         }
     }
 
+    /// #376: every advertised tool carries MCP behaviour hints — a query is
+    /// `readOnlyHint: true`, a mutation is explicitly non-read-only,
+    /// destructive and non-idempotent, so an agent client prompts before
+    /// invoking a write (the issue's `confirmation_required` acceptance).
+    #[test]
+    fn tools_carry_behaviour_annotations() {
+        use fraiseql_core::schema::{CompiledSchema, MutationDefinition, QueryDefinition};
+
+        use super::super::tools::schema_to_tools;
+
+        let mut schema = CompiledSchema::default();
+        schema.queries.push(QueryDefinition::new("users", "User"));
+        schema.mutations.push(MutationDefinition::new("createUser", "User"));
+        schema.build_indexes();
+
+        let tools = schema_to_tools(&schema, &make_config(vec![], vec![]));
+
+        let query = tools.iter().find(|t| t.name == "users").expect("query tool advertised");
+        let ann = query.annotations.as_ref().expect("query tool carries annotations");
+        assert_eq!(ann.read_only_hint, Some(true), "a query never writes");
+        assert_eq!(ann.open_world_hint, Some(false), "our world is the schema's database");
+
+        let mutation =
+            tools.iter().find(|t| t.name == "createUser").expect("mutation tool advertised");
+        let ann = mutation.annotations.as_ref().expect("mutation tool carries annotations");
+        assert_eq!(ann.read_only_hint, Some(false), "a mutation writes");
+        assert_eq!(
+            ann.destructive_hint,
+            Some(true),
+            "explicitly destructive — the schema cannot prove a function additive-only, and \
+             this is what makes an agent client confirm before invoking"
+        );
+        assert_eq!(ann.idempotent_hint, Some(false), "a repeated INSERT is a second row");
+    }
+
     /// `[mcp] read_only`: with `read_only`, no mutation is ever a tool, regardless of
     /// `include`/`exclude`, and adding a mutation to the schema changes nothing — the
     /// regression the flag exists to prevent.

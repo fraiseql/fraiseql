@@ -7,7 +7,7 @@ use std::{borrow::Cow, sync::Arc};
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition, QueryDefinition,
 };
-use rmcp::model::{JsonObject, Tool};
+use rmcp::model::{JsonObject, Tool, ToolAnnotations};
 
 use super::McpConfig;
 
@@ -166,11 +166,15 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 fn query_to_tool(query: &QueryDefinition, display_name: &str) -> Tool {
     let description = query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
 
-    Tool::new(
+    let mut tool = Tool::new(
         Cow::Owned(display_name.to_string()),
         Cow::Owned(description),
         Arc::new(arguments_to_json_schema(&ExposedOperation::Query(query).arguments())),
-    )
+    );
+    // MCP behaviour hints (#376): a query never modifies the database, and its
+    // world is the schema's own database — closed, not the open web.
+    tool.annotations = Some(ToolAnnotations::new().read_only(true).open_world(false));
+    tool
 }
 
 /// Convert a mutation definition into an MCP tool.
@@ -180,11 +184,25 @@ fn mutation_to_tool(mutation: &MutationDefinition, display_name: &str) -> Tool {
         .clone()
         .unwrap_or_else(|| format!("Mutation: {display_name}"));
 
-    Tool::new(
+    let mut tool = Tool::new(
         Cow::Owned(display_name.to_string()),
         Cow::Owned(description),
         Arc::new(arguments_to_json_schema(&mutation.arguments)),
-    )
+    );
+    // MCP behaviour hints (#376): a mutation writes, may be destructive (the
+    // schema cannot prove a backing function is additive-only, so the
+    // conservative hint is EXPLICIT rather than left to the spec default — an
+    // agent client should confirm before invoking), and is not idempotent
+    // (an INSERT-shaped mutation repeated is a second row). This is the
+    // "confirmation hint" the issue's acceptance asks for.
+    tool.annotations = Some(
+        ToolAnnotations::new()
+            .read_only(false)
+            .destructive(true)
+            .idempotent(false)
+            .open_world(false),
+    );
+    tool
 }
 
 /// Convert argument definitions into a JSON Schema object for MCP tool input.

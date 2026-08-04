@@ -253,12 +253,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         mcp_cfg: &fraiseql_core::schema::McpConfig,
     ) -> Router {
         if mcp_cfg.transport == "http" || mcp_cfg.transport == "both" {
+            // The same two auth modes `/graphql` accepts (#376 auth parity):
+            // OIDC (`[auth]`) or local HS256 (`[auth_hs256]`). Before this, an
+            // HS256-only deployment could never authenticate an MCP call and
+            // `require_auth = true` refused to mount the endpoint entirely.
+            let validator = self
+                .oidc_validator
+                .clone()
+                .map(crate::mcp::handler::McpTokenValidator::Oidc)
+                .or_else(|| {
+                    self.hs256_auth.clone().map(crate::mcp::handler::McpTokenValidator::Hs256)
+                });
+
             // SECURITY: Check require_auth flag before mounting.
             let mount_mcp = if mcp_cfg.require_auth {
-                if self.oidc_validator.is_some() {
+                if let Some(ref v) = validator {
                     info!(
                         path = %mcp_cfg.path,
-                        "MCP HTTP endpoint: require_auth=true, OIDC validator present. \
+                        validator = ?v,
+                        "MCP HTTP endpoint: require_auth=true, token validator present. \
                          Per-request Bearer tokens are validated and tool calls fail closed \
                          without a valid security context."
                     );
@@ -266,9 +279,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 } else {
                     tracing::error!(
                         path = %mcp_cfg.path,
-                        "MCP HTTP endpoint NOT mounted — require_auth=true but no OIDC \
-                         validator is configured. Configure an OIDC validator or set \
-                         require_auth=false (development only)."
+                        "MCP HTTP endpoint NOT mounted — require_auth=true but neither an \
+                         OIDC validator ([auth]) nor an HS256 validator ([auth_hs256]) is \
+                         configured. Configure one, or set require_auth=false (development \
+                         only)."
                     );
                     false
                 }
@@ -292,14 +306,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 // sanitizer the `/graphql` handler does (#858).
                 let session_state = state.clone();
                 let cfg = mcp_cfg.clone();
-                let validator = self.oidc_validator.clone();
+                let oidc = self.oidc_validator.clone();
+                let hs256 = self.hs256_auth.clone();
                 let mcp_service = StreamableHttpService::new(
                     move || {
+                        let validator =
+                            oidc.clone().map(crate::mcp::handler::McpTokenValidator::Oidc).or_else(
+                                || hs256.clone().map(crate::mcp::handler::McpTokenValidator::Hs256),
+                            );
                         Ok(crate::mcp::handler::FraiseQLMcpService::new(
                             session_state.clone(),
                             cfg.clone(),
                         )
-                        .with_oidc_validator(validator.clone()))
+                        .with_token_validator(validator))
                     },
                     std::sync::Arc::new(LocalSessionManager::default()),
                     StreamableHttpServerConfig::default(),

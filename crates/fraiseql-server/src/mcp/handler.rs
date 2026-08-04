@@ -11,7 +11,7 @@ use std::sync::{
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     schema::CompiledSchema,
-    security::{OidcValidator, SecurityContext},
+    security::{AuthMiddleware, AuthRequest, AuthenticatedUser, OidcValidator, SecurityContext},
 };
 use rmcp::{
     ServerHandler,
@@ -55,6 +55,49 @@ pub fn mcp_tool_errors_total() -> u64 {
     MCP_TOOL_ERRORS_TOTAL.load(Ordering::Relaxed)
 }
 
+/// The token validator MCP authenticates Bearer credentials against — the same
+/// two auth modes `/graphql` accepts (#376 auth parity).
+///
+/// MCP used to accept only an [`OidcValidator`], so an HS256-only deployment
+/// (`[auth_hs256]`, the integration-testing / service-to-service mode) could
+/// never authenticate an MCP call and `require_auth = true` refused to mount
+/// the endpoint at all.
+pub enum McpTokenValidator {
+    /// OIDC discovery + JWKS validation (`[auth]`), as on `/graphql`.
+    Oidc(Arc<OidcValidator>),
+    /// Local HS256 shared-secret validation (`[auth_hs256]`), as on `/graphql`.
+    Hs256(Arc<AuthMiddleware>),
+}
+
+impl std::fmt::Debug for McpTokenValidator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Oidc(_) => f.write_str("McpTokenValidator::Oidc"),
+            Self::Hs256(_) => f.write_str("McpTokenValidator::Hs256"),
+        }
+    }
+}
+
+impl McpTokenValidator {
+    /// Validate a bare Bearer credential into an [`AuthenticatedUser`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the validator's error rendered as a string (logged, never sent
+    /// to the client verbatim).
+    async fn validate(&self, token: &str) -> Result<AuthenticatedUser, String> {
+        match self {
+            Self::Oidc(v) => v.validate_token(token).await.map_err(|e| e.to_string()),
+            Self::Hs256(m) => {
+                // AuthMiddleware validates a whole Authorization header, which
+                // is where this token came from.
+                let req = AuthRequest::new(Some(format!("Bearer {token}")));
+                m.validate_request(&req).map_err(|e| e.to_string())
+            },
+        }
+    }
+}
+
 /// FraiseQL MCP service handler.
 ///
 /// Holds the server state, the compiled schema and the pre-computed tool list.
@@ -66,11 +109,11 @@ pub fn mcp_tool_errors_total() -> u64 {
 /// session construction is precisely what made every MCP call run on the default
 /// tenant's database and let a suspended tenant keep reading (#858).
 pub struct FraiseQLMcpService<A: DatabaseAdapter> {
-    state:          AppState<A>,
-    schema:         Arc<CompiledSchema>,
-    tools:          Vec<Tool>,
-    config:         McpConfig,
-    oidc_validator: Option<Arc<OidcValidator>>,
+    state:     AppState<A>,
+    schema:    Arc<CompiledSchema>,
+    tools:     Vec<Tool>,
+    config:    McpConfig,
+    validator: Option<McpTokenValidator>,
 }
 
 impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
@@ -81,9 +124,9 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     /// can only be reached over MCP if it was advertised — even when a per-tenant
     /// executor carries a different compiled schema.
     ///
-    /// The service starts without an OIDC validator; attach one with
-    /// [`with_oidc_validator`](Self::with_oidc_validator) to enable per-request
-    /// Bearer-token authentication over the HTTP transport.
+    /// The service starts without a token validator; attach one with
+    /// [`with_token_validator`](Self::with_token_validator) to enable
+    /// per-request Bearer-token authentication over the HTTP transport.
     #[must_use]
     pub fn new(state: AppState<A>, config: McpConfig) -> Self {
         let schema = Arc::new(state.executor().schema().clone());
@@ -93,11 +136,12 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
             schema,
             tools,
             config,
-            oidc_validator: None,
+            validator: None,
         }
     }
 
-    /// Attach an OIDC validator used to authenticate MCP tool calls.
+    /// Attach the token validator used to authenticate MCP tool calls — OIDC or
+    /// HS256, whichever `/graphql` uses (#376 auth parity).
     ///
     /// When present, a `Bearer` token carried by the HTTP transport is validated
     /// and turned into a [`SecurityContext`] so RLS and `@inject` parameters are
@@ -105,8 +149,8 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     /// always governed by the fail-closed policy in
     /// [`executor::call_tool`](super::executor::call_tool).
     #[must_use]
-    pub fn with_oidc_validator(mut self, validator: Option<Arc<OidcValidator>>) -> Self {
-        self.oidc_validator = validator;
+    pub fn with_token_validator(mut self, validator: Option<McpTokenValidator>) -> Self {
+        self.validator = validator;
         self
     }
 
@@ -130,15 +174,23 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
         token: Option<String>,
         request_id: String,
     ) -> Result<Option<SecurityContext>, CallToolResult> {
-        let Some(validator) = self.oidc_validator.as_ref() else {
+        let Some(validator) = self.validator.as_ref() else {
             return Ok(None); // Auth not configured — anonymous; gate decides.
         };
         let Some(token) = token else {
             return Ok(None); // No Bearer credential — anonymous; gate decides.
         };
 
-        match validator.validate_token(&token).await {
-            Ok(user) => Ok(Some(crate::extractors::build_security_context(&user, request_id))),
+        // The transport stamp (#376) rides the framework-reserved `fraiseql.`
+        // attribute namespace, which the shared builder strips from token
+        // claims — so it is set here, by the transport itself, and cannot be
+        // forged by a caller. The mutation runner records it into the
+        // change-log row's `extra_metadata.transport`, making MCP-originated
+        // writes queryable in the audit trail.
+        match validator.validate(&token).await {
+            Ok(user) => Ok(Some(
+                crate::extractors::build_security_context(&user, request_id).with_transport("mcp"),
+            )),
             Err(e) => {
                 tracing::warn!(error = %e, "MCP token validation failed");
                 Err(error_result("Invalid or expired authentication token"))

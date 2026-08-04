@@ -173,6 +173,13 @@ impl SecurityContext {
     /// stamped. Set by the server's request pipeline from the inbound
     /// `traceparent` header; read back via [`trace_id`](Self::trace_id).
     pub const TRACE_ID_ATTRIBUTE: &'static str = "fraiseql.trace_id";
+    /// Attribute key under which the ingress transport is carried (#376): the
+    /// door this request came through, e.g. `"mcp"`. Set by a transport that
+    /// declares itself (via [`with_transport`](Self::with_transport)) — never
+    /// from a client field: the `fraiseql.` namespace is stripped from token
+    /// claims by the extractor, so a caller cannot forge it. Recorded into the
+    /// change-log row's `extra_metadata.transport`.
+    pub const TRANSPORT_ATTRIBUTE: &'static str = "fraiseql.transport";
 
     /// Create a security context from an authenticated user and request metadata.
     ///
@@ -469,6 +476,29 @@ impl SecurityContext {
                 self.attributes.remove(Self::ACTING_FOR_ATTRIBUTE);
             },
         }
+        self
+    }
+
+    /// The ingress transport this request declared (#376), e.g. `"mcp"`.
+    /// `None` for transports that do not stamp one (today: everything except
+    /// MCP), and for contexts built without a server pipeline.
+    #[must_use]
+    pub fn transport(&self) -> Option<&str> {
+        self.attributes
+            .get(Self::TRANSPORT_ATTRIBUTE)
+            .and_then(serde_json::Value::as_str)
+    }
+
+    /// Stamp the ingress transport onto the context (carried in `attributes`,
+    /// forge-safe: the extractor strips the `fraiseql.` namespace from token
+    /// claims). Read back via [`transport`](Self::transport) and recorded into
+    /// the change-log's `extra_metadata.transport` by the mutation runner.
+    #[must_use]
+    pub fn with_transport(mut self, transport: &str) -> Self {
+        self.attributes.insert(
+            Self::TRANSPORT_ATTRIBUTE.to_string(),
+            serde_json::Value::String(transport.to_string()),
+        );
         self
     }
 

@@ -72,6 +72,21 @@ WHERE actor_type = 'service_account'
 GROUP BY 1 ORDER BY 1 DESC;
 ```
 
+## Transport tagging
+
+A transport that declares itself stamps the change-log row's
+`extra_metadata.transport` key. Today the MCP transport tags its writes
+(`"mcp"`), so agent-originated changes are separable from ordinary API traffic:
+
+```sql
+SELECT count(*) FROM core.v_entity_change_log
+WHERE extra_metadata->>'transport' = 'mcp';
+```
+
+Rows without the key came through a transport that does not tag (the HTTP
+GraphQL and REST paths today). Like the actor classification, the tag rides a
+framework-reserved security-context attribute a client cannot forge.
+
 ## Operational checks
 
 `fraiseql doctor --against-db <url>` includes an actor-attribution check:
