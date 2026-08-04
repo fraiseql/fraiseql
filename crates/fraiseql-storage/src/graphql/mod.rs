@@ -51,7 +51,8 @@ impl StorageSchemaTypes {
     ///     access: BucketAccess::PublicRead,
     ///     transform_presets: None,
     ///     serve_inline: false,
-    ///     upload_ttl_secs: None,
+    ///     policies: None,
+///     upload_ttl_secs: None,
     /// }];
     ///
     /// let entries = StorageSchemaTypes::generate(&buckets);
@@ -88,7 +89,8 @@ impl StorageSchemaTypes {
     ///     access: BucketAccess::PublicRead,
     ///     transform_presets: None,
     ///     serve_inline: false,
-    ///     upload_ttl_secs: None,
+    ///     policies: None,
+///     upload_ttl_secs: None,
     /// };
     ///
     /// let type_def = StorageSchemaTypes::storage_object_type(&bucket);
