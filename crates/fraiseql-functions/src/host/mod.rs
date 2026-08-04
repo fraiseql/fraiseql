@@ -12,6 +12,9 @@ pub mod live;
 #[cfg(any(feature = "runtime-wasm", feature = "runtime-deno"))]
 pub mod dyn_context;
 
+#[cfg(any(feature = "runtime-wasm", feature = "runtime-deno"))]
+pub mod runtime_pinned;
+
 /// Response from an HTTP request.
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
