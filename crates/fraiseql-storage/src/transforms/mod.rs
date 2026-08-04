@@ -9,7 +9,7 @@ pub mod cache;
 pub mod transformer;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 /// Re-export for convenience when transforms feature is enabled
 #[cfg(feature = "transforms")]

@@ -1694,3 +1694,215 @@ async fn resumable_create_validates_up_front() {
         .unwrap();
     assert_eq!(a.oneshot(req).await.unwrap().status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }
+
+// ── #370: the render endpoint (transforms feature) ──────────────────────────
+
+#[cfg(feature = "transforms")]
+mod render_tests {
+    use super::*;
+
+    /// A real 64×48 PNG produced by the image crate.
+    fn small_png() -> Vec<u8> {
+        let img = image::RgbImage::from_fn(64, 48, |x, _| {
+            image::Rgb([u8::try_from(x).unwrap_or(0), 0, 0])
+        });
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(&mut out, image::ImageFormat::Png)
+            .unwrap();
+        out.into_inner()
+    }
+
+    fn png_put_req(bucket: &str, key: &str, body: &[u8]) -> Request<Body> {
+        Request::builder()
+            .method("PUT")
+            .uri(format!("/storage/v1/object/{bucket}/{key}"))
+            .header(header::CONTENT_TYPE, "image/png")
+            .body(Body::from(body.to_vec()))
+            .unwrap()
+    }
+
+    fn render_req(bucket: &str, key: &str, query: &str) -> Request<Body> {
+        Request::builder()
+            .method("GET")
+            .uri(format!("/storage/v1/render/{bucket}/{key}{query}"))
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    /// The happy path: a stored image renders through the same RLS gate as a
+    /// download, resized and re-encoded, with cache-safe headers.
+    #[tokio::test]
+    async fn render_serves_a_transformed_image() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        assert_eq!(
+            a.clone()
+                .oneshot(png_put_req("docs", "pic.png", &small_png()))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+
+        let resp = a
+            .clone()
+            .oneshot(render_req("docs", "pic.png", "?w=32&format=webp"))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "image/webp");
+        assert!(resp.headers().get(header::ETAG).is_some(), "renders carry an ETag");
+        assert_eq!(
+            resp.headers().get(header::CACHE_CONTROL).unwrap(),
+            "private, no-store",
+            "a private bucket's render must not be shared-cacheable (#608)"
+        );
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let rendered = image::load_from_memory(&body).expect("output decodes");
+        assert_eq!(rendered.width(), 32, "the requested width was applied");
+    }
+
+    /// #876 applies to renders: a foreign private object answers exactly like
+    /// a missing one; anonymous callers get 401.
+    #[tokio::test]
+    async fn render_respects_the_read_gate() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        assert_eq!(
+            a.clone()
+                .oneshot(png_put_req("docs", "private.png", &small_png()))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+
+        let b = router_for(state.clone(), "user-b", &["user"]);
+        let resp = b.oneshot(render_req("docs", "private.png", "?w=10")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let anon = storage_router(state.clone());
+        let resp = anon.oneshot(render_req("docs", "private.png", "?w=10")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    /// Hostile inputs come back as named 400s, never a 500 and never resource
+    /// exhaustion: a decompression bomb, a non-image object, an unknown format
+    /// and an absurd target size.
+    #[tokio::test]
+    async fn render_rejects_hostile_inputs_cleanly() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+
+        // The 20000×20000 declaration from the transformer suite.
+        assert_eq!(
+            a.clone()
+                .oneshot(png_put_req("docs", "bomb.png", crate::transforms::tests::BOMB_PNG_HEADER))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        let resp = a.clone().oneshot(render_req("docs", "bomb.png", "?w=100")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "bombs are refused, not decoded");
+
+        // A non-image object.
+        assert_eq!(
+            a.clone()
+                .oneshot(put_req("docs", "notes.txt", b"just text"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        let resp = a.clone().oneshot(render_req("docs", "notes.txt", "?w=100")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // Unknown format name.
+        assert_eq!(
+            a.clone()
+                .oneshot(png_put_req("docs", "ok.png", &small_png()))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        let resp = a.clone().oneshot(render_req("docs", "ok.png", "?format=tiff")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // Absurd target size.
+        let resp = a.clone().oneshot(render_req("docs", "ok.png", "?w=60000")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // No transform requested at all (and no Accept preference).
+        let resp = a.clone().oneshot(render_req("docs", "ok.png", "")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// With no explicit format, the Accept header picks the encoding.
+    #[tokio::test]
+    async fn render_negotiates_format_from_accept() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        assert_eq!(
+            a.clone()
+                .oneshot(png_put_req("docs", "n.png", &small_png()))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        let req = Request::builder()
+            .method("GET")
+            .uri("/storage/v1/render/docs/n.png?w=20")
+            .header(header::ACCEPT, "image/avif;q=0.5, image/webp, */*;q=0.1")
+            .body(Body::empty())
+            .unwrap();
+        let resp = a.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "image/webp",
+            "the highest-q supported image type wins"
+        );
+    }
+
+    /// Bucket presets resolve by name; unknown names are a 400.
+    #[tokio::test]
+    async fn render_presets_resolve_by_name() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let mut bucket = state.buckets.get("docs").unwrap().clone();
+        bucket.transform_presets = Some(vec![crate::config::TransformPreset {
+            name:    "thumb".to_string(),
+            width:   Some(16),
+            height:  None,
+            format:  Some("jpeg".to_string()),
+            quality: Some(70),
+        }]);
+        let mut buckets = HashMap::new();
+        buckets.insert("docs".to_string(), bucket);
+        let state = StorageState {
+            buckets: Arc::new(buckets),
+            ..state
+        };
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        assert_eq!(
+            a.clone()
+                .oneshot(png_put_req("docs", "p.png", &small_png()))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+
+        let resp = a.clone().oneshot(render_req("docs", "p.png", "?preset=thumb")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "image/jpeg");
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(image::load_from_memory(&body).unwrap().width(), 16);
+
+        let resp = a.clone().oneshot(render_req("docs", "p.png", "?preset=nope")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+}

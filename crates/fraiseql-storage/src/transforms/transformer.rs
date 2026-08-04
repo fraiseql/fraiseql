@@ -79,6 +79,14 @@ pub struct TransformOutput {
     pub cache_control: Option<String>,
 }
 
+/// Hard ceiling on image dimensions, per side, for both the SOURCE (a
+/// decompression bomb declares huge dimensions in a tiny file) and the
+/// REQUESTED output (a hostile query string allocates on resize regardless of
+/// the source). 12k × 12k ≈ 144 MP ≈ 576 MB decoded RGBA — the practical top
+/// end of real photographic assets; anything past it is refused with a named
+/// validation error before any allocation (#370).
+const MAX_DIMENSION: u32 = 12_000;
+
 /// Image transformation engine
 pub struct ImageTransformer;
 
@@ -116,6 +124,17 @@ impl ImageTransformer {
             }
         }
 
+        // #370: a hostile *request* is as dangerous as a hostile image — an
+        // absurd target size allocates on resize regardless of the source.
+        if params.width.unwrap_or(0) > MAX_DIMENSION || params.height.unwrap_or(0) > MAX_DIMENSION {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Requested dimensions exceed the maximum of {MAX_DIMENSION} pixels per side"
+                ),
+                path:    Some("width".to_string()),
+            });
+        }
+
         // Check if output format is supported
         if let Some(fmt) = params.format {
             if fmt == OutputFormat::Bmp {
@@ -145,9 +164,51 @@ impl ImageTransformer {
         }
 
         let format = reader.format();
-        let img = reader.decode().map_err(|_| FraiseQLError::Validation {
+
+        // #370: refuse decompression bombs BEFORE decoding. The header's
+        // declared dimensions are read without touching pixel data, so a
+        // 100000×100000 declaration (a ~40 GB decode if believed) costs a
+        // header parse and a named refusal, never an allocation.
+        let mut probe = ImageReader::new(Cursor::new(input));
+        if probe.format().is_none() {
+            probe = probe.with_guessed_format().map_err(|_| FraiseQLError::Validation {
+                message: "Could not determine image format".to_string(),
+                path:    Some("input".to_string()),
+            })?;
+        }
+        let (src_w, src_h) = probe.into_dimensions().map_err(|_| FraiseQLError::Validation {
             message: "Failed to decode image".to_string(),
             path:    Some("input".to_string()),
+        })?;
+        if src_w > MAX_DIMENSION || src_h > MAX_DIMENSION {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Image dimensions ({src_w}x{src_h}) exceed the maximum of {MAX_DIMENSION} \
+                     pixels per side"
+                ),
+                path:    Some("input".to_string()),
+            });
+        }
+
+        // Belt and braces for headers that lie about their dimensions: the
+        // decoder itself runs under hard limits, so even a format whose header
+        // parse and pixel stream disagree cannot exhaust the process.
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(MAX_DIMENSION);
+        limits.max_image_height = Some(MAX_DIMENSION);
+        reader.limits(limits);
+
+        let img = reader.decode().map_err(|e| match e {
+            image::ImageError::Limits(_) => FraiseQLError::Validation {
+                message: format!(
+                    "Image dimensions exceed the maximum of {MAX_DIMENSION} pixels per side"
+                ),
+                path:    Some("input".to_string()),
+            },
+            _ => FraiseQLError::Validation {
+                message: "Failed to decode image".to_string(),
+                path:    Some("input".to_string()),
+            },
         })?;
 
         // Calculate output dimensions

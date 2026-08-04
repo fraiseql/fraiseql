@@ -53,6 +53,7 @@ async fn build_storage_state_wires_local_backend_from_config() {
             allowed_mime_types: None,
             serve_inline:       None,
             upload_ttl_secs:    None,
+            transform_presets:  None,
         },
     );
 

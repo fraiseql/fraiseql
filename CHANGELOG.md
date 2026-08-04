@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Image renders are served, and hostile images are bounded (#370, closing
+  #901).** `GET /storage/v1/render/{bucket}/{*key}?w=&h=&format=&quality=&preset=`
+  mounts behind the server's new `storage-transforms` feature and reads through
+  exactly the gates the download route uses (metadata, `can_read`, the
+  missing/not-yours collapse). `format` is `webp`/`jpeg`/`png`/`avif`; with none
+  given, the client's `Accept` header picks the encoding. Named presets now come
+  from configuration — `[storage.<name>] transform_presets = [{ name = "thumb",
+  width = 200, format = "webp" }]` — which previously could not be set at all
+  (`BucketConfig::transform_presets` was hard-coded `None`); declaring them in a
+  binary built without the feature is a **startup error**, not a silently absent
+  endpoint. Before this, the whole `transforms` feature had no HTTP surface and
+  `ImageTransformer` had no non-test caller.
+
+  The transformer itself was unbounded: it decoded whatever a caller supplied
+  and resized to whatever was requested, so a decompression bomb (a small file
+  whose header declares an enormous image) or an absurd `?w=` allocated
+  hundreds of megabytes per request. Source and requested dimensions are now
+  capped at 12 000 px per side, checked from the header *before* decoding, with
+  matching hard decoder limits behind them; bombs, malformed bytes, non-image
+  objects and oversized requests all return a named `400`.
+
 - **Resumable uploads — Tus 1.0.0 core + S3 multipart (#369).** New endpoints
   `POST /storage/v1/uploads/{bucket}/{*key}` (create, `Upload-Length` +
   optional `Upload-Metadata` filetype), `PATCH`/`HEAD`/`DELETE

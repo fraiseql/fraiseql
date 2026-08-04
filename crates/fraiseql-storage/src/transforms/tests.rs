@@ -531,3 +531,80 @@ async fn test_render_cache_with_preset_lookup() {
 }
 
 // TODO: render_handler tests disabled — function not yet implemented in routes/mod.rs
+
+// ── #370: hostile inputs are rejected with bounded resource use ─────────────
+
+/// A syntactically valid PNG header declaring 20000×20000 pixels (a ~1.6 GB
+/// decode if believed — past FraiseQL's 12k/side ceiling, but small enough
+/// that the png header parser itself does not refuse it first, so this pins
+/// OUR guard). Only the signature + IHDR chunk: header parsing sees the
+/// claimed size from the IHDR; a token IDAT/IEND lets header parsing
+/// complete without any real pixel data.
+pub const BOMB_PNG_HEADER: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x4E, 0x20, 0x00, 0x00, 0x4E, 0x20, 0x08, 0x02, 0x00, 0x00, 0x00, 0x6C, 0x12, 0xD1,
+    0x6E, 0x00, 0x00, 0x00, 0x09, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x00, 0x00, 0x01,
+    0x00, 0x01, 0x5E, 0xFF, 0x7D, 0xF9, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42,
+    0x60, 0x82,
+];
+
+/// A decompression bomb must be refused BY THE DIMENSION GUARD — a named,
+/// clean validation error — not by whatever the decoder happens to do while
+/// attempting a 40 GB allocation.
+#[test]
+fn decompression_bomb_is_rejected_by_the_dimension_guard() {
+    let result = ImageTransformer::transform(
+        BOMB_PNG_HEADER,
+        &TransformParams {
+            width:   Some(100),
+            height:  None,
+            format:  None,
+            quality: None,
+        },
+    );
+    let err = result.expect_err("a 20000x20000 declaration must be refused");
+    let message = err.to_string();
+    assert!(
+        message.contains("dimensions") && message.contains("exceed"),
+        "the refusal must name the dimension limit, proving the guard (not a \
+         downstream decode failure) rejected it: {message}"
+    );
+}
+
+/// A hostile *request* must not allocate either: an absurd target size is
+/// refused up front, before any resize work.
+#[test]
+fn oversized_target_dimensions_are_rejected() {
+    let input = create_test_image_1000x800();
+    let result = ImageTransformer::transform(
+        &input,
+        &TransformParams {
+            width:   Some(60_000),
+            height:  Some(60_000),
+            format:  None,
+            quality: None,
+        },
+    );
+    let err = result.expect_err("a 60000x60000 target must be refused");
+    let message = err.to_string();
+    assert!(
+        message.contains("dimensions") && message.contains("exceed"),
+        "the refusal must name the dimension limit: {message}"
+    );
+}
+
+/// Garbage bytes fail as a clean validation error, never a panic or a 500.
+#[test]
+fn malformed_bytes_are_a_clean_validation_error() {
+    let garbage = vec![0xFF_u8; 4096];
+    let result = ImageTransformer::transform(
+        &garbage,
+        &TransformParams {
+            width:   Some(10),
+            height:  None,
+            format:  None,
+            quality: None,
+        },
+    );
+    assert!(matches!(result, Err(fraiseql_error::FraiseQLError::Validation { .. })));
+}
