@@ -9,6 +9,7 @@ mod tests;
 use crate::{
     config::{BucketAccess, BucketConfig},
     metadata::StorageMetadataRow,
+    policy::{PolicyMethod, PolicyRequest},
 };
 
 /// The storage admin role that bypasses all object-level access checks.
@@ -52,6 +53,16 @@ impl StorageRlsEvaluator {
         bucket: &BucketConfig,
         object: &StorageMetadataRow,
     ) -> bool {
+        if let Some(decision) = policy_decision(
+            PolicyMethod::Read,
+            user_id,
+            roles,
+            bucket,
+            &object.key,
+            object.owner_id.as_deref(),
+        ) {
+            return decision;
+        }
         match bucket.access {
             BucketAccess::PublicRead => true,
             BucketAccess::Private => is_admin(roles) || is_owner(user_id, object),
@@ -68,8 +79,27 @@ impl StorageRlsEvaluator {
         &self,
         user_id: Option<&str>,
         roles: &[String],
-        _bucket: &BucketConfig,
+        bucket: &BucketConfig,
     ) -> bool {
+        self.can_write_key(user_id, roles, bucket, "")
+    }
+
+    /// [`can_write`](Self::can_write) for a known key, so a policy's
+    /// `key_prefix` can narrow the grant. The key-less form is the whole-bucket
+    /// question (a prefix-scoped rule does not answer it).
+    #[must_use]
+    pub fn can_write_key(
+        &self,
+        user_id: Option<&str>,
+        roles: &[String],
+        bucket: &BucketConfig,
+        key: &str,
+    ) -> bool {
+        if let Some(decision) =
+            policy_decision(PolicyMethod::Write, user_id, roles, bucket, key, None)
+        {
+            return decision;
+        }
         if is_admin(roles) {
             return true;
         }
@@ -95,7 +125,23 @@ impl StorageRlsEvaluator {
     ) -> bool {
         match existing {
             None => self.can_write(user_id, roles, bucket),
-            Some(object) => is_admin(roles) || is_owner(user_id, object),
+            Some(object) => {
+                // #371: overwriting an EXISTING object is `overwrite`, never
+                // `write`. Otherwise the natural rule "authenticated callers
+                // may write" re-opens the H9/B4 overwrite IDOR by permitting
+                // any authenticated caller to clobber another user's object.
+                if let Some(decision) = policy_decision(
+                    PolicyMethod::Overwrite,
+                    user_id,
+                    roles,
+                    bucket,
+                    &object.key,
+                    object.owner_id.as_deref(),
+                ) {
+                    return decision;
+                }
+                is_admin(roles) || is_owner(user_id, object)
+            },
         }
     }
 
@@ -108,10 +154,46 @@ impl StorageRlsEvaluator {
         &self,
         user_id: Option<&str>,
         roles: &[String],
-        _bucket: &BucketConfig,
+        bucket: &BucketConfig,
         object: &StorageMetadataRow,
     ) -> bool {
+        if let Some(decision) = policy_decision(
+            PolicyMethod::Delete,
+            user_id,
+            roles,
+            bucket,
+            &object.key,
+            object.owner_id.as_deref(),
+        ) {
+            return decision;
+        }
         is_admin(roles) || is_owner(user_id, object)
+    }
+
+    /// Whether the caller may list the bucket at `prefix` at all.
+    ///
+    /// Distinct from [`filter_visible`](Self::filter_visible), which decides
+    /// *which rows* come back: this is the door. Without a policy the historical
+    /// rule stands (a private bucket requires authentication; a public one is
+    /// open, with per-row filtering behind it). With a policy, `list` is its own
+    /// method and nothing is implied by the write grant.
+    #[must_use]
+    pub fn can_list(
+        &self,
+        user_id: Option<&str>,
+        roles: &[String],
+        bucket: &BucketConfig,
+        prefix: &str,
+    ) -> bool {
+        if let Some(decision) =
+            policy_decision(PolicyMethod::List, user_id, roles, bucket, prefix, None)
+        {
+            return decision;
+        }
+        if is_admin(roles) || user_id.is_some() {
+            return true;
+        }
+        !matches!(bucket.access, BucketAccess::Private)
     }
 
     /// Filter a list of objects to those visible to the user.
@@ -126,6 +208,27 @@ impl StorageRlsEvaluator {
         bucket: &BucketConfig,
         objects: Vec<StorageMetadataRow>,
     ) -> Vec<StorageMetadataRow> {
+        if bucket.policies.is_some() {
+            if is_admin(roles) {
+                return objects;
+            }
+            // Per-object, because a `key_prefix` rule makes visibility a
+            // property of the key, not of the bucket.
+            return objects
+                .into_iter()
+                .filter(|object| {
+                    policy_decision(
+                        PolicyMethod::Read,
+                        user_id,
+                        roles,
+                        bucket,
+                        &object.key,
+                        object.owner_id.as_deref(),
+                    )
+                    .unwrap_or(false)
+                })
+                .collect();
+        }
         match bucket.access {
             BucketAccess::PublicRead => objects,
             BucketAccess::Private => {
@@ -142,6 +245,36 @@ impl Default for StorageRlsEvaluator {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// The policy decision for a bucket, or `None` when the bucket has no policy
+/// (the caller then falls back to the coarse `access` mode).
+///
+/// The storage-admin role bypasses policies exactly as it bypasses the access
+/// mode — it is the deliberate global grant documented on
+/// [`STORAGE_ADMIN_ROLE`], not an accidental hole; an operator who wants
+/// no bypass must not grant that role.
+fn policy_decision(
+    method: PolicyMethod,
+    user_id: Option<&str>,
+    roles: &[String],
+    bucket: &BucketConfig,
+    key: &str,
+    owner_id: Option<&str>,
+) -> Option<bool> {
+    let policy = bucket.policies.as_ref()?;
+    if is_admin(roles) {
+        return Some(true);
+    }
+    Some(policy.permits(
+        method,
+        &PolicyRequest {
+            user_id,
+            roles,
+            key,
+            owner_id,
+        },
+    ))
 }
 
 /// Check if the roles contain the storage admin role.

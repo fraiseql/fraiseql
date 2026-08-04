@@ -145,6 +145,7 @@ mod minio_tests {
                 access:             BucketAccess::Private,
                 transform_presets:  None,
                 serve_inline:       false,
+                policies:           None,
                 upload_ttl_secs:    None,
             },
         );

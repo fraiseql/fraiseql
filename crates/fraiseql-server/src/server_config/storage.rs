@@ -103,12 +103,44 @@ fn resolve_from_map(
             .collect()
     });
 
+    // #371: parse policies at BOOT. An unknown method or principal spelling
+    // refuses to start rather than becoming a rule that silently denies (or,
+    // in a multi-rule policy, silently drops the narrowing rule).
+    let policies = match section.policies {
+        None => None,
+        Some(ref rules) => {
+            let mut parsed = Vec::with_capacity(rules.len());
+            for (index, rule) in rules.iter().enumerate() {
+                let methods = rule
+                    .methods
+                    .iter()
+                    .map(|m| fraiseql_storage::PolicyMethod::parse(m))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| format!("[storage.{name}] policy rule {index}: {e}"))?;
+                if methods.is_empty() {
+                    return Err(format!(
+                        "[storage.{name}] policy rule {index} lists no methods; a rule that                          permits nothing is a configuration mistake, not a denial"
+                    ));
+                }
+                let principal = fraiseql_storage::PolicyPrincipal::parse(&rule.principal)
+                    .map_err(|e| format!("[storage.{name}] policy rule {index}: {e}"))?;
+                parsed.push(fraiseql_storage::PolicyRule {
+                    methods,
+                    principal,
+                    key_prefix: rule.key_prefix.clone(),
+                });
+            }
+            Some(fraiseql_storage::BucketPolicy { rules: parsed })
+        },
+    };
+
     let bucket = BucketConfig {
         name: name.clone(),
         max_object_bytes: section.max_object_bytes,
         allowed_mime_types: section.allowed_mime_types.clone(),
         access,
         transform_presets,
+        policies,
         serve_inline: section.serve_inline.unwrap_or(false),
         upload_ttl_secs: section.upload_ttl_secs,
     };

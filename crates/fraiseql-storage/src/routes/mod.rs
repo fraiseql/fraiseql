@@ -486,16 +486,20 @@ async fn list_handler(
     };
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
-    if !state.rls.can_write(user.user_id.as_deref(), &user.roles, bucket) {
-        // For listing, we require at least authenticated access
-        // Public bucket reads are handled via filter_visible
-        if matches!(bucket.access, crate::config::BucketAccess::Private) {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                "Authentication required",
-            );
-        }
+    // The door: whether this caller may list at all. Which rows come back is
+    // `filter_visible`'s decision, applied below. Under a bucket policy `list`
+    // is its own method (#371) — it is no longer implied by write access.
+    if !state.rls.can_list(
+        user.user_id.as_deref(),
+        &user.roles,
+        bucket,
+        query.prefix.as_deref().unwrap_or(""),
+    ) {
+        return if user.user_id.is_none() {
+            error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
+        } else {
+            error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied")
+        };
     }
 
     let limit = query.limit.unwrap_or(100).min(1000);
@@ -866,7 +870,7 @@ fn storage_error_response(err: &FraiseQLError) -> Response {
 /// A `PublicRead` bucket has no boundary to leak — `can_read` is unconditional
 /// there — so it keeps the plain `404`.
 fn object_not_visible(bucket: &BucketConfig, user: &StorageUser) -> Response {
-    if matches!(bucket.access, crate::config::BucketAccess::Private) && user.user_id.is_none() {
+    if !bucket.allows_anonymous_read() && user.user_id.is_none() {
         error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
     } else {
         error_response(StatusCode::NOT_FOUND, "not_found", "Object not found")
