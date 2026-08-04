@@ -51,6 +51,16 @@ async fn pool() -> PgPool {
 /// triggers pass `'true'` as `TG_ARGV[3]` so the capture function records OLD
 /// into `object_data_before` (the `changelog_pre_image` out-of-band parity).
 async fn setup(pool: &PgPool, src: &str, pk: &str, tenant: &str, pre_image: bool) {
+    // Own the slate: other suites (changelog_views, observer_test_helpers, the
+    // core changelog e2e) create this table with `object_data JSONB NOT NULL`,
+    // and the additive contract DDL never relaxes a pre-existing column — so on
+    // an ambient table the trigger's legitimate NULL after-image on DELETE
+    // violates that constraint. Dropping first makes this suite order-independent
+    // (the only form in which it can be a CI gate).
+    sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
+        .execute(pool)
+        .await
+        .unwrap();
     sqlx::raw_sql(entity_change_log_contract_sql()).execute(pool).await.unwrap();
     sqlx::raw_sql(entity_change_log_capture_trigger_sql())
         .execute(pool)

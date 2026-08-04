@@ -137,6 +137,27 @@ pub struct PublicGrant {
     pub privileges: Vec<String>,
 }
 
+/// Live actor-attribution posture of `core.tb_entity_change_log` for the
+/// `fraiseql doctor` actor check (#390).
+///
+/// The actor model stamps every mutation-runner write with a canonical
+/// [`fraiseql_core::security::ActorType`] token; migration 08's
+/// `chk_entity_change_log_actor_type` refuses anything else on new writes. This
+/// introspection reports what the *live* table actually holds, so the doctor can
+/// surface pre-constraint rogue values and unattributed rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChangeLogActorStats {
+    /// Rows whose `actor_type` is NULL — pre-actor-model rows, or writes made
+    /// without an authenticated security context.
+    pub null_rows:            i64,
+    /// Distinct non-NULL `actor_type` values outside the canonical token set —
+    /// evidence of a rogue writer (only possible before the CHECK constraint, or
+    /// while it is missing).
+    pub unknown_values:       Vec<String>,
+    /// Whether `chk_entity_change_log_actor_type` is installed on the table.
+    pub constraint_installed: bool,
+}
+
 /// Security posture of `core.fn_entity_change_log_capture()` for the
 /// `fraiseql doctor` capture-function check (#443 / #437 F6).
 ///
@@ -528,6 +549,63 @@ impl PgCatalog {
                 privileges: row.get("public_privs"),
             })
             .collect())
+    }
+
+    /// Read the live actor-attribution posture of `core.tb_entity_change_log`
+    /// (#390): how many rows carry no `actor_type`, which out-of-contract values
+    /// exist, and whether the domain CHECK constraint is installed.
+    ///
+    /// `valid_tokens` is the canonical roster (built from
+    /// [`fraiseql_core::security::ActorType::ALL`] by the caller). Returns `None`
+    /// when the table is absent — the doctor check reads that as "not present,
+    /// skipped".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or a catalog query fails.
+    pub async fn change_log_actor_stats(
+        &self,
+        valid_tokens: &[String],
+    ) -> Result<Option<ChangeLogActorStats>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let table_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM pg_class c \
+                   JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 WHERE n.nspname = 'core' AND c.relname = 'tb_entity_change_log') AS present",
+                &[],
+            )
+            .await
+            .context("failed to check for core.tb_entity_change_log in pg_class")?
+            .get("present");
+        if !table_exists {
+            return Ok(None);
+        }
+
+        let row = client
+            .query_one(
+                "SELECT \
+                   (SELECT count(*) FROM core.tb_entity_change_log \
+                     WHERE actor_type IS NULL) AS null_rows, \
+                   (SELECT COALESCE(array_agg(DISTINCT actor_type ORDER BY actor_type), \
+                                    ARRAY[]::text[]) \
+                      FROM core.tb_entity_change_log \
+                     WHERE actor_type IS NOT NULL AND actor_type <> ALL($1)) AS unknown_values, \
+                   EXISTS (SELECT 1 FROM pg_constraint con \
+                             JOIN pg_class c ON c.oid = con.conrelid \
+                             JOIN pg_namespace n ON n.oid = c.relnamespace \
+                           WHERE n.nspname = 'core' AND c.relname = 'tb_entity_change_log' \
+                             AND con.conname = 'chk_entity_change_log_actor_type') \
+                     AS constraint_installed",
+                &[&valid_tokens],
+            )
+            .await
+            .context("failed to query change-log actor attribution stats")?;
+        Ok(Some(ChangeLogActorStats {
+            null_rows:            row.get("null_rows"),
+            unknown_values:       row.get("unknown_values"),
+            constraint_installed: row.get("constraint_installed"),
+        }))
     }
 
     /// Read the security posture of `core.fn_entity_change_log_capture()` (#443 /

@@ -260,3 +260,96 @@ async fn capture_fn_security_reads_definer_and_pinned_search_path() {
         );
     }
 }
+
+/// `change_log_actor_stats` runs against real `PostgreSQL` and can actually SEE
+/// what it reports (#390): NULL-actor rows are counted, a canonical token is
+/// never classified as unknown, an out-of-contract token IS classified as
+/// unknown, and the `chk_entity_change_log_actor_type` constraint presence is
+/// read back. The scenario briefly drops the constraint to plant the rogue row
+/// (the constraint would otherwise refuse it — which is the point of the
+/// constraint) and restores the contract posture by re-applying the idempotent
+/// contract DDL before asserting.
+#[tokio::test]
+async fn change_log_actor_stats_sees_null_unknown_and_constraint() {
+    const MARKER: &str = "ActorStatsProbe390";
+    const ROGUE: &str = "rogue_probe_390";
+    // Compile-time dependency on the vendored contract DDL (byte-identical to
+    // observers migration 08 by the setup lockstep test).
+    const CONTRACT_SQL: &str = include_str!("../sql/helpers/entity_change_log_contract.sql");
+
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        return;
+    };
+    let (client, conn) = match tokio_postgres::connect(&url, tokio_postgres::NoTls).await {
+        Ok(pair) => pair,
+        Err(e) => {
+            eprintln!("skipping #390 actor-stats test: {e}");
+            return;
+        },
+    };
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+
+    // Bring the shared table to the current contract (idempotent, additive).
+    client.batch_execute(CONTRACT_SQL).await.expect("apply contract DDL");
+
+    // Plant: two unattributed rows, one canonical row, and — with the
+    // constraint temporarily out of the way — one rogue-token row.
+    client
+        .batch_execute(&format!(
+            "DELETE FROM core.tb_entity_change_log WHERE object_type = '{MARKER}'; \
+             INSERT INTO core.tb_entity_change_log (object_type, modification_type, actor_type) \
+             VALUES ('{MARKER}', 'INSERT', NULL), \
+                    ('{MARKER}', 'INSERT', NULL), \
+                    ('{MARKER}', 'INSERT', 'human_user'); \
+             ALTER TABLE core.tb_entity_change_log \
+                 DROP CONSTRAINT IF EXISTS chk_entity_change_log_actor_type; \
+             INSERT INTO core.tb_entity_change_log (object_type, modification_type, actor_type) \
+             VALUES ('{MARKER}', 'INSERT', '{ROGUE}');"
+        ))
+        .await
+        .expect("plant actor-stats probe rows");
+
+    let catalog = PgCatalog::connect(&url).expect("connect catalog");
+    let tokens: Vec<String> = fraiseql_core::security::ActorType::ALL
+        .iter()
+        .map(|a| a.as_str().to_string())
+        .collect();
+    let stats_without_constraint = catalog.change_log_actor_stats(&tokens).await;
+
+    // Restore the contract posture (re-adds the constraint, NOT VALID) and
+    // remove the probe rows BEFORE asserting, so a failed assertion still
+    // leaves the shared table clean.
+    client.batch_execute(CONTRACT_SQL).await.expect("re-apply contract DDL");
+    client
+        .batch_execute(&format!(
+            "DELETE FROM core.tb_entity_change_log WHERE object_type = '{MARKER}';"
+        ))
+        .await
+        .expect("remove probe rows");
+    let stats_restored = catalog.change_log_actor_stats(&tokens).await;
+
+    let s = stats_without_constraint
+        .expect("actor-stats introspection must not error")
+        .expect("table exists — stats must be Some");
+    assert!(s.null_rows >= 2, "the two planted NULL-actor rows are counted: {s:?}");
+    assert!(
+        s.unknown_values.iter().any(|v| v == ROGUE),
+        "the planted rogue token is classified as unknown: {s:?}"
+    );
+    assert!(
+        !s.unknown_values.iter().any(|v| v == "human_user"),
+        "a canonical token is never classified as unknown: {s:?}"
+    );
+    assert!(!s.constraint_installed, "constraint was dropped for the plant: {s:?}");
+
+    let s = stats_restored
+        .expect("actor-stats introspection must not error after restore")
+        .expect("table exists — stats must be Some");
+    assert!(s.constraint_installed, "re-applying the contract DDL restores the constraint");
+    assert!(
+        !s.unknown_values.iter().any(|v| v == ROGUE),
+        "probe rows removed — the rogue token is gone: {s:?}"
+    );
+}

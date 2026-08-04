@@ -117,6 +117,26 @@ DO $$ BEGIN
 END $$;
 
 -- ----------------------------------------------------------------------------
+-- Actor-type domain constraint (#390). The four canonical tokens are the
+-- serialized form of fraiseql-core's `ActorType` enum (`as_str()`); the CLI
+-- lockstep test `actor_constraint_covers_every_actor_type_token` keeps this
+-- list and the enum in sync. `NOT VALID` keeps the migration additive-safe on a
+-- populated legacy table: existing rows (including out-of-range values a rogue
+-- writer may have left) are not validated — `fraiseql doctor --against-db`
+-- surfaces those — while every NEW write is checked, so an invalid string can
+-- never reach the column again. NULL stays valid: pre-actor-model rows.
+-- Re-run safe via DROP CONSTRAINT IF EXISTS + ADD (PostgreSQL has no
+-- ADD CONSTRAINT IF NOT EXISTS).
+-- ----------------------------------------------------------------------------
+ALTER TABLE core.tb_entity_change_log
+    DROP CONSTRAINT IF EXISTS chk_entity_change_log_actor_type;
+ALTER TABLE core.tb_entity_change_log
+    ADD CONSTRAINT chk_entity_change_log_actor_type CHECK (
+        actor_type IS NULL
+        OR actor_type IN ('human_user', 'service_account', 'ai_agent', 'system_job')
+    ) NOT VALID;
+
+-- ----------------------------------------------------------------------------
 -- Monotonic `seq` source (Change Spine durable ordering / dedup on
 -- (object_type, seq)). A plain global SEQUENCE defaulted on the column, so ANY
 -- INSERTer gets a value — the FraiseQL executor AND cooperative external

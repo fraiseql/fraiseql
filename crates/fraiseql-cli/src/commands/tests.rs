@@ -1073,6 +1073,82 @@ mod doctor_tests {
         assert!(c.hint.is_some());
     }
 
+    // ── change-log actor-attribution check (#390) ────────────────────────────
+    use crate::schema::pg_catalog::ChangeLogActorStats;
+
+    fn actor_stats(
+        null_rows: i64,
+        unknown: &[&str],
+        constraint_installed: bool,
+    ) -> ChangeLogActorStats {
+        ChangeLogActorStats {
+            null_rows,
+            unknown_values: unknown.iter().map(ToString::to_string).collect(),
+            constraint_installed,
+        }
+    }
+
+    #[test]
+    fn changelog_actor_absent_table_is_pass() {
+        let checks = changelog_actor_check(None);
+        assert_eq!(checks.len(), 1);
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn changelog_actor_clean_is_pass() {
+        let s = actor_stats(0, &[], true);
+        let checks = changelog_actor_check(Some(&s));
+        assert_eq!(checks.len(), 1);
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn changelog_actor_unknown_values_fail() {
+        // A rogue writer's token mis-buckets every per-actor forensic query.
+        let s = actor_stats(0, &["superhuman"], true);
+        let checks = changelog_actor_check(Some(&s));
+        assert_eq!(checks.len(), 1);
+        assert_eq!(checks[0].status, CheckStatus::Fail);
+        assert!(checks[0].detail.contains("superhuman"));
+        assert!(checks[0].detail.contains("blocks new ones"));
+    }
+
+    #[test]
+    fn changelog_actor_unknown_values_without_constraint_fail_mentions_missing_guard() {
+        let s = actor_stats(0, &["superhuman"], false);
+        let checks = changelog_actor_check(Some(&s));
+        assert_eq!(checks[0].status, CheckStatus::Fail);
+        assert!(checks[0].detail.contains("NOT"), "must flag the missing constraint too");
+    }
+
+    #[test]
+    fn changelog_actor_missing_constraint_warns() {
+        let s = actor_stats(0, &[], false);
+        let checks = changelog_actor_check(Some(&s));
+        assert_eq!(checks.len(), 1);
+        assert_eq!(checks[0].status, CheckStatus::Warn);
+        assert!(checks[0].detail.contains("chk_entity_change_log_actor_type"));
+    }
+
+    #[test]
+    fn changelog_actor_null_rows_warn() {
+        let s = actor_stats(7, &[], true);
+        let checks = changelog_actor_check(Some(&s));
+        assert_eq!(checks.len(), 1);
+        assert_eq!(checks[0].status, CheckStatus::Warn);
+        assert!(checks[0].detail.contains('7'));
+    }
+
+    #[test]
+    fn changelog_actor_rogue_and_null_produce_both_checks() {
+        let s = actor_stats(3, &["rogue"], true);
+        let checks = changelog_actor_check(Some(&s));
+        assert_eq!(checks.len(), 2);
+        assert_eq!(checks[0].status, CheckStatus::Fail);
+        assert_eq!(checks[1].status, CheckStatus::Warn);
+    }
+
     // ── RLS view security_invoker check ──────────────────────────────────────
     use crate::schema::pg_catalog::SecurityInvokerAudit;
 

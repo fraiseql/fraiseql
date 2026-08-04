@@ -49,6 +49,21 @@ pub enum ActorType {
 }
 
 impl ActorType {
+    /// Every variant, in declaration order.
+    ///
+    /// The canonical roster consumed wherever the full domain is needed as data:
+    /// the `fraiseql doctor` against-db actor check builds its `NOT IN (…)` list
+    /// from it, and the CLI lockstep test asserts the change-log CHECK constraint
+    /// (`chk_entity_change_log_actor_type`, migration 08) names exactly these
+    /// tokens — so adding a variant without updating the constraint is a red
+    /// test, not a runtime surprise.
+    pub const ALL: [Self; 4] = [
+        Self::HumanUser,
+        Self::ServiceAccount,
+        Self::AiAgent,
+        Self::SystemJob,
+    ];
+
     /// The stable `snake_case` token written to the `actor_type` column.
     ///
     /// Matches the [`Serialize`] representation; used on the change-log write

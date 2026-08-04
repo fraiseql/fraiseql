@@ -373,3 +373,102 @@ async fn view_exposes_duration_ms() {
     .await
     .expect("v_entity_change_log exposes duration_ms + perf columns and the #149 data JSONB");
 }
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn actor_type_constraint_rejects_unknown_tokens() {
+    let pool = pool().await;
+    drop_contract(&pool).await;
+    sqlx::raw_sql(entity_change_log_contract_sql()).execute(&pool).await.unwrap();
+
+    // Every canonical ActorType token is accepted, as is NULL (pre-actor-model rows).
+    for actor in ["human_user", "service_account", "ai_agent", "system_job"] {
+        let result = sqlx::query(
+            "INSERT INTO core.tb_entity_change_log (object_type, modification_type, actor_type)
+             VALUES ('User', 'INSERT', $1)",
+        )
+        .bind(actor)
+        .execute(&pool)
+        .await;
+        assert!(result.is_ok(), "valid actor_type '{actor}' must be accepted: {result:?}");
+    }
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log (object_type, modification_type, actor_type)
+         VALUES ('User', 'INSERT', NULL)",
+    )
+    .execute(&pool)
+    .await
+    .expect("NULL actor_type stays valid (pre-actor-model rows)");
+
+    // An out-of-range string — a rogue writer or a typo'd producer — is refused
+    // by the database itself, not just by application-layer discipline.
+    let err = sqlx::query(
+        "INSERT INTO core.tb_entity_change_log (object_type, modification_type, actor_type)
+         VALUES ('User', 'INSERT', 'superhuman')",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("unknown actor_type token must violate chk_entity_change_log_actor_type");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("chk_entity_change_log_actor_type"),
+        "rejection must come from the CHECK constraint, got: {msg}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn actor_type_constraint_tolerates_legacy_bad_rows_but_blocks_new_ones() {
+    let pool = pool().await;
+    drop_contract(&pool).await;
+
+    // A pre-existing table that already holds an out-of-range actor_type value.
+    // The additive migration must still succeed (NOT VALID skips existing rows)
+    // — a populated legacy table must never make the contract migration fail —
+    // while new writes are checked from then on. `fraiseql doctor` is what
+    // surfaces the legacy row.
+    sqlx::query(
+        r"
+        CREATE TABLE core.tb_entity_change_log (
+            pk_entity_change_log BIGSERIAL PRIMARY KEY,
+            object_type          TEXT NOT NULL,
+            modification_type    TEXT NOT NULL,
+            actor_type           TEXT,
+            created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log (object_type, modification_type, actor_type)
+         VALUES ('User', 'INSERT', 'legacy_rogue_value')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::raw_sql(entity_change_log_contract_sql())
+        .execute(&pool)
+        .await
+        .expect("contract migration must succeed on a populated table with legacy bad rows");
+
+    let legacy: i64 = sqlx::query(
+        "SELECT count(*) AS n FROM core.tb_entity_change_log
+         WHERE actor_type = 'legacy_rogue_value'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap()
+    .get("n");
+    assert_eq!(legacy, 1, "legacy row survives the migration untouched");
+
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log (object_type, modification_type, actor_type)
+         VALUES ('User', 'INSERT', 'another_rogue_value')",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("new out-of-range actor_type must be refused after the migration");
+}

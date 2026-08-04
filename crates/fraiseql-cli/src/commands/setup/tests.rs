@@ -51,3 +51,38 @@ fn changelog_contract_matches_observers_migration() {
         "CLI change-log contract DDL drifted from observers migration 08 — re-copy it"
     );
 }
+
+/// #390 lockstep: the change-log CHECK constraint must name **exactly** the
+/// serialized tokens of [`fraiseql_core::security::ActorType`]. Adding an enum
+/// variant without extending `chk_entity_change_log_actor_type` in migration 08
+/// (and re-copying the vendored helper) makes this red — otherwise the database
+/// would refuse rows the runtime legitimately stamps.
+///
+/// This tests the vendored copy; [`changelog_contract_matches_observers_migration`]
+/// pins it byte-identical to the owning migration, so the check is transitive.
+#[test]
+fn actor_constraint_covers_every_actor_type_token() {
+    let constraint_start = CHANGELOG_CONTRACT_SQL
+        .find("chk_entity_change_log_actor_type CHECK")
+        .expect("contract DDL carries the actor-type CHECK constraint");
+    let constraint = &CHANGELOG_CONTRACT_SQL[constraint_start..];
+    let constraint = &constraint[..constraint.find(';').expect("constraint terminated")];
+
+    for actor in fraiseql_core::security::ActorType::ALL {
+        let quoted = format!("'{}'", actor.as_str());
+        assert!(
+            constraint.contains(&quoted),
+            "CHECK constraint is missing ActorType token {quoted} — extend migration 08"
+        );
+    }
+    // And nothing beyond the enum: every quoted token in the IN (…) list parses.
+    let in_list_start = constraint.find("IN (").expect("constraint uses IN (…)");
+    let in_list = &constraint[in_list_start..];
+    let in_list = &in_list[..in_list.find(')').expect("IN list closed")];
+    for token in in_list.split('\'').skip(1).step_by(2) {
+        assert!(
+            fraiseql_core::security::ActorType::from_token(token).is_some(),
+            "constraint names '{token}', which is not an ActorType — remove it or add the variant"
+        );
+    }
+}
