@@ -137,6 +137,9 @@ var featureCombos = []featureCombo{
 	// #370: the server-side render endpoint passthrough — the storage crate
 	// combo above cannot catch a break in fraiseql-server's mount or config.
 	{name: "server-storage-transforms", crate: "fraiseql-server", features: []string{"storage-transforms"}},
+	// #382: the server-side outbound-CDC mount (its own feature, pulling
+	// fraiseql-cdc-sinks with the NATS sink).
+	{name: "server-cdc-outbound", crate: "fraiseql-server", features: []string{"cdc-outbound"}},
 	{name: "storage-gcs", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"gcs"}},
 	{name: "storage-azure-blob", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"azure-blob"}},
 

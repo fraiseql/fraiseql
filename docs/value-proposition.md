@@ -195,7 +195,7 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 - Durable outbox drain worker forwards changes to a message broker (at-least-once)
 - NATS JetStream sink for event streaming
 
-**Enabled**: The capture trigger ships with the compiled schema; outbound streaming is provided by the standalone `fraiseql-cdc-sinks` crate (feature `cdc-nats-jetstream`). NATS JetStream is the only sink today, and there is no server auto-mount yet (Kafka/Kinesis/Pulsar sinks and Avro/Protobuf encoding are planned).
+**Enabled**: The capture trigger ships with the compiled schema; outbound streaming is provided by `fraiseql-cdc-sinks` and mounted by the server from `[cdc_outbound]` when built with the `cdc-outbound` feature (#382). NATS JetStream is the only sink today — Kafka, Kinesis and Pulsar are recognised kinds that refuse to boot rather than draining nowhere, and Avro/Protobuf encoding is still planned.
 
 ---
 

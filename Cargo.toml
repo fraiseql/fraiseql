@@ -89,6 +89,7 @@ fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.14.1"}
 fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.14.1"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.14.1"}
 fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.14.1"}
+fraiseql-cdc-sinks = {path = "crates/fraiseql-cdc-sinks", version = "2.14.1"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.14.1"}
 futures = "0.3"
 graphql-parser = "0.4"

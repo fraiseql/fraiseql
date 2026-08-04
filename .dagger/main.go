@@ -449,7 +449,7 @@ func (m *FraiseqlCi) Test(
 		// manifest gate's two directions disagree: a leaf that does not exist has
 		// no consumer to name, and its manifest entry reads as stale. Grow this
 		// list whenever a new feature adds a config section (#381 added `saml`).
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml' --test config_coverage_manifest_test --test doc_config_examples_test",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound' --test config_coverage_manifest_test --test doc_config_examples_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
 		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
 		// and run in the integration legs; `--features cli` pulls in the CLI
@@ -1660,6 +1660,11 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).
 		"cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-cdc-sinks --features cdc-nats-jetstream --test cdc_nats_e2e -- --ignored --test-threads=1",
+		// #382: the SERVER's outbound-CDC mount — [cdc_outbound] built through
+		// the real path drains the outbox to the bound JetStream, and an
+		// unreachable broker refuses to boot. Before this the drain engine was
+		// library-only: nothing in the shipped server constructed a DrainWorker.
+		"cargo test -p fraiseql-server --features cdc-outbound --test cdc_outbound_mount_pg -- --ignored --test-threads=1",
 		// #715/#717 arrow executed-SQL suite: the generated INSERT (every Arrow
 		// type, specials, pre-epoch timestamps, NULLs) EXECUTED vs the bound
 		// Postgres, and the batched-queries schema-mismatch guard. This is the

@@ -481,6 +481,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Start the outbound CDC drains (#382): one worker per configured
+        // `[[cdc_outbound.sinks]]`, draining the change-log outbox to its
+        // broker on the server's JoinSet so graceful shutdown stops them.
+        // Building them is fail-loud (no pool / unreachable broker / DDL
+        // failure all refuse to boot) — a server that starts without its drain
+        // is silent data loss for every downstream consumer.
+        #[cfg(feature = "cdc-outbound")]
+        {
+            let drains = std::mem::take(&mut self.cdc_drains);
+            if !drains.is_empty() {
+                let started = drains.len();
+                crate::cdc_outbound::spawn_all(drains, &mut self.tasks);
+                info!(sinks = started, "cdc outbound drains started");
+            }
+        }
+
         // Start the `cron:` function scheduler (#595): one leased poller per cron
         // function in the compiled schema, each firing on its schedule under a
         // single-firing advisory lease with the phase-02 `run_as` host. A cron
