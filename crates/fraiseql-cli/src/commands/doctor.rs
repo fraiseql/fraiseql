@@ -21,8 +21,8 @@ use crate::{
         database_validator::{create_introspector, validate_schema_against_database},
         mutation_contract::{ContractReport, Severity, validate_mutation_contract},
         pg_catalog::{
-            CaptureFnSecurity, ChangeLogRlsStatus, LiveColumn, PgCatalog, PlpgsqlCheckOutcome,
-            PublicGrant, SecurityInvokerAudit,
+            CaptureFnSecurity, ChangeLogActorStats, ChangeLogRlsStatus, LiveColumn, PgCatalog,
+            PlpgsqlCheckOutcome, PublicGrant, SecurityInvokerAudit,
         },
     },
 };
@@ -665,6 +665,7 @@ pub async fn run_with_db_checks(
         checks.extend(changelog_contract_checks(url).await);
         checks.extend(changelog_rls_checks(url).await);
         checks.extend(changelog_public_grants_checks(url).await);
+        checks.extend(changelog_actor_checks(url).await);
         checks.extend(capture_fn_security_checks(url).await);
         checks.extend(body_resolution_checks(url, schemas).await);
         checks.extend(mutation_contract_checks(url, schema).await);
@@ -1196,6 +1197,115 @@ pub(crate) fn changelog_rls_check(status: Option<&ChangeLogRlsStatus>) -> Doctor
         "Grant BYPASSRLS to this role (ALTER ROLE … BYPASSRLS) or connect the change-log consumers \
          as the table owner.",
     )
+}
+
+const CHANGELOG_ACTOR_NAME: &str = "Change-log actor attribution";
+
+/// Run the change-log actor-attribution check against a live database (#390).
+///
+/// Connects, reads how the live `core.tb_entity_change_log` rows are attributed
+/// (NULL / out-of-contract `actor_type` values, CHECK constraint presence), and
+/// classifies via [`changelog_actor_check`]. A connection or introspection
+/// failure becomes a single `Fail` check (never panics).
+async fn changelog_actor_checks(db_url: &str) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                CHANGELOG_ACTOR_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    let tokens: Vec<String> = fraiseql_core::security::ActorType::ALL
+        .iter()
+        .map(|a| a.as_str().to_string())
+        .collect();
+    match catalog.change_log_actor_stats(&tokens).await {
+        Ok(stats) => changelog_actor_check(stats.as_ref()),
+        Err(e) => vec![DoctorCheck::fail(
+            CHANGELOG_ACTOR_NAME,
+            format!("introspection failed: {e}"),
+            "Ensure the connecting role can read core.tb_entity_change_log and pg_constraint",
+        )],
+    }
+}
+
+/// Classify the change-log actor-attribution posture into doctor checks (#390).
+///
+/// Pure — no database access — so the matrix is unit-tested without a connection.
+/// Severity model:
+/// - **out-of-contract `actor_type` values → `Fail`**: only a rogue writer (or a pre-constraint
+///   one) can produce them, and every downstream per-actor forensic query silently mis-buckets
+///   those rows;
+/// - **missing CHECK constraint → `Warn`**: the domain is enforced only by application-layer
+///   discipline until migration 08 is (re-)applied;
+/// - **NULL `actor_type` rows → `Warn`**: pre-actor-model rows or writes made without an
+///   authenticated security context — the actor model cannot attribute them retroactively;
+/// - otherwise → `Pass`.
+pub(crate) fn changelog_actor_check(stats: Option<&ChangeLogActorStats>) -> Vec<DoctorCheck> {
+    let Some(s) = stats else {
+        return vec![DoctorCheck::pass(
+            CHANGELOG_ACTOR_NAME,
+            "core.tb_entity_change_log not present — skipped",
+        )];
+    };
+
+    let mut checks = Vec::new();
+
+    if s.unknown_values.is_empty() {
+        if !s.constraint_installed {
+            checks.push(DoctorCheck::warn(
+                CHANGELOG_ACTOR_NAME,
+                "chk_entity_change_log_actor_type is not installed — an arbitrary string can \
+                 reach actor_type",
+                "Re-apply migration 08 (08_create_entity_change_log_contract.sql) or re-run \
+                 `fraiseql setup`",
+            ));
+        }
+    } else {
+        checks.push(DoctorCheck::fail(
+            CHANGELOG_ACTOR_NAME,
+            format!(
+                "out-of-contract actor_type values in core.tb_entity_change_log: {} — a rogue \
+                 or pre-constraint writer{}",
+                s.unknown_values.join(", "),
+                if s.constraint_installed {
+                    " (the CHECK constraint now blocks new ones)"
+                } else {
+                    "; chk_entity_change_log_actor_type is also missing, so new ones are NOT \
+                     blocked"
+                }
+            ),
+            "Identify the writer; valid tokens are human_user, service_account, ai_agent, \
+             system_job. Re-apply migration 08 if the constraint is missing",
+        ));
+    }
+
+    if s.null_rows > 0 {
+        checks.push(DoctorCheck::warn(
+            CHANGELOG_ACTOR_NAME,
+            format!(
+                "{} change-log row(s) carry no actor attribution (actor_type IS NULL) — \
+                 pre-actor-model rows, or writes made without an authenticated security context",
+                s.null_rows
+            ),
+            "New writes through the mutation runner are stamped from the SecurityContext; \
+             unauthenticated deployments record NULL. Enable authentication to attribute every \
+             action",
+        ));
+    }
+
+    if checks.is_empty() {
+        checks.push(DoctorCheck::pass(
+            CHANGELOG_ACTOR_NAME,
+            "every change-log row carries a canonical actor_type and the domain CHECK \
+             constraint is installed",
+        ));
+    }
+    checks
 }
 
 const CHANGELOG_PUBLIC_GRANTS_NAME: &str = "Change-log PUBLIC grants";

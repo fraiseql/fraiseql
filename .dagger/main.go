@@ -924,6 +924,11 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// generated from the route table rather than from the router, so the two could
 		// disagree in both directions.
 		"cargo test -p fraiseql-server --features rest --test rest_write_mount_e2e_pg -- --test-threads=1",
+		// #390: every authenticated write path (graphql + REST) records a derived,
+		// unforgeable actor in the change-log; unauthenticated writes are refused, not
+		// recorded unattributed. Recreates core.tb_entity_change_log → serial, and must
+		// not share a process with another changelog-owning binary.
+		"cargo test -p fraiseql-server --features rest --test actor_attribution_e2e_pg -- --test-threads=1",
 		// #862/#913/#914/#916: bulk update/delete reported rows it never touched, and the
 		// "at least one filter" guard was satisfied by parameters contributing no WHERE.
 		// Asserts the *table*, because `affected_rows` is exactly the number #913 fabricates.
@@ -1607,6 +1612,14 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// superuser DATABASE_URL would mask the policy). The test creates its own
 		// tenant/consumer roles off the superuser connection — no extra env needed.
 		"cargo test -p fraiseql-observers --features postgres --test rls_isolation -- --ignored --test-threads=1",
+		// #390 (P29): the change-log contract suite — including the actor_type CHECK
+		// constraint tests — plus the views + capture-trigger suites. All three binaries
+		// had run in NO leg since they were written (the #[ignore]-with-no---ignored-leg
+		// form of the skip-green pattern); capture_trigger is order-independent since it
+		// drops the ambient table (an ambient NOT-NULL object_data red-flagged it).
+		"cargo test -p fraiseql-observers --features postgres --test entity_change_log_contract -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features postgres --test changelog_views -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features postgres --test capture_trigger -- --ignored --test-threads=1",
 		// #573 source coordination primitives: the advisory-lease mutual-exclusion
 		// + crash-safety boundary (Phase 00), and the source cursor store (CAS
 		// advance, in-tx rollback, deny-by-default RLS) + single-firing runner

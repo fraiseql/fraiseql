@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Actor-model hardening (#390).** The change-log's `actor_type` domain is now
+  enforced by the database itself: migration 08 installs
+  `chk_entity_change_log_actor_type` (`NOT VALID`, so a populated legacy table
+  migrates safely; new writes are checked), and a CLI lockstep test pins the
+  constraint's token list to `ActorType::ALL` so adding an enum variant without
+  extending the constraint is a red test. `fraiseql doctor --against-db` gained
+  an actor-attribution check: out-of-contract `actor_type` values are a
+  **Fail** (rogue writer), a missing constraint or `NULL`-actor rows are a
+  **Warn**. A new end-to-end suite (`actor_attribution_e2e_pg`) drives real
+  HS256 tokens through the production mount on both HTTP write transports
+  (`/graphql` + REST) and asserts the recorded rows: `human_user` /
+  `service_account` (scope) / `ai_agent` + `acting_for` (RFC 8693 `act`)
+  derivation, that forged `fraiseql.*`/`actor_type` claims cannot influence the
+  classification, and that unauthenticated writes are refused rather than
+  recorded unattributed. Operator docs: `docs/features/audit-logging.md`.
+  Deferred consumption features (RBAC actor predicates, per-actor budgets) are
+  tracked in #966.
+
+### Fixed
+
+- **Three never-run observer test binaries wired into CI (#390 flight
+  finding).** `entity_change_log_contract`, `changelog_views`, and
+  `capture_trigger` are `#[ignore]`d suites that no CI leg ran with
+  `--ignored` since they were written. All three now run in the observers
+  integration leg. Wiring them surfaced an order-dependence defect:
+  `capture_trigger` inherited whatever `core.tb_entity_change_log` an earlier
+  suite left behind, and on a table with `object_data NOT NULL` (three in-tree
+  fixtures create that shape) the capture trigger's legitimate NULL after-image
+  on DELETE violated the constraint. The suite now owns its slate.
+
 - **Studio: Schema, Observers, and Logs tabs (#373).** The embedded Studio SPA
   gained a **Schema** browser (types with per-field type/nullability and the
   backing view, queries with their relay/list shape, mutations with their
