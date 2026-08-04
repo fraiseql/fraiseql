@@ -966,6 +966,34 @@ pub struct StorageSectionConfig {
     /// bytes are discarded and a reservation the session created is released.
     #[serde(default)]
     pub upload_ttl_secs: Option<u64>,
+
+    /// Named transform presets for the render endpoint (#370), e.g.
+    /// `transform_presets = [{ name = "thumb", width = 200, format = "webp" }]`.
+    /// Served only when the server is built with the `storage-transforms`
+    /// feature; configuring presets without it is a startup error, not a
+    /// silently absent endpoint.
+    #[serde(default)]
+    pub transform_presets: Option<Vec<TransformPresetConfig>>,
+}
+
+/// One named transform preset in a `[storage.<name>]` section (#370).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransformPresetConfig {
+    /// The preset name used as `?preset=<name>`.
+    pub name:    String,
+    /// Target width in pixels.
+    #[serde(default)]
+    pub width:   Option<u32>,
+    /// Target height in pixels.
+    #[serde(default)]
+    pub height:  Option<u32>,
+    /// Output format: `webp` | `jpeg` | `png` | `avif`.
+    #[serde(default)]
+    pub format:  Option<String>,
+    /// Encoder quality (1-100) for lossy formats.
+    #[serde(default)]
+    pub quality: Option<u8>,
 }
 
 /// A single `[files.<name>]` configuration section.

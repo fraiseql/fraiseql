@@ -10,6 +10,8 @@
 //! There is no transform/render route: `ImageTransformer` is a library-level
 //! capability with no HTTP surface (#901).
 
+#[cfg(feature = "transforms")]
+mod render;
 #[cfg(test)]
 mod tests;
 mod uploads;
@@ -171,6 +173,9 @@ pub fn storage_router(state: StorageState) -> Router {
         )
         .route("/storage/v1/list/{bucket}", get(list_handler))
         .route("/storage/v1/presign/{bucket}/{*key}", post(presign_handler))
+        // Image renders (#370): present only when the `transforms` feature is
+        // compiled in; without it the path 404s like any unknown route.
+        .merge(render_routes())
         // Resumable (Tus) uploads (#369). Creation addresses the object key;
         // the session endpoints address the upload id. The two shapes differ
         // in arity, so axum accepts both under the same prefix.
@@ -759,6 +764,18 @@ impl From<&StorageMetadataRow> for ListItem {
             updated_at:   row.updated_at.to_rfc3339(),
         }
     }
+}
+
+/// The render route, when the `transforms` feature is compiled in.
+#[cfg(feature = "transforms")]
+fn render_routes() -> Router<StorageState> {
+    Router::new().route("/storage/v1/render/{bucket}/{*key}", get(render::render_handler))
+}
+
+/// Without the `transforms` feature there is no render surface at all.
+#[cfg(not(feature = "transforms"))]
+fn render_routes() -> Router<StorageState> {
+    Router::new()
 }
 
 /// Build a JSON error response.

@@ -97,8 +97,37 @@ bucket.
 | `DELETE` | `/storage/v1/object/{bucket}/{key}` | Delete |
 | `GET` | `/storage/v1/list/{bucket}` | List (`prefix`, `limit`, `offset`) |
 | `POST` | `/storage/v1/presign/{bucket}/{key}` | Presigned upload or download URL |
+| `GET` | `/storage/v1/render/{bucket}/{key}` | Rendered image (`transforms` feature) |
+| `POST` | `/storage/v1/uploads/{bucket}/{key}` | Create a resumable (Tus) upload |
+| `PATCH` | `/storage/v1/uploads/{id}` | Append a chunk at the declared offset |
+| `HEAD` | `/storage/v1/uploads/{id}` | Current offset (resume point) |
+| `DELETE` | `/storage/v1/uploads/{id}` | Cancel an upload |
 
 `{key}` is a wildcard, so it may contain `/`.
+
+### Resumable uploads (Tus 1.0.0)
+
+`POST` with `Upload-Length` (and optionally `Upload-Metadata: filetype <base64>`)
+creates a session and returns its `Location`. Each `PATCH` carries
+`Content-Type: application/offset+octet-stream` and the `Upload-Offset` the
+client believes the server is at; a mismatch is `409`, so a resumed client
+must `HEAD` first. The final chunk completes the upload atomically. `DELETE`
+cancels.
+
+Sessions are rows in `_fraiseql_storage_uploads`, so an upload survives a
+server restart. They obey the same access control as every other upload path:
+creation passes the overwrite gate and reserves the metadata row (the key
+carries an owner from the first byte), and only the creator can append to,
+probe, or cancel a session — anyone else gets the same `404` a nonexistent
+session gets.
+
+Per-backend behaviour: local stages the bytes and renames on completion; S3
+maps chunks to multipart parts, so **every non-final chunk must be at least
+5 MiB** (undersized chunks are refused with `400` rather than failing at
+completion). GCS and Azure refuse resumable uploads outright (`501`) until
+their resumable APIs are implemented (#972). Sessions expire after
+`upload_ttl_secs` (default 24 h): an expired session answers `410` and is
+reaped, releasing the key.
 
 ## Access control
 
@@ -184,15 +213,46 @@ wildcard (`image/*`), or `*/*`. Omitting the key means no restriction; an
 
 ## Transforms
 
-The `transforms` feature builds `ImageTransformer` (resize, format conversion
-to JPEG/PNG/WebP, presets) and a transform cache. **Nothing in the server
-invokes it**: there is no transform route, uploads are stored as received, and
-`BucketConfig::transform_presets` cannot be set from configuration. It is a
-library-level capability today, not a served feature — see #901.
+Build the server with `--features storage-transforms` to mount
 
-In particular, uploads are **not** stripped of EXIF metadata. If you accept
-user photographs and need their GPS tags removed, do it before upload or in
-your own pipeline.
+```
+GET /storage/v1/render/{bucket}/{key}?w=&h=&format=&quality=&preset=
+```
+
+which reads the stored object through exactly the gates the download route
+uses and returns a resized / re-encoded image. `format` is one of `webp`,
+`jpeg`, `png`, `avif`; with no explicit format the client's `Accept` header
+picks the encoding (highest `q` among supported image types). Named presets
+come from the bucket's configuration:
+
+```toml
+[storage.media]
+backend = "s3"
+transform_presets = [
+    { name = "thumb", width = 200, format = "webp", quality = 80 },
+]
+```
+
+Explicit query parameters override a named preset's fields. Declaring
+`transform_presets` in a binary built *without* `storage-transforms` is a
+startup error, not a silently absent endpoint.
+
+**Resource bounds.** Source and requested dimensions are both capped at 12 000
+pixels per side, and the decoder runs under matching hard limits. A
+decompression bomb — a small file whose header declares an enormous image — is
+refused by the dimension guard before any allocation, and returns `400`, as do
+non-image objects, malformed bytes, and absurd target sizes. A hostile upload
+cannot exhaust the server through this endpoint.
+
+Rendered output is generated per request and served with an `ETag` and a
+bucket-appropriate `Cache-Control` (`private, no-store` for private buckets),
+so HTTP caches do the caching.
+
+Note that **stored objects are still served as uploaded**: rendering
+re-encodes through the `image` crate and so drops EXIF (including GPS) as a
+side effect, but a plain `GET /storage/v1/object/...` returns the original
+bytes with metadata intact. If you accept user photographs and need their GPS
+tags removed at rest, strip them before upload or in your own pipeline.
 
 ## Local development with emulators
 

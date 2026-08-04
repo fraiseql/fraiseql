@@ -80,12 +80,35 @@ fn resolve_from_map(
         account_name: section.account_name.clone(),
     };
 
+    // #370: presets configured without the feature that serves them must be a
+    // startup error — a config key that silently does nothing is the P06
+    // defect.
+    #[cfg(not(feature = "storage-transforms"))]
+    if section.transform_presets.is_some() {
+        return Err(format!(
+            "[storage.{name}] declares transform_presets, but this server binary was built              without the `storage-transforms` feature — the render endpoint does not exist, so              the presets could never be served. Rebuild with the feature or remove the key.",
+        ));
+    }
+
+    let transform_presets = section.transform_presets.as_ref().map(|presets| {
+        presets
+            .iter()
+            .map(|p| fraiseql_storage::config::TransformPreset {
+                name:    p.name.clone(),
+                width:   p.width,
+                height:  p.height,
+                format:  p.format.clone(),
+                quality: p.quality,
+            })
+            .collect()
+    });
+
     let bucket = BucketConfig {
         name: name.clone(),
         max_object_bytes: section.max_object_bytes,
         allowed_mime_types: section.allowed_mime_types.clone(),
         access,
-        transform_presets: None,
+        transform_presets,
         serve_inline: section.serve_inline.unwrap_or(false),
         upload_ttl_secs: section.upload_ttl_secs,
     };

@@ -1102,6 +1102,17 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: storage (Dagger-bound postgres + azurite + fake-gcs)'",
 		"cargo test -p fraiseql-storage --lib -- metadata::tests migrations::tests routes::tests uploads::tests --test-threads=1",
+		// #370: the render endpoint + transform hostile-input guards live behind
+		// the `transforms` feature, so the line above (default features) compiles
+		// them out entirely — without this second run the render route and the
+		// decompression-bomb refusals execute in NO leg.
+		"cargo test -p fraiseql-storage --features transforms --lib -- routes::tests::render_tests transforms::tests --test-threads=1",
+		// #370: the server-side half — presets reaching BucketConfig (feature ON)
+		// and the boot refusal when they are configured into a binary that cannot
+		// serve them (feature OFF; a cfg(not(...)) test can never run in the
+		// all-features leg, so both states are exercised explicitly).
+		"cargo test -p fraiseql-server --features storage-transforms --lib -- server_config::tests::resolve_storage server_config::tests::transform_presets --test-threads=1",
+		"cargo test -p fraiseql-server --lib -- server_config::tests::transform_presets --test-threads=1",
 		"cargo test -p fraiseql-storage --features azure-blob --test azure_emulator -- --test-threads=1",
 		"cargo test -p fraiseql-storage --features gcs --test gcs_emulator -- --test-threads=1",
 		"echo 'test-integration OK: storage suite passed'",

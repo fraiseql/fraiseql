@@ -656,6 +656,55 @@ fn resolve_storage_section_honors_public_read_and_policy_fields() {
     assert!(resolved.bucket.serve_inline);
 }
 
+/// #369/#370: the two per-bucket keys the resumable-upload and render
+/// surfaces read must actually reach `BucketConfig` — a key the runtime never
+/// sees is the P06 defect.
+#[test]
+#[cfg(feature = "storage-transforms")]
+fn resolve_storage_section_maps_upload_ttl_and_transform_presets() {
+    let toml_str = r#"
+        [storage.media]
+        backend = "local"
+        path = "/tmp/media"
+        upload_ttl_secs = 3600
+        transform_presets = [{ name = "thumb", width = 200, format = "webp", quality = 80 }]
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let resolved = resolve_storage_section(&config).unwrap().unwrap();
+
+    assert_eq!(resolved.bucket.upload_ttl_secs, Some(3600));
+    let presets = resolved.bucket.transform_presets.expect("presets reach the bucket config");
+    assert_eq!(presets.len(), 1);
+    assert_eq!(presets[0].name, "thumb");
+    assert_eq!(presets[0].width, Some(200));
+    assert_eq!(presets[0].format.as_deref(), Some("webp"));
+    assert_eq!(presets[0].quality, Some(80));
+}
+
+/// #370: presets configured into a binary that cannot serve them must REFUSE
+/// TO BOOT. Silently accepting them would leave an operator believing renders
+/// are configured while `/storage/v1/render/...` 404s.
+///
+/// Runs only in builds WITHOUT `storage-transforms` — the guard it pins is
+/// itself `cfg(not(...))`, so an all-features leg can never execute it.
+#[test]
+#[cfg(not(feature = "storage-transforms"))]
+fn transform_presets_without_the_feature_refuse_to_boot() {
+    let toml_str = r#"
+        [storage.media]
+        backend = "local"
+        path = "/tmp/media"
+        transform_presets = [{ name = "thumb", width = 200 }]
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let err = resolve_storage_section(&config)
+        .expect_err("presets without the serving feature must be a startup error");
+    assert!(
+        err.contains("storage-transforms"),
+        "the refusal must name the missing feature: {err}"
+    );
+}
+
 #[test]
 fn resolve_storage_section_rejects_unknown_access() {
     let toml_str = r#"
