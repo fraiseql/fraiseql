@@ -70,6 +70,12 @@ pub struct BucketConfig {
     /// `attachment`.
     pub serve_inline: bool,
 
+    /// Per-bucket access policy (#371). When `Some`, it REPLACES the coarse
+    /// [`access`](Self::access) mode for this bucket: every request is denied
+    /// unless a rule permits it (the storage-admin role still bypasses). When
+    /// `None`, the `access` mode governs as before.
+    pub policies: Option<crate::policy::BucketPolicy>,
+
     /// Lifetime of a resumable-upload session in seconds (#369). `None` uses
     /// the built-in default of 24 hours. An expired session is refused (`410`)
     /// and reaped: its staged bytes are discarded and, when creation reserved
@@ -107,6 +113,26 @@ pub struct StorageConfig {
 }
 
 impl BucketConfig {
+    /// Whether *any* unauthenticated read is possible in this bucket.
+    ///
+    /// Used only to choose between `401` and `404` when refusing: a caller who
+    /// could never see anything without credentials is told to authenticate,
+    /// while in a bucket with public content a refusal is indistinguishable
+    /// from a missing object (#876 — no existence oracle).
+    ///
+    /// Under a policy (#371) this is "some rule permits an anonymous read",
+    /// not the coarse `access` mode, which the policy has replaced.
+    #[must_use]
+    pub fn allows_anonymous_read(&self) -> bool {
+        match self.policies {
+            Some(ref policy) => policy.rules.iter().any(|rule| {
+                rule.methods.contains(&crate::policy::PolicyMethod::Read)
+                    && rule.principal == crate::policy::PolicyPrincipal::Anonymous
+            }),
+            None => matches!(self.access, BucketAccess::PublicRead),
+        }
+    }
+
     /// Whether this bucket accepts an upload with the given `Content-Type`.
     ///
     /// The single enforcement point for `allowed_mime_types`. It used to be two

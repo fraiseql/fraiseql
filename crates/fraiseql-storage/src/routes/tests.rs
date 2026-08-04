@@ -57,6 +57,7 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
             access,
             transform_presets: None,
             serve_inline: false,
+            policies: None,
             upload_ttl_secs: None,
         },
     );
@@ -217,6 +218,7 @@ async fn test_put_object_exceeding_size_limit_returns_413() {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            policies:           None,
             upload_ttl_secs:    None,
         },
     );
@@ -383,6 +385,7 @@ async fn test_serve_inline_bucket_renders_safe_types_but_attaches_dangerous_ones
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       true,
+            policies:           None,
             upload_ttl_secs:    None,
         },
     );
@@ -550,6 +553,7 @@ fn add_second_bucket(state: &mut StorageState, name: &str) {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            policies:           None,
             upload_ttl_secs:    None,
         },
     );
@@ -656,6 +660,7 @@ fn bucket_with_limit(name: &str, max_object_bytes: Option<u64>) -> BucketConfig 
         access: BucketAccess::PublicRead,
         transform_presets: None,
         serve_inline: false,
+        policies: None,
         upload_ttl_secs: None,
     }
 }
@@ -691,6 +696,7 @@ async fn test_upload_above_axum_default_but_within_bucket_limit_succeeds() {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            policies:           None,
             upload_ttl_secs:    None,
         },
     );
@@ -729,6 +735,7 @@ async fn test_mime_type_rejection_returns_415() {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            policies:           None,
             upload_ttl_secs:    None,
         },
     );
@@ -1905,4 +1912,334 @@ mod render_tests {
         let resp = a.clone().oneshot(render_req("docs", "p.png", "?preset=nope")).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
+}
+
+// ── #371: bucket policies govern the live HTTP surface ──────────────────────
+
+/// Build a state whose bucket carries `policy`, over the shared harness.
+async fn policy_state(
+    bucket_name: &str,
+    access: BucketAccess,
+    policy: crate::policy::BucketPolicy,
+) -> (StorageState, impl std::any::Any) {
+    let (state, keep) = test_state(bucket_name, access).await;
+    let mut bucket = state.buckets.get(bucket_name).unwrap().clone();
+    bucket.policies = Some(policy);
+    let mut buckets = HashMap::new();
+    buckets.insert(bucket_name.to_string(), bucket);
+    (
+        StorageState {
+            buckets: Arc::new(buckets),
+            ..state
+        },
+        keep,
+    )
+}
+
+fn get_req(bucket: &str, key: &str) -> Request<Body> {
+    Request::builder()
+        .method("GET")
+        .uri(format!("/storage/v1/object/{bucket}/{key}"))
+        .body(Body::empty())
+        .unwrap()
+}
+
+fn delete_req(bucket: &str, key: &str) -> Request<Body> {
+    Request::builder()
+        .method("DELETE")
+        .uri(format!("/storage/v1/object/{bucket}/{key}"))
+        .body(Body::empty())
+        .unwrap()
+}
+
+/// The motivating shape from #371: "members of a group may read under a
+/// prefix, but only the creator may delete." Proven through the live HTTP
+/// surface, not just the evaluator — a policy that governs a unit test but not
+/// a request is the defect this codebase keeps finding (#762, #743).
+#[tokio::test]
+async fn policies_govern_reads_writes_and_deletes_end_to_end() {
+    use crate::policy::{BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRule};
+
+    let policy = BucketPolicy {
+        rules: vec![
+            // Auditors may read reports/, nothing else, and may not delete.
+            PolicyRule {
+                methods:    vec![PolicyMethod::Read],
+                principal:  PolicyPrincipal::Role("auditor".to_string()),
+                key_prefix: Some("reports/".to_string()),
+            },
+            // Owners have full control of their own objects.
+            PolicyRule {
+                methods:    vec![
+                    PolicyMethod::Read,
+                    PolicyMethod::Write,
+                    PolicyMethod::Overwrite,
+                    PolicyMethod::Delete,
+                    PolicyMethod::List,
+                ],
+                principal:  PolicyPrincipal::Owner,
+                key_prefix: None,
+            },
+            // Anyone authenticated may create new objects.
+            PolicyRule {
+                methods:    vec![PolicyMethod::Write],
+                principal:  PolicyPrincipal::Authenticated,
+                key_prefix: None,
+            },
+        ],
+    };
+    // PublicRead deliberately: the policy must REPLACE the access mode, so a
+    // public bucket under a policy is no longer anonymously readable.
+    let (state, _keep) = policy_state("docs", BucketAccess::PublicRead, policy).await;
+
+    let owner = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        owner
+            .clone()
+            .oneshot(put_req("docs", "reports/q1.txt", b"R"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK,
+        "an authenticated caller may create"
+    );
+    assert_eq!(
+        owner
+            .clone()
+            .oneshot(put_req("docs", "private/notes.txt", b"N"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+
+    // The auditor reads under the prefix, and only there.
+    let auditor = router_for(state.clone(), "user-b", &["auditor"]);
+    assert_eq!(
+        auditor
+            .clone()
+            .oneshot(get_req("docs", "reports/q1.txt"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK,
+        "the auditor rule permits reads under reports/"
+    );
+    assert_eq!(
+        auditor
+            .clone()
+            .oneshot(get_req("docs", "private/notes.txt"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND,
+        "outside the prefix the auditor has no read grant"
+    );
+    assert_eq!(
+        auditor
+            .clone()
+            .oneshot(delete_req("docs", "reports/q1.txt"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+        "the auditor rule grants read only — delete must be refused"
+    );
+
+    // A stranger may create but not read or delete someone else's object.
+    let stranger = router_for(state.clone(), "user-c", &["user"]);
+    assert_eq!(
+        stranger
+            .clone()
+            .oneshot(get_req("docs", "reports/q1.txt"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        stranger
+            .clone()
+            .oneshot(delete_req("docs", "reports/q1.txt"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        stranger
+            .clone()
+            .oneshot(put_req("docs", "reports/q1.txt", b"X"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+        "the write grant is create-only: overwriting another owner's object needs an explicit \
+         `overwrite` grant, or the H9 IDOR returns through the policy door"
+    );
+
+    // ...and the owner, who does hold `overwrite`, may replace their own.
+    assert_eq!(
+        owner
+            .clone()
+            .oneshot(put_req("docs", "reports/q1.txt", b"R2"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK,
+        "the owner rule's explicit overwrite grant applies to their own object"
+    );
+
+    // The owner retains full control.
+    assert_eq!(
+        owner.clone().oneshot(get_req("docs", "reports/q1.txt")).await.unwrap().status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        owner
+            .clone()
+            .oneshot(delete_req("docs", "reports/q1.txt"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+
+    // The policy REPLACED PublicRead: anonymous access is gone.
+    let anon = storage_router(state.clone());
+    assert_eq!(
+        anon.clone()
+            .oneshot(get_req("docs", "private/notes.txt"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED,
+        "a policy replaces the access mode — a public bucket under policy is not anonymous-readable"
+    );
+}
+
+/// An empty policy denies everything, for everyone, on every verb — the
+/// fail-closed default stated as a live HTTP property.
+#[tokio::test]
+async fn an_empty_policy_denies_every_request() {
+    use crate::policy::BucketPolicy;
+
+    // Seed an object under the default (policy-free) rules first.
+    let (seed_state, _keep0) = test_state("docs", BucketAccess::PublicRead).await;
+    let seeder = router_for(seed_state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        seeder.oneshot(put_req("docs", "f.txt", b"seed")).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    // Same database, same object — now under a policy that permits nothing.
+    let mut bucket = seed_state.buckets.get("docs").unwrap().clone();
+    bucket.policies = Some(BucketPolicy { rules: vec![] });
+    let mut buckets = HashMap::new();
+    buckets.insert("docs".to_string(), bucket);
+    let state = StorageState {
+        buckets: Arc::new(buckets),
+        ..seed_state
+    };
+
+    // Even the object's own owner is denied: nothing permits, so nothing passes.
+    let owner = router_for(state.clone(), "user-a", &["user"]);
+    assert_eq!(
+        owner.clone().oneshot(get_req("docs", "f.txt")).await.unwrap().status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        owner.clone().oneshot(put_req("docs", "f.txt", b"x")).await.unwrap().status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        owner.clone().oneshot(put_req("docs", "new.txt", b"x")).await.unwrap().status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        owner.clone().oneshot(delete_req("docs", "f.txt")).await.unwrap().status(),
+        StatusCode::FORBIDDEN
+    );
+    let list = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/list/docs")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(owner.clone().oneshot(list).await.unwrap().status(), StatusCode::FORBIDDEN);
+
+    // The storage-admin role is the documented global bypass, and still works.
+    let admin = router_for(state.clone(), "root", &[crate::rls::STORAGE_ADMIN_ROLE]);
+    assert_eq!(
+        admin.oneshot(get_req("docs", "f.txt")).await.unwrap().status(),
+        StatusCode::OK,
+        "the explicit storage-admin grant bypasses policies, as documented"
+    );
+}
+
+/// Listing is its own permission under a policy: a write grant no longer
+/// implies it, and `filter_visible` narrows to the keys the policy permits.
+#[tokio::test]
+async fn list_is_a_distinct_permission_under_policy() {
+    use crate::policy::{BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRule};
+
+    let policy = BucketPolicy {
+        rules: vec![
+            PolicyRule {
+                methods:    vec![PolicyMethod::Write],
+                principal:  PolicyPrincipal::Authenticated,
+                key_prefix: None,
+            },
+            PolicyRule {
+                methods:    vec![PolicyMethod::List, PolicyMethod::Read],
+                principal:  PolicyPrincipal::Role("auditor".to_string()),
+                key_prefix: Some("reports/".to_string()),
+            },
+        ],
+    };
+    let (state, _keep) = policy_state("docs", BucketAccess::Private, policy).await;
+
+    let writer = router_for(state.clone(), "user-a", &["user"]);
+    for key in ["reports/a.txt", "private/b.txt"] {
+        assert_eq!(
+            writer.clone().oneshot(put_req("docs", key, b"x")).await.unwrap().status(),
+            StatusCode::OK
+        );
+    }
+
+    // Write permission alone does not open the listing door.
+    let list_all = || {
+        Request::builder()
+            .method("GET")
+            .uri("/storage/v1/list/docs")
+            .body(Body::empty())
+            .unwrap()
+    };
+    assert_eq!(
+        writer.clone().oneshot(list_all()).await.unwrap().status(),
+        StatusCode::FORBIDDEN,
+        "a write grant must not imply list under a policy"
+    );
+
+    // The auditor's list grant is prefix-scoped: the whole-bucket listing is
+    // refused, and the scoped one returns only permitted keys.
+    let auditor = router_for(state.clone(), "user-b", &["auditor"]);
+    assert_eq!(
+        auditor.clone().oneshot(list_all()).await.unwrap().status(),
+        StatusCode::FORBIDDEN,
+        "a prefix-scoped list grant does not answer the whole-bucket question"
+    );
+    let scoped = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/list/docs?prefix=reports/")
+        .body(Body::empty())
+        .unwrap();
+    let resp = auditor.clone().oneshot(scoped).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let items: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(items.len(), 1, "only the permitted prefix is visible: {items:?}");
+    assert_eq!(
+        items.first().and_then(|i| i.get("key")).and_then(|k| k.as_str()),
+        Some("reports/a.txt")
+    );
 }

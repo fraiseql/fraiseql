@@ -705,6 +705,109 @@ fn transform_presets_without_the_feature_refuse_to_boot() {
     );
 }
 
+/// #371: a bucket policy reaches `BucketConfig` parsed, in order.
+#[test]
+fn resolve_storage_section_parses_bucket_policies() {
+    use fraiseql_storage::{PolicyMethod, PolicyPrincipal};
+
+    let toml_str = r#"
+        [storage.docs]
+        backend = "local"
+        path = "/tmp/docs"
+
+        [[storage.docs.policies]]
+        methods = ["read"]
+        principal = "role:auditor"
+        key_prefix = "reports/"
+
+        [[storage.docs.policies]]
+        methods = ["read", "write", "delete"]
+        principal = "owner"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let resolved = resolve_storage_section(&config).unwrap().unwrap();
+
+    let policy = resolved.bucket.policies.expect("policies reach the bucket config");
+    assert_eq!(policy.rules.len(), 2);
+    assert_eq!(policy.rules[0].methods, vec![PolicyMethod::Read]);
+    assert_eq!(policy.rules[0].principal, PolicyPrincipal::Role("auditor".to_string()));
+    assert_eq!(policy.rules[0].key_prefix.as_deref(), Some("reports/"));
+    assert_eq!(
+        policy.rules[1].methods,
+        vec![
+            PolicyMethod::Read,
+            PolicyMethod::Write,
+            PolicyMethod::Delete
+        ]
+    );
+    assert_eq!(policy.rules[1].principal, PolicyPrincipal::Owner);
+}
+
+/// #371: a policy that does not parse REFUSES TO BOOT. Accepting a rule with
+/// an unknown method or principal would either deny everything silently or —
+/// worse, in a multi-rule policy — drop the narrowing rule while the
+/// permitting ones stand.
+#[test]
+fn unparseable_policies_refuse_to_boot() {
+    let cases = [
+        (
+            r#"
+            [storage.docs]
+            backend = "local"
+            path = "/tmp/docs"
+            [[storage.docs.policies]]
+            methods = ["reed"]
+            principal = "owner"
+            "#,
+            "unknown policy method",
+        ),
+        (
+            r#"
+            [storage.docs]
+            backend = "local"
+            path = "/tmp/docs"
+            [[storage.docs.policies]]
+            methods = ["read"]
+            principal = "everyone"
+            "#,
+            "unknown policy principal",
+        ),
+        (
+            r#"
+            [storage.docs]
+            backend = "local"
+            path = "/tmp/docs"
+            [[storage.docs.policies]]
+            methods = []
+            principal = "owner"
+            "#,
+            "lists no methods",
+        ),
+    ];
+    for (toml_str, expected) in cases {
+        let config: ServerConfig = toml::from_str(toml_str).unwrap();
+        let err = resolve_storage_section(&config)
+            .expect_err("an unparseable policy must refuse to boot");
+        assert!(err.contains(expected), "expected {expected:?} in: {err}");
+    }
+
+    // An unknown *field* inside a rule is refused by serde itself, before
+    // resolution — a typo'd key must never be silently dropped.
+    let with_typo = r#"
+        [storage.docs]
+        backend = "local"
+        path = "/tmp/docs"
+        [[storage.docs.policies]]
+        methods = ["read"]
+        principal = "owner"
+        keyprefix = "reports/"
+    "#;
+    assert!(
+        toml::from_str::<ServerConfig>(with_typo).is_err(),
+        "an unknown policy-rule field must refuse to parse"
+    );
+}
+
 #[test]
 fn resolve_storage_section_rejects_unknown_access() {
     let toml_str = r#"

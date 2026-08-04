@@ -25,6 +25,7 @@ pub mod config;
 pub mod graphql;
 pub mod metadata;
 pub mod migrations;
+pub mod policy;
 pub mod rls;
 pub mod routes;
 pub mod service;
@@ -48,6 +49,7 @@ pub use backend::{
 pub use config::{BucketAccess, BucketConfig, StorageConfig};
 pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 pub use metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
+pub use policy::{BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRequest, PolicyRule};
 pub use rls::{STORAGE_ADMIN_ROLE, StorageRlsEvaluator};
 pub use routes::{StorageState, StorageUser, storage_router};
 pub use service::BucketService;

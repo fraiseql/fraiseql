@@ -172,6 +172,55 @@ Two consequences worth planning for:
   bucket+key. Restrict presigning to trusted callers, re-validate afterwards, or route uploads
   through `PUT /storage/v1/object/...` instead.
 
+## Bucket policies
+
+A bucket's `access` mode covers two coarse shapes. For anything else, attach a
+policy — a list of **permit** rules that *replaces* the access mode for that
+bucket:
+
+```toml
+[storage.docs]
+backend = "local"
+path = "/var/lib/fraiseql/docs"
+
+[[storage.docs.policies]]
+methods = ["read"]
+principal = "role:auditor"
+key_prefix = "reports/"
+
+[[storage.docs.policies]]
+methods = ["read", "write", "overwrite", "delete", "list"]
+principal = "owner"
+```
+
+- `methods`: `read` | `write` | `overwrite` | `delete` | `list`.
+- `principal`: `owner` | `authenticated` | `anonymous` | `role:<name>`.
+- `key_prefix` (optional) narrows a rule to keys under that prefix.
+
+Three properties are deliberate:
+
+**Denial is structural.** There is no `effect = "deny"`. A request is permitted
+only when some rule matches it; every other path falls through to denied. An
+empty policy denies everything, including to an object's own owner.
+
+**`write` is create-only.** Replacing an existing object requires `overwrite`.
+Without the split, the natural rule *"authenticated callers may write"* would
+let any authenticated caller clobber any other user's object by writing to its
+key — the overwrite IDOR the object-level checks exist to prevent.
+
+**An unparseable policy does not boot.** An unknown method or principal
+spelling, an empty `methods` list, or a misspelled field is a startup error, so
+a typo can never become a rule that silently denies (or one that silently
+disappears from a policy whose remaining rules permit).
+
+`list` is its own permission: under a policy it is not implied by write access,
+and a prefix-scoped `list` grant does not answer the whole-bucket listing
+question. Row filtering still applies on top, so a permitted listing returns
+only the keys the policy permits reading.
+
+The storage-admin role (`fraiseql:storage:admin`) bypasses policies exactly as
+it bypasses the access mode.
+
 ## Key validation
 
 `validate_key` rejects — rather than rewrites — any key that could alias onto

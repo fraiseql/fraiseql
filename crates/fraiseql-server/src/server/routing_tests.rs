@@ -49,6 +49,7 @@ async fn storage_state(bucket: &str) -> StorageState {
             access:             BucketAccess::PublicRead,
             transform_presets:  None,
             serve_inline:       false,
+            policies:           None,
             upload_ttl_secs:    None,
         },
     );

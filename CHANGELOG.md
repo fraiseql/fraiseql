@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Per-bucket access policies (#371).** `[[storage.<name>.policies]]` attaches
+  a list of permit rules that *replaces* the bucket's coarse `access` mode:
+  `methods` (`read`/`write`/`overwrite`/`delete`/`list`) × `principal`
+  (`owner`/`authenticated`/`anonymous`/`role:<name>`) × an optional
+  `key_prefix`. This expresses the shapes key-prefix routing could not — "the
+  audit group may read under `reports/`, but only the creator may delete".
+
+  Three properties are structural rather than documented. **Denial is the
+  fallthrough**: there is no `effect = "deny"` whose precedence could be wrong,
+  and `permits` returns true only from inside a matched rule, so an empty
+  policy denies everything including to an object's own owner. **`write` is
+  create-only** — replacing an existing object needs an explicit `overwrite`
+  grant, because the natural rule "authenticated callers may write" would
+  otherwise re-open the H9/B4 overwrite IDOR through the policy door (this was
+  caught by the end-to-end test, not by review). **An unparseable policy
+  refuses to boot** — an unknown method or principal, an empty `methods` list,
+  or a misspelled field is a startup error, never a rule that silently denies.
+  `list` also becomes a distinct permission (no longer implied by write
+  access), with row filtering still applied on top.
+
 - **Image renders are served, and hostile images are bounded (#370, closing
   #901).** `GET /storage/v1/render/{bucket}/{*key}?w=&h=&format=&quality=&preset=`
   mounts behind the server's new `storage-transforms` feature and reads through

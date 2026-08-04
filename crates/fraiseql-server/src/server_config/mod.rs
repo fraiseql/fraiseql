@@ -967,6 +967,22 @@ pub struct StorageSectionConfig {
     #[serde(default)]
     pub upload_ttl_secs: Option<u64>,
 
+    /// Per-bucket access policy (#371): a list of permit rules that REPLACES
+    /// the coarse `access` mode for this bucket. Every request is denied
+    /// unless a rule permits it.
+    ///
+    /// ```toml
+    /// [[storage.docs.policies]]
+    /// methods = ["read"]
+    /// principal = "role:auditor"
+    /// key_prefix = "reports/"
+    /// ```
+    ///
+    /// An unknown method or principal spelling is a startup error, never a
+    /// silently-denying rule.
+    #[serde(default)]
+    pub policies: Option<Vec<PolicyRuleConfig>>,
+
     /// Named transform presets for the render endpoint (#370), e.g.
     /// `transform_presets = [{ name = "thumb", width = 200, format = "webp" }]`.
     /// Served only when the server is built with the `storage-transforms`
@@ -974,6 +990,23 @@ pub struct StorageSectionConfig {
     /// silently absent endpoint.
     #[serde(default)]
     pub transform_presets: Option<Vec<TransformPresetConfig>>,
+}
+
+/// One permit rule in a `[[storage.<name>.policies]]` list (#371).
+///
+/// There is deliberately no `effect` field: rules permit, and denial is the
+/// fallthrough. See `fraiseql_storage::policy` for why.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyRuleConfig {
+    /// Operations permitted: `read` | `write` | `delete` | `list`.
+    pub methods:    Vec<String>,
+    /// Who they are permitted to: `owner` | `authenticated` | `anonymous` |
+    /// `role:<name>`.
+    pub principal:  String,
+    /// Restrict the rule to keys starting with this prefix.
+    #[serde(default)]
+    pub key_prefix: Option<String>,
 }
 
 /// One named transform preset in a `[storage.<name>]` section (#370).
