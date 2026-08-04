@@ -26,6 +26,31 @@ use crate::{
     types::{LogEntry, LogLevel, ResourceLimits},
 };
 
+// ── V8 platform initialization ─────────────────────────────────────────────────
+
+/// Initialize the process-wide V8 platform as the **unprotected** default
+/// platform, once, before any isolate exists.
+///
+/// Without this, the first `JsRuntime::new` lazily initializes `deno_core`'s
+/// *protected* default platform, whose JIT pages are hardened with memory
+/// protection keys (PKU). Pkey access rights are per-thread and inherited only
+/// by threads **descended from the initializing thread** — and every FraiseQL
+/// invocation runs on its own short-lived thread, so the lazily-bound platform
+/// died with invocation 1's thread and the second Deno invocation in any
+/// process faulted on the first JIT page it touched (SIGSEGV, #969). A library
+/// cannot guarantee that all future invocation threads descend from one common
+/// initializer, which is exactly the case `rusty_v8` documents the unprotected
+/// platform for. The cost is V8's pkey JIT-page hardening (defense-in-depth
+/// against V8-level exploits); ordinary W^X page protection still applies.
+fn ensure_v8_platform() {
+    static V8_PLATFORM: std::sync::Once = std::sync::Once::new();
+    V8_PLATFORM.call_once(|| {
+        JsRuntime::init_platform(Some(
+            v8::new_unprotected_default_platform(0, false).make_shared(),
+        ));
+    });
+}
+
 // ── Log collector state stored in OpState ─────────────────────────────────────
 
 /// Shared log collector threaded into the `fraiseql_log` op via `OpState`.
@@ -184,6 +209,10 @@ pub fn run_in_dedicated_thread(
     // The previous substring heuristics (matching `while (true)` / `ArrayBuffer` in
     // the source) were removed: they false-positived on those substrings appearing
     // in comments or string literals and missed every other form of DoS.
+
+    // The platform must exist (and must be the unprotected one, #969) before
+    // the first isolate in the process is created below.
+    ensure_v8_platform();
 
     // Shared log storage
     let logs_arc: Arc<Mutex<Vec<LogEntry>>> = Arc::new(Mutex::new(Vec::new()));

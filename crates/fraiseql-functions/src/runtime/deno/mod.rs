@@ -226,6 +226,31 @@ fn run_guest(
             message,
             path: None,
         })?;
+
+        // #970: pin the host's async I/O to THIS (owner) runtime before the
+        // guest thread exists. The guest's throwaway runtime dies with each
+        // invocation; any connection a host op created there (sqlx, reqwest
+        // keep-alive) would return to its shared pool bound to a dead reactor
+        // and hang the next user. Wrapping here routes every op onto the
+        // long-lived runtime that owns those pools. A host with no runtime
+        // context is refused loudly rather than left to fail intermittently.
+        let host = match host {
+            Some(h) => Some(
+                tokio::runtime::Handle::try_current()
+                    .map(|handle| {
+                        Arc::new(crate::host::runtime_pinned::RuntimePinnedHost::new(h, handle))
+                            as Arc<dyn DynHostContext>
+                    })
+                    .map_err(|_| fraiseql_error::FraiseQLError::Internal {
+                        message: "Deno host ops require a Tokio runtime context (#970): \
+                          invoke_with_context must be awaited on the server runtime"
+                            .to_string(),
+                        source:  None,
+                    })?,
+            ),
+            None => None,
+        };
+
         let start = std::time::Instant::now();
 
         let (tx, rx) = tokio::sync::oneshot::channel::<

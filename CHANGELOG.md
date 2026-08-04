@@ -82,6 +82,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CRITICAL — the second Deno invocation in a process crashed the server
+  (#969).** The V8 platform was never explicitly initialized, so the first
+  guest invocation lazily installed deno_core's PKU-protected default platform
+  on its own short-lived thread. Memory-protection-key rights over V8's JIT
+  pages are inherited only by that thread's descendants, so every later
+  invocation thread faulted on the first JIT page it touched — SIGSEGV, taking
+  the whole process down. Invisible until now: #796 meant scheduled functions
+  never fired twice per process, nextest's process-per-test model never
+  creates a second isolate, and the resulting `cargo test` crash had been
+  misattributed to the Dagger exec sandbox. The runtime now initializes the
+  **unprotected** default platform once, up front (rusty_v8's documented
+  embedding for hosts that cannot guarantee thread ancestry — standard W^X
+  still applies). The full deno suite now passes in one shared process,
+  sequential and parallel, for the first time.
+
+- **CRITICAL — guest host-ops poisoned shared connection pools (#970).** Host
+  ops (`fraiseql_query`, cursor get/advance, HTTP, storage, email) executed
+  their futures on the invocation's throwaway Tokio runtime. Any connection
+  *created* during an op — a fresh sqlx pool connection, a reqwest keep-alive
+  socket — registered with that runtime's I/O reactor, then outlived it inside
+  the shared pool; the next user awaited a wakeup from a dead reactor and hung
+  until timeout. Observed as every second scheduled source firing failing with
+  "event loop exceeded time limit" and as `pool timed out while waiting for an
+  open connection` on the server's main pool. All host I/O is now pinned to
+  the owner runtime via `RuntimePinnedHost`: `run_guest` captures the
+  dispatching runtime's handle and spawns every op there, so sockets always
+  live on the reactor that owns the pools. A host dispatched outside any Tokio
+  runtime is refused loudly.
+
 - **Three never-run observer test binaries wired into CI (#390 flight
   finding).** `entity_change_log_contract`, `changelog_views`, and
   `capture_trigger` are `#[ignore]`d suites that no CI leg ran with

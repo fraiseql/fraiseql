@@ -20,6 +20,199 @@ fn test_event() -> EventPayload {
     }
 }
 
+/// #970 regression test host: a host op whose network resource is CREATED during
+/// one invocation and REUSED by the next — the shape of every shared pool (sqlx,
+/// reqwest keep-alive). The first `sql_query` call connects a `TcpStream` and
+/// stores it; every later call does a 1-byte echo round-trip on the stored stream.
+#[allow(dead_code)] // Reason: constructed only by #[tokio::test] fns, which compile out of dependency builds (this module is `pub mod tests`, not cfg(test))
+struct ReusedStreamHost {
+    payload: crate::EventPayload,
+    addr:    std::net::SocketAddr,
+    stream:  tokio::sync::Mutex<Option<tokio::net::TcpStream>>,
+}
+
+impl crate::host::dyn_context::DynHostContext for ReusedStreamHost {
+    fn query(
+        &self,
+        _graphql: &str,
+        _variables: serde_json::Value,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<serde_json::Value>> {
+        Box::pin(async { Err(fraiseql_error::FraiseQLError::validation("not wired")) })
+    }
+
+    fn sql_query(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<Vec<serde_json::Value>>>
+    {
+        Box::pin(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let io_err = |e: std::io::Error| fraiseql_error::FraiseQLError::Internal {
+                message: format!("echo stream: {e}"),
+                source:  None,
+            };
+            let mut guard = self.stream.lock().await;
+            if guard.is_none() {
+                *guard = Some(tokio::net::TcpStream::connect(self.addr).await.map_err(io_err)?);
+            }
+            let stream = guard.as_mut().expect("just set");
+            stream.write_all(b"p").await.map_err(io_err)?;
+            let mut buf = [0_u8; 1];
+            stream.read_exact(&mut buf).await.map_err(io_err)?;
+            Ok(vec![serde_json::Value::from(u32::from(buf[0]))])
+        })
+    }
+
+    fn http_request(
+        &self,
+        _method: &str,
+        _url: &str,
+        _headers: &[(String, String)],
+        _body: Option<&[u8]>,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<crate::host::HttpResponse>>
+    {
+        Box::pin(async { Err(fraiseql_error::FraiseQLError::validation("not wired")) })
+    }
+
+    fn storage_get(
+        &self,
+        _bucket: &str,
+        _key: &str,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<Vec<u8>>> {
+        Box::pin(async { Err(fraiseql_error::FraiseQLError::validation("not wired")) })
+    }
+
+    fn storage_put(
+        &self,
+        _bucket: &str,
+        _key: &str,
+        _body: &[u8],
+        _content_type: &str,
+    ) -> crate::host::dyn_context::BoxFuture<'_, fraiseql_error::Result<()>> {
+        Box::pin(async { Err(fraiseql_error::FraiseQLError::validation("not wired")) })
+    }
+
+    fn send_email<'a>(
+        &'a self,
+        _request: &'a crate::outbound::SendEmailRequest,
+    ) -> crate::host::dyn_context::BoxFuture<
+        'a,
+        fraiseql_error::Result<crate::outbound::SendEmailResponse>,
+    > {
+        Box::pin(async { Err(fraiseql_error::FraiseQLError::validation("not wired")) })
+    }
+
+    fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
+        Err(fraiseql_error::FraiseQLError::validation("not wired"))
+    }
+
+    fn env_var(&self, _name: &str) -> fraiseql_error::Result<Option<String>> {
+        Ok(None)
+    }
+
+    fn event_payload(&self) -> &crate::EventPayload {
+        &self.payload
+    }
+
+    fn log(&self, _level: crate::types::LogLevel, _message: &str) {}
+}
+
+/// #970 regression: a network resource created inside one invocation's host op
+/// must remain usable in the next invocation's host op.
+///
+/// Every invocation runs on its own thread with its own throwaway Tokio runtime.
+/// Before the fix, host-op futures executed on that runtime, so a socket opened
+/// during invocation 1 registered with invocation 1's I/O reactor — which died
+/// with its thread. Invocation 2 then awaited a read on a reactor that no longer
+/// existed and burned its entire time budget ("event loop exceeded time limit").
+/// This is exactly what a shared sqlx pool or reqwest keep-alive connection does
+/// across firings, which alternately failed every second scheduled source firing
+/// and poisoned the server's main DB pool. The fix pins all host I/O to the
+/// owner runtime, where the reactor outlives every invocation.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn host_op_resources_survive_across_invocations() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    // 1-byte echo server on the OWNER runtime (alive for the whole test).
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        while let Ok((mut sock, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buf = [0_u8; 1];
+                while sock.read_exact(&mut buf).await.is_ok() {
+                    if sock.write_all(&buf).await.is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+
+    let event = test_event();
+    let host = std::sync::Arc::new(ReusedStreamHost {
+        payload: event.clone(),
+        addr,
+        stream: tokio::sync::Mutex::new(None),
+    });
+    let source = r#"
+export default async () => {
+  await Deno.core.ops.fraiseql_sql_query("ping", "[]");
+  return { ok: true };
+};
+"#
+    .to_string();
+    let module = FunctionModule::from_source("reuse".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    for i in 0..2 {
+        let result = runtime
+            .invoke_with_context(&module, event.clone(), host.clone(), ResourceLimits::default())
+            .await;
+        assert!(
+            result.is_ok(),
+            "invocation {i} must succeed — a failure here means the stored stream's \
+             reactor died with a previous invocation's runtime (#970): {result:?}"
+        );
+    }
+}
+
+/// #969 regression: the second V8 isolate in one process must not SIGSEGV.
+///
+/// Every Deno invocation runs on its own short-lived thread. Before the fix,
+/// the V8 platform was lazily initialized as the PKU-protected default on the
+/// FIRST invocation's thread; pkey rights on the JIT pages are inherited only
+/// by that thread's descendants, so the second invocation in any process
+/// faulted on the first JIT page it touched — crashing the whole server. #796
+/// masked this in production (nothing ever fired twice per process) and
+/// nextest's process-per-test model masked it locally: this test only means
+/// something under plain `cargo test`, where the process is shared, and even
+/// here only when it is not the sole test run. Three sequential invocations
+/// still assert the per-invocation threads' isolates coexist with any isolate
+/// another test in this binary already created.
+#[tokio::test]
+async fn two_sequential_invocations_in_one_process() {
+    let source = "export default async (event) => event;".to_string();
+    let module = FunctionModule::from_source("repeat".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+    for i in 0..3 {
+        let event = test_event();
+        let event_data = event.data.clone();
+        let result = runtime
+            .invoke(
+                &module,
+                event.clone(),
+                &crate::host::NoopHostContext::new(event),
+                ResourceLimits::default(),
+            )
+            .await;
+        assert!(result.is_ok(), "invocation {i} must succeed: {result:?}");
+        assert_eq!(result.unwrap().value, Some(event_data), "invocation {i} returns the event");
+    }
+}
+
 #[tokio::test]
 async fn test_deno_execute_identity_js() {
     // JS module: `export default async (event) => event;`
