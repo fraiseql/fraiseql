@@ -76,6 +76,13 @@ const MANIFEST: &[(&str, &str)] = &[
     ("hmac_secret_env", "HMAC secret env var name (Option)"),
     ("identity", "enriched-identity resolver config (Option)"),
     (
+        "async_operations*",
+        "durable async operations (#391, Option) — Server::build_async_operations builds the \
+         store (refusing to boot without a pool / on failed table init), mount_extensions \
+         mounts /operations/v1 behind attach_auth, and spawn_async_operation_workers runs the \
+         worker pool at the configured cadence",
+    ),
+    (
         "session_state*",
         "session-state subsystem (#389, Option) — Server::build_session_state constructs the \
          backend (postgres refuses to boot without a pool / on a failed table init) and \

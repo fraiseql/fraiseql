@@ -170,6 +170,10 @@ impl ServerConfig {
             ss.validate()?;
         }
 
+        if let Some(ref ao) = self.async_operations {
+            ao.validate()?;
+        }
+
         if self.metrics_enabled {
             match &self.metrics_token {
                 None => {

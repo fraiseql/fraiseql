@@ -7,6 +7,7 @@
 //! `*Settings` (compiled into `schema.compiled.json`, immutable at runtime),
 //! see `docs/architecture/config-vs-settings.md`.
 
+pub mod async_operations;
 pub(crate) mod defaults;
 pub mod hs256;
 mod methods;
@@ -22,6 +23,7 @@ mod tests;
 
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
+pub use async_operations::AsyncOperationsConfig;
 use defaults::{
     default_bind_addr, default_database_url, default_graphql_path, default_health_path,
     default_introspection_path, default_max_header_bytes, default_max_header_count,
@@ -830,6 +832,15 @@ pub struct ServerConfig {
     #[cfg(feature = "auth")]
     #[serde(default)]
     pub session_state: Option<SessionStateServerConfig>,
+
+    /// Durable long-running operations (#391): `[async_operations]`. Presence
+    /// mounts `POST/GET/DELETE /operations/v1/…` (a new HTTP surface — an
+    /// explicit operator decision) and starts the worker pool; requires a
+    /// database pool and refuses to boot when `_system.async_operations`
+    /// cannot be initialised. The `operations` allowlist is required and
+    /// fail-closed.
+    #[serde(default)]
+    pub async_operations: Option<AsyncOperationsConfig>,
 }
 
 /// A single `[storage.<name>]` configuration section.
@@ -1083,6 +1094,7 @@ impl Default for ServerConfig {
             identity: None, // Enriched-identity resolution off by default
             #[cfg(feature = "auth")]
             session_state: None, // Session-state subsystem off by default
+            async_operations: None, // Async-operations surface off by default
         }
     }
 }

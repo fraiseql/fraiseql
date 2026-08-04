@@ -335,6 +335,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         let (app, app_state) = self.build_router();
 
+        // Start the async-operation workers (#391) on the server's JoinSet, so
+        // graceful shutdown aborts them (an aborted execution's row goes stale
+        // and is reclaimed after the staleness threshold — the P19 recovery
+        // path, exercised on every deploy).
+        self.spawn_async_operation_workers(&app_state);
+
         // Start the poll-IMAP email workers.
         // Each configured `[mailbox.<name>.imap]` half runs a background poll loop
         // on the server's JoinSet, so graceful shutdown aborts them. The workers
@@ -851,7 +857,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     {
         self.provision_persistent_schemas().await?;
 
-        let (app, _app_state) = self.build_router();
+        let (app, app_state) = self.build_router();
+        // Same worker spawn as `serve_with_shutdown` — the two entry points must
+        // not drift (#858's construction-path rule): a test harness that mounts
+        // the routes but never executes submissions would green a dead surface.
+        self.spawn_async_operation_workers(&app_state);
         // #571: drain live subscription connections here too, so the in-process
         // test harness exercises the same graceful teardown as production.
         let subscription_drain = std::sync::Arc::clone(&self.subscription_drain);
