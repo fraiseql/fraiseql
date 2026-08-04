@@ -45,6 +45,11 @@ reads=$(grep -rnP '\.internal\b' crates/*/src/ --include='*.rs' \
   | grep -vP '\.internal\s*=(?![=>])' \
   | grep -vP '\.internal/' \
   | grep -vP '"[^"]*\.internal\b[^"]*"' \
+  `# A comment line cannot be a READ SITE of the flag — only prose about one` \
+  `# (e.g. a doc example using an *.internal hostname). Excluding comment` \
+  `# lines keeps the gate precise; a real read with a trailing comment still` \
+  `# matches, because the read itself is not in the comment.` \
+  | grep -vP '^[^:]+:\d+:\s*(///|//!|//|\*)' \
   || true)
 
 violations=0
