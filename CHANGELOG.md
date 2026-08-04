@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one
+  or more `[[cdc_outbound.sinks]]` now makes the server drain
+  `core.tb_entity_change_log` to a broker on its own task set, behind the new
+  `cdc-outbound` feature. The drain engine — durable per-sink delivery state,
+  anti-join enqueue with a commit-lag sweep, claim-then-publish under a lease
+  with head-of-line ordering, backoff and dead-lettering — shipped in v2.12.0
+  and is used unchanged; what was missing is that **nothing in the shipped
+  server ever constructed a `DrainWorker`**, so outbound CDC was reachable only
+  by writing your own binary.
+
+  Boot is fail-loud: a configured section with no database pool, an unreachable
+  broker, delivery-state DDL that will not apply, a duplicate sink name, or a
+  `kind` that is unknown or not yet implemented (`kafka`, `kinesis`, `pulsar`)
+  all refuse to start. A server that boots without its drain looks healthy
+  while every downstream consumer silently starves. Docs:
+  `docs/features/cdc-outbound.md`.
+
 - **Per-bucket access policies (#371).** `[[storage.<name>.policies]]` attaches
   a list of permit rules that *replaces* the bucket's coarse `access` mode:
   `methods` (`read`/`write`/`overwrite`/`delete`/`list`) × `principal`

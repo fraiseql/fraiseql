@@ -451,6 +451,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // refuses to boot — the routes and workers must never half-mount.
         let async_operations = Self::build_async_operations(&config, db_pool.as_ref()).await?;
 
+        // Build the outbound CDC drains (#382) here, where `db_pool` is in
+        // scope: a configured section whose broker is unreachable or whose
+        // delivery-state DDL fails must refuse to boot, not start a server
+        // that silently replicates nothing.
+        #[cfg(feature = "cdc-outbound")]
+        let cdc_drains =
+            crate::cdc_outbound::build_drains(config.cdc_outbound.as_ref(), db_pool.as_ref())
+                .await
+                .map_err(ServerError::ConfigError)?
+                .unwrap_or_default();
+
         // Build the session-state subsystem (#389) here, where `db_pool` is in
         // scope. `backend = "postgres"` without a pool, or with a table that
         // cannot be initialised, must refuse to boot — never downgrade to the
@@ -706,6 +717,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             session_state,
             async_operations,
+            #[cfg(feature = "cdc-outbound")]
+            cdc_drains,
             #[cfg(feature = "auth-saml")]
             saml_state,
             api_key_authenticator,

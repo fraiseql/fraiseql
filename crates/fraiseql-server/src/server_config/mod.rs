@@ -8,6 +8,8 @@
 //! see `docs/architecture/config-vs-settings.md`.
 
 pub mod async_operations;
+#[cfg(feature = "cdc-outbound")]
+pub mod cdc_outbound;
 pub(crate) mod defaults;
 pub mod hs256;
 mod methods;
@@ -24,6 +26,8 @@ mod tests;
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 pub use async_operations::AsyncOperationsConfig;
+#[cfg(feature = "cdc-outbound")]
+pub use cdc_outbound::{CdcOutboundConfig, CdcSinkSectionConfig};
 use defaults::{
     default_bind_addr, default_database_url, default_graphql_path, default_health_path,
     default_introspection_path, default_max_header_bytes, default_max_header_count,
@@ -841,6 +845,17 @@ pub struct ServerConfig {
     /// fail-closed.
     #[serde(default)]
     pub async_operations: Option<AsyncOperationsConfig>,
+
+    /// Outbound change-data-capture to external brokers (#382).
+    ///
+    /// Present ⇒ the server drains the change-log outbox to the configured
+    /// sinks on its own task set. Absent ⇒ no drain runs. A configured section
+    /// with no database pool, an unreachable broker, or delivery-state DDL
+    /// that will not apply is a boot refusal — a server that boots without its
+    /// drain is silent data loss for every downstream consumer.
+    #[cfg(feature = "cdc-outbound")]
+    #[serde(default)]
+    pub cdc_outbound: Option<CdcOutboundConfig>,
 }
 
 /// A single `[storage.<name>]` configuration section.
@@ -1162,6 +1177,9 @@ impl Default for ServerConfig {
             #[cfg(feature = "auth")]
             session_state: None, // Session-state subsystem off by default
             async_operations: None, // Async-operations surface off by default
+            // Outbound CDC drains only when [cdc_outbound] is configured (#382).
+            #[cfg(feature = "cdc-outbound")]
+            cdc_outbound: None,
         }
     }
 }

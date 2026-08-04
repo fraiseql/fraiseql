@@ -180,6 +180,13 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "observers")]
     pub(super) db_pool: Option<sqlx::PgPool>,
 
+    /// Outbound CDC drains built at construction (#382), spawned onto the
+    /// task set at serve time. Built in the builder — where the pool is in
+    /// scope unconditionally — so a broken `[cdc_outbound]` refuses to boot
+    /// at `Server::new`, not at first request.
+    #[cfg(feature = "cdc-outbound")]
+    pub(super) cdc_drains: Vec<crate::cdc_outbound::SinkDrain>,
+
     /// PostgreSQL pool for claims enrichment queries (independent of observers).
     #[cfg(feature = "auth")]
     #[allow(dead_code)] // Reason: read by enrichment routing code (ported in sub-phase 4e)

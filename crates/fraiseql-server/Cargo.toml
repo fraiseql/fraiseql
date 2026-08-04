@@ -52,6 +52,7 @@ fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-error = {workspace = true, features = ["axum-compat"]}
 # FraiseQL object storage
 fraiseql-storage = {workspace = true}
+fraiseql-cdc-sinks = {workspace = true, features = ["cdc-nats-jetstream"], optional = true}
 # FraiseQL observers (optional)
 fraiseql-federation = {workspace = true, optional = true}
 fraiseql-observers = {workspace = true, optional = true}
@@ -141,6 +142,8 @@ xxhash-rust = {workspace = true}
 zeroize = "1.8"
 
 [dev-dependencies]
+# The #382 outbound-CDC mount e2e reads back from a real NATS JetStream.
+async-nats = "0.47"
 samael = {version = "0.0.21"}
 # Test-only: derive a live TOTP code for the #367 [auth.local] MFA e2e.
 totp-rs = {version = "5", features = ["gen_secret", "otpauth"]}
@@ -179,6 +182,8 @@ azure-blob = ["fraiseql-storage/azure-blob"]
 # The image-render endpoint (#370): compiles fraiseql-storage's transform
 # pipeline and mounts GET /storage/v1/render/{bucket}/{*key}.
 storage-transforms = ["fraiseql-storage/transforms"]
+# Outbound CDC (#382): drains the change-log outbox to external brokers.
+cdc-outbound = ["dep:fraiseql-cdc-sinks"]
 # CLI argument parsing (clap-derived Cli/ServerArgs structs)
 cli = ["dep:clap"]
 gcs = ["fraiseql-storage/gcs"]

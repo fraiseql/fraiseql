@@ -126,6 +126,7 @@ const MANIFEST: &[(&str, &str)] = &[
     // ── Optional subsystems ──────────────────────────────────────────────────
     ("rate_limiting", "rate-limit middleware config (Option; #609)"),
     ("observers", "observer runtime config (Option; `observers` feature)"),
+    ("cdc_outbound", "outbound CDC drains (Option; #382, `cdc-outbound` feature)"),
     ("storage", "object-storage config (Option; #608)"),
     ("storage_token", "storage admin token (Option)"),
     ("files", "file-serving config (Option)"),
