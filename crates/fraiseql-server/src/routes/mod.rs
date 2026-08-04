@@ -6,8 +6,8 @@
 #[cfg_attr(not(feature = "functions-runtime"), allow(dead_code))]
 pub(crate) mod after_mutation;
 pub mod api;
-#[cfg(feature = "auth")]
 pub mod async_operations;
+#[cfg(feature = "auth")]
 pub mod auth;
 #[cfg(feature = "functions")]
 pub mod functions;
