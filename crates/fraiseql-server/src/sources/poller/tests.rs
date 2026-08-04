@@ -278,6 +278,144 @@ async fn fires_a_model_b_connector_end_to_end() {
     assert_eq!(snapshot.value, Some(json!({ "page": 1 })));
 }
 
+/// Poll the durable cursor until the connector's page counter reaches `target`, or
+/// fail after `deadline`. Returns the page observed at (or past) the target.
+async fn wait_for_cursor_page(
+    pool: &PgPool,
+    source: &str,
+    target: i64,
+    deadline: std::time::Duration,
+) -> i64 {
+    let store = PostgresSourceCursorStore::new(pool.clone());
+    let started = std::time::Instant::now();
+    loop {
+        let page = store
+            .load(source)
+            .await
+            .unwrap()
+            .value
+            .and_then(|v| v.get("page").and_then(Value::as_i64))
+            .unwrap_or(0);
+        if page >= target {
+            return page;
+        }
+        assert!(
+            started.elapsed() < deadline,
+            "cursor page stuck at {page} (target {target}) after {:?} — the scheduler stopped \
+             firing (the #796 failure shape)",
+            started.elapsed()
+        );
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+}
+
+/// #573 re-verification (P30): the whole scheduled-ingress claim on the **real
+/// clock** — a Model B connector fires in several successive schedule windows,
+/// and across a poller restart it resumes from the durable cursor.
+///
+/// Before the #796 fix, every `cron:`-triggered firing — including every Source —
+/// happened once per process start and then never again, and the unit suite stayed
+/// green because zero-second synthetic timestamps made the broken window
+/// computation coincide with the correct one. Real wall-clock instants are
+/// therefore load-bearing: this drives the real [`SourcePoller::run_forever`]
+/// ticker (60 s interval, `Utc::now()` windows) end to end, so it takes ~4 minutes.
+///
+/// LOCAL-ONLY and `#[ignore]`d: it invokes a real Deno guest (V8 SIGSEGVs in the
+/// Dagger exec sandbox — see `.dagger/parity-notes.md`) and holds multi-minute
+/// wall-clock windows. Run explicitly:
+/// `cargo test -p fraiseql-server --features sources --lib
+///  ingests_across_schedule_windows_and_a_restart -- --ignored --test-threads=1`
+/// The fast halves stay in CI: the window-decision simulator and cross-restart
+/// cron-state guard (functions leg) and the cursor round-trip (sources leg).
+#[tokio::test]
+#[ignore = "local-only #573 gate: real V8 guest + real multi-minute schedule windows (~4 min)"]
+async fn ingests_across_schedule_windows_and_a_restart() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP ingests_across_schedule_windows_and_a_restart: no postgres");
+        return;
+    };
+    let source = "test-poller-multi-window";
+    PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
+    sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+        .bind(source)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let executor = StubExecutor::new(json!({ "data": { "createOrder": { "id": "1" } } }));
+    // One builder, invoked once per "process": a restart is a fresh poller (fresh
+    // in-memory window state, fresh V8 runtime) over the same durable cursor row.
+    let build = || {
+        let mut observer = FunctionObserver::new();
+        observer
+            .register_runtime(RuntimeType::Deno, DenoRuntime::new(&DenoConfig::default()).unwrap());
+        SourcePoller::new(
+            source,
+            source,
+            CronSchedule::parse("* * * * *").unwrap(),
+            FunctionModule::from_source(
+                "connector".to_string(),
+                CONNECTOR_TS.to_string(),
+                RuntimeType::Deno,
+            ),
+            Arc::new(observer),
+            PostgresSourceCursorStore::new(pool.clone()),
+            executor.clone(),
+            fraiseql_core::security::SecurityContext::system_job(
+                "test-source",
+                "test-request",
+                vec![],
+                vec![],
+                None,
+            ),
+            LeaseGuardedRunner::in_process(source),
+            HostContextConfig::default(),
+            ResourceLimits::default(),
+            None,
+            false,
+        )
+    };
+
+    // First "process": ≥2 firings means ≥2 distinct windows — the AlreadyFired
+    // guard forbids a same-window repeat, and window 2 is exactly what #796 broke.
+    // Worst case ~60 s to the first tick + 60 s to the next window + guest time.
+    let first = tokio::spawn(build().run_forever());
+    wait_for_cursor_page(&pool, source, 2, std::time::Duration::from_secs(240)).await;
+    first.abort();
+    assert!(first.await.unwrap_err().is_cancelled());
+
+    // Re-read after the abort so a raced third firing cannot skew the baseline.
+    let before = wait_for_cursor_page(&pool, source, 2, std::time::Duration::from_secs(5)).await;
+    let seen_at_restart = executor.seen.lock().unwrap().clone();
+    assert!(
+        seen_at_restart.len() >= 2,
+        "each window's firing issued its mutation: {seen_at_restart:?}"
+    );
+    assert!(
+        seen_at_restart[0].contains("(page: 1)"),
+        "the first window ingested from a fresh cursor: {}",
+        seen_at_restart[0]
+    );
+
+    // "Restart": only the DB row survives. The next firing must continue at
+    // page `before + 1` — a cursor reset would re-ingest from page 1, a skip
+    // would gap. (At-least-once: a transient guest failure re-runs the SAME
+    // page, which the contains-assert below tolerates.)
+    let second = tokio::spawn(build().run_forever());
+    wait_for_cursor_page(&pool, source, before + 1, std::time::Duration::from_secs(240)).await;
+    second.abort();
+    assert!(second.await.unwrap_err().is_cancelled());
+
+    let seen = executor.seen.lock().unwrap().clone();
+    let first_after_restart = &seen[seen_at_restart.len()];
+    assert!(
+        first_after_restart.contains(&format!("(page: {})", before + 1)),
+        "after the restart the connector resumed from the durable cursor (expected page {}, \
+         got: {first_after_restart})",
+        before + 1
+    );
+}
+
 /// The poller advances the **declared cursor** key, not the source name (#868 item 4).
 ///
 /// `source_name` and `cursor_name` are distinct concepts that used to share one field: the
