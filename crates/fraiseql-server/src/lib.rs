@@ -37,6 +37,7 @@ pub mod token_revocation;
 
 // Original fraiseql-server modules
 pub mod api;
+pub mod async_operations;
 /// Server-side `cron:` function scheduling (#595): one leased poller per cron
 /// function, firing on the phase-02 `run_as` host.
 #[cfg(feature = "functions-runtime")]

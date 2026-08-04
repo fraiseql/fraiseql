@@ -20,6 +20,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.mount_mcp(app, state, mcp_cfg);
         }
 
+        // Async operations (#391): mounted only when `[async_operations]` is
+        // configured (boot already refused a config with no usable table), and
+        // behind the deployment's auth layer like every data-serving transport
+        // (#812's single-seam rule). The handlers additionally hard-require an
+        // authenticated principal — a submission snapshots the caller's
+        // security context for the background execution.
+        if let Some(ref runtime) = self.async_operations {
+            let ops_router = crate::routes::async_operations::router(
+                crate::routes::async_operations::AsyncOperationsState {
+                    runtime: runtime.clone(),
+                    app:     state.clone(),
+                },
+            );
+            app = app.merge(self.attach_auth(
+                ops_router,
+                super::AuthPosture::Authenticated,
+                "async-operations",
+            ));
+            info!("Async-operations endpoints mounted (/operations/v1)");
+        }
+
         // Remaining API routes (query intelligence, federation)
         let api_router = api::routes(state.clone());
         app = app.nest("/api/v1", api_router);

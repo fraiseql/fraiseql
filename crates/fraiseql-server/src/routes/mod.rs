@@ -7,6 +7,7 @@
 pub(crate) mod after_mutation;
 pub mod api;
 #[cfg(feature = "auth")]
+pub mod async_operations;
 pub mod auth;
 #[cfg(feature = "functions")]
 pub mod functions;

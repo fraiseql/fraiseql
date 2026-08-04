@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Durable long-running operations (#391).** New `[async_operations]` section
+  mounts `POST/GET/DELETE /operations/v1/…` — submit returns an `op_id`
+  immediately, background workers execute the stored GraphQL document through
+  the SAME `execute_with_security` pipeline as `/graphql` (RLS, cost gates,
+  change-log outbox — never a second execution path), and status reads the
+  stored row. Designed against P19's six saga-recovery failure modes, each
+  pinned in `async_operations_e2e_pg`: terminal states are never reclaimable;
+  claiming is staleness-gated (workers heartbeat, so a live execution is never
+  stolen); completions are claim-token-guarded (a superseded worker's late
+  result cannot clobber the retry's); `Idempotency-Key` submission replays the
+  same `op_id`; the persisted tenant key dispatches execution through the
+  shared tenant seam; and a cancel that did not cancel is never reported as
+  one (queued → cancelled outright, running → explicit `cancel_requested`).
+  The operation allowlist is required and fail-closed, cost is charged at
+  submission, status/cancel are submitter-scoped (404, no existence oracle),
+  an errored GraphQL envelope records as `failed`, and an expired security
+  snapshot refuses to execute. A configured section without a database pool or
+  a creatable `_system.async_operations` refuses to boot. Docs:
+  `docs/features/async-operations.md`.
+
 - **MCP as a first-class transport (#376).** Three gaps closed on the existing
   (P09-hardened) MCP surface. **Auth parity**: MCP now accepts the same two
   Bearer modes as `/graphql` — OIDC (`[auth]`) *or* local HS256

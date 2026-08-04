@@ -446,6 +446,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None => None,
         };
 
+        // Build the async-operations subsystem (#391) here, where `db_pool` is
+        // in scope. A configured surface whose table cannot be initialised
+        // refuses to boot — the routes and workers must never half-mount.
+        let async_operations = Self::build_async_operations(&config, db_pool.as_ref()).await?;
+
         // Build the session-state subsystem (#389) here, where `db_pool` is in
         // scope. `backend = "postgres"` without a pool, or with a table that
         // cannot be initialised, must refuse to boot — never downgrade to the
@@ -700,6 +705,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             local_password_state: local_auth.password,
             #[cfg(feature = "auth")]
             session_state,
+            async_operations,
             #[cfg(feature = "auth-saml")]
             saml_state,
             api_key_authenticator,
@@ -774,6 +780,72 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub const fn session_state(&self) -> Option<&Arc<fraiseql_auth::session_state::SessionState>> {
         self.session_state.as_ref()
+    }
+
+    /// Spawn the configured number of async-operation workers (#391) onto the
+    /// server's [`JoinSet`](tokio::task::JoinSet). No-op when the subsystem is
+    /// not configured.
+    pub(super) fn spawn_async_operation_workers(
+        &mut self,
+        state: &crate::routes::graphql::AppState<A>,
+    ) {
+        let Some(runtime) = self.async_operations.clone() else {
+            return;
+        };
+        for _ in 0..runtime.config.workers {
+            let runtime = runtime.clone();
+            let state = state.clone();
+            self.tasks.spawn(crate::async_operations::worker::run(runtime, state));
+        }
+    }
+
+    /// Build the async-operations subsystem from `[async_operations]` (#391).
+    ///
+    /// `None` when the section is absent. A configured section without a
+    /// database pool, or whose `_system.async_operations` table cannot be
+    /// initialised, is a **boot refusal** — the surface must never half-mount
+    /// (routes accepting submissions no worker will ever execute).
+    ///
+    /// `#[doc(hidden)] pub`: the boot-refusal matrix is pinned by tests that
+    /// drive this seam directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServerError::ConfigError`] on a missing pool or failed init.
+    #[doc(hidden)]
+    pub async fn build_async_operations(
+        config: &ServerConfig,
+        db_pool: Option<&sqlx::PgPool>,
+    ) -> std::result::Result<Option<crate::async_operations::AsyncOperationsRuntime>, ServerError>
+    {
+        let Some(cfg) = config.async_operations.as_ref() else {
+            return Ok(None);
+        };
+        let pool = db_pool.cloned().ok_or_else(|| {
+            ServerError::ConfigError(
+                "[async_operations] requires a database pool — operations are durable state. \
+                 The binary provides one when database_url is set; library embedders must pass \
+                 a PgPool to Server::new."
+                    .to_string(),
+            )
+        })?;
+        let store = crate::async_operations::AsyncOperationStore::new(pool);
+        store.init().await.map_err(|e| {
+            ServerError::ConfigError(format!(
+                "[async_operations] could not initialise _system.async_operations: {e}. \
+                 Refusing to boot rather than mounting a surface whose submissions nothing \
+                 could execute."
+            ))
+        })?;
+        info!(
+            operations = ?cfg.operations,
+            workers = cfg.workers,
+            "Async operations enabled"
+        );
+        Ok(Some(crate::async_operations::AsyncOperationsRuntime {
+            store:  Arc::new(store),
+            config: Arc::new(cfg.clone()),
+        }))
     }
 
     /// Build the session-state subsystem from `[session_state]` (#389).

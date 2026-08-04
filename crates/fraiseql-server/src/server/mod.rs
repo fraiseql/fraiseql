@@ -157,6 +157,10 @@ pub struct Server<A: DatabaseAdapter> {
     /// session-continuity binding is its per-request consumer.
     #[cfg(feature = "auth")]
     pub(super) session_state: Option<Arc<fraiseql_auth::session_state::SessionState>>,
+    /// Async-operations subsystem (#391) — present when `[async_operations]`
+    /// is configured. `mount_extensions` mounts the HTTP surface and the
+    /// lifecycle spawns the worker pool.
+    pub(super) async_operations: Option<crate::async_operations::AsyncOperationsRuntime>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     /// SAML SP state (#381) — present when `[saml]` is configured on an
     /// `auth-saml` build; `mount_auth_routes` mounts the login/ACS routes.

@@ -927,6 +927,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// generated from the route table rather than from the router, so the two could
 		// disagree in both directions.
 		"cargo test -p fraiseql-server --features rest --test rest_write_mount_e2e_pg -- --test-threads=1",
+		// #391: durable submit/status/cancel through the production mount, with each of
+		// P19's six recovery failure modes pinned (terminal-never-reclaimed, staleness-
+		// gated claiming, claim-guarded completion, idempotent submission, truthful
+		// cancellation, status-reads-the-row). Owns _system.async_operations + a
+		// changelog table → serial.
+		"cargo test -p fraiseql-server --test async_operations_e2e_pg -- --test-threads=1",
 		// #376: an MCP-originated write is tagged transport=mcp in the change-log and
 		// HS256 Bearer tokens authenticate MCP calls (auth parity with /graphql).
 		// Recreates core.tb_entity_change_log → serial, changelog-owning binary.

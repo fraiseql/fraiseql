@@ -1175,3 +1175,81 @@ mod session_state_boot_tests {
         assert_eq!(ss.evict_interval_secs, 300);
     }
 }
+
+// ── async_operations_boot_tests: #391 — [async_operations] refuses to
+//    half-mount ────────────────────────────────────────────────────────────────
+
+mod async_operations_boot_tests {
+    use crate::{
+        server::Server,
+        server_config::{AsyncOperationsConfig, ServerConfig},
+    };
+
+    type TestServer = Server<fraiseql_core::db::postgres::PostgresAdapter>;
+
+    fn config_with_ops() -> ServerConfig {
+        ServerConfig {
+            async_operations: Some(AsyncOperationsConfig {
+                operations: vec!["largeExport".to_string()],
+                ..AsyncOperationsConfig::default()
+            }),
+            ..ServerConfig::default()
+        }
+    }
+
+    /// No section → no runtime, no routes, no workers.
+    #[tokio::test]
+    async fn absent_section_builds_none() {
+        let built = TestServer::build_async_operations(&ServerConfig::default(), None)
+            .await
+            .expect("absent section is not an error");
+        assert!(built.is_none());
+    }
+
+    /// A configured surface without durable storage must refuse to boot — the
+    /// alternative is routes accepting submissions no worker can execute.
+    #[tokio::test]
+    async fn configured_without_a_pool_refuses_to_boot() {
+        let err = TestServer::build_async_operations(&config_with_ops(), None)
+            .await
+            .expect_err("must refuse");
+        let msg = err.to_string();
+        assert!(msg.contains("[async_operations]"), "error names the section: {msg}");
+        assert!(msg.contains("database pool"), "error names the missing piece: {msg}");
+    }
+
+    /// `validate()` refuses inert shapes before construction is attempted.
+    #[test]
+    fn validate_refuses_inert_shapes() {
+        let empty_allowlist = ServerConfig {
+            async_operations: Some(AsyncOperationsConfig::default()),
+            ..ServerConfig::default()
+        };
+        let err = empty_allowlist.validate().expect_err("empty allowlist refused");
+        assert!(err.contains("operations"), "names the offending key: {err}");
+
+        let mut zero_workers = config_with_ops();
+        if let Some(ref mut ao) = zero_workers.async_operations {
+            ao.workers = 0;
+        }
+        assert!(zero_workers.validate().is_err(), "zero workers refused");
+
+        let mut zero_attempts = config_with_ops();
+        if let Some(ref mut ao) = zero_attempts.async_operations {
+            ao.max_attempts = 0;
+        }
+        assert!(zero_attempts.validate().is_err(), "zero max_attempts refused");
+    }
+
+    /// Strict section: a typo'd key is a parse error, not an inert setting.
+    #[test]
+    fn unknown_key_is_a_parse_error() {
+        let toml = r#"
+            [async_operations]
+            operations = ["largeExport"]
+            worker_count = 4
+        "#;
+        let parsed: Result<ServerConfig, _> = toml::from_str(toml);
+        assert!(parsed.is_err(), "worker_count (typo) must be refused");
+    }
+}
