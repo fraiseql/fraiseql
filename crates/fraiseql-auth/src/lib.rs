@@ -36,6 +36,7 @@ pub mod security_config;
 pub mod security_init;
 pub mod session;
 pub mod session_postgres;
+pub mod session_state;
 pub mod state_encryption;
 pub mod state_store;
 pub mod totp_mfa;

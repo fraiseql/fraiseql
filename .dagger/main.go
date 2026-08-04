@@ -719,6 +719,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-auth --test password_reset -- --test-threads=1",
 		// #368 social auto-link trust policy ∘ PostgresAccountStore (trusted vs untrusted → merge vs distinct).
 		"cargo test -p fraiseql-auth --test social_linking -- --test-threads=1",
+		// #389 session-state store (_system.session_state: TTL visibility, upsert, atomic
+		// summary collapse, eviction sweep vs real PG).
+		"cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1",
 		// #431 inbound webhook pipeline (atomic idempotency claim + transactional handoff + RLS vs real PG).
 		"cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1",
 		// #573 email reshaped as the reference native PullSource: ImapSource + EmailIngestSink

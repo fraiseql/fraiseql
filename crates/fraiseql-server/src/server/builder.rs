@@ -446,6 +446,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None => None,
         };
 
+        // Build the session-state subsystem (#389) here, where `db_pool` is in
+        // scope. `backend = "postgres"` without a pool, or with a table that
+        // cannot be initialised, must refuse to boot — never downgrade to the
+        // volatile in-memory backend (the P21 backend rule).
+        #[cfg(feature = "auth")]
+        let session_state = Self::build_session_state(&config, db_pool.as_ref()).await?;
+
         // Initialize OIDC validator if auth is configured.
         //
         // Deliberately *not* `#[cfg(feature = "auth")]`-gated: `OidcValidator`
@@ -652,6 +659,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         Self::spawn_pkce_cleanup(pkce_store.as_ref(), &mut tasks);
 
+        // Spawn the session-state eviction sweep (#389) at the configured cadence.
+        #[cfg(feature = "auth")]
+        Self::spawn_session_state_eviction(
+            session_state.as_ref(),
+            config.session_state.as_ref().map_or(300, |c| c.evict_interval_secs),
+            &mut tasks,
+        );
+
         Ok(Self {
             config,
             executor,
@@ -683,6 +698,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             otp_state: local_auth.otp,
             #[cfg(feature = "auth")]
             local_password_state: local_auth.password,
+            #[cfg(feature = "auth")]
+            session_state,
             #[cfg(feature = "auth-saml")]
             saml_state,
             api_key_authenticator,
@@ -743,6 +760,123 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 loop {
                     ticker.tick().await;
                     store_clone.cleanup_expired().await;
+                }
+            });
+        }
+    }
+
+    /// The session-state subsystem (#389), when `[session_state]` is configured.
+    ///
+    /// The per-request consumer surface: the MCP session-continuity binding
+    /// reads it, and library embedders can reach the store here to share
+    /// threads with their own transports.
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub const fn session_state(&self) -> Option<&Arc<fraiseql_auth::session_state::SessionState>> {
+        self.session_state.as_ref()
+    }
+
+    /// Build the session-state subsystem from `[session_state]` (#389).
+    ///
+    /// `None` when the section is absent. `backend = "postgres"` without a
+    /// database pool, or whose `_system.session_state` table cannot be
+    /// initialised, is a **boot refusal** — the alternative is a silent
+    /// downgrade to the volatile in-memory backend, which is exactly the
+    /// configured-but-unusable-backend defect class this program exists to
+    /// close (the P21 rule).
+    ///
+    /// `#[doc(hidden)] pub`: the boot-refusal matrix is pinned by tests that
+    /// must drive this seam directly (`Server::new` needs a bound listener).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServerError::ConfigError`] on an unsupported backend token, a
+    /// missing pool, or a failed table initialisation.
+    #[cfg(feature = "auth")]
+    #[doc(hidden)]
+    pub async fn build_session_state(
+        config: &ServerConfig,
+        db_pool: Option<&sqlx::PgPool>,
+    ) -> std::result::Result<Option<Arc<fraiseql_auth::session_state::SessionState>>, ServerError>
+    {
+        use fraiseql_auth::session_state::{
+            InMemorySessionStateStore, PostgresSessionStateStore, SessionState, SessionStateBackend,
+        };
+
+        let Some(cfg) = config.session_state.as_ref() else {
+            return Ok(None);
+        };
+        let backend = match cfg.backend.as_str() {
+            "memory" => {
+                tracing::warn!(
+                    "[session_state] backend = \"memory\" is volatile — every thread is lost on \
+                     restart. Use backend = \"postgres\" in production."
+                );
+                SessionStateBackend::InMemory(InMemorySessionStateStore::new())
+            },
+            "postgres" => {
+                let pool = db_pool.cloned().ok_or_else(|| {
+                    ServerError::ConfigError(
+                        "[session_state] backend = \"postgres\" requires a database pool, and \
+                         this server was constructed without one. Pass a PgPool to Server::new \
+                         (the binary does this automatically when database_url is set), or use \
+                         backend = \"memory\" for local development."
+                            .to_string(),
+                    )
+                })?;
+                let store = PostgresSessionStateStore::new(pool);
+                store.init().await.map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "[session_state] backend = \"postgres\" could not initialise \
+                         _system.session_state: {e}. Refusing to boot rather than silently \
+                         downgrading to the volatile in-memory backend."
+                    ))
+                })?;
+                info!("Session state enabled (postgres-backed, durable)");
+                SessionStateBackend::Postgres(store)
+            },
+            // ServerConfig::validate() refuses unknown tokens before this runs;
+            // kept as a hard error so this seam is safe to drive directly.
+            other => {
+                return Err(ServerError::ConfigError(format!(
+                    "[session_state] backend = \"{other}\" is not supported — use \"memory\" or \
+                     \"postgres\"."
+                )));
+            },
+        };
+        Ok(Some(Arc::new(SessionState::new(backend, cfg.default_ttl_secs))))
+    }
+
+    /// Spawn the periodic session-state eviction sweep into the server's [`JoinSet`].
+    ///
+    /// Expired entries are already invisible to reads; the sweep reclaims their
+    /// storage at the configured cadence. Owned by `tasks` so graceful shutdown
+    /// awaits its termination.
+    #[cfg(feature = "auth")]
+    pub(super) fn spawn_session_state_eviction(
+        state: Option<&Arc<fraiseql_auth::session_state::SessionState>>,
+        interval_secs: u64,
+        tasks: &mut tokio::task::JoinSet<()>,
+    ) {
+        use std::time::Duration;
+
+        use tokio::time::MissedTickBehavior;
+
+        if let Some(state) = state {
+            let state = Arc::clone(state);
+            tasks.spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(interval_secs.max(1)));
+                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                ticker.tick().await; // skip the immediate first tick
+                loop {
+                    ticker.tick().await;
+                    match state.evict_expired().await {
+                        Ok(0) => {},
+                        Ok(n) => tracing::debug!(evicted = n, "session-state eviction sweep"),
+                        Err(e) => {
+                            tracing::warn!(error = %e, "session-state eviction sweep failed");
+                        },
+                    }
                 }
             });
         }

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Session-state subsystem (#389).** New `[session_state]` section: durable
+  per-thread conversation memory for agents and multi-turn applications —
+  key/value entries scoped to `(session, thread)` with per-entry TTL (expired
+  entries are invisible to reads immediately and reclaimed by a background
+  sweep), a 64 KiB per-value cap, and an optional `Summarizer` hook that
+  atomically collapses a thread into a single reserved `_summary` entry past a
+  configurable threshold (a failing summarizer leaves the thread intact).
+  Backends: `memory` (volatile, dev — warns at boot) and `postgres`
+  (`_system.session_state`, created at boot like `_system.sessions`). A
+  configured `postgres` backend without a pool, or whose table cannot be
+  initialised, **refuses to boot** — never a silent in-memory downgrade. The
+  section is strict (`deny_unknown_fields`). Library API:
+  `fraiseql_auth::session_state` + `Server::session_state()`; MCP session
+  continuity binds to it in #376. Docs: `docs/features/session-state.md`.
+
 - **Actor-model hardening (#390).** The change-log's `actor_type` domain is now
   enforced by the database itself: migration 08 installs
   `chk_entity_change_log_actor_type` (`NOT VALID`, so a populated legacy table
