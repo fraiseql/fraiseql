@@ -359,7 +359,12 @@ func (m *FraiseqlCi) Test(
 
 	// Skip patterns for the testcontainers lib tests (storage + functions); wire's
 	// container tests live in tests/*, so we run only its lib unit tests.
-	skip := "-- --skip metadata::tests --skip migrations::tests --skip routes::tests"
+	// `uploads::tests` (#369) joins the list for the same reason: it needs a real
+	// Postgres for the resumable-upload session table, and without DATABASE_URL
+	// the harness spawns a testcontainer, which this engine has no Docker for.
+	// It runs for real in the `storage` integration suite.
+	skip := "-- --skip metadata::tests --skip migrations::tests --skip routes::tests" +
+		" --skip uploads::tests"
 
 	script := strings.Join([]string{
 		"set -e",
