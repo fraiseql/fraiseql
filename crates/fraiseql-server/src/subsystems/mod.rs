@@ -110,6 +110,10 @@ impl BeforeMutationHooks {
     /// `FRAISEQL_FUNCTIONS_*` env overrides), use
     /// [`FunctionsSubsystem::into_before_mutation_hooks`] instead.
     #[must_use]
+    // Reason: const-eligibility is feature-dependent — with `functions-runtime`
+    // the body calls `Arc::new` (not const), without it the lint fires. A
+    // `const fn` here would fail to compile under the fuller feature set.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn new(
         trigger_registry: TriggerRegistry,
         module_registry: std::collections::HashMap<String, fraiseql_functions::FunctionModule>,

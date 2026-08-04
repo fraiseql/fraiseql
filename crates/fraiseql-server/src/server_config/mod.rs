@@ -960,6 +960,12 @@ pub struct StorageSectionConfig {
     /// always served as `attachment` regardless of this flag.
     #[serde(default)]
     pub serve_inline: Option<bool>,
+
+    /// Lifetime of a resumable-upload session in seconds (#369; default 24
+    /// hours). An expired session answers `410 Gone` and is reaped: staged
+    /// bytes are discarded and a reservation the session created is released.
+    #[serde(default)]
+    pub upload_ttl_secs: Option<u64>,
 }
 
 /// A single `[files.<name>]` configuration section.

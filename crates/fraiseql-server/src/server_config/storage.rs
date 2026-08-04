@@ -87,6 +87,7 @@ fn resolve_from_map(
         access,
         transform_presets: None,
         serve_inline: section.serve_inline.unwrap_or(false),
+        upload_ttl_secs: section.upload_ttl_secs,
     };
 
     Ok(Some(ResolvedStorage { backend, bucket }))
@@ -134,9 +135,10 @@ pub async fn build_storage_state(config: &ServerConfig) -> Result<Option<Storage
 
     Ok(Some(StorageState {
         backend:  Arc::new(backend),
-        metadata: Arc::new(StorageMetadataRepo::new(pool)),
+        metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
         rls:      StorageRlsEvaluator::new(),
         buckets:  Arc::new(buckets),
+        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(pool)),
     }))
 }
 

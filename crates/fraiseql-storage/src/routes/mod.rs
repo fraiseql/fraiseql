@@ -12,6 +12,7 @@
 
 #[cfg(test)]
 mod tests;
+mod uploads;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -34,6 +35,7 @@ use crate::{
     config::BucketConfig,
     metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow},
     rls::StorageRlsEvaluator,
+    uploads::UploadSessionRepo,
 };
 
 // ---------------------------------------------------------------------------
@@ -51,6 +53,8 @@ pub struct StorageState {
     pub rls:      StorageRlsEvaluator,
     /// Bucket configurations keyed by bucket name.
     pub buckets:  Arc<HashMap<String, BucketConfig>>,
+    /// Resumable-upload session repository (#369).
+    pub uploads:  Arc<UploadSessionRepo>,
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +171,16 @@ pub fn storage_router(state: StorageState) -> Router {
         )
         .route("/storage/v1/list/{bucket}", get(list_handler))
         .route("/storage/v1/presign/{bucket}/{*key}", post(presign_handler))
+        // Resumable (Tus) uploads (#369). Creation addresses the object key;
+        // the session endpoints address the upload id. The two shapes differ
+        // in arity, so axum accepts both under the same prefix.
+        .route("/storage/v1/uploads/{bucket}/{*key}", post(uploads::create_upload_handler))
+        .route(
+            "/storage/v1/uploads/{id}",
+            axum::routing::patch(uploads::patch_upload_handler)
+                .head(uploads::head_upload_handler)
+                .delete(uploads::delete_upload_handler),
+        )
         .layer(DefaultBodyLimit::max(body_limit))
         .with_state(state)
 }

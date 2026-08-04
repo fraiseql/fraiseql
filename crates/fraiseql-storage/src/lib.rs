@@ -29,6 +29,7 @@ pub mod rls;
 pub mod routes;
 pub mod service;
 pub mod transforms;
+pub mod uploads;
 
 // Re-exports for convenience
 #[cfg(feature = "azure-blob")]
@@ -54,3 +55,4 @@ pub use service::BucketService;
 pub use transforms::{
     ImageTransformer, OutputFormat, TransformCache, TransformOutput, TransformParams,
 };
+pub use uploads::{NewUploadSession, UploadSession, UploadSessionRepo};

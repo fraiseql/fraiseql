@@ -15,6 +15,7 @@ fn sample_bucket() -> BucketConfig {
         access:             BucketAccess::PublicRead,
         transform_presets:  None,
         serve_inline:       false,
+        upload_ttl_secs:    None,
     }
 }
 
@@ -125,6 +126,7 @@ fn test_generate_produces_entries_per_bucket() {
             access:             BucketAccess::Private,
             transform_presets:  None,
             serve_inline:       false,
+            upload_ttl_secs:    None,
         },
     ];
 
@@ -148,6 +150,7 @@ fn test_storage_object_type_with_multiple_buckets() {
         access:             BucketAccess::PublicRead,
         transform_presets:  None,
         serve_inline:       false,
+        upload_ttl_secs:    None,
     };
 
     let bucket2 = BucketConfig {
@@ -157,6 +160,7 @@ fn test_storage_object_type_with_multiple_buckets() {
         access:             BucketAccess::Private,
         transform_presets:  None,
         serve_inline:       false,
+        upload_ttl_secs:    None,
     };
 
     let type1 = StorageSchemaTypes::storage_object_type(&bucket1);

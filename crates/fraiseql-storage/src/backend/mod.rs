@@ -350,6 +350,165 @@ impl StorageBackend {
             Self::Azure(b) => b.list(prefix, cursor, limit).await,
         }
     }
+
+    /// Smallest non-final chunk this backend accepts in a resumable upload.
+    ///
+    /// S3's multipart API refuses parts under `5 MiB` (except the last), and
+    /// every S3-compatible provider FraiseQL supports enforces the same. The
+    /// local backend appends to a staging file and has no minimum. The route
+    /// layer rejects an undersized non-final chunk up front, so the constraint
+    /// is a clean `400` instead of a backend error at completion time.
+    #[must_use]
+    pub const fn multipart_min_chunk_bytes(&self) -> u64 {
+        match self {
+            Self::Local(_) => 1,
+            #[cfg(feature = "aws-s3")]
+            Self::S3(_)
+            | Self::Hetzner(_)
+            | Self::Scaleway(_)
+            | Self::Ovh(_)
+            | Self::Exoscale(_)
+            | Self::Backblaze(_)
+            | Self::R2(_) => 5 * 1024 * 1024,
+            #[cfg(feature = "gcs")]
+            Self::Gcs(_) => 1,
+            #[cfg(feature = "azure-blob")]
+            Self::Azure(_) => 1,
+        }
+    }
+
+    /// Begin backend staging for a resumable upload (#369). Returns the opaque
+    /// continuation state the session persists between chunks.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure, and
+    /// `FileError::NotImplemented` for backends without a resumable path yet
+    /// (GCS resumable sessions and Azure block lists are tracked separately —
+    /// refused loudly, never silently buffered).
+    pub async fn multipart_begin(
+        &self,
+        key: &str,
+        content_type: &str,
+    ) -> Result<serde_json::Value> {
+        match self {
+            Self::Local(b) => {
+                let _ = content_type; // used by the S3 arm only
+                b.multipart_begin(key).await
+            },
+            #[cfg(feature = "aws-s3")]
+            Self::S3(b)
+            | Self::Hetzner(b)
+            | Self::Scaleway(b)
+            | Self::Ovh(b)
+            | Self::Exoscale(b)
+            | Self::Backblaze(b)
+            | Self::R2(b) => b.multipart_begin(key, content_type).await,
+            #[cfg(feature = "gcs")]
+            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            #[cfg(feature = "azure-blob")]
+            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+        }
+    }
+
+    /// Append one chunk to a resumable upload's staging. Returns the updated
+    /// continuation state.
+    ///
+    /// The caller (the route layer) serialises appends per session; this method
+    /// assumes at most one in-flight append per upload.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or an unsupported
+    /// backend.
+    pub async fn multipart_append(
+        &self,
+        key: &str,
+        state: serde_json::Value,
+        data: &[u8],
+    ) -> Result<serde_json::Value> {
+        match self {
+            Self::Local(b) => b.multipart_append(key, state, data).await,
+            #[cfg(feature = "aws-s3")]
+            Self::S3(b)
+            | Self::Hetzner(b)
+            | Self::Scaleway(b)
+            | Self::Ovh(b)
+            | Self::Exoscale(b)
+            | Self::Backblaze(b)
+            | Self::R2(b) => b.multipart_append(key, state, data).await,
+            #[cfg(feature = "gcs")]
+            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            #[cfg(feature = "azure-blob")]
+            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+        }
+    }
+
+    /// Finalise a resumable upload: the staged bytes become the object at
+    /// `key`. Returns the object's etag.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or an unsupported
+    /// backend.
+    pub async fn multipart_complete(&self, key: &str, state: &serde_json::Value) -> Result<String> {
+        match self {
+            Self::Local(b) => {
+                let _ = state; // used by the S3 arm only
+                b.multipart_complete(key).await
+            },
+            #[cfg(feature = "aws-s3")]
+            Self::S3(b)
+            | Self::Hetzner(b)
+            | Self::Scaleway(b)
+            | Self::Ovh(b)
+            | Self::Exoscale(b)
+            | Self::Backblaze(b)
+            | Self::R2(b) => b.multipart_complete(key, state).await,
+            #[cfg(feature = "gcs")]
+            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            #[cfg(feature = "azure-blob")]
+            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+        }
+    }
+
+    /// Abort a resumable upload and discard its staged bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or an unsupported
+    /// backend.
+    pub async fn multipart_abort(&self, key: &str, state: &serde_json::Value) -> Result<()> {
+        match self {
+            Self::Local(b) => {
+                let _ = state; // used by the S3 arm only
+                b.multipart_abort(key).await
+            },
+            #[cfg(feature = "aws-s3")]
+            Self::S3(b)
+            | Self::Hetzner(b)
+            | Self::Scaleway(b)
+            | Self::Ovh(b)
+            | Self::Exoscale(b)
+            | Self::Backblaze(b)
+            | Self::R2(b) => b.multipart_abort(key, state).await,
+            #[cfg(feature = "gcs")]
+            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            #[cfg(feature = "azure-blob")]
+            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+        }
+    }
+}
+
+/// The loud refusal for backends whose resumable-upload path is not built yet.
+#[cfg(any(feature = "gcs", feature = "azure-blob"))]
+fn multipart_unsupported(backend: &str) -> fraiseql_error::FraiseQLError {
+    fraiseql_error::FraiseQLError::File(FileError::NotImplemented {
+        message: format!(
+            "resumable uploads are not implemented for the {backend} backend \
+             (GCS resumable sessions / Azure block lists are tracked follow-ups)"
+        ),
+    })
 }
 
 /// Build a `FileError::InvalidKey` rejection.
@@ -425,6 +584,16 @@ pub fn validate_key(key: &str) -> Result<()> {
                 }
             }
         }
+    }
+
+    // The local backend stages resumable uploads under this reserved directory
+    // (#369). A client key entering it could alias a staging file — the exact
+    // collision class this function exists to prevent — so the namespace is
+    // fenced off at the front door for every backend uniformly.
+    if key == ".fraiseql-uploads" || key.starts_with(".fraiseql-uploads/") {
+        return Err(invalid_key(
+            "Invalid storage key: '.fraiseql-uploads' is a reserved namespace",
+        ));
     }
 
     for segment in key.split('/') {

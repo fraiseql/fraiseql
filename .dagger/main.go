@@ -1101,7 +1101,7 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: storage (Dagger-bound postgres + azurite + fake-gcs)'",
-		"cargo test -p fraiseql-storage --lib -- metadata::tests migrations::tests routes::tests --test-threads=1",
+		"cargo test -p fraiseql-storage --lib -- metadata::tests migrations::tests routes::tests uploads::tests --test-threads=1",
 		"cargo test -p fraiseql-storage --features azure-blob --test azure_emulator -- --test-threads=1",
 		"cargo test -p fraiseql-storage --features gcs --test gcs_emulator -- --test-threads=1",
 		"echo 'test-integration OK: storage suite passed'",
