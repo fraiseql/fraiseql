@@ -38,22 +38,35 @@ construction.
 
 ## Platform matrix
 
-The `-full` variant is built **only for native targets**, because
-`functions-runtime-deno` compiles V8, which does not build under the `cross` Docker
-images used for some targets.
+The `-full` variant is built for every target whose toolchain can link V8, which
+`functions-runtime-deno` compiles in. That is now every released target except musl.
 
 | Target | `fraiseql-<target>` (lean) | `fraiseql-full-<target>` |
 |--------|:--:|:--:|
 | `x86_64-unknown-linux-gnu` | ✅ | ✅ |
-| `aarch64-unknown-linux-gnu` | ✅ | ❌ — V8 does not cross-compile here |
+| `aarch64-unknown-linux-gnu` | ✅ | ✅ |
+| `x86_64-unknown-linux-musl` | ✅ | ❌ — V8 does not link against musl |
 | `x86_64-apple-darwin` | ✅ | ✅ |
 | `aarch64-apple-darwin` | ✅ | ✅ |
 | `x86_64-pc-windows-msvc` | ✅ | ✅ |
 
-For **ARM Linux (`aarch64`)** with platform features, use the Docker image (built with
-`fraiseql-server` + your chosen `CARGO_FEATURES`) or a from-source build on the target.
-This is a documented gap, never a silent one — a native `-full` build failure fails the
-release loudly.
+`aarch64-unknown-linux-gnu` shipped lean-only until #649. It was cross-compiled from
+x86 with `cross`, and V8 does not build under those Docker images — so ARM-Linux
+adopters got neither the platform-feature umbrella nor a prebuilt `fraiseql-server`.
+It is built on a native arm64 runner now, which removes the constraint rather than
+working around it, and it carries the same glibc floor (2.28 via `cargo-zigbuild`)
+and ceiling gate (2.34) as every other Linux artifact.
+
+The artifact is **booted on real arm64 before it ships**, not merely linked: the
+`arm64-full` job in `release-smoke.yml` builds it on an arm64 runner, checks the glibc
+ceiling, confirms the binaries really are aarch64, runs `functions invoke --help` to
+prove V8 initialises, then starts `fraiseql-server` against a real PostgreSQL and
+serves a GraphQL query. That job is dispatchable, so the arm64 path can be exercised
+without cutting a release — the alternative is discovering a V8-versus-glibc-floor
+disagreement in the middle of one.
+
+For **ARM Linux with musl** (Alpine, distroless, scratch), use the lean static binary
+or the Docker image with your chosen `CARGO_FEATURES`.
 
 ## What "compiled in" means at runtime
 

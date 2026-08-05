@@ -265,6 +265,192 @@ jobs:
         run: kill "$(cat /tmp/fraiseql-server.pid 2>/dev/null)" 2>/dev/null || true
 
   # ── Assert against the ACTUAL published -full artifact ──────────────────────
+  # ── #649: the aarch64-linux `-full` artefact, proven on real arm64 ────────────
+  #
+  # aarch64-unknown-linux-gnu was the one release target shipping lean-only: the
+  # `-full` umbrella compiles functions-runtime-deno, which pulls in V8, and V8 does
+  # not build under the `cross` Docker images the target used to be built with. The
+  # fix is a native arm64 runner — no cross, so V8 builds — but "it links" is not
+  # "it runs": the Debian 12 regression (#707) was a binary that linked fine and
+  # refused to load in situ, because `patchelf --clear` left a Verneed entry behind.
+  # So this job boots what it built, on the architecture it was built for.
+  #
+  # It is dispatchable on purpose. release.yml runs only on `v*` tags, so without
+  # this job the first execution of the aarch64 `-full` build would be during a
+  # release cut — the worst moment to discover that V8 and the glibc floor disagree.
+  arm64-full:
+    name: aarch64 -full artefact boots on real arm64
+    runs-on: ubuntu-24.04-arm
+    # V8 release compilation on top of fraiseql-server; release.yml allows 120m for
+    # the equivalent x86 job.
+    timeout-minutes: 120
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Confirm this is really arm64
+        shell: bash
+        run: |
+          set -eu
+          arch=$(uname -m)
+          echo "runner arch: $arch"
+          test "$arch" = "aarch64" \
+            || { echo "::error::expected an aarch64 runner, got $arch — the native architecture is the whole point of this job"; exit 1; }
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      # Same glibc-floor mechanism as every other Linux release target. The runner is
+      # glibc 2.39, and std's weak pidfd spawn symbols would otherwise pin the binary
+      # to >= 2.39, which the release ceiling gate (2.34) rejects. Note the arch in the
+      # zig tarball name: release.yml's copy hardcodes x86_64 because every zig_target
+      # row there runs on an x86 host.
+      - name: Install zig + cargo-zigbuild
+        shell: bash
+        run: |
+          set -eu
+          curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-aarch64-0.13.0.tar.xz | tar -xJ
+          echo "$PWD/zig-linux-aarch64-0.13.0" >> "$GITHUB_PATH"
+          cargo install cargo-zigbuild --version 0.23.0 --locked
+
+      - name: Build the -full umbrella (zigbuild, glibc-floored)
+        run: |
+          cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.28 \
+            --package fraiseql --features release-full
+
+      # Feature list copied verbatim from release.yml's `-full` server build. If the
+      # two drift, this job stops validating the artefact that actually ships.
+      - name: Build fraiseql-server (zigbuild, glibc-floored, -full)
+        run: |
+          cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.28 \
+            --package fraiseql-server \
+            --features functions-runtime-deno,inbound-email,sources,mcp,metrics,observers,federation
+
+      # The ceiling release.yml enforces, applied here so a floor regression surfaces
+      # on dispatch rather than at tag time.
+      - name: Verify glibc ceiling
+        shell: bash
+        run: |
+          set -eu
+          ceiling="2.34"
+          fail=0
+          for b in fraiseql fraiseql-server; do
+            p="target/aarch64-unknown-linux-gnu/release/$b"
+            [ -f "$p" ] || { echo "::error::$b was not produced"; fail=1; continue; }
+            max=$(objdump -T "$p" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIBC_//' | sort -V | tail -1 || true)
+            if [ -z "$max" ]; then echo "OK $b: no glibc version dependency"; continue; fi
+            echo "· $b needs up to GLIBC_$max"
+            if [ "$(printf '%s\n%s\n' "$ceiling" "$max" | sort -V | tail -1)" != "$ceiling" ]; then
+              echo "::error::$b requires GLIBC_$max > $ceiling — would not load on Debian 12"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: Confirm the binaries are actually aarch64
+        shell: bash
+        run: |
+          set -eu
+          for b in fraiseql fraiseql-server; do
+            out=$(file "target/aarch64-unknown-linux-gnu/release/$b")
+            echo "$out"
+            echo "$out" | grep -q 'ARM aarch64' \
+              || { echo "::error::$b is not an aarch64 binary"; exit 1; }
+          done
+
+      # The platform surface the -full variant exists FOR. `functions invoke` compiles
+      # in only when functions-runtime-deno (and so V8) is present, so running it is
+      # the cheapest proof that V8 both linked and initialises on arm64 — a check that
+      # runs the binary rather than inspecting it.
+      - name: Smoke the -full binary's function-invoke harness
+        shell: bash
+        run: |
+          set -eu
+          ./target/aarch64-unknown-linux-gnu/release/fraiseql functions invoke --help >/dev/null 2>&1 \
+            || { echo "::error::the -full binary is missing 'functions invoke' — the platform surface is not compiled in"; exit 1; }
+          echo "OK: -full aarch64 binary ships 'fraiseql functions invoke'."
+
+      - name: Apply E2E database schema
+        run: |
+          PGPASSWORD=fraiseql_test_password psql \
+            -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
+            -f docker/e2e/init-postgres.sql
+
+      - name: Start the aarch64 fraiseql-server
+        run: |
+          ./target/aarch64-unknown-linux-gnu/release/fraiseql-server &
+          echo $! > /tmp/fraiseql-server.pid
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+          FRAISEQL_BIND_ADDR: 127.0.0.1:8815
+          FRAISEQL_INTROSPECTION_ENABLED: "true"
+          FRAISEQL_INTROSPECTION_REQUIRE_AUTH: "false"
+          FRAISEQL_ENV: development
+          RUST_LOG: info
+
+      - name: Wait for /health to respond
+        run: |
+          set -eu
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8815/health; then
+              echo
+              echo "aarch64 server is up after ~$i attempt(s)."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null; then
+              echo "::error::fraiseql-server exited before /health responded — a startup failure on arm64, which is exactly what a link-only check misses." >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::Timed out waiting for /health after 30s." >&2
+          exit 1
+
+      - name: Smoke a GraphQL query on arm64
+        run: |
+          set -eu
+          status=$(curl -s -o /tmp/gql.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:8815/graphql \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"{ users { id name } }"}')
+          echo "HTTP $status"; cat /tmp/gql.json; echo
+          test "$status" = "200" || { echo "::error::/graphql returned HTTP $status" >&2; exit 1; }
+          grep -q '"users"' /tmp/gql.json || { echo "::error::response missing users field" >&2; exit 1; }
+          if grep -q '"errors"' /tmp/gql.json; then
+            echo "::error::response contained errors" >&2; exit 1
+          fi
+          echo "OK: aarch64 -full artefact serves a real GraphQL query."
+
+      - name: Stop the server
+        if: always()
+        run: kill "$(cat /tmp/fraiseql-server.pid)" 2>/dev/null || true
+
   # A local `cargo build --features release-full` proves nothing about what got
   # published: the previous "link check" step rebuilt the umbrella from source and
   # let the #643 defect ship (the -full tarball shipped only the umbrella binary,
