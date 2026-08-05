@@ -40,486 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The project-config workflow (`[fraiseql.security.*]`) no longer emits the
     consumer-less `audit_logging`/camelCase sections; `audit_logging.enabled`
     lowers onto `enterprise.audit_logging_enabled`, the key the runtime reads.
-
-### Fixed
-
-- **NUMERIC values beyond 28 significant digits, `NaN` and `Infinity` no longer
-  decode to null (#980).** The PostgreSQL adapter's row decoder read
-  `NUMERIC`/`DECIMAL` columns through `rust_decimal::Decimal`, whose 96-bit
-  mantissa caps at 28-29 significant digits and which has no `NaN` or
-  `Infinity` — anything it could not represent failed the type probe and fell
-  through the decode ladder to `Null`, silently. NUMERIC columns are now decoded
-  from PostgreSQL's binary wire format directly to the exact text the server
-  itself prints, at full precision; `NaN`, `Infinity` and `-Infinity` render as
-  those JSON strings. The decoder is verified by a differential test comparing
-  its output against `SELECT value::text` from a live PostgreSQL over a
-  1,500-value corpus.
-
-  This removes `rust_decimal` from the workspace — it had exactly one use site —
-  and with it `rkyv` and `borsh` leave `Cargo.lock` entirely (rust_decimal was
-  their sole dependent), retiring the RUSTSEC-2026-0235 advisory exception from
-  `deny.toml` and `.cargo/audit.toml`.
-
-- **A 27-byte GraphQL query no longer panics the parser (#976).**
-  `graphql-parser` computes a block string's common indent in *bytes* but strips
-  it with the Unicode-aware `str::trim_start`, then slices the line at that byte
-  offset — so a block string indented with U+00A0 sliced mid-codepoint and
-  panicked. The document is well-formed by the GraphQL spec, the input is
-  unauthenticated, and with no `CatchPanicLayer` in the stack the panic unwound
-  the connection task: the client got a dropped connection rather than an error,
-  and no error metric moved.
-
-  `parse_graphql_document` is now the single parse seam, and it rejects
-  indentation the parser cannot handle before the parser sees it. Six call sites
-  went through the raw parser when this was found — including
-  `graphql/parser.rs`, which was invisible to the obvious grep because it
-  imported the module and called `query::parse_query`. All six are routed, the
-  seam additionally wraps the parser in `catch_unwind` so an unknown parser
-  panic costs one query rather than the connection, and
-  `tools/check-graphql-parse-sites.sh` (wired into `make preflight`) fails the
-  build if a seventh appears. Found by the scheduled fuzz campaign, which had
-  been reporting it weekly since 2026-06-21.
-
-  Upgrading does not fix this: `graphql-parser` 0.4.1 is the newest release and
-  the maintained `graphql-parser-hive-fork` carries the identical bug.
-
-  **Behaviour change:** a query whose *indentation* uses non-ASCII whitespace is
-  now rejected with a message naming the reason. Non-ASCII whitespace in string
-  content — including block-string content — is unaffected, which is the only
-  place the GraphQL spec allows it to carry meaning.
-
-### Changed
-
-- **The weekly fuzz campaign reports what it finds (#441).** A crash now opens
-  (or comments on) an issue labelled `fuzz-crash` instead of only reddening a
-  scheduled job — seven consecutive weekly failures on a real security defect
-  went unread because a red scheduled job is not a signal anyone receives. Build
-  failures and crash finds are now separate steps, so a bad nightly cannot
-  masquerade as a finding, and the nightly toolchain is pinned rather than
-  floating (an internal compiler error on 2026-07-26 failed two targets in
-  exactly that way). Seed corpora carry the reproducers for fixed crashes, so a
-  regression is caught by a fixture in git rather than by a 90-day cache
-  surviving. The campaign remains schedule- and dispatch-only and cannot gate a
-  merge.
-
-  All 25 fuzz targets across the 8 crates were build-verified as part of this,
-  which is how two of them turned out to be broken: `fraiseql-db`'s
-  `where_from_json` and `where_generator` still referenced `MySqlDialect`,
-  `SqliteDialect` and `SqlServerDialect`, removed by the PostgreSQL-only
-  de-scope (#374), and `WhereClause::from_graphql_json` had gained a second
-  argument. `where_from_json` is in the scheduled matrix, so this would have
-  reddened the campaign the moment the de-scope merged — no CI leg builds
-  `fuzz/`, because each is a separate cargo workspace. Both are fixed and now
-  exercise the typed-field path as well as the untyped one; `where_generator`
-  additionally asserts the emitted SQL keeps its quotes and parentheses
-  balanced. `docs/fuzzing.md` carries a one-command build-verify loop.
-
-- **Five properties from real defects are now checked continuously (#441).** Each
-  is derived from a defect this remediation program actually fixed, and each was
-  verified by pointing it at the pre-fix code and watching it find the original
-  bug — a target that cannot do that asserts nothing while reporting green.
-
-  | Property | Form | Defect |
-  |---|---|---|
-  | An inline argument never silently vanishes across the `value_json` write→read round trip | `value_json_seam` fuzz target | #719 |
-  | No accepted identifier can alter the structure of the SQL it lands in | `identifier_validation` fuzz target | #794, #795, #833 |
-  | Generated WHERE SQL keeps quotes and parentheses balanced | `where_generator` fuzz target | #833 |
-  | A query parameter never bleeds into the host, user or database name | `fraiseql-wire` proptest | #817 |
-  | No caller-supplied argument value can add a root field to a built MCP document | `fraiseql-server` proptest | #808 |
-
-  The last two are proptests rather than fuzz targets because the code they guard
-  is behind a private module, and widening it to `pub` purely for test reach would
-  enlarge the supported API surface. They run in every CI test leg rather than
-  weekly, so for those two the in-crate form is the stronger check.
-
-  `pre-commit` no longer rewrites `fuzz/seed_corpus/`: `end-of-file-fixer`
-  appended newlines to five #976 reproducers, and a seed corpus is test data
-  where every byte is part of the input.
-
-### Added
-
-- **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one
-  or more `[[cdc_outbound.sinks]]` now makes the server drain
-  `core.tb_entity_change_log` to a broker on its own task set, behind the new
-  `cdc-outbound` feature. The drain engine — durable per-sink delivery state,
-  anti-join enqueue with a commit-lag sweep, claim-then-publish under a lease
-  with head-of-line ordering, backoff and dead-lettering — shipped in v2.12.0
-  and is used unchanged; what was missing is that **nothing in the shipped
-  server ever constructed a `DrainWorker`**, so outbound CDC was reachable only
-  by writing your own binary.
-
-  Boot is fail-loud: a configured section with no database pool, an unreachable
-  broker, delivery-state DDL that will not apply, a duplicate sink name, or a
-  `kind` that is unknown or not yet implemented (`kafka`, `kinesis`, `pulsar`)
-  all refuse to start. A server that boots without its drain looks healthy
-  while every downstream consumer silently starves. Docs:
-  `docs/features/cdc-outbound.md`.
-
-- **Per-bucket access policies (#371).** `[[storage.<name>.policies]]` attaches
-  a list of permit rules that *replaces* the bucket's coarse `access` mode:
-  `methods` (`read`/`write`/`overwrite`/`delete`/`list`) × `principal`
-  (`owner`/`authenticated`/`anonymous`/`role:<name>`) × an optional
-  `key_prefix`. This expresses the shapes key-prefix routing could not — "the
-  audit group may read under `reports/`, but only the creator may delete".
-
-  Three properties are structural rather than documented. **Denial is the
-  fallthrough**: there is no `effect = "deny"` whose precedence could be wrong,
-  and `permits` returns true only from inside a matched rule, so an empty
-  policy denies everything including to an object's own owner. **`write` is
-  create-only** — replacing an existing object needs an explicit `overwrite`
-  grant, because the natural rule "authenticated callers may write" would
-  otherwise re-open the H9/B4 overwrite IDOR through the policy door (this was
-  caught by the end-to-end test, not by review). **An unparseable policy
-  refuses to boot** — an unknown method or principal, an empty `methods` list,
-  or a misspelled field is a startup error, never a rule that silently denies.
-  `list` also becomes a distinct permission (no longer implied by write
-  access), with row filtering still applied on top.
-
-- **Image renders are served, and hostile images are bounded (#370, closing
-  #901).** `GET /storage/v1/render/{bucket}/{*key}?w=&h=&format=&quality=&preset=`
-  mounts behind the server's new `storage-transforms` feature and reads through
-  exactly the gates the download route uses (metadata, `can_read`, the
-  missing/not-yours collapse). `format` is `webp`/`jpeg`/`png`/`avif`; with none
-  given, the client's `Accept` header picks the encoding. Named presets now come
-  from configuration — `[storage.<name>] transform_presets = [{ name = "thumb",
-  width = 200, format = "webp" }]` — which previously could not be set at all
-  (`BucketConfig::transform_presets` was hard-coded `None`); declaring them in a
-  binary built without the feature is a **startup error**, not a silently absent
-  endpoint. Before this, the whole `transforms` feature had no HTTP surface and
-  `ImageTransformer` had no non-test caller.
-
-  The transformer itself was unbounded: it decoded whatever a caller supplied
-  and resized to whatever was requested, so a decompression bomb (a small file
-  whose header declares an enormous image) or an absurd `?w=` allocated
-  hundreds of megabytes per request. Source and requested dimensions are now
-  capped at 12 000 px per side, checked from the header *before* decoding, with
-  matching hard decoder limits behind them; bombs, malformed bytes, non-image
-  objects and oversized requests all return a named `400`.
-
-- **Resumable uploads — Tus 1.0.0 core + S3 multipart (#369).** New endpoints
-  `POST /storage/v1/uploads/{bucket}/{*key}` (create, `Upload-Length` +
-  optional `Upload-Metadata` filetype), `PATCH`/`HEAD`/`DELETE
-  /storage/v1/uploads/{id}` (append at the proven offset / resume probe /
-  cancel). Interrupted uploads resume from the durable offset; sessions are
-  rows in the new `_fraiseql_storage_uploads` table, so they survive a server
-  restart. Every path funnels through the SAME machinery as single-shot
-  uploads: creation passes the H9/B4 overwrite gate and reserves the metadata
-  row exactly like a presigned upload (#866), completion is one routine that
-  finalises backend staging and confirms that row, and a foreign session is
-  indistinguishable from a missing one (`404`; anonymous `401`; #876 — an
-  interrupted upload cannot be resumed, probed, or cancelled by a different
-  owner). Backends: local (staging under the reserved — and now
-  `validate_key`-fenced — `.fraiseql-uploads/` namespace, rename on
-  completion) and S3/MinIO (real multipart: chunks become parts, sub-5-MiB
-  non-final chunks are refused up front as `400`); GCS/Azure refuse loudly
-  (`NotImplemented`). Concurrency: one in-flight session per key (`409`),
-  appends pinned to the proven offset (`409` on races), size caps enforced at
-  creation and cumulatively, expired sessions answer `410` and are reaped
-  (staging discarded, created reservations released; per-bucket
-  `upload_ttl_secs`, default 24 h). Verified end to end over real MinIO + a
-  real metadata table in the `server-storage` leg.
-
-- **Durable long-running operations (#391).** New `[async_operations]` section
-  mounts `POST/GET/DELETE /operations/v1/…` — submit returns an `op_id`
-  immediately, background workers execute the stored GraphQL document through
-  the SAME `execute_with_security` pipeline as `/graphql` (RLS, cost gates,
-  change-log outbox — never a second execution path), and status reads the
-  stored row. Designed against P19's six saga-recovery failure modes, each
-  pinned in `async_operations_e2e_pg`: terminal states are never reclaimable;
-  claiming is staleness-gated (workers heartbeat, so a live execution is never
-  stolen); completions are claim-token-guarded (a superseded worker's late
-  result cannot clobber the retry's); `Idempotency-Key` submission replays the
-  same `op_id`; the persisted tenant key dispatches execution through the
-  shared tenant seam; and a cancel that did not cancel is never reported as
-  one (queued → cancelled outright, running → explicit `cancel_requested`).
-  The operation allowlist is required and fail-closed, cost is charged at
-  submission, status/cancel are submitter-scoped (404, no existence oracle),
-  an errored GraphQL envelope records as `failed`, and an expired security
-  snapshot refuses to execute. A configured section without a database pool or
-  a creatable `_system.async_operations` refuses to boot. Docs:
-  `docs/features/async-operations.md`.
-
-- **MCP as a first-class transport (#376).** Three gaps closed on the existing
-  (P09-hardened) MCP surface. **Auth parity**: MCP now accepts the same two
-  Bearer modes as `/graphql` — OIDC (`[auth]`) *or* local HS256
-  (`[auth_hs256]`); previously only OIDC validated, so an HS256 deployment
-  could never authenticate an MCP call and `require_auth = true` refused to
-  mount the endpoint (`FraiseQLMcpService::with_oidc_validator` is replaced by
-  `with_token_validator(McpTokenValidator)`). **Behaviour hints**: every
-  advertised tool carries MCP `ToolAnnotations` — queries `readOnlyHint: true`,
-  mutations explicitly `destructiveHint: true` / non-idempotent, so agent
-  clients confirm before invoking writes. **Audit tagging**: an MCP-originated
-  mutation's change-log row is stamped `extra_metadata.transport = "mcp"`
-  (forge-safe: the tag rides a framework-reserved security-context attribute
-  set by the transport itself), making agent writes one query to find. New
-  `mcp_transport_stamp_e2e_pg` suite drives an HS256-authenticated tool call
-  through the real executor into the outbox. Resources / Prompts / session
-  continuity are tracked in #967. Docs: `docs/mcp.md` gained Authentication,
-  Behaviour hints, and Audit trail sections.
-
-- **Session-state subsystem (#389).** New `[session_state]` section: durable
-  per-thread conversation memory for agents and multi-turn applications —
-  key/value entries scoped to `(session, thread)` with per-entry TTL (expired
-  entries are invisible to reads immediately and reclaimed by a background
-  sweep), a 64 KiB per-value cap, and an optional `Summarizer` hook that
-  atomically collapses a thread into a single reserved `_summary` entry past a
-  configurable threshold (a failing summarizer leaves the thread intact).
-  Backends: `memory` (volatile, dev — warns at boot) and `postgres`
-  (`_system.session_state`, created at boot like `_system.sessions`). A
-  configured `postgres` backend without a pool, or whose table cannot be
-  initialised, **refuses to boot** — never a silent in-memory downgrade. The
-  section is strict (`deny_unknown_fields`). Library API:
-  `fraiseql_auth::session_state` + `Server::session_state()`; MCP session
-  continuity binds to it in #376. Docs: `docs/features/session-state.md`.
-
-- **Actor-model hardening (#390).** The change-log's `actor_type` domain is now
-  enforced by the database itself: migration 08 installs
-  `chk_entity_change_log_actor_type` (`NOT VALID`, so a populated legacy table
-  migrates safely; new writes are checked), and a CLI lockstep test pins the
-  constraint's token list to `ActorType::ALL` so adding an enum variant without
-  extending the constraint is a red test. `fraiseql doctor --against-db` gained
-  an actor-attribution check: out-of-contract `actor_type` values are a
-  **Fail** (rogue writer), a missing constraint or `NULL`-actor rows are a
-  **Warn**. A new end-to-end suite (`actor_attribution_e2e_pg`) drives real
-  HS256 tokens through the production mount on both HTTP write transports
-  (`/graphql` + REST) and asserts the recorded rows: `human_user` /
-  `service_account` (scope) / `ai_agent` + `acting_for` (RFC 8693 `act`)
-  derivation, that forged `fraiseql.*`/`actor_type` claims cannot influence the
-  classification, and that unauthenticated writes are refused rather than
-  recorded unattributed. Operator docs: `docs/features/audit-logging.md`.
-  Deferred consumption features (RBAC actor predicates, per-actor budgets) are
-  tracked in #966.
-
-### Fixed
-
-- **CRITICAL — the second Deno invocation in a process crashed the server
-  (#969).** The V8 platform was never explicitly initialized, so the first
-  guest invocation lazily installed deno_core's PKU-protected default platform
-  on its own short-lived thread. Memory-protection-key rights over V8's JIT
-  pages are inherited only by that thread's descendants, so every later
-  invocation thread faulted on the first JIT page it touched — SIGSEGV, taking
-  the whole process down. Invisible until now: #796 meant scheduled functions
-  never fired twice per process, nextest's process-per-test model never
-  creates a second isolate, and the resulting `cargo test` crash had been
-  misattributed to the Dagger exec sandbox. The runtime now initializes the
-  **unprotected** default platform once, up front (rusty_v8's documented
-  embedding for hosts that cannot guarantee thread ancestry — standard W^X
-  still applies). The full deno suite now passes in one shared process,
-  sequential and parallel, for the first time.
-
-- **CRITICAL — guest host-ops poisoned shared connection pools (#970).** Host
-  ops (`fraiseql_query`, cursor get/advance, HTTP, storage, email) executed
-  their futures on the invocation's throwaway Tokio runtime. Any connection
-  *created* during an op — a fresh sqlx pool connection, a reqwest keep-alive
-  socket — registered with that runtime's I/O reactor, then outlived it inside
-  the shared pool; the next user awaited a wakeup from a dead reactor and hung
-  until timeout. Observed as every second scheduled source firing failing with
-  "event loop exceeded time limit" and as `pool timed out while waiting for an
-  open connection` on the server's main pool. All host I/O is now pinned to
-  the owner runtime via `RuntimePinnedHost`: `run_guest` captures the
-  dispatching runtime's handle and spawns every op there, so sockets always
-  live on the reactor that owns the pools. A host dispatched outside any Tokio
-  runtime is refused loudly.
-
-- **Three never-run observer test binaries wired into CI (#390 flight
-  finding).** `entity_change_log_contract`, `changelog_views`, and
-  `capture_trigger` are `#[ignore]`d suites that no CI leg ran with
-  `--ignored` since they were written. All three now run in the observers
-  integration leg. Wiring them surfaced an order-dependence defect:
-  `capture_trigger` inherited whatever `core.tb_entity_change_log` an earlier
-  suite left behind, and on a table with `object_data NOT NULL` (three in-tree
-  fixtures create that shape) the capture trigger's legitimate NULL after-image
-  on DELETE violated the constraint. The suite now owns its slate.
-
-- **Studio: Schema, Observers, and Logs tabs (#373).** The embedded Studio SPA
-  gained a **Schema** browser (types with per-field type/nullability and the
-  backing view, queries with their relay/list shape, mutations with their
-  backing function — from `/admin/v1/schema`), an **Observers** tab (delivery
-  health, DLQ viewer with per-item retry and retry-all — the dispatch-at-most-
-  once semantics of retry are pinned server-side), and a **Logs** tab
-  (observer dispatch history). Both observer-backed tabs degrade gracefully
-  when the `observers` feature is off. A new test pins every shell tab to a
-  renderer wired to its real admin endpoint via `include_str!` on the SPA
-  source. The raw-SQL editor tab from the original issue is deliberately NOT
-  shipped: it requires a new arbitrary-SQL admin endpoint, which is a gated
-  decision tracked in #962.
-
-- **Python SDK AI-framework integrations (#388).** `fraiseql.integrations`
-  gained `openai` (OpenAI tool/function definitions + a call dispatcher that
-  refuses hallucinated names before any server round-trip), `mcp` (raw MCP
-  tool descriptors + an in-process `tools/call` dispatcher, no MCP SDK
-  dependency), and `rag` (`as_source` wraps any list query — e.g. over a
-  `v_embedded_documents` view — as a framework-agnostic retrieval source).
-  All adapters, including the existing LangChain/LlamaIndex ones, now share
-  one normalised operation model built from introspection, so tool names,
-  argument types, and generated documents are identical across frameworks —
-  and LangChain tool documents gained true argument types (a `$limit: Int`
-  argument was previously declared blanket `String`). `include`/`exclude`
-  exposure controls are enforced both at advertisement and at the dispatch
-  boundary. Documented in the SDK's `docs/ai-integrations.md`.
-
-- **Typed Python clients + compile-the-output CI gates (#372).**
-  `fraiseql generate-client python` emits a fully typed, standard-library-only
-  Python (≥ 3.12) client from `schema.compiled.json`: `TypedDict`s for every
-  object/interface/input type, `Literal` enum aliases, PEP 695 union aliases,
-  relay `Connection[T]`, per-operation functions embedding their GraphQL
-  documents, an `is_error_result` runtime guard, and a `urllib`-based
-  `FraiseqlClient` — every file stamped with the canonical schema hash. The
-  document/selection builders moved into a language-independent core shared
-  with the TypeScript generator, pinned by a cross-language test asserting the
-  generated GraphQL documents are byte-identical. And the acceptance direction
-  that had never executed now runs in CI: the `generated-clients` job in
-  `sdk-conformance.yml` compiles the canonical conformance fixture, generates
-  both clients, and type-checks them (`tsc --strict`, `ty check`) plus
-  consumer-usage projects exercising every operation — including the
-  previously `#[ignore]`d-everywhere `client_ts_consumer` gate. Go/Rust
-  generators are tracked in #961.
-
-- **The schema↔database drift linter can fail, and covers dropped inputs
-  (#384).** `compile --database` findings now carry a severity: a `sql_source`
-  that resolves to no relation or function, a missing/mis-typed JSONB or relay
-  cursor column, a type-inconvertible native-column argument, or a **required**
-  field whose JSONB key is absent from every sampled row fail the compile with
-  a non-zero exit and no artifact written; nullable-field key absences and
-  performance advisories stay warnings. `--allow-drift` (requires `--database`)
-  restores the advisory behaviour, loudly. The mutation→function contract
-  check gained the silently-dropped-input scan (#384 category 2): a declared
-  input field on the single-JSONB payload path whose key the `plpgsql`/`sql`
-  function body never references — while the body demonstrably extracts other
-  keys — is reported (warn-grade; whole-payload consumers such as
-  `jsonb_populate_record` are recognised). `doctor --against-db` now also runs
-  the same L1/L2/L3 view-composition linter and reports each finding as a
-  structured check, so `--json` gives CI and editors a machine-readable drift
-  report. Fixing the L3 pass exposed that it had never sampled a row: the
-  Postgres introspector inherited a trait default that fabricated an empty
-  sample set, so the JSONB-key check silently passed on every schema since it
-  shipped. `get_sample_json_rows` is now a required trait method with a real
-  (schema-qualification-aware) PostgreSQL implementation, and the executed
-  `compile_drift_fail_pg` suite proves every direction — including that the
-  linter fails — against a live database.
-
-- **pgvector similarity search is real (#386).** The vector type vocabulary
-  (`FieldType::Vector`, `VectorConfig`) existed with no producer and no
-  executable query path; both now exist end to end. Authoring: TOML
-  (`vector = { dimensions = N, index_type = "hnsw", distance_metric = "cosine" }`)
-  and the authoring IR (`vector_config`) carry the config into the compiled
-  schema — required on `Vector` fields, refused on any other type. Query DSL:
-  `docs(nearest: {vector: $q, k: 10, metric: "l2"})` lowers to the
-  index-eligible `ORDER BY "embedding" <op> '[…]'::vector LIMIT k` against a
-  native `vector(N)` view column, with request-time dimension validation, the
-  field's declared metric as default, and full composition with `where`/RLS;
-  the four float-vector WHERE operators (`cosine_distance`, `l2_distance`,
-  `l1_distance`, `inner_product`) become executable threshold predicates
-  (`{vector, threshold}` operand). `--emit-ddl` emits dimensioned `vector(N)`
-  columns (a bare `vector` column cannot be indexed), the declared HNSW/IVFFlat
-  index, and `CREATE EXTENSION IF NOT EXISTS vector`. The test rigs run
-  `pgvector/pgvector:pg16` (local compose and the CI mirror), and the first
-  executed vector suite asserts row identity and order per metric — every prior
-  vector test was a `sql.contains("<=>")` string assertion.
-
-- **GraphQL over SSE with root-field `@stream` (#387).** Opt-in
-  (`enable_graphql_sse`, default off): a GraphQL request carrying
-  `Accept: text/event-stream` is answered as Server-Sent Events — any operation
-  as one `next` result plus `complete`, and a query whose single root list field
-  carries `@stream(initialCount: N)` incrementally: an initial payload with `N`
-  rows, then `graphql_sse_stream_batch_size`-row batches
-  (`{"incremental":[{"items":…,"path":…}],"hasNext":…}`), each **re-executed
-  through the full pipeline** — depth/complexity gates, authorization, RLS
-  session variables, result cache — by re-issuing the document with paginated
-  variables, so there is no second execution path to drift. The SSE branch lives
-  inside the authenticated `/graphql` route (401 before any stream opens);
-  long-lived deliveries re-check principal expiry before every batch and
-  terminate with an `UNAUTHENTICATED` event; deliveries survive
-  `request_timeout_secs` and are exempt from response compression. Ineligible
-  shapes are refused loudly before any event: non-list or relay queries, nested
-  `@stream`, multi-root operations, mutations, and documents declaring
-  `$limit`/`$offset` variables. Outside SSE, `@stream`/`@defer` are now *known*
-  advisory no-ops (parse, include, no warning — even under strict directive
-  mode), per the incremental-delivery proposal's server-may-ignore semantics.
-  See `docs/operations/graphql-sse-streaming.md`.
-
-- **Read replica support (#407).** `read_replica_urls` (plus optional
-  `read_replica_pin_after_write_ms`, default 5000) route compiled GraphQL queries —
-  and every other structurally read-only adapter path: field projections,
-  aggregates, relay pagination, `EXPLAIN` — round-robin across PostgreSQL replicas,
-  while mutations and every mixed-use surface (raw SQL, DDL, stats, health, auth
-  stores, observers, CDC) stay on the primary. The partition is static: a surface
-  that *can* write is never replica-routed. Consistency: every mutation arms a
-  shared watermark and reads route to the primary for the pin window afterwards,
-  so replication lag cannot serve a client its own stale write (proven by an
-  integration test whose stand-in replica never receives the write). Safety rails:
-  each replica pool is built from the same configuration as the primary — same
-  TLS, same sizing, and the same per-tenant `search_path` in the startup packet
-  (#809 generalised to every pool) — an unreachable replica refuses boot, a
-  replica that is not actually in recovery is loudly flagged, a runtime replica
-  failure falls back to the primary, an inert pin-without-replicas config and a
-  wire-backend build with replicas configured are both refused. See
-  `docs/operations/read-replicas.md`.
-
-- **`[[analytics.queries]]` is real (#624).** The `[analytics]` section — inert since
-  its first commit and rejected since #612 — now lowers each entry at compile time
-  into an ordinary compiled query: a list-returning, view-backed `QueryDefinition`
-  whose `sql_source` goes through the standard compile-time SQL-identifier
-  validation and whose SELECT list is the declared `return_type`'s fields, so no
-  client-supplied identifier can reach `FROM` or the SELECT list (the P01
-  constraint, satisfied structurally). `AnalyticsQuery` gains the required
-  `return_type` field. Compile errors: unknown `return_type`, a name colliding with
-  an existing query, a name ending in the executor-reserved `_aggregate`/`_window`
-  suffixes (such a query would be unreachable), `enabled = false` with queries, and
-  `enabled = true` without queries. A `[[caching.rules]]` entry can target an
-  analytics query (analytics lowering runs first). Found and filed alongside: the
-  SDK-side `aggregate_queries` seam section is carried and silently dropped (#956).
-
-- **`[[caching.rules]]` is real (#623).** The `[caching]` section — rejected as inert
-  since #612 — now lowers each rule at compile time onto the two compiled fields the
-  result cache already consumes: the named query's `cache_ttl_seconds` (the per-view
-  TTL map, opt-in) and each `invalidation_triggers` mutation's `invalidates_views`
-  (mutation-driven eviction). `fraiseql.toml` can therefore author per-query caching
-  and cross-entity invalidation edges without the SDK. Every silently-inert shape is
-  a compile error: an unknown query or trigger mutation, a TTL already authored via
-  the SDK (no last-write-wins between sources), `enabled = false` with rules,
-  `enabled = true` without rules, and any `backend`/`redis_url` (there is no
-  Redis-backed result cache; the `backend` default is now the honest `"memory"`).
-  The server warns at boot when TTLs are declared but `cache_enabled` is off, and
-  the multi-tenant cache refusal now names the real `cache_enabled` key instead of a
-  nonexistent `[cache]` section. `docs/modules/cache.md` corrected: TTL 0 means
-  mutation-invalidated-only (not "never cache"), expiry is moka-managed (no
-  read-time check), and there is no `POST /cache/invalidate` endpoint.
-
-- **Operation cost budgets are now a full surface (#379).** What already shipped in
-  June (the request-time cost estimator, `[fraiseql.cost_weights]`, the per-tenant
-  per-request `cost_budget`, `[security] persisted_queries_only`) gains the missing
-  half:
-  - `[security.cost_budget] per_request_max` — a schema-wide per-operation cost
-    ceiling enforced **inside the executor**, so it binds on every transport that
-    executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions
-    bridge, direct embedders), not only the HTTP handler.
-  - Declared `[validation]` depth/complexity limits are likewise derived into the
-    executor's GATE-1 at construction (embedder-installed validators still win, and
-    the server merges its runtime `[validation]` override per field), closing the
-    gap where the functions bridge — and any future transport — executed documents
-    no declared bound applied to. GATE-1 is now variables-aware: `first: $n` is
-    scored at its resolved value instead of the fail-closed ceiling (#869).
-  - Per-tenant **rolling per-minute budgets**: `cost_budget_per_minute` on the
-    tenant-quota admin API, with `[security.cost_budget]
-    per_tenant_per_minute_default` seeding tenants that set none.
-  - Distinct error codes: a per-request rejection is `OPERATION_COST_EXCEEDED`
-    (200 + `errors[]`; retrying cannot succeed), an exhausted window is
-    `COST_BUDGET_EXHAUSTED` (429 + `Retry-After`). Both were previously
-    indistinguishable from `RATE_LIMIT_EXCEEDED` with a misleading 1-second retry
-    hint.
-  - Cost observability: every `/graphql` request logs `cost`, `tenant`, and
-    `operation` on the `fraiseql::cost_audit` tracing target and feeds
-    `fraiseql_graphql_queries_cost_total` at `/metrics`, so budgets can be sized
-    from observed traffic before enforcement.
-  - `fraiseql validate-documents --max-cost N [--schema schema.compiled.json]`
-    scores each persisted document (worst-case: unresolvable pagination variables
-    cost the ceiling) and fails validation for documents over the cap.
-  - `[security] persisted_queries_only` is now pinned per HTTP method: ad-hoc
-    documents are refused on POST, GET, and QUERY alike.
-
-### Breaking
-
 - **`compile --database` fails on error-severity drift (#384).** Previously
   every schema↔database drift finding was advisory (`warn!` + exit 0, artifact
   written). A schema whose declarations name database objects that do not
@@ -527,7 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--allow-drift` for the old behaviour. `DatabaseIntrospector::
   get_sample_json_rows` lost its silently-empty default implementation and is
   now required.
-
 - **The vector WHERE operand shape changed (#386).** `cosine_distance: [0.1, …]`
   (a bare array) generated SQL PostgreSQL always refused — a non-boolean
   float8 expression over a mis-parenthesised cast with a jsonb-bound operand —
@@ -538,32 +57,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`bit`) vectors, which the float `Vector` type cannot declare. The
   `SqlDialect::vector_distance_sql`/`jaccard_distance_sql` trait methods
   (unreachable outside that broken path) are removed.
-
 - **`PoolPrewarmConfig` gains the mandatory `read_replicas` field (#407).** Every
   pool construction site must now state its replica topology (`None` for a
   single-primary pool), the same compile-time-visible decision the `tls` field
   imposes: replica pools are built from the very same config, so tenant isolation
   and transport security cannot silently differ between the primary and a replica.
-
 - **Cost rejections changed shape (#379).** A per-tenant `cost_budget` rejection was
   HTTP 429 `RATE_LIMIT_EXCEEDED` with `retry_after_secs: 1`; it is now
   `OPERATION_COST_EXCEEDED` in a 200 GraphQL error response, because retrying an
   over-budget operation can never succeed. `FraiseQLError` gains the `CostExceeded`
   variant carrying `cost`, `limit`, and an optional retry hint.
-
 - **`RuntimeConfig.max_query_depth` and `max_query_complexity` are deleted (#379).**
   Both were declared, defaulted, debug-printed — and read by nothing. The one
   enforcement surface is `query_validation` (embedder-installed, or derived from the
   compiled `[validation]` limits at executor construction). An embedder that set the
   dead fields and expected enforcement never had it; set `query_validation` instead.
-
 - **The compiled `auth` object is nested (#368, #367).** `CompiledSchema.auth` was
   the flat PKCE quadruple; it is now a container with `pkce`, `social` and `local`
   groups, so the `[auth]` block can carry the social-provider registry and the
   first-party auth methods alongside the PKCE client. A schema compiled before this
   change carries the flat shape and no longer deserializes — recompile it. (There are
   no compiled schemas in the wild; the field shipped in #621.)
-
 - **`fraiseql_auth::social` is deleted (#368).** `SocialLoginState`,
   `SocialProviderRegistry` and `social_authorize` were a second, thinner social
   surface: a redirect-only `GET /auth/v1/authorize` with no callback, no account
@@ -572,17 +86,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Arc<MultiProviderAuthState>`; library embedders on the old type should build the
   `multi_provider` state instead, or configure `[auth.social]` and let the server
   build it.
-
 - **`GitHubOAuth::new` is synchronous and fallible (#368).** It was `async` because it
   performed OIDC discovery — against an endpoint GitHub does not serve. It now returns
   `Result<Self>` without any network call; `GitHubOAuth::with_endpoints` takes explicit
   base URLs for GitHub Enterprise Server.
-
 - **`github` is trusted for email-verified account linking by default (#368).** With
   the `/user/emails` second hop implemented, `TrustedEmailProviders::builtin_default`
   is now `{google, apple, github}`. Deployments that want the previous posture should
   call `.distrust("github")`.
-
 - **The rich-filter surface (`<RichType>WhereInput`) is gone (#869).** The compiler
   emitted 48 per-type WhereInput input types advertising 35 operator names
   (`domainEq`, `tldIn`, `withinRange`, …) that the runtime WHERE parser could never
@@ -595,7 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   authoring types; filtering uses the standard operator set. A compiler↔runtime
   contract test now refuses any compiled input type advertising an operator
   `WhereOperator::from_str` cannot parse.
-
 - **The string-SQL tenancy helpers are gone (#736).**
   `fraiseql_core::tenancy::{where_clause, where_clause_postgresql,
   where_clause_parameterized}` (methods and free functions) interpolated or
@@ -604,7 +114,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing, and `where_clause()` panicked on IDs outside `[A-Za-z0-9._-]`.
   `TenantContext` now carries identity/metadata only; tenant filtering is done by
   the runtime security machinery (`inject_params`, `rls_policy`, per-tenant pools).
-
 - **An RLS-protected deployment now fails closed on every anonymous query path
   (#784).** With a `RuntimeConfig::rls_policy` configured, the anonymous regular
   path served *unfiltered* rows (it never consulted the policy) and the REST
@@ -612,7 +121,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   context, while the relay and node paths refused. All five paths now refuse
   identically ("Query not found"), and `Prefer: count=exact` can no longer
   disagree with the body it describes.
-
 - **`fraiseql run` refuses malformed `FRAISEQL_*` env values instead of silently
   flipping them to `false` (#874).** `ServerArgs::from_env` routed every boolean
   through a hand parser that mapped clap-valid `y`/`t`/`on` — and any typo, e.g.
@@ -620,7 +128,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `false` override, silently disabling the guard the operator was enabling. Both
   binaries now share clap's boolish parser; a set-but-unrecognised boolean or an
   unparseable numeric/address value is a startup error naming the variable.
-
 - **Arrow Flight defaults to loopback (#874).** `flight_bind_addr` defaulted to
   the `0.0.0.0:50051` wildcard while the HTTP surface defaulted to loopback, and
   the `FRAISEQL_FLIGHT_BIND_ADDR` override lived in a serde default — so it lost
@@ -628,7 +135,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wildcard. Default is now `127.0.0.1:50051`; the env var / `--flight-bind-addr`
   follow the standard CLI > env > file > default precedence and refuse startup on
   a malformed value.
-
 - **`Server::new`/`from_executor` run `ServerConfig::validate()` (#874).** The
   documented library embedding (`ServerConfig::from_file` + `Server::new`) skipped
   every production safety gate — a leftover `playground_enabled = true`, a zero
@@ -636,7 +142,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   library while the binary refused. Every construction path now faces the same
   gates; library embedders with configs the binary would reject will now be
   refused too.
-
 - **`FRAISEQL_REQUIRE_REDIS` now verifies all three shared-auth-state subsystems
   (#874).** The gate inspected only the PKCE store, so the operator's "all shared
   state is distributed" assertion held while revoked tokens stayed accepted on
@@ -644,19 +149,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when the PKCE store, the rate limiter, or the token revocation store is
   per-process (a disabled subsystem is not a violation; Postgres-backed
   revocation counts as shared).
-
 - **The non-kafka `KafkaAdapter` stub fails loud (#784).** The compiled-out stub
   reported `Ok` from `deliver()` (dropping every subscription event) and
   `health_check() == true`. It now errors on delivery and reports unhealthy,
   matching the other compiled-out runtime stubs.
-
 - **The dead `ServerSubsystems` bundle was deleted (#874).**
   `ServerSubsystemsBuilder`, `validate_subsystems_config` and the
   `ServerSubsystems`/`StorageSubsystem` container had no production constructor —
   their "call once during server startup" advisories never reached an operator.
   The live pieces (`FunctionsSubsystem`, `BeforeMutationHooks`, the functions
   loader) are unchanged.
-
 - **`ServerConfig` (the `fraiseql-server --config` file) now refuses unknown keys
   (#839).** The architecture docs shipped a production example whose keys sat in
   `[server]`/`[database]` grouping tables `ServerConfig` does not have; serde silently
@@ -668,7 +170,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warn-and-drop. **Migration:** the config keys are top-level (`bind_addr`,
   `schema_path`, `database_url`, `pool_min_size`, …) — remove any grouping tables and
   any key the error message names.
-
 - **The dead `fraiseql_server::config::RuntimeConfig` layer was deleted (#839).** The
   docs described the binary as "loading `RuntimeConfig` and translating it to
   `ServerConfig`"; in reality the type — with its own `[server]`/`[database]` shape,
@@ -681,166 +182,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports the real adapter-cache state and no longer promises port/host/workers fields
   it could never fill. `fraiseql_server::config` retains only the live types
   (`UsagePersistenceConfig`, `WebhookRouteConfig`, error sanitization, pool tuning).
-
-### Added
-
-- **The HTTP `QUERY` method (RFC 10008) on the GraphQL endpoint (#508).** Opt-in via
-  `enable_http_query` (default `false`); `GET` and `POST` behaviour is unchanged either
-  way. `QUERY` is "GET with a request body" — safe, idempotent and cacheable — so routing
-  deterministic GraphQL reads over it stops telling caches, proxies and retry layers
-  "unsafe, do not cache, do not retry". Acceptance is **queries-only**: a `mutation` or
-  `subscription` is refused with `405`, because a method an intermediary may replay must
-  never carry a state-changing operation. The gate parses with the same parser the
-  executor uses, so it cannot disagree with what would actually run. CORS advertises
-  `QUERY` only when the server accepts it, so the header never promises a route that
-  answers 405. axum 0.8 has no `MethodFilter::QUERY` yet, so the method is mounted as a
-  `MethodRouter` fallback — two clearly-marked places (`HTTP_QUERY_METHOD` and the
-  fallback wiring) swap to the typed filter when upstream ships it.
-
-- **Social login is reachable from the shipped binary (#368).** The account-linking
-  trust gate and the provider modules were library-only: `Server::with_social_login`
-  had zero callers, nothing auto-registered providers, and `[auth.social]` could not
-  even be typed (`[auth]` is `deny_unknown_fields`). A compiled `[auth.social.google]`
-  / `[auth.social.github]` block now builds the trust-gated `multi_provider` flow at
-  boot and mounts `GET /auth/v1/{providers,authorize,callback}`, backed by
-  Postgres-backed sessions and account linking. Configured-but-unusable shapes refuse
-  to boot naming the offending key: no `[auth_hs256]`, an unset `client_secret_env`,
-  an SSRF-blocked endpoint override, or no database pool. `/auth/v1/authorize` and
-  `/auth/v1/callback` are governed by the same per-IP `auth_start` / `auth_callback`
-  path buckets that guard `/auth/start` (#788) — both rate-limit backends now derive
-  their rules from one shared builder so they cannot drift. Apple, Discord and
-  Facebook are split out to #943 and #944.
-
-- **The GitHub provider talks to GitHub (#368).** It wrapped `OidcProvider`, so
-  construction performed OIDC discovery against `github.com` — which serves no
-  discovery document (404), meaning it could never have constructed against real
-  GitHub. It is now a plain OAuth2 client against the fixed well-known endpoints
-  (overridable for GitHub Enterprise Server, SSRF-guarded), requesting
-  `read:user user:email`, sending `Accept: application/json` at the token endpoint,
-  and tolerating the absent `expires_in`. The `/user/emails` second hop resolves the
-  **primary verified** address, so a private-email GitHub account can participate in
-  email-keyed account linking; any failure of that hop falls back to
-  `email_verified = false`. GitHub therefore joins `google` and `apple` in the default
-  `TrustedEmailProviders` set — the documented reason for its exclusion was exactly
-  this missing hop.
-
-- **`[auth.local]` — first-party auth methods are reachable (#367).** Email+password,
-  email OTP / magic link, TOTP MFA and anonymous sessions all existed in
-  `fraiseql-auth` with no way to reach them: `with_mfa` / `with_anon_signup` had zero
-  callers, the MFA/social/anon route groups were registered against fields hard-coded
-  to `None`, OTP had no server route at all, and the password-reset flow had no
-  concrete `ResetEmailSender` outside its own test double. A compiled `[auth.local]`
-  block now mounts each enabled method — `/auth/v1/password/{signup,login,reset,
-  reset/confirm}`, `/auth/v1/{otp,verify}`, `/auth/v1/mfa/*`, `/auth/v1/signup` — and
-  a method that cannot work refuses to boot rather than dead-ending: no
-  `[auth_hs256]`, no pool, a missing or send-less `email_from` mailbox, or a build
-  without the `inbound-email` feature (which carries the SMTP transport) each name
-  the offending key.
-
-- **Postgres-backed MFA and OTP stores (#367).** `PgMfaStore` and `PgOtpStore` make
-  `[auth.local] mfa`/`otp` safe to serve. The in-memory stores are per-process, which
-  for MFA means a deploy silently destroys every user's second factor, and for OTP
-  means N replicas multiply both the send budget and the 3-attempt verify cap by N —
-  a six-digit code becomes brute-forceable. TOTP secrets are stored recoverable (they
-  are shared secrets), recovery codes are bcrypt-hashed and deleted as consumed,
-  challenge tokens and OTP codes are stored as SHA-256 hashes so a database read
-  cannot replay a live one, and the per-user failure budget lives in the enrollment
-  row so it survives a restart. Both budgets are charged in SQL, so a concurrent
-  flood cannot lose a failure to a read-modify-write race.
-
-- **A concrete `ResetEmailSender` / `EmailDelivery` (#367).** `MailboxEmailSender`
-  relays OTP codes and reset links through the same `[mailbox.<name>.smtp]` transport
-  the `send_email` host op uses, so a deployment configures outbound mail once.
-  `reset_url_template` / `magic_link_template` are validated at compile time to
-  contain their `{token}` / `{code}` placeholder — a template without one builds the
-  same dead link for every user.
-
-- **OTP identities are real accounts (#367).** `otp_verify` minted
-  `user_id = "otp:<email>"` without touching the account store, so the same person's
-  OTP, social and password sign-ins produced as many separate identities as sign-in
-  methods. Completing the OTP flow proves control of the mailbox, so the identity now
-  resolves through `AccountStore::link_or_create_user` with `email_verified = true`
-  and converges with every other verified-email sign-in for that address.
-
-- **`FRAISEQL_SHUTDOWN_TIMEOUT_SECS` / `--shutdown-timeout-secs` (#838).** The
-  `shutdown_timeout_secs` config field's rustdoc had promised this override since it
-  shipped; the variable now exists — the only occurrence of its name in the workspace
-  used to be that comment.
-
-- **Docs-truth CI gates (#838, #839).** `tools/check-docs-env-vars.sh` fails when any
-  `FRAISEQL_*` variable named in `docs/`, `README.md` or an example README has no reader
-  in the workspace; `tools/check-docs-version.sh` fails when a doc's "vX.Y.Z released"
-  status line disagrees with `Cargo.toml`; and `doc_config_examples_test` deserializes
-  every `# server.toml`-marked TOML block in the operator docs into the real
-  `ServerConfig`. All three run in CI (shell gates + the test leg).
-
-### Fixed
-
-- **`max_query_complexity` is enforced for variable-valued pagination arguments
-  (#869).** `first`/`limit`/`take`/`last` supplied as GraphQL variables — the shape
-  every Relay/Apollo client uses — scored the neutral multiplier 1, so
-  `users(first: $n) { orders(first: $n) { … } }` with `n = 100` scored 4 instead of
-  ~10,000 and sailed past the DoS gate the literal form tripped. Variables are now
-  resolved during validation and cost estimation; an unresolvable variable scores
-  the clamp ceiling (fail closed). The per-tenant cost budget uses the same fix.
-
-- **`read:*` scope wildcards stop at the delimiter (#784).** `RoleDefinition::has_scope`
-  matched by bare string prefix, so a role granted `read:*` also passed
-  `readwrite:…` checks; `read:User.*`-style grants now also require the `.`/`:`
-  boundary the docs describe.
-
-- **`FactTableVersionStrategy::TimeBased { ttl_seconds: 0 }` no longer panics
-  (#784).** The version-key bucket divided by the TTL, so a zero TTL — constructible
-  via the public `time_based(0)` API or serde config — crashed the process on the
-  first cached aggregation query. Zero now means Disabled.
-
-- **Valid subscriptions with `{` in variable defaults or directive arguments are
-  accepted (#786).** The subscription-name scanner took the first `{` after the
-  literal `subscription` as the selection-set brace; it now uses the real GraphQL
-  parser, and multi-root subscription documents are rejected explicitly instead of
-  silently serving only the first field.
-
-- **graphql-transport-ws conformance around `connection_init` (#786).** Before the
-  ack, an undecodable message closes `4400` and any non-init message closes `4401`
-  (both were silently discarded, leaving clients to the generic init timeout);
-  legacy `connection_terminate` performs a graceful close instead of being ignored
-  with the connection and its subscriptions left alive; malformed subscribe
-  payloads close `4400` instead of `1002`.
-
-- **The documented `[rate_limiting]` example parses (#874).** `RateLimitConfig`
-  gained the container-level `#[serde(default)]` its own rustdoc example assumed,
-  so a partial block no longer dies on `missing field cleanup_interval_secs` — a
-  key no documentation mentions. A test pins the exact documented block.
-
-- **`GATE-1` query validation is one function (#736).** `execute_with_scopes` and
-  `execute_dispatch` each carried their own copy of the validator block; they now
-  share one, so the two entry points cannot drift.
-
-
-- **Operator runbooks and the config docs now prescribe only knobs that exist
-  (#838).** The runbooks told on-call engineers to export ~24 `FRAISEQL_*` variables
-  (`FRAISEQL_QUERY_CACHE_SIZE`, `FRAISEQL_DB_POOL_MAX`, `FRAISEQL_RATE_LIMIT_WINDOW_SECS`,
-  …) that zero lines of code read — a mitigation that appears applied and does nothing,
-  during a live incident. Every runbook step now names the real knob (config-file key +
-  restart, or a variable the server actually reads), the documented rate-limit
-  precedence matches the implemented one (server `[rate_limiting]` < compiled
-  `[security.rate_limiting]` < CLI/env, guards on the result), ports/endpoints/image
-  references were corrected (`8815` → `8000`, `/admin/…` → `/api/v1/admin/…`,
-  `fraiseql:latest` → pinned `ghcr.io/fraiseql/server`), and illustrative alert-rule
-  blocks are marked as such. The false `FRAISEQL_AUTH_*_MAX_REQUESTS` rustdoc claims in
-  `fraiseql-auth` were corrected to the real configuration path.
-
-### Removed
-
-- **Committed development archaeology (#735).** `v2.3.0-ext-phases/` (phase files from
-  eleven releases ago) and the stray `target-user/` cargo dir are gone (with a
-  `.gitignore` entry so a stray `--target-dir` cannot silently return); the frozen
-  `IMPROVEMENTS.md` / `IMPROVEMENTS_R3.md` audit ledgers moved to `docs/history/` (code
-  comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
-  archived onto issue #687 before removal.
-
-### Breaking
-
 - **FraiseQL is PostgreSQL-only: the MySQL, SQLite and SQL Server backends were removed
   (P22, #374 #721 #799 #829 #830 #831 #832 #833 #834 #870).** Three audit passes found
   the non-PostgreSQL paths had never been executed against a real database, and the
@@ -875,14 +216,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backends returned wrong results on filters, sorts and projections rather than working,
   treat data from such a deployment as suspect rather than as a baseline to reproduce.
   See `docs/database-compatibility.md`.
-
 - **`where` field names are validated at the parse boundary (#833).** A `where` key
   outside the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*` — a quote, a backslash,
   a leading digit — is now rejected with a `Validation` error instead of being
   interpolated into SQL. This is the same rule `orderBy` already enforced, and it is kept
   after the de-scope because it protects PostgreSQL too. A client sending such a key
   previously reached SQL generation; it now gets an error.
-
 - **CDC drain redesign (P20, #797 #814 #815).** `core.tb_cdc_sink_state` gains a
   `lease_expires_at` column and an `in_flight` status (idempotent `ADD COLUMN IF NOT
   EXISTS` migration; re-run `outbox_sink_state_migration_sql`). The enqueue cursor is now
@@ -923,266 +262,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#717).** A Flight stream carries one schema header; a batch whose queries infer
   different schemas now returns `InvalidArgument` naming both shapes instead of emitting
   an undecodable stream.
-
 - **`fraiseql init` refuses `--database mysql|sqlite|sqlserver|mssql` (#823 follow-through
   of the PostgreSQL-only decision).** The scaffolder still generated projects for the
   removed engines — projects the runtime refuses to boot. It now errors with the removal
   notice instead of scaffolding; `postgres` is the only accepted value.
-
 - **`fraiseql generate-views --validate` now requires a database.** It executes the
   generated DDL against `DATABASE_URL` inside a rolled-back transaction and fails when
   PostgreSQL rejects any statement (#821). The previous flag checked only the view-name
   prefix, so it could never fail — it reported files with syntax errors as "valid". Runs
   without `DATABASE_URL` now exit non-zero with an explanation instead of claiming
   validity.
-
-### Fixed
-
-- **The first thirty minutes work: `fraiseql init` produces a project that runs (#823,
-  #822, #569).** The scaffolded views exposed plain columns with no `data` JSONB column,
-  so every query against a fresh project failed with `column "data" does not exist`; the
-  printed next step (`fraiseql compile fraiseql.toml`) could not succeed on the project
-  init had just generated; the CRUD functions returned bare `UUID`/`BOOLEAN` values the
-  mutation executor cannot decode; and the Python authoring skeleton was a `SyntaxError`
-  that imported nothing and never exported. The scaffold now follows the runtime's
-  contracts end to end: Trinity views with snake_case JSONB storage keys, camelCase
-  GraphQL field names, nine declared mutations backed by v2.2 `mutation_response`
-  functions built with the `fraiseql setup` helpers, and printed next steps
-  (`fraiseql setup` → `psql -f …` → `fraiseql compile schema.json` → `fraiseql query`)
-  that are executed verbatim by a new live-PostgreSQL e2e suite
-  (`init_first_run_pg.rs`), including a committed mutation with its change-log outbox
-  row.
-
-- **`fraiseql doctor` resolves hostnames (#819).** The `DATABASE_URL`/`REDIS_URL`
-  reachability probe parsed `host:port` with `str::parse::<SocketAddr>` — which performs
-  no DNS — and silently dialed the always-refused sentinel `0.0.0.0:0` for every
-  hostname-based URL, reporting healthy databases as "connection refused" and exiting 1.
-  The probe now resolves through the system resolver, tries every resolved address, and
-  reports "host does not resolve" as its own failure mode distinct from "connection
-  refused".
-
-- **`fraiseql generate-views` emits the source relation instead of a literal `{}`
-  (#821).** Both composition views were unconverted `format!` placeholders — PostgreSQL
-  syntax errors on every invocation, with no off switch. They now read the generated
-  view; `tv_` targets drop with `DROP MATERIALIZED VIEW` (the plain `DROP VIEW` made
-  re-runs fail); the `_recent` helper filters on the column the view actually exposes;
-  and the monitoring function is `STABLE`, not `IMMUTABLE`.
-
-- **Fact-table introspection picks the dimensions column by role, not position (#825).**
-  With several JSONB columns the last one in ordinal order silently won — guaranteed
-  wrong for the documented calendar layout, whose `*_info` columns follow the real
-  dimensions column, so `validate-facts` hard-errored on correct schemas and
-  `introspect facts` printed calendar metadata for developers to paste. Calendar columns
-  are now excluded, a conventional name (`data`/`dimensions`) wins among several
-  candidates, and a genuinely ambiguous layout is reported instead of silently picked.
-  Non-indexed numeric `*_id` columns now surface as unindexed filters instead of
-  vanishing from the metadata.
-
-- **Mutation prepare failures on a fresh stack are actionable (#569).** A missing
-  `core.tb_entity_change_log` now says to run `fraiseql setup`; a mutation function that
-  does not return the v2.2 `mutation_response` row (e.g. `RETURNS SETOF v_*`) now gets an
-  error naming the contract and the `fraiseql.mutation_ok`/`mutation_err` builders,
-  instead of the bare `column r.entity_type does not exist`.
-
-- **The documented onboarding path works and is CI-enforced (#734).** The quickstart used
-  a `fraiseql.config()` API that does not exist, the wrong server flag (`--schema` for
-  `--schema-path`), the wrong port (3000 vs the actual 8000 default), and never created
-  the `data`-column views the runtime reads; `examples/basic` declared `v_users`/`v_posts`
-  while its SQL created `v_user`/`v_post`, its `schema.py` imported from a nonexistent
-  path, and its example queries used Int IDs and a phantom nested field. All rewritten
-  against the real SDK API and verified end to end; the phantom `config()` section is
-  gone from the Python SDK reference; `docs/architecture/overview.md` and
-  `docs/operations/compiled-schema-lifecycle.md` version/flag/port drift corrected. The
-  durable gate is a new `quickstart` integration leg (`tools/quickstart-smoke.sh`) that
-  extracts the quickstart's fenced code blocks and executes them **verbatim** against real
-  PostgreSQL — authoring with the Python SDK, compiling, booting `fraiseql-server`, and
-  asserting the documented query response — plus a scaffold-skeleton regeneration check.
-
-- **CDC sinks: outbox rows that commit out of sequence order are never lost (#797)**, a
-  transient per-message failure no longer reorders the stream (#815), and a slow broker no
-  longer pins a Postgres transaction (and the vacuum horizon) across up to 256
-  round-trips (#814). Proven by three new drain integration tests against real Postgres
-  (overlapping commits, head-of-line blocking, `pg_stat_activity` transaction probing).
-- **Arrow `build_insert_query` emits valid PostgreSQL for every supported type (#715):**
-  timestamps render as ISO-8601 literals with `::timestamptz` casts (the old two-argument
-  numeric `to_timestamp` does not exist in PostgreSQL, and its `%` arithmetic produced
-  negative operands for pre-epoch values); `NaN`/`Infinity`/`-Infinity` render as
-  quoted-and-cast literals. A new integration suite (`insert_sql_pg`, wired into the
-  Postgres integration leg) **executes** the generated SQL against real PostgreSQL for
-  every Arrow type, including all four timestamp precisions, pre-epoch values, float
-  specials and NULLs.
-- **ClickHouse sink flush timer fires on schedule under a steady stream (#718):** the
-  flush deadline anchors at the first buffered row instead of resetting on every received
-  message (which left latency unbounded until the size threshold tripped).
-- **Elasticsearch sink surfaces an HTTP-client build failure (#718)** instead of silently
-  substituting a default client without the configured request timeout.
-- **`fraiseql-wire` edge findings (#729):** `soft_limit_warn_threshold` now warns (log +
-  `fraiseql_memory_soft_limit_warned_total` metric, once per stream) instead of being
-  dropped; `pause()` on a completed/failed stream no longer corrupts the state snapshot;
-  the memory limit is documented as the items×2KB heuristic it is; SCRAM HMAC failures
-  map to `KeyDerivation` (not `Utf8Error`) and derived key material (salted password,
-  client key) is zeroized.
-- **`fraiseql-wire` metrics entity label can no longer be minted from row data (#877):**
-  the label comes from the caller-known entity (validated as an identifier) instead of a
-  heuristic scan of the rendered SQL that could land inside a user-supplied literal and
-  create unbounded label cardinality. Adaptive-chunking `adaptive_min_size` /
-  `adaptive_max_size` now apply independently instead of requiring both.
-
-### Deprecated
-
-- **`fraiseql_wire::operators::generate_where_operator_sql` (#877).** It emits `$N`
-  placeholders that the crate's simple-query protocol can never bind — no encoder for
-  Parse/Bind exists and `QueryBuilder` has no method accepting the parameter map, so the
-  advertised usage failed at the server with `there is no parameter $1`. Deprecated (and
-  the module docs corrected) until the crate either implements the extended query
-  protocol or renders operator values as safely quoted literals; use
-  `QueryBuilder::where_sql` with an inline predicate.
-
-- **Saga store and recovery API (P19, #744 #745 #766 #767 #785).**
-  `PostgresSagaStore::claim_stuck_sagas` takes a `stuck_after_secs` staleness threshold and
-  `find_pending_sagas` an `older_than_secs` age gate; `RecoveryConfig` gains
-  `stuck_threshold` (default 5 min) and `max_recovery_attempts` (default 5); `SagaStep`
-  gains `remote: bool` (set at creation from the coordinator's registry) and
-  `compensation_error: Option<String>` (the recorded outcome of the last rollback
-  attempt). `update_saga_step_state` now **validates transitions atomically** — illegal
-  writes (e.g. `Completed → Executing`, anything out of `Compensated`) return
-  `InvalidStateTransition` — and `save_saga_step`'s upsert no longer rewrites `state`
-  (state changes must go through the guarded method). `SagaRecoveryManager::with_routing`
-  (new `RecoveryRouting`) carries the subgraph registry/HTTP client/entity resolver so
-  recovery can re-drive remote steps on their real transport.
-- **`HttpMutationClient::execute_mutation` takes an `idempotency_key: Option<&str>`**
-  parameter, sent as the `Idempotency-Key` header on every attempt (#747). Saga steps pass
-  their persisted step id; compensations a derived `<step-id>:compensate` key.
-- **Federation mutation literal building is dialect-aware (#728).**
-  `value_to_sql_literal` and `build_insert_query`/`build_update_query`/`build_delete_query`
-  take a `DatabaseType`; MySQL (whose backslash-escaping mode is connection-dependent and
-  unobservable here) is refused loud instead of mis-escaped.
-- **Federation `_entities` wrappers error on resolution failure (#764).**
-  `batch_load_entities`, `batch_load_entities_with_tracing` and
-  `batch_load_entities_enforced` now return `Err` when any typename batch failed, instead
-  of returning `Ok` with all-`None` entities and discarding the errors.
-- **Placeholder federation APIs removed or made loud (#785).**
-  `FederationResolver::get_or_determine_strategy`, its `strategy_cache` field and the
-  `types::ResolutionStrategy` enum are **removed** (the strategy was a hardcoded
-  `http://localhost:4000` / nonexistent `<Type>_federation_view`).
-  `FederationMutationExecutor::execute_extended_mutation` now always returns an error
-  pointing at the real remote-dispatch path (`HttpMutationClient` / saga steps) instead of
-  fabricating a success response that no subgraph ever saw.
-- **`SagaCoordinator::cancel_saga` no longer writes `Cancelled` over un-compensated work
-  (#746).** When the rollback is incomplete the saga is left `Failed` (as the compensator
-  recorded), the result reports `compensated: false` and names the un-rolled-back steps.
-- **`fraiseql federation check --against` semantics (#820).** `@override(from:)` references
-  are validated against the supergraph's declared roster (`federation.subgraphs`) — not
-  harvested from its `override_from` annotations — and reported as *unchecked* when no
-  roster exists; the blanket "Composition check passed" claim is gone.
-
-### Fixed
-
-- **Saga crash recovery no longer re-executes committed work (#744).** Forward replay
-  skips steps already `Completed` (their persisted result stands in); a `Compensated`
-  step in a forward drive fails loud. The store's new transition guard makes the
-  double-execution write (`Completed → Executing`) unrepresentable on every code path,
-  including a second concurrent driver.
-- **The recovery loop no longer claims actively-executing sagas (#745).** "Stuck" now
-  means *stale*: a live forward drive heartbeats the saga row on every step transition,
-  and only sagas untouched past `RecoveryConfig::stuck_threshold` are claimable — so a
-  saga mid-flight is never concurrently re-driven by a recovery tick. The same age gate
-  covers pending-saga pickup (a saga in its creator's `create_saga` → `execute_saga`
-  window is not stolen).
-- **Saga mutation dispatch is deduplicable (#747).** Every remote dispatch carries a
-  stable `Idempotency-Key` (the persisted step id) across retries, timeouts and
-  crash-recovery replays, and the FraiseQL server now honours it on the GraphQL mutation
-  path: a repeat with the same body replays the stored response (one logical effect), a
-  repeat with a different body is HTTP 409, queries ignore the header. Documented for
-  non-FraiseQL subgraph authors in the saga guide.
-- **Recovery never replays a remote-subgraph step against the local database (#766).**
-  A step bound for a registered remote peer is persisted as `remote`; forward execution
-  fails it loud when no transport is configured, and a recovery worker without routing
-  **parks the saga for manual recovery** (state untouched, lease pushed to infinity)
-  instead of silently executing another service's mutation locally. With
-  `SagaRecoveryManager::with_routing`, remote steps re-drive over HTTPS correctly.
-- **`compensated: true` is only reported for a rollback that fully happened (#746).**
-  Both coordinator call sites now read the `CompensationResult` they used to discard;
-  partial rollback surfaces the failed step numbers in the result error.
-- **`get_compensation_status` reads recorded state (#767).** Rollback outcomes are
-  persisted per step (`Compensated` transition on success, a recorded
-  `compensation_error` on failure), the magic-key sniffing of forward payloads is gone,
-  `failed_steps` is real, `PartiallyCompensated` is reachable, step numbers are 1-indexed
-  like every other API, and a saga with no compensation evidence reports `None` rather
-  than a fabricated verdict. Mid-flight compensation reports the new
-  `CompensationStatus::InProgress`.
-- **Federation `_entities` database errors surface as errors (#764).** A failed batch is a
-  GraphQL error response, never `data: [null, …]` — a `null` entity now always means
-  "not found", and a router can distinguish a database outage from missing data.
-- **Dotted `@requires` paths build valid `_entities` selections (#765).**
-  `dimensions.weight` now renders `dimensions { weight }` (an object field with a
-  subselection) instead of a bare composite-field leaf that every spec-compliant subgraph
-  rejects — documented dotted-path support works against Apollo-class peers.
-- **The composition validator enforces its documented rules (#728).**
-  `ExternalFieldMultipleOwners` is actually raised; two subgraphs *primarily* defining the
-  same type with different `@key`s conflict; an extension keyed on **any** of the
-  primary's declared keys is accepted (not just the first); and type-level `@shareable`
-  counts in field-sharing consistency.
-- **`fraiseql federation check --against` genuinely compares (#820).** `@key` agreement,
-  field sharing (the `INVALID_FIELD_SHARING` class that shipped as #698) and `@override`
-  roster references are checked and can fail; the success message states exactly what ran
-  and defers final authority to the gateway composer. `composable: true` is never
-  fabricated for a comparison that did not run.
-- **Recovery attempts are genuinely counted and capped (#785).** Each recovery record
-  carries a real incrementing attempt count (previously hardcoded 0 forever), and a saga
-  past `max_recovery_attempts` is parked for manual recovery instead of being retried
-  forever while its recovery rows grow without bound.
-
-- **A live subscription's authorization now holds for the life of the stream (#771).** The
-  principal was validated once at the WebSocket upgrade and then trusted forever: an
-  expired or revoked JWT kept its RLS-scoped subscriptions and kept receiving row data
-  until the client itself disconnected (the in-code A44 TODO). The connection now
-  re-checks token expiry and — when a revocation store is configured — revocation on a
-  configurable interval (`subscription_auth_recheck_secs`, default 30), consults the
-  revocation store (never the IdP) on that hot path, and additionally refuses every event
-  delivery on an expired token. A failed check closes the socket with **4401
-  Unauthorized**. Pinned over real WebSockets for the expired-at-delivery,
-  idle-expired-stream, and revoked-mid-stream (`revoke-all`) paths.
-- **Subscription event loss is no longer silent (#772).** Two seams dropped events without
-  telling anyone: the observer runtime forwarded CDC events into the `EventBridge` with a
-  non-blocking `try_send` (a full channel dropped the event for **every** subscriber, warn
-  only), and a connection whose broadcast receiver lagged skipped events with a warn and
-  kept streaming. The bridge forward is now a **bounded, awaited send** — a full channel
-  applies backpressure to the durable change-log loop (whose checkpoint only advances
-  after the batch completes) instead of dropping. Broadcast lag now terminates every
-  operation on the affected connection with an explicit **`EVENTS_LAGGED`** error frame —
-  a documented resync signal (re-subscribe, then re-query) — so a client can always
-  distinguish "nothing happened" from "events were dropped".
-- **CDC snapshot rows are no longer delivered as phantom `created` events (#773).** The
-  `EventBridge` defaulted every unknown operation string to `Create`, so Debezium `'r'`
-  (snapshot/read) change-log rows — surfaced as `CUSTOM` — were broadcast to
-  `*Created`-topic subscribers as newly created entities; a snapshot of 10,000 existing
-  rows became 10,000 spurious creation notifications. The bridge event's operation is now
-  the closed `SubscriptionOperation` enum decided at the forward site by an exhaustive
-  match over the (now closed) observer `EventKind`: real changes map 1:1, `Custom` is
-  filtered, and an unrecognised `modification_type` in the change log is **rejected and
-  logged** (the row is skipped, loudly) instead of silently defaulted to a no-op.
-- **Row-visibility policy hot-reloads now reach already-connected subscriptions (#611).**
-  A `subscription_policy` added or tightened by a schema hot-reload only applied to new
-  subscriptions; existing connections kept their subscribe-time boundary until restart — a
-  fail-open window. Every successful executor swap now bumps a reload signal; each live
-  connection re-derives its active operations against the current policies with the same
-  fail-closed derivation used at subscribe time: still-authorized subscriptions are
-  re-scoped **in place** (effective from the next event), and subscriptions the new policy
-  refuses are terminated with a `SUBSCRIPTION_REFUSED` error frame.
-
-### Added
-
-- **Graceful subscription drain on shutdown (#571).** When graceful shutdown begins, every
-  active subscription receives a per-operation `Complete` frame and the socket closes with
-  **1001 (Going Away)**, so clients see a clean end-of-stream during a rolling deploy
-  instead of a transport-level abort indistinguishable from a network fault.
-- **`subscription_auth_recheck_secs`** server config key (default 30): how often a live
-  subscription re-checks its principal's expiry/revocation (#771). `0` disables the
-  periodic check; per-delivery expiry enforcement remains.
-
-### Breaking
-
 - **`fraiseql-server`'s bridge `EntityEvent.operation` is now `SubscriptionOperation`**
   (was a free-form `String`), and `fraiseql-observers`' `EventKind` is a **closed enum**
   (no longer `#[non_exhaustive]`), so the subscription forward mapping is an exhaustive
@@ -1192,7 +281,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `INSERT`/`UPDATE`/`DELETE` and the explicit no-op verbs `CUSTOM`/`NOOP`/`READ` remain
   valid; anything else now errors at conversion (the row is skipped and logged, the
   checkpoint still advances) instead of being silently treated as a no-op (#773).
-
 - **A restart no longer replays the entire change log (#805).** The observer runtime wrote
   a checkpoint after every batch but nothing ever read it back — and the row was keyed on
   the entity type of whatever row happened to be last in the batch, so there was no global
@@ -1256,7 +344,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   structure is process-local — three replicas each elect *themselves* leader and all poll
   concurrently. The docs now state the process-local reality and point HA users at the
   advisory `CheckpointLease` plus the durable checkpoint cursor.
-
 - **Every `cron:` function fires on every matching window, not once ever (#796,
   CRITICAL).** `CronExecutionState::should_execute` returned `last_exec >= window_start` —
   the exact negation of its own comment — and `find_schedule_window` stepped back one minute
@@ -1301,9 +388,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   V8 isolate at 100 % CPU forever; the event-loop `tokio::time::timeout` future was never
   polled again and could not fire. Script evaluation and the event loop now share one
   watchdog deadline, and a spin after a real async host op is terminated at `max_duration`.
-
-### Breaking
-
 - **Runtime observers have exactly one source of truth (#631).** Compiled handler
   declarations are not a runtime concept: the compiled `ObserversConfig` no longer has a
   `handlers` field (and is `deny_unknown_fields`, so a schema smuggling one fails to load),
@@ -1353,237 +437,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `with_security_context(...)`. The dead `host::factory` module (a stub with no
   production caller) is removed. `build_cron_pollers` is now async and fallible;
   `spawn_after_mutation` takes the triggering caller's `SecurityContext`.
-
-### Security
-
-- **A project-wide `[inject_defaults]` tenant predicate reaches the operations it configures
-  (#847).** Python, Go, Java, PHP, C#, Elixir and F# each ship a `ConfigLoader` that parses
-  `[inject_defaults]` from `fraiseql.toml` and emits it as a top-level key. No compiler code
-  path had ever read it — `grep -rn inject_defaults crates/` returned nothing — and
-  `IntermediateSchema` accepted unknown keys, so an operator who wrote
-  `[inject_defaults] tenant_id = "jwt:tenant_id"` to stamp every operation with the caller's
-  tenant got `✓ Schema compiled successfully` and **not one compiled operation carrying a
-  tenant predicate**. Seven separate implementations of a feature that had never done
-  anything.
-
-  The merge runs in the converter, *after* `[fraiseql.tenancy]` validation rather than before
-  it: tenancy auto-injects the annotated field when an operation's `inject_params` is empty
-  and **fails the compile** when it is non-empty but lacks that field, so applying defaults
-  first would have made a single unrelated default (`read_scope`, the example in the Python
-  SDK's own docstring) break every tenancy-annotated query. Precedence, most specific first:
-  the operation's own `inject_params`, then tenancy auto-injection, then
-  `[inject_defaults].queries`/`.mutations`, then `.base`.
-
-- **Custom-scalar validation rules survive the TOML compile workflow (#755).** `merge_values`
-  rebuilt the merged schema from scratch with only `version`/`types`/`queries`/`mutations`, so
-  a `custom_scalars` block — and its `validation_rules` — was discarded on every
-  `--types`, `--schema-dir`, `--type-files`, domain-discovery and includes compile. An `Email`
-  scalar with a pattern rule compiled to nothing and invalid values flowed straight to SQL.
-  Seven other authorable categories were dropped with it: enums, input types, interfaces,
-  unions, subscriptions, observers and ingress sources.
-
-- **A Python-declared custom scalar reaches the compiled schema at all (#922).** The Python
-  SDK emitted `customScalars` as an object keyed by name with a `validate: true` flag; the
-  compiler reads `custom_scalars` as an array of `IntermediateScalar`. Three independent
-  mismatches — key name, container type, element shape — so no Python custom scalar had
-  **ever** been compiled, on any path, and no scalar validation ever ran. The `validate` flag
-  is not re-emitted: the compiler's `ValidationRule` is declarative
-  (`Pattern`/`Length`/`Range`/`Enum`) and a Python `validate()` method cannot lower into one,
-  so the flag asserted runtime enforcement no compiled artifact could deliver.
-
-
-- **A REST read projects the fields it was asked for, and the field-authorization gate
-  fires on that path (#886).** `QueryMatch::from_operation` — the only `QueryMatch`
-  constructor the REST transport uses — built a *flat* list of leaf `FieldSelection`s
-  instead of one root selection carrying `nested_fields`. Every consumer reads the
-  requested field set as `selections.first().nested_fields`, so all of them saw an empty
-  slice: the planner projected nothing (`{"data":[{},{},{}]}` for any request, with or
-  without `?select=`), and `deny_if_gated_field_selected` was handed nothing to inspect on
-  a path whose own comment calls it "leak-proof".
-
-  The two halves masked each other — no gated value leaked only because no value was
-  served at all — so repairing projection alone would have converted "REST returns
-  nothing" into a live field-authorization bypass. They are fixed together, gates first.
-
-  A third defect sat behind them: `RestFieldSpec::All` expanded to an **empty vector**, so
-  "all fields" and "no fields" were the same value. Teaching the projector that empty means
-  "project everything" would have left the gate inert, because the gate reads that same
-  list; `All` now expands to the type's declared fields.
-
-  `execute_query_direct` additionally ran **no** field RBAC at all — `requires_scope` was
-  unenforced across the whole REST read surface. The choice between the authenticated and
-  anonymous classifier is a property of whether a principal exists, not of the transport,
-  so both GraphQL runners and the REST runner now route through one
-  `classify_fields_for_read`.
-
-- **An embedded collection cannot be widened by a client filter (#863).**
-  `embed_into_single` seeded the sub-query `WHERE` map with the parent join predicate and
-  then merged the client's `?rel.field[op]=value` filter over it with
-  `serde_json::Map::insert`, which *replaces*. A filter naming the join column destroyed
-  the parent scoping, so one parent's record came back advertising another parent's
-  children as its own. The conventional `referenced_key` for `ManyToOne`/`OneToOne` is
-  `id`, so `?author.id[gt]=0` was enough. The two predicates are now composed with `_and`,
-  which makes the collision structurally impossible rather than defended against.
-
-- **An `Idempotency-Key` is valid only within its tenant, method and resource (#915).**
-  The client-supplied header value was used verbatim as the store key, so it collided
-  across everything sharing a process: the same key and body on `POST /users` and
-  `POST /orders` replayed each other's stored response, and two tenants retrying an
-  identical request under a natural key such as `order-42` received each other's results.
-  The store API now takes a `ScopedIdempotencyKey` whose only constructor is
-  `IdempotencyScope::key`, so keying on an unscoped string is a compile error rather than
-  an omission a reviewer has to notice.
-
-- **The Arrow Flight result cache is scoped to the requesting principal (#716).** It was
-  keyed on the SQL text alone, while the same file's documentation told operators to scope
-  rows "by the underlying `va_*` view itself (e.g. a view that filters on a session/tenant
-  setting)". The two are incompatible by construction — with a session-scoped view, one
-  tenant's rows are cached under the SQL string and the next tenant issuing the identical
-  SQL is served them.
-
-  The documented mitigation was never implementable on this path in the first place:
-  `ArrowDatabaseAdapter::execute_raw_query` takes a SQL string and nothing else, so a view
-  filtering on `current_setting('app.tenant_id')` has nothing to read. Entries are now
-  addressed by `(principal, SQL)`, using the same `hash_security_context` the executor's
-  response cache uses, so one principal never observes another's read; and the doc says
-  what the path actually does — no RLS, no session scoping, only expose a `va_*` view over
-  Flight whose full contents every Flight-authenticated principal may read.
-
-  The isolation is asserted end-to-end through `do_get`, on the principal the live path
-  derives from the session token.
-
-- **A `where:` argument that cannot be serialized is refused, not dropped (#719).** The
-  GraphQL parser stored inline argument values as JSON built with
-  `format!("\"{}\"", s.replace('"', "\\\""))` — escaping the double quote and nothing
-  else. A string literal containing a backslash (a Windows path), a newline or a control
-  character therefore produced **invalid JSON**, and the reader discarded it with
-  `.ok()?`. Dropping a filter does not narrow a result set; it widens it, so a
-  serialization bug on a `where:` argument returned rows the filter existed to exclude.
-  Serialization now goes through `serde_json`, and a stored value that cannot be read
-  fails the query.
-
-  The same seam carried variable references **in band** as the string `"$name"`, so a
-  literal `"$100"` was indistinguishable from a reference to a variable called `100` and
-  resolved to `null`. A variable is now the tagged object `{"$var": "name"}`; GraphQL
-  names match `[_A-Za-z][_0-9A-Za-z]*`, so a client cannot forge that key. `make
-  lint-value-json` (Dagger `shell-gates`, CI `value-json-seam-check`) refuses a new
-  hand-rolled escaper, a new `$`-prefix check, and a new direct parse of `value_json`.
-
-  Two further consumers of the seam are fixed with it: the field authorizer built its
-  policy input by substituting the *raw text* for any argument it failed to parse, so a
-  policy that matches on an argument decided on something other than what the client
-  sent; and the query classifier unquoted `value_json` by hand, mangling any type name
-  containing an escape.
-
-- **The MCP tool allowlist is enforced where the call executes (#808).** `[mcp]
-  `include`/`exclude`/`read_only` filtered the *advertised* tool list and nothing else:
-  `executor::call_tool` never consulted the config, so naming a withheld operation
-  directly in `tools/call` ran it in full. An `exclude`d admin query, or any mutation
-  under `read_only = true`, was one guessed name away from an AI agent. Advertisement and
-  execution now resolve against **one** list of exposed operations, so a tool that is not
-  advertised is not reachable. A withheld name and a nonexistent name get the identical
-  `Unknown tool` answer — an error that distinguished them would be an existence oracle
-  for exactly the operations the allowlist hides.
-
-- **MCP tool arguments no longer reach the GraphQL document as text (#808).**
-  `build_graphql_query` validated top-level argument names "to prevent injection via
-  malformed argument names" and then rendered the *value* with `graphql_value`, whose
-  object arm interpolated nested keys raw. A caller could close the argument list and
-  append root fields of their own — reaching operations the allowlist withheld, with field
-  selections the tool's projection would never emit, in unbounded number, all of which the
-  runtime's multi-root fan-out then executed in parallel. Values now travel as GraphQL
-  variables (`query ($filter: JSON) { users(filter: $filter) { … } }`), so the only
-  caller-controlled input that reaches the document is an argument *name*, which must
-  match one the resolved operation declares. `graphql_value` and its escaper are deleted
-  rather than hardened: the primitive is gone. A bounded corpus of injection payloads —
-  flat, nested, inside arrays, escape-laden, non-identifier keys — asserts the built
-  document always parses to exactly one root field.
-
-- **MCP tool calls go through per-tenant dispatch and the suspended-tenant gate (#858).**
-  `FraiseQLMcpService` captured the default executor at session construction and called it
-  directly, never resolving a tenant key or consulting `TenantExecutorRegistry`. An
-  authenticated caller read the boot database rather than their own tenant's — silently,
-  because the control-plane database has the same relations — and a tenant suspended via
-  `POST /api/v1/admin/tenants/{key}/suspend` kept reading over MCP while `/graphql`
-  correctly answered 503. The service now holds the server's `AppState` and dispatches
-  through the same seam the `/graphql` handler uses, so an unregistered key is refused
-  instead of falling back to the default executor, a suspended tenant is refused, and the
-  tenant's concurrency and per-second quotas apply. That seam is now one function
-  (`routes::graphql::tenant_dispatch`) rather than a block written out in one handler, so
-  a control added to it is a control on both transports.
-
-  A validated token also becomes a `SecurityContext` through the same builder on both
-  transports: MCP called `SecurityContext::from_user` directly, which leaves `tenant_id`
-  unset and `attributes` empty, so an MCP caller's `org_id` never became a tenant and
-  every `SessionVariableSource::Jwt` mapping resolved to nothing.
-
-- **MCP execution errors are sanitized (#875).** `mcp/executor.rs` returned
-  `e.to_string()`, so with `error_sanitization` enabled a `FraiseQLError::Database` handed
-  an AI agent the driver message and SQLSTATE verbatim — internal schema and view names
-  included — while every other transport returned a sanitized message. The configured
-  `ErrorSanitizer` now reaches the MCP path with the rest of `AppState`.
-
-- **Two keys can no longer name one stored object (#813).** `validate_key` rejected only
-  `..` and a leading separator, so `docs/./secret.txt`, `docs//secret.txt` and
-  `docs/secret.txt` were three distinct metadata rows over one file on the local backend.
-  Ownership is enforced against the metadata string and the filesystem collapses the
-  spelling, so an attacker's write to an alias found no existing row, took
-  `can_write_object`'s *create* branch — which any authenticated user passes — and
-  destroyed another user's object while that user's row still named them as owner and
-  reported the old size and etag.
-
-  Keys are now **rejected rather than canonicalised**: normalising `a/./b` to `a/b` would
-  merge two keys the client believes are distinct, which is the same collision arriving
-  through the front door. A key must be a non-empty `/`-separated relative path whose
-  every segment is non-empty, is not `.` or `..`, and has no surrounding whitespace or
-  trailing `.`; backslashes, control bytes and percent-escapes that decode to path syntax
-  are refused. The rule is one function, enforced at the route boundary on the raw key —
-  previously it ran only deep inside the backends, on the already-composed
-  `"{bucket}/{key}"`, so `GET`/`DELETE` answered from their metadata probe and `presign`
-  never consulted it at all. A bounded-exhaustive test asserts the property the bug
-  violated: **key → path is injective**.
-
-  The local backend additionally resolves each path before any I/O and refuses one that
-  leaves the storage root or whose final component is a symlink. Key validation is
-  lexical and cannot see a symlink planted inside the root; both a symlinked directory
-  and a symlinked leaf previously redirected reads and writes outside it.
-
-- **A presigned upload now owns the object it creates (#866).** `presign_handler` signed an
-  S3 `PUT` URL and recorded nothing. The bytes went straight to the object store, so the
-  object had no owner and no metadata: it was permanently `404` through
-  `GET /storage/v1/object/...`, invisible to `list`, and — because `can_write_object`
-  reads a missing row as *create* — any authenticated user could overwrite it or claim it.
-  The H9/B4 overwrite-IDOR guard was void for precisely the door its own doc comment
-  names, and every existing regression test for that guard began with a server-side
-  `PUT`, the one path that did create metadata.
-
-  Signing now claims the object first, recording the caller as owner and marking the row
-  `pending`; a lost race refuses with `409` rather than signing against a stale
-  authorization decision, and a signing failure releases a claim it created. The first
-  successful read settles the row against the object that actually landed. `list` reports
-  the `pending` flag rather than hiding the claim.
-
-- **A `DELETE` releases an ownership claim whose upload never happened.** Reservations
-  record ownership before the bytes exist, so `DELETE` has a case the upload path never
-  produced: a metadata row with nothing behind it. The backend's `NotFound` is tolerated
-  there — the caller is already authorised and the outcome it asks for is "gone" — so an
-  abandoned claim cannot squat a key against its own owner. Every other backend error
-  still refuses, so a genuine failure cannot orphan the bytes by dropping their metadata.
-
-- **Object bytes with no metadata row are not served.** An orphan — a rolled-back
-  reservation, a manual copy into the bucket, a leftover from a deleted row — has no
-  ownership record, so there is nothing for the access rules to evaluate. It is refused,
-  not treated as public.
-
-- **The storage read paths are no longer an existence oracle (#876).** `get_handler`
-  answered `404` for a missing object and `403` for one the caller may not read, so an
-  unauthenticated attacker could enumerate a private bucket's keys — often themselves
-  sensitive — with no credentials. `presign(download)` had the same split while its own
-  inline comment claimed the opposite. Both now answer identically in the two cases, as
-  `put_handler` already did.
-
-### Breaking
-
 - **Every official SDK is now held to a cross-SDK conformance suite, and eleven of them
   changed to pass it (#733, #849, #850, #851, #852, #853, #854, #855).** The canonical schema
   is authored through each SDK's *public API*, compiled by the real `fraiseql compile`, and
@@ -1648,7 +501,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Dart**: `FraiseQLSchema` and `FieldType` are implemented and `crud_generator` is
     exported — the package shipped annotations nothing read and no way to produce a schema.
   - **Python**: `computed` is no longer serialized (#927).
-
 - **A custom scalar declaring `validation_rules` is refused (#922).**
   `CompiledSchema.custom_scalars` is `#[serde(skip)]`: the converter registers the scalar into
   an in-memory registry that is dropped when the compiled schema is written, and nothing in
@@ -1658,7 +510,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disposition `#779` got for observers. The scalar *declaration* still works, and is what
   makes the name known to the compiler; enforce the constraint in the database (a `CHECK`
   constraint or a `DOMAIN`) or in the mutation's SQL function.
-
 - **The mutation `operation` verb is matched case-insensitively.** `parse_mutation_operation`
   accepted only uppercase, while `docs/authoring.md`, `docs/architecture/intermediate-schema.md`,
   the Python SDK's parity generator, the PHP `MutationBuilder` docblock and the Java
@@ -1666,7 +517,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Error: Unknown mutation operation: insert`. The verb set stays closed: an unrecognized word
   is still a hard error rather than a silent fallback to `CUSTOM`, and the diagnostic echoes
   what the author wrote rather than the uppercased form.
-
 - **`IntermediateSchema` and the nested intermediate structs reject unknown fields.** Every
   field on the authoring→compile boundary carries `#[serde(default)]`, because an SDK
   legitimately omits most of them. Without `deny_unknown_fields` that combination means any
@@ -1677,7 +527,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Spellings seen in the wild, and what to use instead: `return_array` → `returns_list`;
   `args` with `required` → `arguments` with `nullable`; `customScalars` → `custom_scalars`;
   `inject` → `inject_params`.
-
 - **A schema declaring top-level `observers` fails to compile (#779).** The block was
   validated by ~220 lines of `SchemaValidator` — a typo in any observer field failed the
   build, which told authors emphatically that it was honoured — and then discarded by
@@ -1686,7 +535,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tb_observer` table and the admin API and reads nothing from the compiled schema, so
   carrying them would only have moved the silent drop one layer down. The compile now fails
   and names the mechanism that works.
-
 - **A `[includes]` pattern that matches no files fails the compile (#723).** Previously the
   glob resolved to nothing and compilation continued from TOML-only definitions, producing a
   schema silently missing everything the include was meant to contribute. An empty *list* of
@@ -1694,31 +542,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `[domain_discovery]` whose root is missing or whose files fail to parse: the schema-source
   fallback now asks "is this configured?" before attempting it, so a failure inside a
   configured source propagates instead of being swallowed by `if let Ok(schema) = …`.
-
 - **`fraiseql validate` exits 2 on a validation failure**, matching the contract
   `--help-json` publishes and what `lint` and `federation check` already did. It exited 1,
   so CI could not distinguish an invalid schema from a broken toolchain (#868).
-
 - **`--show-output-schema compile` is removed.** `compile::run` prints plain lines and never
   constructs a `CommandResult`, so `fraiseql compile --json` emits no `{status, command,
   data}` object for the advertised schema to describe (#868).
-
 - **`fraiseql explain` no longer emits a `sql` field.** Its value was a hard-coded
   `SELECT data FROM v_table LIMIT 1000;` — a relation appearing nowhere else in the codebase
   — published under the label "Compiled SQL representation". The command takes no `--schema`
   argument, so it could not have produced real SQL in principle (#868).
-
 - **A type marked `is_input: true` compiles into `input_types`, not `types` (#848).** Four
   SDKs advertise the flag and emit it; the compiler had no field to receive it, so such a
   type became an *object* type and any mutation argument referencing it produced a schema
   violating GraphQL §3.10. Output-only attributes on an `is_input` type (`sql_source`,
   `relay`, `requires_role`, `is_error`, `implements`, `subscribable_tables`) are now refused
   rather than ignored.
-
 - **The Python SDK emits `custom_scalars` as an array** rather than `customScalars` as an
   object, and no longer emits a `validate` flag (#922).
-
-
 - **The REST write surface is mounted (#865).** `POST`/`PUT`/`PATCH`/`DELETE` on derived
   resources, and the collection-level bulk routes, are now served by any deployment whose
   adapter implements `SupportsMutations` (PostgreSQL, MySQL, SQL Server). `rest_router`
@@ -1732,12 +573,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same `Server::attach_auth` call as the read half — `route_layer` does not survive
   `Router::merge` (#812), and a separately-merged write router would have been
   unauthenticated.
-
 - **`rest_router` and `rest_query_router` take a `RestMountConfig`** instead of two
   positional `bool`s. Every call site read `rest_router(&state, false, false)`, where
   nothing distinguished "compression off" from "no auth attached"; the struct also carries
   the new export configuration.
-
 - **The served `OpenAPI` document is derived from the mounted router (#918, #865).** It is
   now filtered through `MountedRoutes` — the same set the router drives its registration
   from — so it describes exactly the operations the server answers. A read-only mount no
@@ -1745,7 +584,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   suppresses the collection-level bulk `PATCH` while the document promises it. The `links`
   member is removed from the collection-GET response schema: `build_query_response` emits
   `data` + `meta` and never populated it.
-
 - **`[export]` is read from `fraiseql.toml`, and `export_formats` defaults to all three
   formats (#917).** `ExportConfig` had no deserialization site anywhere — all three
   production consumers called `::default()`, one under a comment conceding that
@@ -1756,7 +594,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changing the default would have turned every export off in every deployment that had not
   written the key. An *explicit* empty list still disables everything, and a disabled
   format is refused with `406`.
-
 - **`GET /{resource}/stream` returns `501` instead of a heartbeat-only `200` (#873).**
   `RestState::event_transport` is `None` at every construction — the struct is private and
   has no setter — so the endpoint emitted `event: ping` forever and no entity event, while
@@ -1764,7 +601,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a healthy connection, so its reconnect and error handling never fired and it displayed
   stale data indefinitely; enabling the `observers` feature turned an honest `501` into a
   silent no-op. Wiring a real transport is #428.
-
 - **`?limit=` on a streaming REST export now caps the export total, and an export without
   it returns every row (#811).** The NDJSON, CSV and XLSX batch loops advanced pagination
   by writing `limit`/`offset` into a clone of `variables`, which `execute_query_direct`
@@ -1779,7 +615,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stopped, believing it had exported everything; it now streams the whole result set in
   `ndjson_batch_size` pages. `?limit=N` bounds the total. All three formats share one
   pagination driver — they were three independent copies of the same mistake.
-
 - **`Prefer: tx=rollback` is refused on bulk operations rather than silently committing
   (#914).** It was parsed and its only effect was to echo `tx=rollback` in the
   `Preference-Applied` response header — RFC 7240's assertion that the server honoured the
@@ -1788,10 +623,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   threaded through `Executor::execute`, whose `RuntimeConfig` is shared across requests, so
   the honest answer today is an explicit 400. Both `Preference-Applied` echo sites are
   removed: a preference can no longer be reported as applied when it was not.
-
 - **`IdempotencyStore::check`/`store` take a `ScopedIdempotencyKey` (#915).** See the
   security entry above.
-
 - **`/health` reports `observers.events_processed`, not `observers.pending_events`
   (#875).** The field carried `RuntimeHealth::events_processed` — a monotonic lifetime
   counter of events already handled — under a name and a doc comment that promised
@@ -1800,13 +633,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   event and never cleared, while a genuine backlog stayed invisible. The observer runtime
   is checkpoint-driven and `RuntimeHealth` carries no backlog source, so the field is
   renamed to what it actually reports rather than a depth being fabricated for it.
-
 - **`FraiseQLMcpService::new` takes an `AppState`, not a schema and executor (#858), and
   `mcp::executor::call_tool` takes an `McpCallContext`.** Both are consequences of the
   MCP transport reaching the same tenant registry and error sanitizer as `/graphql`.
   `require_auth` is no longer a separate parameter — it is read from the `[mcp]` config
   that is now passed in, so the two cannot disagree.
-
 - **The second storage stack is gone (#813, #866).** `fraiseql_server::storage` (a
   duplicate `StorageBackend` trait with its own local/S3/GCS/Azure implementations) and
   `fraiseql_server::routes::storage` (a `/storage/v1/object/{*key}` router) have been
@@ -1819,13 +650,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Use `ServerBuilder::with_storage_state` and a `[storage.<name>]` section; that backend
   now also serves as the inbound-email attachment sink, which previously hung off the
   removed builder method and was therefore unreachable from the shipped server.
-
 - **`allowed_mime_types = []` now allows nothing**, as documented, instead of being read
   by the upload handler as "no restriction".
-
 - **The object-metadata table gains a `pending` column.** The DDL is idempotent and
   applies on startup.
-
 - **`WhereClause` gains a `Typed` variant, and `WhereClause::from_graphql_json` takes the
   declared field types (#798).** The cast a filter needs is a property of the *field*, so
   parsing a user filter without the compiled schema's types is what produced SQL that
@@ -1835,7 +663,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path, the wire adapter, federation, the cache key — because each of those would
   otherwise be a place to drop them. Embedders with no schema pass
   `SharedFieldTypes::default()` and get the previous value-shape inference.
-
 - **`OrderByFieldType` is renamed `ScalarFieldType`**, and the type → SQL-cast mapping
   moves onto `SqlDialect::cast_type_name`. ORDER BY and WHERE previously carried separate
   tables, so a sort and a filter on the same field could disagree about its type. The
@@ -1845,7 +672,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Two renderings change as a result: MySQL and SQL Server now cast `Numeric` to
   `DECIMAL(38,12)` (previously `DECIMAL` and `FLOAT` in WHERE), and SQLite emits no cast
   for date/time types (`CAST(… AS TEXT)` was a no-op over an already-textual extraction).
-
 - **Thirteen operator names are no longer advertised (#828).** `has_key`, `has_any_keys`,
   `has_all_keys`, `array_eq`, `array_neq`, `notInSubnet`, `contains_date`, `adjacent`,
   `strictly_left`, `strictly_right`, `not_left`, `not_right` and `distance_within` were in
@@ -1854,14 +680,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that used one was accepted by the transport and then rejected by the executor. The
   registry is now generated from the executor's own table, so it can only advertise what
   runs.
-
 - **`WhereOperator` gains an `IsNotNull` variant**, and both null-check operators now
   require a boolean operand instead of reading a non-boolean as "assume IS NULL".
-
 - **A malformed `validation_rules` block fails compilation (#720).** `serde_json::from_value(…).unwrap_or_default()`
   turned a typo'd rule into an empty rule set, so a scalar declared with validation
   shipped with none.
-
 - **`DatabaseAdapter::invalidate_list_queries`, `CachedDatabaseAdapter::invalidate_list_queries`
   and `QueryResultCache::invalidate_list_queries` are removed**, along with the
   `list_index` reverse index and `CachedResult::is_list_query`. List-versus-point-lookup
@@ -1870,59 +693,1123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   use `invalidate_views`, which is what the mutation path now does for every operation
   kind. Expect more evictions per mutation: a point lookup for an unrelated entity is now
   dropped and re-read, where before it was kept on a premise that was never checked.
-
 - **`CachedDatabaseAdapter::with_ttl_overrides_from_schema` is renamed
   `with_cache_metadata_from_schema`.** It is the single seam between the compiled schema
   and the row cache, and it now reads `additional_views` as well as `cache_ttl_seconds`;
   the old name described half its job. `rebuilt_for_schema` (hot reload) delegates to the
   same reader, so a per-query cache annotation cannot work at boot and stop working after
   a schema reload.
-
 - **`QueryCache::get`/`put` in `fraiseql-arrow` take a `CacheScope` first argument.**
   Required rather than optional so no call site can store an entry another principal could
   read back (#716).
+- `ErrorCode::Timeout` now maps to **504 Gateway Timeout** (was 408 Request Timeout), and
+  the GET size ceilings return the new `ErrorCode::PayloadTooLarge` → **413** (was 400 via
+  `RequestError`). Clients branching on those statuses need updating.
+- `UsageBackend::flush` is renamed **`flush_deltas`** and its contract inverted: the map
+  now carries increments to be **added**, not absolute totals to be written. Any external
+  implementation must be updated — the rename is deliberate so it cannot compile
+  unchanged. `UsageAggregator::flush_to_backend` also now *errors* when the backend's
+  startup load failed.
+- A schema hot-reload **refuses** a schema whose boot-frozen configuration differs from
+  the running one — `[security]`, `[validation]`, `[subscriptions]`, `[mcp]`, `[rest]`,
+  `[grpc]`, federation, observers, sources, `[fraiseql.naming]`, `[debug]`, fact tables
+  and per-query `cache_ttl_seconds`. These are read once by subsystems that are immutable
+  afterwards, so the previous behaviour was to report success and keep serving the old
+  configuration. Reloads that change only types, queries, mutations or session variables
+  are unaffected; the rest now need a restart, and the refusal says which section.
+- `AppState::with_reload_config` takes a third argument, the executor rebuilder recorded
+  by the booting constructor. An `AppState` assembled directly (without a `Server`)
+  refuses to reload rather than guessing how to rebuild.
+- `[database_tls]`: `redis_ssl`, `clickhouse_https` and `elasticsearch_https` are
+  **removed**. They only ever rewrote a URL scheme, in a helper with no production
+  caller. A config still setting one is refused with a message naming the replacement
+  (put `rediss://` / `https://` in the URL, which is what the client library reads) —
+  refused rather than dropped, because an unknown key in that struct is discarded
+  silently.
+- `postgres_ssl_mode` / `[database] ssl_mode`: libpq's `allow` and `verify-ca` are
+  **refused** rather than approximated. `allow` has no expression in the driver, and
+  `verify-ca` would need a bespoke verifier whose only purpose is to check less than the
+  default. Each error names the mode to use instead.
+- `postgres_ssl_mode` and `[database] ssl_mode` are now **unset by default** rather than
+  `"prefer"`. Unset means "whatever `?sslmode=` in the connection URL says"; a concrete
+  default would override an operator's explicit `?sslmode=require` with a value they
+  never wrote.
+- `[security.constant_time]` is **refused**. Constant-time comparison is applied
+  unconditionally, so the toggles switched nothing — and one key inside was misspelled
+  `applytoCsrfTokens`, which nothing noticed because nothing read it.
+- `[security.rate_limiting] failed_login_max_attempts` / `failed_login_lockout_secs`
+  defaults change from 5 / 3600 to 10 / 900, matching the runtime's. The old values read
+  as deliberately tuned, and now that this section actually reaches the runtime, a tuned
+  value refuses to boot in production (#356).
+- `fraiseql analyze` output shape changed from `categories` (a map of constant strings)
+  to `recommendations` — the shape its published machine contract already documented.
+- **RBAC list endpoints return a page envelope, not a bare array** (#769).
+  `GET /api/roles`, `/api/permissions` and `/api/user-roles` now answer
+  `{"items": [...], "total": N, "limit": N, "offset": N, "has_more": bool}` and accept
+  `limit` (default 100, max 1000), `offset` and — where the resource is tenant-scoped —
+  `tenant_id`. Unknown query parameters are refused rather than ignored, so a mistyped
+  `tenant_id` cannot silently widen a read. `GET /api/user-roles` now **requires**
+  `user_id`; omitting it used to answer `200 []`, indistinguishable from "this user holds
+  no roles". The RBAC API could never have been used before this release — its tables
+  could not be created (#748) — so there are no existing consumers.
+- **`POST /api/roles` and `POST /api/user-roles` refuse unknown body fields** (#769), and
+  accept an explicit `tenant_id`. A misspelled `tenantId` used to be silently dropped,
+  creating a *global* role while the caller believed it was tenant-scoped.
+- **Studio admin endpoints that perform no operation answer `501`** (#749) instead of
+  `{"success": true}` or an empty collection: `/admin/v1/users`, `/admin/v1/users/invite`,
+  `/admin/v1/data/{entity}/query`, `/admin/v1/data/{entity}/mutate`,
+  `/admin/v1/storage/buckets`, `/admin/v1/storage/objects`, `/admin/v1/functions`,
+  `/admin/v1/functions/{name}/logs` and the function-secret routes. The response carries
+  `{"error": "not_implemented", "feature": "...", "message": "..."}`.
+- **`GET /admin/v1/health/detailed` and `/admin/v1/metrics/summary` report `null` for
+  figures they cannot measure** (#749), where they previously reported `0`. A zero pool
+  size reads as an exhausted pool and a zero hit rate as a cache that never hits.
+  `uptime_secs` was `SystemTime::now() - UNIX_EPOCH` — the current Unix timestamp — so a
+  four-second-old server claimed ~1.8 billion seconds of uptime; it is now time since
+  boot. `errors.rate_5m`/`rate_1h`/`rate_24h` were three copies of the lifetime ratio
+  under three window names; the lifetime value moved to `errors.lifetime` and the windows
+  report `null` until windowed counters exist.
+- **`[fraiseql.security]` compiles `role_definitions`, `default_role` and
+  `tenant_claim` under those names** (#757), replacing `roleDefinitions`, `defaultRole`
+  and `tenantClaim`. Recompile; no runtime consumer ever read the old spellings.
+- **A schema whose type-level `requires_role` cannot be enforced is refused at load**
+  (#677). Two shapes: an operation whose own role disagrees with its return type's (both
+  are required, and a compiled operation carries only one role), and a gated type
+  reachable as a field of a type that is not gated the same way (operations returning the
+  container carry no role, so the gated type travels out ungated). Subscriptions carry no
+  role gate at all, so a subscription returning a gated type is refused.
+- **`[security.rls]` is the RLS declaration; `security.policies` no longer implies it.**
+  `has_rls_configured()` counted `security.additional["policies"]` — *authorization*
+  policies, a section #612 made a hard compile error — so it answered `false` for every
+  producible schema. Declare `[security.rls] enabled = true` (or
+  `[fraiseql.security.rls]`) to state that database RLS isolates the deployment. With
+  `multi_tenant` also set, the server verifies the claim against the live catalog at boot
+  and refuses to start when it is not true.
+- **`[security] multi_tenant` and `[session_variables]` are declarable in TOML.**
+  `multi_tenant` was rejected as an unknown field by both TOML security structs.
+  `[session_variables]` had no TOML producer at all, though the compiled field documented
+  itself as "compiled from the `[session_variables]` TOML section" — the only way to
+  declare the mechanism RLS policies read was to hand-author `schema.json`.
+- **A session-variable mapping is one flat table.** `SessionVariableMapping` now flattens
+  its source, so a mapping is `{name, source, claim}` in JSON and
+
+  ```toml
+  [[session_variables.variables]]
+  name = "app.tenant_id"
+  source = "jwt"
+  claim = "tenant_id"
+  ```
+
+  in TOML — against the same type the runtime consumes, with no CLI-side mirror struct to
+  drift. No SDK emitted `session_variables`, so nothing in the wild produced the old
+  nested shape.
+- **`CachedDatabaseAdapter::validate_rls_active` and `enforce_rls` take the compiled
+  schema.** They need the relation list to check anything; the previous signatures could
+  only read a GUC (#762).
+- **`PoolPrewarmConfig` carries a `search_path`.** Every pool construction site must now
+  state whether its connections are schema-isolated. `PostgresAdapter::new` and
+  `with_pool_size` are unchanged.
+- **`DELETE /api/v1/admin/tenants/{key}` reports what it did.** `status` is now
+  `removed_schema_retained` or `removed_and_purged` rather than `removed`, with
+  `schema_retained` / `schema_dropped` naming the schema (#859).
+- **`max_storage_bytes` is renamed `max_storage_bytes_advisory`** (#633). Nothing meters
+  per-tenant storage, so nothing was ever rejected on the basis of this value; a field
+  called `max_storage_bytes` reads as a boundary that does not exist. The registration
+  body is now `deny_unknown_fields`, so the old key is a 400 rather than a silently
+  ignored setting. `TenantExecutorRegistry::is_quota_exceeded` / `set_quota_exceeded` are
+  removed — a public quota API with no producer on either side reads as an enforced limit
+  to anyone who greps for one. Metering remains tracked at #633.
+- **`examples/saas` declares queries only.** Its eight mutations named no input type and
+  no backing SQL function; the compiler accepted them and none could ever execute. See
+  `examples/mutation-patterns` for the mutation story.
+- **The intermediate-schema injection key is `inject_params`, not `inject`** (#806). The
+  value may be either `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. A schema
+  using `inject` is now **refused** with a message naming the replacement, rather than
+  compiling to a query with no injected filter. The Python decorator's `inject=` argument
+  is unchanged; only the emitted JSON key moved.
+- **Field scopes must be declared as `requires_scope`** (#807). `scope`, `scopes`,
+  `requiresScope`, `requiresScopes` and `requires_scopes` are refused with a message naming
+  the replacement. The Go, C#, F#, Rust, PHP and Java SDKs now emit the canonical key.
+- **Multiple required scopes on one field are unsupported and now say so.** The compiled
+  schema and the runtime field filter represent exactly one `requires_scope`; a multi-scope
+  declaration compiled to a field with *no* scope. The SDKs refuse it at authoring time. A
+  singleton list is normalised to a single scope.
+- **`require_auth = true` now applies to every REST route, including
+  `{base}/openapi.json`** (#810). A surface closed to anonymous callers no longer hands
+  those callers a full description of its resources, fields and filters.
+- **`rest_query_router` and `rest_router` take an `auth_layer_attached` argument** (#810),
+  and `generate_openapi` takes it too, so the served document reflects the deployment's
+  actual authentication rather than a static template.
+- **Unified every outbound-address guard and every production check onto one
+  implementation (#802, #836, #816, #725, #882).** The workspace carried **eight**
+  hand-rolled SSRF address predicates and **two** production detectors. Each was
+  individually reasonable; collectively they disagreed, and the gaps between them were
+  exploitable.
+
+  - **#802 — `IPv4`-mapped `IPv6` bypassed the serverless-function HTTP guard.** Its
+    `IPv6` arm tested `is_loopback`/`is_unique_local`/`is_unicast_link_local`, none of
+    which fire for `::ffff:169.254.169.254`, so a guest function could reach cloud
+    instance metadata over a dual-stack socket — via a bracketed literal, or via an
+    allowlisted hostname with an attacker-controlled AAAA record, which is precisely the
+    rebinding attack the surrounding code claimed to close. Five of the eight predicates
+    shared this gap; it is the same defect as #776 in a different crate.
+
+  - **#836 — the SSRF bypass was honoured in production.** `ServerConfig::is_production_mode()`
+    treated an unset `FRAISEQL_ENV` as production, and every server safety gate is keyed
+    off it. `observers::insecure_guard::is_production_environment()` read the same variable
+    and treated unset as **not** production. On any non-Kubernetes deployment — Docker
+    Compose, systemd, a VM, ECS — the server therefore believed it was in production while
+    the observer subsystem honoured `FRAISEQL_OBSERVERS_ALLOW_INSECURE`, disabling the
+    scheme allow-list, the private-address blocklist and the rebinding defence on a webhook
+    URL that comes from a mutable `tb_observer` row.
+
+  - **#882 — two escape hatches had no production check at all.**
+    `FRAISEQL_VAULT_ALLOW_INSECURE` and `FRAISEQL_OIDC_ALLOW_INSECURE` disabled their SSRF
+    guards on the environment variable alone, under every environment including an explicit
+    `FRAISEQL_ENV=production` and inside a Kubernetes pod. All four of the product's escape
+    hatches now share one policy: honoured only when development is positively declared.
+
+  - **#816 — the CDC NATS plaintext guard was inverted.** It refused plaintext `nats://`
+    only for loopback hosts — the one case that is safe — and accepted every remote
+    plaintext endpoint, publishing full row after-images in the clear. It also skipped
+    every non-`nats://` URL including the scheme-less form that `async-nats` rewrites to
+    plaintext, split the host with `split(['/', ':'])` so `nats://user:pw@host` yielded
+    `"user"`, and compared the host without lower-casing it. It had no unit tests.
+
+  - A **ninth** hand-rolled guard, on the manifest hot-reload URL, was found by the new
+    gate rather than by review. Its doc comment claimed it used "the same pattern as the
+    federation and Vault SSRF guards"; it had drifted from both.
+
+  The shared guard additionally blocks ranges no previous copy covered: the NAT64
+  well-known prefix `64:ff9b::/96` (a live route to the metadata service wherever a NAT64
+  gateway exists), NAT64 local-use `64:ff9b:1::/48`, `IPv4`-compatible `::a.b.c.d`,
+  multicast, site-local `fec0::/10`, discard-only `100::/64`, IETF protocol assignments
+  `192.0.0.0/24` (Oracle Cloud metadata), the RFC 5737 documentation ranges, RFC 2544
+  benchmarking, and the `2001:db8::/32` and `2001:2::/48` `IPv6` equivalents.
+
+  `make lint-guard-parity` now fails the build on a new hand-rolled address predicate, a
+  new `is_production`-shaped helper, or an escape hatch read without a posture check. It
+  runs in the Dagger `preflight` leg and as the `guard-parity-check` CI job.
+- **New crate `fraiseql-guard`.** Holds the workspace's single outbound-address guard
+  (`fraiseql_guard::net`) and its single production detector
+  (`fraiseql_guard::deployment`). It is a Tier-1 leaf with no dependencies beyond `std`,
+  published before every crate that depends on it.
+- **`fraiseql_auth::constant_time::ConstantTimeOps::compare_padded` and
+  `compare_jwt_constant` are removed (#725).** They truncated both inputs to `fixed_len`
+  before comparing, so `compare_jwt_constant` reported **equality** for any two tokens
+  sharing their first 512 bytes — the shape of two JWTs with identical header and payload
+  and different signatures, since the signature sits at the end and real tokens exceed
+  512 bytes. `"abc"` and `"abc\0"` also compared equal. Nothing on a production path
+  called either; the one real comparison uses `ConstantTimeOps::compare`, which is correct
+  for values of any length. Callers wanting length hiding should compare digests rather
+  than values. `compare`, `compare_str` and `compare_len_safe` are unchanged.
+- **Documentation, benchmarking and reserved ranges are now refused by every outbound
+  guard.** A URL targeting `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`,
+  `198.18.0.0/15`, `240.0.0.0/4`, `224.0.0.0/4` or their `IPv6` equivalents is rejected
+  where some guards previously allowed it. These are not globally routable; the practical
+  impact is on test fixtures that used a documentation address as a stand-in for a public
+  one. Conversely, a *mapped public* address such as `::ffff:8.8.8.8` is now allowed
+  rather than blanket-refused: mapped and NAT64 addresses are canonicalised and judged as
+  the `IPv4` address the stack would route to.
+- **`FRAISEQL_NATS_ALLOW_PLAINTEXT` now requires a declared development environment**, in
+  both `fraiseql-observers` and `fraiseql-cdc-sinks`, and no longer accepts a remote
+  plaintext endpoint at all. The opt-in permits loopback — its purpose is a local dev
+  broker — but does not disable the address guard for other hosts.
+- **`fraiseql_federation::http_resolver::is_ssrf_blocked_ip` is now a re-export** of
+  `fraiseql_guard::net::is_blocked_ip`. The signature is unchanged; the accepted set is
+  strictly smaller.
+- **CRITICAL: closed two unauthenticated SQL-injection holes on the analytics execution
+  path (#794, #795).** Both were reachable by any client able to POST a GraphQL query, on
+  any deployment whose compiled schema declares at least one fact table, and both were
+  verified against live PostgreSQL 16 exfiltrating `pg_authid` contents.
+
+  - **#794 — window aliases and dimension paths were interpolated raw.** Four sinks on the
+    live `*_window` path wrote request-supplied strings straight into the SELECT list: the
+    dimension select arm and the `PARTITION BY` arm both built `format!("{}->>'{}'", …)`
+    with no charset check, and `alias` was cloned through untouched for measure, dimension,
+    filter and window-function selections before being emitted as `<expr> AS <alias>`.
+    Because `WindowProjector::project` copies every returned column into the response, an
+    injected column was handed back to the caller.
+
+    Every alias and dimension path is now rejected unless it matches
+    `[_A-Za-z][_0-9A-Za-z]*`, through a single entry point that all sinks share — the
+    defect existed because one arm carried a check its four siblings did not. The
+    `WindowAllowlist` is additionally consulted wherever the schema enumerates dimension
+    paths. It existed and was documented as the defence for this path, but was only ever
+    called by `WindowFunctionPlanner`, which nothing in the shipped binary invokes; the
+    live planner is `WindowPlanner`, which never built one.
+
+  - **#795 — the `table` request key selected the FROM target.** The relation is already
+    determined by the GraphQL root field (`sales_window` → `tf_sales`), but a second,
+    unchecked channel could name any relation or substitute an entire subquery. Worse, the
+    RLS policy was looked up by that same attacker-controlled name, so naming a table with
+    no configured policy yielded `None` and composed **no tenant WHERE clause at all**.
+
+    Both the aggregate and window planners now reject a `table` that does not match the
+    resolved fact table, every FROM sink emits the resolved name, and the RLS policy is
+    evaluated against the resolved name — which matters independently, because RLS is
+    evaluated before the planner runs.
+
+  Regression coverage runs against real PostgreSQL in the Dagger `integration: server`
+  suite (`analytics_injection_e2e_pg`), driving the real HTTP handler and asserting both
+  that each payload is refused and that no catalog data reaches the response.
+- **`fraiseql run`, `fraiseql validate facts`, and `fraiseql introspect facts` no longer
+  collide on `-d` (#650).** The global `--debug` short (`-d`) and each subcommand's
+  `--database` short (also `-d`) claimed the same letter, so debug builds of the CLI
+  panicked at startup (clap `debug_asserts`: "Short option names must be unique … '-d' is
+  in use by both 'database' and 'debug'") and release builds advertised an ambiguous `-d`.
+  `--database` is now long-only on all three subcommands — the global `-d` (debug) is
+  consistent across every subcommand — and a `Cli::command().debug_assert()` test guards
+  against reintroduction. Use `--database <url>` (the long form always worked).
+
+### Added
+
+- **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one
+  or more `[[cdc_outbound.sinks]]` now makes the server drain
+  `core.tb_entity_change_log` to a broker on its own task set, behind the new
+  `cdc-outbound` feature. The drain engine — durable per-sink delivery state,
+  anti-join enqueue with a commit-lag sweep, claim-then-publish under a lease
+  with head-of-line ordering, backoff and dead-lettering — shipped in v2.12.0
+  and is used unchanged; what was missing is that **nothing in the shipped
+  server ever constructed a `DrainWorker`**, so outbound CDC was reachable only
+  by writing your own binary.
+
+  Boot is fail-loud: a configured section with no database pool, an unreachable
+  broker, delivery-state DDL that will not apply, a duplicate sink name, or a
+  `kind` that is unknown or not yet implemented (`kafka`, `kinesis`, `pulsar`)
+  all refuse to start. A server that boots without its drain looks healthy
+  while every downstream consumer silently starves. Docs:
+  `docs/features/cdc-outbound.md`.
+- **Per-bucket access policies (#371).** `[[storage.<name>.policies]]` attaches
+  a list of permit rules that *replaces* the bucket's coarse `access` mode:
+  `methods` (`read`/`write`/`overwrite`/`delete`/`list`) × `principal`
+  (`owner`/`authenticated`/`anonymous`/`role:<name>`) × an optional
+  `key_prefix`. This expresses the shapes key-prefix routing could not — "the
+  audit group may read under `reports/`, but only the creator may delete".
+
+  Three properties are structural rather than documented. **Denial is the
+  fallthrough**: there is no `effect = "deny"` whose precedence could be wrong,
+  and `permits` returns true only from inside a matched rule, so an empty
+  policy denies everything including to an object's own owner. **`write` is
+  create-only** — replacing an existing object needs an explicit `overwrite`
+  grant, because the natural rule "authenticated callers may write" would
+  otherwise re-open the H9/B4 overwrite IDOR through the policy door (this was
+  caught by the end-to-end test, not by review). **An unparseable policy
+  refuses to boot** — an unknown method or principal, an empty `methods` list,
+  or a misspelled field is a startup error, never a rule that silently denies.
+  `list` also becomes a distinct permission (no longer implied by write
+  access), with row filtering still applied on top.
+- **Image renders are served, and hostile images are bounded (#370, closing
+  #901).** `GET /storage/v1/render/{bucket}/{*key}?w=&h=&format=&quality=&preset=`
+  mounts behind the server's new `storage-transforms` feature and reads through
+  exactly the gates the download route uses (metadata, `can_read`, the
+  missing/not-yours collapse). `format` is `webp`/`jpeg`/`png`/`avif`; with none
+  given, the client's `Accept` header picks the encoding. Named presets now come
+  from configuration — `[storage.<name>] transform_presets = [{ name = "thumb",
+  width = 200, format = "webp" }]` — which previously could not be set at all
+  (`BucketConfig::transform_presets` was hard-coded `None`); declaring them in a
+  binary built without the feature is a **startup error**, not a silently absent
+  endpoint. Before this, the whole `transforms` feature had no HTTP surface and
+  `ImageTransformer` had no non-test caller.
+
+  The transformer itself was unbounded: it decoded whatever a caller supplied
+  and resized to whatever was requested, so a decompression bomb (a small file
+  whose header declares an enormous image) or an absurd `?w=` allocated
+  hundreds of megabytes per request. Source and requested dimensions are now
+  capped at 12 000 px per side, checked from the header *before* decoding, with
+  matching hard decoder limits behind them; bombs, malformed bytes, non-image
+  objects and oversized requests all return a named `400`.
+- **Resumable uploads — Tus 1.0.0 core + S3 multipart (#369).** New endpoints
+  `POST /storage/v1/uploads/{bucket}/{*key}` (create, `Upload-Length` +
+  optional `Upload-Metadata` filetype), `PATCH`/`HEAD`/`DELETE
+  /storage/v1/uploads/{id}` (append at the proven offset / resume probe /
+  cancel). Interrupted uploads resume from the durable offset; sessions are
+  rows in the new `_fraiseql_storage_uploads` table, so they survive a server
+  restart. Every path funnels through the SAME machinery as single-shot
+  uploads: creation passes the H9/B4 overwrite gate and reserves the metadata
+  row exactly like a presigned upload (#866), completion is one routine that
+  finalises backend staging and confirms that row, and a foreign session is
+  indistinguishable from a missing one (`404`; anonymous `401`; #876 — an
+  interrupted upload cannot be resumed, probed, or cancelled by a different
+  owner). Backends: local (staging under the reserved — and now
+  `validate_key`-fenced — `.fraiseql-uploads/` namespace, rename on
+  completion) and S3/MinIO (real multipart: chunks become parts, sub-5-MiB
+  non-final chunks are refused up front as `400`); GCS/Azure refuse loudly
+  (`NotImplemented`). Concurrency: one in-flight session per key (`409`),
+  appends pinned to the proven offset (`409` on races), size caps enforced at
+  creation and cumulatively, expired sessions answer `410` and are reaped
+  (staging discarded, created reservations released; per-bucket
+  `upload_ttl_secs`, default 24 h). Verified end to end over real MinIO + a
+  real metadata table in the `server-storage` leg.
+- **Durable long-running operations (#391).** New `[async_operations]` section
+  mounts `POST/GET/DELETE /operations/v1/…` — submit returns an `op_id`
+  immediately, background workers execute the stored GraphQL document through
+  the SAME `execute_with_security` pipeline as `/graphql` (RLS, cost gates,
+  change-log outbox — never a second execution path), and status reads the
+  stored row. Designed against P19's six saga-recovery failure modes, each
+  pinned in `async_operations_e2e_pg`: terminal states are never reclaimable;
+  claiming is staleness-gated (workers heartbeat, so a live execution is never
+  stolen); completions are claim-token-guarded (a superseded worker's late
+  result cannot clobber the retry's); `Idempotency-Key` submission replays the
+  same `op_id`; the persisted tenant key dispatches execution through the
+  shared tenant seam; and a cancel that did not cancel is never reported as
+  one (queued → cancelled outright, running → explicit `cancel_requested`).
+  The operation allowlist is required and fail-closed, cost is charged at
+  submission, status/cancel are submitter-scoped (404, no existence oracle),
+  an errored GraphQL envelope records as `failed`, and an expired security
+  snapshot refuses to execute. A configured section without a database pool or
+  a creatable `_system.async_operations` refuses to boot. Docs:
+  `docs/features/async-operations.md`.
+- **MCP as a first-class transport (#376).** Three gaps closed on the existing
+  (P09-hardened) MCP surface. **Auth parity**: MCP now accepts the same two
+  Bearer modes as `/graphql` — OIDC (`[auth]`) *or* local HS256
+  (`[auth_hs256]`); previously only OIDC validated, so an HS256 deployment
+  could never authenticate an MCP call and `require_auth = true` refused to
+  mount the endpoint (`FraiseQLMcpService::with_oidc_validator` is replaced by
+  `with_token_validator(McpTokenValidator)`). **Behaviour hints**: every
+  advertised tool carries MCP `ToolAnnotations` — queries `readOnlyHint: true`,
+  mutations explicitly `destructiveHint: true` / non-idempotent, so agent
+  clients confirm before invoking writes. **Audit tagging**: an MCP-originated
+  mutation's change-log row is stamped `extra_metadata.transport = "mcp"`
+  (forge-safe: the tag rides a framework-reserved security-context attribute
+  set by the transport itself), making agent writes one query to find. New
+  `mcp_transport_stamp_e2e_pg` suite drives an HS256-authenticated tool call
+  through the real executor into the outbox. Resources / Prompts / session
+  continuity are tracked in #967. Docs: `docs/mcp.md` gained Authentication,
+  Behaviour hints, and Audit trail sections.
+- **Session-state subsystem (#389).** New `[session_state]` section: durable
+  per-thread conversation memory for agents and multi-turn applications —
+  key/value entries scoped to `(session, thread)` with per-entry TTL (expired
+  entries are invisible to reads immediately and reclaimed by a background
+  sweep), a 64 KiB per-value cap, and an optional `Summarizer` hook that
+  atomically collapses a thread into a single reserved `_summary` entry past a
+  configurable threshold (a failing summarizer leaves the thread intact).
+  Backends: `memory` (volatile, dev — warns at boot) and `postgres`
+  (`_system.session_state`, created at boot like `_system.sessions`). A
+  configured `postgres` backend without a pool, or whose table cannot be
+  initialised, **refuses to boot** — never a silent in-memory downgrade. The
+  section is strict (`deny_unknown_fields`). Library API:
+  `fraiseql_auth::session_state` + `Server::session_state()`; MCP session
+  continuity binds to it in #376. Docs: `docs/features/session-state.md`.
+- **Actor-model hardening (#390).** The change-log's `actor_type` domain is now
+  enforced by the database itself: migration 08 installs
+  `chk_entity_change_log_actor_type` (`NOT VALID`, so a populated legacy table
+  migrates safely; new writes are checked), and a CLI lockstep test pins the
+  constraint's token list to `ActorType::ALL` so adding an enum variant without
+  extending the constraint is a red test. `fraiseql doctor --against-db` gained
+  an actor-attribution check: out-of-contract `actor_type` values are a
+  **Fail** (rogue writer), a missing constraint or `NULL`-actor rows are a
+  **Warn**. A new end-to-end suite (`actor_attribution_e2e_pg`) drives real
+  HS256 tokens through the production mount on both HTTP write transports
+  (`/graphql` + REST) and asserts the recorded rows: `human_user` /
+  `service_account` (scope) / `ai_agent` + `acting_for` (RFC 8693 `act`)
+  derivation, that forged `fraiseql.*`/`actor_type` claims cannot influence the
+  classification, and that unauthenticated writes are refused rather than
+  recorded unattributed. Operator docs: `docs/features/audit-logging.md`.
+  Deferred consumption features (RBAC actor predicates, per-actor budgets) are
+  tracked in #966.
+- **The HTTP `QUERY` method (RFC 10008) on the GraphQL endpoint (#508).** Opt-in via
+  `enable_http_query` (default `false`); `GET` and `POST` behaviour is unchanged either
+  way. `QUERY` is "GET with a request body" — safe, idempotent and cacheable — so routing
+  deterministic GraphQL reads over it stops telling caches, proxies and retry layers
+  "unsafe, do not cache, do not retry". Acceptance is **queries-only**: a `mutation` or
+  `subscription` is refused with `405`, because a method an intermediary may replay must
+  never carry a state-changing operation. The gate parses with the same parser the
+  executor uses, so it cannot disagree with what would actually run. CORS advertises
+  `QUERY` only when the server accepts it, so the header never promises a route that
+  answers 405. axum 0.8 has no `MethodFilter::QUERY` yet, so the method is mounted as a
+  `MethodRouter` fallback — two clearly-marked places (`HTTP_QUERY_METHOD` and the
+  fallback wiring) swap to the typed filter when upstream ships it.
+- **Social login is reachable from the shipped binary (#368).** The account-linking
+  trust gate and the provider modules were library-only: `Server::with_social_login`
+  had zero callers, nothing auto-registered providers, and `[auth.social]` could not
+  even be typed (`[auth]` is `deny_unknown_fields`). A compiled `[auth.social.google]`
+  / `[auth.social.github]` block now builds the trust-gated `multi_provider` flow at
+  boot and mounts `GET /auth/v1/{providers,authorize,callback}`, backed by
+  Postgres-backed sessions and account linking. Configured-but-unusable shapes refuse
+  to boot naming the offending key: no `[auth_hs256]`, an unset `client_secret_env`,
+  an SSRF-blocked endpoint override, or no database pool. `/auth/v1/authorize` and
+  `/auth/v1/callback` are governed by the same per-IP `auth_start` / `auth_callback`
+  path buckets that guard `/auth/start` (#788) — both rate-limit backends now derive
+  their rules from one shared builder so they cannot drift. Apple, Discord and
+  Facebook are split out to #943 and #944.
+- **The GitHub provider talks to GitHub (#368).** It wrapped `OidcProvider`, so
+  construction performed OIDC discovery against `github.com` — which serves no
+  discovery document (404), meaning it could never have constructed against real
+  GitHub. It is now a plain OAuth2 client against the fixed well-known endpoints
+  (overridable for GitHub Enterprise Server, SSRF-guarded), requesting
+  `read:user user:email`, sending `Accept: application/json` at the token endpoint,
+  and tolerating the absent `expires_in`. The `/user/emails` second hop resolves the
+  **primary verified** address, so a private-email GitHub account can participate in
+  email-keyed account linking; any failure of that hop falls back to
+  `email_verified = false`. GitHub therefore joins `google` and `apple` in the default
+  `TrustedEmailProviders` set — the documented reason for its exclusion was exactly
+  this missing hop.
+- **`[auth.local]` — first-party auth methods are reachable (#367).** Email+password,
+  email OTP / magic link, TOTP MFA and anonymous sessions all existed in
+  `fraiseql-auth` with no way to reach them: `with_mfa` / `with_anon_signup` had zero
+  callers, the MFA/social/anon route groups were registered against fields hard-coded
+  to `None`, OTP had no server route at all, and the password-reset flow had no
+  concrete `ResetEmailSender` outside its own test double. A compiled `[auth.local]`
+  block now mounts each enabled method — `/auth/v1/password/{signup,login,reset,
+  reset/confirm}`, `/auth/v1/{otp,verify}`, `/auth/v1/mfa/*`, `/auth/v1/signup` — and
+  a method that cannot work refuses to boot rather than dead-ending: no
+  `[auth_hs256]`, no pool, a missing or send-less `email_from` mailbox, or a build
+  without the `inbound-email` feature (which carries the SMTP transport) each name
+  the offending key.
+- **Postgres-backed MFA and OTP stores (#367).** `PgMfaStore` and `PgOtpStore` make
+  `[auth.local] mfa`/`otp` safe to serve. The in-memory stores are per-process, which
+  for MFA means a deploy silently destroys every user's second factor, and for OTP
+  means N replicas multiply both the send budget and the 3-attempt verify cap by N —
+  a six-digit code becomes brute-forceable. TOTP secrets are stored recoverable (they
+  are shared secrets), recovery codes are bcrypt-hashed and deleted as consumed,
+  challenge tokens and OTP codes are stored as SHA-256 hashes so a database read
+  cannot replay a live one, and the per-user failure budget lives in the enrollment
+  row so it survives a restart. Both budgets are charged in SQL, so a concurrent
+  flood cannot lose a failure to a read-modify-write race.
+- **A concrete `ResetEmailSender` / `EmailDelivery` (#367).** `MailboxEmailSender`
+  relays OTP codes and reset links through the same `[mailbox.<name>.smtp]` transport
+  the `send_email` host op uses, so a deployment configures outbound mail once.
+  `reset_url_template` / `magic_link_template` are validated at compile time to
+  contain their `{token}` / `{code}` placeholder — a template without one builds the
+  same dead link for every user.
+- **OTP identities are real accounts (#367).** `otp_verify` minted
+  `user_id = "otp:<email>"` without touching the account store, so the same person's
+  OTP, social and password sign-ins produced as many separate identities as sign-in
+  methods. Completing the OTP flow proves control of the mailbox, so the identity now
+  resolves through `AccountStore::link_or_create_user` with `email_verified = true`
+  and converges with every other verified-email sign-in for that address.
+- **`FRAISEQL_SHUTDOWN_TIMEOUT_SECS` / `--shutdown-timeout-secs` (#838).** The
+  `shutdown_timeout_secs` config field's rustdoc had promised this override since it
+  shipped; the variable now exists — the only occurrence of its name in the workspace
+  used to be that comment.
+- **Docs-truth CI gates (#838, #839).** `tools/check-docs-env-vars.sh` fails when any
+  `FRAISEQL_*` variable named in `docs/`, `README.md` or an example README has no reader
+  in the workspace; `tools/check-docs-version.sh` fails when a doc's "vX.Y.Z released"
+  status line disagrees with `Cargo.toml`; and `doc_config_examples_test` deserializes
+  every `# server.toml`-marked TOML block in the operator docs into the real
+  `ServerConfig`. All three run in CI (shell gates + the test leg).
+- **Graceful subscription drain on shutdown (#571).** When graceful shutdown begins, every
+  active subscription receives a per-operation `Complete` frame and the socket closes with
+  **1001 (Going Away)**, so clients see a clean end-of-stream during a rolling deploy
+  instead of a transport-level abort indistinguishable from a network fault.
+- **`subscription_auth_recheck_secs`** server config key (default 30): how often a live
+  subscription re-checks its principal's expiry/revocation (#771). `0` disables the
+  periodic check; per-delivery expiry enforcement remains.
+
+### Changed
+
+- **The weekly fuzz campaign reports what it finds (#441).** A crash now opens
+  (or comments on) an issue labelled `fuzz-crash` instead of only reddening a
+  scheduled job — seven consecutive weekly failures on a real security defect
+  went unread because a red scheduled job is not a signal anyone receives. Build
+  failures and crash finds are now separate steps, so a bad nightly cannot
+  masquerade as a finding, and the nightly toolchain is pinned rather than
+  floating (an internal compiler error on 2026-07-26 failed two targets in
+  exactly that way). Seed corpora carry the reproducers for fixed crashes, so a
+  regression is caught by a fixture in git rather than by a 90-day cache
+  surviving. The campaign remains schedule- and dispatch-only and cannot gate a
+  merge.
+
+  All 25 fuzz targets across the 8 crates were build-verified as part of this,
+  which is how two of them turned out to be broken: `fraiseql-db`'s
+  `where_from_json` and `where_generator` still referenced `MySqlDialect`,
+  `SqliteDialect` and `SqlServerDialect`, removed by the PostgreSQL-only
+  de-scope (#374), and `WhereClause::from_graphql_json` had gained a second
+  argument. `where_from_json` is in the scheduled matrix, so this would have
+  reddened the campaign the moment the de-scope merged — no CI leg builds
+  `fuzz/`, because each is a separate cargo workspace. Both are fixed and now
+  exercise the typed-field path as well as the untyped one; `where_generator`
+  additionally asserts the emitted SQL keeps its quotes and parentheses
+  balanced. `docs/fuzzing.md` carries a one-command build-verify loop.
+- **Five properties from real defects are now checked continuously (#441).** Each
+  is derived from a defect this remediation program actually fixed, and each was
+  verified by pointing it at the pre-fix code and watching it find the original
+  bug — a target that cannot do that asserts nothing while reporting green.
+
+  | Property | Form | Defect |
+  |---|---|---|
+  | An inline argument never silently vanishes across the `value_json` write→read round trip | `value_json_seam` fuzz target | #719 |
+  | No accepted identifier can alter the structure of the SQL it lands in | `identifier_validation` fuzz target | #794, #795, #833 |
+  | Generated WHERE SQL keeps quotes and parentheses balanced | `where_generator` fuzz target | #833 |
+  | A query parameter never bleeds into the host, user or database name | `fraiseql-wire` proptest | #817 |
+  | No caller-supplied argument value can add a root field to a built MCP document | `fraiseql-server` proptest | #808 |
+
+  The last two are proptests rather than fuzz targets because the code they guard
+  is behind a private module, and widening it to `pub` purely for test reach would
+  enlarge the supported API surface. They run in every CI test leg rather than
+  weekly, so for those two the in-crate form is the stronger check.
+
+  `pre-commit` no longer rewrites `fuzz/seed_corpus/`: `end-of-file-fixer`
+  appended newlines to five #976 reproducers, and a seed corpus is test data
+  where every byte is part of the input.
+
+### Deprecated
+
+- **`fraiseql_wire::operators::generate_where_operator_sql` (#877).** It emits `$N`
+  placeholders that the crate's simple-query protocol can never bind — no encoder for
+  Parse/Bind exists and `QueryBuilder` has no method accepting the parameter map, so the
+  advertised usage failed at the server with `there is no parameter $1`. Deprecated (and
+  the module docs corrected) until the crate either implements the extended query
+  protocol or renders operator values as safely quoted literals; use
+  `QueryBuilder::where_sql` with an inline predicate.
+- **Saga store and recovery API (P19, #744 #745 #766 #767 #785).**
+  `PostgresSagaStore::claim_stuck_sagas` takes a `stuck_after_secs` staleness threshold and
+  `find_pending_sagas` an `older_than_secs` age gate; `RecoveryConfig` gains
+  `stuck_threshold` (default 5 min) and `max_recovery_attempts` (default 5); `SagaStep`
+  gains `remote: bool` (set at creation from the coordinator's registry) and
+  `compensation_error: Option<String>` (the recorded outcome of the last rollback
+  attempt). `update_saga_step_state` now **validates transitions atomically** — illegal
+  writes (e.g. `Completed → Executing`, anything out of `Compensated`) return
+  `InvalidStateTransition` — and `save_saga_step`'s upsert no longer rewrites `state`
+  (state changes must go through the guarded method). `SagaRecoveryManager::with_routing`
+  (new `RecoveryRouting`) carries the subgraph registry/HTTP client/entity resolver so
+  recovery can re-drive remote steps on their real transport.
+- **`HttpMutationClient::execute_mutation` takes an `idempotency_key: Option<&str>`**
+  parameter, sent as the `Idempotency-Key` header on every attempt (#747). Saga steps pass
+  their persisted step id; compensations a derived `<step-id>:compensate` key.
+- **Federation mutation literal building is dialect-aware (#728).**
+  `value_to_sql_literal` and `build_insert_query`/`build_update_query`/`build_delete_query`
+  take a `DatabaseType`; MySQL (whose backslash-escaping mode is connection-dependent and
+  unobservable here) is refused loud instead of mis-escaped.
+- **Federation `_entities` wrappers error on resolution failure (#764).**
+  `batch_load_entities`, `batch_load_entities_with_tracing` and
+  `batch_load_entities_enforced` now return `Err` when any typename batch failed, instead
+  of returning `Ok` with all-`None` entities and discarding the errors.
+- **Placeholder federation APIs removed or made loud (#785).**
+  `FederationResolver::get_or_determine_strategy`, its `strategy_cache` field and the
+  `types::ResolutionStrategy` enum are **removed** (the strategy was a hardcoded
+  `http://localhost:4000` / nonexistent `<Type>_federation_view`).
+  `FederationMutationExecutor::execute_extended_mutation` now always returns an error
+  pointing at the real remote-dispatch path (`HttpMutationClient` / saga steps) instead of
+  fabricating a success response that no subgraph ever saw.
+- **`SagaCoordinator::cancel_saga` no longer writes `Cancelled` over un-compensated work
+  (#746).** When the rollback is incomplete the saga is left `Failed` (as the compensator
+  recorded), the result reports `compensated: false` and names the un-rolled-back steps.
+- **`fraiseql federation check --against` semantics (#820).** `@override(from:)` references
+  are validated against the supergraph's declared roster (`federation.subgraphs`) — not
+  harvested from its `override_from` annotations — and reported as *unchecked* when no
+  roster exists; the blanket "Composition check passed" claim is gone.
+
+### Removed
+
+- **Committed development archaeology (#735).** `v2.3.0-ext-phases/` (phase files from
+  eleven releases ago) and the stray `target-user/` cargo dir are gone (with a
+  `.gitignore` entry so a stray `--target-dir` cannot silently return); the frozen
+  `IMPROVEMENTS.md` / `IMPROVEMENTS_R3.md` audit ledgers moved to `docs/history/` (code
+  comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
+  archived onto issue #687 before removal.
 
 ### Fixed
 
+- **NUMERIC values beyond 28 significant digits, `NaN` and `Infinity` no longer
+  decode to null (#980).** The PostgreSQL adapter's row decoder read
+  `NUMERIC`/`DECIMAL` columns through `rust_decimal::Decimal`, whose 96-bit
+  mantissa caps at 28-29 significant digits and which has no `NaN` or
+  `Infinity` — anything it could not represent failed the type probe and fell
+  through the decode ladder to `Null`, silently. NUMERIC columns are now decoded
+  from PostgreSQL's binary wire format directly to the exact text the server
+  itself prints, at full precision; `NaN`, `Infinity` and `-Infinity` render as
+  those JSON strings. The decoder is verified by a differential test comparing
+  its output against `SELECT value::text` from a live PostgreSQL over a
+  1,500-value corpus.
+
+  This removes `rust_decimal` from the workspace — it had exactly one use site —
+  and with it `rkyv` and `borsh` leave `Cargo.lock` entirely (rust_decimal was
+  their sole dependent), retiring the RUSTSEC-2026-0235 advisory exception from
+  `deny.toml` and `.cargo/audit.toml`.
+- **A 27-byte GraphQL query no longer panics the parser (#976).**
+  `graphql-parser` computes a block string's common indent in *bytes* but strips
+  it with the Unicode-aware `str::trim_start`, then slices the line at that byte
+  offset — so a block string indented with U+00A0 sliced mid-codepoint and
+  panicked. The document is well-formed by the GraphQL spec, the input is
+  unauthenticated, and with no `CatchPanicLayer` in the stack the panic unwound
+  the connection task: the client got a dropped connection rather than an error,
+  and no error metric moved.
+
+  `parse_graphql_document` is now the single parse seam, and it rejects
+  indentation the parser cannot handle before the parser sees it. Six call sites
+  went through the raw parser when this was found — including
+  `graphql/parser.rs`, which was invisible to the obvious grep because it
+  imported the module and called `query::parse_query`. All six are routed, the
+  seam additionally wraps the parser in `catch_unwind` so an unknown parser
+  panic costs one query rather than the connection, and
+  `tools/check-graphql-parse-sites.sh` (wired into `make preflight`) fails the
+  build if a seventh appears. Found by the scheduled fuzz campaign, which had
+  been reporting it weekly since 2026-06-21.
+
+  Upgrading does not fix this: `graphql-parser` 0.4.1 is the newest release and
+  the maintained `graphql-parser-hive-fork` carries the identical bug.
+
+  **Behaviour change:** a query whose *indentation* uses non-ASCII whitespace is
+  now rejected with a message naming the reason. Non-ASCII whitespace in string
+  content — including block-string content — is unaffected, which is the only
+  place the GraphQL spec allows it to carry meaning.
+- **CRITICAL — the second Deno invocation in a process crashed the server
+  (#969).** The V8 platform was never explicitly initialized, so the first
+  guest invocation lazily installed deno_core's PKU-protected default platform
+  on its own short-lived thread. Memory-protection-key rights over V8's JIT
+  pages are inherited only by that thread's descendants, so every later
+  invocation thread faulted on the first JIT page it touched — SIGSEGV, taking
+  the whole process down. Invisible until now: #796 meant scheduled functions
+  never fired twice per process, nextest's process-per-test model never
+  creates a second isolate, and the resulting `cargo test` crash had been
+  misattributed to the Dagger exec sandbox. The runtime now initializes the
+  **unprotected** default platform once, up front (rusty_v8's documented
+  embedding for hosts that cannot guarantee thread ancestry — standard W^X
+  still applies). The full deno suite now passes in one shared process,
+  sequential and parallel, for the first time.
+- **CRITICAL — guest host-ops poisoned shared connection pools (#970).** Host
+  ops (`fraiseql_query`, cursor get/advance, HTTP, storage, email) executed
+  their futures on the invocation's throwaway Tokio runtime. Any connection
+  *created* during an op — a fresh sqlx pool connection, a reqwest keep-alive
+  socket — registered with that runtime's I/O reactor, then outlived it inside
+  the shared pool; the next user awaited a wakeup from a dead reactor and hung
+  until timeout. Observed as every second scheduled source firing failing with
+  "event loop exceeded time limit" and as `pool timed out while waiting for an
+  open connection` on the server's main pool. All host I/O is now pinned to
+  the owner runtime via `RuntimePinnedHost`: `run_guest` captures the
+  dispatching runtime's handle and spawns every op there, so sockets always
+  live on the reactor that owns the pools. A host dispatched outside any Tokio
+  runtime is refused loudly.
+- **Three never-run observer test binaries wired into CI (#390 flight
+  finding).** `entity_change_log_contract`, `changelog_views`, and
+  `capture_trigger` are `#[ignore]`d suites that no CI leg ran with
+  `--ignored` since they were written. All three now run in the observers
+  integration leg. Wiring them surfaced an order-dependence defect:
+  `capture_trigger` inherited whatever `core.tb_entity_change_log` an earlier
+  suite left behind, and on a table with `object_data NOT NULL` (three in-tree
+  fixtures create that shape) the capture trigger's legitimate NULL after-image
+  on DELETE violated the constraint. The suite now owns its slate.
+- **Studio: Schema, Observers, and Logs tabs (#373).** The embedded Studio SPA
+  gained a **Schema** browser (types with per-field type/nullability and the
+  backing view, queries with their relay/list shape, mutations with their
+  backing function — from `/admin/v1/schema`), an **Observers** tab (delivery
+  health, DLQ viewer with per-item retry and retry-all — the dispatch-at-most-
+  once semantics of retry are pinned server-side), and a **Logs** tab
+  (observer dispatch history). Both observer-backed tabs degrade gracefully
+  when the `observers` feature is off. A new test pins every shell tab to a
+  renderer wired to its real admin endpoint via `include_str!` on the SPA
+  source. The raw-SQL editor tab from the original issue is deliberately NOT
+  shipped: it requires a new arbitrary-SQL admin endpoint, which is a gated
+  decision tracked in #962.
+- **Python SDK AI-framework integrations (#388).** `fraiseql.integrations`
+  gained `openai` (OpenAI tool/function definitions + a call dispatcher that
+  refuses hallucinated names before any server round-trip), `mcp` (raw MCP
+  tool descriptors + an in-process `tools/call` dispatcher, no MCP SDK
+  dependency), and `rag` (`as_source` wraps any list query — e.g. over a
+  `v_embedded_documents` view — as a framework-agnostic retrieval source).
+  All adapters, including the existing LangChain/LlamaIndex ones, now share
+  one normalised operation model built from introspection, so tool names,
+  argument types, and generated documents are identical across frameworks —
+  and LangChain tool documents gained true argument types (a `$limit: Int`
+  argument was previously declared blanket `String`). `include`/`exclude`
+  exposure controls are enforced both at advertisement and at the dispatch
+  boundary. Documented in the SDK's `docs/ai-integrations.md`.
+- **Typed Python clients + compile-the-output CI gates (#372).**
+  `fraiseql generate-client python` emits a fully typed, standard-library-only
+  Python (≥ 3.12) client from `schema.compiled.json`: `TypedDict`s for every
+  object/interface/input type, `Literal` enum aliases, PEP 695 union aliases,
+  relay `Connection[T]`, per-operation functions embedding their GraphQL
+  documents, an `is_error_result` runtime guard, and a `urllib`-based
+  `FraiseqlClient` — every file stamped with the canonical schema hash. The
+  document/selection builders moved into a language-independent core shared
+  with the TypeScript generator, pinned by a cross-language test asserting the
+  generated GraphQL documents are byte-identical. And the acceptance direction
+  that had never executed now runs in CI: the `generated-clients` job in
+  `sdk-conformance.yml` compiles the canonical conformance fixture, generates
+  both clients, and type-checks them (`tsc --strict`, `ty check`) plus
+  consumer-usage projects exercising every operation — including the
+  previously `#[ignore]`d-everywhere `client_ts_consumer` gate. Go/Rust
+  generators are tracked in #961.
+- **The schema↔database drift linter can fail, and covers dropped inputs
+  (#384).** `compile --database` findings now carry a severity: a `sql_source`
+  that resolves to no relation or function, a missing/mis-typed JSONB or relay
+  cursor column, a type-inconvertible native-column argument, or a **required**
+  field whose JSONB key is absent from every sampled row fail the compile with
+  a non-zero exit and no artifact written; nullable-field key absences and
+  performance advisories stay warnings. `--allow-drift` (requires `--database`)
+  restores the advisory behaviour, loudly. The mutation→function contract
+  check gained the silently-dropped-input scan (#384 category 2): a declared
+  input field on the single-JSONB payload path whose key the `plpgsql`/`sql`
+  function body never references — while the body demonstrably extracts other
+  keys — is reported (warn-grade; whole-payload consumers such as
+  `jsonb_populate_record` are recognised). `doctor --against-db` now also runs
+  the same L1/L2/L3 view-composition linter and reports each finding as a
+  structured check, so `--json` gives CI and editors a machine-readable drift
+  report. Fixing the L3 pass exposed that it had never sampled a row: the
+  Postgres introspector inherited a trait default that fabricated an empty
+  sample set, so the JSONB-key check silently passed on every schema since it
+  shipped. `get_sample_json_rows` is now a required trait method with a real
+  (schema-qualification-aware) PostgreSQL implementation, and the executed
+  `compile_drift_fail_pg` suite proves every direction — including that the
+  linter fails — against a live database.
+- **pgvector similarity search is real (#386).** The vector type vocabulary
+  (`FieldType::Vector`, `VectorConfig`) existed with no producer and no
+  executable query path; both now exist end to end. Authoring: TOML
+  (`vector = { dimensions = N, index_type = "hnsw", distance_metric = "cosine" }`)
+  and the authoring IR (`vector_config`) carry the config into the compiled
+  schema — required on `Vector` fields, refused on any other type. Query DSL:
+  `docs(nearest: {vector: $q, k: 10, metric: "l2"})` lowers to the
+  index-eligible `ORDER BY "embedding" <op> '[…]'::vector LIMIT k` against a
+  native `vector(N)` view column, with request-time dimension validation, the
+  field's declared metric as default, and full composition with `where`/RLS;
+  the four float-vector WHERE operators (`cosine_distance`, `l2_distance`,
+  `l1_distance`, `inner_product`) become executable threshold predicates
+  (`{vector, threshold}` operand). `--emit-ddl` emits dimensioned `vector(N)`
+  columns (a bare `vector` column cannot be indexed), the declared HNSW/IVFFlat
+  index, and `CREATE EXTENSION IF NOT EXISTS vector`. The test rigs run
+  `pgvector/pgvector:pg16` (local compose and the CI mirror), and the first
+  executed vector suite asserts row identity and order per metric — every prior
+  vector test was a `sql.contains("<=>")` string assertion.
+- **GraphQL over SSE with root-field `@stream` (#387).** Opt-in
+  (`enable_graphql_sse`, default off): a GraphQL request carrying
+  `Accept: text/event-stream` is answered as Server-Sent Events — any operation
+  as one `next` result plus `complete`, and a query whose single root list field
+  carries `@stream(initialCount: N)` incrementally: an initial payload with `N`
+  rows, then `graphql_sse_stream_batch_size`-row batches
+  (`{"incremental":[{"items":…,"path":…}],"hasNext":…}`), each **re-executed
+  through the full pipeline** — depth/complexity gates, authorization, RLS
+  session variables, result cache — by re-issuing the document with paginated
+  variables, so there is no second execution path to drift. The SSE branch lives
+  inside the authenticated `/graphql` route (401 before any stream opens);
+  long-lived deliveries re-check principal expiry before every batch and
+  terminate with an `UNAUTHENTICATED` event; deliveries survive
+  `request_timeout_secs` and are exempt from response compression. Ineligible
+  shapes are refused loudly before any event: non-list or relay queries, nested
+  `@stream`, multi-root operations, mutations, and documents declaring
+  `$limit`/`$offset` variables. Outside SSE, `@stream`/`@defer` are now *known*
+  advisory no-ops (parse, include, no warning — even under strict directive
+  mode), per the incremental-delivery proposal's server-may-ignore semantics.
+  See `docs/operations/graphql-sse-streaming.md`.
+- **Read replica support (#407).** `read_replica_urls` (plus optional
+  `read_replica_pin_after_write_ms`, default 5000) route compiled GraphQL queries —
+  and every other structurally read-only adapter path: field projections,
+  aggregates, relay pagination, `EXPLAIN` — round-robin across PostgreSQL replicas,
+  while mutations and every mixed-use surface (raw SQL, DDL, stats, health, auth
+  stores, observers, CDC) stay on the primary. The partition is static: a surface
+  that *can* write is never replica-routed. Consistency: every mutation arms a
+  shared watermark and reads route to the primary for the pin window afterwards,
+  so replication lag cannot serve a client its own stale write (proven by an
+  integration test whose stand-in replica never receives the write). Safety rails:
+  each replica pool is built from the same configuration as the primary — same
+  TLS, same sizing, and the same per-tenant `search_path` in the startup packet
+  (#809 generalised to every pool) — an unreachable replica refuses boot, a
+  replica that is not actually in recovery is loudly flagged, a runtime replica
+  failure falls back to the primary, an inert pin-without-replicas config and a
+  wire-backend build with replicas configured are both refused. See
+  `docs/operations/read-replicas.md`.
+- **`[[analytics.queries]]` is real (#624).** The `[analytics]` section — inert since
+  its first commit and rejected since #612 — now lowers each entry at compile time
+  into an ordinary compiled query: a list-returning, view-backed `QueryDefinition`
+  whose `sql_source` goes through the standard compile-time SQL-identifier
+  validation and whose SELECT list is the declared `return_type`'s fields, so no
+  client-supplied identifier can reach `FROM` or the SELECT list (the P01
+  constraint, satisfied structurally). `AnalyticsQuery` gains the required
+  `return_type` field. Compile errors: unknown `return_type`, a name colliding with
+  an existing query, a name ending in the executor-reserved `_aggregate`/`_window`
+  suffixes (such a query would be unreachable), `enabled = false` with queries, and
+  `enabled = true` without queries. A `[[caching.rules]]` entry can target an
+  analytics query (analytics lowering runs first). Found and filed alongside: the
+  SDK-side `aggregate_queries` seam section is carried and silently dropped (#956).
+- **`[[caching.rules]]` is real (#623).** The `[caching]` section — rejected as inert
+  since #612 — now lowers each rule at compile time onto the two compiled fields the
+  result cache already consumes: the named query's `cache_ttl_seconds` (the per-view
+  TTL map, opt-in) and each `invalidation_triggers` mutation's `invalidates_views`
+  (mutation-driven eviction). `fraiseql.toml` can therefore author per-query caching
+  and cross-entity invalidation edges without the SDK. Every silently-inert shape is
+  a compile error: an unknown query or trigger mutation, a TTL already authored via
+  the SDK (no last-write-wins between sources), `enabled = false` with rules,
+  `enabled = true` without rules, and any `backend`/`redis_url` (there is no
+  Redis-backed result cache; the `backend` default is now the honest `"memory"`).
+  The server warns at boot when TTLs are declared but `cache_enabled` is off, and
+  the multi-tenant cache refusal now names the real `cache_enabled` key instead of a
+  nonexistent `[cache]` section. `docs/modules/cache.md` corrected: TTL 0 means
+  mutation-invalidated-only (not "never cache"), expiry is moka-managed (no
+  read-time check), and there is no `POST /cache/invalidate` endpoint.
+- **Operation cost budgets are now a full surface (#379).** What already shipped in
+  June (the request-time cost estimator, `[fraiseql.cost_weights]`, the per-tenant
+  per-request `cost_budget`, `[security] persisted_queries_only`) gains the missing
+  half:
+  - `[security.cost_budget] per_request_max` — a schema-wide per-operation cost
+    ceiling enforced **inside the executor**, so it binds on every transport that
+    executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions
+    bridge, direct embedders), not only the HTTP handler.
+  - Declared `[validation]` depth/complexity limits are likewise derived into the
+    executor's GATE-1 at construction (embedder-installed validators still win, and
+    the server merges its runtime `[validation]` override per field), closing the
+    gap where the functions bridge — and any future transport — executed documents
+    no declared bound applied to. GATE-1 is now variables-aware: `first: $n` is
+    scored at its resolved value instead of the fail-closed ceiling (#869).
+  - Per-tenant **rolling per-minute budgets**: `cost_budget_per_minute` on the
+    tenant-quota admin API, with `[security.cost_budget]
+    per_tenant_per_minute_default` seeding tenants that set none.
+  - Distinct error codes: a per-request rejection is `OPERATION_COST_EXCEEDED`
+    (200 + `errors[]`; retrying cannot succeed), an exhausted window is
+    `COST_BUDGET_EXHAUSTED` (429 + `Retry-After`). Both were previously
+    indistinguishable from `RATE_LIMIT_EXCEEDED` with a misleading 1-second retry
+    hint.
+  - Cost observability: every `/graphql` request logs `cost`, `tenant`, and
+    `operation` on the `fraiseql::cost_audit` tracing target and feeds
+    `fraiseql_graphql_queries_cost_total` at `/metrics`, so budgets can be sized
+    from observed traffic before enforcement.
+  - `fraiseql validate-documents --max-cost N [--schema schema.compiled.json]`
+    scores each persisted document (worst-case: unresolvable pagination variables
+    cost the ceiling) and fails validation for documents over the cap.
+  - `[security] persisted_queries_only` is now pinned per HTTP method: ad-hoc
+    documents are refused on POST, GET, and QUERY alike.
+- **`max_query_complexity` is enforced for variable-valued pagination arguments
+  (#869).** `first`/`limit`/`take`/`last` supplied as GraphQL variables — the shape
+  every Relay/Apollo client uses — scored the neutral multiplier 1, so
+  `users(first: $n) { orders(first: $n) { … } }` with `n = 100` scored 4 instead of
+  ~10,000 and sailed past the DoS gate the literal form tripped. Variables are now
+  resolved during validation and cost estimation; an unresolvable variable scores
+  the clamp ceiling (fail closed). The per-tenant cost budget uses the same fix.
+- **`read:*` scope wildcards stop at the delimiter (#784).** `RoleDefinition::has_scope`
+  matched by bare string prefix, so a role granted `read:*` also passed
+  `readwrite:…` checks; `read:User.*`-style grants now also require the `.`/`:`
+  boundary the docs describe.
+- **`FactTableVersionStrategy::TimeBased { ttl_seconds: 0 }` no longer panics
+  (#784).** The version-key bucket divided by the TTL, so a zero TTL — constructible
+  via the public `time_based(0)` API or serde config — crashed the process on the
+  first cached aggregation query. Zero now means Disabled.
+- **Valid subscriptions with `{` in variable defaults or directive arguments are
+  accepted (#786).** The subscription-name scanner took the first `{` after the
+  literal `subscription` as the selection-set brace; it now uses the real GraphQL
+  parser, and multi-root subscription documents are rejected explicitly instead of
+  silently serving only the first field.
+- **graphql-transport-ws conformance around `connection_init` (#786).** Before the
+  ack, an undecodable message closes `4400` and any non-init message closes `4401`
+  (both were silently discarded, leaving clients to the generic init timeout);
+  legacy `connection_terminate` performs a graceful close instead of being ignored
+  with the connection and its subscriptions left alive; malformed subscribe
+  payloads close `4400` instead of `1002`.
+- **The documented `[rate_limiting]` example parses (#874).** `RateLimitConfig`
+  gained the container-level `#[serde(default)]` its own rustdoc example assumed,
+  so a partial block no longer dies on `missing field cleanup_interval_secs` — a
+  key no documentation mentions. A test pins the exact documented block.
+- **`GATE-1` query validation is one function (#736).** `execute_with_scopes` and
+  `execute_dispatch` each carried their own copy of the validator block; they now
+  share one, so the two entry points cannot drift.
+- **Operator runbooks and the config docs now prescribe only knobs that exist
+  (#838).** The runbooks told on-call engineers to export ~24 `FRAISEQL_*` variables
+  (`FRAISEQL_QUERY_CACHE_SIZE`, `FRAISEQL_DB_POOL_MAX`, `FRAISEQL_RATE_LIMIT_WINDOW_SECS`,
+  …) that zero lines of code read — a mitigation that appears applied and does nothing,
+  during a live incident. Every runbook step now names the real knob (config-file key +
+  restart, or a variable the server actually reads), the documented rate-limit
+  precedence matches the implemented one (server `[rate_limiting]` < compiled
+  `[security.rate_limiting]` < CLI/env, guards on the result), ports/endpoints/image
+  references were corrected (`8815` → `8000`, `/admin/…` → `/api/v1/admin/…`,
+  `fraiseql:latest` → pinned `ghcr.io/fraiseql/server`), and illustrative alert-rule
+  blocks are marked as such. The false `FRAISEQL_AUTH_*_MAX_REQUESTS` rustdoc claims in
+  `fraiseql-auth` were corrected to the real configuration path.
+- **The first thirty minutes work: `fraiseql init` produces a project that runs (#823,
+  #822, #569).** The scaffolded views exposed plain columns with no `data` JSONB column,
+  so every query against a fresh project failed with `column "data" does not exist`; the
+  printed next step (`fraiseql compile fraiseql.toml`) could not succeed on the project
+  init had just generated; the CRUD functions returned bare `UUID`/`BOOLEAN` values the
+  mutation executor cannot decode; and the Python authoring skeleton was a `SyntaxError`
+  that imported nothing and never exported. The scaffold now follows the runtime's
+  contracts end to end: Trinity views with snake_case JSONB storage keys, camelCase
+  GraphQL field names, nine declared mutations backed by v2.2 `mutation_response`
+  functions built with the `fraiseql setup` helpers, and printed next steps
+  (`fraiseql setup` → `psql -f …` → `fraiseql compile schema.json` → `fraiseql query`)
+  that are executed verbatim by a new live-PostgreSQL e2e suite
+  (`init_first_run_pg.rs`), including a committed mutation with its change-log outbox
+  row.
+- **`fraiseql doctor` resolves hostnames (#819).** The `DATABASE_URL`/`REDIS_URL`
+  reachability probe parsed `host:port` with `str::parse::<SocketAddr>` — which performs
+  no DNS — and silently dialed the always-refused sentinel `0.0.0.0:0` for every
+  hostname-based URL, reporting healthy databases as "connection refused" and exiting 1.
+  The probe now resolves through the system resolver, tries every resolved address, and
+  reports "host does not resolve" as its own failure mode distinct from "connection
+  refused".
+- **`fraiseql generate-views` emits the source relation instead of a literal `{}`
+  (#821).** Both composition views were unconverted `format!` placeholders — PostgreSQL
+  syntax errors on every invocation, with no off switch. They now read the generated
+  view; `tv_` targets drop with `DROP MATERIALIZED VIEW` (the plain `DROP VIEW` made
+  re-runs fail); the `_recent` helper filters on the column the view actually exposes;
+  and the monitoring function is `STABLE`, not `IMMUTABLE`.
+- **Fact-table introspection picks the dimensions column by role, not position (#825).**
+  With several JSONB columns the last one in ordinal order silently won — guaranteed
+  wrong for the documented calendar layout, whose `*_info` columns follow the real
+  dimensions column, so `validate-facts` hard-errored on correct schemas and
+  `introspect facts` printed calendar metadata for developers to paste. Calendar columns
+  are now excluded, a conventional name (`data`/`dimensions`) wins among several
+  candidates, and a genuinely ambiguous layout is reported instead of silently picked.
+  Non-indexed numeric `*_id` columns now surface as unindexed filters instead of
+  vanishing from the metadata.
+- **Mutation prepare failures on a fresh stack are actionable (#569).** A missing
+  `core.tb_entity_change_log` now says to run `fraiseql setup`; a mutation function that
+  does not return the v2.2 `mutation_response` row (e.g. `RETURNS SETOF v_*`) now gets an
+  error naming the contract and the `fraiseql.mutation_ok`/`mutation_err` builders,
+  instead of the bare `column r.entity_type does not exist`.
+- **The documented onboarding path works and is CI-enforced (#734).** The quickstart used
+  a `fraiseql.config()` API that does not exist, the wrong server flag (`--schema` for
+  `--schema-path`), the wrong port (3000 vs the actual 8000 default), and never created
+  the `data`-column views the runtime reads; `examples/basic` declared `v_users`/`v_posts`
+  while its SQL created `v_user`/`v_post`, its `schema.py` imported from a nonexistent
+  path, and its example queries used Int IDs and a phantom nested field. All rewritten
+  against the real SDK API and verified end to end; the phantom `config()` section is
+  gone from the Python SDK reference; `docs/architecture/overview.md` and
+  `docs/operations/compiled-schema-lifecycle.md` version/flag/port drift corrected. The
+  durable gate is a new `quickstart` integration leg (`tools/quickstart-smoke.sh`) that
+  extracts the quickstart's fenced code blocks and executes them **verbatim** against real
+  PostgreSQL — authoring with the Python SDK, compiling, booting `fraiseql-server`, and
+  asserting the documented query response — plus a scaffold-skeleton regeneration check.
+- **CDC sinks: outbox rows that commit out of sequence order are never lost (#797)**, a
+  transient per-message failure no longer reorders the stream (#815), and a slow broker no
+  longer pins a Postgres transaction (and the vacuum horizon) across up to 256
+  round-trips (#814). Proven by three new drain integration tests against real Postgres
+  (overlapping commits, head-of-line blocking, `pg_stat_activity` transaction probing).
+- **Arrow `build_insert_query` emits valid PostgreSQL for every supported type (#715):**
+  timestamps render as ISO-8601 literals with `::timestamptz` casts (the old two-argument
+  numeric `to_timestamp` does not exist in PostgreSQL, and its `%` arithmetic produced
+  negative operands for pre-epoch values); `NaN`/`Infinity`/`-Infinity` render as
+  quoted-and-cast literals. A new integration suite (`insert_sql_pg`, wired into the
+  Postgres integration leg) **executes** the generated SQL against real PostgreSQL for
+  every Arrow type, including all four timestamp precisions, pre-epoch values, float
+  specials and NULLs.
+- **ClickHouse sink flush timer fires on schedule under a steady stream (#718):** the
+  flush deadline anchors at the first buffered row instead of resetting on every received
+  message (which left latency unbounded until the size threshold tripped).
+- **Elasticsearch sink surfaces an HTTP-client build failure (#718)** instead of silently
+  substituting a default client without the configured request timeout.
+- **`fraiseql-wire` edge findings (#729):** `soft_limit_warn_threshold` now warns (log +
+  `fraiseql_memory_soft_limit_warned_total` metric, once per stream) instead of being
+  dropped; `pause()` on a completed/failed stream no longer corrupts the state snapshot;
+  the memory limit is documented as the items×2KB heuristic it is; SCRAM HMAC failures
+  map to `KeyDerivation` (not `Utf8Error`) and derived key material (salted password,
+  client key) is zeroized.
+- **`fraiseql-wire` metrics entity label can no longer be minted from row data (#877):**
+  the label comes from the caller-known entity (validated as an identifier) instead of a
+  heuristic scan of the rendered SQL that could land inside a user-supplied literal and
+  create unbounded label cardinality. Adaptive-chunking `adaptive_min_size` /
+  `adaptive_max_size` now apply independently instead of requiring both.
+- **Saga crash recovery no longer re-executes committed work (#744).** Forward replay
+  skips steps already `Completed` (their persisted result stands in); a `Compensated`
+  step in a forward drive fails loud. The store's new transition guard makes the
+  double-execution write (`Completed → Executing`) unrepresentable on every code path,
+  including a second concurrent driver.
+- **The recovery loop no longer claims actively-executing sagas (#745).** "Stuck" now
+  means *stale*: a live forward drive heartbeats the saga row on every step transition,
+  and only sagas untouched past `RecoveryConfig::stuck_threshold` are claimable — so a
+  saga mid-flight is never concurrently re-driven by a recovery tick. The same age gate
+  covers pending-saga pickup (a saga in its creator's `create_saga` → `execute_saga`
+  window is not stolen).
+- **Saga mutation dispatch is deduplicable (#747).** Every remote dispatch carries a
+  stable `Idempotency-Key` (the persisted step id) across retries, timeouts and
+  crash-recovery replays, and the FraiseQL server now honours it on the GraphQL mutation
+  path: a repeat with the same body replays the stored response (one logical effect), a
+  repeat with a different body is HTTP 409, queries ignore the header. Documented for
+  non-FraiseQL subgraph authors in the saga guide.
+- **Recovery never replays a remote-subgraph step against the local database (#766).**
+  A step bound for a registered remote peer is persisted as `remote`; forward execution
+  fails it loud when no transport is configured, and a recovery worker without routing
+  **parks the saga for manual recovery** (state untouched, lease pushed to infinity)
+  instead of silently executing another service's mutation locally. With
+  `SagaRecoveryManager::with_routing`, remote steps re-drive over HTTPS correctly.
+- **`compensated: true` is only reported for a rollback that fully happened (#746).**
+  Both coordinator call sites now read the `CompensationResult` they used to discard;
+  partial rollback surfaces the failed step numbers in the result error.
+- **`get_compensation_status` reads recorded state (#767).** Rollback outcomes are
+  persisted per step (`Compensated` transition on success, a recorded
+  `compensation_error` on failure), the magic-key sniffing of forward payloads is gone,
+  `failed_steps` is real, `PartiallyCompensated` is reachable, step numbers are 1-indexed
+  like every other API, and a saga with no compensation evidence reports `None` rather
+  than a fabricated verdict. Mid-flight compensation reports the new
+  `CompensationStatus::InProgress`.
+- **Federation `_entities` database errors surface as errors (#764).** A failed batch is a
+  GraphQL error response, never `data: [null, …]` — a `null` entity now always means
+  "not found", and a router can distinguish a database outage from missing data.
+- **Dotted `@requires` paths build valid `_entities` selections (#765).**
+  `dimensions.weight` now renders `dimensions { weight }` (an object field with a
+  subselection) instead of a bare composite-field leaf that every spec-compliant subgraph
+  rejects — documented dotted-path support works against Apollo-class peers.
+- **The composition validator enforces its documented rules (#728).**
+  `ExternalFieldMultipleOwners` is actually raised; two subgraphs *primarily* defining the
+  same type with different `@key`s conflict; an extension keyed on **any** of the
+  primary's declared keys is accepted (not just the first); and type-level `@shareable`
+  counts in field-sharing consistency.
+- **`fraiseql federation check --against` genuinely compares (#820).** `@key` agreement,
+  field sharing (the `INVALID_FIELD_SHARING` class that shipped as #698) and `@override`
+  roster references are checked and can fail; the success message states exactly what ran
+  and defers final authority to the gateway composer. `composable: true` is never
+  fabricated for a comparison that did not run.
+- **Recovery attempts are genuinely counted and capped (#785).** Each recovery record
+  carries a real incrementing attempt count (previously hardcoded 0 forever), and a saga
+  past `max_recovery_attempts` is parked for manual recovery instead of being retried
+  forever while its recovery rows grow without bound.
+- **A live subscription's authorization now holds for the life of the stream (#771).** The
+  principal was validated once at the WebSocket upgrade and then trusted forever: an
+  expired or revoked JWT kept its RLS-scoped subscriptions and kept receiving row data
+  until the client itself disconnected (the in-code A44 TODO). The connection now
+  re-checks token expiry and — when a revocation store is configured — revocation on a
+  configurable interval (`subscription_auth_recheck_secs`, default 30), consults the
+  revocation store (never the IdP) on that hot path, and additionally refuses every event
+  delivery on an expired token. A failed check closes the socket with **4401
+  Unauthorized**. Pinned over real WebSockets for the expired-at-delivery,
+  idle-expired-stream, and revoked-mid-stream (`revoke-all`) paths.
+- **Subscription event loss is no longer silent (#772).** Two seams dropped events without
+  telling anyone: the observer runtime forwarded CDC events into the `EventBridge` with a
+  non-blocking `try_send` (a full channel dropped the event for **every** subscriber, warn
+  only), and a connection whose broadcast receiver lagged skipped events with a warn and
+  kept streaming. The bridge forward is now a **bounded, awaited send** — a full channel
+  applies backpressure to the durable change-log loop (whose checkpoint only advances
+  after the batch completes) instead of dropping. Broadcast lag now terminates every
+  operation on the affected connection with an explicit **`EVENTS_LAGGED`** error frame —
+  a documented resync signal (re-subscribe, then re-query) — so a client can always
+  distinguish "nothing happened" from "events were dropped".
+- **CDC snapshot rows are no longer delivered as phantom `created` events (#773).** The
+  `EventBridge` defaulted every unknown operation string to `Create`, so Debezium `'r'`
+  (snapshot/read) change-log rows — surfaced as `CUSTOM` — were broadcast to
+  `*Created`-topic subscribers as newly created entities; a snapshot of 10,000 existing
+  rows became 10,000 spurious creation notifications. The bridge event's operation is now
+  the closed `SubscriptionOperation` enum decided at the forward site by an exhaustive
+  match over the (now closed) observer `EventKind`: real changes map 1:1, `Custom` is
+  filtered, and an unrecognised `modification_type` in the change log is **rejected and
+  logged** (the row is skipped, loudly) instead of silently defaulted to a no-op.
+- **Row-visibility policy hot-reloads now reach already-connected subscriptions (#611).**
+  A `subscription_policy` added or tightened by a schema hot-reload only applied to new
+  subscriptions; existing connections kept their subscribe-time boundary until restart — a
+  fail-open window. Every successful executor swap now bumps a reload signal; each live
+  connection re-derives its active operations against the current policies with the same
+  fail-closed derivation used at subscribe time: still-authorized subscriptions are
+  re-scoped **in place** (effective from the next event), and subscriptions the new policy
+  refuses are terminated with a `SUBSCRIPTION_REFUSED` error frame.
 - **The intermediate-schema specification no longer documents keys the compiler rejects.**
   `docs/architecture/intermediate-schema.md` documented `inject` where the compiler reads
   `inject_params`, and `invalidates` where it reads `invalidates_views` — which is exactly what
   the PHP SDK emitted, so the document was upstream of #852. Its "minimal valid example" did
   not compile. The worked examples are now the conformance fixtures verbatim, compiled on
   every CI run, and the root/type/field/operation tables list the members that actually exist.
-
 - **PHP field scopes and descriptions reach the compiled schema.** `TypeConverter` parsed and
   validated `#[GraphQLField(scope: ...)]` onto `TypeInfo` and `SchemaExporter` read
   `FieldDefinition::$scope` to emit `requires_scope`, but `SchemaRegistry::extractFieldDefinition`
   never passed the value between them — the property was always null and the exporter's scope
   branch was unreachable, so the #807 fix could not have taken effect. A field the author gated
   still compiled ungated. Field descriptions were a second, independent drop in the same map.
-
 - **The DDL table namer is the acronym-aware one (#738).** `commands::compile` carried a second
   `to_snake_case` that inserted a separator before every uppercase character, so `HTTPServer`
   became `h_t_t_p_server` in emitted DDL while JSONB key derivation produced `http_server` —
   DDL for a table the runtime never looks in. Both now call
   `fraiseql_core::utils::to_snake_case`.
-
 - **`load_from_paths` rejects duplicate names across files (#738).** The directory loader
   detected a name claimed twice in any authorable section; the explicit-file loader — the
   `--schema-file a.json --schema-file b.json` path, and the one the TOML merger calls — did
   not, so two definitions were concatenated in silence and argument order decided which one
   the compiler used. Both loaders now share one detector.
-
 - **A description containing `*/` can no longer inject code into a generated TypeScript client
   (#738).** `push_doc` interpolated author-supplied text into `/** … */` unescaped, and every
   description in the generated client — type, field, enum, input, union, interface, query,
   mutation — passes through it. A field documented `"… */ export const OWNED = 1; /*"` emitted
   TypeScript that closed the comment and declared what followed.
-
 - **Vacuous CLI tests replaced (#738).** `test_validate_schema_success` and
   `test_validate_schema_unknown_type` built ~100-line `CompiledSchema` literals and then
   asserted only that the literal contained what had just been put into it, with comments
   admitting the validation they were named after was never reached; they now drive
   `SchemaValidator` and assert the report. `test_cost_provides_score` asserted inside
   `if let Some(data)`, so it passed when the command returned no data at all.
-
 - **Shipped SDK examples compile, and are gated (#850, #925).** Three committed
   `ecommerce_schema.json` artifacts were stale generated output that no longer matched their
   generators and could not be compiled; they are deleted. Two Python examples imported
@@ -1932,7 +1819,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   observers and the runtime loads them from `tb_observer` and the admin API.
   `sdks/official/conformance/check_examples.sh` runs every covered example and compiles what
   it emits; coverage is opt-out, with each exclusion carrying a reason and an issue number.
-
 - **`fraiseql init` scaffolds a project that compiles to what it declares (#921).** The
   scaffolded `schema.json` used `return_array` and `args`/`required`, which the compiler does
   not read, so **all five** queries compiled with `returns_list: false` and `arguments: []`.
@@ -1940,7 +1826,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `post(id:)`/`author(id:)` took no arguments at all — there was no way to fetch one by id.
   The documented first-run flow (`fraiseql init && fraiseql compile`) produced a schema in
   which not one query behaved as declared.
-
 - **TOML-declared operation arguments reach the compiled schema (#756).** The merger emitted
   `"args"` with a `"required"` flag; `IntermediateQuery`/`IntermediateMutation` deserialize
   `"arguments"` with `"nullable"`. Both sides carried `#[serde(default)]`, so the mismatch
@@ -1950,7 +1835,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wire keys come from the field definitions and there is no second spelling to keep in sync.
   The same change carries the argument `description` that the compiled `ArgumentDefinition`
   has always had and nothing could reach it with.
-
 - **`fraiseql compile` no longer panics while composing an error message (#724).**
   `suggest_similar_type` sliced `&typo[0..1]` and `&name[0..1]` — *byte* ranges — so an empty
   base type (`"return_type": ""`) or a type name beginning with a multi-byte character aborted
@@ -1963,7 +1847,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the converter's validation tier bailed on the first error with no suggestion while the
   validator collected all of them with suggestions, so identical mistakes got materially
   different diagnostics depending on which tier caught them.
-
 - **`[grpc]` in `fraiseql.toml` reaches `CompiledSchema.grpc_config` (#780).** The type
   documented itself as "compiled from `[grpc]`", but nothing in the CLI parsed such a section
   and `TomlSchema` is `deny_unknown_fields`, so following that documentation failed with
@@ -1971,7 +1854,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mounted gRPC. There was no supported way to enable a shipped, end-to-end-tested transport.
   `enabled = true` without a `descriptor_path` now fails the compile rather than producing a
   server that cannot mount what it was told to serve.
-
 - **A source's declared `cursor` override is the key the runtime advances (#868).**
   `SourceDefinition::cursor_name()` existed, the schema validator enforced uniqueness on it
   ("a shared cursor name would let two sources clobber each other's watermark"), the
@@ -1979,7 +1861,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   passed `source.name` to the cursor store. An operator renaming a source from `orders` to
   `orders_v2` with `cursor = "orders"` to preserve the watermark advanced a brand-new row and
   re-ingested the entire history on the first tick.
-
 - **`fraiseql doctor` no longer renders a skipped security check as a pass (#868).**
   `check_tls` and `check_rls_cache_coherence` returned `DoctorCheck::pass(…, "check skipped")`
   when the config failed to parse as a schema TOML — which is the *normal* case for the
@@ -1988,27 +1869,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   count toward "All checks passed", so a missing TLS certificate that would abort server boot
   was reported green. Both checks now read the config as generic TOML — so they work for both
   config shapes and usually *do* run — and a check that could not run is a warning.
-
 - **`fraiseql functions invoke` no longer panics on a multi-byte host-op query (#868).**
   `summarize` sliced at byte index 80, so an accented identifier or a literal like
   `city: { eq: "Zürich" }` aborted the process *after* the isolate had run, losing the guest's
   result and the host-op log.
-
 - **`--show-output-schema` describes what the commands actually emit (#868).** Every declared
   schema disagreed with its producing struct, `cost` most visibly: it declared `depth`,
   `field_count` and `score` as *required*, and `CostResponse` emits neither `field_count` nor
   `score` — so a consumer validating a successful response against the advertised schema
   rejected every one. A test now serializes a representative response per command and checks
   it against the declared schema in both directions.
-
 - **The validator's scalar table and the converter's agree.** `BUILTIN_SCALAR_NAMES` listed
   six names including `"JSON"`; `parse_field_type` matches twelve including `"Json"` — the
   spelling every SDK emits. So a field typed `Json` was not a known scalar to schema
   validation, and one typed `JSON` compiled to `FieldType::Object("JSON")`, a reference to a
   type that does not exist. Both were masked by the implicit custom-scalar registration
   removed above; a drift test now fails the build if the two tables diverge.
-
-
 - **Every REST mutation returned an empty entity (#919).**
   `Executor::execute_mutation_with_security` — the entry point every REST mutation takes —
   hard-coded its synthetic selection set to `{ status entity_id message }`, the
@@ -2019,7 +1895,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the surface had no production caller, and the REST tests asserted status codes and
   `affected_rows` rather than response content. The selection set is now the return type's
   declared fields, falling back to the envelope names only when the type is unknown.
-
 - **Per-operation `rest` annotations survive compilation (#846).** Every SDK emits
   `"rest": {"path", "method"}` on queries and mutations, and the server's route derivation
   reads `rest_path`/`rest_method` as the path override — but `IntermediateQuery` and
@@ -2030,20 +1905,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   advice that could not work. The annotation is now validated loudly at compile time: an
   unsupported verb, a path without a leading `/`, a path carrying a query string, and an
   unknown key inside the `rest` block each fail the build rather than degrading silently.
-
 - **`Prefer: handling=lenient` is honoured (#873).** It was parsed, merged across repeated
   headers, and advertised in the served document with the example summary "Ignore unknown
   parameters", while having no reader outside `prefer.rs`. Unknown query parameters now
   are ignored when it is set — and only unknown ones: a malformed value or an unknown
   bracket operator on a known field still fails. It is echoed in `Preference-Applied` only
   when actually applied.
-
 - **`ETag` / `If-None-Match` → `304`, and `Location` on `201` (#873).**
   `RestConfig::etag` defaults to `true` and the served document promises a `304` on GET,
   but `RestResponseFormatter` — which implements all of it — had no production caller, so
   no `ETag` was ever emitted and an operator setting `etag = false` observed no change
   because the feature had never been on.
-
 - **A collection `PATCH`/`DELETE` mutates every matched row and reports what it did
   (#913).** `execute_bulk_by_filter` ran the filter query, **discarded the matched rows**,
   called the mutation exactly once with the request body and no row identity, and then
@@ -2053,7 +1925,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the cap in the REST handler where the filter guard and the HTTP status for "too many
   rows" belong. The row identity overwrites any same-named body key, so a bulk request
   cannot redirect a per-row mutation.
-
 - **The bulk "at least one filter" guard checks what reaches SQL (#862).**
   `has_filter_params` answered a syntactic question about the query string while
   `build_filter_query_match` forwarded only `params.where_clause`, so `?filter={}`,
@@ -2065,18 +1936,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   always carries a `LIMIT`. A list query that does not accept a `where` argument is refused
   outright, since its filter would otherwise be dropped and the first `max_affected` rows
   of the whole view mutated under a filter the caller believes applied.
-
 - **`Prefer: max-affected` can lower the configured bulk cap but never raise it (#916).**
   It used `unwrap_or(config.max_bulk_affected)`, so a client-supplied value replaced the
   operator's limit outright.
-
 - **Collection-level bulk routes are registered, not merely advertised (#918).** The
   router recorded the *collection* path in its "already registered" set whenever it
   registered any `PATCH`/`DELETE` for a resource, including item-level ones, so a single
   `PATCH /items/{id}/rename` suppressed the collection route — while the served OpenAPI
   advertised it regardless. Every affected path answered 405 against the server's own
   published contract.
-
 - **Nested embeddings execute to the depth the validator accepted (#864).**
   `execute_embeddings` collected only `SelectEntry::Field` from a spec's sub-select, so
   nested `Embedded` entries were parsed, depth-validated against `max_embedding_depth`
@@ -2084,7 +1952,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   response carried no `comments` key at all, and a client could not distinguish "no
   comments" from "the server dropped my selection". Validator and executor now agree by
   construction.
-
 - **The REST idempotency body hash does not depend on key order (#911).** `hash_body`
   hashed the rendered JSON, and since `serde_json/preserve_order` became an unconditional
   workspace feature `Value` preserves insertion order in every build. Two renderings of the
@@ -2094,7 +1961,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sort_keys=True`) received `409 Conflict` on the retry the key exists to make safe. The
   body is normalized with `fraiseql_core::apq::normalize_json_value` before hashing rather
   than growing a second recursive sorter. Array order remains significant.
-
 - **A re-cached entry stays reachable by every invalidation path (#740).** `put_arc`
   registers a key in the reverse indexes *before* `store.insert`, deliberately, so an
   `invalidate_views` racing the insert cannot miss it. The consequence is that moka fires
@@ -2110,7 +1976,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The listener needs no knowledge of moka's `RemovalCause` taxonomy, which means a moka
   bump cannot reintroduce this by reporting a different cause. `ResponseCache` had the
   identical listener and gets the identical fix.
-
 - **Every successful mutation evicts every cached entry for the views it touched
   (#741, #742, #763).** Post-mutation invalidation tried to be precise, and neither signal
   it used proved the entries it kept were unaffected by the write:
@@ -2135,7 +2000,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schema-derived replacement for the row count and rejected: a query returning a single
   object (`currentUser`, `latestPost`) is still affected by a CREATE, so "not a list" does
   not mean "not affected" and no flag in the compiled schema does.
-
 - **A query's declared `additional_views` reach the cache (#761).** `additional_views` is
   authored, validated by the CLI as safe SQL identifiers, and documented in `key.rs` as
   "required for correct invalidation when a query reads from multiple views" — and its one
@@ -2143,7 +2007,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declaring `additional_views = ["v_user"]` was registered under `v_report` only, so a
   `User` mutation never touched it. Both caches now register an entry under every view its
   query reads.
-
 - **The response-cache key covers the whole operation (#760).** It hashed
   `QueryMatch::fields` — the *top-level* selection names, which for `{ users { id } }` is
   `["users"]`. Nothing below the root reached the hash, so `{ users { id } }` and
@@ -2157,7 +2020,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resolved selection tree — every field's name, alias, arguments and directives,
   recursively — plus the operation name and canonically-hashed variables, so a new
   dimension added in the one place that owns cache keys reaches this cache too.
-
 - **`@skip`/`@include` on a named fragment spread did nothing (#826).** The parser preserves
   a spread's directives, and both production paths then ran `FragmentResolver` *before* the
   directive evaluator — expanding `...HeavyFields @skip(if: $lite)` into its fields and
@@ -2172,7 +2034,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still sees them. The conditions compose rather than replace: `...F @include(if: true)`
   cannot resurrect a field that `@skip(if: true)` inside `F` withheld. The inline-fragment
   lift in the `node` classifier had the same bug in miniature and gets the same treatment.
-
 - **`node(id:)` dropped named fragment spreads, and an empty selection returned the whole
   row (#827).** The Relay `node` branch lifted `nested_fields` out of every child whose name
   starts with `"..."` — right for an inline fragment, wrong for a named spread, whose
@@ -2188,7 +2049,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   separate blob fallbacks are gone, including one inside `generate_typed_projection_sql`
   itself and two `unwrap_or_else(|_| "data")` arms that served every column when projection
   generation failed.
-
 - **A multi-root mutation executed only its first root (#759).** `classify_query_with_parse`
   built the mutation from `parsed.selections.first()`, so `mutation { createUser(…) { id }
   createAuditLog(…) { id } }` ran the first write, silently discarded the second, and
@@ -2196,7 +2056,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   missing key. Every root now executes serially in document order, per the spec. A root that
   fails contributes `null` at its key plus an entry in `errors` and the remaining roots still
   run, so a client that issued three writes learns which of them landed.
-
 - **A multi-root query using a fragment was a hard error, and its directives were ignored.**
   The multi-root fan-out re-serializes each root into its own query string, and that string
   carried neither the document's fragment definitions — `{ users { ...F } posts { id } }`
@@ -2204,13 +2063,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   root or nested, which were simply dropped. The selection set is now resolved before the
   fan-out, and the serializer emits directives rather than silently discarding part of what
   it was given.
-
 - **Root-field aliases were dropped on queries.** `{ a: users { id } }` answered under
   `users`, because the response envelope was keyed by the *compiled query definition's* name
   rather than the document's response key; two aliased selections of one query collapsed into
   a single key. `QueryMatch::response_key()` is now the one answer, used by the regular,
   relay and mutation envelopes alike.
-
 - **GraphQL responses came back with their fields alphabetised.** The spec requires a
   response's fields to appear in the order the query asked for them. Without
   `serde_json/preserve_order` a `serde_json::Map` is a `BTreeMap`, so they were sorted — and
@@ -2220,7 +2077,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crate. Field-level RBAC separately moved masked fields to the end of the object by building
   the projection as `allowed` then `extend(masked)`; masked fields now keep their requested
   position and are nulled in place.
-
 - **The observer idempotency token depended on JSON key order in any build pulling
   `deno_core` (#900).** `derive_idempotency_token` hashed `payload.to_string()` and relied on
   `serde_json::Value` sorting object keys — true only without `preserve_order`. In the
@@ -2228,7 +2084,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ledger found no prior entry, and the observer ran a second time: a duplicate email, a
   duplicate charge, with nothing logged. The payload is now key-sorted explicitly and
   recursively before hashing; array order is left alone, because it is content.
-
 - **The schema content-hash test verified something the product does not do (#899).** Both
   real paths — the CLI writer and the `from_json` verifier — already canonicalized before
   hashing, and were correct. Only `schema_integrity_verification` hashed the
@@ -2236,14 +2091,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the build it ran in, and failing under `--workspace --all-features`. There is now one
   `content_hash_of` used by the writer, the verifier, `CompiledSchema::content_hash` and the
   test, plus properties asserting the digest ignores key order and respects array order.
-
 - **A property test asserted a stale operator vocabulary.** `prop_operator_rejects_unknown`
   excluded known operators from a list maintained inside the test, which went stale when #828
   unified the vocabularies and added `ne`. The generator draws `[a-z]{1,10}`, so it failed
   only when it happened to produce that string — passing CI on the commit that broke it. The
   exclusion is now read from `WHERE_OPERATORS`, and a companion property asserts every
   advertised name parses.
-
 - **Every date, timestamp, UUID and string range filter was a hard SQL error (#798).**
   `gt`/`gte`/`lt`/`lte` cast both sides to `::numeric` regardless of the field's declared
   type, so `events(where: { createdAt: { gte: "2024-01-01" } })` aborted the statement with
@@ -2258,7 +2111,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   literal. The replacement is an operator × declared-type matrix executed against real
   PostgreSQL (`crates/fraiseql-db/tests/where_operator_type_matrix.rs`), asserting the
   returned rows rather than the generated string.
-
 - **`in: [19.9]` returned no rows where `eq: 19.9` matched one (#800).** The `In`/`Nin` arm
   applied none of the casts its sibling operators applied, comparing the raw `text`
   extraction against text parameters — so a stored `NUMERIC(p,s)` value of `19.90` did not
@@ -2267,7 +2119,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returned the row the client had asked to exclude. Both operators now share the single
   cast decision, and the matrix asserts `eq: X` and `in: [X]` select the same rows for
   every type, with `nin: [X]` their exact complement.
-
 - **`= ANY ARRAY[…]` is not valid PostgreSQL (#835).** The wire-adapter generator emitted
   `data->>'status' = ANY ARRAY['active', 'pending']`; the grammar requires the array
   operand to be parenthesised, so every `in`/`nin` filter on a `wire-backend` build was a
@@ -2276,7 +2127,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   comparing it to a numeric or boolean literal (`data->>'qty' = 5` was
   `operator does not exist: text = integer`), and renders an empty list as the constant it
   means instead of an untypeable `ARRAY[]`.
-
 - **REST's `ne` and `is_null` bracket operators always returned 400 (#828).** Two operator
   vocabularies had drifted: `OPERATOR_REGISTRY`, which REST validates against, advertised
   79 names; `WhereOperator::from_str`, which the executor parses with, understood 52. The
@@ -2288,26 +2138,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A null check's operand is also coerced to a boolean rather than to the field's declared
   type, which on a `DateTime` field yielded a string that `as_bool().unwrap_or(true)` read
   as "assume IS NULL" — inverting `is_null=false`.
-
 - **`contains`/`startswith`/`endswith` over-matched on SQLite and SQL Server (#722).**
   `escape_like_literal` neutralises `%`, `_` and `\` with a backslash, which only works if
   the dialect treats `\` as the escape character. PostgreSQL and MySQL do; SQLite and SQL
   Server have no default, so `contains: "100%"` matched any value beginning `100`. Both
   now emit an explicit `ESCAPE '\'`.
-
 - **A validation error was formatted into a string and re-parsed (#720).**
   `validate_input` rendered a structured `ValidationFieldError` into a message and then
   recovered it with `find('(')` / `find(')')`; a field path containing a parenthesis — or
   any change to the message format — silently discarded the violation and let validation
   **pass**. The structured error is now passed through as itself.
-
 - **`Length` counted bytes while every one of its messages said "characters" (#720).**
   Four evaluators of the rule — the standalone validator, the composite evaluator, the
   custom-scalar registry and the runtime input validator — each used `str::len()`, so
   `min: 3` accepted `"é!"` (two characters) and `max: 5` rejected `"éàü"` (three). All four
   now route through one `check_length`, driven by the same multi-byte corpus in a test that
   calls each of them.
-
 - **Every MCP tool call failed under `naming_convention = "camelCase"` (#857).** Tools
   were advertised under `schema.display_name(&q.name)` while `call_tool` looked the
   operation up by the raw compiled name, so a schema authored `list_users` advertised
@@ -2316,13 +2162,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reported it as available. Advertisement and execution now share one identifier by
   construction. A test parameterised over every naming convention lists the tools, calls
   each by its advertised name, and asserts the read reached its view.
-
 - **MCP tools advertise the arguments they actually accept.** The advertised input schema
   was built from `QueryDefinition::arguments`, which excludes the auto-wired
   `where`/`orderBy`/`limit`/`offset` parameters, so a query with `auto_params` enabled
   advertised none of them. Both the advertisement and the executor's argument validation
   now read `graphql_arguments()`.
-
 - **The MCP test binaries run in CI.** `mcp_integration_test` and `mcp_e2e_test` ran in
   `feature-flags.yml`'s `feature-integration-tests` job, which has been dispatch-only
   since the Dagger migration on 2026-05-31; the Dagger `test` leg runs
@@ -2331,7 +2175,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unnoticed. They are now named explicitly in the `test` leg, alongside the new
   `mcp_transport_safety_test`, and the two-tenant `mcp_tenant_dispatch_e2e_pg` suite runs
   in the `integration: server` leg against a real database.
-
 - **Azure Blob rejected ordinary filenames (#876).** The object key was interpolated raw
   into both the blob URL and the `SharedKey` string-to-sign, so the URL parser rewrote one
   of them and not the other: `#` began a fragment and silently truncated the request path,
@@ -2339,26 +2182,307 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   characters failed with a `403 AuthenticationFailed` surfaced as a `500`, pointing at
   credentials rather than at the key. Both are now percent-encoded per path segment, and
   an Azurite round-trip covers `#`, `?`, `%` and spaces.
-
 - **The bucket MIME allow-list ignores `Content-Type` parameters (#876).** `text/plain`
   rejected the browser-standard `text/plain;charset=UTF-8`. Matching is now on the media
   type alone and case-insensitive. The two enforcement points that had drifted — the
   upload handler honoured `image/*` wildcards but misread an empty list, `BucketService`
   read the empty list correctly but ignored wildcards — are now one method on
   `BucketConfig`.
-
 - **`docs/architecture/storage.md` describes the system that exists (#867).** It
   documented three endpoints that 404, a TOML example that fails to deserialize at boot,
   "per-tenant isolation" from an evaluator with no tenant concept, and EXIF stripping that
   no code performs. Rewritten against the router, the config type and the access rules,
   with the GCS/Azure presign and list gaps marked and the transform gap recorded as #901.
-
 - **The storage metadata suite ran against a hand-copied schema**, not the shipped
   migration, so a column added to the DDL could not redden it. It now executes
   `storage_migration_sql()`.
+- **Usage counters survive a failed startup load, and multiple replicas sum (#861).**
+  `PostgresBackend::flush` wrote `SET count = EXCLUDED.count` — an absolute overwrite —
+  while a failed startup load was a `warn!`-and-continue that still armed the periodic
+  flush. A transient database fault in the window between the schema DDL and the
+  restoring `SELECT` therefore destroyed the month's accumulated per-tenant counters at
+  the next tick: a row holding 41 300 became whatever the fresh process had counted since
+  boot, permanently, with no error surfaced and billing reporting off it. The same
+  absolute write made the shipped three-replica manifests last-writer-wins rather than
+  summed, silently discarding most of every interval.
+
+  The flush is now additive — renamed `UsageBackend::flush` → `flush_deltas` so no
+  implementation could keep the old semantics by accident — carrying the increment since
+  the last *confirmed* write, with the per-key watermark advanced only after the backend
+  acknowledges. A failed startup load disarms persistence for the process: the aggregator
+  refuses to flush and the server reverts to the in-memory backend rather than writing to
+  a store it could not read.
+- **Seven server edge cases (#731).** The GET size ceiling returns the `413 Payload Too
+  Large` its published `# Errors` contract documents, instead of 400. A server-side
+  execution timeout maps to `504 Gateway Timeout`; 408 means the *client* took too long to
+  send its request, which tells a caller to retry the wrong thing. REST path parameters
+  are coerced by the argument type the schema declares rather than by what they look
+  like — the string ID `"0123"` used to become the integer `123` and `"true"` a boolean,
+  so the row a client addressed and the row the server updated could differ. The
+  database-URL guard rejects a scheme-less string: `"postgres"` has no `://`, so
+  `split("://").next()` returned the whole string and it was accepted as a valid
+  PostgreSQL URL, surfacing later as exactly the opaque driver error the guard exists to
+  replace. The trusted-documents manifest poller builds its HTTP client once instead of
+  per tick, and enforces its 10 MiB cap while streaming rather than after buffering the
+  whole body. The admin brute-force limiter evicts expired per-IP records, which were only
+  ever removed on a *successful* authentication — an unbounded map any unauthenticated
+  caller could grow. The manifest SSRF item was already closed by the guard unification
+  earlier in this release.
+- **`[admission_control]` enforces admission (#860).** The controller was constructed,
+  inserted into the request extension map — which stores a value and gates nothing — and
+  announced in the boot log as "enabled", while `ServerConfig::admission_control`'s
+  documentation promised that over-limit requests "receive 503 Service Unavailable
+  immediately". Every `try_acquire` caller in the workspace was a test. It is now a real
+  middleware holding a permit for the duration of the request. `try_acquire` also
+  incremented `queue_depth` on the reject path and never decremented it, so once wired it
+  would have ratcheted to permanent rejection after `max_queue_depth` cumulative misses;
+  a non-blocking miss enters no queue and is no longer counted.
+- **`fraiseql run` sub-second `connect_timeout_ms` no longer breaks every connection
+  (#824).** `pool_timeout_secs: connect_timeout_ms / 1000` truncated `1..=999` to `0`,
+  which deadpool applies to its `create` slot as `Duration::ZERO`; a TCP connect plus the
+  PostgreSQL handshake cannot finish on the first poll, so every attempt failed with a
+  pool timeout against a healthy server, naming a timeout the operator never configured.
+- **Six `ServerConfig` leaves had real consumers but no manifest entry (#883)**, leaving
+  `config_coverage_manifest_test` red on `dev` for long enough that four remediation
+  phases recorded it as a pre-existing failure. Registered, so the gate protects new keys
+  again.
+- **The shipped multi-tenant examples now demonstrate isolation they actually have
+  (#628).** `examples/multitenant` and `examples/saas` described a tenant-isolation
+  mechanism and shipped none of it. Both now carry the whole path: JWT claim →
+  `[[session_variables.variables]]` → `set_config` → RLS policy, plus
+  `sql/01_schema.sql` with `FORCE ROW LEVEL SECURITY`, `security_invoker` views, and an
+  unprivileged application role — because PostgreSQL skips every policy for a superuser or
+  `BYPASSRLS` role, which is the most common way a correctly-policied database leaks.
+  `example_multitenant_rls_e2e_pg` applies that SQL to a real database, compiles both
+  examples through the production compile path, and asserts two tenants never cross and an
+  unauthenticated caller sees nothing.
+- **Three shipped examples had never been compiled by CI.** `integration_domain_discovery`
+  looked its examples up on paths relative to the crate directory rather than the
+  repository root, so every case took its `if !path.exists() { return; }` branch and passed
+  without doing anything. All three were in fact failing to compile (`pool_size` is not a
+  `[database]` key), the multitenant and saas domain files declared queries with
+  `return_array` — a key the intermediate schema does not read, so every list query
+  compiled as a single-object query — and none declared a `sql_source`. The lookup is
+  fixed, a missing example is now a failure rather than a skip, and the examples compile.
+  `examples/ecommerce`, removed in `0ef37210c`, is no longer referenced.
+- **`cache_rls_isolation_test` had never run either.** It was gated on
+  `TEST_DATABASE_URL`, which the `integration: postgres` leg does not set, which is how
+  `test_validate_rls_active_fails_without_rls` could ship accepting either outcome ("we
+  assert the return type is correct either way"). It now uses the harness's
+  `DATABASE_URL`, its fixture view is `security_invoker` (it was not, in the file whose
+  subject is tenant isolation), and its isolation assertions connect as an unprivileged
+  role and drive real session variables rather than comparing two different WHERE clauses.
 
 ### Security
 
+- **A project-wide `[inject_defaults]` tenant predicate reaches the operations it configures
+  (#847).** Python, Go, Java, PHP, C#, Elixir and F# each ship a `ConfigLoader` that parses
+  `[inject_defaults]` from `fraiseql.toml` and emits it as a top-level key. No compiler code
+  path had ever read it — `grep -rn inject_defaults crates/` returned nothing — and
+  `IntermediateSchema` accepted unknown keys, so an operator who wrote
+  `[inject_defaults] tenant_id = "jwt:tenant_id"` to stamp every operation with the caller's
+  tenant got `✓ Schema compiled successfully` and **not one compiled operation carrying a
+  tenant predicate**. Seven separate implementations of a feature that had never done
+  anything.
+
+  The merge runs in the converter, *after* `[fraiseql.tenancy]` validation rather than before
+  it: tenancy auto-injects the annotated field when an operation's `inject_params` is empty
+  and **fails the compile** when it is non-empty but lacks that field, so applying defaults
+  first would have made a single unrelated default (`read_scope`, the example in the Python
+  SDK's own docstring) break every tenancy-annotated query. Precedence, most specific first:
+  the operation's own `inject_params`, then tenancy auto-injection, then
+  `[inject_defaults].queries`/`.mutations`, then `.base`.
+- **Custom-scalar validation rules survive the TOML compile workflow (#755).** `merge_values`
+  rebuilt the merged schema from scratch with only `version`/`types`/`queries`/`mutations`, so
+  a `custom_scalars` block — and its `validation_rules` — was discarded on every
+  `--types`, `--schema-dir`, `--type-files`, domain-discovery and includes compile. An `Email`
+  scalar with a pattern rule compiled to nothing and invalid values flowed straight to SQL.
+  Seven other authorable categories were dropped with it: enums, input types, interfaces,
+  unions, subscriptions, observers and ingress sources.
+- **A Python-declared custom scalar reaches the compiled schema at all (#922).** The Python
+  SDK emitted `customScalars` as an object keyed by name with a `validate: true` flag; the
+  compiler reads `custom_scalars` as an array of `IntermediateScalar`. Three independent
+  mismatches — key name, container type, element shape — so no Python custom scalar had
+  **ever** been compiled, on any path, and no scalar validation ever ran. The `validate` flag
+  is not re-emitted: the compiler's `ValidationRule` is declarative
+  (`Pattern`/`Length`/`Range`/`Enum`) and a Python `validate()` method cannot lower into one,
+  so the flag asserted runtime enforcement no compiled artifact could deliver.
+- **A REST read projects the fields it was asked for, and the field-authorization gate
+  fires on that path (#886).** `QueryMatch::from_operation` — the only `QueryMatch`
+  constructor the REST transport uses — built a *flat* list of leaf `FieldSelection`s
+  instead of one root selection carrying `nested_fields`. Every consumer reads the
+  requested field set as `selections.first().nested_fields`, so all of them saw an empty
+  slice: the planner projected nothing (`{"data":[{},{},{}]}` for any request, with or
+  without `?select=`), and `deny_if_gated_field_selected` was handed nothing to inspect on
+  a path whose own comment calls it "leak-proof".
+
+  The two halves masked each other — no gated value leaked only because no value was
+  served at all — so repairing projection alone would have converted "REST returns
+  nothing" into a live field-authorization bypass. They are fixed together, gates first.
+
+  A third defect sat behind them: `RestFieldSpec::All` expanded to an **empty vector**, so
+  "all fields" and "no fields" were the same value. Teaching the projector that empty means
+  "project everything" would have left the gate inert, because the gate reads that same
+  list; `All` now expands to the type's declared fields.
+
+  `execute_query_direct` additionally ran **no** field RBAC at all — `requires_scope` was
+  unenforced across the whole REST read surface. The choice between the authenticated and
+  anonymous classifier is a property of whether a principal exists, not of the transport,
+  so both GraphQL runners and the REST runner now route through one
+  `classify_fields_for_read`.
+- **An embedded collection cannot be widened by a client filter (#863).**
+  `embed_into_single` seeded the sub-query `WHERE` map with the parent join predicate and
+  then merged the client's `?rel.field[op]=value` filter over it with
+  `serde_json::Map::insert`, which *replaces*. A filter naming the join column destroyed
+  the parent scoping, so one parent's record came back advertising another parent's
+  children as its own. The conventional `referenced_key` for `ManyToOne`/`OneToOne` is
+  `id`, so `?author.id[gt]=0` was enough. The two predicates are now composed with `_and`,
+  which makes the collision structurally impossible rather than defended against.
+- **An `Idempotency-Key` is valid only within its tenant, method and resource (#915).**
+  The client-supplied header value was used verbatim as the store key, so it collided
+  across everything sharing a process: the same key and body on `POST /users` and
+  `POST /orders` replayed each other's stored response, and two tenants retrying an
+  identical request under a natural key such as `order-42` received each other's results.
+  The store API now takes a `ScopedIdempotencyKey` whose only constructor is
+  `IdempotencyScope::key`, so keying on an unscoped string is a compile error rather than
+  an omission a reviewer has to notice.
+- **The Arrow Flight result cache is scoped to the requesting principal (#716).** It was
+  keyed on the SQL text alone, while the same file's documentation told operators to scope
+  rows "by the underlying `va_*` view itself (e.g. a view that filters on a session/tenant
+  setting)". The two are incompatible by construction — with a session-scoped view, one
+  tenant's rows are cached under the SQL string and the next tenant issuing the identical
+  SQL is served them.
+
+  The documented mitigation was never implementable on this path in the first place:
+  `ArrowDatabaseAdapter::execute_raw_query` takes a SQL string and nothing else, so a view
+  filtering on `current_setting('app.tenant_id')` has nothing to read. Entries are now
+  addressed by `(principal, SQL)`, using the same `hash_security_context` the executor's
+  response cache uses, so one principal never observes another's read; and the doc says
+  what the path actually does — no RLS, no session scoping, only expose a `va_*` view over
+  Flight whose full contents every Flight-authenticated principal may read.
+
+  The isolation is asserted end-to-end through `do_get`, on the principal the live path
+  derives from the session token.
+- **A `where:` argument that cannot be serialized is refused, not dropped (#719).** The
+  GraphQL parser stored inline argument values as JSON built with
+  `format!("\"{}\"", s.replace('"', "\\\""))` — escaping the double quote and nothing
+  else. A string literal containing a backslash (a Windows path), a newline or a control
+  character therefore produced **invalid JSON**, and the reader discarded it with
+  `.ok()?`. Dropping a filter does not narrow a result set; it widens it, so a
+  serialization bug on a `where:` argument returned rows the filter existed to exclude.
+  Serialization now goes through `serde_json`, and a stored value that cannot be read
+  fails the query.
+
+  The same seam carried variable references **in band** as the string `"$name"`, so a
+  literal `"$100"` was indistinguishable from a reference to a variable called `100` and
+  resolved to `null`. A variable is now the tagged object `{"$var": "name"}`; GraphQL
+  names match `[_A-Za-z][_0-9A-Za-z]*`, so a client cannot forge that key. `make
+  lint-value-json` (Dagger `shell-gates`, CI `value-json-seam-check`) refuses a new
+  hand-rolled escaper, a new `$`-prefix check, and a new direct parse of `value_json`.
+
+  Two further consumers of the seam are fixed with it: the field authorizer built its
+  policy input by substituting the *raw text* for any argument it failed to parse, so a
+  policy that matches on an argument decided on something other than what the client
+  sent; and the query classifier unquoted `value_json` by hand, mangling any type name
+  containing an escape.
+- **The MCP tool allowlist is enforced where the call executes (#808).** `[mcp]
+  `include`/`exclude`/`read_only` filtered the *advertised* tool list and nothing else:
+  `executor::call_tool` never consulted the config, so naming a withheld operation
+  directly in `tools/call` ran it in full. An `exclude`d admin query, or any mutation
+  under `read_only = true`, was one guessed name away from an AI agent. Advertisement and
+  execution now resolve against **one** list of exposed operations, so a tool that is not
+  advertised is not reachable. A withheld name and a nonexistent name get the identical
+  `Unknown tool` answer — an error that distinguished them would be an existence oracle
+  for exactly the operations the allowlist hides.
+- **MCP tool arguments no longer reach the GraphQL document as text (#808).**
+  `build_graphql_query` validated top-level argument names "to prevent injection via
+  malformed argument names" and then rendered the *value* with `graphql_value`, whose
+  object arm interpolated nested keys raw. A caller could close the argument list and
+  append root fields of their own — reaching operations the allowlist withheld, with field
+  selections the tool's projection would never emit, in unbounded number, all of which the
+  runtime's multi-root fan-out then executed in parallel. Values now travel as GraphQL
+  variables (`query ($filter: JSON) { users(filter: $filter) { … } }`), so the only
+  caller-controlled input that reaches the document is an argument *name*, which must
+  match one the resolved operation declares. `graphql_value` and its escaper are deleted
+  rather than hardened: the primitive is gone. A bounded corpus of injection payloads —
+  flat, nested, inside arrays, escape-laden, non-identifier keys — asserts the built
+  document always parses to exactly one root field.
+- **MCP tool calls go through per-tenant dispatch and the suspended-tenant gate (#858).**
+  `FraiseQLMcpService` captured the default executor at session construction and called it
+  directly, never resolving a tenant key or consulting `TenantExecutorRegistry`. An
+  authenticated caller read the boot database rather than their own tenant's — silently,
+  because the control-plane database has the same relations — and a tenant suspended via
+  `POST /api/v1/admin/tenants/{key}/suspend` kept reading over MCP while `/graphql`
+  correctly answered 503. The service now holds the server's `AppState` and dispatches
+  through the same seam the `/graphql` handler uses, so an unregistered key is refused
+  instead of falling back to the default executor, a suspended tenant is refused, and the
+  tenant's concurrency and per-second quotas apply. That seam is now one function
+  (`routes::graphql::tenant_dispatch`) rather than a block written out in one handler, so
+  a control added to it is a control on both transports.
+
+  A validated token also becomes a `SecurityContext` through the same builder on both
+  transports: MCP called `SecurityContext::from_user` directly, which leaves `tenant_id`
+  unset and `attributes` empty, so an MCP caller's `org_id` never became a tenant and
+  every `SessionVariableSource::Jwt` mapping resolved to nothing.
+- **MCP execution errors are sanitized (#875).** `mcp/executor.rs` returned
+  `e.to_string()`, so with `error_sanitization` enabled a `FraiseQLError::Database` handed
+  an AI agent the driver message and SQLSTATE verbatim — internal schema and view names
+  included — while every other transport returned a sanitized message. The configured
+  `ErrorSanitizer` now reaches the MCP path with the rest of `AppState`.
+- **Two keys can no longer name one stored object (#813).** `validate_key` rejected only
+  `..` and a leading separator, so `docs/./secret.txt`, `docs//secret.txt` and
+  `docs/secret.txt` were three distinct metadata rows over one file on the local backend.
+  Ownership is enforced against the metadata string and the filesystem collapses the
+  spelling, so an attacker's write to an alias found no existing row, took
+  `can_write_object`'s *create* branch — which any authenticated user passes — and
+  destroyed another user's object while that user's row still named them as owner and
+  reported the old size and etag.
+
+  Keys are now **rejected rather than canonicalised**: normalising `a/./b` to `a/b` would
+  merge two keys the client believes are distinct, which is the same collision arriving
+  through the front door. A key must be a non-empty `/`-separated relative path whose
+  every segment is non-empty, is not `.` or `..`, and has no surrounding whitespace or
+  trailing `.`; backslashes, control bytes and percent-escapes that decode to path syntax
+  are refused. The rule is one function, enforced at the route boundary on the raw key —
+  previously it ran only deep inside the backends, on the already-composed
+  `"{bucket}/{key}"`, so `GET`/`DELETE` answered from their metadata probe and `presign`
+  never consulted it at all. A bounded-exhaustive test asserts the property the bug
+  violated: **key → path is injective**.
+
+  The local backend additionally resolves each path before any I/O and refuses one that
+  leaves the storage root or whose final component is a symlink. Key validation is
+  lexical and cannot see a symlink planted inside the root; both a symlinked directory
+  and a symlinked leaf previously redirected reads and writes outside it.
+- **A presigned upload now owns the object it creates (#866).** `presign_handler` signed an
+  S3 `PUT` URL and recorded nothing. The bytes went straight to the object store, so the
+  object had no owner and no metadata: it was permanently `404` through
+  `GET /storage/v1/object/...`, invisible to `list`, and — because `can_write_object`
+  reads a missing row as *create* — any authenticated user could overwrite it or claim it.
+  The H9/B4 overwrite-IDOR guard was void for precisely the door its own doc comment
+  names, and every existing regression test for that guard began with a server-side
+  `PUT`, the one path that did create metadata.
+
+  Signing now claims the object first, recording the caller as owner and marking the row
+  `pending`; a lost race refuses with `409` rather than signing against a stale
+  authorization decision, and a signing failure releases a claim it created. The first
+  successful read settles the row against the object that actually landed. `list` reports
+  the `pending` flag rather than hiding the claim.
+- **A `DELETE` releases an ownership claim whose upload never happened.** Reservations
+  record ownership before the bytes exist, so `DELETE` has a case the upload path never
+  produced: a metadata row with nothing behind it. The backend's `NotFound` is tolerated
+  there — the caller is already authorised and the outcome it asks for is "gone" — so an
+  abandoned claim cannot squat a key against its own owner. Every other backend error
+  still refuses, so a genuine failure cannot orphan the bytes by dropping their metadata.
+- **Object bytes with no metadata row are not served.** An orphan — a rolled-back
+  reservation, a manual copy into the bucket, a leftover from a deleted row — has no
+  ownership record, so there is nothing for the access rules to evaluate. It is refused,
+  not treated as public.
+- **The storage read paths are no longer an existence oracle (#876).** `get_handler`
+  answered `404` for a missing object and `403` for one the caller may not read, so an
+  unauthenticated attacker could enumerate a private bucket's keys — often themselves
+  sensitive — with no credentials. `presign(download)` had the same split while its own
+  inline comment claimed the opposite. Both now answer identically in the two cases, as
+  `put_handler` already did.
 - **Every way of constructing the runtime now produces the same configured runtime
   (#750, #754, #783).** `Server::new`, `with_relay_pagination`, `with_flight_service` and
   the hot-reload rebuild were four construction paths, and each one that was not
@@ -2386,7 +2510,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path from one fully-populated compiled schema and asserts the same properties on each —
   including that the fail-closed `on_connect` hook actually *rejects*, rather than that
   the lifecycle has the right type name.
-
 - **A schema hot-reload no longer silently reverts the runtime's security settings
   (#750, #782).** Both reload entry points — `SIGUSR1` and
   `POST /api/v1/admin/reload-schema` — rebuilt the executor with
@@ -2403,21 +2526,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the same constructor that booted the server, and runs both boot gates. Where it
   *cannot* apply a change it refuses and says which section needs a restart, rather than
   reporting success and serving the previous configuration.
-
 - **A configured-but-unavailable Redis token-revocation store refuses to boot in
   production.** Both routes to the fallback — the `redis-rate-limiting` feature not
   compiled in, and the Redis connection failing — logged a warning and downgraded to a
   per-process in-memory store. That is not a degraded revocation service but an absent
   one: a token revoked on one replica stays valid on every other replica for its full
   lifetime while the admin API reports success. Development still boots on the fallback.
-
 - **Client-supplied data no longer reaches the log on a GET parse failure (#730).** A
   malformed `variables` query parameter was logged in full at `warn!` — up to
   `max_get_query_bytes` (100 KiB by default) of client-controlled text, which is where a
   bearer token or PII ends up, in every log sink the deployment ships to. The parse error
   and the byte length are logged instead.
-
-
 - **Database TLS is now a property of the connection rather than a log line
   (#801, #824).** `build_pool` called `create_pool(.., NoTls)` unconditionally. Both
   configuration surfaces that claimed to control database TLS — the server's
@@ -2444,7 +2563,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The false "applied" log line is gone; the pool reports its own mode from the site that
   builds it, and `require` (which encrypts without authenticating the peer) warns at boot
   and names `verify-full`.
-
 - **The `#618` proxy-trust boot guard can no longer be reached around (#837, #778).**
   It ran only inside the compiled-schema branch, so the same configuration expressed as
   `[rate_limiting]` in `fraiseql.toml` reached `RateLimiter::new` with no gate:
@@ -2462,7 +2580,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the string list, so `["10.0.0.0/8typo"]` passed the non-empty check and produced an
   empty trust list — the trust-everyone posture the guard exists to refuse. An
   unparseable entry is now a boot error naming it.
-
 - **`[fraiseql.security]` sub-sections reached their consumers (#893).**
   `SecurityConfig::to_json` emitted `auditLogging` / `errorSanitization` /
   `rateLimiting` / `stateEncryption` while the server read snake_case and the other
@@ -2475,7 +2592,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RateLimitingSecurityConfig` gained a real `Default`: it derived one, so a producer
   omitting `requests_per_second` yielded a limiter with a budget of zero that denies
   every request. A limiter enabled with a zero budget is now refused at boot.
-
 - **`fraiseql analyze` no longer fabricates a security attestation (#818).** It read the
   schema, discarded it, and emitted a fixed list stating that rate limiting was
   "configured and active" and audit logging "enabled for compliance", with
@@ -2484,113 +2600,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   computed from the schema, in the `{category, severity, message, suggestion}` shape the
   published `--show-output-schema analyze` contract already described but the command
   never emitted.
-
-### Fixed
-
-- **Usage counters survive a failed startup load, and multiple replicas sum (#861).**
-  `PostgresBackend::flush` wrote `SET count = EXCLUDED.count` — an absolute overwrite —
-  while a failed startup load was a `warn!`-and-continue that still armed the periodic
-  flush. A transient database fault in the window between the schema DDL and the
-  restoring `SELECT` therefore destroyed the month's accumulated per-tenant counters at
-  the next tick: a row holding 41 300 became whatever the fresh process had counted since
-  boot, permanently, with no error surfaced and billing reporting off it. The same
-  absolute write made the shipped three-replica manifests last-writer-wins rather than
-  summed, silently discarding most of every interval.
-
-  The flush is now additive — renamed `UsageBackend::flush` → `flush_deltas` so no
-  implementation could keep the old semantics by accident — carrying the increment since
-  the last *confirmed* write, with the per-key watermark advanced only after the backend
-  acknowledges. A failed startup load disarms persistence for the process: the aggregator
-  refuses to flush and the server reverts to the in-memory backend rather than writing to
-  a store it could not read.
-
-- **Seven server edge cases (#731).** The GET size ceiling returns the `413 Payload Too
-  Large` its published `# Errors` contract documents, instead of 400. A server-side
-  execution timeout maps to `504 Gateway Timeout`; 408 means the *client* took too long to
-  send its request, which tells a caller to retry the wrong thing. REST path parameters
-  are coerced by the argument type the schema declares rather than by what they look
-  like — the string ID `"0123"` used to become the integer `123` and `"true"` a boolean,
-  so the row a client addressed and the row the server updated could differ. The
-  database-URL guard rejects a scheme-less string: `"postgres"` has no `://`, so
-  `split("://").next()` returned the whole string and it was accepted as a valid
-  PostgreSQL URL, surfacing later as exactly the opaque driver error the guard exists to
-  replace. The trusted-documents manifest poller builds its HTTP client once instead of
-  per tick, and enforces its 10 MiB cap while streaming rather than after buffering the
-  whole body. The admin brute-force limiter evicts expired per-IP records, which were only
-  ever removed on a *successful* authentication — an unbounded map any unauthenticated
-  caller could grow. The manifest SSRF item was already closed by the guard unification
-  earlier in this release.
-
-
-- **`[admission_control]` enforces admission (#860).** The controller was constructed,
-  inserted into the request extension map — which stores a value and gates nothing — and
-  announced in the boot log as "enabled", while `ServerConfig::admission_control`'s
-  documentation promised that over-limit requests "receive 503 Service Unavailable
-  immediately". Every `try_acquire` caller in the workspace was a test. It is now a real
-  middleware holding a permit for the duration of the request. `try_acquire` also
-  incremented `queue_depth` on the reject path and never decremented it, so once wired it
-  would have ratcheted to permanent rejection after `max_queue_depth` cumulative misses;
-  a non-blocking miss enters no queue and is no longer counted.
-
-- **`fraiseql run` sub-second `connect_timeout_ms` no longer breaks every connection
-  (#824).** `pool_timeout_secs: connect_timeout_ms / 1000` truncated `1..=999` to `0`,
-  which deadpool applies to its `create` slot as `Duration::ZERO`; a TCP connect plus the
-  PostgreSQL handshake cannot finish on the first poll, so every attempt failed with a
-  pool timeout against a healthy server, naming a timeout the operator never configured.
-
-- **Six `ServerConfig` leaves had real consumers but no manifest entry (#883)**, leaving
-  `config_coverage_manifest_test` red on `dev` for long enough that four remediation
-  phases recorded it as a pre-existing failure. Registered, so the gate protects new keys
-  again.
-
-### Breaking
-
-- `ErrorCode::Timeout` now maps to **504 Gateway Timeout** (was 408 Request Timeout), and
-  the GET size ceilings return the new `ErrorCode::PayloadTooLarge` → **413** (was 400 via
-  `RequestError`). Clients branching on those statuses need updating.
-- `UsageBackend::flush` is renamed **`flush_deltas`** and its contract inverted: the map
-  now carries increments to be **added**, not absolute totals to be written. Any external
-  implementation must be updated — the rename is deliberate so it cannot compile
-  unchanged. `UsageAggregator::flush_to_backend` also now *errors* when the backend's
-  startup load failed.
-- A schema hot-reload **refuses** a schema whose boot-frozen configuration differs from
-  the running one — `[security]`, `[validation]`, `[subscriptions]`, `[mcp]`, `[rest]`,
-  `[grpc]`, federation, observers, sources, `[fraiseql.naming]`, `[debug]`, fact tables
-  and per-query `cache_ttl_seconds`. These are read once by subsystems that are immutable
-  afterwards, so the previous behaviour was to report success and keep serving the old
-  configuration. Reloads that change only types, queries, mutations or session variables
-  are unaffected; the rest now need a restart, and the refusal says which section.
-- `AppState::with_reload_config` takes a third argument, the executor rebuilder recorded
-  by the booting constructor. An `AppState` assembled directly (without a `Server`)
-  refuses to reload rather than guessing how to rebuild.
-
-
-- `[database_tls]`: `redis_ssl`, `clickhouse_https` and `elasticsearch_https` are
-  **removed**. They only ever rewrote a URL scheme, in a helper with no production
-  caller. A config still setting one is refused with a message naming the replacement
-  (put `rediss://` / `https://` in the URL, which is what the client library reads) —
-  refused rather than dropped, because an unknown key in that struct is discarded
-  silently.
-- `postgres_ssl_mode` / `[database] ssl_mode`: libpq's `allow` and `verify-ca` are
-  **refused** rather than approximated. `allow` has no expression in the driver, and
-  `verify-ca` would need a bespoke verifier whose only purpose is to check less than the
-  default. Each error names the mode to use instead.
-- `postgres_ssl_mode` and `[database] ssl_mode` are now **unset by default** rather than
-  `"prefer"`. Unset means "whatever `?sslmode=` in the connection URL says"; a concrete
-  default would override an operator's explicit `?sslmode=require` with a value they
-  never wrote.
-- `[security.constant_time]` is **refused**. Constant-time comparison is applied
-  unconditionally, so the toggles switched nothing — and one key inside was misspelled
-  `applytoCsrfTokens`, which nothing noticed because nothing read it.
-- `[security.rate_limiting] failed_login_max_attempts` / `failed_login_lockout_secs`
-  defaults change from 5 / 3600 to 10 / 900, matching the runtime's. The old values read
-  as deliberately tuned, and now that this section actually reaches the runtime, a tuned
-  value refuses to boot in production (#356).
-- `fraiseql analyze` output shape changed from `categories` (a map of constant strings)
-  to `recommendations` — the shape its published machine contract already documented.
-
-### Security
-
 - **The authorization and administration surfaces now do what they report doing
   (#748, #749, #768, #769, #757, #677).** An operator could revoke a session, set a
   secret, invite a user, read an audit trail and grant a field-level role — and none of
@@ -2648,52 +2657,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     carry `"admin"`, and `orderSummary` — which also returns `Order` — carries none. A
     type's role is now lowered onto the operations returning it when the compiled schema
     loads, so the existing gates enforce it with no sixth check to keep in step.
-
-### Breaking
-
-- **RBAC list endpoints return a page envelope, not a bare array** (#769).
-  `GET /api/roles`, `/api/permissions` and `/api/user-roles` now answer
-  `{"items": [...], "total": N, "limit": N, "offset": N, "has_more": bool}` and accept
-  `limit` (default 100, max 1000), `offset` and — where the resource is tenant-scoped —
-  `tenant_id`. Unknown query parameters are refused rather than ignored, so a mistyped
-  `tenant_id` cannot silently widen a read. `GET /api/user-roles` now **requires**
-  `user_id`; omitting it used to answer `200 []`, indistinguishable from "this user holds
-  no roles". The RBAC API could never have been used before this release — its tables
-  could not be created (#748) — so there are no existing consumers.
-
-- **`POST /api/roles` and `POST /api/user-roles` refuse unknown body fields** (#769), and
-  accept an explicit `tenant_id`. A misspelled `tenantId` used to be silently dropped,
-  creating a *global* role while the caller believed it was tenant-scoped.
-
-- **Studio admin endpoints that perform no operation answer `501`** (#749) instead of
-  `{"success": true}` or an empty collection: `/admin/v1/users`, `/admin/v1/users/invite`,
-  `/admin/v1/data/{entity}/query`, `/admin/v1/data/{entity}/mutate`,
-  `/admin/v1/storage/buckets`, `/admin/v1/storage/objects`, `/admin/v1/functions`,
-  `/admin/v1/functions/{name}/logs` and the function-secret routes. The response carries
-  `{"error": "not_implemented", "feature": "...", "message": "..."}`.
-
-- **`GET /admin/v1/health/detailed` and `/admin/v1/metrics/summary` report `null` for
-  figures they cannot measure** (#749), where they previously reported `0`. A zero pool
-  size reads as an exhausted pool and a zero hit rate as a cache that never hits.
-  `uptime_secs` was `SystemTime::now() - UNIX_EPOCH` — the current Unix timestamp — so a
-  four-second-old server claimed ~1.8 billion seconds of uptime; it is now time since
-  boot. `errors.rate_5m`/`rate_1h`/`rate_24h` were three copies of the lifetime ratio
-  under three window names; the lifetime value moved to `errors.lifetime` and the windows
-  report `null` until windowed counters exist.
-
-- **`[fraiseql.security]` compiles `role_definitions`, `default_role` and
-  `tenant_claim` under those names** (#757), replacing `roleDefinitions`, `defaultRole`
-  and `tenantClaim`. Recompile; no runtime consumer ever read the old spellings.
-
-- **A schema whose type-level `requires_role` cannot be enforced is refused at load**
-  (#677). Two shapes: an operation whose own role disagrees with its return type's (both
-  are required, and a compiled operation carries only one role), and a gated type
-  reachable as a field of a type that is not gated the same way (operations returning the
-  container carry no role, so the gated type travels out ungated). Subscriptions carry no
-  role gate at all, so a subscription returning a gated type is refused.
-
-### Security
-
 - **Tenant isolation is now an enforced property, not a documented intention (#809, #859,
   #758, #762).** Four mechanisms were supposed to keep tenants apart. Three did not run
   and the fourth passed vacuously.
@@ -2747,7 +2710,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the drift was invisible only because the flag it read could never be true. It is now
     `tenant_isolation_declaration_check`, called by each constructor, and a multi-tenant
     schema that declares RLS has the declaration verified against the live catalog at boot.
-
 - **Closed the unauthenticated REST read surface (#812, #739, #810).** The REST transport
   served every row of every tenant to any caller, by three independent routes, none of
   which the existing REST suite could see.
@@ -2779,7 +2741,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Three operation builders (the `openapi.json` meta entry, the SSE endpoint, and the two
     bulk operations) hand-built their JSON and never consulted the security helper; all four
     now route through one `apply_security`.
-
 - **The compiler no longer discards author-declared security controls (#806, #807).** Two
   authorization controls were lost at the SDK → compiler seam, both by key drift, both
   under `✓ Schema compiled successfully`.
@@ -2804,247 +2765,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the raw JSON at **both** deserialization sites — the JSON workflow and the TOML /
   multi-file merger — because guarding only one would have left every `--schema-dir` user
   with the original silent drop.
-
-### Breaking
-
-- **`[security.rls]` is the RLS declaration; `security.policies` no longer implies it.**
-  `has_rls_configured()` counted `security.additional["policies"]` — *authorization*
-  policies, a section #612 made a hard compile error — so it answered `false` for every
-  producible schema. Declare `[security.rls] enabled = true` (or
-  `[fraiseql.security.rls]`) to state that database RLS isolates the deployment. With
-  `multi_tenant` also set, the server verifies the claim against the live catalog at boot
-  and refuses to start when it is not true.
-
-- **`[security] multi_tenant` and `[session_variables]` are declarable in TOML.**
-  `multi_tenant` was rejected as an unknown field by both TOML security structs.
-  `[session_variables]` had no TOML producer at all, though the compiled field documented
-  itself as "compiled from the `[session_variables]` TOML section" — the only way to
-  declare the mechanism RLS policies read was to hand-author `schema.json`.
-
-- **A session-variable mapping is one flat table.** `SessionVariableMapping` now flattens
-  its source, so a mapping is `{name, source, claim}` in JSON and
-
-  ```toml
-  [[session_variables.variables]]
-  name = "app.tenant_id"
-  source = "jwt"
-  claim = "tenant_id"
-  ```
-
-  in TOML — against the same type the runtime consumes, with no CLI-side mirror struct to
-  drift. No SDK emitted `session_variables`, so nothing in the wild produced the old
-  nested shape.
-
-- **`CachedDatabaseAdapter::validate_rls_active` and `enforce_rls` take the compiled
-  schema.** They need the relation list to check anything; the previous signatures could
-  only read a GUC (#762).
-
-- **`PoolPrewarmConfig` carries a `search_path`.** Every pool construction site must now
-  state whether its connections are schema-isolated. `PostgresAdapter::new` and
-  `with_pool_size` are unchanged.
-
-- **`DELETE /api/v1/admin/tenants/{key}` reports what it did.** `status` is now
-  `removed_schema_retained` or `removed_and_purged` rather than `removed`, with
-  `schema_retained` / `schema_dropped` naming the schema (#859).
-
-- **`max_storage_bytes` is renamed `max_storage_bytes_advisory`** (#633). Nothing meters
-  per-tenant storage, so nothing was ever rejected on the basis of this value; a field
-  called `max_storage_bytes` reads as a boundary that does not exist. The registration
-  body is now `deny_unknown_fields`, so the old key is a 400 rather than a silently
-  ignored setting. `TenantExecutorRegistry::is_quota_exceeded` / `set_quota_exceeded` are
-  removed — a public quota API with no producer on either side reads as an enforced limit
-  to anyone who greps for one. Metering remains tracked at #633.
-
-- **`examples/saas` declares queries only.** Its eight mutations named no input type and
-  no backing SQL function; the compiler accepted them and none could ever execute. See
-  `examples/mutation-patterns` for the mutation story.
-
-- **The intermediate-schema injection key is `inject_params`, not `inject`** (#806). The
-  value may be either `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. A schema
-  using `inject` is now **refused** with a message naming the replacement, rather than
-  compiling to a query with no injected filter. The Python decorator's `inject=` argument
-  is unchanged; only the emitted JSON key moved.
-
-- **Field scopes must be declared as `requires_scope`** (#807). `scope`, `scopes`,
-  `requiresScope`, `requiresScopes` and `requires_scopes` are refused with a message naming
-  the replacement. The Go, C#, F#, Rust, PHP and Java SDKs now emit the canonical key.
-
-- **Multiple required scopes on one field are unsupported and now say so.** The compiled
-  schema and the runtime field filter represent exactly one `requires_scope`; a multi-scope
-  declaration compiled to a field with *no* scope. The SDKs refuse it at authoring time. A
-  singleton list is normalised to a single scope.
-
-- **`require_auth = true` now applies to every REST route, including
-  `{base}/openapi.json`** (#810). A surface closed to anonymous callers no longer hands
-  those callers a full description of its resources, fields and filters.
-
-- **`rest_query_router` and `rest_router` take an `auth_layer_attached` argument** (#810),
-  and `generate_openapi` takes it too, so the served document reflects the deployment's
-  actual authentication rather than a static template.
-
-- **Unified every outbound-address guard and every production check onto one
-  implementation (#802, #836, #816, #725, #882).** The workspace carried **eight**
-  hand-rolled SSRF address predicates and **two** production detectors. Each was
-  individually reasonable; collectively they disagreed, and the gaps between them were
-  exploitable.
-
-  - **#802 — `IPv4`-mapped `IPv6` bypassed the serverless-function HTTP guard.** Its
-    `IPv6` arm tested `is_loopback`/`is_unique_local`/`is_unicast_link_local`, none of
-    which fire for `::ffff:169.254.169.254`, so a guest function could reach cloud
-    instance metadata over a dual-stack socket — via a bracketed literal, or via an
-    allowlisted hostname with an attacker-controlled AAAA record, which is precisely the
-    rebinding attack the surrounding code claimed to close. Five of the eight predicates
-    shared this gap; it is the same defect as #776 in a different crate.
-
-  - **#836 — the SSRF bypass was honoured in production.** `ServerConfig::is_production_mode()`
-    treated an unset `FRAISEQL_ENV` as production, and every server safety gate is keyed
-    off it. `observers::insecure_guard::is_production_environment()` read the same variable
-    and treated unset as **not** production. On any non-Kubernetes deployment — Docker
-    Compose, systemd, a VM, ECS — the server therefore believed it was in production while
-    the observer subsystem honoured `FRAISEQL_OBSERVERS_ALLOW_INSECURE`, disabling the
-    scheme allow-list, the private-address blocklist and the rebinding defence on a webhook
-    URL that comes from a mutable `tb_observer` row.
-
-  - **#882 — two escape hatches had no production check at all.**
-    `FRAISEQL_VAULT_ALLOW_INSECURE` and `FRAISEQL_OIDC_ALLOW_INSECURE` disabled their SSRF
-    guards on the environment variable alone, under every environment including an explicit
-    `FRAISEQL_ENV=production` and inside a Kubernetes pod. All four of the product's escape
-    hatches now share one policy: honoured only when development is positively declared.
-
-  - **#816 — the CDC NATS plaintext guard was inverted.** It refused plaintext `nats://`
-    only for loopback hosts — the one case that is safe — and accepted every remote
-    plaintext endpoint, publishing full row after-images in the clear. It also skipped
-    every non-`nats://` URL including the scheme-less form that `async-nats` rewrites to
-    plaintext, split the host with `split(['/', ':'])` so `nats://user:pw@host` yielded
-    `"user"`, and compared the host without lower-casing it. It had no unit tests.
-
-  - A **ninth** hand-rolled guard, on the manifest hot-reload URL, was found by the new
-    gate rather than by review. Its doc comment claimed it used "the same pattern as the
-    federation and Vault SSRF guards"; it had drifted from both.
-
-  The shared guard additionally blocks ranges no previous copy covered: the NAT64
-  well-known prefix `64:ff9b::/96` (a live route to the metadata service wherever a NAT64
-  gateway exists), NAT64 local-use `64:ff9b:1::/48`, `IPv4`-compatible `::a.b.c.d`,
-  multicast, site-local `fec0::/10`, discard-only `100::/64`, IETF protocol assignments
-  `192.0.0.0/24` (Oracle Cloud metadata), the RFC 5737 documentation ranges, RFC 2544
-  benchmarking, and the `2001:db8::/32` and `2001:2::/48` `IPv6` equivalents.
-
-  `make lint-guard-parity` now fails the build on a new hand-rolled address predicate, a
-  new `is_production`-shaped helper, or an escape hatch read without a posture check. It
-  runs in the Dagger `preflight` leg and as the `guard-parity-check` CI job.
-
-### Breaking
-
-- **New crate `fraiseql-guard`.** Holds the workspace's single outbound-address guard
-  (`fraiseql_guard::net`) and its single production detector
-  (`fraiseql_guard::deployment`). It is a Tier-1 leaf with no dependencies beyond `std`,
-  published before every crate that depends on it.
-
-- **`fraiseql_auth::constant_time::ConstantTimeOps::compare_padded` and
-  `compare_jwt_constant` are removed (#725).** They truncated both inputs to `fixed_len`
-  before comparing, so `compare_jwt_constant` reported **equality** for any two tokens
-  sharing their first 512 bytes — the shape of two JWTs with identical header and payload
-  and different signatures, since the signature sits at the end and real tokens exceed
-  512 bytes. `"abc"` and `"abc\0"` also compared equal. Nothing on a production path
-  called either; the one real comparison uses `ConstantTimeOps::compare`, which is correct
-  for values of any length. Callers wanting length hiding should compare digests rather
-  than values. `compare`, `compare_str` and `compare_len_safe` are unchanged.
-
-- **Documentation, benchmarking and reserved ranges are now refused by every outbound
-  guard.** A URL targeting `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`,
-  `198.18.0.0/15`, `240.0.0.0/4`, `224.0.0.0/4` or their `IPv6` equivalents is rejected
-  where some guards previously allowed it. These are not globally routable; the practical
-  impact is on test fixtures that used a documentation address as a stand-in for a public
-  one. Conversely, a *mapped public* address such as `::ffff:8.8.8.8` is now allowed
-  rather than blanket-refused: mapped and NAT64 addresses are canonicalised and judged as
-  the `IPv4` address the stack would route to.
-
-- **`FRAISEQL_NATS_ALLOW_PLAINTEXT` now requires a declared development environment**, in
-  both `fraiseql-observers` and `fraiseql-cdc-sinks`, and no longer accepts a remote
-  plaintext endpoint at all. The opt-in permits loopback — its purpose is a local dev
-  broker — but does not disable the address guard for other hosts.
-
-- **`fraiseql_federation::http_resolver::is_ssrf_blocked_ip` is now a re-export** of
-  `fraiseql_guard::net::is_blocked_ip`. The signature is unchanged; the accepted set is
-  strictly smaller.
-
-- **CRITICAL: closed two unauthenticated SQL-injection holes on the analytics execution
-  path (#794, #795).** Both were reachable by any client able to POST a GraphQL query, on
-  any deployment whose compiled schema declares at least one fact table, and both were
-  verified against live PostgreSQL 16 exfiltrating `pg_authid` contents.
-
-  - **#794 — window aliases and dimension paths were interpolated raw.** Four sinks on the
-    live `*_window` path wrote request-supplied strings straight into the SELECT list: the
-    dimension select arm and the `PARTITION BY` arm both built `format!("{}->>'{}'", …)`
-    with no charset check, and `alias` was cloned through untouched for measure, dimension,
-    filter and window-function selections before being emitted as `<expr> AS <alias>`.
-    Because `WindowProjector::project` copies every returned column into the response, an
-    injected column was handed back to the caller.
-
-    Every alias and dimension path is now rejected unless it matches
-    `[_A-Za-z][_0-9A-Za-z]*`, through a single entry point that all sinks share — the
-    defect existed because one arm carried a check its four siblings did not. The
-    `WindowAllowlist` is additionally consulted wherever the schema enumerates dimension
-    paths. It existed and was documented as the defence for this path, but was only ever
-    called by `WindowFunctionPlanner`, which nothing in the shipped binary invokes; the
-    live planner is `WindowPlanner`, which never built one.
-
-  - **#795 — the `table` request key selected the FROM target.** The relation is already
-    determined by the GraphQL root field (`sales_window` → `tf_sales`), but a second,
-    unchecked channel could name any relation or substitute an entire subquery. Worse, the
-    RLS policy was looked up by that same attacker-controlled name, so naming a table with
-    no configured policy yielded `None` and composed **no tenant WHERE clause at all**.
-
-    Both the aggregate and window planners now reject a `table` that does not match the
-    resolved fact table, every FROM sink emits the resolved name, and the RLS policy is
-    evaluated against the resolved name — which matters independently, because RLS is
-    evaluated before the planner runs.
-
-  Regression coverage runs against real PostgreSQL in the Dagger `integration: server`
-  suite (`analytics_injection_e2e_pg`), driving the real HTTP handler and asserting both
-  that each payload is refused and that no catalog data reaches the response.
-
-### Breaking
-
-- **`fraiseql run`, `fraiseql validate facts`, and `fraiseql introspect facts` no longer
-  collide on `-d` (#650).** The global `--debug` short (`-d`) and each subcommand's
-  `--database` short (also `-d`) claimed the same letter, so debug builds of the CLI
-  panicked at startup (clap `debug_asserts`: "Short option names must be unique … '-d' is
-  in use by both 'database' and 'debug'") and release builds advertised an ambiguous `-d`.
-  `--database` is now long-only on all three subcommands — the global `-d` (debug) is
-  consistent across every subcommand — and a `Cli::command().debug_assert()` test guards
-  against reintroduction. Use `--database <url>` (the long form always worked).
-
-### Fixed
-
-- **The shipped multi-tenant examples now demonstrate isolation they actually have
-  (#628).** `examples/multitenant` and `examples/saas` described a tenant-isolation
-  mechanism and shipped none of it. Both now carry the whole path: JWT claim →
-  `[[session_variables.variables]]` → `set_config` → RLS policy, plus
-  `sql/01_schema.sql` with `FORCE ROW LEVEL SECURITY`, `security_invoker` views, and an
-  unprivileged application role — because PostgreSQL skips every policy for a superuser or
-  `BYPASSRLS` role, which is the most common way a correctly-policied database leaks.
-  `example_multitenant_rls_e2e_pg` applies that SQL to a real database, compiles both
-  examples through the production compile path, and asserts two tenants never cross and an
-  unauthenticated caller sees nothing.
-
-- **Three shipped examples had never been compiled by CI.** `integration_domain_discovery`
-  looked its examples up on paths relative to the crate directory rather than the
-  repository root, so every case took its `if !path.exists() { return; }` branch and passed
-  without doing anything. All three were in fact failing to compile (`pool_size` is not a
-  `[database]` key), the multitenant and saas domain files declared queries with
-  `return_array` — a key the intermediate schema does not read, so every list query
-  compiled as a single-object query — and none declared a `sql_source`. The lookup is
-  fixed, a missing example is now a failure rather than a skip, and the examples compile.
-  `examples/ecommerce`, removed in `0ef37210c`, is no longer referenced.
-
-- **`cache_rls_isolation_test` had never run either.** It was gated on
-  `TEST_DATABASE_URL`, which the `integration: postgres` leg does not set, which is how
-  `test_validate_rls_active_fails_without_rls` could ship accepting either outcome ("we
-  assert the return type is correct either way"). It now uses the harness's
-  `DATABASE_URL`, its fixture view is `security_invoker` (it was not, in the file whose
-  subject is tenant isolation), and its isolation assertions connect as an unprivileged
-  role and drive real session variables rather than comparing two different WHERE clauses.
 
 ## [2.14.1] - 2026-07-24
 
