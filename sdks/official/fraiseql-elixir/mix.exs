@@ -14,7 +14,10 @@ defmodule FraiseQL.MixProject do
       docs: docs(),
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
-        plt_add_apps: [:mix]
+        plt_add_apps: [:mix],
+        # An explicit (empty) ignore file, so dialyxir's "No :ignore_warnings
+        # opt specified" notice stops appearing alongside real errors (#979).
+        ignore_warnings: ".dialyzer_ignore.exs"
       ]
     ]
   end

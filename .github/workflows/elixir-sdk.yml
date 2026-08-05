@@ -49,6 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93  # v1
+        id: beam
         with:
           elixir-version: '1.17'
           otp-version: '27'
@@ -56,7 +57,13 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
         with:
           path: sdks/official/fraiseql-elixir/priv/plts
-          key: ${{ runner.os }}-dialyzer-1.17-27-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
+          # Keyed on the RESOLVED toolchain versions, not the requested series
+          # ('1.17'/'27'): setup-beam floats to the newest patch release, so a
+          # series-keyed cache serves a PLT built by a different OTP and
+          # Dialyzer refuses it ("Old PLT file"), reddening every run until the
+          # cache is evicted (#979). A toolchain bump now misses the cache and
+          # rebuilds the PLT instead of poisoning the job.
+          key: ${{ runner.os }}-dialyzer-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
       - run: mix deps.get
       - run: mix dialyzer --format github
 
