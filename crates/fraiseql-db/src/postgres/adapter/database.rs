@@ -12,7 +12,7 @@ use tokio_postgres::{
 
 use super::{
     PostgresAdapter, build_projection_select_sql, build_where_select_sql,
-    build_where_select_sql_ordered,
+    build_where_select_sql_ordered, numeric::PgNumericText,
 };
 use crate::{
     identifier::quote_postgres_identifier,
@@ -187,14 +187,14 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
             serde_json::json!(v)
         } else if let Ok(v) = row.try_get::<_, bool>(idx) {
             serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, rust_decimal::Decimal>(idx) {
-            // NUMERIC/DECIMAL — render as a JSON number by parsing the canonical
-            // decimal text, so the value isn't forced through f64 at construction.
-            // Without this branch a `SUM(revenue)` aggregate (and every raw
-            // NUMERIC column) fell through to `Null` (H35). Falls back to a JSON
-            // string only if the decimal text isn't valid JSON numeric syntax,
-            // which `Decimal::to_string` never produces.
-            let s = v.to_string();
+        } else if let Ok(v) = row.try_get::<_, PgNumericText>(idx) {
+            // NUMERIC/DECIMAL — decoded to PostgreSQL's exact text rendering
+            // (#980), then re-parsed as a JSON number so the value isn't forced
+            // through f64 at construction. Without this branch a `SUM(revenue)`
+            // aggregate (and every raw NUMERIC column) fell through to `Null`
+            // (H35). Falls back to a JSON string for the values whose text is
+            // not JSON numeric syntax: NaN, Infinity and -Infinity.
+            let s = v.0;
             serde_json::from_str::<serde_json::Value>(&s).unwrap_or(serde_json::Value::String(s))
         } else if let Ok(v) = row.try_get::<_, uuid::Uuid>(idx) {
             // UUID columns (e.g. `app.mutation_response.entity_id`) render as the

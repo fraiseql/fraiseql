@@ -132,8 +132,6 @@ serde = {version = "1.0", features = ["derive", "rc"]}
 # (#899, #900). Making it unconditional is what lets that be a property of the
 # product instead of a property of the feature set.
 serde_json = {version = "1.0", features = ["preserve_order"]}
-# Exact-precision NUMERIC/DECIMAL decoding for the PostgreSQL adapter
-rust_decimal = {version = "1", features = ["db-tokio-postgres"]}
 # Crypto
 sha2 = "0.11"
 # SQL toolkit (per-crate optional flags)

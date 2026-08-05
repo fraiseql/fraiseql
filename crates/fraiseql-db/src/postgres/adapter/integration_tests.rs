@@ -956,6 +956,159 @@ async fn row_to_map_type_conformance() {
     assert_eq!(r["c_null"], serde_json::Value::Null);
 }
 
+// ── #980: NUMERIC values rust_decimal could not represent must not be null ────
+
+// The old NUMERIC branch decoded through `rust_decimal::Decimal`, whose 96-bit
+// mantissa caps at 28-29 significant digits and which has no NaN or Infinity —
+// so a wider value, a tiny exponent, or a NaN failed `try_get` and fell through
+// the type ladder to `Null`, silently.
+#[tokio::test]
+async fn row_to_map_renders_numeric_beyond_decimal_range_and_nan() {
+    let adapter = create_test_adapter().await;
+    let rows = adapter
+        .execute_raw_query(
+            "SELECT \
+               12345678901234567890123456789012345678901234567890.5::numeric AS wide, \
+               1e-40::numeric      AS tiny, \
+               'NaN'::numeric      AS nan, \
+               'Infinity'::numeric AS inf",
+        )
+        .await
+        .expect("query failed");
+    let r = &rows[0];
+
+    assert!(!r["wide"].is_null(), "a 50-digit NUMERIC must not decode to null");
+    assert!(!r["tiny"].is_null(), "1e-40::numeric must not decode to null");
+    assert_eq!(r["nan"], json!("NaN"), "NUMERIC NaN must decode as the text PostgreSQL prints");
+    assert_eq!(r["inf"], json!("Infinity"), "NUMERIC Infinity must decode as text, not null");
+}
+
+// ── #980: the NUMERIC decoder must agree with PostgreSQL's own rendering ──────
+
+// Differential property test: for every corpus value, decode the binary NUMERIC
+// through `PgNumericText` and compare against `value::text` computed by the
+// same server in the same round trip. PostgreSQL is the reference
+// implementation — hand-rolled formatting on money-shaped data is this repo's
+// recurring defect class (#719, #832, #833), so the decoder is proven against
+// the engine rather than against our own expectations.
+#[tokio::test]
+async fn numeric_decode_matches_postgres_own_text_rendering() {
+    // Deterministic corpus: curated edge shapes plus seeded pseudo-random
+    // values, so a failure names a reproducible input.
+    let mut corpus: Vec<String> = [
+        "0",
+        "0.000",
+        "-0.000",
+        "0.1",
+        "-0.1",
+        "1",
+        "-1",
+        "9999",
+        "10000",
+        "10001",
+        "99999999",
+        "1.5",
+        "1.500",
+        "1.0001",
+        "123.4567",
+        "0.00001",
+        "0.000000001",
+        "0.9999",
+        "9999.9999",
+        "10000.0001",
+        "10000000001",
+        "1.00000001",
+        "123.000",
+        "007.5",
+        "1e10",
+        "1e-10",
+        "1.5e30",
+        "2e-40",
+        "-12345678901234567890123456789012345678901234567890.09876543210987654321",
+        "99999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "0.00000000000000000000000000000000000000000000000000000000000000000000000000000001",
+        "NaN",
+        "Infinity",
+        "-Infinity",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+    corpus.extend(pseudo_random_decimal_strings(1500));
+
+    let (client, connection) = tokio_postgres::connect(&test_db_url(), tokio_postgres::NoTls)
+        .await
+        .expect("failed to connect for the NUMERIC differential test");
+    let connection_task = tokio::spawn(connection);
+
+    // `$1::text::numeric` (not `$1::numeric`) so the parameter binds as text and
+    // the cast happens server-side — binding a bare `$1::numeric` would make the
+    // driver infer a NUMERIC parameter and reject the string.
+    let stmt = client
+        .prepare("SELECT $1::text::numeric AS bin, ($1::text::numeric)::text AS txt")
+        .await
+        .expect("prepare failed");
+
+    for input in &corpus {
+        let row = client
+            .query_one(&stmt, &[input])
+            .await
+            .unwrap_or_else(|e| panic!("query failed for input {input}: {e}"));
+        let ours: super::numeric::PgNumericText = row
+            .try_get("bin")
+            .unwrap_or_else(|e| panic!("decode failed for input {input}: {e}"));
+        let oracle: String = row.try_get("txt").expect("text column");
+        assert_eq!(
+            ours.0, oracle,
+            "decoder disagrees with PostgreSQL's own text rendering for input {input}"
+        );
+    }
+
+    connection_task.abort();
+}
+
+// Seeded xorshift64 generator of decimal strings spanning the interesting
+// space: 0-45 integer digits, 0-45 fraction digits, both signs, leading and
+// trailing zeros occurring naturally. Deterministic so every CI failure is
+// reproducible from the assertion message alone.
+fn pseudo_random_decimal_strings(count: usize) -> Vec<String> {
+    let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+
+    let mut out = Vec::with_capacity(count);
+    while out.len() < count {
+        let int_len = usize::try_from(next() % 46).unwrap();
+        let frac_len = usize::try_from(next() % 46).unwrap();
+        if int_len == 0 && frac_len == 0 {
+            continue;
+        }
+        let mut s = String::new();
+        if next() % 2 == 0 {
+            s.push('-');
+        }
+        if int_len == 0 {
+            s.push('0');
+        } else {
+            for _ in 0..int_len {
+                s.push(char::from(b'0' + u8::try_from(next() % 10).unwrap()));
+            }
+        }
+        if frac_len > 0 {
+            s.push('.');
+            for _ in 0..frac_len {
+                s.push(char::from(b'0' + u8::try_from(next() % 10).unwrap()));
+            }
+        }
+        out.push(s);
+    }
+    out
+}
+
 // ── #832 (PostgreSQL half): relay ORDER BY must use the storage key ─────────
 //
 // The offset path renders ORDER BY through `render_order_by_columns`, which

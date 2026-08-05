@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **NUMERIC values beyond 28 significant digits, `NaN` and `Infinity` no longer
+  decode to null (#980).** The PostgreSQL adapter's row decoder read
+  `NUMERIC`/`DECIMAL` columns through `rust_decimal::Decimal`, whose 96-bit
+  mantissa caps at 28-29 significant digits and which has no `NaN` or
+  `Infinity` — anything it could not represent failed the type probe and fell
+  through the decode ladder to `Null`, silently. NUMERIC columns are now decoded
+  from PostgreSQL's binary wire format directly to the exact text the server
+  itself prints, at full precision; `NaN`, `Infinity` and `-Infinity` render as
+  those JSON strings. The decoder is verified by a differential test comparing
+  its output against `SELECT value::text` from a live PostgreSQL over a
+  1,500-value corpus.
+
+  This removes `rust_decimal` from the workspace — it had exactly one use site —
+  and with it `rkyv` and `borsh` leave `Cargo.lock` entirely (rust_decimal was
+  their sole dependent), retiring the RUSTSEC-2026-0235 advisory exception from
+  `deny.toml` and `.cargo/audit.toml`.
+
 - **A 27-byte GraphQL query no longer panics the parser (#976).**
   `graphql-parser` computes a block string's common indent in *bytes* but strips
   it with the Unicode-aware `str::trim_start`, then slices the line at that byte

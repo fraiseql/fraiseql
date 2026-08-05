@@ -12,8 +12,6 @@ fraiseql-error = {workspace = true}
 fraiseql-wire = {workspace = true, optional = true}
 futures = {workspace = true}
 regex = {workspace = true}
-# Exact-precision NUMERIC/DECIMAL decoding (PostgreSQL adapter only)
-rust_decimal = {workspace = true, optional = true}
 # PostgreSQL transport security (#801/#824). Not optional within the `postgres`
 # feature: a cfg-gated TLS stack means a build where `ssl_mode = "require"` has to
 # either fail at runtime or downgrade, and the second is the bug being fixed.
@@ -48,7 +46,6 @@ postgres = [
     "dep:tokio-postgres",
     "dep:deadpool",
     "dep:deadpool-postgres",
-    "dep:rust_decimal",
     "dep:rustls",
     "dep:rustls-native-certs",
     "dep:rustls-pemfile",
