@@ -225,12 +225,21 @@ jobs:
             # and std's weak pidfd spawn symbols (pidfd_getpid/pidfd_spawnp@GLIBC_2.39)
             # otherwise make the umbrella binary refuse to load on <2.39 (#gh issue).
             zig_target: x86_64-unknown-linux-gnu.2.28
-          - os: ubuntu-latest
+          # Native arm64 (#649). This used to be a `cross` build, which forced
+          # `lean_only` because V8 does not build under the cross Docker images —
+          # so ARM-Linux adopters got neither the platform-feature umbrella nor a
+          # prebuilt `fraiseql-server`, and had to build from source or use Docker.
+          # A native arm64 runner removes the constraint at the root. `zig_target`
+          # applies the same glibc floor as every other Linux row: the runner is
+          # glibc 2.39 and the ceiling gate below rejects anything above 2.34.
+          # `release-smoke.yml`'s `arm64-full` job builds and BOOTS this artefact on
+          # a real arm64 runner, and is dispatchable so it can be proven outside a
+          # release cut.
+          - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             binary: fraiseql
             archive_ext: tar.gz
-            use_cross: true
-            lean_only: true   # V8 (-full) does not build under the cross image
+            zig_target: aarch64-unknown-linux-gnu.2.28
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             binary: fraiseql
@@ -280,12 +289,21 @@ jobs:
         if: matrix.zig_target
         shell: bash
         run: |
-          curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar -xJ
-          echo "$PWD/zig-linux-x86_64-0.13.0" >> "$GITHUB_PATH"
+          # Arch-aware: the aarch64-linux row (#649) builds natively on an arm64
+          # runner, so a hardcoded x86_64 zig tarball would be the wrong binary.
+          case "$(uname -m)" in
+            x86_64)  zig_arch=x86_64 ;;
+            aarch64) zig_arch=aarch64 ;;
+            *) echo "::error::no zig tarball selected for $(uname -m)"; exit 1 ;;
+          esac
+          curl -fsSL "https://ziglang.org/download/0.13.0/zig-linux-${zig_arch}-0.13.0.tar.xz" | tar -xJ
+          echo "$PWD/zig-linux-${zig_arch}-0.13.0" >> "$GITHUB_PATH"
           cargo install cargo-zigbuild --version 0.23.0 --locked
 
-      - name: Install system dependencies (Linux AMD64)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+      # Both native linux-gnu rows need these; the aarch64 row builds natively
+      # since #649 rather than inside a cross image that carried its own.
+      - name: Install system dependencies (Linux gnu)
+        if: contains(matrix.target, 'linux-gnu')
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
@@ -880,10 +898,12 @@ jobs:
           mapfile -t ACTUAL < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
 
           # Expected assets are DERIVED from the build-binaries matrix, not a magic
-          # count: 6 lean (one per target, incl. the static musl one) + 4 -full
-          # (native glibc/darwin/windows targets only — aarch64 `cross` and musl are
-          # lean_only because V8 does not build there: a documented gap). Assert each
-          # by NAME — a bare count would pass a duplicate-plus-missing swap.
+          # count: 6 lean (one per target, incl. the static musl one) + 5 -full.
+          # Every target except musl now ships a -full artifact; musl stays
+          # lean_only because V8 does not link against musl. aarch64-linux joined
+          # the -full set in #649, when it moved from a `cross` build (where V8
+          # cannot build) to a native arm64 runner. Assert each by NAME — a bare
+          # count would pass a duplicate-plus-missing swap.
           EXPECTED=(
             fraiseql-x86_64-unknown-linux-gnu.tar.gz
             fraiseql-x86_64-unknown-linux-musl.tar.gz
@@ -892,6 +912,7 @@ jobs:
             fraiseql-aarch64-apple-darwin.tar.gz
             fraiseql-x86_64-pc-windows-msvc.zip
             fraiseql-full-x86_64-unknown-linux-gnu.tar.gz
+            fraiseql-full-aarch64-unknown-linux-gnu.tar.gz
             fraiseql-full-x86_64-apple-darwin.tar.gz
             fraiseql-full-aarch64-apple-darwin.tar.gz
             fraiseql-full-x86_64-pc-windows-msvc.zip
