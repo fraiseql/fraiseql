@@ -973,6 +973,10 @@ mod pkce_boot_guard_tests {
     use std::sync::Arc;
 
     use fraiseql_core::schema::CompiledSchema;
+    // The only bare `json!` users in this module are the redis-pkce tests, so an
+    // ungated import is an unused-import error in every combo that enables `auth`
+    // without `redis-pkce` (e.g. the server-inbound-email matrix leg).
+    #[cfg(feature = "redis-pkce")]
     use serde_json::json;
 
     use super::super::initialization::pkce_store_from_schema_in;
