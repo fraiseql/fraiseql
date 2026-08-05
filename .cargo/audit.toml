@@ -42,8 +42,8 @@ ignore = [
   # rkyv archive. cargo-audit reads Cargo.lock, not the resolved build graph, hence the
   # report. No bump exists: rust_decimal 1.42.1 is the latest and pins rkyv 0.7.46.
   # REMOVAL TRIGGER — delete this entry when EITHER happens:
-  #   (a) #980 lands (rust_decimal dropped; rkyv and borsh leave the lockfile), or
-  #   (b) rust_decimal ships a release whose optional rkyv dependency is >= 0.8.17.
+  # (a) #980 lands (rust_decimal dropped; rkyv and borsh leave the lockfile), or
+  # (b) rust_decimal ships a release whose optional rkyv dependency is >= 0.8.17.
   # ⚠ If anyone enables rust_decimal's `rkyv` feature, this entry starts covering a REAL
   # vulnerability — re-evaluate before turning that feature on. Deadline 2026-11-01.
   "RUSTSEC-2026-0235"
