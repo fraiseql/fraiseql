@@ -1,12 +1,23 @@
 name: Fuzz Testing
 
-# Weekly libFuzzer campaign over the maintained fuzz targets (audit #441), plus a manual
+# Weekly libFuzzer campaign over the maintained fuzz targets (#441), plus a manual
 # trigger with a configurable per-target time budget.
 #
 # Hosted CI was disabled for the Dagger migration (2026-05-31). This is a deliberately
 # low-frequency (weekly) re-enable: fuzzing targets the dominant escaped-bug class in this
 # repo — "compiles clean, panics/misbehaves at boot or under load" — which the static audit
 # cannot catch. The corpus is persisted across runs via actions/cache so coverage compounds.
+#
+# THIS IS AN ASSURANCE SIGNAL, NOT A MERGE GATE. It runs only on a schedule and on manual
+# dispatch — never on push or pull_request — and the `dev` ruleset requires only `preflight`
+# and `security`, so nothing here can block a merge. That is deliberate: a fuzzer finds real
+# bugs on its own clock, and gating merges on a stochastic search would train people to
+# ignore it.
+#
+# The corresponding hazard is the opposite one, and it already happened: between 2026-06-21
+# and 2026-08-02 every scheduled run was red with a genuine, client-reachable parser panic
+# (#976) and nobody looked, because a red job in a scheduled workflow is not a signal anyone
+# receives. Hence `report-finding` below — a crash opens an issue.
 on:
   workflow_dispatch:
     inputs:
@@ -17,20 +28,32 @@ on:
   schedule:
     - cron: "0 4 * * 0"   # Sundays 04:00 UTC
 
+permissions:
+  contents: read
+
 env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
   # workflow_dispatch can override the budget; the scheduled run uses the default below.
   FUZZ_MAX_TOTAL_TIME: ${{ github.event.inputs.max_total_time || '900' }}
+  # Pinned, not floating `nightly`. On 2026-07-26 that day's nightly hit an internal
+  # compiler error (rustc_codegen_ssa/src/mir/operand.rs:291) and two targets failed to
+  # BUILD — which, in the job list, is indistinguishable from a crash find. Bump this
+  # deliberately; a fuzz campaign that changes compiler underneath itself every week
+  # cannot tell "new bug" from "new toolchain".
+  FUZZ_NIGHTLY: nightly-2026-07-01
 
 jobs:
   fuzz:
     name: Fuzz ${{ matrix.crate }} / ${{ matrix.target }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write        # report-finding opens an issue on a crash
     strategy:
       fail-fast: false
-      # Maintained target set (audit #441 minimum). Each (crate, target) is build-verified
+      # Maintained target set (#441 minimum). Each (crate, target) is build-verified
       # against the current API. The remaining libFuzzer targets are tracked for triage in
       # the campaign issue before being added here.
       matrix:
@@ -47,11 +70,23 @@ jobs:
           - { crate: fraiseql-server,     target: graphql_request }
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # pinned; toolchain comes from the input below
+        with:
+          toolchain: ${{ env.FUZZ_NIGHTLY }}
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
+
+      # Build and run are separate steps on purpose. A build failure is a toolchain or
+      # API-drift problem in CI; a run failure is a bug in FraiseQL. Collapsing them (as
+      # `cargo fuzz run` alone does) is what let a week of rustc ICEs read as findings.
+      - name: Build fuzz target
+        id: build
+        run: |
+          cd crates/${{ matrix.crate }}
+          cargo +${FUZZ_NIGHTLY} fuzz build ${{ matrix.target }}
+
       - name: Restore / persist fuzz corpus
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
         with:
@@ -59,22 +94,81 @@ jobs:
           key: fuzz-corpus-${{ matrix.crate }}-${{ matrix.target }}-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-${{ matrix.crate }}-${{ matrix.target }}-
+
       - name: Run fuzzer
+        id: fuzz
         run: |
           cd crates/${{ matrix.crate }}
           mkdir -p fuzz/corpus/${{ matrix.target }}
-          # Only pass a seed corpus when one is committed for this target.
+          # Only pass a seed corpus when one is committed for this target. Seed corpora
+          # are checked into git and carry the regression reproducers, so a fixed crash
+          # is re-tested on every run rather than depending on a 90-day cache surviving.
           seed="fuzz/seed_corpus/${{ matrix.target }}"
           [ -d "$seed" ] || seed=""
-          cargo +nightly fuzz run ${{ matrix.target }} \
+          cargo +${FUZZ_NIGHTLY} fuzz run ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} $seed \
             -- -max_total_time="${FUZZ_MAX_TOTAL_TIME}" \
                -max_len=65536 \
                -rss_limit_mb=2048
+
       - name: Upload crash artifacts
-        if: failure()
+        if: failure() && steps.build.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: fuzz-crash-${{ matrix.crate }}-${{ matrix.target }}
           path: crates/${{ matrix.crate }}/fuzz/artifacts/${{ matrix.target }}/
           if-no-files-found: ignore
+
+      # A red scheduled job is not a signal anyone receives — seven consecutive weekly
+      # failures on #976 proved that. A finding gets an issue. Only when the target BUILT
+      # and the RUN failed: a toolchain ICE must not open a bug report against this repo.
+      - name: Report finding
+        if: failure() && steps.build.outcome == 'success' && steps.fuzz.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CRATE: ${{ matrix.crate }}
+          TARGET: ${{ matrix.target }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="fuzz: ${CRATE}/${TARGET} crashed in the scheduled campaign"
+
+          # One issue per (crate, target). Re-finding the same crash next week must
+          # comment, not open issue number eight.
+          existing=$(gh issue list --state open --label fuzz-crash --search "$title in:title" \
+            --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -1)
+
+          # The reproducer is small and is the whole point of the report — inline it.
+          body=$(mktemp)
+          {
+            echo "The scheduled libFuzzer campaign (#441) found a crash in \`${CRATE}/${TARGET}\`."
+            echo
+            echo "Run: ${RUN_URL}"
+            echo
+            echo "Reproduce locally:"
+            echo '```'
+            echo "cd crates/${CRATE}"
+            echo "cargo +${FUZZ_NIGHTLY} fuzz run ${TARGET} <artifact>"
+            echo '```'
+            echo
+            echo "The crashing input is attached to the run as \`fuzz-crash-${CRATE}-${TARGET}\`."
+            for f in crates/"${CRATE}"/fuzz/artifacts/"${TARGET}"/*; do
+              [ -f "$f" ] || continue
+              echo
+              echo "### \`$(basename "$f")\`"
+              echo
+              echo "\`\`\`"
+              od -c "$f" | head -40
+              echo "\`\`\`"
+            done
+            echo
+            echo "Triage note: check whether the fuzz target reached FraiseQL code or died"
+            echo "in a dependency. #976 was the latter and still a real, client-reachable bug."
+          } > "$body"
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$body"
+            echo "commented on existing issue #${existing}"
+          else
+            gh issue create --title "$title" --label fuzz-crash --body-file "$body"
+          fi

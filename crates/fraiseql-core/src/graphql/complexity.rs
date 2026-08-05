@@ -12,6 +12,14 @@ use graphql_parser::query::{
 
 /// Parse a GraphQL query source into a [`graphql_parser`] document.
 ///
+/// This is the **only** place in the workspace that calls
+/// [`graphql_parser::parse_query`]. Every other parse — the validator, the
+/// analyzer, the subscription name extractor, the REST `validate` endpoint —
+/// comes through here, because the parser can panic on input a client controls
+/// (see below) and a guard is only worth having if nothing can walk around it.
+/// `tools/check-graphql-parse-sites.sh` fails the build if a second call site
+/// appears.
+///
 /// Exposed so the server's HTTP handler can parse the request exactly once
 /// and reuse the AST for both complexity validation (via
 /// [`RequestValidator::validate_query_doc`]) and the downstream execution path
@@ -21,15 +29,63 @@ use graphql_parser::query::{
 /// # Errors
 ///
 /// Returns [`ComplexityValidationError::MalformedQuery`] when the source fails
-/// to parse as a GraphQL query document.
+/// to parse as a GraphQL query document, when it carries block-string
+/// indentation `graphql-parser` cannot handle (#976), or when the parser panics.
 pub fn parse_graphql_document(
     query: &str,
 ) -> Result<Document<'_, String>, ComplexityValidationError> {
     if query.trim().is_empty() {
         return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
     }
-    graphql_parser::parse_query::<String>(query)
-        .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))
+    if !block_string_indent_is_supported(query) {
+        return Err(ComplexityValidationError::MalformedQuery(
+            "unsupported block string indentation: a line inside this document is indented \
+             with non-ASCII whitespace, which the GraphQL parser cannot process (#976). \
+             Indent block strings with spaces or tabs."
+                .to_string(),
+        ));
+    }
+    // Defence in depth for the rest of the parser. `graphql-parser` 0.4.1 is
+    // unmaintained, and #976 showed a 27-byte document is enough to panic it. The
+    // guard above closes that specific hole soundly; this closes the class, so an
+    // unknown parser panic costs the client a rejected query rather than costing
+    // everyone on that connection their response. libFuzzer's panic hook aborts
+    // before unwinding, so this does not hide anything from the fuzz campaign.
+    match std::panic::catch_unwind(|| {
+        graphql_parser::parse_query::<String>(query)
+            .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))
+    }) {
+        Ok(result) => result,
+        Err(_) => Err(ComplexityValidationError::MalformedQuery(
+            "the GraphQL parser failed on this document".to_string(),
+        )),
+    }
+}
+
+/// Whether every line's indentation is ASCII, which is what makes
+/// `graphql-parser`'s block-string handling safe on this document (#976).
+///
+/// The parser measures a block string's common indent in **bytes**
+/// (`line.len() - line.trim_start().len()`) but strips it with `str::trim_start`,
+/// which is Unicode-aware, then slices the line at that byte offset. Indent a
+/// line with U+00A0 and the offset lands mid-codepoint, and `&line[indent..]`
+/// panics — on a document that is well-formed by the GraphQL spec.
+///
+/// When every line's leading whitespace run is ASCII, each such char is one byte,
+/// so the computed indent equals the character count and every offset up to it is
+/// a char boundary. The common indent is a minimum over those lines and the
+/// parser only slices lines at or past it, so no slice can split a codepoint.
+///
+/// Only *indentation* is checked. Non-ASCII whitespace is not GraphQL whitespace,
+/// so elsewhere it is string content — which the parser copies without slicing,
+/// and which real queries legitimately carry.
+fn block_string_indent_is_supported(query: &str) -> bool {
+    if !query.contains("\"\"\"") {
+        return true;
+    }
+    !query
+        .lines()
+        .any(|line| line.chars().take_while(|c| c.is_whitespace()).any(|c| !c.is_ascii()))
 }
 
 /// Default maximum number of aliases per query (alias amplification protection).
@@ -221,8 +277,7 @@ impl RequestValidator {
         if query.trim().is_empty() {
             return Err(ComplexityValidationError::MalformedQuery("Empty query".to_string()));
         }
-        let document = graphql_parser::parse_query::<String>(query)
-            .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
+        let document = parse_graphql_document(query)?;
         Ok(self.document_metrics(&document, variables))
     }
 
@@ -270,8 +325,7 @@ impl RequestValidator {
             return Ok(());
         }
 
-        let document = graphql_parser::parse_query::<String>(query)
-            .map_err(|e| ComplexityValidationError::MalformedQuery(format!("{e}")))?;
+        let document = parse_graphql_document(query)?;
         self.validate_query_doc(&document, None)
     }
 

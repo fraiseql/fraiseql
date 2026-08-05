@@ -452,6 +452,13 @@ lint-deploy-security:
 lint-internal-flag:
 	@bash tools/check-internal-flag-sites.sh
 
+# Gate: the third-party GraphQL parser is called from exactly one seam (#976). It
+# panics on a client-controlled block string, so every parse must go through
+# `parse_graphql_document`, which rejects the input the parser cannot handle.
+.PHONY: lint-graphql-parse
+lint-graphql-parse:
+	@bash tools/check-graphql-parse-sites.sh
+
 # Gate: the `value_json` seam has one owner (#719). Hand-rolled JSON escaping, in-band
 # `$`-prefix variable detection and silent `.ok()` fallbacks on an argument parse are all
 # refused — a dropped `where:` argument widens a result set instead of narrowing it.
@@ -480,7 +487,7 @@ lint-docs-version:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-docs-env-vars lint-docs-version test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

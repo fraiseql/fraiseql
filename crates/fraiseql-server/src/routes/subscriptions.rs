@@ -1613,7 +1613,9 @@ fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> Ser
 pub(crate) fn extract_subscription_name(query: &str) -> Option<String> {
     use graphql_parser::query::{Definition, OperationDefinition, Selection};
 
-    let doc = graphql_parser::parse_query::<String>(query).ok()?;
+    // Through the guarded seam: the parser can panic on a client-controlled
+    // document (#976), and this path runs on the WebSocket handshake.
+    let doc = fraiseql_core::graphql::complexity::parse_graphql_document(query).ok()?;
 
     let mut sub_ops = doc.definitions.iter().filter_map(|def| match def {
         Definition::Operation(OperationDefinition::Subscription(sub)) => Some(sub),

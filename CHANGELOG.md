@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A 27-byte GraphQL query no longer panics the parser (#976).**
+  `graphql-parser` computes a block string's common indent in *bytes* but strips
+  it with the Unicode-aware `str::trim_start`, then slices the line at that byte
+  offset — so a block string indented with U+00A0 sliced mid-codepoint and
+  panicked. The document is well-formed by the GraphQL spec, the input is
+  unauthenticated, and with no `CatchPanicLayer` in the stack the panic unwound
+  the connection task: the client got a dropped connection rather than an error,
+  and no error metric moved.
+
+  `parse_graphql_document` is now the single parse seam, and it rejects
+  indentation the parser cannot handle before the parser sees it. Six call sites
+  went through the raw parser when this was found — including
+  `graphql/parser.rs`, which was invisible to the obvious grep because it
+  imported the module and called `query::parse_query`. All six are routed, the
+  seam additionally wraps the parser in `catch_unwind` so an unknown parser
+  panic costs one query rather than the connection, and
+  `tools/check-graphql-parse-sites.sh` (wired into `make preflight`) fails the
+  build if a seventh appears. Found by the scheduled fuzz campaign, which had
+  been reporting it weekly since 2026-06-21.
+
+  Upgrading does not fix this: `graphql-parser` 0.4.1 is the newest release and
+  the maintained `graphql-parser-hive-fork` carries the identical bug.
+
+  **Behaviour change:** a query whose *indentation* uses non-ASCII whitespace is
+  now rejected with a message naming the reason. Non-ASCII whitespace in string
+  content — including block-string content — is unaffected, which is the only
+  place the GraphQL spec allows it to carry meaning.
+
+### Changed
+
+- **The weekly fuzz campaign reports what it finds (#441).** A crash now opens
+  (or comments on) an issue labelled `fuzz-crash` instead of only reddening a
+  scheduled job — seven consecutive weekly failures on a real security defect
+  went unread because a red scheduled job is not a signal anyone receives. Build
+  failures and crash finds are now separate steps, so a bad nightly cannot
+  masquerade as a finding, and the nightly toolchain is pinned rather than
+  floating (an internal compiler error on 2026-07-26 failed two targets in
+  exactly that way). Seed corpora carry the reproducers for fixed crashes, so a
+  regression is caught by a fixture in git rather than by a 90-day cache
+  surviving. The campaign remains schedule- and dispatch-only and cannot gate a
+  merge.
+
+  All 25 fuzz targets across the 8 crates were build-verified as part of this,
+  which is how two of them turned out to be broken: `fraiseql-db`'s
+  `where_from_json` and `where_generator` still referenced `MySqlDialect`,
+  `SqliteDialect` and `SqlServerDialect`, removed by the PostgreSQL-only
+  de-scope (#374), and `WhereClause::from_graphql_json` had gained a second
+  argument. `where_from_json` is in the scheduled matrix, so this would have
+  reddened the campaign the moment the de-scope merged — no CI leg builds
+  `fuzz/`, because each is a separate cargo workspace. Both are fixed and now
+  exercise the typed-field path as well as the untyped one; `where_generator`
+  additionally asserts the emitted SQL keeps its quotes and parentheses
+  balanced. `docs/fuzzing.md` carries a one-command build-verify loop.
+
 ### Added
 
 - **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one

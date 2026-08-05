@@ -576,7 +576,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.14.0"
+version = "2.14.1"
 dependencies = [
  "ahash",
  "async-trait",
@@ -588,6 +588,7 @@ dependencies = [
  "deadpool-postgres",
  "fraiseql-db",
  "fraiseql-error",
+ "fraiseql-guard",
  "futures",
  "graphql-parser",
  "hex",
@@ -618,7 +619,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core-fuzz"
-version = "2.14.0"
+version = "2.14.1"
 dependencies = [
  "arbitrary",
  "fraiseql-core",
@@ -628,7 +629,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.14.0"
+version = "2.14.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -648,13 +649,17 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.14.0"
+version = "2.14.1"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "toml",
 ]
+
+[[package]]
+name = "fraiseql-guard"
+version = "2.14.1"
 
 [[package]]
 name = "futures"
@@ -2034,6 +2039,7 @@ version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
 dependencies = [
+ "indexmap",
  "itoa",
  "memchr",
  "serde",
