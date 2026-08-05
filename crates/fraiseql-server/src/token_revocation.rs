@@ -18,57 +18,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use serde::Deserialize;
-use tracing::{debug, info, warn};
-
 // ───────────────────────────────────────────────────────────────
 // Configuration
 // ───────────────────────────────────────────────────────────────
-
 /// Token revocation configuration embedded in the compiled schema.
-#[derive(Debug, Clone, Deserialize)]
-pub struct TokenRevocationConfig {
-    /// Whether token revocation is enabled.
-    #[serde(default)]
-    pub enabled: bool,
-
-    /// Storage backend: `"redis"` or `"postgres"` or `"memory"`.
-    #[serde(default = "default_backend")]
-    pub backend: String,
-
-    /// Reject JWTs that lack a `jti` claim when revocation is enabled.
-    #[serde(default = "default_true")]
-    pub require_jti: bool,
-
-    /// If the revocation store is unreachable:
-    /// - `false` (default): reject the request (fail-closed)
-    /// - `true`: allow the request (fail-open)
-    #[serde(default)]
-    pub fail_open: bool,
-
-    /// Redis URL (inherited from `[fraiseql.redis]` if not set here).
-    pub redis_url: Option<String>,
-
-    /// How long (seconds) a `revoke-all` epoch is retained.
-    ///
-    /// `revoke-all` records a per-user epoch (see [`RevocationStore::revoke_all_for_user`])
-    /// rather than deleting individual tokens, so the entry must outlive every token that
-    /// could have been issued before the revocation. Set this **above your maximum
-    /// access-token lifetime**; once it expires a pre-revocation token would resume
-    /// working (until its own `exp`). Default: 86400 (24h).
-    #[serde(default = "default_revoke_all_ttl")]
-    pub revoke_all_ttl_secs: u64,
-}
-
-fn default_backend() -> String {
-    "memory".into()
-}
-const fn default_true() -> bool {
-    true
-}
-const fn default_revoke_all_ttl() -> u64 {
-    86_400
-}
+///
+/// The compiled `[security.token_revocation]` shape — the schema seam owns it
+/// (#977), so the CLI, the compiled artefact and this server share one type.
+pub use fraiseql_core::schema::TokenRevocationSecurityConfig as TokenRevocationConfig;
+use tracing::{debug, info, warn};
 
 // ───────────────────────────────────────────────────────────────
 // Trait
@@ -704,21 +662,9 @@ pub async fn revocation_manager_from_schema_in(
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
     };
-    let Some(revocation_val) = security.additional.get("token_revocation") else {
+    let Some(config) = security.token_revocation.clone() else {
         return Ok(None);
     };
-    // The CLI compiler serialises an absent `[security.token_revocation]` as JSON `null`,
-    // so a null value means "not configured" — treat it like an absent key rather than a
-    // malformed config. A non-null value that fails to parse IS a genuine misconfig.
-    if revocation_val.is_null() {
-        return Ok(None);
-    }
-    let config: TokenRevocationConfig =
-        serde_json::from_value(revocation_val.clone()).map_err(|e| {
-            crate::ServerError::ConfigError(format!(
-                "invalid security.token_revocation config: {e}"
-            ))
-        })?;
 
     if !config.enabled {
         return Ok(None);
@@ -796,15 +742,9 @@ pub async fn build_postgres_revocation_manager(
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
     };
-    let Some(revocation_val) = security.additional.get("token_revocation") else {
+    let Some(config) = security.token_revocation.clone() else {
         return Ok(None);
     };
-    // A null value means the section is absent (see revocation_manager_from_schema).
-    if revocation_val.is_null() {
-        return Ok(None);
-    }
-    let config: TokenRevocationConfig = serde_json::from_value(revocation_val.clone())
-        .map_err(|e| format!("invalid security.token_revocation config: {e}"))?;
 
     if !config.enabled || config.backend != "postgres" {
         return Ok(None);
@@ -839,7 +779,6 @@ pub fn revocation_backend_is_postgres(schema: &fraiseql_core::schema::CompiledSc
     schema
         .security
         .as_ref()
-        .and_then(|s| s.additional.get("token_revocation"))
-        .and_then(|v| serde_json::from_value::<TokenRevocationConfig>(v.clone()).ok())
+        .and_then(|s| s.token_revocation.as_ref())
         .is_some_and(|c| c.enabled && c.backend == "postgres")
 }

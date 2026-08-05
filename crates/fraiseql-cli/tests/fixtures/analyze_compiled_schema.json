@@ -6,8 +6,8 @@
   "naming_convention": "preserve",
   "queries": [],
   "security": {
-    "audit_logging": {
-      "enabled": true
+    "enterprise": {
+      "audit_logging_enabled": true
     },
     "error_sanitization": {
       "enabled": true

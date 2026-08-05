@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **A typo in a compiled schema's `security` object is now a load error, not a
+  silently disabled subsystem (#977).** `SecurityConfig` carried a
+  `#[serde(flatten)]` catch-all that seven security subsystems read by string
+  lookup — so `rate_limitting`, `token_revokation` or `api_key` in a compiled
+  schema landed in the catch-all, the lookup missed, and the subsystem came up
+  unconfigured while the server booted clean. Every subsystem section
+  (`rate_limiting`, `error_sanitization`, `trusted_documents`, `pkce`,
+  `token_revocation`, `api_keys`, `service_accounts`, `state_encryption`,
+  `enterprise`, plus `persisted_queries_only`, `default_policy`, `rules`,
+  `policies`, `field_auth`) is now a typed, `deny_unknown_fields` field on
+  `SecurityConfig`, itself `deny_unknown_fields`; the CLI's TOML types and the
+  server's readers are the same structs re-exported, so producer and consumer
+  shapes cannot drift. Schema-load errors name the offending JSON path
+  (`security.rate_limiting.requests_per_second: invalid type …`).
+
+  Consequences a hand-authored `schema.json` may notice:
+  - Unknown keys anywhere under `security` now fail `CompiledSchema::from_json`;
+    previously they were preserved (and a numeric value beyond `u64` was
+    silently rewritten through `f64`, so a compiled schema was not stable
+    across a load/save cycle — the fuzz finding that filed this issue).
+  - Malformed subsystem sections that previously *warn-and-disabled*
+    (`api_keys`, `service_accounts`, `trusted_documents`, `error_sanitization`)
+    now refuse the load — the fail-open class this remediation program exists
+    to eliminate.
+  - Defaults for a `rate_limiting` section that omits keys are now the
+    producer's (auth-endpoint budgets 5/10/20/30 per window, burst 200) rather
+    than the server's zeroed copy — enabling rate limiting protects the auth
+    endpoints by default instead of building no rules.
+  - The project-config workflow (`[fraiseql.security.*]`) no longer emits the
+    consumer-less `audit_logging`/camelCase sections; `audit_logging.enabled`
+    lowers onto `enterprise.audit_logging_enabled`, the key the runtime reads.
+
 ### Fixed
 
 - **NUMERIC values beyond 28 significant digits, `NaN` and `Infinity` no longer

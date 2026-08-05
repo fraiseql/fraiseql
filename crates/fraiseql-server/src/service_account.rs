@@ -30,7 +30,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::http::{HeaderMap, HeaderName};
 use fraiseql_core::security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext};
-use serde::Deserialize;
 use subtle::ConstantTimeEq;
 use tracing::{debug, warn};
 
@@ -41,27 +40,10 @@ const SA_HEADER: &str = "x-api-key";
 
 /// A `[service_accounts.<name>]` config block. Holds only **non-secret** material — the
 /// secret plaintext lives in the environment variable named by `secret_env`.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ServiceAccountConfig {
-    /// Name of the environment variable holding the plaintext bearer secret. The secret
-    /// is **never** inlined; the config holds only this name.
-    pub secret_env:      String,
-    /// The `run_as` ceiling — roles granted. Empty ⇒ no role authority.
-    #[serde(default)]
-    pub roles:           Vec<String>,
-    /// The `run_as` ceiling — scopes granted. Empty ⇒ no scope authority.
-    #[serde(default)]
-    pub scopes:          Vec<String>,
-    /// Optional tenant pin. Omitted ⇒ global / NULL tenant.
-    #[serde(default)]
-    pub tenant:          Option<String>,
-    /// Optional server-injected `fraiseql.enriched.*` fields, the **only** sanctioned
-    /// deviation from uniform enrichment (ADR-0016 decision 6 / ADR-0018 decision 5) —
-    /// for a daemon with no natural actor row. Server-injected, never token-asserted.
-    #[serde(default)]
-    pub static_enriched: HashMap<String, serde_json::Value>,
-}
+///
+/// The compiled shape — the schema seam owns it (#977), so the compiled
+/// artefact and this server share one type.
+pub use fraiseql_core::schema::ServiceAccountConfig;
 
 /// The outcome of [`ServiceAccountAuthenticator::resolve`] — the shared decision every
 /// entry point maps onto its own 401/response shape.
@@ -240,11 +222,10 @@ pub fn service_account_authenticator_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
 ) -> Option<Arc<ServiceAccountAuthenticator>> {
     let security = schema.security.as_ref()?;
-    let value = security.additional.get("service_accounts")?;
-    let accounts: HashMap<String, ServiceAccountConfig> = serde_json::from_value(value.clone())
-        .map_err(|e| warn!(error = %e, "Failed to parse security.service_accounts config"))
-        .ok()?;
-    ServiceAccountAuthenticator::from_config(&accounts, |env| std::env::var(env).ok())
+    // A typed field (#977): a malformed or misspelled section is a load error at
+    // the schema seam, never a warn-and-disable here.
+    let accounts = security.service_accounts.as_ref()?;
+    ServiceAccountAuthenticator::from_config(accounts, |env| std::env::var(env).ok())
 }
 
 #[cfg(test)]

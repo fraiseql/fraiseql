@@ -171,23 +171,46 @@ mod initialization_tests {
 
         // The flag forces Strict even when the declared mode is permissive.
         assert_eq!(
-            effective_trusted_doc_mode("permissive", true),
+            effective_trusted_doc_mode(
+                fraiseql_core::schema::TrustedDocumentMode::Permissive,
+                true
+            ),
             TrustedDocumentMode::Strict,
             "persisted_queries_only=true must force Strict over a permissive declared mode"
         );
-        assert_eq!(effective_trusted_doc_mode("strict", true), TrustedDocumentMode::Strict);
+        assert_eq!(
+            effective_trusted_doc_mode(fraiseql_core::schema::TrustedDocumentMode::Strict, true),
+            TrustedDocumentMode::Strict
+        );
 
         // Without the flag, the declared mode is honored.
-        assert_eq!(effective_trusted_doc_mode("strict", false), TrustedDocumentMode::Strict);
         assert_eq!(
-            effective_trusted_doc_mode("permissive", false),
+            effective_trusted_doc_mode(fraiseql_core::schema::TrustedDocumentMode::Strict, false),
+            TrustedDocumentMode::Strict
+        );
+        assert_eq!(
+            effective_trusted_doc_mode(
+                fraiseql_core::schema::TrustedDocumentMode::Permissive,
+                false
+            ),
             TrustedDocumentMode::Permissive,
             "without the flag, a permissive schema stays permissive"
         );
 
         // An unknown/empty declared mode defaults to Permissive unless the flag forces Strict.
-        assert_eq!(effective_trusted_doc_mode("", false), TrustedDocumentMode::Permissive);
-        assert_eq!(effective_trusted_doc_mode("", true), TrustedDocumentMode::Strict);
+        // The typed mode's default is Permissive — the old "" (unset string) case
+        // is unrepresentable since #977.
+        assert_eq!(
+            effective_trusted_doc_mode(
+                fraiseql_core::schema::TrustedDocumentMode::default(),
+                false
+            ),
+            TrustedDocumentMode::Permissive
+        );
+        assert_eq!(
+            effective_trusted_doc_mode(fraiseql_core::schema::TrustedDocumentMode::default(), true),
+            TrustedDocumentMode::Strict
+        );
     }
 
     #[test]
@@ -589,8 +612,18 @@ mod rate_limit_boot_guard_tests {
     const DEVELOPMENT: bool = false;
 
     fn schema_with_rate_limiting(section: serde_json::Value) -> CompiledSchema {
-        let mut security = fraiseql_core::schema::SecurityConfig::default();
-        security.additional.insert("rate_limiting".to_string(), section);
+        // Null spells "absent", as the compiler serialises an unset section; a
+        // non-null section must parse as the typed config — malformed sections
+        // are refused at schema load since #977 (see
+        // `a_malformed_compiled_section_is_refused_at_load`).
+        let security = fraiseql_core::schema::SecurityConfig {
+            rate_limiting: if section.is_null() {
+                None
+            } else {
+                Some(serde_json::from_value(section).expect("valid rate_limiting JSON"))
+            },
+            ..fraiseql_core::schema::SecurityConfig::default()
+        };
         CompiledSchema {
             security: Some(security),
             ..CompiledSchema::default()
@@ -613,22 +646,27 @@ mod rate_limit_boot_guard_tests {
     }
 
     // ── #778: a malformed section refuses to boot ────────────────────────────
+    //
+    // Since #977 the refusal happens at schema **load**: `rate_limiting` is a
+    // typed `deny_unknown_fields` field on `SecurityConfig`, so a malformed
+    // section can never reach `resolve_rate_limiter_in` at all.
 
-    #[tokio::test]
-    async fn a_malformed_compiled_section_refuses_to_boot() {
+    #[test]
+    fn a_malformed_compiled_section_is_refused_at_load() {
         // `requests_per_second` as a string is what an external generator or a hand
         // edit produces, and is exactly what `.ok()` used to swallow whole.
-        let schema = schema_with_rate_limiting(json!({
-            "enabled": true,
-            "requests_per_second": "100",
-            "trust_proxy_headers": true,
-        }));
-
-        let err = resolve_rate_limiter_in(&schema, &ServerConfig::default(), PRODUCTION)
-            .await
-            .err()
-            .expect("a present-but-unparseable [security.rate_limiting] must refuse to boot");
-
+        let json = serde_json::json!({
+            "types": [], "queries": [], "mutations": [], "subscriptions": [],
+            "security": {
+                "rate_limiting": {
+                    "enabled": true,
+                    "requests_per_second": "100",
+                    "trust_proxy_headers": true,
+                }
+            }
+        });
+        let err = CompiledSchema::from_json(&json.to_string(), false)
+            .expect_err("a present-but-unparseable [security.rate_limiting] must refuse to load");
         assert!(
             err.to_string().contains("security.rate_limiting"),
             "the error must name the section so an operator can find it; got: {err}"
@@ -868,7 +906,6 @@ mod redis_rate_limit_downgrade_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
 
     use fraiseql_core::schema::CompiledSchema;
-    use serde_json::json;
 
     use super::super::initialization::resolve_rate_limiter_in;
     use crate::ServerConfig;
@@ -877,17 +914,17 @@ mod redis_rate_limit_downgrade_tests {
     const DEVELOPMENT: bool = false;
 
     fn schema_with_redis_rate_limiting() -> CompiledSchema {
-        let mut security = fraiseql_core::schema::SecurityConfig::default();
-        security.additional.insert(
-            "rate_limiting".to_string(),
-            json!({
-                "enabled": true,
-                "requests_per_second": 100,
-                "burst_size": 50,
+        let security = fraiseql_core::schema::SecurityConfig {
+            rate_limiting: Some(fraiseql_core::schema::RateLimitingSecurityConfig {
+                enabled: true,
+                requests_per_second: 100,
+                burst_size: 50,
                 // Well-formed URL, nothing listening.
-                "redis_url": "redis://127.0.0.1:6390",
+                redis_url: Some("redis://127.0.0.1:6390".to_string()),
+                ..Default::default()
             }),
-        );
+            ..fraiseql_core::schema::SecurityConfig::default()
+        };
         CompiledSchema {
             security: Some(security),
             ..CompiledSchema::default()
@@ -946,8 +983,16 @@ mod pkce_boot_guard_tests {
     const DEVELOPMENT: bool = false;
 
     fn schema_with_pkce(section: serde_json::Value) -> CompiledSchema {
-        let mut security = fraiseql_core::schema::SecurityConfig::default();
-        security.additional.insert("pkce".to_string(), section);
+        // Null spells "absent"; a non-null section must parse as the typed
+        // config — malformed sections are refused at schema load since #977.
+        let security = fraiseql_core::schema::SecurityConfig {
+            pkce: if section.is_null() {
+                None
+            } else {
+                Some(serde_json::from_value(section).expect("valid pkce JSON"))
+            },
+            ..fraiseql_core::schema::SecurityConfig::default()
+        };
         CompiledSchema {
             security: Some(security),
             ..CompiledSchema::default()
@@ -961,16 +1006,17 @@ mod pkce_boot_guard_tests {
         ))
     }
 
-    #[tokio::test]
-    async fn a_malformed_pkce_section_refuses_to_boot() {
+    #[test]
+    fn a_malformed_pkce_section_is_refused_at_load() {
         // A string-typed number is what a hand edit or an external generator produces;
-        // it used to be a warning that silently disabled PKCE.
-        let schema = schema_with_pkce(json!({ "enabled": true, "state_ttl_secs": "600" }));
-        let enc = encryption();
-        let err = pkce_store_from_schema_in(&schema, Some(&enc), PRODUCTION)
-            .await
-            .err()
-            .expect("a present-but-unparseable [security.pkce] must refuse to boot");
+        // it used to be a warning that silently disabled PKCE. Since #977 the typed
+        // schema seam refuses it before any subsystem constructor runs.
+        let json = serde_json::json!({
+            "types": [], "queries": [], "mutations": [], "subscriptions": [],
+            "security": { "pkce": { "enabled": true, "state_ttl_secs": "600" } }
+        });
+        let err = CompiledSchema::from_json(&json.to_string(), false)
+            .expect_err("a present-but-unparseable [security.pkce] must refuse to load");
         assert!(
             err.to_string().contains("security.pkce"),
             "the error must name the section; got: {err}"

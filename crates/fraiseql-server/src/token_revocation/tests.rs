@@ -12,8 +12,17 @@ const PRODUCTION: bool = true;
 const DEVELOPMENT: bool = false;
 
 fn schema_with_revocation(value: serde_json::Value) -> CompiledSchema {
-    let mut security = SecurityConfig::default();
-    security.additional.insert("token_revocation".to_string(), value);
+    // JSON in, typed field out: a null section means "absent" (the compiler's
+    // spelling of an unset `[security.token_revocation]`), anything else must
+    // parse as the typed config — the same rule the schema seam enforces (#977).
+    let security = SecurityConfig {
+        token_revocation: if value.is_null() {
+            None
+        } else {
+            Some(serde_json::from_value(value).expect("valid token_revocation JSON"))
+        },
+        ..SecurityConfig::default()
+    };
     CompiledSchema {
         security: Some(security),
         ..CompiledSchema::default()

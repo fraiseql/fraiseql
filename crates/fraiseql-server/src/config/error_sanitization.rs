@@ -4,35 +4,11 @@
 //! traces, raw DB error messages) from GraphQL responses before they reach
 //! the client.
 
-use serde::Deserialize;
+/// The compiled `[security.error_sanitization]` shape — the schema seam owns it
+/// (#977), so the CLI, the compiled artefact and this server share one type.
+pub use fraiseql_core::schema::ErrorSanitizationConfig;
 
 use crate::error::{ErrorCode, GraphQLError};
-
-/// Configuration for error sanitization (mirrors `ErrorSanitizationConfig` from
-/// `fraiseql-cli`, deserialized from `compiled.security.error_sanitization`).
-#[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
-pub struct ErrorSanitizationConfig {
-    /// Enable error sanitization (default: false — opt-in for backwards compat).
-    pub enabled:                     bool,
-    /// Strip stack traces, SQL fragments, file paths (default: true).
-    pub hide_implementation_details: bool,
-    /// Replace raw database error messages with a generic message (default: true).
-    pub sanitize_database_errors:    bool,
-    /// Replacement message shown to clients when an internal error is sanitized.
-    pub custom_error_message:        Option<String>,
-}
-
-impl Default for ErrorSanitizationConfig {
-    fn default() -> Self {
-        Self {
-            enabled:                     false,
-            hide_implementation_details: true,
-            sanitize_database_errors:    true,
-            custom_error_message:        None,
-        }
-    }
-}
 
 /// Sanitizes GraphQL errors before they reach the client.
 ///

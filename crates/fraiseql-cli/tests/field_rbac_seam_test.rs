@@ -102,8 +102,7 @@ fn role_definitions_reach_the_runtime_security_config() {
     assert!(
         !security.role_definitions.is_empty(),
         "#757: `[[fraiseql.security.role_definitions]]` must land in the typed field the \
-         runtime reads. Landed instead in the untyped catch-all: {:?}",
-        security.additional.keys().collect::<Vec<_>>()
+         runtime reads (the untyped catch-all is gone since #977)"
     );
     assert_eq!(security.role_definitions[0].name, "hr");
 }

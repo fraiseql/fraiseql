@@ -501,17 +501,17 @@ async fn authorize_flood_faces_the_auth_start_bucket() {
     // the mount must face the auth_start budget. 3 per minute, generous
     // global budget so the path bucket is what trips.
     let mut schema = social_schema(&stub);
-    let mut sec = fraiseql_core::schema::SecurityConfig::default();
-    sec.additional.insert(
-        "rate_limiting".to_string(),
-        serde_json::json!({
-            "enabled": true,
-            "requests_per_second": 1000,
-            "burst_size": 1000,
-            "auth_start_max_requests": 3,
-            "auth_start_window_secs": 60,
+    let sec = fraiseql_core::schema::SecurityConfig {
+        rate_limiting: Some(fraiseql_core::schema::RateLimitingSecurityConfig {
+            enabled: true,
+            requests_per_second: 1000,
+            burst_size: 1000,
+            auth_start_max_requests: 3,
+            auth_start_window_secs: 60,
+            ..Default::default()
         }),
-    );
+        ..fraiseql_core::schema::SecurityConfig::default()
+    };
     schema.security = Some(sec);
 
     let (base, tx, handle) =

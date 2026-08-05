@@ -531,59 +531,89 @@ impl SecurityConfig {
         Ok(())
     }
 
-    /// Convert to JSON representation for schema.json
+    /// Convert to JSON representation for schema.json.
+    ///
+    /// Built by constructing the typed `fraiseql_core::schema::SecurityConfig` and
+    /// serializing it (#977): the compiled seam is `deny_unknown_fields`, so a key
+    /// this path emitted under a name the consumer does not declare would fail the
+    /// compile instead of landing in a catch-all nothing reads. That catch-all is
+    /// how this path shipped camelCase sections (`auditLogging`, `constantTime`
+    /// with a misspelled `applytoCsrfTokens`) that no consumer read in any casing
+    /// (#757, #893).
+    ///
+    /// Mapping notes:
+    /// - `[fraiseql.security.audit_logging] enabled` lowers onto `enterprise.audit_logging_enabled`
+    ///   — the field the runtime actually reads. Its other keys (`log_level`, `buffer_size`, …)
+    ///   have no consumer anywhere and are not emitted.
+    /// - `[fraiseql.security.error_sanitization] enabled` lowers onto the compiled
+    ///   `error_sanitization.enabled`; its other keys (`generic_messages`, `user_facing_format`, …)
+    ///   likewise have no consumer and are not emitted.
+    /// - `state_encryption` lowers `enabled` + `algorithm`; `key_rotation_enabled`, `nonce_size`
+    ///   and `key_size` have no consumer (nonce/key sizes are fixed by the algorithm) and are not
+    ///   emitted.
     pub fn to_json(&self) -> serde_json::Value {
-        // Every key here is spelled the way its consumer reads it, and the section
-        // names are snake_case throughout — matching `schema/merger.rs`, the other
-        // compile path, which had drifted to the opposite convention.
-        //
-        // These five sub-sections were emitted as `auditLogging`, `errorSanitization`,
-        // `rateLimiting`, `stateEncryption` and `constantTime`, which land in
-        // `fraiseql_core::schema::SecurityConfig`'s `#[serde(flatten)] additional` map
-        // under those names. The server looks for `rate_limiting` and
-        // `error_sanitization`, so a project `fraiseql.toml` that configured rate
-        // limiting produced a key nothing read: no limiter was mounted, and the #618
-        // proxy-trust boot guard behind it never ran (#893). Same defect as #757, one
-        // level up: a hand-written producer whose key names are maintained separately
-        // from the consumer's.
-        let mut json = serde_json::json!({
-            "multi_tenant": self.multi_tenant,
-            "rls": self.rls,
-            "audit_logging": self.audit_logging.to_json(),
-            "error_sanitization": self.error_sanitization.to_json(),
-            "rate_limiting": self.rate_limiting.to_json(),
-            "state_encryption": self.state_encryption.to_json(),
-        });
+        let role_definitions: Vec<fraiseql_core::schema::RoleDefinition> = self
+            .role_definitions
+            .iter()
+            .map(|r| fraiseql_core::schema::RoleDefinition {
+                description: r.description.clone(),
+                ..fraiseql_core::schema::RoleDefinition::new(r.name.clone(), r.scopes.clone())
+            })
+            .collect();
 
-        // Field-level RBAC grants. Emitted as `role_definitions` — the name
-        // `fraiseql_core::schema::SecurityConfig` declares — and built by serializing
-        // the runtime `RoleDefinition` type rather than by hand.
-        //
-        // These were emitted as `roleDefinitions` with hand-written keys, so they
-        // deserialized into the consumer's `#[serde(flatten)] additional` map, nothing
-        // read them back out, and `role_definitions` stayed empty. Since
-        // `role_has_scope` is the *only* input to `can_access_scope`, that made the
-        // documented field-level RBAC feature deny-all on every project-TOML compile:
-        // a member of a role granted a scope was refused the field the role was
-        // created to unlock (#757).
-        if !self.role_definitions.is_empty() {
-            let runtime: Vec<fraiseql_core::schema::RoleDefinition> = self
-                .role_definitions
-                .iter()
-                .map(|r| fraiseql_core::schema::RoleDefinition {
-                    description: r.description.clone(),
-                    ..fraiseql_core::schema::RoleDefinition::new(r.name.clone(), r.scopes.clone())
-                })
-                .collect();
-            json["role_definitions"] = serde_json::to_value(runtime).unwrap_or_default();
-        }
+        let algorithm = if self.state_encryption.algorithm == "aes-256-gcm" {
+            fraiseql_core::schema::EncryptionAlgorithm::Aes256Gcm
+        } else {
+            // `validate()` restricts the field to the two supported names.
+            fraiseql_core::schema::EncryptionAlgorithm::Chacha20Poly1305
+        };
 
-        // Same rename, same consequence: `defaultRole` never reached the typed field.
-        if let Some(default_role) = &self.default_role {
-            json["default_role"] = serde_json::json!(default_role);
-        }
-
-        json
+        let runtime = fraiseql_core::schema::SecurityConfig {
+            role_definitions,
+            default_role: self.default_role.clone(),
+            multi_tenant: self.multi_tenant,
+            rls: self.rls.clone(),
+            enterprise: Some(fraiseql_core::schema::EnterpriseSecurityConfig {
+                audit_logging_enabled: self.audit_logging.enabled,
+                error_sanitization: self.error_sanitization.enabled,
+                rate_limiting_enabled: self.rate_limiting.enabled,
+                ..Default::default()
+            }),
+            error_sanitization: Some(fraiseql_core::schema::ErrorSanitizationConfig {
+                enabled: self.error_sanitization.enabled,
+                ..Default::default()
+            }),
+            rate_limiting: Some(fraiseql_core::schema::RateLimitingSecurityConfig {
+                enabled: self.rate_limiting.enabled,
+                requests_per_second: self.rate_limiting.requests_per_second,
+                burst_size: self.rate_limiting.burst_size,
+                auth_start_max_requests: self.rate_limiting.auth_start_max_requests,
+                auth_start_window_secs: self.rate_limiting.auth_start_window_secs,
+                auth_callback_max_requests: self.rate_limiting.auth_callback_max_requests,
+                auth_callback_window_secs: self.rate_limiting.auth_callback_window_secs,
+                auth_refresh_max_requests: self.rate_limiting.auth_refresh_max_requests,
+                auth_refresh_window_secs: self.rate_limiting.auth_refresh_window_secs,
+                auth_logout_max_requests: self.rate_limiting.auth_logout_max_requests,
+                auth_logout_window_secs: self.rate_limiting.auth_logout_window_secs,
+                failed_login_max_attempts: self.rate_limiting.failed_login_max_requests,
+                failed_login_lockout_secs: self.rate_limiting.failed_login_window_secs,
+                requests_per_second_per_user: None,
+                redis_url: None,
+                trust_proxy_headers: self.rate_limiting.trust_proxy_headers,
+                // Emitted even when empty: with `trust_proxy_headers = true`, an
+                // explicit empty list is what the #618 boot guard refuses, while an
+                // absent list means "trust every proxy" (warned). Collapsing empty
+                // to absent would silently weaken the guard.
+                trusted_proxy_cidrs: Some(self.rate_limiting.trusted_proxy_cidrs.clone()),
+            }),
+            state_encryption: Some(fraiseql_core::schema::StateEncryptionConfig {
+                enabled: self.state_encryption.enabled,
+                algorithm,
+                ..Default::default()
+            }),
+            ..fraiseql_core::schema::SecurityConfig::default()
+        };
+        serde_json::to_value(runtime).unwrap_or_else(|_| serde_json::json!({}))
     }
 }
 
@@ -598,10 +628,13 @@ mod security_seam_tests {
     /// Hand-written producer keys drift from the consumer struct's field names, which
     /// is the whole of #757 and #893. The list is asserted rather than described so a
     /// rename on either side has to come here.
+    // A default config serializes exactly these sections: the typed
+    // `SecurityConfig` (#977) skips fields carrying no information
+    // (`multi_tenant = false`, a default `rls`, empty lists, `None`s), and
+    // `audit_logging` lowers onto `enterprise.audit_logging_enabled` — the key
+    // the runtime actually reads.
     const EXPECTED_SECTIONS: &[&str] = &[
-        "multi_tenant",
-        "rls",
-        "audit_logging",
+        "enterprise",
         "error_sanitization",
         "rate_limiting",
         "state_encryption",

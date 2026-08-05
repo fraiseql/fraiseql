@@ -45,12 +45,21 @@ fn compiled_schema(controls_enabled: Option<bool>) -> String {
     };
 
     if let Some(enabled) = controls_enabled {
-        let mut security = SecurityConfig::default();
-        for section in ["rate_limiting", "audit_logging", "error_sanitization"] {
-            security
-                .additional
-                .insert(section.to_string(), serde_json::json!({ "enabled": enabled }));
-        }
+        let security = SecurityConfig {
+            rate_limiting: Some(fraiseql_core::schema::RateLimitingSecurityConfig {
+                enabled,
+                ..Default::default()
+            }),
+            enterprise: Some(fraiseql_core::schema::EnterpriseSecurityConfig {
+                audit_logging_enabled: enabled,
+                ..Default::default()
+            }),
+            error_sanitization: Some(fraiseql_core::schema::ErrorSanitizationConfig {
+                enabled,
+                ..Default::default()
+            }),
+            ..SecurityConfig::default()
+        };
         schema.security = Some(security);
     }
 

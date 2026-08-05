@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use super::domain_types::{RoleName, Scope};
 
+#[cfg(test)]
+mod tests;
+
 /// Source from which an injected SQL parameter is resolved at runtime.
 ///
 /// Injected parameters are not exposed in the GraphQL schema. They are
@@ -243,7 +246,15 @@ fn is_default_rls(r: &RlsConfig) -> bool {
 ///
 /// Contains role definitions and other security-related settings
 /// that are compiled into schema.compiled.json.
+///
+/// `deny_unknown_fields`: this object is the seam seven security subsystems are
+/// configured through, and it used to carry a `#[serde(flatten)]` catch-all that
+/// seven string lookups read — so `rate_limitting` or `token_revokation` in a
+/// compiled schema landed in the catch-all, the lookup missed, and the subsystem
+/// came up silently unconfigured (#977). A typo'd key must fail the load, not
+/// disable the subsystem it names (the compiled-schema seam rule).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SecurityConfig {
     /// Role definitions mapping role names to their granted scopes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -289,9 +300,447 @@ pub struct SecurityConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost_budget: Option<CostBudgetConfig>,
 
-    /// Additional security settings (rate limiting, audit logging, etc.)
-    #[serde(flatten)]
-    pub additional: HashMap<String, serde_json::Value>,
+    /// Default authorization policy applied when an operation names none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_policy: Option<String>,
+
+    /// Custom authorization rules, compiled from `[[security.rules]]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<super::config_types::AuthorizationRule>,
+
+    /// Authorization policies (RBAC/ABAC), compiled from `[[security.policies]]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub policies: Vec<super::config_types::AuthorizationPolicy>,
+
+    /// Field-level authorization rules, compiled from `[[security.field_auth]]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub field_auth: Vec<super::config_types::FieldAuthRule>,
+
+    /// Enterprise security flags, compiled from `[security.enterprise]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise: Option<super::config_types::EnterpriseSecurityConfig>,
+
+    /// Error sanitization, compiled from `[security.error_sanitization]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_sanitization: Option<ErrorSanitizationConfig>,
+
+    /// Rate limiting, compiled from `[security.rate_limiting]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate_limiting: Option<RateLimitingSecurityConfig>,
+
+    /// OAuth state / PKCE blob encryption, compiled from
+    /// `[security.state_encryption]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_encryption: Option<StateEncryptionConfig>,
+
+    /// PKCE for OAuth Authorization Code flows, compiled from `[security.pkce]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pkce: Option<PkceSecurityConfig>,
+
+    /// API key authentication, compiled from `[security.api_keys]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_keys: Option<ApiKeySecurityConfig>,
+
+    /// Token revocation, compiled from `[security.token_revocation]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_revocation: Option<TokenRevocationSecurityConfig>,
+
+    /// Trusted documents / persisted-query allowlist, compiled from
+    /// `[security.trusted_documents]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_documents: Option<TrustedDocumentsConfig>,
+
+    /// Force persisted-operations-only enforcement (#379).
+    ///
+    /// When `true`, the runtime forces the trusted-document store into `strict`
+    /// mode regardless of `trusted_documents.mode`. Requires a configured
+    /// trusted-documents manifest to have any effect.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub persisted_queries_only: bool,
+
+    /// Machine service accounts, keyed by account name (`security.service_accounts`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_accounts: Option<HashMap<String, ServiceAccountConfig>>,
+}
+
+/// Controls how much error detail is exposed to API clients.
+///
+/// When enabled, internal error messages, SQL, and stack traces are stripped.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ErrorSanitizationConfig {
+    /// Enable error sanitization (default: false — opt-in).
+    pub enabled:                     bool,
+    /// Strip stack traces, SQL fragments, file paths (default: true).
+    pub hide_implementation_details: bool,
+    /// Replace raw database error messages with a generic message (default: true).
+    pub sanitize_database_errors:    bool,
+    /// Replacement message shown to clients when an internal error is sanitized.
+    pub custom_error_message:        Option<String>,
+}
+
+impl Default for ErrorSanitizationConfig {
+    fn default() -> Self {
+        Self {
+            enabled:                     false,
+            hide_implementation_details: true,
+            sanitize_database_errors:    true,
+            custom_error_message:        None,
+        }
+    }
+}
+
+/// Per-endpoint and global rate limiting configuration for `[security.rate_limiting]`.
+///
+/// The single shape for this section: the CLI authors it from TOML and the
+/// server consumes it from the compiled schema, so the two cannot drift (before
+/// #977 each side kept its own copy — with different defaults).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RateLimitingSecurityConfig {
+    /// Enable rate limiting.
+    pub enabled: bool,
+    /// Global request rate cap (requests per second, per IP).
+    pub requests_per_second: u32,
+    /// Burst allowance above the steady-state rate.
+    pub burst_size: u32,
+    /// Auth initiation endpoint — max requests per window.
+    pub auth_start_max_requests: u32,
+    /// Auth initiation window in seconds.
+    pub auth_start_window_secs: u64,
+    /// OAuth callback endpoint — max requests per window.
+    pub auth_callback_max_requests: u32,
+    /// OAuth callback window in seconds.
+    pub auth_callback_window_secs: u64,
+    /// Token refresh endpoint — max requests per window.
+    pub auth_refresh_max_requests: u32,
+    /// Token refresh window in seconds.
+    pub auth_refresh_window_secs: u64,
+    /// Logout endpoint — max requests per window (#893).
+    pub auth_logout_max_requests: u32,
+    /// Logout window in seconds.
+    pub auth_logout_window_secs: u64,
+    /// Maximum failed first-factor login attempts before lockout.
+    ///
+    /// The off-the-shelf binary performs no first-factor login of its own, so it
+    /// cannot enforce this; a value tuned away from the default is rejected at
+    /// startup in production (#356) — see the server's `failed_login_lockout_check`.
+    pub failed_login_max_attempts: u32,
+    /// Lockout window in seconds after `failed_login_max_attempts` is exceeded.
+    pub failed_login_lockout_secs: u64,
+    /// Per-authenticated-user request rate in requests/second.
+    /// Defaults to 10× `requests_per_second` if not set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requests_per_second_per_user: Option<u32>,
+    /// Redis URL for distributed rate limiting.
+    ///
+    /// Optional: when unset, budgets are tracked in-memory, per process. When
+    /// set, an unreachable Redis is a **boot error** in production (#770/#777
+    /// class) — the server does not silently downgrade to per-process limits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url: Option<String>,
+    /// Trust `X-Real-IP` / `X-Forwarded-For` headers for client IP extraction.
+    ///
+    /// Set to `true` only when FraiseQL is deployed behind a trusted reverse
+    /// proxy that sets these headers. Enabling without a trusted proxy allows
+    /// clients to spoof their IP address.
+    pub trust_proxy_headers: bool,
+    /// CIDR ranges trusted as proxy IPs (e.g. `["10.0.0.0/8"]`).
+    ///
+    /// When set and `trust_proxy_headers = true`, `X-Forwarded-For` is only
+    /// honoured when the direct connection IP falls within one of these ranges.
+    /// When omitted with `trust_proxy_headers = true`, all proxy IPs are trusted
+    /// (less secure — the server emits a startup warning).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trusted_proxy_cidrs: Option<Vec<String>>,
+}
+
+impl Default for RateLimitingSecurityConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            requests_per_second: 100,
+            requests_per_second_per_user: None,
+            burst_size: 200,
+            auth_start_max_requests: 5,
+            auth_start_window_secs: 60,
+            auth_callback_max_requests: 10,
+            auth_callback_window_secs: 60,
+            auth_refresh_max_requests: 20,
+            auth_refresh_window_secs: 300,
+            auth_logout_max_requests: 30,
+            auth_logout_window_secs: 60,
+            failed_login_max_attempts: 10,
+            failed_login_lockout_secs: 900,
+            redis_url: None,
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: None,
+        }
+    }
+}
+
+/// AEAD algorithm for OAuth state and PKCE state blobs.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum EncryptionAlgorithm {
+    /// ChaCha20-Poly1305 (recommended — constant-time, software-friendly).
+    #[default]
+    #[serde(rename = "chacha20-poly1305")]
+    Chacha20Poly1305,
+    /// AES-256-GCM (hardware-accelerated on modern CPUs).
+    #[serde(rename = "aes-256-gcm")]
+    Aes256Gcm,
+}
+
+impl std::fmt::Display for EncryptionAlgorithm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Chacha20Poly1305 => f.write_str("chacha20-poly1305"),
+            Self::Aes256Gcm => f.write_str("aes-256-gcm"),
+        }
+    }
+}
+
+/// Where the state-encryption key is sourced from.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum KeySource {
+    /// Read the key from an environment variable.
+    #[default]
+    Env,
+}
+
+/// AEAD encryption for the OAuth state parameter and PKCE code challenges.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StateEncryptionConfig {
+    /// Enable state encryption.
+    pub enabled:    bool,
+    /// AEAD algorithm to use.
+    pub algorithm:  EncryptionAlgorithm,
+    /// Where to source the encryption key.
+    pub key_source: KeySource,
+    /// Environment variable holding the 32-byte hex-encoded key.
+    pub key_env:    Option<String>,
+}
+
+impl Default for StateEncryptionConfig {
+    fn default() -> Self {
+        Self {
+            enabled:    false,
+            algorithm:  EncryptionAlgorithm::default(),
+            key_source: KeySource::Env,
+            key_env:    Some("STATE_ENCRYPTION_KEY".to_string()),
+        }
+    }
+}
+
+/// PKCE code challenge method.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum CodeChallengeMethod {
+    /// SHA-256 (required in production).
+    #[default]
+    #[serde(rename = "S256")]
+    S256,
+    /// Plain (spec-allowed but insecure — warns at runtime).
+    #[serde(rename = "plain")]
+    Plain,
+}
+
+impl CodeChallengeMethod {
+    /// The method name as it appears on the wire (`S256` / `plain`).
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::S256 => "S256",
+            Self::Plain => "plain",
+        }
+    }
+}
+
+/// PKCE (Proof Key for Code Exchange) configuration for `[security.pkce]`.
+///
+/// Requires `state_encryption` to be enabled for secure state storage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PkceSecurityConfig {
+    /// Enable PKCE for OAuth Authorization Code flows.
+    pub enabled:               bool,
+    /// Code challenge method (`S256` recommended).
+    pub code_challenge_method: CodeChallengeMethod,
+    /// How long the PKCE state is valid before the auth flow expires (seconds).
+    pub state_ttl_secs:        u64,
+    /// Redis URL for distributed PKCE state storage across multiple replicas.
+    ///
+    /// Required for multi-replica deployments; without Redis, `/auth/start` and
+    /// `/auth/callback` must hit the same replica. Requires the `redis-pkce`
+    /// Cargo feature.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url:             Option<String>,
+}
+
+impl Default for PkceSecurityConfig {
+    fn default() -> Self {
+        Self {
+            enabled:               false,
+            code_challenge_method: CodeChallengeMethod::S256,
+            state_ttl_secs:        600,
+            redis_url:             None,
+        }
+    }
+}
+
+/// API key authentication configuration for `[security.api_keys]`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ApiKeySecurityConfig {
+    /// Enable API key authentication.
+    pub enabled:        bool,
+    /// HTTP header name to read the API key from.
+    pub header:         String,
+    /// Hash algorithm for key verification (`sha256`).
+    pub hash_algorithm: String,
+    /// Storage backend: `"env"` for static keys, `"postgres"` for DB-backed.
+    pub storage:        String,
+    /// Static API key entries (only for `storage = "env"`).
+    #[serde(rename = "static")]
+    pub static_keys:    Vec<StaticApiKeyEntry>,
+}
+
+impl Default for ApiKeySecurityConfig {
+    fn default() -> Self {
+        Self {
+            enabled:        false,
+            header:         "X-API-Key".to_string(),
+            hash_algorithm: "sha256".to_string(),
+            storage:        "env".to_string(),
+            static_keys:    vec![],
+        }
+    }
+}
+
+/// A single static API key entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticApiKeyEntry {
+    /// Hex-encoded hash, optionally prefixed with the algorithm (`sha256:…`).
+    pub key_hash: String,
+    /// OAuth-style scopes granted by this key.
+    #[serde(default)]
+    pub scopes:   Vec<String>,
+    /// Human-readable name (for audit logging).
+    pub name:     String,
+}
+
+/// Trusted document enforcement mode.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum TrustedDocumentMode {
+    /// Only documentId requests allowed; raw query strings rejected.
+    Strict,
+    /// documentId requests use the manifest; raw queries fall through.
+    #[default]
+    Permissive,
+}
+
+/// Trusted documents / query allowlist configuration for
+/// `[security.trusted_documents]`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TrustedDocumentsConfig {
+    /// Enable trusted documents.
+    pub enabled:              bool,
+    /// Enforcement mode: `strict` or `permissive`.
+    pub mode:                 TrustedDocumentMode,
+    /// Path to the trusted documents manifest JSON file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_path:        Option<String>,
+    /// URL to fetch the trusted documents manifest from at startup.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_url:         Option<String>,
+    /// Poll interval in seconds for hot-reloading the manifest (0 = no reload).
+    pub reload_interval_secs: u64,
+}
+
+impl Default for TrustedDocumentsConfig {
+    fn default() -> Self {
+        Self {
+            enabled:              false,
+            mode:                 TrustedDocumentMode::Permissive,
+            manifest_path:        None,
+            manifest_url:         None,
+            reload_interval_secs: 0,
+        }
+    }
+}
+
+/// Token revocation configuration for `[security.token_revocation]`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TokenRevocationSecurityConfig {
+    /// Enable token revocation.
+    pub enabled:             bool,
+    /// Storage backend: `"redis"`, `"postgres"`, or `"memory"`.
+    pub backend:             String,
+    /// Reject JWTs without a `jti` claim when revocation is enabled.
+    pub require_jti:         bool,
+    /// If the revocation store is unreachable: `false` = reject (fail-closed),
+    /// `true` = allow (fail-open).
+    pub fail_open:           bool,
+    /// Redis URL for distributed revocation (inherited from `[fraiseql.redis]`
+    /// if absent).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url:           Option<String>,
+    /// How long (seconds) a `revoke-all` epoch is retained.
+    ///
+    /// `revoke-all` records a per-user epoch rather than deleting individual
+    /// tokens, so the entry must outlive every token that could have been issued
+    /// before the revocation: set this **above your maximum access-token
+    /// lifetime**. Once it expires a pre-revocation token would resume working
+    /// (until its own `exp`). Default: 86400 (24h).
+    pub revoke_all_ttl_secs: u64,
+}
+
+impl Default for TokenRevocationSecurityConfig {
+    fn default() -> Self {
+        Self {
+            enabled:             false,
+            backend:             "memory".to_string(),
+            require_jti:         true,
+            fail_open:           false,
+            redis_url:           None,
+            revoke_all_ttl_secs: 86_400,
+        }
+    }
+}
+
+/// A machine service account (`security.service_accounts.<name>`).
+///
+/// The bearer secret is **never** inlined — `secret_env` names the environment
+/// variable that holds it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServiceAccountConfig {
+    /// Name of the environment variable holding the plaintext bearer secret.
+    pub secret_env:      String,
+    /// The `run_as` ceiling — roles granted. Empty ⇒ no role authority.
+    #[serde(default)]
+    pub roles:           Vec<String>,
+    /// The `run_as` ceiling — scopes granted. Empty ⇒ no scope authority.
+    #[serde(default)]
+    pub scopes:          Vec<String>,
+    /// Optional tenant pin. Omitted ⇒ global / NULL tenant.
+    #[serde(default)]
+    pub tenant:          Option<String>,
+    /// Optional server-injected `fraiseql.enriched.*` fields, the **only**
+    /// sanctioned deviation from uniform enrichment (ADR-0016 decision 6 /
+    /// ADR-0018 decision 5) — for a daemon with no natural actor row.
+    /// Server-injected, never token-asserted.
+    #[serde(default)]
+    pub static_enriched: HashMap<String, serde_json::Value>,
 }
 
 /// Compiled `[security.cost_budget]` (#379).

@@ -182,16 +182,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     pub(super) fn error_sanitizer_from_schema(
         schema: &CompiledSchema,
     ) -> Arc<crate::config::error_sanitization::ErrorSanitizer> {
-        let compiled = schema
-            .security
-            .as_ref()
-            .and_then(|s| s.additional.get("error_sanitization"))
-            .and_then(|v| {
-                serde_json::from_value::<
-                    crate::config::error_sanitization::ErrorSanitizationConfig,
-                >(v.clone())
-                .ok()
-            });
+        let compiled = schema.security.as_ref().and_then(|s| s.error_sanitization.clone());
         Arc::new(build_error_sanitizer(compiled, crate::ServerConfig::is_production_mode()))
     }
 
@@ -211,13 +202,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // forces the trusted-document store into Strict mode below. It only takes effect
         // when a trusted-documents manifest is configured (there must be persisted
         // operations to allow-list); warn loudly otherwise so the flag never fails silent.
-        let persisted_queries_only = security
-            .additional
-            .get("persisted_queries_only")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
+        let persisted_queries_only = security.persisted_queries_only;
 
-        let Some(td_cfg) = security.additional.get("trusted_documents") else {
+        let Some(cfg) = security.trusted_documents.as_ref() else {
             if persisted_queries_only {
                 warn!(
                     "security.persisted_queries_only = true but no [security.trusted_documents] \
@@ -229,25 +216,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             return None;
         };
 
-        #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
-        #[derive(serde::Deserialize)]
-        struct TdCfgMinimal {
-            #[serde(default)]
-            enabled:              bool,
-            #[serde(default)]
-            mode:                 String,
-            manifest_path:        Option<String>,
-            #[allow(dead_code)]
-            // Reason: serde deserialization target — manifest_url is a valid config field but this
-            // minimal struct only reads manifest_path
-            manifest_url: Option<String>,
-            #[serde(default)]
-            reload_interval_secs: u64,
-        }
-
-        let cfg: TdCfgMinimal = serde_json::from_value(td_cfg.clone())
-            .inspect_err(|e| warn!(error = %e, "Failed to deserialize trusted_documents config — disabling trusted documents"))
-            .ok()?;
         if !cfg.enabled {
             if persisted_queries_only {
                 warn!(
@@ -258,7 +226,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             return None;
         }
 
-        let mode = effective_trusted_doc_mode(&cfg.mode, persisted_queries_only);
+        let mode = effective_trusted_doc_mode(cfg.mode, persisted_queries_only);
 
         if let Some(ref path) = cfg.manifest_path {
             match crate::trusted_documents::TrustedDocumentStore::from_manifest_file(
@@ -395,10 +363,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 ///
 /// [`TrustedDocumentMode::Strict`]: crate::trusted_documents::TrustedDocumentMode::Strict
 pub(super) const fn effective_trusted_doc_mode(
-    declared_mode: &str,
+    declared_mode: fraiseql_core::schema::TrustedDocumentMode,
     persisted_queries_only: bool,
 ) -> crate::trusted_documents::TrustedDocumentMode {
-    if persisted_queries_only || declared_mode.eq_ignore_ascii_case("strict") {
+    if persisted_queries_only
+        || matches!(declared_mode, fraiseql_core::schema::TrustedDocumentMode::Strict)
+    {
         crate::trusted_documents::TrustedDocumentMode::Strict
     } else {
         crate::trusted_documents::TrustedDocumentMode::Permissive
@@ -598,42 +568,9 @@ pub(super) async fn pkce_store_from_schema_in(
     let Some(security) = schema.security.as_ref() else {
         return Ok(None);
     };
-    let Some(pkce_cfg) = security.additional.get("pkce") else {
+    let Some(cfg) = security.pkce.as_ref() else {
         return Ok(None);
     };
-
-    #[allow(clippy::items_after_statements)] // Reason: local deserialization helper struct scoped near its usage
-    #[derive(serde::Deserialize)]
-    struct PkceCfgMinimal {
-        #[serde(default)]
-        enabled:               bool,
-        #[serde(default = "default_ttl")]
-        state_ttl_secs:        u64,
-        #[serde(default = "default_method")]
-        code_challenge_method: String,
-        redis_url:             Option<String>,
-    }
-    #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
-    const fn default_ttl() -> u64 {
-        600
-    }
-    #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
-    fn default_method() -> String {
-        "S256".into()
-    }
-
-    // An explicit JSON null is the compiler's way of writing "absent".
-    if pkce_cfg.is_null() {
-        return Ok(None);
-    }
-
-    let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone()).map_err(|e| {
-        ServerError::ConfigError(format!(
-            "invalid [security.pkce] in the compiled schema: {e}. A malformed section used \
-             to be a warning that silently disabled PKCE while the operator had a \
-             successful compile as evidence it was in effect."
-        ))
-    })?;
     if !cfg.enabled {
         return Ok(None);
     }
@@ -644,7 +581,7 @@ pub(super) async fn pkce_store_from_schema_in(
     // encryption is enforced" posture; development mode downgrades this to a warning.
     pkce_state_encryption_check(state_encryption.is_some(), is_production)?;
 
-    if cfg.code_challenge_method.eq_ignore_ascii_case("plain") {
+    if matches!(cfg.code_challenge_method, fraiseql_core::schema::CodeChallengeMethod::Plain) {
         warn!(
             "pkce.code_challenge_method = \"plain\" is insecure. \
              Use \"S256\" in all production environments."
@@ -738,7 +675,7 @@ pub(super) async fn resolve_rate_limiter_in(
     config: &crate::ServerConfig,
     is_production: bool,
 ) -> crate::Result<Option<Arc<RateLimiter>>> {
-    let schema_sec = rate_limiting_from_schema(schema)?;
+    let schema_sec = rate_limiting_from_schema(schema);
     let overrides = &config.rate_limit_overrides;
 
     // Base: compiled schema first, then the server's own table. Both are checked, so
@@ -862,38 +799,17 @@ const RATE_LIMIT_REDIS_CONSEQUENCE: &str = "rate-limit budgets would be tracked 
 
 /// Read `security.rate_limiting` out of the compiled schema.
 ///
-/// # Errors
-///
-/// Returns `ServerError::ConfigError` when the key is present but does not
-/// deserialize.
-///
-/// This used to end in `.ok()`, which turned any type mismatch — a
-/// string-typed number from a hand edit, an external generator, or a
-/// CLI/server version skew — into `None`. `None` is indistinguishable from
-/// "no rate limiting configured", so the server booted with throttling
-/// silently off *and* skipped the `#609`/`#618` proxy-trust and `#356`
-/// failed-login boot guards that live behind this parse, while the operator
-/// had a successful compile as evidence the section was in effect (#778).
+/// The section is a typed field on `SecurityConfig` (#977), so a malformed or
+/// misspelled section is a **load** error before this function is reached — the
+/// history matters: an earlier string lookup ended in `.ok()`, which turned any
+/// type mismatch into `None`, indistinguishable from "no rate limiting
+/// configured", so the server booted with throttling silently off *and* skipped
+/// the `#609`/`#618` proxy-trust and `#356` failed-login boot guards that live
+/// behind this parse (#778).
 fn rate_limiting_from_schema(
     schema: &CompiledSchema,
-) -> crate::Result<Option<crate::middleware::RateLimitingSecurityConfig>> {
-    let Some(value) = schema.security.as_ref().and_then(|s| s.additional.get("rate_limiting"))
-    else {
-        return Ok(None);
-    };
-
-    // An explicit JSON null is the compiler's way of writing "absent".
-    if value.is_null() {
-        return Ok(None);
-    }
-
-    serde_json::from_value(value.clone()).map(Some).map_err(|e| {
-        crate::ServerError::ConfigError(format!(
-            "invalid [security.rate_limiting] in the compiled schema: {e}. Rate limiting and the \
-             proxy-trust boot guard both depend on this section, so it is refused rather than \
-             skipped."
-        ))
-    })
+) -> Option<crate::middleware::RateLimitingSecurityConfig> {
+    schema.security.as_ref().and_then(|s| s.rate_limiting.clone())
 }
 
 /// Lower a security-block rate-limit section onto a `RateLimitConfig`, running every

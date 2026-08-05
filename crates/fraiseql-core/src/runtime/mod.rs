@@ -524,14 +524,12 @@ impl RuntimeConfig {
         }
         schema.validate_format_version()?;
 
-        // Audit logging: security.additional["enterprise"]["audit_logging_enabled"].
+        // Audit logging: security.enterprise.audit_logging_enabled.
         let audit_mutations = schema
             .security
             .as_ref()
-            .and_then(|s| s.additional.get("enterprise"))
-            .and_then(|e| e.get("audit_logging_enabled"))
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
+            .and_then(|s| s.enterprise.as_ref())
+            .is_some_and(|e| e.audit_logging_enabled);
         if audit_mutations {
             tracing::info!("Mutation audit logging enabled (target: fraiseql::mutation_audit)");
         }

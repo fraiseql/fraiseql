@@ -153,46 +153,39 @@ fn collect_facts(schema: &CompiledSchema) -> SchemaFacts {
     }
 }
 
-/// Read a security sub-section's `enabled` flag out of the compiled blob.
-///
-/// `None` means the section is absent, which is materially different from a section
-/// present with `enabled = false` — "never configured" versus "deliberately turned
-/// off" — and both differ from on.
-fn security_flag(schema: &CompiledSchema, section: &str) -> Option<bool> {
-    schema
-        .security
-        .as_ref()?
-        .additional
-        .get(section)?
-        .get("enabled")
-        .and_then(serde_json::Value::as_bool)
-}
-
 fn security_findings(schema: &CompiledSchema) -> Vec<Recommendation> {
     const CATEGORY: &str = "security";
     let mut out = Vec::new();
 
-    for (section, label, suggestion) in [
+    // `None` means the section is absent, which is materially different from a
+    // section present with `enabled = false` — "never configured" versus
+    // "deliberately turned off" — and both differ from on. These are the typed
+    // `SecurityConfig` fields (#977); the previous string lookup read an
+    // `audit_logging` key no producer ever wrote, so that recommendation could
+    // never report "enabled" — audit logging actually lives on
+    // `enterprise.audit_logging_enabled`.
+    let sec = schema.security.as_ref();
+    for (flag, label, suggestion) in [
         (
-            "rate_limiting",
+            sec.and_then(|s| s.rate_limiting.as_ref()).map(|c| c.enabled),
             "Rate limiting",
             "Add [fraiseql.security.rate_limiting] with enabled = true to throttle per-IP \
              request rates.",
         ),
         (
-            "audit_logging",
+            sec.and_then(|s| s.enterprise.as_ref()).map(|e| e.audit_logging_enabled),
             "Audit logging",
-            "Add [fraiseql.security.audit_logging] with enabled = true to record security \
-             events.",
+            "Add [fraiseql.security.enterprise] with audit_logging_enabled = true to record \
+             security events.",
         ),
         (
-            "error_sanitization",
+            sec.and_then(|s| s.error_sanitization.as_ref()).map(|c| c.enabled),
             "Error sanitization",
             "Add [fraiseql.security.error_sanitization] with enabled = true so internal error \
              detail is not returned to clients.",
         ),
     ] {
-        out.push(match security_flag(schema, section) {
+        out.push(match flag {
             Some(true) => Recommendation {
                 category:   CATEGORY,
                 severity:   Severity::Info,

@@ -132,6 +132,10 @@ serde = {version = "1.0", features = ["derive", "rc"]}
 # (#899, #900). Making it unconditional is what lets that be a property of the
 # product instead of a property of the feature set.
 serde_json = {version = "1.0", features = ["preserve_order"]}
+# Names the JSON path in schema-load errors ("security.rate_limiting.requests_per_second:
+# invalid type …"), so a refused compiled schema tells the operator which section to fix.
+# Already in every server build as an axum dependency.
+serde_path_to_error = "0.1"
 # Crypto
 sha2 = "0.11"
 # SQL toolkit (per-crate optional flags)

@@ -587,7 +587,8 @@ mod security_tests {
     fn test_security_config_serialization() {
         let config = SecurityConfig::default();
         let json = config.to_json();
-        assert!(json["audit_logging"]["enabled"].is_boolean());
+        // `audit_logging` lowers onto the key the runtime reads (#977).
+        assert!(json["enterprise"]["audit_logging_enabled"].is_boolean());
         assert!(json["state_encryption"]["algorithm"].is_string());
 
         // Flat, not `rate_limiting.authStart.maxRequests`. This assertion used to pin
