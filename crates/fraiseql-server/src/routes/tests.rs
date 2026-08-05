@@ -900,6 +900,17 @@ mod subscriptions_tests {
         assert_eq!(extract_subscription_name("subscription { }"), None);
     }
 
+    /// #976: this runs on the `WebSocket` handshake, on a document the client
+    /// controls. It used to call `graphql_parser::parse_query` directly, and the
+    /// parser panics when a block string is indented with non-ASCII whitespace —
+    /// so a subscribe frame could kill the connection task instead of being
+    /// rejected. It goes through the guarded seam now.
+    #[test]
+    fn test_extract_subscription_name_unicode_block_indent_is_none_not_a_panic() {
+        let query = "subscription { orderCreated(t: \"\"\"\n x\n\u{a0}y\n\"\"\") { id } }";
+        assert_eq!(extract_subscription_name(query), None);
+    }
+
     /// #786: an object literal in a variable default appears before the
     /// selection set. The old hand parser took the first `{` after the word
     /// "subscription" as the selection-set brace and returned a bogus name,

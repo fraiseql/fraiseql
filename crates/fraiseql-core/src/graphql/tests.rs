@@ -1385,3 +1385,86 @@ mod complexity_tests {
         assert_eq!(cost("{ users(limit: 10) { id } }", &[]), 11);
     }
 }
+
+/// The GraphQL parser must not be able to panic the request path (#976).
+///
+/// `graphql-parser` computes block-string indentation in bytes but strips it with
+/// `str::trim_start`, which is Unicode-aware, then slices the line at that byte
+/// offset. A block string indented with multi-byte Unicode whitespace therefore
+/// slices mid-codepoint and panics — from an unauthenticated request, on a
+/// document that is well-formed by the GraphQL spec.
+mod parser_panic_containment {
+
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::super::complexity::{RequestValidator, parse_graphql_document};
+
+    /// A block string whose second line is indented with U+00A0 (NBSP, 2 bytes)
+    /// while its first is indented with one ASCII space. This is the reduced form
+    /// of the libFuzzer artifact from run 30736254002.
+    const NBSP_INDENT: &str = "{ a(t: \"\"\"\n x\n\u{a0}y\n\"\"\") }";
+
+    /// U+2006 (SIX-PER-EM SPACE, 3 bytes) — a different width, to show the defect
+    /// is about byte-vs-char indentation generally, not one codepoint.
+    const EM_SPACE_INDENT: &str = "{ a(t: \"\"\"\n  x\n\u{2006}y\n\"\"\") }";
+
+    #[test]
+    fn nbsp_indented_block_string_is_an_error_not_a_panic() {
+        let err = parse_graphql_document(NBSP_INDENT)
+            .expect_err("a document the parser cannot handle must be rejected, not accepted");
+        assert!(
+            err.to_string().contains("block string"),
+            "the rejection must name the reason so an operator can act on it, got: {err}"
+        );
+    }
+
+    #[test]
+    fn em_space_indented_block_string_is_an_error_not_a_panic() {
+        parse_graphql_document(EM_SPACE_INDENT)
+            .expect_err("multi-byte whitespace indentation must be rejected, not accepted");
+    }
+
+    #[test]
+    fn validator_entry_point_is_an_error_not_a_panic() {
+        // `validate_query` parses on its own path, so the seam has to cover it too.
+        let validator = RequestValidator::new();
+        validator
+            .validate_query(NBSP_INDENT)
+            .expect_err("validate_query must reject rather than panic");
+    }
+
+    #[test]
+    fn analyzer_entry_point_is_an_error_not_a_panic() {
+        // `analyze_with_variables` is the third in-crate parse site.
+        let validator = RequestValidator::new();
+        validator
+            .analyze_with_variables(NBSP_INDENT, None)
+            .expect_err("analyze_with_variables must reject rather than panic");
+    }
+
+    #[test]
+    fn ordinary_block_strings_still_parse() {
+        // The guard must not cost us block strings — only the ones the parser
+        // cannot handle. An all-ASCII-indented block string is the common case.
+        let doc = "{ a(t: \"\"\"\n  hello\n  world\n\"\"\") }";
+        parse_graphql_document(doc).expect("an ASCII-indented block string is valid input");
+    }
+
+    #[test]
+    fn unicode_whitespace_inside_a_string_literal_still_parses() {
+        // Non-ASCII whitespace is not GraphQL whitespace — it is only ever legal as
+        // string *content*. Only indentation can reach the defect, so content must
+        // keep working: rejecting it would cost real queries for no safety.
+        let doc = "{ a(t: \"x\u{a0}y\") }";
+        parse_graphql_document(doc).expect("NBSP inside a string literal is valid input");
+    }
+
+    #[test]
+    fn unicode_whitespace_in_block_string_content_still_parses() {
+        // The same, in the construct that carries the defect: the block string is
+        // ASCII-indented, and the NBSP sits in the text. Nothing here can be sliced
+        // mid-codepoint, so the guard must let it through.
+        let doc = "{ a(t: \"\"\"\n  x\u{a0}y\n  z\n\"\"\") }";
+        parse_graphql_document(doc).expect("NBSP in block-string content is valid input");
+    }
+}

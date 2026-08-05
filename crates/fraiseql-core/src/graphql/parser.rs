@@ -51,9 +51,10 @@ pub enum GraphQLParseError {
 /// assert_eq!(parsed.root_field, "users");
 /// ```
 pub fn parse_query(source: &str) -> Result<ParsedQuery, GraphQLParseError> {
-    // Use graphql-parser to parse query string
-    let doc: Document<String> =
-        query::parse_query(source).map_err(|e| GraphQLParseError::Syntax(e.to_string()))?;
+    // Through the guarded seam, not `query::parse_query` directly: the parser can
+    // panic on a client-controlled document (#976), and this entry point is public.
+    let doc: Document<String> = crate::graphql::complexity::parse_graphql_document(source)
+        .map_err(|e| GraphQLParseError::Syntax(e.to_string()))?;
 
     // Extract first operation (ignore multiple operations for now)
     let operation = doc

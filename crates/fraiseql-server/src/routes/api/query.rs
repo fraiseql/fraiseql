@@ -204,10 +204,13 @@ pub async fn validate_handler<A: DatabaseAdapter>(
     }
 
     // Full AST parse: reports real syntax errors, not brace-matching heuristics.
-    let (valid, errors) = match graphql_parser::parse_query::<String>(&req.query) {
-        Ok(_) => (true, vec![]),
-        Err(e) => (false, vec![e.to_string()]),
-    };
+    // Through the guarded seam — this endpoint hands a client-controlled document
+    // straight to the parser, which #976 showed can panic.
+    let (valid, errors) =
+        match fraiseql_core::graphql::complexity::parse_graphql_document(&req.query) {
+            Ok(_) => (true, vec![]),
+            Err(e) => (false, vec![e.to_string()]),
+        };
 
     let response = ValidateResponse { valid, errors };
 
