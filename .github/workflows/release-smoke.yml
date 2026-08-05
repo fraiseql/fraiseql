@@ -320,10 +320,25 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
 
+      # `postgresql-client` is NOT preinstalled on the arm64 runner image, unlike
+      # ubuntu-latest — the boot smoke needs `psql` to load the e2e fixture.
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
+          sudo apt-get install -y pkg-config libssl-dev postgresql-client
+
+      # Fail fast on tooling the LATE steps need. Everything the boot smoke depends on
+      # is checked here, before ~35 minutes of V8 compilation, because discovering a
+      # missing `psql` after the build costs a whole run to learn one line.
+      - name: Check the tools the boot smoke will need
+        shell: bash
+        run: |
+          set -eu
+          for t in psql curl objdump file; do
+            command -v "$t" >/dev/null \
+              || { echo "::error::$t is not installed, and the boot smoke needs it"; exit 1; }
+          done
+          echo "OK: psql, curl, objdump and file are all present."
 
       # Same glibc-floor mechanism as every other Linux release target. The runner is
       # glibc 2.39, and std's weak pidfd spawn symbols would otherwise pin the binary
