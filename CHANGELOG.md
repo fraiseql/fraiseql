@@ -63,6 +63,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   additionally asserts the emitted SQL keeps its quotes and parentheses
   balanced. `docs/fuzzing.md` carries a one-command build-verify loop.
 
+- **Five properties from real defects are now checked continuously (#441).** Each
+  is derived from a defect this remediation program actually fixed, and each was
+  verified by pointing it at the pre-fix code and watching it find the original
+  bug — a target that cannot do that asserts nothing while reporting green.
+
+  | Property | Form | Defect |
+  |---|---|---|
+  | An inline argument never silently vanishes across the `value_json` write→read round trip | `value_json_seam` fuzz target | #719 |
+  | No accepted identifier can alter the structure of the SQL it lands in | `identifier_validation` fuzz target | #794, #795, #833 |
+  | Generated WHERE SQL keeps quotes and parentheses balanced | `where_generator` fuzz target | #833 |
+  | A query parameter never bleeds into the host, user or database name | `fraiseql-wire` proptest | #817 |
+  | No caller-supplied argument value can add a root field to a built MCP document | `fraiseql-server` proptest | #808 |
+
+  The last two are proptests rather than fuzz targets because the code they guard
+  is behind a private module, and widening it to `pub` purely for test reach would
+  enlarge the supported API surface. They run in every CI test leg rather than
+  weekly, so for those two the in-crate form is the stronger check.
+
+  `pre-commit` no longer rewrites `fuzz/seed_corpus/`: `end-of-file-fixer`
+  appended newlines to five #976 reproducers, and a seed corpus is test data
+  where every byte is part of the input.
+
 ### Added
 
 - **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one

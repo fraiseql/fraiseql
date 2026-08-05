@@ -1,0 +1,1 @@
+{ users(where: {q: "a\nb"}) { id } }

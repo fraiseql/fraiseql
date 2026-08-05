@@ -16,7 +16,7 @@ cargo install cargo-fuzz
 
 ## Fuzz Targets
 
-25 targets exist across 8 crates. Ten of them run in the scheduled campaign
+27 targets exist across 8 crates. Thirteen of them run in the scheduled campaign
 (marked **scheduled** below); the rest are runnable on demand. A target is only
 added to the schedule once it is build-verified against the current API — see
 "Adding a New Fuzz Target".
@@ -27,12 +27,13 @@ all skip them entirely. A target that stops compiling is silently absent from th
 campaign until someone runs the loop below. The PostgreSQL-only de-scope (#374)
 broke two `fraiseql-db` targets exactly this way, one of them scheduled.
 
-### fraiseql-core (8 targets)
+### fraiseql-core (9 targets)
 
 | Target | What It Fuzzes | Correctness Checks |
 |--------|---------------|-------------------|
 | `graphql_parser` **scheduled** | GraphQL query parsing | JSON roundtrip, error quality |
 | `complexity` **scheduled** | Depth/complexity/alias validation | Never panics; carries the #976 regression |
+| `value_json_seam` **scheduled** | Inline argument write→read round trip | #719 — an argument never silently vanishes |
 | `schema_deser` **scheduled** | Schema JSON deserialization | Roundtrip + structural equality |
 | `toml_config` **scheduled** | TOML configuration parsing | Serialization check |
 | `sql_codegen` | WHERE clause → SQL generation | Balanced parens/quotes |
@@ -48,13 +49,14 @@ broke two `fraiseql-db` targets exactly this way, one of them scheduled.
 | `json_validate` **scheduled** | JSONB row parsing | No panic, no unbounded recursion |
 | `scram_parse` | SCRAM-SHA-256 messages | RFC 5802 format, error quality |
 
-### fraiseql-db (3 targets)
+### fraiseql-db (4 targets)
 
 | Target | What It Fuzzes | Correctness Checks |
 |--------|---------------|-------------------|
-| `where_from_json` **scheduled** | JSON → WHERE clause | Never panics |
+| `where_from_json` **scheduled** | JSON → WHERE clause | Never panics, typed and untyped |
+| `where_generator` **scheduled** | WHERE SQL generation | #833 — quotes and parens stay balanced |
+| `identifier_validation` **scheduled** | The `where`/`orderBy` name boundary | #794/#795/#833 — accepted names cannot alter SQL |
 | `projection_generator` **scheduled** | Projection SQL generation | Never panics |
-| `where_generator` | WHERE SQL generation | Never panics |
 
 ### Other crates
 
@@ -65,6 +67,23 @@ broke two `fraiseql-db` targets exactly this way, one of them scheduled.
 | `fraiseql-auth` | `jwt_parse`, `pkce_token_parse`, `state_token_decrypt` |
 | `fraiseql-secrets` | `encrypted_field_decode`, `vault_secret_name` |
 | `fraiseql-arrow` | `db_convert`, `flight_ticket` |
+
+### Properties that live as in-crate proptests
+
+Two of the properties derived from real defects are checked by `proptest` inside
+the crate rather than by a libFuzzer target, because the code they guard is behind
+a private module:
+
+| Property | Where | Defect |
+|---|---|---|
+| A query parameter never bleeds into the host, user or database | `fraiseql-wire`, `client::connection_string::tests` | #817 |
+| No caller-supplied argument value can add a root field to a built MCP document | `fraiseql-server`, `mcp::tests::executor_tests` | #808 |
+
+Making `connection_string` or the MCP executor `pub` purely so a fuzz target could
+reach them would enlarge the crate's supported API surface to buy test reach. The
+proptests reach them already, and they run in **every** CI test leg rather than
+weekly — so for these two the in-crate form is the stronger check, not the
+weaker one. Both were verified against pre-fix code the same way a fuzz target is.
 
 ## Running Fuzz Targets
 

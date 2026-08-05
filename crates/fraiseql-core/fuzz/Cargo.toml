@@ -58,3 +58,8 @@ cargo-fuzz = true
 
 [workspace]
 members = ["."]
+
+[[bin]]
+doc = false
+name = "value_json_seam"
+path = "fuzz_targets/value_json_seam.rs"
