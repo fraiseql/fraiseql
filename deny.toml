@@ -20,6 +20,18 @@
 [advisories]
 db-path = "~/.cargo/advisory-db"
 ignore = [
+  # rkyv 0.7.46 out-of-bounds read when deserializing an archive containing Rc/Arc.
+  # Exposure: NONE. rkyv is reached only through rust_decimal's OPTIONAL `rkyv` feature,
+  # which this workspace does not enable. `cargo tree --workspace --all-features -e normal`
+  # finds zero rkyv: the crate is in Cargo.lock but in no build graph, so no FraiseQL binary
+  # contains rkyv code and nothing here deserializes an rkyv archive. cargo-audit and
+  # cargo-deny resolve from the lockfile rather than the feature-resolved graph, hence the
+  # report. No upgrade exists — rust_decimal 1.42.1 is the newest release and pins
+  # rkyv 0.7.46; `cargo update -p rkyv --precise 0.8.17` is rejected by that constraint.
+  # Resolution path: #980 removes rust_decimal outright (one use site; it is the sole
+  # dependent of both rkyv and borsh), which deletes this entry with it.
+  # deadline: 2026-11-01 — land #980, or drop this if rust_decimal moves to rkyv >= 0.8.17.
+  {id = "RUSTSEC-2026-0235", reason = "rkyv OOB read on archive deserialization; NOT COMPILED — rust_decimal's optional rkyv feature is not enabled, cargo tree finds zero rkyv; no fixed version exists (rust_decimal 1.42.1 pins rkyv 0.7.46); removal tracked in #980, deadline 2026-11-01"},
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only).
   # Resolution path: upgrade sqlx to 0.9+ when released (sqlx tracks rsa fix upstream).
   # Mitigation: mysql feature is non-default; TLS termination at load balancer layer.
