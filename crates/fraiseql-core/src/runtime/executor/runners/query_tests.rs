@@ -21,6 +21,57 @@ use crate::{
     security::{DefaultRLSPolicy, SecurityContext},
 };
 
+// ── mod sourceless: a query with no SQL source is refused, never served ───
+
+mod sourceless {
+    use super::*;
+
+    /// #687: an embedded value object suppresses its synthesized source, so a query
+    /// rooted at one compiles to a `QueryDefinition` with `sql_source: None` (pinned on
+    /// the compile side by `embedded_value_object_cascade_e2e` in fraiseql-cli). The
+    /// runner must refuse such a query loudly — a `Validation` error naming the missing
+    /// source — never answer with rows or an empty result.
+    #[tokio::test]
+    async fn query_with_no_sql_source_is_refused_loudly() {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name:                "money".to_string(),
+            return_type:         "Money".to_string(),
+            returns_list:        false,
+            nullable:            true,
+            arguments:           Vec::new(),
+            sql_source:          None,
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      HashMap::new(),
+        });
+
+        // The adapter has rows to give: if the runner dispatched anyway, the query
+        // would succeed and `unwrap_err` below would catch the regression.
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let err = executor.execute("{ money { amount } }", None).await.unwrap_err();
+        match err {
+            crate::FraiseQLError::Validation { message, .. } => {
+                assert!(message.contains("no SQL source"), "message was: {message}");
+            },
+            other => panic!("expected Validation error, got {other:?}"),
+        }
+    }
+}
+
 // ── mod routing: per-view dispatch correctness ────────────────────────────
 
 mod routing {

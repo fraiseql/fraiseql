@@ -108,8 +108,8 @@ pub struct TypeDefinition {
     /// `schema.json` authors never set it; the serde default keeps it `false` for every
     /// authored type.
     ///
-    /// What it exempts: cascade entity classification (`is_queryable_entity`, wired in
-    /// Phase 02). Framework projections are the change-capture *mechanism*, not captured
+    /// What it exempts: cascade entity classification (`is_queryable_entity`).
+    /// Framework projections are the change-capture *mechanism*, not captured
     /// entities — the runtime cascade collector never projects them into a payload — so
     /// they must not have `id: ID!` enforced on them nor auto-implement `CascadeNode`.
     /// Serialized (not skipped) so the distinction survives into the compiled schema that

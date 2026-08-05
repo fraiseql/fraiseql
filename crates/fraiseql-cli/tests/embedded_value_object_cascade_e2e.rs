@@ -138,6 +138,57 @@ fn embedded_money_is_not_a_cascade_node_but_order_is() {
     );
 }
 
+/// The SDK shape for a query rooted at the embedded type itself: `@fraiseql.query`
+/// returning `Money` arrives with **no** `sql_source`, because source-suppression means
+/// there is no `v_money` to point at.
+const SDK_SCHEMA_EMBEDDED_AS_QUERY_ROOT: &str = r#"
+{
+  "version": "2.0.0",
+  "types": [
+    {
+      "name": "Money",
+      "embedded": true,
+      "fields": [
+        {"name": "amount", "type": "Int", "nullable": false},
+        {"name": "currency", "type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {"name": "money", "return_type": "Money"}
+  ],
+  "mutations": [],
+  "subscriptions": []
+}
+"#;
+
+#[test]
+fn embedded_type_as_query_root_compiles_sourceless_and_is_refused_at_runtime() {
+    // A value object has no independent identity and no backing view, so a query rooted
+    // at one can never be served. The refusal is at runtime, not compile time: the
+    // compiler's contract is that nothing along the pipeline synthesizes a phantom
+    // source for it, so the compiled query reaches the executor with `sql_source: None`
+    // — and the runner refuses that loudly (`FraiseQLError::Validation`, "Query has no
+    // SQL source"; pinned by `query_with_no_sql_source_is_refused_loudly` in
+    // fraiseql-core's `runners/query_tests.rs`), never answering with rows or an empty
+    // result.
+    let intermediate: IntermediateSchema =
+        serde_json::from_str(SDK_SCHEMA_EMBEDDED_AS_QUERY_ROOT).expect("parse SDK schema.json");
+    let compiled = SchemaConverter::convert(intermediate)
+        .expect("#687: a query rooted at an embedded type compiles; refusal is at runtime");
+
+    let money_query = compiled
+        .queries
+        .iter()
+        .find(|q| q.name == "money")
+        .expect("money query present");
+    assert!(
+        money_query.sql_source.is_none(),
+        "no source may be synthesized for a query rooted at an embedded type: {:?}",
+        money_query.sql_source
+    );
+}
+
 #[test]
 fn compiled_money_carries_the_embedded_flag() {
     let compiled = compile();
