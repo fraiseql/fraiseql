@@ -289,8 +289,10 @@ fn test_has_rls_configured_no_security() {
 
 #[test]
 fn test_has_rls_configured_with_empty_policies() {
-    let mut sec = SecurityConfig::default();
-    sec.additional.insert("policies".to_string(), serde_json::json!([]));
+    let sec = SecurityConfig {
+        policies: vec![],
+        ..SecurityConfig::default()
+    };
     let schema = CompiledSchema {
         security: Some(sec),
         ..CompiledSchema::default()
@@ -316,11 +318,19 @@ fn test_has_rls_configured_with_rls_declaration() {
 /// `has_rls_configured()` unconditionally false for every producible schema (#758).
 #[test]
 fn test_has_rls_configured_ignores_authorization_policies() {
-    let mut sec = SecurityConfig::default();
-    sec.additional.insert(
-        "policies".to_string(),
-        serde_json::json!([{"name": "tenant_isolation", "condition": "tenant_id = $1"}]),
-    );
+    let sec = SecurityConfig {
+        policies: vec![crate::schema::AuthorizationPolicy {
+            name:              "tenant_isolation".to_string(),
+            policy_type:       "RBAC".to_string(),
+            rule:              Some("tenant_id = $1".to_string()),
+            roles:             vec!["tenant".to_string()],
+            strategy:          None,
+            attributes:        vec![],
+            description:       None,
+            cache_ttl_seconds: None,
+        }],
+        ..SecurityConfig::default()
+    };
     let schema = CompiledSchema {
         security: Some(sec),
         ..CompiledSchema::default()
@@ -330,9 +340,13 @@ fn test_has_rls_configured_ignores_authorization_policies() {
 
 #[test]
 fn test_has_rls_configured_no_policies_key() {
-    let mut sec = SecurityConfig::default();
-    sec.additional
-        .insert("rate_limiting".to_string(), serde_json::json!({"enabled": true}));
+    let sec = SecurityConfig {
+        rate_limiting: Some(crate::schema::RateLimitingSecurityConfig {
+            enabled: true,
+            ..crate::schema::RateLimitingSecurityConfig::default()
+        }),
+        ..SecurityConfig::default()
+    };
     let schema = CompiledSchema {
         security: Some(sec),
         ..CompiledSchema::default()
@@ -1000,8 +1014,10 @@ fn has_rls_configured_false_without_security() {
 #[test]
 fn has_rls_configured_false_when_policies_empty() {
     let mut schema = CompiledSchema::new();
-    let mut sec = SecurityConfig::new();
-    sec.additional.insert("policies".to_string(), serde_json::json!([]));
+    let sec = SecurityConfig {
+        policies: vec![],
+        ..SecurityConfig::default()
+    };
     schema.security = Some(sec);
     assert!(!schema.has_rls_configured());
 }

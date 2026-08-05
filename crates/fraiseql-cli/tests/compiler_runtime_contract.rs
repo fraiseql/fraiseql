@@ -215,10 +215,10 @@ audit_logging_enabled = true
     );
 }
 
-/// #379: `[security] persisted_queries_only = true` must survive emit → parse and land
-/// in `security.additional` under the exact key the server reads in
-/// `trusted_docs_from_schema`. This is the compiler→runtime key-name contract for the
-/// flag — a rename on either side silently disables persisted-operations enforcement.
+/// #379: `[security] persisted_queries_only = true` must survive emit → parse into
+/// the **typed** `SecurityConfig::persisted_queries_only` field the server reads in
+/// `trusted_docs_from_schema` (#977) — a rename on either side is now a compile or
+/// load error, never a silently-disabled flag.
 #[test]
 fn persisted_queries_only_survives_emit_parse() {
     let toml = r#"
@@ -238,13 +238,9 @@ persisted_queries_only = true
     let schema = CompiledSchema::from_json(&compiled_json, false)
         .expect("core must parse CLI-produced schema");
     let security = schema.security.expect("security must be present");
-    assert_eq!(
-        security
-            .additional
-            .get("persisted_queries_only")
-            .and_then(serde_json::Value::as_bool),
-        Some(true),
-        "persisted_queries_only=true must survive emit→parse under the key the server reads"
+    assert!(
+        security.persisted_queries_only,
+        "persisted_queries_only=true must survive emit→parse into the typed field"
     );
 }
 
@@ -267,12 +263,8 @@ default_policy = "public"
     let compiled_json = compile(TYPES_JSON, toml);
     let schema = CompiledSchema::from_json(&compiled_json, false).unwrap();
     let security = schema.security.expect("security must be present");
-    assert_eq!(
-        security
-            .additional
-            .get("persisted_queries_only")
-            .and_then(serde_json::Value::as_bool),
-        Some(false),
+    assert!(
+        !security.persisted_queries_only,
         "omitting the flag must compile to false, not strict-by-default"
     );
 }
@@ -306,10 +298,8 @@ per_tenant_per_minute_default = 1000
     let budget = security.cost_budget.expect("cost_budget must land in the typed field");
     assert_eq!(budget.per_request_max, Some(50));
     assert_eq!(budget.per_tenant_per_minute_default, Some(1000));
-    assert!(
-        !security.additional.contains_key("cost_budget"),
-        "cost_budget must not fall through to the untyped additional map"
-    );
+    // The untyped `additional` map is gone (#977): `SecurityConfig` denies
+    // unknown fields, so "falls through to a catch-all" is unrepresentable.
 }
 
 /// Omitting `[security.cost_budget]` must compile to no budget — never a

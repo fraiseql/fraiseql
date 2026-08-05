@@ -133,6 +133,7 @@ pub struct CompiledSecurityConfig {
 
 /// Custom authorization rule.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
     /// Rule name.
     pub name:              String,
@@ -149,6 +150,7 @@ pub struct AuthorizationRule {
 
 /// Authorization policy (RBAC/ABAC).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationPolicy {
     /// Policy name.
     pub name:              String,
@@ -173,6 +175,7 @@ pub struct AuthorizationPolicy {
 
 /// Field-level authorization rule.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FieldAuthRule {
     /// Type name.
     pub type_name:  String,
@@ -184,6 +187,7 @@ pub struct FieldAuthRule {
 
 /// Enterprise security features.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct EnterpriseSecurityConfig {
     /// Enable rate limiting.
     #[serde(default = "default_true")]

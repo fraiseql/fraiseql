@@ -130,10 +130,7 @@
         "scopes": ["read:Order", "read:User"]
       }
     ],
-    "default_role": "viewer",
-    "policies": [
-      {"type": "row_level", "table": "orders", "condition": "tenant_id = current_tenant_id()"}
-    ]
+    "default_role": "viewer"
   },
   "observers_config": {
     "backend": "nats",

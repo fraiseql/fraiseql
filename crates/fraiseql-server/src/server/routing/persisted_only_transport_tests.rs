@@ -39,18 +39,16 @@ async fn persisted_only_server(
     std::fs::write(&manifest_path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
     let mut schema = CompiledSchema::new();
-    let mut security = fraiseql_core::schema::SecurityConfig::new();
-    security
-        .additional
-        .insert("persisted_queries_only".to_string(), serde_json::json!(true));
-    security.additional.insert(
-        "trusted_documents".to_string(),
-        serde_json::json!({
-            "enabled": true,
-            "mode": "permissive",
-            "manifest_path": manifest_path.to_str().unwrap(),
+    let security = fraiseql_core::schema::SecurityConfig {
+        persisted_queries_only: true,
+        trusted_documents: Some(fraiseql_core::schema::TrustedDocumentsConfig {
+            enabled: true,
+            mode: fraiseql_core::schema::TrustedDocumentMode::Permissive,
+            manifest_path: Some(manifest_path.to_str().unwrap().to_string()),
+            ..Default::default()
         }),
-    );
+        ..fraiseql_core::schema::SecurityConfig::default()
+    };
     schema.security = Some(security);
 
     let config = ServerConfig {

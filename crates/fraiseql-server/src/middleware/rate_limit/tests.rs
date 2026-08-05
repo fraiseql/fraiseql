@@ -224,6 +224,13 @@ mod key_tests {
             auth_start_window_secs: 60,
             auth_callback_max_requests: 20,
             auth_callback_window_secs: 60,
+            // Explicit zeros: a group set to 0 is disabled. (The type's Default
+            // carries protective non-zero budgets since #977 — the producer's
+            // defaults — so "unset" no longer implies "no rule".)
+            auth_refresh_max_requests: 0,
+            auth_refresh_window_secs: 0,
+            auth_logout_max_requests: 0,
+            auth_logout_window_secs: 0,
             ..RateLimitingSecurityConfig::default()
         };
         let rules = PathRateLimit::rules_from_security(&sec);
@@ -237,8 +244,30 @@ mod key_tests {
         // it faces the auth_start budget; the callback the callback budget.
         assert_eq!(burst_of("/auth/v1/authorize"), Some(10), "{rules:?}");
         assert_eq!(burst_of("/auth/v1/callback"), Some(20), "{rules:?}");
-        // Unconfigured groups (refresh/logout) build no rule.
+        // Groups explicitly set to zero build no rule.
         assert_eq!(burst_of("/auth/refresh"), None);
+        assert_eq!(burst_of("/auth/logout"), None);
+    }
+
+    /// The unified `Default` (#977) is the producer's: every auth group carries
+    /// a protective non-zero budget, so a hand-authored `{"enabled": true}`
+    /// section throttles the auth endpoints instead of leaving them unlimited.
+    #[test]
+    fn default_security_config_builds_protective_auth_rules() {
+        use super::super::{config::RateLimitingSecurityConfig, key::PathRateLimit};
+
+        let rules = PathRateLimit::rules_from_security(&RateLimitingSecurityConfig::default());
+        for prefix in [
+            "/auth/start",
+            "/auth/callback",
+            "/auth/refresh",
+            "/auth/logout",
+        ] {
+            assert!(
+                rules.iter().any(|r| r.path_prefix == prefix),
+                "the default config must build a rule for {prefix}; got {rules:?}"
+            );
+        }
     }
 }
 
@@ -499,6 +528,14 @@ fn test_with_path_rules_generates_auth_start_rule() {
         burst_size: 200,
         auth_start_max_requests: 5,
         auth_start_window_secs: 60,
+        // The other groups are explicitly disabled: since #977 the Default
+        // carries non-zero budgets, so "unset" would build their rules too.
+        auth_callback_max_requests: 0,
+        auth_callback_window_secs: 0,
+        auth_refresh_max_requests: 0,
+        auth_refresh_window_secs: 0,
+        auth_logout_max_requests: 0,
+        auth_logout_window_secs: 0,
         ..Default::default()
     };
     let config = RateLimitConfig::from_security_config(&sec);

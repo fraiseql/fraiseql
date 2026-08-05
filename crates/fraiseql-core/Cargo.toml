@@ -86,6 +86,7 @@ reqwest = {workspace = true}
 # Workspace dependencies
 serde = {workspace = true}
 serde_json = {workspace = true}
+serde_path_to_error = {workspace = true}
 sha2 = {workspace = true}
 subtle = "2.5"  # Constant-time comparison for hash verification (APQ)
 thiserror = {workspace = true}

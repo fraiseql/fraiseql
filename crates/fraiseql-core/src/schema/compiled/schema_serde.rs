@@ -99,6 +99,14 @@ impl CompiledSchema {
             message:  format!("Schema JSON parse error: {e}"),
             location: String::new(),
         };
+        // Typed deserialization goes through `serde_path_to_error` so a refused
+        // schema names the offending section ("security.rate_limiting.…"), not
+        // just a line/column into a machine-formatted file — the #778 property,
+        // kept now that malformed sections are refused at load (#977).
+        let path_err = |e: serde_path_to_error::Error<serde_json::Error>| FraiseQLError::Parse {
+            message:  format!("Schema JSON parse error at `{}`: {}", e.path(), e.inner()),
+            location: e.path().to_string(),
+        };
 
         let mut value: serde_json::Value = serde_json::from_str(json).map_err(serde_err)?;
 
@@ -127,7 +135,8 @@ impl CompiledSchema {
                 "Schema integrity check skipped: no _content_hash field present. Consider recompiling with a newer CLI for integrity verification."
             );
             // No hash, parse directly from original
-            let mut schema: Self = serde_json::from_str(json).map_err(serde_err)?;
+            let de = &mut serde_json::Deserializer::from_str(json);
+            let mut schema: Self = serde_path_to_error::deserialize(de).map_err(path_err)?;
             schema.build_indexes();
             schema.finish_load()?;
             return Ok(schema);
@@ -156,7 +165,7 @@ impl CompiledSchema {
 
         // Now deserialize the schema from the remaining JSON (the parsed value
         // with `_content_hash` already removed).
-        let mut schema: Self = serde_json::from_value(value).map_err(serde_err)?;
+        let mut schema: Self = serde_path_to_error::deserialize(value).map_err(path_err)?;
         schema.build_indexes();
         schema.finish_load()?;
         Ok(schema)

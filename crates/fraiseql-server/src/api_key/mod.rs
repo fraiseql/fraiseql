@@ -17,62 +17,21 @@ pub mod postgres;
 
 use axum::http::{HeaderMap, HeaderName};
 use chrono::Utc;
-use fraiseql_core::security::{AuthenticatedUser, SecurityContext};
-use postgres::PgApiKeyStore;
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
-use subtle::ConstantTimeEq;
-use tracing::{debug, warn};
-
 // ───────────────────────────────────────────────────────────────
 // Configuration (deserialized from compiled schema JSON)
 // ───────────────────────────────────────────────────────────────
-
 /// API key configuration embedded in the compiled schema.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApiKeyConfig {
-    /// Whether API key authentication is enabled.
-    #[serde(default)]
-    pub enabled: bool,
-
-    /// HTTP header name to read the API key from (default: `x-api-key`).
-    #[serde(default = "default_header")]
-    pub header: String,
-
-    /// Hash algorithm used to store key hashes (`sha256`).
-    #[serde(default = "default_algorithm")]
-    pub hash_algorithm: String,
-
-    /// Storage backend: `"env"` for static keys or `"postgres"` for DB-backed.
-    #[serde(default = "default_storage")]
-    pub storage: String,
-
-    /// Static API keys (only used when `storage = "env"`).
-    #[serde(default, rename = "static")]
-    pub static_keys: Vec<StaticApiKeyConfig>,
-}
-
-fn default_header() -> String {
-    "x-api-key".into()
-}
-fn default_algorithm() -> String {
-    "sha256".into()
-}
-fn default_storage() -> String {
-    "env".into()
-}
-
-/// A single static API key entry from configuration.
-#[derive(Debug, Clone, Deserialize)]
-pub struct StaticApiKeyConfig {
-    /// Hex-encoded SHA-256 hash of the key, optionally prefixed with `sha256:`.
-    pub key_hash: String,
-    /// OAuth-style scopes granted by this key.
-    #[serde(default)]
-    pub scopes:   Vec<String>,
-    /// Human-readable key name (for audit logging).
-    pub name:     String,
-}
+///
+/// The compiled `[security.api_keys]` shape — the schema seam owns it (#977),
+/// so the CLI, the compiled artefact and this server share one type.
+pub use fraiseql_core::schema::ApiKeySecurityConfig as ApiKeyConfig;
+/// A single static API key entry (`[[security.api_keys.static]]`).
+pub use fraiseql_core::schema::StaticApiKeyEntry as StaticApiKeyConfig;
+use fraiseql_core::security::{AuthenticatedUser, SecurityContext};
+use postgres::PgApiKeyStore;
+use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
+use tracing::{debug, warn};
 
 // ───────────────────────────────────────────────────────────────
 // Authenticator
@@ -314,13 +273,9 @@ fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext 
 pub fn api_key_config_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
 ) -> Option<ApiKeyConfig> {
-    let security = schema.security.as_ref()?;
-    let api_keys_val = security.additional.get("api_keys")?;
-    serde_json::from_value(api_keys_val.clone())
-        .map_err(|e| {
-            warn!(error = %e, "Failed to parse security.api_keys config");
-        })
-        .ok()
+    // A typed field (#977): a malformed or misspelled section is a load error at
+    // the schema seam, never a warn-and-disable here.
+    schema.security.as_ref()?.api_keys.clone()
 }
 
 // ───────────────────────────────────────────────────────────────

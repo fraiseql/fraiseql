@@ -1498,12 +1498,12 @@ mod field_rbac {
                     scopes:      vec!["admin:*".into(), "read:User.email".into()],
                 },
             ],
-            default_role:     None,
-            multi_tenant:     false,
-            rls:              crate::schema::RlsConfig::default(),
-            tenancy:          TenancyConfig::default(),
-            cost_budget:      None,
-            additional:       HashMap::default(),
+            default_role: None,
+            multi_tenant: false,
+            rls: crate::schema::RlsConfig::default(),
+            tenancy: TenancyConfig::default(),
+            cost_budget: None,
+            ..Default::default()
         });
 
         schema.types.push(user_type);
@@ -2028,12 +2028,12 @@ mod field_authz {
                 description: None,
                 scopes:      vec!["read:User".into()],
             }],
-            default_role:     None,
-            multi_tenant:     false,
-            rls:              crate::schema::RlsConfig::default(),
-            tenancy:          TenancyConfig::default(),
-            cost_budget:      None,
-            additional:       HashMap::default(),
+            default_role: None,
+            multi_tenant: false,
+            rls: crate::schema::RlsConfig::default(),
+            tenancy: TenancyConfig::default(),
+            cost_budget: None,
+            ..Default::default()
         });
 
         schema.types.push(user_type);

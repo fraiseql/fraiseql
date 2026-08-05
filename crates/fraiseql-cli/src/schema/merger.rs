@@ -679,60 +679,38 @@ impl SchemaMerger {
 
         // Add security configuration if available in TOML.
         //
-        // Key names here must match `fraiseql_core::schema::SecurityConfig`'s field
-        // names exactly: that struct carries `#[serde(flatten)] additional`, so a
-        // misspelled or camelCased key deserialises into the catch-all map and the
-        // typed field silently keeps its default. `tenancy_gate_seam_test` asks the
-        // consumer's questions of a compiled file rather than checking key presence,
-        // which is what makes that class of drift visible.
-        merged["security"] = json!({
-            "multi_tenant": toml_schema.security.multi_tenant,
-            "rls": toml_schema.security.rls,
-            "default_policy": toml_schema.security.default_policy,
-            "rules": toml_schema.security.rules.iter().map(|r| json!({
-                "name": r.name,
-                "rule": r.rule,
-                "description": r.description,
-                "cacheable": r.cacheable,
-                "cache_ttl_seconds": r.cache_ttl_seconds,
-            })).collect::<Vec<_>>(),
-            "policies": toml_schema.security.policies.iter().map(|p| json!({
-                "name": p.name,
-                "type": p.policy_type,
-                "rule": p.rule,
-                "roles": p.roles,
-                "strategy": p.strategy,
-                "attributes": p.attributes,
-                "description": p.description,
-                "cache_ttl_seconds": p.cache_ttl_seconds,
-            })).collect::<Vec<_>>(),
-            "field_auth": toml_schema.security.field_auth.iter().map(|fa| json!({
-                "type_name": fa.type_name,
-                "field_name": fa.field_name,
-                "policy": fa.policy,
-            })).collect::<Vec<_>>(),
-            "enterprise": json!({
-                "rate_limiting_enabled": toml_schema.security.enterprise.rate_limiting_enabled,
-                "auth_endpoint_max_requests": toml_schema.security.enterprise.auth_endpoint_max_requests,
-                "auth_endpoint_window_seconds": toml_schema.security.enterprise.auth_endpoint_window_seconds,
-                "audit_logging_enabled": toml_schema.security.enterprise.audit_logging_enabled,
-                "audit_log_backend": toml_schema.security.enterprise.audit_log_backend,
-                "audit_retention_days": toml_schema.security.enterprise.audit_retention_days,
-                "error_sanitization": toml_schema.security.enterprise.error_sanitization,
-                "hide_implementation_details": toml_schema.security.enterprise.hide_implementation_details,
-                "constant_time_comparison": toml_schema.security.enterprise.constant_time_comparison,
-                "pkce_enabled": toml_schema.security.enterprise.pkce_enabled,
-            }),
-            "error_sanitization": toml_schema.security.error_sanitization,
-            "rate_limiting": toml_schema.security.rate_limiting,
-            "state_encryption": toml_schema.security.state_encryption,
-            "pkce": toml_schema.security.pkce,
-            "api_keys": toml_schema.security.api_keys,
-            "token_revocation": toml_schema.security.token_revocation,
-            "trusted_documents": toml_schema.security.trusted_documents,
-            "persisted_queries_only": toml_schema.security.persisted_queries_only,
-            "cost_budget": toml_schema.security.cost_budget,
-        });
+        // Constructed as the typed `fraiseql_core::schema::SecurityConfig` and
+        // serialized (#977): the compiled seam owns every section's shape and is
+        // `deny_unknown_fields`, so a key this block emitted under the wrong
+        // name would fail to deserialize instead of landing in a catch-all.
+        // Building the struct — rather than writing key names by hand — makes
+        // that drift a compile error here, before it can reach a file.
+        // `tenancy_gate_seam_test` additionally asks the consumer's questions of
+        // a compiled file rather than checking key presence.
+        let sec = &toml_schema.security;
+        merged["security"] = serde_json::to_value(fraiseql_core::schema::SecurityConfig {
+            role_definitions:       Vec::new(),
+            default_role:           None,
+            multi_tenant:           sec.multi_tenant,
+            rls:                    sec.rls.clone(),
+            tenancy:                fraiseql_core::schema::TenancyConfig::default(),
+            cost_budget:            sec.cost_budget.clone(),
+            default_policy:         sec.default_policy.clone(),
+            rules:                  sec.rules.clone(),
+            policies:               sec.policies.clone(),
+            field_auth:             sec.field_auth.clone(),
+            enterprise:             Some(sec.enterprise.clone()),
+            error_sanitization:     sec.error_sanitization.clone(),
+            rate_limiting:          sec.rate_limiting.clone(),
+            state_encryption:       sec.state_encryption.clone(),
+            pkce:                   sec.pkce.clone(),
+            api_keys:               sec.api_keys.clone(),
+            token_revocation:       sec.token_revocation.clone(),
+            trusted_documents:      sec.trusted_documents.clone(),
+            persisted_queries_only: sec.persisted_queries_only,
+            service_accounts:       None,
+        })
+        .context("Failed to serialize [security] into the compiled schema")?;
 
         // Embed observers configuration if enabled or if any backend URL is set
         if toml_schema.observers.enabled

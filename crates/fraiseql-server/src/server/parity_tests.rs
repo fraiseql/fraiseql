@@ -127,10 +127,13 @@ impl RelayDatabaseAdapter for NoopRelayAdapter {
 /// A compiled schema that sets **every** setting a constructor is supposed to
 /// carry, each to a value distinguishable from the runtime default.
 fn fully_configured_schema() -> CompiledSchema {
-    let mut security = SecurityConfig::default();
-    security
-        .additional
-        .insert("enterprise".to_string(), serde_json::json!({ "audit_logging_enabled": true }));
+    let security = SecurityConfig {
+        enterprise: Some(fraiseql_core::schema::EnterpriseSecurityConfig {
+            audit_logging_enabled: true,
+            ..Default::default()
+        }),
+        ..SecurityConfig::default()
+    };
 
     CompiledSchema {
         schema_format_version: Some(CURRENT_SCHEMA_FORMAT_VERSION),
@@ -695,10 +698,11 @@ async fn local_auth_otp_with_an_unknown_mailbox_refuses_to_boot() {
 async fn postgres_api_keys_without_a_pool_refuse_to_boot() {
     let mut schema = fully_configured_schema();
     if let Some(ref mut sec) = schema.security {
-        sec.additional.insert(
-            "api_keys".to_string(),
-            serde_json::json!({ "enabled": true, "storage": "postgres" }),
-        );
+        sec.api_keys = Some(fraiseql_core::schema::ApiKeySecurityConfig {
+            enabled: true,
+            storage: "postgres".to_string(),
+            ..Default::default()
+        });
     }
     let result = Server::new(
         fully_configured_server_config(),

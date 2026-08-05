@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 mod aggregate_parser_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::json;
 
     use crate::{
@@ -4595,7 +4596,6 @@ mod window_projector_tests {
 
 // ── RuntimeConfig::from_compiled_schema — the H16 single constructor seam ──────
 mod runtime_config_from_schema_tests {
-    use serde_json::json;
 
     use crate::{
         runtime::{RuntimeConfig, page_size_precedence},
@@ -4628,10 +4628,13 @@ mod runtime_config_from_schema_tests {
     #[test]
     fn reads_audit_logging_flag_from_enterprise_config() {
         let mut schema = CompiledSchema::new();
-        let mut security = SecurityConfig::default();
-        security
-            .additional
-            .insert("enterprise".to_string(), json!({ "audit_logging_enabled": true }));
+        let security = SecurityConfig {
+            enterprise: Some(crate::schema::EnterpriseSecurityConfig {
+                audit_logging_enabled: true,
+                ..Default::default()
+            }),
+            ..SecurityConfig::default()
+        };
         schema.security = Some(security);
 
         let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();

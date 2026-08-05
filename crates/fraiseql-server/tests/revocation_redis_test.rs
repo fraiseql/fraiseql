@@ -13,20 +13,19 @@
 
 use fraiseql_core::schema::{CompiledSchema, SecurityConfig};
 use fraiseql_server::token_revocation::{TokenRejection, revocation_manager_from_schema_in};
-use serde_json::json;
 
 fn schema_with_redis_revocation(redis_url: &str) -> CompiledSchema {
-    let mut security = SecurityConfig::default();
-    security.additional.insert(
-        "token_revocation".to_string(),
-        json!({
-            "enabled": true,
-            "backend": "redis",
-            "redis_url": redis_url,
-            "require_jti": true,
-            "fail_open": false,
+    let security = SecurityConfig {
+        token_revocation: Some(fraiseql_core::schema::TokenRevocationSecurityConfig {
+            enabled: true,
+            backend: "redis".to_string(),
+            redis_url: Some(redis_url.to_string()),
+            require_jti: true,
+            fail_open: false,
+            ..Default::default()
         }),
-    );
+        ..SecurityConfig::default()
+    };
     CompiledSchema {
         security: Some(security),
         ..CompiledSchema::default()
