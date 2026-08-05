@@ -33,3 +33,8 @@ cargo-fuzz = true
 
 [workspace]
 members = ["."]
+
+[[bin]]
+doc = false
+name = "identifier_validation"
+path = "fuzz_targets/identifier_validation.rs"

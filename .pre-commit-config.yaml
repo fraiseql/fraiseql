@@ -34,9 +34,15 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # A fuzz seed corpus is test *data*, not source text: every byte is part of
+      # the input under test. These hooks rewrote five #976 reproducers by
+      # appending a newline (fc4bb79f7) — harmless for a GraphQL document, but the
+      # same hooks would silently alter any reproducer where trailing bytes matter,
+      # and a regression fixture nobody can trust is worse than none.
       - id: trailing-whitespace
-        exclude: '\.md$'
+        exclude: '(\.md$|/fuzz/seed_corpus/)'
       - id: end-of-file-fixer
+        exclude: '/fuzz/seed_corpus/'
       - id: check-yaml
         args: ['--allow-multiple-documents', '--unsafe']
         exclude: '(deploy/kubernetes/helm/.*templates/|examples/ci/|vagga\.yaml|vendor-drift\.yml)'

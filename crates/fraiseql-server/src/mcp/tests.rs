@@ -160,6 +160,87 @@ mod executor_tests {
         assert!(!op.document.contains('$'), "no variable definitions expected: {}", op.document);
     }
 
+    /// **The generative form of the #808 gate.** The test above pins five payloads
+    /// someone thought of; this one searches the space.
+    ///
+    /// The original defect was that `graphql_value` rendered a JSON object by
+    /// interpolating `{k}: {v}` with no validation of `k`, so a nested key could
+    /// close the argument list and append a root field of the caller's choosing —
+    /// reaching operations the `[mcp] include`/`exclude` allowlist excluded. Only
+    /// *top-level* argument names were validated, and the comment there said
+    /// explicitly that it was "to prevent injection via malformed argument names".
+    ///
+    /// The invariant, for any argument value whatsoever: the built document has
+    /// exactly one root field, it is the resolved tool, and the value reaches the
+    /// executor through `variables` unchanged rather than through the document.
+    mod issue_808_no_value_reaches_the_document {
+        use proptest::prelude::*;
+
+        use super::*;
+
+        /// Fragments chosen to terminate a GraphQL argument list and open a new
+        /// selection — the shape the injection needed.
+        fn hostile_fragment() -> impl Strategy<Value = String> {
+            prop::sample::select(vec![
+                "a".to_string(),
+                "}) { id } secrets { token } x: users(filter: {a".to_string(),
+                "\"} ) { id } evil { token } y: users(filter: \"".to_string(),
+                "$@#".to_string(),
+                "__typename".to_string(),
+                "a b".to_string(),
+                "}".to_string(),
+                "{".to_string(),
+                ")".to_string(),
+                "\n".to_string(),
+            ])
+        }
+
+        /// Arbitrary JSON, with hostile text reachable at every key and leaf.
+        fn hostile_json() -> impl Strategy<Value = serde_json::Value> {
+            let leaf = prop_oneof![
+                hostile_fragment().prop_map(serde_json::Value::String),
+                any::<i32>().prop_map(|n| serde_json::json!(n)),
+                any::<bool>().prop_map(|b| serde_json::json!(b)),
+                Just(serde_json::Value::Null),
+            ];
+            leaf.prop_recursive(4, 32, 4, |inner| {
+                prop_oneof![
+                    prop::collection::vec(inner.clone(), 0..4).prop_map(serde_json::Value::Array),
+                    prop::collection::vec((hostile_fragment(), inner), 0..4).prop_map(|pairs| {
+                        serde_json::Value::Object(pairs.into_iter().collect())
+                    }),
+                ]
+            })
+        }
+
+        proptest! {
+            #[test]
+            fn no_argument_value_can_add_a_root_field(value in hostile_json()) {
+                let schema = schema();
+                let config = open_config();
+                let args = serde_json::json!({ "filter": value });
+                let args = args.as_object().unwrap();
+
+                let Ok(op) = build_operation("users", Some(args), &schema, &config) else {
+                    // Refusing is an acceptable outcome; executing the wrong thing is not.
+                    return Ok(());
+                };
+
+                prop_assert_eq!(
+                    root_fields(&op.document),
+                    vec!["users".to_string()],
+                    "a caller-supplied value changed the document shape: {}",
+                    op.document
+                );
+                prop_assert_eq!(
+                    op.variables.get("filter"),
+                    args.get("filter"),
+                    "the value must reach the executor as a variable, unchanged"
+                );
+            }
+        }
+    }
+
     /// Only the arguments actually supplied are declared as variables — an
     /// unsupplied optional must not become an explicit `null`.
     #[test]

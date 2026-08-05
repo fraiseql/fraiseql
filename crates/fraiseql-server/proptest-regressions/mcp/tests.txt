@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 85bb9099ac004a8fed0626e34eadbf427bbaa77a29e5ac116d465878e5f081f8 # shrinks to value = Object {"}) { id } secrets { token } x: users(filter: {a": String("a")}

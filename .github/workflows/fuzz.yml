@@ -62,9 +62,12 @@ jobs:
           - { crate: fraiseql-core,       target: complexity }
           - { crate: fraiseql-core,       target: schema_deser }
           - { crate: fraiseql-core,       target: toml_config }
+          - { crate: fraiseql-core,       target: value_json_seam }
           - { crate: fraiseql-wire,       target: protocol_decode }
           - { crate: fraiseql-wire,       target: json_validate }
           - { crate: fraiseql-db,         target: where_from_json }
+          - { crate: fraiseql-db,         target: where_generator }
+          - { crate: fraiseql-db,         target: identifier_validation }
           - { crate: fraiseql-db,         target: projection_generator }
           - { crate: fraiseql-federation, target: subgraph_response }
           - { crate: fraiseql-server,     target: graphql_request }

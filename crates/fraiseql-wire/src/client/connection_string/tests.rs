@@ -379,3 +379,105 @@ fn merge_lets_url_params_override_config() {
     assert_eq!(merged.application_name.as_deref(), Some("url_app"));
     assert_eq!(merged.connect_timeout, Some(Duration::from_secs(9)));
 }
+
+/// Property tests for #817: a query parameter must never bleed into the host,
+/// the user or the database name.
+///
+/// `parse_tcp` used to split userinfo at `rfind('@')` and take everything after
+/// the first `/` as the database, with no `?` handling at all. So every standard
+/// libpq parameter (`sslmode`, `application_name`, …) was appended to the
+/// database name, and an `@` inside a parameter *value* was taken as the userinfo
+/// delimiter — the host was then parsed out of the tail of the query string.
+///
+/// Both failures are silent, and one is security-relevant: `sslmode` decides
+/// whether the connection is encrypted, so folding it into the database name
+/// loses the TLS requirement rather than failing the connection.
+///
+/// These are proptests rather than libFuzzer targets because `connection_string`
+/// is a private module. Widening it to `pub` purely for a fuzz target would
+/// enlarge the crate's supported API surface to buy test reach; in-crate
+/// proptests reach it already and run in *every* CI leg rather than weekly.
+#[cfg(test)]
+mod issue_817_query_string_containment {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    /// Parameter values chosen to contain exactly the delimiters the old parser
+    /// keyed on: `@` (userinfo), `/` (database), `?`/`&`/`=` (query).
+    fn hostile_param_value() -> impl Strategy<Value = String> {
+        prop::sample::select(vec![
+            "a@b".to_string(),
+            "a/b".to_string(),
+            "a@b/c".to_string(),
+            "x=y".to_string(),
+            "p@ss/w@rd".to_string(),
+            "hostile@evil.example".to_string(),
+            "plain".to_string(),
+        ])
+    }
+
+    fn ident() -> impl Strategy<Value = String> {
+        "[a-z][a-z0-9_]{0,7}".prop_map(|s| s)
+    }
+
+    proptest! {
+        /// Whatever a parameter value contains, the authority and path components
+        /// are parsed from before the `?` — so the host stays the host.
+        #[test]
+        fn query_parameters_never_change_the_host_or_database(
+            user in ident(),
+            host in ident(),
+            db in ident(),
+            app in hostile_param_value(),
+        ) {
+            let s = format!("postgres://{user}@{host}:5432/{db}?application_name={app}");
+            let info = ConnectionInfo::parse(&s).unwrap();
+
+            prop_assert_eq!(info.host.as_deref(), Some(host.as_str()));
+            prop_assert_eq!(info.database.as_deref(), Some(db.as_str()));
+            prop_assert_eq!(info.user.as_deref(), Some(user.as_str()));
+        }
+
+        /// The general invariant, independent of which parameter is used: no
+        /// component may carry a query-string delimiter, because none of them can
+        /// legally contain one.
+        #[test]
+        fn no_component_absorbs_the_query_string(
+            host in ident(),
+            db in ident(),
+            value in hostile_param_value(),
+            key in prop::sample::select(vec!["sslmode", "application_name", "connect_timeout"]),
+        ) {
+            let s = format!("postgres://{host}/{db}?{key}={value}");
+            let Ok(info) = ConnectionInfo::parse(&s) else {
+                return Ok(());
+            };
+
+            if let Some(h) = &info.host {
+                prop_assert!(!h.contains('?'), "query string bled into host: {h:?}");
+                prop_assert!(!h.contains('='), "host parsed out of query string: {h:?}");
+                prop_assert!(!h.contains('/'), "host absorbed a path segment: {h:?}");
+            }
+            if let Some(d) = &info.database {
+                prop_assert!(!d.contains('?'), "query string folded into database: {d:?}");
+                prop_assert!(!d.contains('&'), "query string folded into database: {d:?}");
+                prop_assert!(!d.contains('/'), "database is not one path segment: {d:?}");
+            }
+        }
+
+        /// `sslmode` must still be *read* — the containment above would also be
+        /// satisfied by a parser that discarded the query string entirely, and a
+        /// silently dropped `sslmode=require` is how a TLS requirement is lost.
+        #[test]
+        fn sslmode_survives_a_hostile_neighbouring_parameter(
+            host in ident(),
+            db in ident(),
+            app in hostile_param_value(),
+        ) {
+            let s = format!("postgres://{host}/{db}?application_name={app}&sslmode=require");
+            let info = ConnectionInfo::parse(&s).unwrap();
+            prop_assert_eq!(info.ssl_mode, SslMode::Require);
+        }
+    }
+}
