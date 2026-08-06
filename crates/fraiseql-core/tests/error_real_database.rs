@@ -99,11 +99,22 @@ async fn query_timeout_via_statement_timeout() {
 async fn duplicate_primary_key_returns_sql_state_23505() {
     let adapter = common::testcontainer::get_test_adapter().await;
 
-    // Use a fixed UUID to trigger a duplicate
+    // Own the relation (#996): this test needs *a* unique violation, not a shared
+    // one. It used to leave a permanent `dup test` row in the shared sample table
+    // `test.tb_project`, which fraiseql-wire's suites read — and because Postgres
+    // orders by collation while their assertions compare Rust byte order, that one
+    // lowercase name reddened every ordering test on any database both suites touch.
+    let table = "test.tb_duplicate_pk_probe";
+    adapter
+        .execute_raw_query(&format!(
+            "CREATE TABLE IF NOT EXISTS {table} (id UUID PRIMARY KEY, data JSONB NOT NULL)"
+        ))
+        .await
+        .expect("failed to create the probe table");
+
     let fixed_id = "00000000-0000-0000-0000-000000000001";
-    let insert = format!(
-        "INSERT INTO test.tb_project (id, data) VALUES ('{fixed_id}', '{{\"name\": \"dup test\"}}')"
-    );
+    let insert =
+        format!("INSERT INTO {table} (id, data) VALUES ('{fixed_id}', '{{\"name\": \"dup\"}}')");
 
     // First insert should succeed (or already exist from a prior run — ignore)
     let _ = adapter.execute_raw_query(&insert).await;

@@ -2,10 +2,12 @@
 //!
 //! The backing PostgreSQL is provided by the test-support harness: a Dagger-bound
 //! service in CI (DATABASE_URL injected) or a local testcontainer with the
-//! `local-testcontainers` feature. The schema (`fixtures/schema.sql`) is applied
-//! idempotently and the seed data (`fixtures/seed_data.sql`) is loaded only when the
-//! tables are empty, so every wire test binary can share one bound database without
-//! duplicating rows.
+//! `local-testcontainers` feature. The sample `test` schema and its seed come from
+//! their single owner, `fraiseql_test_support::sample_schema` — `fraiseql-core`'s
+//! suites read the same relations, and both crates used to provision them from
+//! byte-identical private copies with contradictory seeding rules (#996). Both
+//! scripts are idempotent, so every wire test binary can share one bound database
+//! without duplicating rows.
 
 #![allow(clippy::doc_markdown, clippy::print_stdout, clippy::print_stderr)] // Reason: test helper docs don't need backticks
 #![allow(dead_code)] // Reason: shared helper compiled into every wire test binary; each binary uses a different subset of the fields/methods
@@ -14,11 +16,7 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
-/// Schema SQL to create test tables and views
-const SCHEMA_SQL: &str = include_str!("../fixtures/schema.sql");
-
-/// Seed data SQL to populate test tables
-const SEED_SQL: &str = include_str!("../fixtures/seed_data.sql");
+use fraiseql_test_support::sample_schema::{SAMPLE_SCHEMA_SQL, SAMPLE_SEED_SQL};
 
 /// Shared database handle for all tests in a test binary.
 /// Using `OnceCell` ensures the schema/seed work happens only once.
@@ -79,26 +77,17 @@ async fn provision_database() -> TestContainer {
         }
     });
 
-    // Schema is fully idempotent (CREATE … IF NOT EXISTS / CREATE OR REPLACE).
+    // Both scripts are idempotent (schema: CREATE … IF NOT EXISTS / CREATE OR
+    // REPLACE; seed: fixed ids + ON CONFLICT (id) DO NOTHING), so every binary and
+    // every process can apply them unconditionally and the rows stay identical.
     client
-        .batch_execute(SCHEMA_SQL)
+        .batch_execute(SAMPLE_SCHEMA_SQL)
         .await
         .expect("Failed to create schema");
-
-    // Seed only when the tables are empty so multiple wire binaries can share one
-    // bound database. The seed uses gen_random_uuid() (not fixed ids), so its
-    // ON CONFLICT clauses never fire — re-running it would duplicate rows.
-    let row = client
-        .query_one("SELECT COUNT(*) FROM test.tb_project", &[])
+    client
+        .batch_execute(SAMPLE_SEED_SQL)
         .await
-        .expect("Failed to count seed rows");
-    let count: i64 = row.get(0);
-    if count == 0 {
-        client
-            .batch_execute(SEED_SQL)
-            .await
-            .expect("Failed to seed data");
-    }
+        .expect("Failed to seed data");
 
     TestContainer {
         service,

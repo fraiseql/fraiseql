@@ -36,6 +36,7 @@
 
 pub mod changelog;
 pub mod db;
+pub mod sample_schema;
 pub mod services;
 
 pub use db::{database_url, try_database_url};
