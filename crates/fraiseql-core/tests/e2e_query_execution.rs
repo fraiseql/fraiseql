@@ -95,7 +95,11 @@ fn products_seed() -> Vec<serde_json::Value> {
     ]
 }
 
-/// (Re)provision `users` and `products` as `data jsonb` tables and seed them.
+/// (Re)provision `e2e_users` and `e2e_products` as `data jsonb` tables and seed them.
+///
+/// Own table names, NOT the shared `users` fixture: the old `DROP TABLE users
+/// CASCADE` destroyed the seeded `v_user` view out from under ~24 other suites
+/// (#936 — a red full-run that no crate-alone run could reproduce).
 ///
 /// `execute_where_query(view, ...)` runs `SELECT data FROM "{view}"`, so each
 /// table holds one `data jsonb` column per row. Returns `None` when no Postgres
@@ -107,7 +111,10 @@ async fn seed_users_products() -> Option<(fraiseql_test_support::Service, Arc<Po
     let adapter =
         Arc::new(PostgresAdapter::new(pg.url()).await.expect("connect to harness postgres"));
 
-    for (table, rows) in [("users", users_seed()), ("products", products_seed())] {
+    for (table, rows) in [
+        ("e2e_users", users_seed()),
+        ("e2e_products", products_seed()),
+    ] {
         adapter
             .execute_raw_query(&format!(r#"DROP TABLE IF EXISTS "{table}" CASCADE"#))
             .await
@@ -141,7 +148,7 @@ async fn test_seed_data_users_available() {
         eprintln!("SKIP test_seed_data_users_available: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -152,7 +159,10 @@ async fn test_seed_data_products_available() {
         eprintln!("SKIP test_seed_data_products_available: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_products", None, None, None, None)
+        .await
+        .unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -163,7 +173,7 @@ async fn test_seed_data_contains_correct_fields() {
         eprintln!("SKIP test_seed_data_contains_correct_fields: no postgres");
         return;
     };
-    let users = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let users = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
 
     // Row order is not guaranteed without ORDER BY — find Alice by name.
     let alice = users
@@ -186,7 +196,7 @@ async fn test_query_execution_all_users() {
         eprintln!("SKIP test_query_execution_all_users: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -197,7 +207,10 @@ async fn test_query_execution_with_limit() {
         eprintln!("SKIP test_query_execution_with_limit: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, Some(2), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_users", None, Some(2), None, None)
+        .await
+        .unwrap();
 
     assert_eq!(results.len(), 2);
 }
@@ -208,7 +221,10 @@ async fn test_query_execution_products() {
         eprintln!("SKIP test_query_execution_products: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_products", None, None, None, None)
+        .await
+        .unwrap();
 
     assert_eq!(results.len(), 3);
 }
@@ -223,7 +239,7 @@ async fn test_result_projection_single_field() {
         eprintln!("SKIP test_result_projection_single_field: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
 
     // Project only id and name
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
@@ -246,7 +262,10 @@ async fn test_result_projection_multiple_fields() {
         eprintln!("SKIP test_result_projection_multiple_fields: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_users", None, Some(1), None, None)
+        .await
+        .unwrap();
 
     // Project id, name, and email
     let projector =
@@ -265,7 +284,10 @@ async fn test_result_projection_products() {
         eprintln!("SKIP test_result_projection_products: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_products", None, None, None, None)
+        .await
+        .unwrap();
 
     // Project only name and price
     let projector = ResultProjector::new(vec!["name".to_string(), "price".to_string()]);
@@ -293,7 +315,10 @@ async fn test_graphql_response_data_envelope() {
         eprintln!("SKIP test_graphql_response_data_envelope: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_users", None, Some(1), None, None)
+        .await
+        .unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
     let projected = projector.project_results(&results, false).unwrap();
@@ -312,7 +337,10 @@ async fn test_graphql_response_with_typename() {
         eprintln!("SKIP test_graphql_response_with_typename: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_users", None, Some(1), None, None)
+        .await
+        .unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
     let _projected = projector.project_results(&results, false).unwrap();
@@ -329,7 +357,7 @@ async fn test_graphql_response_list_with_typename() {
         eprintln!("SKIP test_graphql_response_list_with_typename: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let results = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
 
     let projector = ResultProjector::new(vec!["id".to_string()]);
 
@@ -368,7 +396,10 @@ async fn test_complete_e2e_pipeline_single_user() {
         return;
     };
     // Step 1: Query database
-    let db_results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
+    let db_results = adapter
+        .execute_where_query("e2e_users", None, Some(1), None, None)
+        .await
+        .unwrap();
 
     assert_eq!(db_results.len(), 1);
 
@@ -403,7 +434,8 @@ async fn test_complete_e2e_pipeline_user_list() {
         return;
     };
     // Step 1: Query database
-    let db_results = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let db_results =
+        adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
 
     assert_eq!(db_results.len(), 3);
 
@@ -432,7 +464,10 @@ async fn test_complete_e2e_pipeline_products() {
         return;
     };
     // Step 1: Query database
-    let db_results = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
+    let db_results = adapter
+        .execute_where_query("e2e_products", None, None, None, None)
+        .await
+        .unwrap();
 
     // Step 2: Project fields
     let projector =
@@ -464,7 +499,10 @@ async fn test_empty_projection_fields() {
         eprintln!("SKIP test_empty_projection_fields: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_users", None, Some(1), None, None)
+        .await
+        .unwrap();
 
     let projector = ResultProjector::new(vec![]);
     let _projected = projector.project_results(&results, false).unwrap();
@@ -479,7 +517,10 @@ async fn test_projection_nonexistent_fields() {
         eprintln!("SKIP test_projection_nonexistent_fields: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, Some(1), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_users", None, Some(1), None, None)
+        .await
+        .unwrap();
 
     let projector = ResultProjector::new(vec![
         "nonexistent_field".to_string(),
@@ -498,7 +539,10 @@ async fn test_query_with_zero_limit() {
         eprintln!("SKIP test_query_with_zero_limit: no postgres");
         return;
     };
-    let results = adapter.execute_where_query("users", None, Some(0), None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("e2e_users", None, Some(0), None, None)
+        .await
+        .unwrap();
 
     assert_eq!(results.len(), 0);
 }
@@ -510,7 +554,7 @@ async fn test_large_limit() {
         return;
     };
     let results = adapter
-        .execute_where_query("users", None, Some(1000), None, None)
+        .execute_where_query("e2e_users", None, Some(1000), None, None)
         .await
         .unwrap();
 
@@ -530,8 +574,8 @@ async fn test_seed_data_not_mutated() {
     };
 
     // Query multiple times
-    let results1 = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
-    let results2 = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
+    let results1 = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
+    let results2 = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
 
     assert_eq!(results1.len(), results2.len());
 
@@ -550,8 +594,11 @@ async fn test_different_tables_independent() {
         return;
     };
 
-    let users = adapter.execute_where_query("users", None, None, None, None).await.unwrap();
-    let products = adapter.execute_where_query("products", None, None, None, None).await.unwrap();
+    let users = adapter.execute_where_query("e2e_users", None, None, None, None).await.unwrap();
+    let products = adapter
+        .execute_where_query("e2e_products", None, None, None, None)
+        .await
+        .unwrap();
 
     assert_eq!(users.len(), 3);
     assert_eq!(products.len(), 3);
