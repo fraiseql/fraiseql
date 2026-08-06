@@ -391,7 +391,10 @@ func (m *FraiseqlCi) Test(
 		// dagger client session and time out the return value ("client session
 		// attachables: context deadline exceeded"). Failures still surface (cargo
 		// prints them regardless), and warm runs are short.
-		"cargo build --all-features",
+		// #880 canary wraps the leg's first build: it detects a stale mounted
+		// target/ volume (source digest changed, zero units compiled), purges and
+		// rebuilds, and prints the fresh-unit diagnostic in the leg output.
+		"bash tools/ci-target-canary.sh -- build --all-features",
 		"echo '### skipped in-engine (env-incompatible; restored in a later phase):'",
 		// (runtime-deno was on this list until #971 — the SIGSEGV was #969's
 		// per-process second-isolate crash, not a sandbox limitation.)
@@ -710,7 +713,7 @@ func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.D
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: quickstart (docs/guides/getting-started.md verbatim, #734)'",
-		"cargo build -p fraiseql-cli --bin fraiseql-cli",
+		"bash tools/ci-target-canary.sh -- build -p fraiseql-cli --bin fraiseql-cli", // #880 canary wraps the build
 		"cargo build -p fraiseql-server --bin fraiseql-server",
 		"export PATH=/src/target/debug:$PATH",
 		"bash tools/quickstart-smoke.sh",
@@ -742,6 +745,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"echo '### integration: postgres (Dagger-bound service; tests read DATABASE_URL via harness)'",
 		// Broad core/db `--test '*'` sweep (matches the legacy integration-postgres job).
 		// The redis/federation-gated tests skip cleanly (only pg is bound).
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*'", // #880 canary
 		"cargo test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
 		"cargo test -p fraiseql-db --features '" + dbTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
 		// `--test '*'` runs only tests/ binaries. `postgres::adapter::integration_tests`
@@ -883,6 +887,7 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		"echo '### integration: saml (#381 SP login + ACS; auth-saml feature, xmlsec1 C stack)'",
 		"echo \"### xmlsec1: $(xmlsec1-config --version)\"",
 		// Verification core + full attack matrix (no DB) — proves the leg can go red.
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-auth --features auth-saml --lib saml::", // #880 canary
 		"cargo test -p fraiseql-auth --features auth-saml --lib saml:: -- --test-threads=1",
 		// Tenant-bounded trust policy ∘ PostgresAccountStore (reads DATABASE_URL via harness).
 		"cargo test -p fraiseql-auth --features auth-saml --test saml_sso -- --test-threads=1",
@@ -944,6 +949,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: server database (Dagger-bound postgres)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-server --test database_query_test", // #880 canary
 		"cargo test -p fraiseql-server --test database_query_test -- --test-threads=1",
 		// Tier-C migrated (each helper creates + TRUNCATE/DROP its tables for shared-DB isolation).
 		"cargo test -p fraiseql-server --test usage_postgres_backend_test -- --test-threads=1",
@@ -1135,6 +1141,7 @@ func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directo
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: wire (Dagger-bound SCRAM postgres; tests read DATABASE_URL via harness)'",
 	}
+	lines = append(lines, "bash tools/ci-target-canary.sh -- build -p fraiseql-wire --tests") // #880 canary
 	for _, bin := range wireBins {
 		lines = append(lines, "cargo test -p fraiseql-wire --test "+bin+" -- --test-threads=1")
 	}
@@ -1181,6 +1188,7 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: storage (Dagger-bound postgres + azurite + fake-gcs)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-storage --lib", // #880 canary
 		"cargo test -p fraiseql-storage --lib -- metadata::tests migrations::tests routes::tests uploads::tests policy::tests --test-threads=1",
 		// #370: the render endpoint + transform hostile-input guards live behind
 		// the `transforms` feature, so the line above (default features) compiles
@@ -1262,6 +1270,7 @@ func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagge
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: server-storage (Dagger-bound MinIO + Postgres; tests read MINIO_ENDPOINT / S3_ENDPOINT / DATABASE_URL)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-server --features aws-s3 --test storage_minio_integration_test", // #880 canary
 		"cargo test -p fraiseql-server --features aws-s3 --test storage_minio_integration_test -- --test-threads=1",
 		"echo '### integration: storage backend::s3 unit tests (audit #440; read S3_ENDPOINT)'",
 		"cargo test -p fraiseql-storage --features aws-s3 backend::s3 -- --include-ignored --test-threads=1",
@@ -1318,6 +1327,7 @@ func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.D
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: federation (in-process _entities + Apollo Router + cross-subgraph)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-server --features federation --test federation_integration_test", // #880 canary
 		"cargo test -p fraiseql-server --features federation --test federation_integration_test -- --test-threads=1",
 		"echo 'test-integration OK: federation suite passed'",
 	}, "\n")
@@ -1354,7 +1364,7 @@ func (m *FraiseqlCi) fedServerBinary(source *dagger.Directory) *dagger.File {
 		WithMountedCache("/src/target", dag.CacheVolume(fedTargetVol)).
 		WithExec([]string{
 			"bash", "-c",
-			"cargo build -p fraiseql-server --features federation && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
+			"bash tools/ci-target-canary.sh -- build -p fraiseql-server --features federation && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
 		})
 	return built.File("/usr/local/bin/fraiseql-server")
 }
@@ -1439,6 +1449,7 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: redis (core APQ + observers queue/lease + #428 cache-invalidation) — Dagger-bound redis+postgres'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-core --features redis-apq --lib redis", // #880 canary
 		"cargo test -p fraiseql-core --features redis-apq --lib redis -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease' --lib -- --ignored --test-threads=1",
 		// #844: the job-queue worker's dispatch/timeout/DLQ tests. The mock-queue
@@ -1500,6 +1511,7 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: vault secrets manager (Dagger-bound vault dev)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-server --features secrets --test secrets_manager_integration_test", // #880 canary
 		"cargo test -p fraiseql-server --features secrets --test secrets_manager_integration_test -- --ignored --test-threads=1",
 		"echo 'test-integration OK: vault suite passed'",
 	}, "\n")
@@ -1534,6 +1546,7 @@ func (m *FraiseqlCi) integrationTLS(ctx context.Context, source *dagger.Director
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: tls (fraiseql-wire over TLS to a Dagger-bound postgres-tls)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-wire --test tls_integration", // #880 canary
 		"cargo test -p fraiseql-wire --test tls_integration -- --test-threads=1",
 		// #801/#824: the connection pool's own TLS. Proves verify-full rejects an
 		// untrusted chain, accepts it once the CA is supplied, and that the session
@@ -1624,6 +1637,7 @@ func (m *FraiseqlCi) integrationHTTPE2e(ctx context.Context, source *dagger.Dire
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: http-e2e (fraiseql-server binary as a bound service)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-server --test http_server_e2e_test", // #880 canary
 		"cargo test -p fraiseql-server --test http_server_e2e_test -- --test-threads=4",
 		"cargo test -p fraiseql-server --test concurrent_load_test -- --test-threads=1",
 		"echo 'test-integration OK: http-e2e suite passed'",
@@ -1654,7 +1668,7 @@ func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service 
 		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
 		WithExec([]string{
 			"bash", "-c",
-			"cargo build -p fraiseql-server && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
+			"bash tools/ci-target-canary.sh -- build -p fraiseql-server && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
 		})
 	binary := built.File("/usr/local/bin/fraiseql-server")
 	schema := source.File("docker/e2e/schema.compiled.json")
@@ -1709,6 +1723,7 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		"echo '### integration: observers (Dagger-bound postgres+redis+nats)'",
 		// postgres_notify lib tests are skip-on-None (not #[ignore]d); run name-filtered
 		// (no --ignored) so the NOTIFY transport tests exercise the bound Postgres.
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-observers --features postgres --lib postgres_notify", // #880 canary
 		"cargo test -p fraiseql-observers --features postgres --lib postgres_notify -- --test-threads=1",
 		// Lease/storage: kept as the legacy `--lib --ignored` no-op. Those tests are
 		// skip-on-None (not #[ignore]d) so this runs 0; running them unfiltered pulls in
@@ -1801,6 +1816,7 @@ func (m *FraiseqlCi) integrationNats(ctx context.Context, source *dagger.Directo
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: nats (Dagger-bound JetStream; tests read NATS_URL)'",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-observers --features nats --test nats_integration", // #880 canary
 		"cargo test -p fraiseql-observers --features nats --test nats_integration -- --ignored --test-threads=1",
 		"echo 'test-integration OK: nats suite passed'",
 	}, "\n")
