@@ -54,7 +54,7 @@ jobs:
         else
           VERSION="${{ github.event.inputs.version }}"
         fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "Generating SBOM for version: $VERSION"
 
     - name: Check the target release exists (attach only if so)
@@ -215,26 +215,26 @@ jobs:
 
     - name: Summary
       run: |
-        echo "## 📋 SBOM Generation Complete" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "✅ **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-        echo "✅ **Format**: CycloneDX 1.5 (JSON)" >> $GITHUB_STEP_SUMMARY
-        echo "✅ **Signed**: Cosign keyless (Sigstore)" >> $GITHUB_STEP_SUMMARY
-        echo "✅ **Compliance**: US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
         # Count components
         COMPONENT_COUNT=$(jq '.components | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
-        echo "📦 **Total Components**: $COMPONENT_COUNT" >> $GITHUB_STEP_SUMMARY
-
         # Check for copyleft licenses
         COPYLEFT_COUNT=$(jq '[.components[].licenses[]?.license.id | select(contains("GPL") and (contains("LGPL") | not))] | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
-        if [ "$COPYLEFT_COUNT" -gt 0 ]; then
-          echo "⚠️  **Copyleft Components**: $COPYLEFT_COUNT (review required)" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "✅ **No Copyleft Licenses**: Federal-friendly" >> $GITHUB_STEP_SUMMARY
-        fi
 
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📥 Download Artifacts" >> $GITHUB_STEP_SUMMARY
-        echo "SBOM artifacts available in workflow artifacts section" >> $GITHUB_STEP_SUMMARY
+        {
+          echo "## 📋 SBOM Generation Complete"
+          echo ""
+          echo "✅ **Version**: ${{ steps.version.outputs.version }}"
+          echo "✅ **Format**: CycloneDX 1.5 (JSON)"
+          echo "✅ **Signed**: Cosign keyless (Sigstore)"
+          echo "✅ **Compliance**: US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001"
+          echo ""
+          echo "📦 **Total Components**: $COMPONENT_COUNT"
+          if [ "$COPYLEFT_COUNT" -gt 0 ]; then
+            echo "⚠️  **Copyleft Components**: $COPYLEFT_COUNT (review required)"
+          else
+            echo "✅ **No Copyleft Licenses**: Federal-friendly"
+          fi
+          echo ""
+          echo "### 📥 Download Artifacts"
+          echo "SBOM artifacts available in workflow artifacts section"
+        } >> "$GITHUB_STEP_SUMMARY"

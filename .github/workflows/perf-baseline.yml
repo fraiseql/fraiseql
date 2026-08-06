@@ -135,25 +135,25 @@ jobs:
         continue-on-error: true
         run: |
           if [ -f /tmp/baseline/summary-basic.json ]; then
-            echo "## Performance Comparison" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "## Performance Comparison" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
             python3 benchmarks/compare.py \
               --baseline /tmp/baseline/summary-basic.json \
               --current summary-basic.json \
               --threshold-p99 10 \
               --threshold-throughput 5 \
-              | tee -a $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "No baseline artifact found — skipping comparison (first run)." >> $GITHUB_STEP_SUMMARY
+            echo "No baseline artifact found — skipping comparison (first run)." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Print summary
         if: always()
         run: |
           if [ -f summary-basic.json ]; then
-            echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
-            echo '```json' >> $GITHUB_STEP_SUMMARY
+            echo "## Load Test Results" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
             cat summary-basic.json | python3 -c "
           import json, sys
           d = json.load(sys.stdin)
@@ -166,13 +166,13 @@ jobs:
                   for k, val in v.items():
                       print(f'  {k}: {val:.2f}')
           " 2>/dev/null || cat summary-basic.json
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Stop server
         if: always()
         run: |
-          [ -f /tmp/fraiseql.pid ] && kill $(cat /tmp/fraiseql.pid) || true
+          [ -f /tmp/fraiseql.pid ] && kill "$(cat /tmp/fraiseql.pid)" || true
           echo "--- Server log (last 50 lines) ---"
           tail -50 /tmp/fraiseql-server.log 2>/dev/null || true
 
