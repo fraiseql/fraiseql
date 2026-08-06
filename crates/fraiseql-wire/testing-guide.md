@@ -67,10 +67,10 @@ This guide explains how to run the fraiseql-wire test suite, including unit test
 
    ```bash
    # Initialize staging schema and tables
-   psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
+   psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_schema.sql
 
    # Seed with test data
-   psql -U postgres -d fraiseql_test -f tests/fixtures/seed_data.sql
+   psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_seed.sql
    ```
 
 ### Using Docker (Recommended)
@@ -85,8 +85,8 @@ docker-compose up -d postgres
 docker-compose exec postgres pg_isready
 
 # Initialize schema and seed data
-docker-compose exec postgres psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
-docker-compose exec postgres psql -U postgres -d fraiseql_test -f tests/fixtures/seed_data.sql
+docker-compose exec postgres psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_schema.sql
+docker-compose exec postgres psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_seed.sql
 ```
 
 ---
@@ -124,8 +124,8 @@ cargo test --test integration -- --ignored --nocapture
 
 ```bash
 # Ensure schema is loaded first
-psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
-psql -U postgres -d fraiseql_test -f tests/fixtures/seed_data.sql
+psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_schema.sql
+psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_seed.sql
 
 # Run load tests
 export POSTGRES_HOST=localhost
@@ -311,11 +311,11 @@ psql -U postgres -d fraiseql_test -c "SELECT * FROM information_schema.tables WH
 
 ```bash
 # Reload schema
-psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql
+psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_schema.sql
 
 # Clear and reseed data
 psql -U postgres -d fraiseql_test -c "SELECT test_staging.truncate_all();"
-psql -U postgres -d fraiseql_test -f tests/fixtures/seed_data.sql
+psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_seed.sql
 ```
 
 ### Test Output
@@ -432,7 +432,7 @@ Error: connection error: database "fraiseql_test" does not exist
 **Solution**:
 
 1. Create database: `createdb fraiseql_test`
-2. Load schema: `psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql`
+2. Load schema: `psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_schema.sql`
 
 ### "relation does not exist" Error
 
@@ -442,7 +442,7 @@ Error: sql error: relation "test_staging.projects" does not exist
 
 **Solution**:
 
-1. Schema not loaded: `psql -U postgres -d fraiseql_test -f tests/fixtures/schema.sql`
+1. Schema not loaded: `psql -U postgres -d fraiseql_test -f ../fraiseql-test-support/fixtures/sample_schema.sql`
 2. Wrong schema: Verify connection string uses correct database
 
 ### Authentication Failed

@@ -1,9 +1,17 @@
--- fraiseql-wire Test Data Seed Script
+-- Sample `test` schema seed data — the ONE seed for the shared sample entities.
 --
--- This script populates the test database with realistic test data.
--- Follows fraiseql naming conventions:
+-- Populates the sample tables with realistic data. Follows fraiseql naming
+-- conventions:
 --   tb_{entity} - command side table (storage)
 --   v_{entity}  - canonical entity view (JSON data plane)
+--
+-- IDEMPOTENT BY CONSTRUCTION (#996): every row carries a FIXED id, so the
+-- `ON CONFLICT (id) DO NOTHING` clauses actually fire and re-running this script
+-- is a no-op. It previously used `gen_random_uuid()`, which made every id unique
+-- and the conflict clauses dead — each application appended another full copy of
+-- the seed. Under `cargo nextest` (a process per test) that reached 33 copies in
+-- one workspace run, breaking every consumer that asserts a row count or an
+-- ordering. Keep the ids fixed.
 
 -- Ensure schema exists
 CREATE SCHEMA IF NOT EXISTS test;
@@ -13,19 +21,19 @@ CREATE SCHEMA IF NOT EXISTS test;
 -- ============================================================================
 
 INSERT INTO test.tb_project (id, data) VALUES
-  (gen_random_uuid(), '{"name": "Alpha Project", "status": "active", "priority": "high"}'),
-  (gen_random_uuid(), '{"name": "Beta Project", "status": "archived", "priority": "low"}'),
-  (gen_random_uuid(), '{"name": "Gamma Project", "status": "active", "priority": "medium"}'),
-  (gen_random_uuid(), '{"name": "Delta Project", "status": "paused", "priority": "high"}'),
-  (gen_random_uuid(), '{"name": "Epsilon Project", "status": "active", "priority": "medium"}')
-ON CONFLICT DO NOTHING;
+  ('a0000000-0000-4000-8000-000000000001'::uuid, '{"name": "Alpha Project", "status": "active", "priority": "high"}'),
+  ('a0000000-0000-4000-8000-000000000002'::uuid, '{"name": "Beta Project", "status": "archived", "priority": "low"}'),
+  ('a0000000-0000-4000-8000-000000000003'::uuid, '{"name": "Gamma Project", "status": "active", "priority": "medium"}'),
+  ('a0000000-0000-4000-8000-000000000004'::uuid, '{"name": "Delta Project", "status": "paused", "priority": "high"}'),
+  ('a0000000-0000-4000-8000-000000000005'::uuid, '{"name": "Epsilon Project", "status": "active", "priority": "medium"}')
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- Seed Data for user (Moderate JSON structure)
 -- ============================================================================
 
 INSERT INTO test.tb_user (id, data) VALUES
-  (gen_random_uuid(), '{
+  ('b0000000-0000-4000-8000-000000000001'::uuid, '{
     "id": "user_1",
     "name": "Alice Johnson",
     "email": "alice@example.com",
@@ -43,7 +51,7 @@ INSERT INTO test.tb_user (id, data) VALUES
     },
     "created_at": "2024-01-01T00:00:00Z"
   }'),
-  (gen_random_uuid(), '{
+  ('b0000000-0000-4000-8000-000000000002'::uuid, '{
     "id": "user_2",
     "name": "Bob Smith",
     "email": "bob@example.com",
@@ -59,7 +67,7 @@ INSERT INTO test.tb_user (id, data) VALUES
     },
     "created_at": "2024-01-02T00:00:00Z"
   }'),
-  (gen_random_uuid(), '{
+  ('b0000000-0000-4000-8000-000000000003'::uuid, '{
     "id": "user_3",
     "name": "Carol White",
     "email": "carol@example.com",
@@ -78,14 +86,14 @@ INSERT INTO test.tb_user (id, data) VALUES
     },
     "created_at": "2024-01-03T00:00:00Z"
   }')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- Seed Data for task (Complex nested structure)
 -- ============================================================================
 
 INSERT INTO test.tb_task (id, data) VALUES
-  (gen_random_uuid(), '{
+  ('c0000000-0000-4000-8000-000000000001'::uuid, '{
     "id": "task_1",
     "title": "Implement API endpoint",
     "description": "Create REST API for user management",
@@ -119,7 +127,7 @@ INSERT INTO test.tb_task (id, data) VALUES
       {"name": "wireframe.png", "size": 102400, "url": "https://example.com/wireframe.png"}
     ]
   }'),
-  (gen_random_uuid(), '{
+  ('c0000000-0000-4000-8000-000000000002'::uuid, '{
     "id": "task_2",
     "title": "Write documentation",
     "description": "Document the new API endpoints with examples",
@@ -139,14 +147,14 @@ INSERT INTO test.tb_task (id, data) VALUES
       {"action": "assigned", "by": "user_1", "to": "user_2", "at": "2024-01-05T10:15:00Z"}
     ]
   }')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- Seed Data for document (Large JSON objects)
 -- ============================================================================
 
 INSERT INTO test.tb_document (id, data) VALUES
-  (gen_random_uuid(), '{
+  ('d0000000-0000-4000-8000-000000000001'::uuid, '{
     "id": "doc_1",
     "title": "Quarterly Business Review",
     "content": "This is a comprehensive quarterly business review with detailed metrics and analysis across all departments.",
@@ -202,7 +210,7 @@ INSERT INTO test.tb_document (id, data) VALUES
       {"user": "user_5", "viewed_at": "2024-01-10T15:30:00Z"}
     ]
   }')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- Verify seed data

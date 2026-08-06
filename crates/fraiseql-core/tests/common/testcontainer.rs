@@ -1,19 +1,20 @@
 //! Shared test database for integration tests.
 //!
 //! Provides a connected `PostgresAdapter` against the harness-provided Postgres
-//! (Dagger-bound in CI; a local spawn with the `local-testcontainers` feature). The
-//! fixtures create an isolated `test` schema (`CREATE SCHEMA IF NOT EXISTS` + per-table
-//! `TRUNCATE … CASCADE`, seeds use `ON CONFLICT DO NOTHING`), so a shared database is
-//! fine — no per-test isolation is required.
+//! (Dagger-bound in CI; a local spawn with the `local-testcontainers` feature).
+//!
+//! The sample `test` schema comes from its single owner,
+//! [`fraiseql_test_support::sample_schema`] — `fraiseql-wire`'s suites read the same
+//! relations, and this crate used to provision them from a byte-identical private
+//! copy of the fixtures (#996). Both scripts are idempotent, so applying them on
+//! every provisioning is safe and a shared database needs no per-test isolation.
 #![allow(dead_code)]
 #![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use std::sync::Arc;
 
 use fraiseql_core::db::postgres::PostgresAdapter;
+use fraiseql_test_support::sample_schema::{SAMPLE_SCHEMA_SQL, SAMPLE_SEED_SQL};
 use tokio::sync::OnceCell;
-
-const SCHEMA_SQL: &str = include_str!("../fixtures/schema.sql");
-const SEED_SQL: &str = include_str!("../fixtures/seed_data.sql");
 
 static CONTAINER: OnceCell<Arc<TestContainer>> = OnceCell::const_new();
 
@@ -52,8 +53,8 @@ async fn start_postgres() -> TestContainer {
         }
     });
 
-    client.batch_execute(SCHEMA_SQL).await.expect("Failed to create schema");
-    client.batch_execute(SEED_SQL).await.expect("Failed to seed data");
+    client.batch_execute(SAMPLE_SCHEMA_SQL).await.expect("Failed to create schema");
+    client.batch_execute(SAMPLE_SEED_SQL).await.expect("Failed to seed data");
 
     TestContainer { service }
 }
