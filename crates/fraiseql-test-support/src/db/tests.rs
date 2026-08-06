@@ -10,9 +10,9 @@ fn resolve_or_panic_is_loud_when_unset() {
 }
 
 #[test]
-#[should_panic(expected = "MYSQL_URL is not set")]
+#[should_panic(expected = "SOME_URL is not set")]
 fn resolve_or_panic_names_the_missing_var() {
-    let _ = resolve_or_panic("MYSQL_URL", "mysql://...", None);
+    let _ = resolve_or_panic("SOME_URL", "scheme://...", None);
 }
 
 #[test]

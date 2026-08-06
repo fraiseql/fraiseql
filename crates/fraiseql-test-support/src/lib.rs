@@ -7,7 +7,9 @@
 //!
 //! Every service getter follows the same rule:
 //!
-//! 1. If the service's env URL is set (e.g. `DATABASE_URL`), use it.
+//! 1. If the service's env URL is set (e.g. `DATABASE_URL`) **and its host:port is reachable**
+//!    (short-timeout TCP probe), use it. A configured-but-unreachable service reads as absent,
+//!    announced on stderr — availability means *reachable*, not *configured* (#879).
 //! 2. Otherwise, with the `local-testcontainers` feature, spawn an ephemeral container on the local
 //!    Docker daemon (Ryuk reaper on) and use that.
 //! 3. Otherwise return `None` — the caller skips.
@@ -35,9 +37,5 @@
 pub mod db;
 pub mod services;
 
-pub use db::{
-    database_url, mysql_url, sqlserver_url, try_database_url, try_mysql_url, try_sqlserver_url,
-};
-pub use services::{
-    Service, Vault, azure_blob, gcs, minio, mysql, nats, postgres, redis, sqlserver, vault,
-};
+pub use db::{database_url, try_database_url};
+pub use services::{Service, Vault, azure_blob, gcs, minio, nats, postgres, redis, vault};

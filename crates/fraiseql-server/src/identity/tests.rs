@@ -543,11 +543,17 @@ async fn cache_key_discriminates_by_bound_params() {
 
 /// Connect to the harness-provided Postgres (Dagger-bound in CI; a local spawn
 /// with the `local-testcontainers` feature). `None` when no service is available
-/// so the test skips cleanly.
+/// so the test skips cleanly — including when the connection itself fails, which
+/// is announced rather than panicking inside test setup (#879).
 async fn connect_pool() -> Option<(sqlx::PgPool, fraiseql_test_support::Service)> {
     let svc = fraiseql_test_support::postgres().await?;
-    let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
-    Some((pool, svc))
+    match sqlx::PgPool::connect(svc.url()).await {
+        Ok(pool) => Some((pool, svc)),
+        Err(e) => {
+            eprintln!("SKIP: postgres reachable but connect failed ({e}); skipping");
+            None
+        },
+    }
 }
 
 /// Create a fresh, uniquely-named actor table so parallel runs stay independent.

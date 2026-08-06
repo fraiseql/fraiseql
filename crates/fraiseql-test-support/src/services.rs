@@ -3,17 +3,22 @@
 //! Env var names are canonical and match the legacy CI job environment as well as
 //! the URLs the Dagger module injects, so a test reads the same variable whether it
 //! runs under `dagger call test-integration` locally or in CI.
+//!
+//! "Available" means **reachable**, not merely configured: every getter probes the
+//! URL's host:port with a short-timeout TCP connect and treats an unreachable
+//! service as absent, so the documented skip path skips instead of hard-failing in
+//! test setup (#879).
 
-use std::any::Any;
+use std::{
+    any::Any,
+    net::{TcpStream, ToSocketAddrs},
+    time::Duration,
+};
 
 /// `postgres()` env var.
 const POSTGRES_URL_ENV: &str = "DATABASE_URL";
-/// `mysql()` env var.
-const MYSQL_URL_ENV: &str = "MYSQL_URL";
 /// `redis()` env var.
 const REDIS_URL_ENV: &str = "REDIS_URL";
-/// `sqlserver()` env var.
-const SQLSERVER_URL_ENV: &str = "SQLSERVER_URL";
 /// `nats()` env var.
 const NATS_URL_ENV: &str = "NATS_URL";
 /// `minio()` endpoint env var.
@@ -84,24 +89,14 @@ fn normalize(raw: Option<String>) -> Option<String> {
 /// PostgreSQL. Env: `DATABASE_URL`. Local spawn: yes (with `local-testcontainers`).
 pub async fn postgres() -> Option<Service> {
     if let Some(url) = env_url(POSTGRES_URL_ENV) {
-        return Some(Service::from_url(url));
+        return reachable_service(POSTGRES_URL_ENV, url);
     }
     spawn_postgres().await
-}
-
-/// MySQL. Env: `MYSQL_URL`.
-pub async fn mysql() -> Option<Service> {
-    resolve_env(MYSQL_URL_ENV).await
 }
 
 /// Redis. Env: `REDIS_URL`.
 pub async fn redis() -> Option<Service> {
     resolve_env(REDIS_URL_ENV).await
-}
-
-/// SQL Server. Env: `SQLSERVER_URL`.
-pub async fn sqlserver() -> Option<Service> {
-    resolve_env(SQLSERVER_URL_ENV).await
 }
 
 /// NATS. Env: `NATS_URL`.
@@ -137,10 +132,93 @@ pub fn vault() -> Option<Vault> {
 
 /// Env-only resolver for services in the spawnable family that do not yet have a
 /// local spawn path. Kept `async` so wiring one up later is not a caller-facing
-/// signature change.
-#[allow(clippy::unused_async)] // Reason: uniform async getter family; mysql/redis/sqlserver/nats gain local spawn in a later Phase-04 slice
+/// signature change. Every getter funnels through [`reachable_service`], so a new
+/// service getter cannot reintroduce the presence-means-available shape (#879).
+#[allow(clippy::unused_async)] // Reason: uniform async getter family; redis/nats gain local spawn in a later slice
 async fn resolve_env(name: &str) -> Option<Service> {
-    env_url(name).map(Service::from_url)
+    let url = env_url(name)?;
+    reachable_service(name, url)
+}
+
+/// How long the reachability probe waits per resolved address before treating the
+/// service as absent. Live services accept within milliseconds; a closed local
+/// port refuses immediately, so the full wait applies only to blackholed hosts.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Wrap an env-provided URL as a [`Service`] only if its host:port accepts TCP
+/// connections; otherwise announce the skip and return `None`. This is what makes
+/// "available" mean *reachable* rather than *configured* (#879).
+#[allow(clippy::print_stderr)] // Reason: a silent skip is the failure mode this crate exists to prevent; stderr is the test log
+fn reachable_service(name: &str, url: String) -> Option<Service> {
+    match probe(&url) {
+        Ok(()) => Some(Service::from_url(url)),
+        Err(reason) => {
+            eprintln!(
+                "SKIP: {name} is set but the service is unreachable ({reason}); \
+                 treating it as unavailable"
+            );
+            None
+        },
+    }
+}
+
+/// Attempt one short-timeout TCP connect to the URL's host:port.
+fn probe(url: &str) -> Result<(), String> {
+    let (host, port) = host_port(url)?;
+    let addrs = (host.as_str(), port)
+        .to_socket_addrs()
+        .map_err(|e| format!("cannot resolve {host}:{port}: {e}"))?;
+    let mut last = format!("{host}:{port} did not resolve to any address");
+    for addr in addrs {
+        match TcpStream::connect_timeout(&addr, PROBE_TIMEOUT) {
+            Ok(_) => return Ok(()),
+            Err(e) => last = format!("connect to {addr} failed: {e}"),
+        }
+    }
+    Err(last)
+}
+
+/// Extract `(host, port)` from a service URL, defaulting the port by scheme.
+/// Pure; unit-tested. Errors name what is missing so the skip line is actionable.
+fn host_port(url: &str) -> Result<(String, u16), String> {
+    let (scheme, rest) =
+        url.split_once("://").ok_or_else(|| format!("no scheme in URL {url:?}"))?;
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    let hostport = authority.rsplit_once('@').map_or(authority, |(_, hp)| hp);
+    let (host, explicit_port) = if let Some(bracketed) = hostport.strip_prefix('[') {
+        // IPv6 literal: [::1] or [::1]:5433
+        let (inside, after) = bracketed
+            .split_once(']')
+            .ok_or_else(|| format!("unclosed IPv6 bracket in URL {url:?}"))?;
+        (inside.to_string(), after.strip_prefix(':'))
+    } else {
+        match hostport.rsplit_once(':') {
+            Some((h, p)) => (h.to_string(), Some(p)),
+            None => (hostport.to_string(), None),
+        }
+    };
+    if host.is_empty() {
+        return Err(format!("no host in URL {url:?}"));
+    }
+    let port = match explicit_port {
+        Some(p) => p.parse::<u16>().map_err(|_| format!("invalid port {p:?} in URL {url:?}"))?,
+        None => default_port(scheme).ok_or_else(|| {
+            format!("no port in URL {url:?} and no default for scheme {scheme:?}")
+        })?,
+    };
+    Ok((host, port))
+}
+
+/// Default ports for the schemes this harness provisions.
+fn default_port(scheme: &str) -> Option<u16> {
+    match scheme {
+        "postgres" | "postgresql" => Some(5432),
+        "redis" | "rediss" => Some(6379),
+        "nats" => Some(4222),
+        "http" => Some(80),
+        "https" => Some(443),
+        _ => None,
+    }
 }
 
 #[cfg(feature = "local-testcontainers")]
