@@ -123,15 +123,22 @@ async fn suppression_and_exactly_once_round_trip_through_postgres() {
 const KEY: &[u8] = b"correlation-e2e-key";
 
 /// Build a classified inbound message addressed to a VERP Return-Path.
-fn inbound_to_verp(send_id: &str, classification: Classification) -> InboundMessage {
+///
+/// `now` must be the same clock the test correlates with: the store writes rows
+/// with the DATABASE's clock, so a fixed fixture date drifts away from the
+/// durable records until TTL windows silently cross (#981 — this suite went red
+/// on 2026-08-04 when the hardcoded 2026-07-05 fixture crossed the 30-day TTL).
+fn inbound_to_verp(
+    send_id: &str,
+    classification: Classification,
+    now: chrono::DateTime<chrono::Utc>,
+) -> InboundMessage {
     let mut message = InboundMessage::new(
         IngestSource::Email {
             mailbox: "test-mailbox".to_string(),
         },
         "mid-e2e",
-        chrono::DateTime::parse_from_rfc3339("2026-07-05T12:00:00Z")
-            .unwrap()
-            .with_timezone(&chrono::Utc),
+        now,
     );
     message.to = vec![format!("bounces+{send_id}@sales.example.com")];
     message.classification = Some(classification);
@@ -164,13 +171,16 @@ async fn a_bounce_correlates_to_bounced_and_suppresses_through_postgres() {
         .await
         .unwrap();
 
-    let now = chrono::DateTime::parse_from_rfc3339("2026-07-05T12:00:00Z")
-        .unwrap()
-        .with_timezone(&chrono::Utc);
-    let outcome =
-        correlate(&tracker, Some(KEY), 2, now, &inbound_to_verp(send_id, Classification::Bounce))
-            .await
-            .unwrap();
+    let now = chrono::Utc::now();
+    let outcome = correlate(
+        &tracker,
+        Some(KEY),
+        2,
+        now,
+        &inbound_to_verp(send_id, Classification::Bounce, now),
+    )
+    .await
+    .unwrap();
     assert_eq!(outcome, crate::inbound::email::correlation::CorrelationOutcome::Bounced);
 
     let (status,): (String,) =
@@ -205,9 +215,7 @@ async fn challenge_then_reply_suppresses_then_lifts_through_postgres() {
     let send_id = "fedcba9876543210fedcba9876543210";
     let recipient = "carol@challenge-e2e.example.com";
     let hash = fraiseql_observers::hash_address(KEY, recipient);
-    let now = chrono::DateTime::parse_from_rfc3339("2026-07-05T12:00:00Z")
-        .unwrap()
-        .with_timezone(&chrono::Utc);
+    let now = chrono::Utc::now();
     tracker
         .record_sent(SentRecord {
             send_id,
@@ -226,7 +234,7 @@ async fn challenge_then_reply_suppresses_then_lifts_through_postgres() {
         Some(KEY),
         1,
         now,
-        &inbound_to_verp(send_id, Classification::Challenge),
+        &inbound_to_verp(send_id, Classification::Challenge, now),
     )
     .await
     .unwrap();
@@ -243,9 +251,15 @@ async fn challenge_then_reply_suppresses_then_lifts_through_postgres() {
     );
 
     // A genuine reply → Replied, and the challenge suppression lifts immediately.
-    correlate(&tracker, Some(KEY), 1, now, &inbound_to_verp(send_id, Classification::Human))
-        .await
-        .unwrap();
+    correlate(
+        &tracker,
+        Some(KEY),
+        1,
+        now,
+        &inbound_to_verp(send_id, Classification::Human, now),
+    )
+    .await
+    .unwrap();
     let (status,): (String,) =
         sqlx::query_as("SELECT status FROM _fraiseql_send_status WHERE send_id = $1")
             .bind(send_id)
