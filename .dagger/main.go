@@ -795,6 +795,14 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-cli --features test-postgres --test mutation_contract_against_db -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test doctor_against_db -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test source_probe_against_db -- --test-threads=1",
+		// #960 — the cascade RLS conformance proof (2-tenant isolation incl. the
+		// default-privilege-view LEAK proof) had never executed its assertions in
+		// CI: it self-skips without DATABASE_URL and only the DB-less test leg
+		// compiled it. One consolidated test — expect `1 passed, 0 skipped` here.
+		"echo '### cargo test -p fraiseql-cli --test cascade_rls_against_db (#960 cascade RLS boundary proof)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test cascade_rls_against_db -- --test-threads=1",
+		// #992: the remaining self-skipping fraiseql-cli against-db suites, same
+		// shape as #960/#384 — green-while-running-zero-tests until named here.
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 
