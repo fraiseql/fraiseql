@@ -7,14 +7,16 @@ ci:
   skip: [fmt, clippy, cargo-audit, python-build-check, cargo-package-check, check-snapshot-pairing]
 
 repos:
-  # Rust formatting
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
+  # Rust formatting + lints. repo: local, NOT the doublify/pre-commit-rust
+  # manifest: overriding `entry` there still merges the manifest's own `args`,
+  # producing commands that can never pass — `fmt --all -- --` and
+  # `clippy … -- -D warnings -- -D warnings` (#987).
+  - repo: local
     hooks:
       - id: fmt
         name: cargo +nightly fmt
         description: Format Rust code with nightly rustfmt (matches CI; needed for unstable .rustfmt.toml options like group_imports, imports_granularity, wrap_comments)
-        entry: cargo +nightly fmt --all --
+        entry: cargo +nightly fmt --all
         language: system
         types: [rust]
         pass_filenames: false
@@ -22,8 +24,7 @@ repos:
       - id: clippy
         name: cargo clippy
         description: Lint Rust code with Clippy
-        # Uses --all-features for local convenience. CI uses an explicit feature list
-        # (see SYNC:CORE_FEATURES in ci.yml) to exclude test-* infra features.
+        # --all-features for local convenience (matches the preflight clippy leg).
         # Skipped on pre-commit.ci (no Rust toolchain); run `make clippy` locally.
         entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
