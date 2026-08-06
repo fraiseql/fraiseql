@@ -45,6 +45,14 @@ const (
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
 	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
 	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend"
+	// serverInProcessTests: every fraiseql-server tests/*.rs binary that runs
+	// in-process (no backing service) and is not already named by a dedicated
+	// line. Enumerated because fraiseql-server is excluded from the workspace
+	// run and DB-backed binaries must NOT run here (they belong to the
+	// integration legs, loud-panic on a missing DATABASE_URL by contract).
+	// The suite-coverage gate (tools/check-suite-coverage.py, preflight)
+	// fails when a new binary lands in no leg, so this list cannot rot (#992).
+	serverInProcessTests = " --test admin_api_security_test --test admin_authz_test --test admission_control_test --test api_admin_tests --test api_design_audit_tests --test api_design_security_tests --test api_federation_tests --test api_infrastructure_tests --test api_openapi_tests --test api_query_tests --test api_schema_tests --test apq_mutation_e2e_test --test auth_me_integration_test --test auth_regression_test --test backpressure_overload_test --test backpressure_test --test cache_wiring_tests --test changelog_cascade_compose_boot --test config_struct_test --test connection_pooling_validation_test --test constructor_drift_test --test documentation_examples_test --test endpoint_health_tests --test error_handling_validation_test --test example_validation_test --test federation_saga_validation_test --test functions_platform_pins_test --test functions_query_bridge_pin_test --test graphql_http_layer_test --test graphql_request_validation_test --test grpc_transport_e2e_test --test integration_performance_validation_test --test introspection_gate_e2e_test --test introspection_mutation_authz_test --test introspection_security_test --test metrics_facade_scrape --test metrics_integration_test --test metrics_monitoring_validation_test --test multitenancy_test --test observability_test --test operational_tools_test --test platform_e2e_test --test production_safety_test --test profile_error_redaction_test --test profile_query_limits_test --test rate_limiting_integration_test --test rest_transport_e2e_test --test security_audit_test --test security_config_runtime_test --test security_stack_integration_test --test service_account_conformance_test --test studio_admin_api_test --test studio_auth_users_test --test studio_data_browser_test --test studio_e2e_test --test studio_functions_test --test studio_metrics_test --test studio_shell_test --test studio_storage_test --test tracing_integration_test --test typename_e2e_test --test v230_integration_tests"
 )
 
 // LintRoutes fails if any axum 0.7-style `:param` route capture remains in the
@@ -443,6 +451,19 @@ func (m *FraiseqlCi) Test(
 		// reaches (fraiseql-server is excluded from the workspace sweep).
 		"echo '### cargo test -p fraiseql-server graphql idempotency binary (SYNC:SERVER_FEATURES; not covered by --lib) — P19 #747 receiver gate'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test graphql_idempotency_e2e_test",
+		// #992: the in-process test binaries. ~60 of fraiseql-server's tests/*.rs
+		// files ran in NO leg (the crate is excluded from the workspace run and
+		// only enumerated binaries execute). Everything here passed a service-less
+		// run; DB/redis-backed binaries stay with the integration legs.
+		"echo '### cargo test -p fraiseql-server in-process test binaries (SYNC:SERVER_FEATURES; #992 — suite-coverage gate holds this list)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "'" + serverInProcessTests,
+		// #992: feature-gated lib test modules whose features serverTestFeatures
+		// omits — without these lines they compile out of every leg and read as
+		// passing (the #981 class).
+		"echo '### cargo test -p fraiseql-server --lib feature-gated modules with no service needs (#992)'",
+		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib routes::rest::streaming::",
+		"cargo test -p fraiseql-server --features functions --lib routes::functions::",
+		"cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::",
 		// The #612-M config-coverage manifest gate ('every ServerConfig leaf has a
 		// named consumer'). Another test binary no leg had ever run — it caught
 		// P18's new `subscription_auth_recheck_secs` key only in a LOCAL full test
@@ -461,8 +482,16 @@ func (m *FraiseqlCi) Test(
 		// subcommand tests. Previously observers was excluded from the workspace
 		// run and only its #[ignore]d/name-filtered tests ran (in integration),
 		// so these unit tests never executed in CI.
-		"echo '### cargo test -p fraiseql-observers --lib --features cli (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
-		"cargo test -p fraiseql-observers --lib --features cli",
+		// arrow/checkpoint/dedup/metrics/search are pure lib features whose unit
+		// modules were compiled out of every leg before (#992).
+		"echo '### cargo test -p fraiseql-observers --lib --features cli,arrow,checkpoint,dedup,metrics,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
+		"cargo test -p fraiseql-observers --lib --features 'cli,arrow,checkpoint,dedup,metrics,search'",
+		// #992: observers in-process test binaries — the crate is excluded from
+		// the workspace run, so these executed nowhere.
+		// queue,metrics,testing: job_queue_integration is cfg-gated on them and
+		// runs ZERO tests without (verified — a plain run reads ok. 0 passed).
+		"echo '### cargo test -p fraiseql-observers in-process test binaries (#992)'",
+		"cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test",
 		// #429 wired saga forward executor: the gated path is off in the workspace
 		// run above, so run its Docker-free lib tests explicitly — the pure decision
 		// helpers and the remote-dispatch/honest-failure lib tests (the real execute_step
@@ -763,7 +792,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// deliberately omits — so before this line NO leg executed them.
 		// (The #804 watchdog test is runtime-deno and stays local-only:
 		// embedded V8 SIGSEGVs in the exec sandbox, see parity-notes.md.)
-		"cargo test -p fraiseql-server --features functions-runtime --lib -- cron:: routes::after_mutation:: --test-threads=1",
+		// #992: widened beyond the original P16 cron/after_mutation filters —
+		// query_bridge, subsystems::loader, function_metrics and the
+		// pg_function_dlq observers module are functions-runtime-gated too and
+		// executed in no leg.
+		"cargo test -p fraiseql-server --features functions-runtime,observers --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: --test-threads=1",
 		// #429 wired saga forward execution + compensation + recovery + coordinator
 		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the
@@ -808,6 +841,12 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-cli --features test-postgres --test cascade_rls_against_db -- --test-threads=1",
 		// #992: the remaining self-skipping fraiseql-cli against-db suites, same
 		// shape as #960/#384 — green-while-running-zero-tests until named here.
+		"echo '### cargo test -p fraiseql-cli remaining against-db suites (#992)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test setup_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test sources_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1",
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 
@@ -1037,6 +1076,16 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// share the observer schema DDL.
 		"echo '### P18: subscription pipeline e2e (change log → runtime → bridge → /ws)'",
 		"cargo test -p fraiseql-server --features observers --test subscription_pipeline_e2e_pg -- --include-ignored --test-threads=1",
+		// #992: DB-needing binaries that ran in NO leg — each self-skips without
+		// DATABASE_URL, and only the DB-less test leg compiled them.
+		"echo '### cargo test -p fraiseql-server DB-backed strays (#992)'",
+		"cargo test -p fraiseql-server --test revocation_pg_test -- --test-threads=1",
+		"cargo test -p fraiseql-server --test sql_source_boot_check -- --test-threads=1",
+		"cargo test -p fraiseql-server --test storage_wiring_test -- --test-threads=1",
+		"cargo test -p fraiseql-server --test tenant_provisioning_test -- --test-threads=1",
+		"cargo test -p fraiseql-server --test test_helpers -- --test-threads=1",
+		"cargo test -p fraiseql-server --test observer_test_helpers -- --test-threads=1",
+		"cargo test -p fraiseql-server --test wire_backend_feature_test -- --test-threads=1",
 		"echo 'test-integration OK: server suite passed'",
 	}, "\n")
 
@@ -1060,11 +1109,15 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, wireBindHost, pgDatabase)
 
-	// Every tests/*.rs binary except tls_integration (own suite) and the common/ helper.
+	// Every tests/*.rs binary except tls_integration (own suite) and the common/
+	// helper. metrics_recorder_scrape + protocol_decode_robustness were missing
+	// from this list despite its claim (#992); the suite-coverage gate now fails
+	// when a new fraiseql-wire binary lands in no leg.
 	wireBins := []string{
 		"client_integration", "config_integration", "integration", "integration_full",
 		"integration_operators", "integration_pause_resume", "load_tests", "metrics_integration",
-		"property_protocol", "property_protocol_extended", "protocol_robustness_test",
+		"metrics_recorder_scrape", "property_protocol", "property_protocol_extended",
+		"protocol_decode_robustness", "protocol_robustness_test",
 		"rust_predicate_integration", "scram_integration", "sdk_sql_compliance_test",
 		"streaming_integration", "stress_tests", "testcontainer_auth", "typed_streaming",
 	}
@@ -1399,6 +1452,16 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// #770/#777 these ran in NO leg (this leg only ran core + observers), so
 		// the cross-instance sharing they assert was never CI-verified.
 		"cargo test -p fraiseql-server --features redis-rate-limiting --lib middleware::rate_limit -- --ignored --test-threads=1",
+		// #992: Redis-needing binaries that ran in NO leg (each self-skips
+		// without REDIS_URL, and only service-less legs compiled them).
+		"echo '### redis-backed strays (#992)'",
+		// --include-ignored: the redis-touching halves are #[ignore]d and this is
+		// the leg that binds the Redis they need.
+		"cargo test -p fraiseql-server --features redis-apq --test redis_apq_integration_test -- --include-ignored --test-threads=1",
+		// redis-rate-limiting: the whole binary is #![cfg]-gated on it and runs
+		// ZERO tests without (verified).
+		"cargo test -p fraiseql-auth --features redis-rate-limiting --test redis_failover_test -- --include-ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease,testing' --test integration_test -- --test-threads=1",
 		"cargo test -p fraiseql-auth --features redis-pkce --lib redis_pkce -- --ignored --test-threads=1",
 		"echo 'test-integration OK: redis suite passed'",
 	}, "\n")

@@ -167,7 +167,7 @@ impl ExecutorFactory {
     }
 
     /// Build Redis deduplication store from config
-    #[cfg(feature = "dedup")]
+    #[cfg(all(feature = "dedup", feature = "caching"))] // gated as its only caller (`build` above) — `dedup` alone left it dead code
     async fn build_dedup_store(redis_config: &RedisConfig) -> Result<RedisDeduplicationStore> {
         use redis::aio::ConnectionManager;
 
