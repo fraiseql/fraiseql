@@ -46,10 +46,10 @@ pub(super) fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
     // development and integration testing. It is honoured only in a declared
     // development environment: this used to return `Ok(())` on the env var alone,
     // with no production check of any kind, so a stray `.env` line disabled the
-    // guard on a Vault address in production.
-    if fraiseql_guard::deployment::insecure_bypass_allowed(fraiseql_guard::deployment::env_opt_in(
-        VAULT_ALLOW_INSECURE_ENV,
-    )) {
+    // guard on a Vault address in production. `insecure_bypass` also reports the
+    // decision, so a refusal reaches the operator as a log line rather than as an
+    // unexplained connection failure (#882).
+    if fraiseql_guard::deployment::insecure_bypass(VAULT_ALLOW_INSECURE_ENV).is_honoured() {
         return Ok(());
     }
 

@@ -814,3 +814,55 @@ fn allowlist_admits_exact_hosts_case_insensitively() {
         "no suffix/wildcard matching — exact hosts only"
     );
 }
+
+// ── #882: the escape hatch is refused in production, at this call site ────────
+
+/// Request the bypass, then set the posture. The corpus tests above clear the
+/// bypass so the guard is exercised; these set it, so the *hatch* is exercised.
+fn with_bypass_requested<T>(
+    env: Option<&str>,
+    f: impl FnOnce() -> T + std::panic::UnwindSafe,
+) -> T {
+    let mut out = None;
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_VAULT_ALLOW_INSECURE", Some("1")),
+            ("FRAISEQL_ENV", env),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+            ("FRAISEQL_VAULT_ALLOWED_HOSTS", None),
+        ],
+        || out = Some(f()),
+    );
+    out.expect("temp_env ran the closure")
+}
+
+/// The address the bypass used to expose: `validate_vault_addr` returned `Ok`
+/// on the env var alone, under every environment including an explicit
+/// `FRAISEQL_ENV=production`.
+const METADATA_SERVICE: &str = "http://169.254.169.254:8200";
+
+#[test]
+fn vault_allow_insecure_is_refused_under_production_posture() {
+    assert!(
+        with_bypass_requested(Some("production"), || validate_vault_addr(METADATA_SERVICE))
+            .is_err(),
+        "#882: FRAISEQL_VAULT_ALLOW_INSECURE must not disable the SSRF guard in \
+         production — a stray .env line or Dockerfile ENV must not open the \
+         instance-metadata service"
+    );
+    assert!(
+        with_bypass_requested(None, || validate_vault_addr(METADATA_SERVICE)).is_err(),
+        "unset FRAISEQL_ENV is production: the hatch must not be honoured by default"
+    );
+}
+
+#[test]
+fn vault_allow_insecure_is_still_honoured_in_a_declared_development_environment() {
+    assert!(
+        with_bypass_requested(Some("development"), || validate_vault_addr(METADATA_SERVICE))
+            .is_ok(),
+        "the hatch must keep working where it is meant to — otherwise the test \
+         above would pass with the hatch simply deleted"
+    );
+}

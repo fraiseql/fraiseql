@@ -72,11 +72,74 @@ pub const fn declares_production(value: &str) -> bool {
 /// both request the bypass *and* be in a declared development environment.
 /// Returns `false` in production no matter how the variable is set.
 ///
-/// The caller is responsible for logging — a refused bypass must be visible, and
-/// an honoured one must be too.
+/// Prefer [`insecure_bypass`], which reads the variable and logs the outcome.
+/// This entry point is for callers that already have the request as a `bool` and
+/// do their own logging — a refused bypass must be visible, and an honoured one
+/// must be too.
 #[must_use]
 pub fn insecure_bypass_allowed(requested: bool) -> bool {
     requested && !is_production()
+}
+
+/// What happened when an insecure-mode escape hatch was consulted.
+///
+/// Distinguishing "not requested" from "refused" is what lets the refusal be
+/// logged without putting a line in every log stream for the overwhelmingly
+/// common case of a hatch nobody set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BypassDecision {
+    /// The operator did not request the bypass. Guards engaged, nothing to report.
+    NotRequested,
+    /// The bypass was requested and refused: this is a production deployment.
+    RefusedInProduction,
+    /// The bypass was requested in a declared development environment, and stands.
+    Honoured,
+}
+
+impl BypassDecision {
+    /// Whether the guards this hatch controls should be skipped.
+    #[must_use]
+    pub const fn is_honoured(self) -> bool {
+        matches!(self, Self::Honoured)
+    }
+}
+
+/// Consult an insecure-mode escape hatch, and log what was decided.
+///
+/// `var` is the environment variable that requests the bypass (`1`/`true`,
+/// case-insensitively — see [`env_opt_in`]). The bypass is honoured only in a
+/// declared development environment.
+///
+/// # Why the logging lives here
+///
+/// #882: two of the product's four hatches disabled their SSRF guard on the
+/// environment variable alone, with no production check at all. Routing them
+/// through [`insecure_bypass_allowed`] fixed the policy but left the second half
+/// of the defect — a refused bypass reaching the operator as an unexplained
+/// connection failure, with nothing in the log stream saying the guard is the
+/// reason. A caller can forget to log; it cannot forget to call this.
+#[must_use]
+pub fn insecure_bypass(var: &str) -> BypassDecision {
+    if !env_opt_in(var) {
+        return BypassDecision::NotRequested;
+    }
+    if is_production() {
+        tracing::error!(
+            target: "fraiseql_guard::deployment",
+            "{var} was set in a production environment (FRAISEQL_ENV/FRAISEQL_PROFILE \
+             declares production, or KUBERNETES_SERVICE_HOST is set). The bypass is \
+             REFUSED and the guards remain engaged — it is for local development and \
+             integration testing only. Connections this variable was meant to permit \
+             will be rejected."
+        );
+        return BypassDecision::RefusedInProduction;
+    }
+    tracing::warn!(
+        target: "fraiseql_guard::deployment",
+        "{var} is set — the guards it controls are BYPASSED. This must never be set \
+         in production."
+    );
+    BypassDecision::Honoured
 }
 
 /// Parses an environment variable's value as a boolean opt-in.

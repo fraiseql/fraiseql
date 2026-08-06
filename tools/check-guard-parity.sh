@@ -138,8 +138,51 @@ if [ -n "$bypass_matches" ]; then
   echo "ERROR: insecure-mode escape hatch read without a production gate:" >&2
   echo "$bypass_matches" >&2
   echo "" >&2
-  echo "  Use fraiseql_guard::deployment::insecure_bypass_allowed(env_opt_in(VAR))." >&2
+  echo "  Use fraiseql_guard::deployment::insecure_bypass(VAR)." >&2
   echo "  A bypass honoured in production is not a bypass, it is a vulnerability." >&2
+  found=1
+fi
+
+# ---------------------------------------------------------------------------
+# 3b. The same, for hatches named by a constant rather than a literal.
+#
+# The check above matches `env::var("FRAISEQL_X_ALLOW_INSECURE")`. Both hatches
+# that shipped ungated (#882) spelled it `env_opt_in(VAULT_ALLOW_INSECURE_ENV)`
+# — a named constant — so the literal scan never saw them. #882's own repro is
+# the rule encoded here: a file that consults a hatch and mentions no production
+# check anywhere is the defect. `insecure_bypass` satisfies it (it decides and
+# logs); so does an explicit `is_production` in the same file, which is how the
+# observers guard composes its per-dispatch logging on top of the same policy.
+# ---------------------------------------------------------------------------
+hatch_files=$(
+  scan_source_lines \
+    | grep -E 'env_opt_in\(\s*[A-Za-z_:]*(ALLOW_INSECURE|ALLOW_PLAINTEXT|SKIP_VERIFY|DISABLE_TLS)[A-Z_]*\s*[,)]' \
+    | grep -v "^${GUARD_CRATE}" \
+    | drop_exempt \
+    | grep -v '^$' \
+    | cut -d: -f1 | sort -u || true
+)
+# Comments are stripped before looking for the production check: a doc comment
+# that merely *names* `insecure_bypass` is prose, not a gate. (The async-trait
+# ratchet was fooled exactly this way.)
+ungated_hatch_files=""
+for file in $hatch_files; do
+  if ! awk '
+        /#\[cfg\(test\)\]/ { exit }
+        /^[[:space:]]*(\/\/|\*)/ { next }
+        { print }
+      ' "$file" | grep -qE 'insecure_bypass|is_production'; then
+    ungated_hatch_files="${ungated_hatch_files}${file}"$'\n'
+  fi
+done
+ungated_hatch_files=$(printf '%s' "$ungated_hatch_files" | grep -v '^$' || true)
+if [ -n "$ungated_hatch_files" ]; then
+  echo "ERROR: escape hatch consulted with no production check in the file:" >&2
+  echo "$ungated_hatch_files" >&2
+  echo "" >&2
+  echo "  Use fraiseql_guard::deployment::insecure_bypass(VAR), which applies the" >&2
+  echo "  policy AND reports the decision. #882 shipped twice because the variable" >&2
+  echo "  was read through a named constant and nothing near it asked about prod." >&2
   found=1
 fi
 

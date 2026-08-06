@@ -381,3 +381,62 @@ mod oidc_issuer_corpus {
         });
     }
 }
+
+// ── #882: the escape hatch is refused in production, at this call site ────────
+
+#[cfg(test)]
+mod oidc_insecure_hatch {
+    /// Request the bypass, then set the posture. `oidc_issuer_corpus` clears the
+    /// bypass so the guard is exercised; this sets it, so the *hatch* is.
+    fn with_bypass_requested<T>(
+        env: Option<&str>,
+        f: impl FnOnce() -> T + std::panic::UnwindSafe,
+    ) -> T {
+        let mut out = None;
+        temp_env::with_vars(
+            [
+                ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+                ("FRAISEQL_ENV", env),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
+            || out = Some(f()),
+        );
+        out.expect("temp_env ran the closure")
+    }
+
+    /// With the hatch honoured, an OIDC issuer URL may be plain `http://` and may
+    /// point anywhere — including the instance-metadata service.
+    const METADATA_SERVICE: &str = "http://169.254.169.254/";
+
+    #[test]
+    fn oidc_allow_insecure_is_refused_under_production_posture() {
+        assert!(
+            with_bypass_requested(Some("production"), || {
+                crate::oidc_provider::validate_oidc_issuer_url(METADATA_SERVICE)
+            })
+            .is_err(),
+            "#882: FRAISEQL_OIDC_ALLOW_INSECURE must not disable the issuer SSRF \
+             guard in production"
+        );
+        assert!(
+            with_bypass_requested(None, || {
+                crate::oidc_provider::validate_oidc_issuer_url(METADATA_SERVICE)
+            })
+            .is_err(),
+            "unset FRAISEQL_ENV is production: the hatch must not be honoured by default"
+        );
+    }
+
+    #[test]
+    fn oidc_allow_insecure_is_still_honoured_in_a_declared_development_environment() {
+        assert!(
+            with_bypass_requested(Some("development"), || {
+                crate::oidc_provider::validate_oidc_issuer_url(METADATA_SERVICE)
+            })
+            .is_ok(),
+            "the hatch must keep working where it is meant to — otherwise the test \
+             above would pass with the hatch simply deleted"
+        );
+    }
+}
