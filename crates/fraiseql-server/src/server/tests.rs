@@ -897,6 +897,96 @@ mod rate_limit_boot_guard_tests {
             .unwrap();
         assert_eq!(limiter.config().rps_per_ip, 250);
     }
+
+    // ── #898: a configured Redis backend must not silently become per-process ──
+    //
+    // `redis_url` exists only because per-process budgets are wrong for a
+    // multi-replica deployment. Falling back to in-memory on a connection failure
+    // makes N replicas enforce N times the configured rate, with an `error!` line
+    // at boot as the only evidence. These pin the refusal at the seam the server
+    // constructors actually call.
+    //
+    // Deliberately not gated on `redis-rate-limiting`: with the feature the
+    // connection to a closed port fails, without it the URL names a backend the
+    // binary cannot run. Both are "the operator asked for a shared budget and
+    // would not get one", both must refuse, and an ungated test runs in every leg
+    // rather than only the all-features one.
+
+    /// Well-formed URL, nothing listening — the deploy-window Redis outage from
+    /// the issue, and the k8s pod-ordering race from #777.
+    fn schema_with_redis_rate_limiting() -> CompiledSchema {
+        schema_with_rate_limiting(json!({
+            "enabled": true,
+            "requests_per_second": 100,
+            "burst_size": 50,
+            "redis_url": "redis://127.0.0.1:6391",
+        }))
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_redis_rate_limiter_refuses_to_boot_in_production() {
+        let err = resolve_rate_limiter_in(
+            &schema_with_redis_rate_limiting(),
+            &ServerConfig::default(),
+            PRODUCTION,
+        )
+        .await
+        .err()
+        .expect(
+            "#898: a configured-but-unavailable rate-limit Redis must refuse to boot — \
+             downgrading to in-memory enforces N times the configured rate across N \
+             replicas while every startup log reads healthy",
+        );
+        assert!(
+            err.to_string().contains("security.rate_limiting"),
+            "the refusal must name the config section so the operator can act on it; got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_redis_rate_limiter_downgrades_only_in_development() {
+        let limiter = resolve_rate_limiter_in(
+            &schema_with_redis_rate_limiting(),
+            &ServerConfig::default(),
+            DEVELOPMENT,
+        )
+        .await
+        .expect("a declared development environment still boots, on the in-memory fallback")
+        .expect("rate limiting is enabled");
+        assert!(
+            !limiter.is_distributed(),
+            "the development fallback is the per-process limiter — which is exactly why \
+             the production path above must refuse instead"
+        );
+    }
+
+    /// The downgrade and the `FRAISEQL_REQUIRE_REDIS` gate meet here: an operator
+    /// who asserted "all shared state is distributed" must not get a development
+    /// downgrade silently, either. Composed through the pure decision fn so no
+    /// test mutates the real env var (the parallel runner would race it).
+    #[tokio::test]
+    async fn a_downgraded_limiter_violates_the_require_redis_assertion() {
+        let limiter = resolve_rate_limiter_in(
+            &schema_with_redis_rate_limiting(),
+            &ServerConfig::default(),
+            DEVELOPMENT,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let violations = crate::server::initialization::SharedStateBackends {
+            pkce_in_memory:         false,
+            rate_limiter_in_memory: !limiter.is_distributed(),
+            revocation_in_memory:   false,
+        }
+        .per_process_subsystems();
+        assert!(
+            violations.iter().any(|s| s.contains("rate_limiting")),
+            "a limiter that fell back to per-process must be named by the \
+             FRAISEQL_REQUIRE_REDIS gate; got {violations:?}"
+        );
+    }
 }
 
 /// #770/#777 class — a configured Redis backend that cannot be provided must refuse
