@@ -114,11 +114,11 @@ pub const OIDC_ALLOW_INSECURE_ENV: &str = "FRAISEQL_OIDC_ALLOW_INSECURE";
 /// Read in one place so the URL check and the redirect policy agree. This used
 /// to honour the variable on its own, with no production check — the same shape
 /// as #836, and the reason that guard now runs through
-/// [`fraiseql_guard::deployment`].
+/// [`fraiseql_guard::deployment`], which also reports the decision so a refusal
+/// is visible in the log stream rather than surfacing as an opaque connection
+/// failure (#882).
 fn oidc_ssrf_guards_disabled() -> bool {
-    fraiseql_guard::deployment::insecure_bypass_allowed(fraiseql_guard::deployment::env_opt_in(
-        OIDC_ALLOW_INSECURE_ENV,
-    ))
+    fraiseql_guard::deployment::insecure_bypass(OIDC_ALLOW_INSECURE_ENV).is_honoured()
 }
 
 /// Validate an OIDC issuer URL against SSRF-prone destinations.

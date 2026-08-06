@@ -1,7 +1,11 @@
 [dependencies]
+# Facade only: lets a refused escape hatch be reported from the single place that
+# decides it (#882), without making this crate unreachable from any leaf crate.
+tracing = "0.1"
 
 [dev-dependencies]
 temp-env = {workspace = true}
+tracing-subscriber = {workspace = true}
 
 [lints]
 workspace = true

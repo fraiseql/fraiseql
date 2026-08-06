@@ -19,9 +19,11 @@
 //! collectively exploitable: a bypass refused by one crate was honoured by its
 //! neighbour.
 //!
-//! This crate depends on `std` only, so it sits at the bottom of the dependency
-//! graph and every crate can reach it. Nothing here may grow a dependency that
-//! would make it unreachable from a leaf crate.
+//! This crate sits at the bottom of the dependency graph so every crate can
+//! reach it: `std`, plus the `tracing` facade, which every leaf crate in the
+//! workspace already depends on and which is what lets a refused escape hatch be
+//! reported from the one place that decides it (#882). Nothing here may grow a
+//! dependency that would make it unreachable from a leaf crate.
 
 #![forbid(unsafe_code)]
 

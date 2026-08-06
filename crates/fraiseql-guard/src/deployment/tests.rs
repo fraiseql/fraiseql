@@ -6,7 +6,8 @@
 //! assertions the whole workspace now shares.
 
 use super::{
-    declares_development, declares_production, env_opt_in, insecure_bypass_allowed, is_production,
+    BypassDecision, declares_development, declares_production, env_opt_in, insecure_bypass,
+    insecure_bypass_allowed, is_production,
 };
 
 /// Every variable this module reads, cleared, then overlaid with `overrides`.
@@ -117,5 +118,178 @@ fn the_two_declaration_predicates_are_disjoint() {
     }
     for value in ["production", "prod"] {
         assert!(declares_production(value) && !declares_development(value));
+    }
+}
+
+// ── #882: an escape hatch that is refused must say so ─────────────────────────
+
+/// Posture markers cleared, then the bypass requested, so `insecure_bypass`
+/// decides on the posture the test sets and nothing else.
+fn with_posture<T>(env: Option<&str>, f: impl FnOnce() -> T + std::panic::UnwindSafe) -> T {
+    let mut out = None;
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_TEST_HATCH", Some("1")),
+            ("FRAISEQL_ENV", env),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ],
+        || out = Some(f()),
+    );
+    out.expect("temp_env ran the closure")
+}
+
+#[test]
+fn a_requested_bypass_is_honoured_only_in_a_declared_development_environment() {
+    assert_eq!(
+        with_posture(Some("development"), || insecure_bypass("FRAISEQL_TEST_HATCH")),
+        BypassDecision::Honoured
+    );
+    assert_eq!(
+        with_posture(Some("production"), || insecure_bypass("FRAISEQL_TEST_HATCH")),
+        BypassDecision::RefusedInProduction,
+        "#882: a bypass honoured in production is not a bypass, it is a vulnerability"
+    );
+    assert_eq!(
+        with_posture(None, || insecure_bypass("FRAISEQL_TEST_HATCH")),
+        BypassDecision::RefusedInProduction,
+        "unset FRAISEQL_ENV is production — the hatch must not be honoured by default"
+    );
+}
+
+#[test]
+fn an_unrequested_bypass_is_not_reported_as_refused() {
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_TEST_HATCH", None::<&str>),
+            ("FRAISEQL_ENV", Some("production")),
+        ],
+        || {
+            assert_eq!(
+                insecure_bypass("FRAISEQL_TEST_HATCH"),
+                BypassDecision::NotRequested,
+                "nothing was requested, so there is nothing to warn an operator about"
+            );
+        },
+    );
+}
+
+#[test]
+fn a_refused_bypass_is_logged_at_error_naming_the_variable() {
+    let events = capture::install();
+    with_posture(Some("production"), || {
+        assert!(!insecure_bypass("FRAISEQL_TEST_HATCH").is_honoured());
+    });
+    let logged = events.take();
+    assert!(
+        logged
+            .iter()
+            .any(|(level, msg)| *level == tracing::Level::ERROR
+                && msg.contains("FRAISEQL_TEST_HATCH")),
+        "#882: a refused bypass must be visible in the log stream — otherwise it \
+         reaches the operator as an unexplained connection failure. Captured: {logged:?}"
+    );
+}
+
+#[test]
+fn an_honoured_bypass_is_logged_at_warn_naming_the_variable() {
+    let events = capture::install();
+    with_posture(Some("development"), || {
+        assert!(insecure_bypass("FRAISEQL_TEST_HATCH").is_honoured());
+    });
+    let logged = events.take();
+    assert!(
+        logged
+            .iter()
+            .any(|(level, msg)| *level == tracing::Level::WARN
+                && msg.contains("FRAISEQL_TEST_HATCH")),
+        "an active bypass must be visible too — guards are off. Captured: {logged:?}"
+    );
+}
+
+#[test]
+fn an_unrequested_bypass_logs_nothing() {
+    let events = capture::install();
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_TEST_HATCH", None::<&str>),
+            ("FRAISEQL_ENV", Some("production")),
+        ],
+        || {
+            let _ = insecure_bypass("FRAISEQL_TEST_HATCH");
+        },
+    );
+    assert!(
+        events.take().is_empty(),
+        "the overwhelmingly common case must not add a line to every log stream"
+    );
+}
+
+/// Captures `tracing` events emitted on the current thread.
+///
+/// Scoped to the calling thread (`set_default`, not `set_global_default`) so the
+/// log-assertion tests do not observe each other's events under the default
+/// parallel test harness.
+mod capture {
+    use std::sync::{Arc, Mutex};
+
+    use tracing::{Level, Subscriber, subscriber::DefaultGuard};
+    use tracing_subscriber::{Layer, Registry, layer::Context, prelude::*};
+
+    type Events = Arc<Mutex<Vec<(Level, String)>>>;
+
+    /// Holds the captured events and keeps the subscriber installed until dropped.
+    pub struct Captured {
+        events: Events,
+        _guard: DefaultGuard,
+    }
+
+    impl Captured {
+        /// Every event recorded so far, as `(level, rendered message)`.
+        pub fn take(&self) -> Vec<(Level, String)> {
+            self.events.lock().expect("capture mutex").clone()
+        }
+    }
+
+    struct CapturingLayer {
+        events: Events,
+    }
+
+    impl<S: Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>> Layer<S>
+        for CapturingLayer
+    {
+        fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
+            struct MessageVisitor<'a>(&'a mut String);
+            impl tracing::field::Visit for MessageVisitor<'_> {
+                fn record_debug(
+                    &mut self,
+                    field: &tracing::field::Field,
+                    value: &dyn std::fmt::Debug,
+                ) {
+                    if field.name() == "message" {
+                        use std::fmt::Write as _;
+                        let _ = write!(self.0, "{value:?}");
+                    }
+                }
+            }
+            let mut message = String::new();
+            event.record(&mut MessageVisitor(&mut message));
+            self.events
+                .lock()
+                .expect("capture mutex")
+                .push((*event.metadata().level(), message));
+        }
+    }
+
+    /// Install a thread-local capturing subscriber for the rest of the test.
+    pub fn install() -> Captured {
+        let events: Events = Arc::default();
+        let guard = tracing::subscriber::set_default(Registry::default().with(CapturingLayer {
+            events: Arc::clone(&events),
+        }));
+        Captured {
+            events,
+            _guard: guard,
+        }
     }
 }

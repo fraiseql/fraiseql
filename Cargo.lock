@@ -3902,6 +3902,8 @@ name = "fraiseql-guard"
 version = "2.14.1"
 dependencies = [
  "temp-env",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
