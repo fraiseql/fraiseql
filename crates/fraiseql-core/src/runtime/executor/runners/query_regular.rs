@@ -465,8 +465,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     resource: Some(return_type.clone()),
                 });
             }
-            let gated =
-                authz::collect_top_level_gated_fields(&self.ctx.schema, return_type, root_fields)?;
+            // `query_match.arguments` is the request's variables, already merged
+            // with whole-argument inline values — the same map every other
+            // consumer resolves against (#903).
+            let gated = authz::collect_top_level_gated_fields(
+                &self.ctx.schema,
+                return_type,
+                root_fields,
+                &query_match.arguments,
+            )?;
             let pass = authz::FieldAuthzPass {
                 authorizer:        authorizer.as_ref(),
                 principal:         security_context,

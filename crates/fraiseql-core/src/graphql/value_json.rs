@@ -128,6 +128,29 @@ pub fn resolve_variables(value: Value, variables: &HashMap<String, Value>) -> Va
     resolve_at(value, variables, 0)
 }
 
+/// Read a stored `value_json` back into JSON **with its variable references
+/// substituted** — the form a consumer that wants values almost always means.
+///
+/// [`decode`] alone yields a value that may still contain `{"$var": "name"}`
+/// markers. Every consumer that then compares, filters or authorizes on the
+/// result must pair it with [`resolve_variables`]; the field authorizer did not,
+/// so a policy matching on an argument compared against the marker and silently
+/// took its default branch for every client that passes arguments as variables —
+/// which is every generated client (#903).
+///
+/// Use [`decode`] directly only when the marker itself is the subject, as
+/// `resolve_inline_arg` does: it distinguishes a whole-argument variable the
+/// request omitted (drop the argument, fall back to the query default) from one
+/// bound to null.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Internal` if the stored string is not valid JSON.
+#[allow(clippy::implicit_hasher)] // Reason: as resolve_variables — one hasher, no generic leak.
+pub fn decode_resolved(value_json: &str, variables: &HashMap<String, Value>) -> Result<Value> {
+    Ok(resolve_variables(decode(value_json)?, variables))
+}
+
 fn resolve_at(value: Value, variables: &HashMap<String, Value>, depth: usize) -> Value {
     if depth >= MAX_DEPTH {
         return value;

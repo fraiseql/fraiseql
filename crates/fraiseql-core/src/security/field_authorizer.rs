@@ -30,6 +30,8 @@
 //! [`with_field_authorizer`](crate::runtime::RuntimeConfig::with_field_authorizer),
 //! exactly parallel to [`with_rls_policy`](crate::runtime::RuntimeConfig::with_rls_policy).
 
+use std::collections::HashMap;
+
 use serde_json::Value as JsonValue;
 
 use crate::{
@@ -160,19 +162,32 @@ fn object_type_of(field_type: &FieldType) -> Option<&str> {
 
 /// Build a JSON object of a selection's GraphQL arguments, or `None` if it has none.
 ///
+/// Variable references are substituted against `variables`: an argument written
+/// `mask: $level` is an authorization input only once it carries the value the
+/// client sent. Decoding without resolving handed the policy the reference marker
+/// `{"$var": "level"}`, so a policy matching on the argument never matched and
+/// silently took its default branch — for every client that passes arguments as
+/// variables, which is every generated client (#903).
+///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Internal` if a stored argument is not valid JSON. This
 /// is an authorization input: substituting the raw text for the value it failed to
 /// parse (the previous behaviour) hands the policy something other than what the
 /// client sent, and a policy that matches on an argument then decides on a lie.
-fn field_arguments_json(sel: &FieldSelection) -> Result<Option<JsonValue>> {
+fn field_arguments_json(
+    sel: &FieldSelection,
+    variables: &HashMap<String, JsonValue>,
+) -> Result<Option<JsonValue>> {
     if sel.arguments.is_empty() {
         return Ok(None);
     }
     let mut map = serde_json::Map::with_capacity(sel.arguments.len());
     for arg in &sel.arguments {
-        map.insert(arg.name.clone(), crate::graphql::value_json::decode(&arg.value_json)?);
+        map.insert(
+            arg.name.clone(),
+            crate::graphql::value_json::decode_resolved(&arg.value_json, variables)?,
+        );
     }
     Ok(Some(JsonValue::Object(map)))
 }
@@ -257,6 +272,7 @@ pub(crate) fn collect_top_level_gated_fields(
     schema: &CompiledSchema,
     type_name: &str,
     fields: &[FieldSelection],
+    variables: &HashMap<String, JsonValue>,
 ) -> Result<Vec<GatedField>> {
     let Some(type_def) = schema.find_type(type_name) else {
         return Ok(Vec::new());
@@ -268,7 +284,7 @@ pub(crate) fn collect_top_level_gated_fields(
             Ok(GatedField {
                 field_name: sel.name.clone(),
                 alias:      sel.alias.clone(),
-                arguments:  field_arguments_json(sel)?,
+                arguments:  field_arguments_json(sel, variables)?,
             })
         })
         .collect()

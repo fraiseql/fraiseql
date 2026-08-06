@@ -51,6 +51,7 @@ fn enforce_mutation_field_authz<A: DatabaseAdapter>(
     selections: &[FieldSelection],
     entity: &serde_json::Value,
     projected: &mut serde_json::Value,
+    variables: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<()> {
     use crate::security::field_authorizer as authz;
 
@@ -87,7 +88,8 @@ fn enforce_mutation_field_authz<A: DatabaseAdapter>(
             resource: Some(type_name.to_string()),
         });
     }
-    let gated = authz::collect_top_level_gated_fields(&ctx.schema, type_name, selections)?;
+    let gated =
+        authz::collect_top_level_gated_fields(&ctx.schema, type_name, selections, variables)?;
     let pass = authz::FieldAuthzPass {
         authorizer: authorizer.as_ref(),
         principal,
@@ -189,6 +191,7 @@ fn build_cascade_payload<A: DatabaseAdapter>(
     cascade: Option<&serde_json::Value>,
     updated_fields: &[String],
     selections: &[FieldSelection],
+    variables: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<serde_json::Value> {
     let mut out = serde_json::Map::new();
     for sel in effective_selections(selections, payload_type, &ctx.schema) {
@@ -209,11 +212,18 @@ fn build_cascade_payload<A: DatabaseAdapter>(
                     &sel.nested_fields,
                     entity,
                     &mut projected,
+                    variables,
                 )?;
                 out.insert(sel.response_key().to_string(), projected);
             },
             "cascade" => {
-                let built = build_cascade_updates(ctx, security_ctx, cascade, &sel.nested_fields)?;
+                let built = build_cascade_updates(
+                    ctx,
+                    security_ctx,
+                    cascade,
+                    &sel.nested_fields,
+                    variables,
+                )?;
                 out.insert(sel.response_key().to_string(), built);
             },
             "updatedFields" => {
@@ -239,6 +249,7 @@ fn build_cascade_updates<A: DatabaseAdapter>(
     security_ctx: Option<&SecurityContext>,
     cascade: Option<&serde_json::Value>,
     selections: &[FieldSelection],
+    variables: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<serde_json::Value> {
     let cascade_obj = cascade.and_then(serde_json::Value::as_object);
     let empty: Vec<serde_json::Value> = Vec::new();
@@ -277,7 +288,13 @@ fn build_cascade_updates<A: DatabaseAdapter>(
                 );
             },
             "updated" => {
-                let arr = build_updated_entities(ctx, security_ctx, updated, &sel.nested_fields)?;
+                let arr = build_updated_entities(
+                    ctx,
+                    security_ctx,
+                    updated,
+                    &sel.nested_fields,
+                    variables,
+                )?;
                 out.insert(sel.response_key().to_string(), arr);
             },
             "deleted" => {
@@ -435,6 +452,7 @@ fn build_updated_entities<A: DatabaseAdapter>(
     security_ctx: Option<&SecurityContext>,
     entries: &[serde_json::Value],
     selections: &[FieldSelection],
+    variables: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<serde_json::Value> {
     let effective = effective_selections(selections, UPDATED_ENTITY_TYPE, &ctx.schema);
     let mut result = Vec::with_capacity(entries.len());
@@ -528,6 +546,7 @@ fn build_updated_entities<A: DatabaseAdapter>(
                         &sel.nested_fields,
                         &entity_blob,
                         &mut projected,
+                        variables,
                     )?;
                     item.insert(sel.response_key().to_string(), projected);
                 },
@@ -931,6 +950,11 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         added.then_some(serde_json::Value::Object(obj))
     };
     let variables = merged_variables.as_ref().or(variables);
+
+    // The same map, in the shape the field authorizer resolves against: a policy
+    // that matches on a gated field's argument must see the value the client sent,
+    // not the `{"$var": …}` reference marker (#903).
+    let authz_variables = crate::runtime::matcher::QueryMatcher::extract_arguments(variables);
 
     let vars_obj = variables.and_then(|v| v.as_object());
 
@@ -1410,6 +1434,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 cascade.as_ref(),
                 &updated_fields,
                 selections,
+                &authz_variables,
             )?
         },
         MutationOutcome::Success {
@@ -1450,6 +1475,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 selections,
                 &entity,
                 &mut projected,
+                &authz_variables,
             )?;
 
             // Cascade is opt-in (`cascade = true`, handled by the guarded arm
@@ -1561,6 +1587,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                     selections,
                     &source,
                     &mut result,
+                    &authz_variables,
                 )?;
             }
 

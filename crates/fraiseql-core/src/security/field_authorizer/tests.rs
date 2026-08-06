@@ -192,8 +192,94 @@ fn gated_field_inside_inline_fragment_is_detected() {
         super::selection_set_selects_gated_field(&schema, "User", &selections),
         "a gated field inside a same-type inline fragment must be detected"
     );
-    let gated = super::collect_top_level_gated_fields(&schema, "User", &selections)
-        .expect("arguments are well-formed");
+    let gated = super::collect_top_level_gated_fields(
+        &schema,
+        "User",
+        &selections,
+        &std::collections::HashMap::new(),
+    )
+    .expect("arguments are well-formed");
     assert_eq!(gated.len(), 1, "the fragment-wrapped gated field must be collected");
     assert_eq!(gated[0].field_name, "ssn");
+}
+
+// ── #903: a policy must see the argument the client sent ──────────────────────
+
+/// A gated field carrying `mask: $level` — the shape every generated client
+/// produces, since clients pass arguments as variables rather than inlining them.
+fn gated_field_with_variable_argument() -> Vec<crate::graphql::FieldSelection> {
+    let mut ssn = field("ssn");
+    ssn.arguments = vec![crate::graphql::GraphQLArgument {
+        name:       "mask".to_string(),
+        value_type: "variable".to_string(),
+        value_json: crate::graphql::value_json::variable_ref("level").to_string(),
+    }];
+    vec![field("id"), ssn]
+}
+
+#[test]
+fn a_gated_field_argument_reaches_the_authorizer_as_its_value() {
+    let schema = schema_with_gated_ssn();
+    let variables = std::collections::HashMap::from([("level".to_string(), json!("full"))]);
+
+    let gated = super::collect_top_level_gated_fields(
+        &schema,
+        "User",
+        &gated_field_with_variable_argument(),
+        &variables,
+    )
+    .expect("arguments are well-formed");
+
+    assert_eq!(gated.len(), 1);
+    assert_eq!(
+        gated[0].arguments.as_ref().expect("the gated field carries one argument"),
+        &json!({"mask": "full"}),
+        "#903: a policy written as `arguments.mask == \"full\"` must compare against the \
+         value the client sent. Delivering the variable reference marker instead makes \
+         every such policy silently take its `otherwise` branch, on data nobody sent"
+    );
+}
+
+#[test]
+fn an_omitted_variable_reaches_the_authorizer_as_null_not_as_a_marker() {
+    let schema = schema_with_gated_ssn();
+    let gated = super::collect_top_level_gated_fields(
+        &schema,
+        "User",
+        &gated_field_with_variable_argument(),
+        &std::collections::HashMap::new(),
+    )
+    .expect("arguments are well-formed");
+
+    assert_eq!(
+        gated[0].arguments.as_ref().unwrap(),
+        &json!({"mask": null}),
+        "an undefined variable is GraphQL null — the marker must never survive into a \
+         policy input, whether or not the variable was supplied"
+    );
+}
+
+#[test]
+fn an_inline_argument_is_unaffected_by_resolution() {
+    let schema = schema_with_gated_ssn();
+    let mut ssn = field("ssn");
+    ssn.arguments = vec![crate::graphql::GraphQLArgument {
+        name:       "mask".to_string(),
+        value_type: "string".to_string(),
+        value_json: json!("full").to_string(),
+    }];
+
+    let gated = super::collect_top_level_gated_fields(
+        &schema,
+        "User",
+        &[field("id"), ssn],
+        &std::collections::HashMap::from([("level".to_string(), json!("ignored"))]),
+    )
+    .expect("arguments are well-formed");
+
+    assert_eq!(
+        gated[0].arguments.as_ref().unwrap(),
+        &json!({"mask": "full"}),
+        "an inline literal must pass through untouched"
+    );
 }
