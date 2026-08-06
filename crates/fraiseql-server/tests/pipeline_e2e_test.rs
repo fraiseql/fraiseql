@@ -41,9 +41,9 @@ use tokio::{net::TcpListener, sync::oneshot};
 /// Minimal `fraiseql.toml` defining a `User` type and `users` list query.
 ///
 /// Uses TOML-only mode (no separate type/query JSON files) so the test has a
-/// single file to create.  The `sql_source = "v_user"` view is created by
+/// single file to create.  The `sql_source = "v_pipeline_user"` view is created by
 /// `apply_ddl()` below. Entity tables/views follow the singular convention
-/// (`tb_user` / `v_user`).
+/// (`tb_pipeline_user` / `v_pipeline_user`).
 const FRAISEQL_TOML: &str = r#"
 [schema]
 name = "pipeline-e2e-test"
@@ -51,7 +51,7 @@ version = "1.0.0"
 database_target = "postgresql"
 
 [types.User]
-sql_source = "v_user"
+sql_source = "v_pipeline_user"
 
 [types.User.fields.id]
 type = "Int"
@@ -64,7 +64,7 @@ nullable = false
 [queries.users]
 return_type = "User"
 return_array = true
-sql_source = "v_user"
+sql_source = "v_pipeline_user"
 "#;
 
 /// Write fixture files to `dir` and return the absolute path to `fraiseql.toml`.
@@ -79,9 +79,9 @@ fn write_fixtures(dir: &TempDir) -> String {
 /// Apply DDL to the running PostgreSQL container.
 ///
 /// Creates:
-/// - `tb_user` — source table with `id` and `name` columns
-/// - `v_user` — JSONB view (matching `sql_source = "v_user"`) that FraiseQL's executor queries via
-///   `SELECT data FROM "v_user"`
+/// - `tb_pipeline_user` — source table with `id` and `name` columns
+/// - `v_pipeline_user` — JSONB view (matching `sql_source = "v_pipeline_user"`) that FraiseQL's
+///   executor queries via `SELECT data FROM "v_pipeline_user"`
 /// - One seeded row `(name = 'Alice')`
 async fn apply_ddl(db_url: &str) {
     let (client, conn) = tokio_postgres::connect(db_url, tokio_postgres::NoTls)
@@ -91,26 +91,27 @@ async fn apply_ddl(db_url: &str) {
     tokio::spawn(async move { conn.await.ok() });
 
     // Idempotent: the harness database is shared across runs, so drop and recreate so
-    // the test starts from a single seeded row.
+    // the test starts from a single seeded row. Own names (v_pipeline_user), NOT the
+    // shared v_user fixture — redirecting that view broke ~24 other suites (#936).
     client
         .batch_execute(
             r"
-            DROP VIEW IF EXISTS v_user;
-            DROP TABLE IF EXISTS tb_user;
+            DROP VIEW IF EXISTS v_pipeline_user;
+            DROP TABLE IF EXISTS tb_pipeline_user;
 
-            CREATE TABLE tb_user (
+            CREATE TABLE tb_pipeline_user (
                 id   SERIAL PRIMARY KEY,
                 name TEXT NOT NULL
             );
 
-            INSERT INTO tb_user (name) VALUES ('Alice');
+            INSERT INTO tb_pipeline_user (name) VALUES ('Alice');
 
-            CREATE VIEW v_user AS
+            CREATE VIEW v_pipeline_user AS
             SELECT jsonb_build_object(
                 'id',   id,
                 'name', name
             ) AS data
-            FROM tb_user;
+            FROM tb_pipeline_user;
             ",
         )
         .await
