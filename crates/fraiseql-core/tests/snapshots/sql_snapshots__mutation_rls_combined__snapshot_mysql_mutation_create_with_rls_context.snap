@@ -1,5 +1,0 @@
----
-source: crates/fraiseql-core/tests/sql_snapshots.rs
-expression: sql
----
-CALL `fn_create_post`(?, ?, ?, ?, ?)

@@ -1,5 +1,0 @@
----
-source: crates/fraiseql-core/tests/sql_snapshots.rs
-expression: sql
----
-SELECT data FROM `v_user` WHERE `pk_user` > ? ORDER BY `pk_user` ASC LIMIT ?

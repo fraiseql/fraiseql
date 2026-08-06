@@ -32,13 +32,16 @@ fi
 
 unregistered=()
 registered=()
+declare -A on_disk=()
 
 for snap_path in "${SNAPSHOTS_DIR}"/*.snap; do
     [[ -e "${snap_path}" ]] || continue  # no matches
 
-    # Derive short name: strip directory, strip "sql_snapshots__" prefix, strip ".snap" suffix.
+    # Derive short name: strip directory, the test-binary prefix, and ".snap".
     snap_file="$(basename "${snap_path}" .snap)"
     short="${snap_file#sql_snapshots__}"
+    short="${short#window_function_snapshots__}"
+    on_disk["${short}"]=1
 
     # Check that the registry contains this short name followed by a | and a non-empty status.
     if grep -qP "^\|\s*\`?${short}\`?\s*\|" "${REGISTRY}"; then
@@ -48,6 +51,17 @@ for snap_path in "${SNAPSHOTS_DIR}"/*.snap; do
     fi
 done
 
+# Reverse direction: every registry row must name a snapshot that exists on disk.
+# A stale row certifies coverage of nothing (the #883 lesson: check both ways).
+stale=()
+while IFS= read -r row_short; do
+    [[ -n "${row_short}" ]] || continue
+    if [[ -z "${on_disk[${row_short}]+x}" ]]; then
+        stale+=("${row_short}")
+    fi
+done < <(awk '/^## Registry/{inreg=1; next} /^## /{inreg=0} inreg' "${REGISTRY}" \
+    | grep -oP '^\|\s*`\K[^`]+' || true)
+
 if [[ "${VERBOSE}" == "--verbose" ]]; then
     echo "Registered snapshots (${#registered[@]}):"
     for s in "${registered[@]}"; do
@@ -56,6 +70,7 @@ if [[ "${VERBOSE}" == "--verbose" ]]; then
     echo ""
 fi
 
+fail=0
 if [[ ${#unregistered[@]} -gt 0 ]]; then
     echo "FAIL: ${#unregistered[@]} snapshot(s) not registered in tests/snapshot-pairs.md:"
     for s in "${unregistered[@]}"; do
@@ -63,10 +78,24 @@ if [[ ${#unregistered[@]} -gt 0 ]]; then
     done
     echo ""
     echo "Add each missing snapshot to tests/snapshot-pairs.md with an appropriate"
-    echo "status (generator | behavioral | db-integration | cross-db-parity | doc-only)."
+    echo "status (generator | behavioral | db-integration | doc-only)."
     echo "See docs/testing.md for the full policy."
+    fail=1
+fi
+
+if [[ ${#stale[@]} -gt 0 ]]; then
+    echo "FAIL: ${#stale[@]} registry row(s) name a snapshot that does not exist on disk:"
+    for s in "${stale[@]}"; do
+        echo "  ✗ ${s}"
+    done
+    echo ""
+    echo "Remove the stale rows from tests/snapshot-pairs.md (or restore the snapshots)."
+    fail=1
+fi
+
+if [[ ${fail} -ne 0 ]]; then
     exit 1
 fi
 
-echo "OK: all ${#registered[@]} snapshots are registered."
+echo "OK: all ${#registered[@]} snapshots are registered and no registry row is stale."
 exit 0
