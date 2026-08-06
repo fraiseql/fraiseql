@@ -445,7 +445,7 @@ RUST_LOG=debug cargo test
 
 axum's major releases periodically rework path-capture syntax (0.7 → 0.8 swapped `:param` for `{param}` and made the old form a build-time panic). Issue #316 shipped because a single literal slipped through the migration. Three gates exist now — run all three on any future axum bump:
 
-1. **Static gate.** `make lint-routes` (`tools/check-route-syntax.sh`) greps for the old `:param` form across `crates/` and `examples/`, including a load-bearing multi-line `awk` pass that catches `.route(\n  "...",\n  ...)` calls the single-line grep misses. The CI job is `axum-route-syntax-check` in `.github/workflows/ci.yml`.
+1. **Static gate.** `make lint-routes` (`tools/check-route-syntax.sh`) greps for the old `:param` form across `crates/` and `examples/`, including a load-bearing multi-line `awk` pass that catches `.route(\n  "...",\n  ...)` calls the single-line grep misses. The CI gate is `tools/check-route-syntax.sh` in the preflight ShellGates leg (the legacy ci.yml job was retired in #951).
 
 2. **Construction tests.** Five `*_constructs` tests in `crates/fraiseql-server/src/observers/tests.rs::router_construction` and `crates/fraiseql-server/src/api/rbac_management/tests.rs::router_construction` call each public `Router` constructor under `#[tokio::test]`. axum validates path-capture syntax inside `Router::route`, so any lingering bad literal panics in `cargo test`, not at first server boot. Extend the pattern to any new router constructor.
 

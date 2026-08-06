@@ -1,7 +1,7 @@
 name: Dagger — preflight
 
 # Phase 02 fast-gate umbrella (Track 0). Runs the cheap-but-frequent lint/format/doc
-# gates on the self-hosted runner (fraiseql-8core) at ~$0/min, replacing ci.yml's
+# gates on the self-hosted runner (fraiseql-8core) at ~$0/min, replacing the retired legacy hosted workflow's
 # fmt / clippy / documentation / check-test-imports / axum-route-syntax jobs.
 # `dagger call preflight` runs shell-gates → fmt → rustdoc → clippy fail-fast; the
 # clippy compile reuses the box's cargo/target/sccache cache volumes (shared with

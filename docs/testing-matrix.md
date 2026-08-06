@@ -75,17 +75,20 @@ The comprehensive test target runs 8 steps in sequence, reporting a single pass/
 
 ## CI Workflows
 
-### Main CI (`ci.yml`) -- Runs on every PR
+### Dagger CI (`.dagger/main.go` — the leg definitions)
 
-| Job | What it tests |
+| Workflow / leg | What it tests |
 |-----|---------------|
-| `fmt` | Code formatting (nightly rustfmt) |
-| `clippy` | Lint checks |
-| `test` | Unit tests (stable + MSRV 1.92, ubuntu) |
-| `integration-postgres` | PostgreSQL integration (testcontainers) |
-| `integration-arrow` | Arrow Flight protocol |
-| `integration-observers` | Observer system (Redis + NATS + PostgreSQL) |
-| `integration-server` | Server integration (PostgreSQL + Redis + Vault) |
+| `dagger-preflight.yml` | fmt (nightly rustfmt), ShellGates (incl. the no-orphan-suites and snapshot-pairing gates), rustdoc, clippy — on every push to every in-repo branch (required check) |
+| `dagger-security.yml` | cargo-deny (licenses + advisories + bans + sources) + compliance gates (required check) |
+| `dagger-test.yml` | Workspace test suite, stable + MSRV toolchains (push to dev + dispatch) |
+| `dagger-integration.yml` | The integration shard matrix: postgres, server, redis, nats, observers, vault, tls, wire, storage, server-storage, federation, federation-compose, saml, quickstart, http-e2e |
+| `dagger-feature-matrix.yml` | Feature-combination compilation and tests |
+
+The legacy hosted `ci.yml` was retired in #951 — the Dagger legs had superseded
+every job (its Clippy job had been unable to pass since the SAML feature landed,
+because the hosted runner lacked xmlsec1). The one unique job (the
+async-jobs-subgraph example clippy) moved into the preflight clippy leg.
 
 ### Feature Flags (`feature-flags.yml`) -- Runs on every PR
 
