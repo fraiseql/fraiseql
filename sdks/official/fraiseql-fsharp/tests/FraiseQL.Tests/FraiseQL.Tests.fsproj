@@ -30,4 +30,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\FraiseQL\FraiseQL.fsproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- #930: must reach the output dir or the runner ignores the setting. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

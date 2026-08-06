@@ -1,0 +1,5 @@
+{
+  "$schema": "https://xunit.net/schema/current/xunit.runner.schema.json",
+  "//": "#930: several test classes mutate the global SchemaRegistry singleton (register/reset), and xUnit runs collections in parallel by default — one class's reset() lands between another's register and assert (observed twice in one hour in CI). Serializing collections is the honest setting for a global-registry suite.",
+  "parallelizeTestCollections": false
+}
