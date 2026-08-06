@@ -736,7 +736,12 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// single-firing — the double-poll bug fix). The email test suite otherwise runs nowhere,
 		// so this is also its first Dagger coverage.
 		// Both filters go after `--`: cargo accepts a single TESTNAME, libtest ORs several.
-		"cargo test -p fraiseql-server --features inbound-email --lib -- inbound::email::source inbound::email::sink --test-threads=1",
+		// #981: the whole inbound:: lib tree, not a source/sink filter — the
+		// filtered form left tracking/correlation/imap/smtp/admin/config/cursor/
+		// probe/warming and the spine/webhook modules executing in NO leg, and
+		// the tracking suite's fixture-clock time bomb sat unobserved until it
+		// crossed its 30-day TTL.
+		"cargo test -p fraiseql-server --features inbound,inbound-email --lib inbound:: -- --test-threads=1",
 		// #775: per-mailbox spine scoping + content-digest dedup key. Drives
 		// EmailIngestSink against real PG (no IMAP, no real mailbox): the same
 		// Message-ID to two mailboxes lands twice; a pre-claimed Message-ID cannot
