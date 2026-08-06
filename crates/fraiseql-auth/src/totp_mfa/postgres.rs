@@ -274,15 +274,21 @@ impl MfaStore for PgMfaStore {
 
         let user_id: String = challenge.get("user_id");
         let expires_at: i64 = challenge.get("expires_at");
+        // The DELETE is what makes the challenge single-use, so its failure must
+        // fail the verification (#984): the success path charges no attempt, so a
+        // swallowed error leaves the token replayable with any current-window code
+        // for the rest of CHALLENGE_TTL_SECS. Propagated on every path.
         let consume = |hash: Vec<u8>| async move {
-            let _ = sqlx::query("DELETE FROM core.tb_mfa_challenge WHERE token_hash = $1")
+            sqlx::query("DELETE FROM core.tb_mfa_challenge WHERE token_hash = $1")
                 .bind(hash)
                 .execute(&self.db)
-                .await;
+                .await
+                .map_err(db_err)
+                .map(|_| ())
         };
 
         if now >= expires_at as u64 {
-            consume(hash).await;
+            consume(hash).await?;
             return Err(AuthError::InvalidToken {
                 reason: "challenge token expired".into(),
             });
@@ -292,7 +298,7 @@ impl MfaStore for PgMfaStore {
             reason: "user has no MFA enrollment".into(),
         })?;
         if let Some(retry_after_secs) = Self::lockout_remaining(&row, now) {
-            consume(hash).await;
+            consume(hash).await?;
             return Err(AuthError::RateLimited { retry_after_secs });
         }
         if !row.confirmed {
@@ -302,7 +308,7 @@ impl MfaStore for PgMfaStore {
         }
 
         if verify_totp_code(&row.secret_base32, code)? {
-            consume(hash).await;
+            consume(hash).await?;
             self.clear_failures(&user_id).await?;
             return Ok(user_id);
         }
@@ -320,7 +326,7 @@ impl MfaStore for PgMfaStore {
             .execute(&self.db)
             .await
             .map_err(db_err)?;
-            consume(hash).await;
+            consume(hash).await?;
             self.clear_failures(&user_id).await?;
             return Ok(user_id);
         }
@@ -339,7 +345,7 @@ impl MfaStore for PgMfaStore {
         .map_or(i32::MAX, |r| r.get::<i32, _>("attempts"));
         #[allow(clippy::cast_possible_wrap)] // Reason: MAX_CHALLENGE_ATTEMPTS is a small constant
         if attempts >= MAX_CHALLENGE_ATTEMPTS as i32 {
-            consume(hash).await;
+            consume(hash).await?;
         }
 
         Err(AuthError::InvalidToken {

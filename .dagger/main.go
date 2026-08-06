@@ -773,6 +773,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-auth --test password_reset -- --test-threads=1",
 		// #368 social auto-link trust policy ∘ PostgresAccountStore (trusted vs untrusted → merge vs distinct).
 		"cargo test -p fraiseql-auth --test social_linking -- --test-threads=1",
+		// #984 single-use consume of OTP codes / MFA challenge tokens: a BEFORE DELETE
+		// trigger poisons only the consuming statement, proving both stores fail closed
+		// instead of reporting a single-use guarantee the failed DELETE did not establish.
+		"cargo test -p fraiseql-auth --test postgres_single_use_consume -- --test-threads=1",
 		// #389 session-state store (_system.session_state: TTL visibility, upsert, atomic
 		// summary collapse, eviction sweep vs real PG).
 		"cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1",

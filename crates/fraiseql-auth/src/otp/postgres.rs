@@ -155,21 +155,28 @@ impl OtpStore for PgOtpStore {
         let expires_at: i64 = row.get("expires_at");
         let attempts: i32 = row.get("attempts");
 
+        // The DELETE is what makes the code single-use, so its failure must fail
+        // the verification (#984): returning Ok after a failed consume reports a
+        // guarantee that does not hold and leaves the code replayable until it
+        // expires. Propagated on every path — a consume that silently does
+        // nothing is the same defect wherever it sits.
         let consume = || async {
-            let _ = sqlx::query("DELETE FROM core.tb_otp_code WHERE email = $1")
+            sqlx::query("DELETE FROM core.tb_otp_code WHERE email = $1")
                 .bind(email)
                 .execute(&self.db)
-                .await;
+                .await
+                .map_err(db_err)
+                .map(|_| ())
         };
 
         if now >= expires_at as u64 {
-            consume().await;
+            consume().await?;
             return Err(AuthError::InvalidToken {
                 reason: "OTP has expired".into(),
             });
         }
         if attempts > MAX_VERIFY_ATTEMPTS as i32 {
-            consume().await;
+            consume().await?;
             return Err(AuthError::RateLimited {
                 retry_after_secs: OTP_RATE_WINDOW_SECS,
             });
@@ -185,7 +192,7 @@ impl OtpStore for PgOtpStore {
         }
 
         // Correct — consume it (single-use).
-        consume().await;
+        consume().await?;
         Ok(())
     }
 }
