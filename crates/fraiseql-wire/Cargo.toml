@@ -67,6 +67,8 @@ metrics-exporter-prometheus = "0.18"
 # local-testcontainers spawn). Dagger provides the Postgres service in CI.
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 proptest = {workspace = true}
+# CA-file fixtures for the #887 load_custom_ca tests.
+tempfile = {workspace = true}
 tokio-postgres = "0.7"
 tokio-test = "0.4"
 
