@@ -29,6 +29,9 @@ fn env_overlay(overrides: &[(&str, Option<&str>)]) -> Vec<(String, Option<String
 }
 
 fn run_with_env(overrides: &[(&str, Option<&str>)], f: impl FnOnce() + std::panic::UnwindSafe) {
+    // These tests exercise the REAL env-parsing path; hold the override lock in
+    // passthrough mode so no pinned decision (#907) is active while they read.
+    let _serialize = super::test_override::env_passthrough_lock();
     let vars: Vec<(String, Option<String>)> = env_overlay(overrides);
     let vars_ref: Vec<(&str, Option<&str>)> =
         vars.iter().map(|(k, v)| (k.as_str(), v.as_deref())).collect();

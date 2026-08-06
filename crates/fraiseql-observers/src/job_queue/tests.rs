@@ -350,7 +350,6 @@ mod executor_tests {
     use crate::{
         config::BackoffStrategy,
         executor::ObserverExecutor,
-        insecure_guard::ALLOW_INSECURE_ENV,
         job_queue::{
             Job, JobState,
             executor::JobExecutor,
@@ -406,66 +405,58 @@ mod executor_tests {
     /// executed (log + metric + acknowledge) while no request was sent.
     #[tokio::test]
     async fn executed_job_dispatches_the_action_before_acknowledge() {
-        temp_env::async_with_vars(
-            // wiremock binds 127.0.0.1; the SSRF bypass is honoured only in a
-            // declared development environment (#836).
-            [
-                (ALLOW_INSECURE_ENV, Some("true")),
-                ("FRAISEQL_ENV", Some("development")),
-            ],
-            async {
-                let server = MockServer::start().await;
-                Mock::given(method("POST"))
-                    .respond_with(ResponseTemplate::new(200))
-                    .mount(&server)
-                    .await;
+        // wiremock/redis targets bind loopback; pin the SSRF bypass decision for
+        // this test (#907 — pinned decision instead of process-env mutation).
+        let _bypass = crate::insecure_guard::test_override::force(true);
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
 
-                let queue = Arc::new(MockJobQueue::new());
-                let job = webhook_job(&server.uri(), 3);
-                let job_id = job.id;
-                queue.enqueue(job).await.expect("enqueue");
+        let queue = Arc::new(MockJobQueue::new());
+        let job = webhook_job(&server.uri(), 3);
+        let job_id = job.id;
+        queue.enqueue(job).await.expect("enqueue");
 
-                let worker = JobExecutor::new(
-                    Arc::clone(&queue) as Arc<dyn JobQueue>,
-                    bare_observer_executor(),
-                    1,  // concurrency
-                    10, // batch_size
-                    5,  // job_timeout_secs
-                )
-                .with_poll_interval(50);
-                let handle = tokio::spawn(async move { worker.run().await });
-
-                // Wait for the job to reach a terminal state.
-                let done = wait_until(Duration::from_secs(10), || {
-                    let queue = Arc::clone(&queue);
-                    async move {
-                        queue
-                            .get_status(job_id)
-                            .await
-                            .expect("status")
-                            .is_some_and(JobState::is_terminal)
-                    }
-                })
-                .await;
-                handle.abort();
-                assert!(done, "job never reached a terminal state");
-
-                let requests = server.received_requests().await.expect("recorded requests");
-                assert_eq!(
-                    requests.len(),
-                    1,
-                    "#844: the worker acknowledged the job without dispatching its action \
-                     ({} requests received)",
-                    requests.len()
-                );
-                assert_eq!(
-                    queue.get_status(job_id).await.expect("status"),
-                    Some(JobState::Completed),
-                    "dispatched job should be acknowledged as completed"
-                );
-            },
+        let worker = JobExecutor::new(
+            Arc::clone(&queue) as Arc<dyn JobQueue>,
+            bare_observer_executor(),
+            1,  // concurrency
+            10, // batch_size
+            5,  // job_timeout_secs
         )
+        .with_poll_interval(50);
+        let handle = tokio::spawn(async move { worker.run().await });
+
+        // Wait for the job to reach a terminal state.
+        let done = wait_until(Duration::from_secs(10), || {
+            let queue = Arc::clone(&queue);
+            async move {
+                queue
+                    .get_status(job_id)
+                    .await
+                    .expect("status")
+                    .is_some_and(JobState::is_terminal)
+            }
+        })
         .await;
+        handle.abort();
+        assert!(done, "job never reached a terminal state");
+
+        let requests = server.received_requests().await.expect("recorded requests");
+        assert_eq!(
+            requests.len(),
+            1,
+            "#844: the worker acknowledged the job without dispatching its action \
+                 ({} requests received)",
+            requests.len()
+        );
+        assert_eq!(
+            queue.get_status(job_id).await.expect("status"),
+            Some(JobState::Completed),
+            "dispatched job should be acknowledged as completed"
+        );
     }
 
     /// #844: a job whose execution exceeds `job_timeout_secs` must be recorded
@@ -475,68 +466,62 @@ mod executor_tests {
     /// `mark_failed` twice per failure, double-incrementing `attempt`).
     #[tokio::test]
     async fn job_exceeding_timeout_is_retried_then_dead_lettered() {
-        temp_env::async_with_vars(
-            [
-                (ALLOW_INSECURE_ENV, Some("true")),
-                ("FRAISEQL_ENV", Some("development")),
-            ],
-            async {
-                let server = MockServer::start().await;
-                Mock::given(method("POST"))
-                    .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
-                    .mount(&server)
-                    .await;
+        // wiremock/redis targets bind loopback; pin the SSRF bypass decision for
+        // this test (#907 — pinned decision instead of process-env mutation).
+        let _bypass = crate::insecure_guard::test_override::force(true);
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
+            .mount(&server)
+            .await;
 
-                let queue = Arc::new(MockJobQueue::new());
-                let job = webhook_job(&server.uri(), 2);
-                let job_id = job.id;
-                queue.enqueue(job).await.expect("enqueue");
+        let queue = Arc::new(MockJobQueue::new());
+        let job = webhook_job(&server.uri(), 2);
+        let job_id = job.id;
+        queue.enqueue(job).await.expect("enqueue");
 
-                let worker = JobExecutor::new(
-                    Arc::clone(&queue) as Arc<dyn JobQueue>,
-                    bare_observer_executor(),
-                    1,
-                    10,
-                    1, // job_timeout_secs — far below the 30 s response delay
-                )
-                .with_poll_interval(50);
-                let handle = tokio::spawn(async move { worker.run().await });
-
-                let dead_lettered = wait_until(Duration::from_secs(15), || {
-                    let queue = Arc::clone(&queue);
-                    async move { queue.dlq_size().await.expect("dlq size") == 1 }
-                })
-                .await;
-                handle.abort();
-
-                assert!(
-                    dead_lettered,
-                    "#844: timed-out job never reached the DLQ (status: {:?}) — \
-                     reported executed and destroyed instead",
-                    queue.get_status(job_id).await.expect("status")
-                );
-
-                let dlq_jobs = queue.dlq_jobs();
-                assert_eq!(dlq_jobs.len(), 1, "exactly one dead-lettered job");
-                let failed = &dlq_jobs[0];
-                assert_eq!(
-                    failed.attempt, 2,
-                    "attempt must advance once per real attempt (double mark_failed inflates it)"
-                );
-                assert_eq!(
-                    failed.attempts.len(),
-                    2,
-                    "one attempt record per real attempt, got {:?}",
-                    failed.attempts
-                );
-                assert_ne!(
-                    queue.get_status(job_id).await.expect("status"),
-                    Some(JobState::Completed),
-                    "a timed-out job must never be reported executed"
-                );
-            },
+        let worker = JobExecutor::new(
+            Arc::clone(&queue) as Arc<dyn JobQueue>,
+            bare_observer_executor(),
+            1,
+            10,
+            1, // job_timeout_secs — far below the 30 s response delay
         )
+        .with_poll_interval(50);
+        let handle = tokio::spawn(async move { worker.run().await });
+
+        let dead_lettered = wait_until(Duration::from_secs(15), || {
+            let queue = Arc::clone(&queue);
+            async move { queue.dlq_size().await.expect("dlq size") == 1 }
+        })
         .await;
+        handle.abort();
+
+        assert!(
+            dead_lettered,
+            "#844: timed-out job never reached the DLQ (status: {:?}) — \
+                 reported executed and destroyed instead",
+            queue.get_status(job_id).await.expect("status")
+        );
+
+        let dlq_jobs = queue.dlq_jobs();
+        assert_eq!(dlq_jobs.len(), 1, "exactly one dead-lettered job");
+        let failed = &dlq_jobs[0];
+        assert_eq!(
+            failed.attempt, 2,
+            "attempt must advance once per real attempt (double mark_failed inflates it)"
+        );
+        assert_eq!(
+            failed.attempts.len(),
+            2,
+            "one attempt record per real attempt, got {:?}",
+            failed.attempts
+        );
+        assert_ne!(
+            queue.get_status(job_id).await.expect("status"),
+            Some(JobState::Completed),
+            "a timed-out job must never be reported executed"
+        );
     }
 
     /// #844 end-to-end on the real Redis queue: after retries exhaust, the job
@@ -546,84 +531,78 @@ mod executor_tests {
     #[tokio::test]
     #[ignore = "requires Redis (REDIS_URL)"]
     async fn redis_timed_out_job_is_dead_lettered_never_destroyed() {
+        use crate::job_queue::redis::RedisJobQueue;
+
         let redis_url =
             std::env::var("REDIS_URL").expect("REDIS_URL must be set for --ignored redis tests");
 
-        temp_env::async_with_vars(
-            [
-                (ALLOW_INSECURE_ENV, Some("true")),
-                ("FRAISEQL_ENV", Some("development")),
-            ],
-            async {
-                use crate::job_queue::redis::RedisJobQueue;
+        // wiremock/redis targets bind loopback; pin the SSRF bypass decision for
+        // this test (#907 — pinned decision instead of process-env mutation).
+        let _bypass = crate::insecure_guard::test_override::force(true);
 
-                let client = redis::Client::open(redis_url.as_str()).expect("redis client");
-                let mut conn =
-                    redis::aio::ConnectionManager::new(client).await.expect("redis connection");
+        let client = redis::Client::open(redis_url.as_str()).expect("redis client");
+        let mut conn = redis::aio::ConnectionManager::new(client).await.expect("redis connection");
 
-                // Clear this queue's fixed keyspace so prior runs cannot leak in.
-                redis::cmd("DEL")
-                    .arg(RedisJobQueue::pending_key())
-                    .arg(RedisJobQueue::processing_key())
-                    .arg(RedisJobQueue::dlq_key())
-                    .arg(RedisJobQueue::status_key())
-                    .query_async::<()>(&mut conn)
-                    .await
-                    .expect("clear queue keys");
+        // Clear this queue's fixed keyspace so prior runs cannot leak in.
+        redis::cmd("DEL")
+            .arg(RedisJobQueue::pending_key())
+            .arg(RedisJobQueue::processing_key())
+            .arg(RedisJobQueue::dlq_key())
+            .arg(RedisJobQueue::status_key())
+            .query_async::<()>(&mut conn)
+            .await
+            .expect("clear queue keys");
 
-                let server = MockServer::start().await;
-                Mock::given(method("POST"))
-                    .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
-                    .mount(&server)
-                    .await;
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
+            .mount(&server)
+            .await;
 
-                let queue = Arc::new(RedisJobQueue::new(conn.clone()));
-                let job = webhook_job(&server.uri(), 2);
-                let job_id = job.id;
-                queue.enqueue(job).await.expect("enqueue");
+        let queue = Arc::new(RedisJobQueue::new(conn.clone()));
+        let job = webhook_job(&server.uri(), 2);
+        let job_id = job.id;
+        queue.enqueue(job).await.expect("enqueue");
 
-                let worker = JobExecutor::new(
-                    Arc::clone(&queue) as Arc<dyn JobQueue>,
-                    bare_observer_executor(),
-                    1,
-                    10,
-                    1,
-                )
-                .with_poll_interval(50);
-                let handle = tokio::spawn(async move { worker.run().await });
-
-                let dead_lettered = wait_until(Duration::from_secs(15), || {
-                    let queue = Arc::clone(&queue);
-                    async move { queue.dlq_size().await.expect("dlq size") == 1 }
-                })
-                .await;
-                handle.abort();
-
-                assert!(
-                    dead_lettered,
-                    "#844: timed-out job never reached the Redis DLQ — acknowledged \
-                     (payload DELeted) instead"
-                );
-
-                // The job payload must survive: `acknowledge` DELs it, `fail` keeps it.
-                let payload: Option<String> = redis::cmd("GET")
-                    .arg(RedisJobQueue::job_key(job_id))
-                    .query_async(&mut conn)
-                    .await
-                    .expect("GET job payload");
-                let payload = payload
-                    .expect("#844: job payload was destroyed (DELeted) despite never executing");
-                let stored: Job = serde_json::from_str(&payload).expect("job deserializes");
-                assert_eq!(stored.attempt, 2, "attempt advances once per real attempt");
-                assert_eq!(stored.state, JobState::Failed);
-                assert_eq!(
-                    queue.get_status(job_id).await.expect("status"),
-                    Some(JobState::DeadLettered),
-                    "status hash must record dead_lettered"
-                );
-            },
+        let worker = JobExecutor::new(
+            Arc::clone(&queue) as Arc<dyn JobQueue>,
+            bare_observer_executor(),
+            1,
+            10,
+            1,
         )
+        .with_poll_interval(50);
+        let handle = tokio::spawn(async move { worker.run().await });
+
+        let dead_lettered = wait_until(Duration::from_secs(15), || {
+            let queue = Arc::clone(&queue);
+            async move { queue.dlq_size().await.expect("dlq size") == 1 }
+        })
         .await;
+        handle.abort();
+
+        assert!(
+            dead_lettered,
+            "#844: timed-out job never reached the Redis DLQ — acknowledged \
+                 (payload DELeted) instead"
+        );
+
+        // The job payload must survive: `acknowledge` DELs it, `fail` keeps it.
+        let payload: Option<String> = redis::cmd("GET")
+            .arg(RedisJobQueue::job_key(job_id))
+            .query_async(&mut conn)
+            .await
+            .expect("GET job payload");
+        let payload =
+            payload.expect("#844: job payload was destroyed (DELeted) despite never executing");
+        let stored: Job = serde_json::from_str(&payload).expect("job deserializes");
+        assert_eq!(stored.attempt, 2, "attempt advances once per real attempt");
+        assert_eq!(stored.state, JobState::Failed);
+        assert_eq!(
+            queue.get_status(job_id).await.expect("status"),
+            Some(JobState::DeadLettered),
+            "status hash must record dead_lettered"
+        );
     }
 
     #[test]
