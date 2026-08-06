@@ -49,6 +49,9 @@ fraiseql-test-support = {path = "../fraiseql-test-support"}
 proptest = {workspace = true}
 temp-env = {workspace = true}
 tokio-test = "0.4"
+# Lets the live-PG MFA suite (#984) drive the real TOTP path; same version as the
+# runtime dependency above, so it adds nothing to the tree.
+totp-rs = {version = "5", features = ["gen_secret", "otpauth"]}
 wiremock = "0.6"
 
 [features]
