@@ -245,6 +245,13 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",
 		"bash tools/check-audit-lockstep.sh",
+		// The no-orphan-suites gate: every test target × feature combo maps to a
+		// leg that executes it (it parses THIS file, so legs and gate cannot
+		// drift). Retrospective rule 1 of the 2026-07-27 program.
+		"python3 tools/check-suite-coverage.py",
+		// Snapshot pairing, both directions (#986): every .snap registered, no
+		// stale registry rows. Was a pre-commit-only hook that ran nowhere.
+		"bash tools/check-snapshot-pairing.sh",
 		"bash tools/check-deadlines.sh",
 		"bash tools/check-docs-env-vars.sh",
 		"bash tools/check-docs-version.sh",
@@ -330,7 +337,8 @@ func (m *FraiseqlCi) shellBase() *dagger.Container {
 		WithExec([]string{"apt-get", "update"}).
 		WithExec([]string{
 			"apt-get", "install", "-y", "--no-install-recommends",
-			"make", "git", "gawk", "findutils", "grep", "ca-certificates",
+			// python3: the suite-coverage gate (tools/check-suite-coverage.py).
+			"make", "git", "gawk", "findutils", "grep", "ca-certificates", "python3",
 		})
 }
 

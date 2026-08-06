@@ -64,7 +64,9 @@ repos:
         # must precede [[bin]], and workspace-inherited fields must stay in [package]
         # not [package.metadata.*] subsections). The generic TOML formatter breaks
         # these invariants by sorting table headers alphabetically.
-        exclude: '(^|/)Cargo\.(toml|lock)$'
+        # suite-coverage-exemptions.toml is a documented ledger: the formatter
+        # strips its section comments (the published reasons ARE the content).
+        exclude: '((^|/)Cargo\.(toml|lock)|^tools/suite-coverage-exemptions\.toml)$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli

@@ -1,0 +1,37 @@
+# Exemptions for the no-orphan-suites gate (tools/check-suite-coverage.py).
+#
+# Every row is a suite that deliberately runs in no CI leg, with the published
+# reason — opt-out is visible, never silent. A row whose target stops existing
+# fails the gate (stale exemptions rot the ledger).
+
+# ── Arrow Flight DB-backed binaries — pending gate G1 (#908 → P05) ───────────
+# The Flight write/query surface itself is under a user decision (gate or
+# delete, #953/#954). The DB fixtures and the `Closes #908` wiring are owned by
+# P05 Cycle 3 of the 2026-08-06 remediation program; wiring them into the
+# postgres leg before G1 would build fixtures for a surface that may be deleted.
+
+[[exempt]]
+target = "fraiseql-arrow::flight_integration"
+reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
+
+[[exempt]]
+target = "fraiseql-arrow::flight_e2e_test"
+reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
+
+[[exempt]]
+target = "fraiseql-arrow::flight_error_handling_test"
+reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
+
+# ── Codegen real-consumer gates — need network + external toolchains ─────────
+# Both shell out to package managers (uvx ty / npx tsc) and typecheck the
+# generated client as a real consumer would. The Dagger legs are offline by
+# design; running these needs a dedicated networked leg (tracked in #961's
+# codegen work, which also adds Go/Rust compile-the-output gates).
+
+[[exempt]]
+target = "fraiseql-codegen::client_py_consumer"
+reason = "shells out to `uvx ty` (network + uv toolchain); offline Dagger legs cannot run it — #961 owns a networked codegen-consumer leg"
+
+[[exempt]]
+target = "fraiseql-codegen::client_ts_consumer"
+reason = "shells out to `npx`/`tsc` (network + Node toolchain); offline Dagger legs cannot run it — #961 owns a networked codegen-consumer leg"
