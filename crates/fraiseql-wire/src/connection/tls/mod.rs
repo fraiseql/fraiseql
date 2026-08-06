@@ -203,11 +203,18 @@ impl TlsConfigBuilder {
                     let _ = store.add_parsable_certificates(std::iter::once(cert));
                 }
 
-                // Log warnings if there were errors, but don't fail
-                if !result.errors.is_empty() && store.is_empty() {
-                    return Err(WireError::Config(
-                        "Failed to load any system root certificates".to_string(),
-                    ));
+                // An empty store trusts nothing, so every subsequent connection
+                // fails certificate verification. That is the condition that
+                // matters — whether the loader also reported errors is beside the
+                // point, and gating on it let an error-free load that added
+                // nothing through (#887).
+                if store.is_empty() {
+                    return Err(WireError::Config(format!(
+                        "Failed to load any system root certificates ({} loader error(s)); \
+                         no server certificate could be verified. Set a CA file explicitly \
+                         if this host has no system trust store.",
+                        result.errors.len()
+                    )));
                 }
 
                 store
@@ -245,8 +252,15 @@ impl TlsConfigBuilder {
         loop {
             match rustls_pemfile::read_one(&mut reader) {
                 Ok(Some(Item::X509Certificate(cert))) => {
-                    let _ = root_store.add_parsable_certificates(std::iter::once(cert));
-                    found_certs += 1;
+                    // Count what rustls ACCEPTED, not what the PEM reader yielded
+                    // (#887). The reader only base64-decodes the armour; whether the
+                    // DER is a usable certificate is decided here. Counting items
+                    // read made `found_certs > 0` answer "did the file contain
+                    // something shaped like a certificate" instead of "does the
+                    // trust store now trust anything".
+                    let (added, _ignored) =
+                        root_store.add_parsable_certificates(std::iter::once(cert));
+                    found_certs += added;
                 }
                 Ok(Some(_)) => {
                     // Skip non-certificate items (private keys, etc.)
