@@ -54,23 +54,14 @@ async fn provision(client: &tokio_postgres::Client) {
              state_changed BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, \
              http_status SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB, \
              updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB); \
-             EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-             CREATE SCHEMA IF NOT EXISTS core;
-             DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE;
-             DROP SEQUENCE IF EXISTS core.seq_entity_change_log;
-             CREATE SEQUENCE core.seq_entity_change_log;
-             CREATE TABLE core.tb_entity_change_log (\
-               pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, \
-               object_type TEXT NOT NULL, modification_type TEXT NOT NULL, \
-               id UUID NOT NULL DEFAULT gen_random_uuid(), \
-               created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
-               object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
-               duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
-               tenant_id UUID, commit_time TIMESTAMPTZ, \
-               seq BIGINT DEFAULT nextval('core.seq_entity_change_log'), \
-               actor_type TEXT, acting_for UUID, schema_version TEXT, \
-               trace_id TEXT, trace_context JSONB);",
+             EXCEPTION WHEN duplicate_object THEN NULL; END $$;",
         )
+        .await
+        .unwrap();
+    // #942/#982: the change-log table comes from the ONE shared provisioner
+    // (the migration-08 contract, byte-for-byte) instead of a local copy.
+    client
+        .batch_execute(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
         .await
         .unwrap();
 }

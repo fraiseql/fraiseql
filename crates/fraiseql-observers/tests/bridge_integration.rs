@@ -90,36 +90,13 @@ mod bridge_tests {
         .await
         .expect("Failed to create checkpoint table");
 
-        // Create change log table for testing
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
-                pk_entity_change_log BIGSERIAL PRIMARY KEY,
-                id UUID NOT NULL DEFAULT gen_random_uuid(),
-                fk_customer_org BIGINT,
-                fk_contact BIGINT,
-                object_type TEXT NOT NULL,
-                object_id UUID NOT NULL,
-                modification_type TEXT NOT NULL,
-                change_status TEXT,
-                object_data JSONB,
-                object_data_before JSONB,
-                extra_metadata JSONB,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                tenant_id UUID,
-                duration_ms INTEGER,
-                seq BIGINT,
-                actor_type TEXT,
-                acting_for UUID,
-                schema_version TEXT,
-                nats_published_at TIMESTAMPTZ,
-                nats_event_id UUID
-            )
-            ",
-        )
-        .execute(pool)
-        .await
-        .expect("Failed to create change log table");
+        // #942/#982: the change-log table comes from the ONE shared provisioner
+        // (contract shape, object_id nullable) — a private NOT-NULL twin here is
+        // what broke the doctor suite on a warm database.
+        sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
+            .execute(pool)
+            .await
+            .expect("provision core.tb_entity_change_log");
     }
 
     /// Clean up test data

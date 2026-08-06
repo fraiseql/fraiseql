@@ -80,21 +80,6 @@ async fn provision(adapter: &PostgresAdapter) {
          updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB); \
          EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
             .to_string(),
-        "CREATE SCHEMA IF NOT EXISTS core".to_string(),
-        "DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE".to_string(),
-        "CREATE TABLE core.tb_entity_change_log (\
-         pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, \
-         object_type TEXT NOT NULL, modification_type TEXT NOT NULL, \
-         id UUID NOT NULL DEFAULT gen_random_uuid(), \
-         created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
-         object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
-         duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
-         tenant_id UUID, trace_id TEXT, schema_version TEXT, trace_context JSONB, \
-         actor_type TEXT, acting_for UUID, commit_time TIMESTAMPTZ, seq BIGINT, \
-         CONSTRAINT chk_entity_change_log_actor_type CHECK (\
-           actor_type IS NULL OR actor_type IN \
-           ('human_user', 'service_account', 'ai_agent', 'system_job')))"
-            .to_string(),
         format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"),
         format!("CREATE SCHEMA {SCHEMA}"),
         format!("CREATE TABLE {SCHEMA}.tb_item (id uuid PRIMARY KEY, label text NOT NULL)"),
@@ -114,6 +99,11 @@ async fn provision(adapter: &PostgresAdapter) {
              RETURN v; END; $$"
         ),
     ];
+    // #942/#982: the change-log table comes from the ONE shared provisioner
+    // (migration-08 contract), one statement per exec call.
+    let mut stmts = stmts;
+    stmts.extend(fraiseql_test_support::changelog::entity_change_log_provision_statements());
+
     for stmt in stmts {
         let _: Vec<std::collections::HashMap<String, Value>> =
             adapter.execute_raw_query(&stmt).await.expect("fixture setup");

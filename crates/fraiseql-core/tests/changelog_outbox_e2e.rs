@@ -49,37 +49,11 @@ async fn provision(adapter: &PostgresAdapter) {
         .await
         .unwrap();
 
-    // Fresh contract table (owns the shape; safe to recreate — see the db-crate
-    // outbox test note). One statement per execute_raw_query call.
-    adapter.execute_raw_query("CREATE SCHEMA IF NOT EXISTS core").await.unwrap();
-    adapter
-        .execute_raw_query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
-        .await
-        .unwrap();
-    adapter
-        .execute_raw_query("DROP SEQUENCE IF EXISTS core.seq_entity_change_log")
-        .await
-        .unwrap();
-    adapter
-        .execute_raw_query("CREATE SEQUENCE core.seq_entity_change_log")
-        .await
-        .unwrap();
-    adapter
-        .execute_raw_query(
-            "CREATE TABLE core.tb_entity_change_log (\
-             pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, \
-             object_type TEXT NOT NULL, modification_type TEXT NOT NULL, \
-             id UUID NOT NULL DEFAULT gen_random_uuid(), \
-             created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
-             object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
-             duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
-             tenant_id UUID, trace_id TEXT, schema_version TEXT, trace_context JSONB, \
-             actor_type TEXT, acting_for UUID, \
-             commit_time TIMESTAMPTZ, \
-             seq BIGINT DEFAULT nextval('core.seq_entity_change_log'))",
-        )
-        .await
-        .unwrap();
+    // #942/#982: the ONE shared provisioner (migration-08 contract), one
+    // statement per call (execute_raw_query is single-statement).
+    for stmt in fraiseql_test_support::changelog::entity_change_log_provision_statements() {
+        adapter.execute_raw_query(&stmt).await.unwrap();
+    }
 
     adapter
         .execute_raw_query(&format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"))

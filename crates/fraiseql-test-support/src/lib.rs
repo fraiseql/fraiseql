@@ -34,6 +34,7 @@
 //! }
 //! ```
 
+pub mod changelog;
 pub mod db;
 pub mod services;
 

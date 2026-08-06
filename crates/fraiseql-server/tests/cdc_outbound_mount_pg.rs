@@ -51,28 +51,13 @@ async fn pool() -> PgPool {
 
 /// The change-log outbox, shaped as the #366 capture trigger writes it.
 async fn setup_schema(pool: &PgPool) {
-    sqlx::raw_sql(
-        "CREATE SCHEMA IF NOT EXISTS core;
-         CREATE SEQUENCE IF NOT EXISTS core.seq_entity_change_log;
-         CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
-             pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-             object_type          TEXT NOT NULL,
-             modification_type    TEXT NOT NULL
-         );
-         ALTER TABLE core.tb_entity_change_log
-             ADD COLUMN IF NOT EXISTS object_id          UUID,
-             ADD COLUMN IF NOT EXISTS tenant_id          UUID,
-             ADD COLUMN IF NOT EXISTS object_data        JSONB,
-             ADD COLUMN IF NOT EXISTS object_data_before JSONB,
-             ADD COLUMN IF NOT EXISTS commit_time        TIMESTAMPTZ,
-             ADD COLUMN IF NOT EXISTS seq                BIGINT;
-         ALTER TABLE core.tb_entity_change_log
-             ALTER COLUMN seq SET DEFAULT nextval('core.seq_entity_change_log');
-         ALTER TABLE core.tb_entity_change_log ALTER COLUMN object_data DROP NOT NULL;",
-    )
-    .execute(pool)
-    .await
-    .unwrap();
+    // #942/#982: the change-log table comes from the ONE shared provisioner
+    // (the migration-08 contract, byte-for-byte — drop-and-recreate to the
+    // contract shape, so no older twin can leak constraints into this suite).
+    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 async fn seed(pool: &PgPool, object_type: &str, tenant: Uuid, after: Value) {

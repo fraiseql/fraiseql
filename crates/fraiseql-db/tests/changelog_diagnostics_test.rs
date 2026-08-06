@@ -35,21 +35,11 @@ async fn connect() -> (tokio_postgres::Client, PostgresAdapter, fraiseql_test_su
     (client, adapter, svc)
 }
 
-/// The canonical migration-08 contract table (same shape the outbox tests
-/// provision), so the temporarily-dropped table is restored for later suites.
-const CONTRACT_TABLE: &str = "\
-    CREATE SCHEMA IF NOT EXISTS core;
-    CREATE SEQUENCE IF NOT EXISTS core.seq_entity_change_log;
-    CREATE TABLE IF NOT EXISTS core.tb_entity_change_log (
-        pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-        object_type TEXT NOT NULL, modification_type TEXT NOT NULL,
-        id UUID NOT NULL DEFAULT gen_random_uuid(),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB,
-        duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB,
-        tenant_id UUID, trace_id TEXT, schema_version TEXT, trace_context JSONB,
-        actor_type TEXT, acting_for UUID, commit_time TIMESTAMPTZ,
-        seq BIGINT DEFAULT nextval('core.seq_entity_change_log'))";
+/// Restore the contract table for later suites via the ONE shared provisioner
+/// (#942/#982 — the migration-08 contract byte-for-byte, not a local copy).
+fn contract_table_sql() -> String {
+    fraiseql_test_support::changelog::entity_change_log_provision_sql()
+}
 
 /// Missing outbox table → the error must point at `fraiseql setup` (#569.1).
 #[tokio::test]
@@ -91,7 +81,7 @@ async fn missing_changelog_table_error_points_at_setup() {
         "the missing-outbox-table error must tell the operator to run `fraiseql setup`: {msg}"
     );
 
-    client.batch_execute(CONTRACT_TABLE).await.unwrap();
+    client.batch_execute(&contract_table_sql()).await.unwrap();
 }
 
 /// A `RETURNS SETOF v_*` mutation function → the error must explain the v2.2
@@ -99,7 +89,7 @@ async fn missing_changelog_table_error_points_at_setup() {
 #[tokio::test]
 async fn setof_view_function_error_explains_the_response_contract() {
     let (client, adapter, _svc) = connect().await;
-    client.batch_execute(CONTRACT_TABLE).await.unwrap();
+    client.batch_execute(&contract_table_sql()).await.unwrap();
 
     client
         .batch_execute(
