@@ -592,26 +592,3 @@ async fn test_multiple_users_have_separate_contexts() {
     })
     .await;
 }
-
-/// Test that RLS policy would be evaluated with security context
-/// (when executor is integrated in fraiseql-server).
-#[test]
-fn test_rls_policy_evaluation_architecture() {
-    // This test documents the RLS policy evaluation flow
-    // At the fraiseql-server level:
-    //
-    // 1. Client authenticates via Flight handshake -> session token
-    // 2. Client calls do_get with session token
-    // 3. Flight service creates SecurityContext from session token
-    // 4. Flight service calls executor.execute_with_security(query, context)
-    // 5. Executor evaluates RLS policy with context
-    // 6. RLS policy returns WHERE clause filter based on user_id/roles
-    // 7. Executor applies filter to query -> user only sees allowed rows
-    //
-    // SecurityContext fields used by RLS:
-    // - user_id: "user-123"
-    // - roles: ["user", "admin"]
-    // - scopes: ["read:order", "write:order"]
-    // - tenant_id: "org-456" (for multi-tenancy)
-    // - attributes: {"department": "sales"} (custom claims)
-}

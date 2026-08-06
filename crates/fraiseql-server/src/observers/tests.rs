@@ -225,22 +225,10 @@ mod repository_tests {
 mod routes_tests {
     // Note: Integration tests would require a test database
     // These are placeholder tests for route configuration
-
-    #[test]
-    fn test_routes_compile() {
-        // This test just ensures the routes compile correctly
-        // Actual testing requires a database connection
-    }
 }
 
 mod runtime_tests {
     use super::super::runtime::RuntimeHealth;
-
-    #[test]
-    fn test_runtime_config_defaults() {
-        // This test would require a PgPool which needs a database connection
-        // For now, just verify the struct compiles
-    }
 
     #[test]
     fn test_runtime_health_default() {

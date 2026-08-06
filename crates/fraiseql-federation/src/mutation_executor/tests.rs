@@ -3,12 +3,6 @@ use fraiseql_db::DatabaseType;
 
 use super::*;
 
-#[test]
-fn test_mutation_executor_creation() {
-    // Test that executor can be created (mock adapter would be used)
-    // Actual mutation tests are in integration tests
-}
-
 // M-fed-mut-executor: an unrecognised operation name must fail loud rather than
 // silently default to UPDATE (which would issue an `UPDATE` for a typo'd or
 // unsupported mutation).

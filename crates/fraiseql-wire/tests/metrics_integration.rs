@@ -482,24 +482,6 @@ fn test_memory_limit_exceeded_error() {
     assert!(!err.is_retriable());
 }
 
-/// Test `QueryBuilder` `max_memory` API existence
-#[test]
-fn test_query_builder_max_memory_api() {
-    // This test verifies the API is available by building a query with max_memory
-    // We can't execute it without a database, but we can verify the method exists
-    // and returns QueryBuilder for method chaining
-
-    // This would be called like:
-    // let stream = client
-    //     .query::<Value>("entity")
-    //     .max_memory(500_000_000)  // 500MB limit
-    //     .execute()
-    //     .await?;
-
-    // The builder accepts max_memory() which should return Self for chaining
-    // This test passes if the module compiles, confirming the API is present
-}
-
 /// Test memory estimation formula (2KB per item)
 #[test]
 fn test_memory_estimation_formula() {

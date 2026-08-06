@@ -23,9 +23,6 @@
     clippy::future_not_send
 )] // Reason: #[op2] proc-macro output constraints — see the paragraph above
 
-#[cfg(test)]
-mod tests;
-
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use deno_core::{JsBuffer, OpState, ToJsBuffer, error::AnyError, op2};

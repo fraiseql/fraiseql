@@ -505,10 +505,3 @@ mod minio_tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
-
-// When the aws-s3 feature is disabled, emit a no-op test so the file compiles.
-#[cfg(not(feature = "aws-s3"))]
-#[test]
-fn minio_tests_require_aws_s3_feature() {
-    // MinIO integration tests are skipped: compile with --features aws-s3 to enable them.
-}

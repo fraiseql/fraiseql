@@ -4,14 +4,6 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
-/// Helper test to verify API infrastructure is properly structured.
-#[test]
-fn test_api_modules_exist() {
-    // This test verifies that the API module structure is correct
-    // by ensuring all modules are properly declared and exported.
-    // Actual route testing requires a running server with proper state setup.
-}
-
 /// Test API query endpoint types are correctly defined.
 #[test]
 fn test_api_query_response_types_defined() {

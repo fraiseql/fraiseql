@@ -255,6 +255,8 @@ func (m *FraiseqlCi) ShellGates(
 		// leg that executes it (it parses THIS file, so legs and gate cannot
 		// drift). Retrospective rule 1 of the 2026-07-27 program.
 		"python3 tools/check-suite-coverage.py",
+		// Comment-only #[test] bodies read as green coverage (#895/#748).
+		"bash tools/check-empty-tests.sh",
 		// Snapshot pairing, both directions (#986): every .snap registered, no
 		// stale registry rows. Was a pre-commit-only hook that ran nowhere.
 		"bash tools/check-snapshot-pairing.sh",
