@@ -66,6 +66,11 @@ pub use fraiseql_guard::deployment::is_production as is_production_environment;
 /// log aggregator after the first webhook).
 #[must_use]
 pub fn is_outbound_insecure_allowed() -> bool {
+    #[cfg(test)]
+    if let Some(forced) = test_override::current() {
+        return forced;
+    }
+
     if !fraiseql_guard::deployment::env_opt_in(ALLOW_INSECURE_ENV) {
         return false;
     }
@@ -146,6 +151,72 @@ pub fn is_nats_plaintext_allowed() -> bool {
          (no TLS). This MUST NOT be set in production."
     );
     true
+}
+
+/// The injectable test source for the bypass decision (#907).
+///
+/// The guard reads process env live, and tests used to *mutate* that env
+/// (`temp_env`) — so a test calling an SSRF guard bare could execute inside a
+/// setter's closure, see the bypass active, and fail its rejection assertion
+/// intermittently. Tests now PIN the decision instead of mutating global
+/// state: [`force`] holds a lock for the guard's lifetime and answers the
+/// bypass question directly, so concurrent test modules cannot observe each
+/// other. Tests that exercise the real env-parsing path (this module's own
+/// tests) hold the same lock via [`env_passthrough_lock`] so a pinned decision
+/// is never active while they read the environment.
+#[cfg(test)]
+pub(crate) mod test_override {
+    use std::sync::{
+        Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicU8, Ordering},
+    };
+
+    const NONE: u8 = 0;
+    const FORCE_OFF: u8 = 1;
+    const FORCE_ON: u8 = 2;
+
+    static DECISION: AtomicU8 = AtomicU8::new(NONE);
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    fn lock() -> MutexGuard<'static, ()> {
+        LOCK.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Pin the bypass decision for the guard's lifetime; restores the live
+    /// env-reading path on drop. Serialised against every other pin and
+    /// against [`env_passthrough_lock`] holders.
+    pub fn force(allowed: bool) -> BypassGuard {
+        let guard = lock();
+        DECISION.store(if allowed { FORCE_ON } else { FORCE_OFF }, Ordering::SeqCst);
+        BypassGuard { _lock: guard }
+    }
+
+    /// Serialise against pins WITHOUT overriding — for tests whose subject is
+    /// the real env-parsing/production-marker path.
+    pub fn env_passthrough_lock() -> MutexGuard<'static, ()> {
+        let guard = lock();
+        debug_assert_eq!(DECISION.load(Ordering::SeqCst), NONE);
+        guard
+    }
+
+    pub(super) fn current() -> Option<bool> {
+        match DECISION.load(Ordering::SeqCst) {
+            FORCE_OFF => Some(false),
+            FORCE_ON => Some(true),
+            _ => None,
+        }
+    }
+
+    /// RAII pin; dropping restores the env-reading path before the lock frees.
+    pub struct BypassGuard {
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl Drop for BypassGuard {
+        fn drop(&mut self) {
+            DECISION.store(NONE, Ordering::SeqCst);
+        }
+    }
 }
 
 #[cfg(test)]

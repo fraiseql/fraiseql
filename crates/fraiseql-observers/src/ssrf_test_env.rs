@@ -1,31 +1,22 @@
 //! The one way a test may call an SSRF guard directly.
 //!
-//! `validate_outbound_url` reads `FRAISEQL_OBSERVERS_ALLOW_INSECURE` from the
-//! **process** environment on every call, and the `insecure_guard` and `actions`
-//! test modules set it to `true` inside `temp_env::with_vars` closures. Since
-//! `cargo test` runs those modules concurrently with everything else in the
-//! binary, a test that calls a guard directly can execute *inside* a setter's
-//! closure, see the bypass active, and watch its rejection assertion fail.
+//! `validate_outbound_url` consults `is_outbound_insecure_allowed`, whose
+//! production path reads process env live. Tests used to MUTATE that env
+//! (`temp_env`), so a test calling a guard bare could execute inside a
+//! setter's closure, see the bypass active, and fail its rejection assertion
+//! intermittently (the `10.x should be rejected: Ok(...)` CI flake — #907).
 //!
-//! `temp_env` serialises on a global lock, so going through this wrapper both
-//! clears the variables and orders the call against every setter.
-//!
-//! This lived as a private helper in `crate::tests` and was applied there only —
-//! `executor::tests`'s three SSRF cases called `resolve_url` bare and flaked in
-//! CI accordingly (`10.x should be rejected: Ok(...)`, which is reachable by no
-//! other path than the bypass). It is crate-visible now so there is one copy
-//! rather than one per test module that remembers.
+//! The env mutation is gone: this wrapper PINS the bypass decision to
+//! "guards engaged" via the injectable test source
+//! (`insecure_guard::test_override`), serialised against every test that pins
+//! it to "allowed" (the wiremock loopback dispatch tests) and against the
+//! guard's own env-parsing tests. Nothing mutates the process environment, so
+//! there is no race left to serialise — the lock only scopes the pin.
 
-/// Run `f` with every SSRF-guard environment variable cleared, serialised
-/// against the tests that set them.
+/// Run `f` with the SSRF bypass pinned OFF — rejection assertions cannot be
+/// broken by any concurrent test, and ambient runner env (a leg exporting
+/// `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true`) cannot leak in.
 pub fn with_ssrf_env_cleared<F: FnOnce() + std::panic::UnwindSafe>(f: F) {
-    temp_env::with_vars(
-        [
-            (crate::insecure_guard::ALLOW_INSECURE_ENV, None::<&str>),
-            ("FRAISEQL_ENV", None),
-            ("FRAISEQL_PROFILE", None),
-            ("KUBERNETES_SERVICE_HOST", None),
-        ],
-        f,
-    );
+    let _pin = crate::insecure_guard::test_override::force(false);
+    f();
 }
