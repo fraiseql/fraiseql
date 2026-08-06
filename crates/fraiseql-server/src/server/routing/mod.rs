@@ -92,7 +92,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .as_ref()
                 .and_then(|h| h.issuer.clone())
                 .unwrap_or_else(|| "fraiseql".to_string());
-            let auth_state = Hs256AuthState::new(Arc::clone(validator), realm);
+            // #934: without the authenticator, this layer refuses a bearer-less
+            // service-account request before the handler's ADR-0018 seam runs.
+            let auth_state = Hs256AuthState::new(Arc::clone(validator), realm)
+                .with_service_accounts(self.service_account_authenticator.clone());
             return router.route_layer(from_fn_with_state(auth_state, hs256_auth_middleware));
         }
 
