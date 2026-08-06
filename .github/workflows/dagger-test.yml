@@ -1,6 +1,6 @@
 name: Dagger — test
 
-# Phase 03 workspace test suite (Track 0). Runs the ci.yml `test` job (Linux path)
+# Phase 03 workspace test suite (Track 0). Runs the workspace test suite
 # on the self-hosted runner (fraiseql-8core) at ~$0/min, for both the MSRV (1.92)
 # and latest-stable toolchains. `dagger call test --rust=<tc>` does the full
 # cargo build --all-features + the feature-scoped cargo test invocations + doctests,

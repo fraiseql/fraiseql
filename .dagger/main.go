@@ -30,15 +30,15 @@ const (
 	rustImage = "ghcr.io/fraiseql/rust:1.92"
 	// ubuntuImage backs shellBase (the toolchain-free shell-gate container).
 	ubuntuImage = "ghcr.io/fraiseql/ubuntu:24.04"
-	// unwrapAllowLimit mirrors the ci.yml clippy job's `make lint-unwrap UNWRAP_ALLOW_LIMIT=3`.
+	// unwrapAllowLimit: the ShellGates `make lint-unwrap` budget (see Makefile).
 	unwrapAllowLimit = "3"
 	// sccacheVersion pins the prebuilt sccache binary fetched into rustBase.
 	sccacheVersion = "v0.8.2"
 	// rustMsrv mirrors Cargo.toml workspace rust-version and rust-toolchain.toml channel.
 	rustMsrv = "1.92"
 
-	// SYNC:* feature sets lifted verbatim from ci.yml's Test Suite job — keep in
-	// lockstep with the YAML (the ci.yml steps carry the same SYNC: tags).
+	// SYNC:* feature sets — this file is the single authority since the legacy
+	// ci.yml was retired (#951); the SYNC tags mark every use site in this file.
 	coreTestFeatures = "arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
 	dbTestFeatures   = "postgres,wire-backend"
 	// redis-pkce + redis-rate-limiting are compiled in so the #770/#777 boot-guard
@@ -135,7 +135,7 @@ func (m *FraiseqlCi) lintBase() *dagger.Container {
 
 // ── Phase 02: Fast Gates ──────────────────────────────────────────────────────
 //
-// Ports the cheap-but-frequent lint/format/doc gates from ci.yml so every change
+// The cheap-but-frequent lint/format/doc gates, so every change
 // can be checked locally with one `dagger call preflight` before pushing, and the
 // same functions back the self-hosted `dagger-preflight.yml` workflow.
 
@@ -171,7 +171,7 @@ func (m *FraiseqlCi) Preflight(
 	return report.String(), nil
 }
 
-// Fmt mirrors ci.yml's Format Check: `cargo +nightly fmt --all -- --check`. rustfmt's
+// Fmt: `cargo +nightly fmt --all -- --check`. rustfmt's
 // advanced options need nightly (rust-toolchain.toml pins stable to the MSRV), so
 // rustBase carries a minimal nightly with only the rustfmt component.
 func (m *FraiseqlCi) Fmt(
@@ -186,10 +186,10 @@ func (m *FraiseqlCi) Fmt(
 		Stdout(ctx)
 }
 
-// Clippy mirrors ci.yml's Clippy Lints:
+// Clippy:
 // `cargo clippy --workspace --all-features --all-targets -- -D warnings`.
 // --all-features is intentional (lints every feature path; the test-* gate features
-// only need infra at runtime) — see the ci.yml comment.
+// only need infra at runtime).
 func (m *FraiseqlCi) Clippy(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -200,10 +200,16 @@ func (m *FraiseqlCi) Clippy(
 			"cargo", "clippy", "--workspace", "--all-features", "--all-targets",
 			"--", "-D", "warnings",
 		}).
+		// The async-jobs example subgraph is its own crate outside the workspace;
+		// its clippy gate lived only in the retired legacy ci.yml (#951).
+		WithWorkdir("/src/examples/async-jobs-subgraph/subgraph").
+		WithExec([]string{
+			"cargo", "clippy", "--all-targets", "--", "-D", "warnings",
+		}).
 		Stdout(ctx)
 }
 
-// Rustdoc mirrors ci.yml's Documentation gate:
+// Rustdoc:
 // `RUSTDOCFLAGS=-D warnings cargo doc --workspace --all-features --no-deps`.
 func (m *FraiseqlCi) Rustdoc(
 	ctx context.Context,
@@ -216,7 +222,7 @@ func (m *FraiseqlCi) Rustdoc(
 		Stdout(ctx)
 }
 
-// ShellGates runs every non-Rust lint gate from the ci.yml clippy job verbatim, in
+// ShellGates runs every non-Rust lint gate, in
 // order, in one minimal container — the `make lint-*` policy checks (pure grep/wc
 // over src/), plus check-test-imports.sh and the Phase-01 route-syntax gate. These
 // need no Rust toolchain, so they stay off the heavy rustBase. `git init` supplies
@@ -344,7 +350,7 @@ func (m *FraiseqlCi) shellBase() *dagger.Container {
 
 // ── Phase 03: Workspace Test Suite ────────────────────────────────────────────
 //
-// Ports ci.yml's `test` job (Linux path): a full `cargo build --all-features`
+// The workspace test leg: a full `cargo build --all-features`
 // followed by the feature-scoped `cargo test -p …` invocations (the SYNC:* lists)
 // and the doctest pass. Parameterized by toolchain (stable | MSRV 1.92).
 
@@ -411,7 +417,7 @@ func (m *FraiseqlCi) Test(
 		"cargo test -p fraiseql-wire --lib --all-features",
 		// fraiseql-arrow was --exclude'd from the workspace run above and named by
 		// no other Dagger leg, so nothing in CI had run any of its ~380 tests since
-		// the Dagger migration. (`ci.yml` names three of its binaries, but that
+		// the Dagger migration. (The legacy hosted workflow named three of its binaries, but that
 		// whole workflow has been workflow_dispatch-only since then.) That is how
 		// #716 — the Flight result cache keyed on SQL text alone, serving one
 		// principal's rows to another — shipped. Its DB-backed binaries skip
@@ -558,7 +564,7 @@ func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
 
 // ── Phase 04: Integration Matrix ──────────────────────────────────────────────
 //
-// Ports ci.yml's integration-* jobs onto Dagger-native service bindings — NO
+// The integration shards, on Dagger-native service bindings — NO
 // testcontainers, NO DinD. Each backing service is a dag.Container().AsService()
 // bound into the test container; the tests read the injected env URL through the
 // fraiseql-test-support harness. This makes local == CI: `dagger call
@@ -566,12 +572,12 @@ func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
 // self-hosted workflow does. See parity-notes.md Phase 04.
 
 const (
-	// pgImage pins the integration Postgres (matches ci.yml's integration jobs).
+	// pgImage pins the integration Postgres.
 	// pgvector/pgvector:pg16 = the official postgres:16 plus the pgvector
 	// extension (#386's executed vector-similarity suites CREATE and query it);
 	// mirrored by mirror-base-images.yml like every other base image.
 	pgImage = "ghcr.io/fraiseql/pgvector:pg16"
-	// pgUser/pgPassword/pgDatabase are the test-only Postgres credentials from ci.yml.
+	// pgUser/pgPassword/pgDatabase are the test-only Postgres credentials.
 	pgUser     = "fraiseql_test"
 	pgPassword = "fraiseql_test_password"
 	pgDatabase = "test_fraiseql"
@@ -579,17 +585,17 @@ const (
 	// its internal 5432 (not the legacy host-mapped 5433).
 	pgBindHost = "postgres"
 
-	// redisImage / redisBindHost — the Redis service (ci.yml integration-redis).
+	// redisImage / redisBindHost — the Redis service.
 	redisImage    = "ghcr.io/fraiseql/redis:7-alpine"
 	redisBindHost = "redis"
 
 	// vaultImage / vaultBindHost / vaultToken — the Vault dev-mode service
-	// (ci.yml integration-vault). Dev-mode root token; test-only.
+	// Dev-mode root token; test-only.
 	vaultImage    = "ghcr.io/fraiseql/vault:1.17"
 	vaultBindHost = "vault"
 	vaultToken    = "fraiseql-test-token"
 
-	// natsImage / natsBindHost — the NATS JetStream service (ci.yml integration-nats),
+	// natsImage / natsBindHost — the NATS JetStream service,
 	// started with `-js -m 8222`.
 	natsImage    = "ghcr.io/fraiseql/nats:2.10-alpine"
 	natsBindHost = "nats"
@@ -601,13 +607,13 @@ const (
 	mailhogImage    = "ghcr.io/fraiseql/mailhog:v1.0.1"
 	mailhogBindHost = "mailhog"
 
-	// serverBindHost / e2eMetricsToken — the HTTP E2E server service (ci.yml
+	// serverBindHost / e2eMetricsToken — the HTTP E2E server service (legacy
 	// integration-http-e2e): the fraiseql-server binary run as a bound service the
 	// test container drives over HTTP.
 	serverBindHost  = "fraiseql-server"
 	e2eMetricsToken = "e2e-test-metrics-token-32chars!"
 
-	// tlsBindHost — the TLS Postgres service (ci.yml integration-tls). The cert's
+	// tlsBindHost — the TLS Postgres service. The cert's
 	// SAN includes this alias (CERT_HOSTNAME) so rustls servername verification
 	// passes when the wire client connects to it.
 	tlsBindHost = "postgres-tls"
@@ -618,7 +624,7 @@ const (
 	wireBindHost = "postgres-wire"
 
 	// azuriteImage / azuriteBindHost — the Azure Blob emulator for the fraiseql-storage
-	// azure_emulator test (ci.yml integration-storage). The backend reaches it at
+	// azure_emulator test. The backend reaches it at
 	// http://<alias>:10000/devstoreaccount1 via AZURE_BLOB_ENDPOINT.
 	azuriteImage    = "mcr.microsoft.com/azure-storage/azurite:latest"
 	azuriteBindHost = "azurite"
@@ -1531,7 +1537,7 @@ func (m *FraiseqlCi) integrationVault(ctx context.Context, source *dagger.Direct
 		Stdout(ctx)
 }
 
-// integrationTLS runs ci.yml's integration-tls job: a TLS-enabled Postgres and the
+// integrationTLS: a TLS-enabled Postgres and the
 // fraiseql-wire TLS integration tests. The CA + server cert are pre-generated once
 // (SAN includes the bind alias so rustls servername verification passes); the server
 // cert goes into the pg service and the CA cert is injected DIRECTLY into the test
@@ -1624,7 +1630,7 @@ EOSQL
 		AsService()
 }
 
-// integrationHTTPE2e runs ci.yml's integration-http-e2e job: it boots the actual
+// integrationHTTPE2e boots the actual
 // fraiseql-server binary as a bound Dagger service (which itself binds an
 // e2e-seeded Postgres), then drives it over HTTP from the test container. The e2e
 // tests are skip-on-None (FRAISEQL_TEST_URL); legacy's --ignored ran 0, so they run
@@ -1708,7 +1714,7 @@ func (m *FraiseqlCi) pgE2eService(source *dagger.Directory) *dagger.Service {
 }
 
 // integrationObservers binds Postgres + Redis + NATS and runs the observer-runtime
-// integration suites from ci.yml's integration-observers job: PostgreSQL NOTIFY
+// integration suites: PostgreSQL NOTIFY
 // transport, storage/lease (Redis), the PG+NATS bridge, and fraiseql-server's
 // observer runtime. All read their service URLs from env (DATABASE_URL / REDIS_URL /
 // NATS_URL); the bridge's NatsConfig url is overridden from NATS_URL.

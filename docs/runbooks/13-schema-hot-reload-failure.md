@@ -215,7 +215,7 @@ mutations, SQL templates). The following require a full process restart:
    ```
 
 2. **Add `fraiseql validate` to CI:** the pipeline should reject invalid schemas
-   before they reach production. See `.github/workflows/ci.yml` for the
+   before they reach production. See `.dagger/main.go` (the CI leg definitions) for the
    `fraiseql validate-documents` step.
 
 3. **Alert on reload errors:** configure `fraiseql_schema_reload_errors_total`

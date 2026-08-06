@@ -11,7 +11,7 @@ name: Release Smoke
 # asserts the default health endpoint responds within ~30s, and then runs one
 # real GraphQL query through the full parse → SQL → execute → serialize pipeline
 # (coverage gap §5: smoke more than /health). Mirrors the `integration-http-e2e`
-# job in ci.yml but is wired to release-track events so a failure blocks release.
+# job in the legacy hosted workflow but is wired to release-track events so a failure blocks release.
 
 on:
   push:

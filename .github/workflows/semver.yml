@@ -6,7 +6,7 @@ name: semver-checks
 # `cargo semver-checks check-release --workspace` takes >60 min on the default
 # 2-vCPU runner and consistently cancels on the per-PR path, so it ran for cost
 # with no actionable signal. The focused `API Semver Compatibility` job in
-# `ci.yml` (5 named crates, --baseline-rev v<latest>) still runs on every PR and
+# the retired legacy ci.yml (5 named crates, --baseline-rev v<latest>) once ran on every PR and
 # is the gate that matters. Run this workflow manually before a release tag, or
 # weekly via the GitHub Actions UI.
 
