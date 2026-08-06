@@ -65,31 +65,14 @@ async fn install_prerequisites(pool: &PgPool) {
     .await
     .unwrap();
 
-    // Source tables (the observer/install convention — drop for a clean per-run slate).
-    sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
+    // #942/#982: the change-log table comes from the ONE shared provisioner
+    // (contract shape — object_id UUID nullable). The private TEXT-flavoured
+    // twin this suite used to create is what the doctor suite tripped over on
+    // a warm database.
+    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
         .execute(pool)
         .await
         .unwrap();
-    sqlx::query(
-        r"
-        CREATE TABLE core.tb_entity_change_log (
-            pk_entity_change_log BIGSERIAL PRIMARY KEY,
-            id UUID NOT NULL DEFAULT gen_random_uuid(),
-            fk_customer_org TEXT,
-            fk_contact TEXT,
-            object_type TEXT NOT NULL,
-            object_id TEXT NOT NULL,
-            modification_type TEXT NOT NULL,
-            change_status TEXT,
-            object_data JSONB NOT NULL,
-            extra_metadata JSONB,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-        ",
-    )
-    .execute(pool)
-    .await
-    .unwrap();
     sqlx::query(
         r"
         CREATE TABLE IF NOT EXISTS core.tb_transport_checkpoint (
@@ -128,8 +111,8 @@ async fn migration_installs_views_and_upsert_fn() {
         INSERT INTO core.tb_entity_change_log
             (object_type, object_id, modification_type, object_data, extra_metadata)
         VALUES
-            ('User',  gen_random_uuid()::text, 'INSERT', '{"a":1}'::jsonb, NULL),
-            ('Order', gen_random_uuid()::text, 'UPDATE', '{"b":2}'::jsonb, '{"src":"t"}'::jsonb)
+            ('User',  gen_random_uuid(), 'INSERT', '{"a":1}'::jsonb, NULL),
+            ('Order', gen_random_uuid(), 'UPDATE', '{"b":2}'::jsonb, '{"src":"t"}'::jsonb)
         "#,
     )
     .execute(&pool)

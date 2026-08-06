@@ -74,39 +74,11 @@ async fn provision(adapter: &PostgresAdapter) {
         .await
         .unwrap();
 
-    // The framework-owned change-log contract table (the executor writes its
-    // outbox row here on every mutation, changelog being default-on). DROP+CREATE
-    // to the contract shape (object_id UUID *nullable* — a checkpoint upsert has
-    // no entity_id) so the test is not at the mercy of a stale app-shaped table
-    // (object_id TEXT NOT NULL) left in the shared warm database.
-    adapter.execute_raw_query("CREATE SCHEMA IF NOT EXISTS core").await.unwrap();
-    adapter
-        .execute_raw_query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
-        .await
-        .unwrap();
-    adapter
-        .execute_raw_query("DROP SEQUENCE IF EXISTS core.seq_entity_change_log")
-        .await
-        .unwrap();
-    adapter
-        .execute_raw_query("CREATE SEQUENCE core.seq_entity_change_log")
-        .await
-        .unwrap();
-    adapter
-        .execute_raw_query(
-            "CREATE TABLE core.tb_entity_change_log (\
-             pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, \
-             object_type TEXT NOT NULL, modification_type TEXT NOT NULL, \
-             id UUID NOT NULL DEFAULT gen_random_uuid(), \
-             created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
-             object_id UUID, object_data JSONB, updated_fields TEXT[], cascade JSONB, \
-             duration_ms INTEGER, started_at TIMESTAMPTZ, extra_metadata JSONB, \
-             tenant_id UUID, trace_id TEXT, schema_version TEXT, trace_context JSONB, \
-             actor_type TEXT, acting_for UUID, commit_time TIMESTAMPTZ, \
-             seq BIGINT DEFAULT nextval('core.seq_entity_change_log'))",
-        )
-        .await
-        .unwrap();
+    // #942/#982: the ONE shared provisioner (migration-08 contract), one
+    // statement per call (execute_raw_query is single-statement).
+    for stmt in fraiseql_test_support::changelog::entity_change_log_provision_statements() {
+        adapter.execute_raw_query(&stmt).await.unwrap();
+    }
 
     // Fresh isolated schema with the source tables (observer/install convention).
     adapter

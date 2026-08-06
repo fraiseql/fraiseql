@@ -291,8 +291,14 @@ async fn change_log_actor_stats_sees_null_unknown_and_constraint() {
         let _ = conn.await;
     });
 
-    // Bring the shared table to the current contract (idempotent, additive).
-    client.batch_execute(CONTRACT_SQL).await.expect("apply contract DDL");
+    // Bring the shared table to the current contract via the ONE shared
+    // provisioner (#942/#982): drop-and-recreate, because the additive contract
+    // cannot undo a stricter twin an earlier suite left behind (the warm-database
+    // red this issue documented).
+    client
+        .batch_execute(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
+        .await
+        .expect("apply contract DDL");
 
     // Plant: two unattributed rows, one canonical row, and — with the
     // constraint temporarily out of the way — one rogue-token row.
