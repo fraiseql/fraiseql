@@ -32,6 +32,11 @@ async fn pg_decodes_text_array_columns() {
     let (client, _svc) = connect_pg().await;
 
     // Create table with TEXT[] column
+    // #968: drop-first so the suite is rerun-safe on a shared database.
+    client
+        .execute("DROP TABLE IF EXISTS test_table CASCADE", &[])
+        .await
+        .expect("drop-first");
     client
         .execute(
             "CREATE TABLE test_table (
@@ -88,6 +93,15 @@ async fn pg_decodes_enum_columns() {
     let (client, _svc) = connect_pg().await;
 
     // Create ENUM type and table
+    // #968: drop-first so the suite is rerun-safe on a shared database.
+    client
+        .execute("DROP TABLE IF EXISTS test_enum_table CASCADE", &[])
+        .await
+        .expect("drop-first");
+    client
+        .execute("DROP TYPE IF EXISTS status_enum CASCADE", &[])
+        .await
+        .expect("drop-first");
     client
         .execute("CREATE TYPE status_enum AS ENUM ('active', 'inactive', 'pending')", &[])
         .await
@@ -144,6 +158,11 @@ async fn pg_decodes_mixed_types_with_nulls() {
     let (client, _svc) = connect_pg().await;
 
     // Create test table with multiple types
+    // #968: drop-first so the suite is rerun-safe on a shared database.
+    client
+        .execute("DROP TABLE IF EXISTS mixed_types CASCADE", &[])
+        .await
+        .expect("drop-first");
     client
         .execute(
             "CREATE TABLE mixed_types (
