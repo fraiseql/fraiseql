@@ -1,10 +1,9 @@
 //! Canonical database-URL resolution.
 //!
 //! This is the one place the database test-URL policy lives — `DATABASE_URL` for
-//! PostgreSQL, `MYSQL_URL` for MySQL, `SQLSERVER_URL` for SQL Server. `fraiseql-test-utils`
-//! re-exports these so its existing callers keep working without a second copy. Each
-//! `*_url()` panics loudly when unset; each `try_*_url()` returns `None` for self-skipping
-//! tests.
+//! PostgreSQL (the only supported backend since v2.15.0's de-scope, #374).
+//! [`database_url`] panics loudly when unset; [`try_database_url`] returns `None`
+//! for self-skipping tests.
 
 #![allow(clippy::panic)] // Reason: test infrastructure — panics with an actionable message are acceptable
 
@@ -29,39 +28,6 @@ pub fn database_url() -> String {
 #[must_use]
 pub fn try_database_url() -> Option<String> {
     env_url("DATABASE_URL")
-}
-
-/// Returns the MySQL test URL from the `MYSQL_URL` environment variable.
-///
-/// # Panics
-///
-/// Panics with an actionable message if `MYSQL_URL` is not set (see [`database_url`]).
-#[must_use]
-pub fn mysql_url() -> String {
-    resolve_or_panic("MYSQL_URL", "mysql://...", try_mysql_url())
-}
-
-/// Returns the MySQL test URL if `MYSQL_URL` is set, or `None` otherwise.
-#[must_use]
-pub fn try_mysql_url() -> Option<String> {
-    env_url("MYSQL_URL")
-}
-
-/// Returns the SQL Server test connection string from the `SQLSERVER_URL` environment
-/// variable (ADO form, e.g. `server=host,1433;database=...;user=...;password=...`).
-///
-/// # Panics
-///
-/// Panics with an actionable message if `SQLSERVER_URL` is not set (see [`database_url`]).
-#[must_use]
-pub fn sqlserver_url() -> String {
-    resolve_or_panic("SQLSERVER_URL", "server=host,1433;database=...", try_sqlserver_url())
-}
-
-/// Returns the SQL Server test connection string if `SQLSERVER_URL` is set, or `None`.
-#[must_use]
-pub fn try_sqlserver_url() -> Option<String> {
-    env_url("SQLSERVER_URL")
 }
 
 /// Resolve a database URL or panic loudly. Split out so the loud-failure contract is
