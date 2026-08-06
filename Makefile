@@ -439,6 +439,19 @@ lint-routes:
 lint-guard-parity:
 	@bash tools/check-guard-parity.sh
 
+# Gate: every test suite (tests/*.rs binary and feature-gated lib test module)
+# maps to a CI leg that actually executes it — execution coverage is a checked
+# artifact, not an inference. Exemptions: tools/suite-coverage-exemptions.toml.
+.PHONY: lint-suite-coverage
+lint-suite-coverage:
+	@python3 tools/check-suite-coverage.py
+
+# Gate: snapshot pairing, both directions — every .snap registered in
+# tests/snapshot-pairs.md, and no registry row naming a deleted snapshot (#986).
+.PHONY: lint-snapshot-pairing
+lint-snapshot-pairing:
+	@bash tools/check-snapshot-pairing.sh
+
 # Gate: deployment artifacts must not re-expose backing services (H46) or regress the
 # Phase-13 sweep — loopback-only ports, authenticated Redis, fail-loud secrets, no
 # :latest pins, no readOnlyRootFilesystem: false. See tools/check-deploy-security.sh.
@@ -487,7 +500,7 @@ lint-docs-version:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-suite-coverage lint-snapshot-pairing test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
