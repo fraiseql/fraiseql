@@ -1,6 +1,0 @@
----
-source: crates/fraiseql-core/tests/sql_snapshots.rs
-assertion_line: 765
-expression: sql
----
-json_extract(data, '$.email') = ?

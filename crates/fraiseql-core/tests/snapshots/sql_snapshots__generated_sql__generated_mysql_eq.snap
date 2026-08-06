@@ -1,5 +1,0 @@
----
-source: crates/fraiseql-core/tests/sql_snapshots.rs
-expression: sql
----
-JSON_UNQUOTE(JSON_EXTRACT(data, '$.email')) = ?

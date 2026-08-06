@@ -70,7 +70,10 @@ Every snapshot in `crates/fraiseql-core/tests/snapshots/` must be registered in
 | `doc-only` | Pure documentation snapshot (e.g. basic SELECT without WHERE). No generator to call; the snapshot serves as a spec, not a regression test. Must include a comment explaining why. |
 
 **A snapshot may never be left unregistered.** The `tools/check-snapshot-pairing.sh`
-script (run as a pre-commit hook) enforces this. When you add a new snapshot, register it:
+script (run in the preflight ShellGates leg, `make lint-snapshot-pairing`, and as a
+pre-commit hook) enforces this **in both directions** — an unregistered snapshot
+fails, and so does a registry row naming a snapshot that no longer exists.
+When you add a new snapshot, register it:
 
 ```bash
 # 1. Add entry to tests/snapshot-pairs.md

@@ -1,5 +1,0 @@
----
-source: crates/fraiseql-core/tests/sql_snapshots.rs
-expression: sql
----
-SELECT '[' || GROUP_CONCAT('"' || tag || '"', ',') || ']' AS tags FROM "v_post"

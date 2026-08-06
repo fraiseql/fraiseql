@@ -1,5 +1,0 @@
----
-source: crates/fraiseql-core/tests/sql_snapshots.rs
-expression: sql
----
-SELECT JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.address.city')) FROM `v_user` WHERE JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.address.city')) = ?
