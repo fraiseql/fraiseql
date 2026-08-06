@@ -88,7 +88,7 @@ jobs:
         id: build
         run: |
           cd crates/${{ matrix.crate }}
-          cargo +${FUZZ_NIGHTLY} fuzz build ${{ matrix.target }}
+          cargo "+${FUZZ_NIGHTLY}" fuzz build ${{ matrix.target }}
 
       - name: Restore / persist fuzz corpus
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
@@ -108,7 +108,7 @@ jobs:
           # is re-tested on every run rather than depending on a 90-day cache surviving.
           seed="fuzz/seed_corpus/${{ matrix.target }}"
           [ -d "$seed" ] || seed=""
-          cargo +${FUZZ_NIGHTLY} fuzz run ${{ matrix.target }} \
+          cargo "+${FUZZ_NIGHTLY}" fuzz run ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} $seed \
             -- -max_total_time="${FUZZ_MAX_TOTAL_TIME}" \
                -max_len=65536 \

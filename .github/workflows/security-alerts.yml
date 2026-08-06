@@ -40,22 +40,22 @@ jobs:
           SLIM_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/slim-scan.json || echo 0)
           SLIM_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/slim-scan.json || echo 0)
 
-          echo "slim_critical=$SLIM_CRITICAL" >> $GITHUB_OUTPUT
-          echo "slim_high=$SLIM_HIGH" >> $GITHUB_OUTPUT
+          echo "slim_critical=$SLIM_CRITICAL" >> "$GITHUB_OUTPUT"
+          echo "slim_high=$SLIM_HIGH" >> "$GITHUB_OUTPUT"
 
           # Determine alert level
           TOTAL_CRITICAL=$SLIM_CRITICAL
           TOTAL_HIGH=$SLIM_HIGH
 
           if [ "$TOTAL_CRITICAL" -gt 0 ]; then
-            echo "alert_level=CRITICAL" >> $GITHUB_OUTPUT
-            echo "should_alert=true" >> $GITHUB_OUTPUT
+            echo "alert_level=CRITICAL" >> "$GITHUB_OUTPUT"
+            echo "should_alert=true" >> "$GITHUB_OUTPUT"
           elif [ "$TOTAL_HIGH" -gt 0 ]; then
-            echo "alert_level=HIGH" >> $GITHUB_OUTPUT
-            echo "should_alert=true" >> $GITHUB_OUTPUT
+            echo "alert_level=HIGH" >> "$GITHUB_OUTPUT"
+            echo "should_alert=true" >> "$GITHUB_OUTPUT"
           else
-            echo "alert_level=NONE" >> $GITHUB_OUTPUT
-            echo "should_alert=false" >> $GITHUB_OUTPUT
+            echo "alert_level=NONE" >> "$GITHUB_OUTPUT"
+            echo "should_alert=false" >> "$GITHUB_OUTPUT"
           fi
 
           # Generate summary
@@ -70,8 +70,8 @@ jobs:
           - 🟠 High: $SLIM_HIGH
 
           > Note: distroless scan removed — no in-tree Dockerfile uses
-          > `gcr.io/distroless/python3-debian12:nonroot`. Re-enable when
-          > a `distroless-python:3.13` image is adopted.
+          > \`gcr.io/distroless/python3-debian12:nonroot\`. Re-enable when
+          > a \`distroless-python:3.13\` image is adopted.
 
           ## Action Required
           EOF
@@ -139,10 +139,10 @@ jobs:
           STATUS=$(curl -s https://security-tracker.debian.org/tracker/CVE-2025-14104 | grep -i "fixed\|resolved\|patched" || echo "not_fixed")
 
           if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
-            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "status=FIXED" >> "$GITHUB_OUTPUT"
             echo "✅ CVE-2025-14104 has been fixed!"
           else
-            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "status=UNFIXED" >> "$GITHUB_OUTPUT"
             echo "⏳ CVE-2025-14104 still awaiting patch"
           fi
 
@@ -155,10 +155,10 @@ jobs:
           STATUS=$(curl -s https://www.gnutls.org/security-new.html | grep -i "SA-2025-11-18\|CVE-2025-9820" || echo "not_found")
 
           if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
-            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "status=FIXED" >> "$GITHUB_OUTPUT"
             echo "✅ CVE-2025-9820 has been fixed!"
           else
-            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "status=UNFIXED" >> "$GITHUB_OUTPUT"
             echo "⏳ CVE-2025-9820 still awaiting details/patch"
           fi
 
@@ -170,10 +170,10 @@ jobs:
           STATUS=$(curl -s https://security-tracker.debian.org/tracker/CVE-2025-6141 | grep -i "fixed\|resolved\|patched" || echo "not_fixed")
 
           if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
-            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "status=FIXED" >> "$GITHUB_OUTPUT"
             echo "✅ CVE-2025-6141 has been fixed!"
           else
-            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "status=UNFIXED" >> "$GITHUB_OUTPUT"
             echo "⏳ CVE-2025-6141 still awaiting patch"
           fi
 
@@ -185,10 +185,10 @@ jobs:
           STATUS=$(curl -s https://security-tracker.debian.org/tracker/CVE-2024-56433 | grep -i "fixed\|resolved\|patched" || echo "not_fixed")
 
           if echo "$STATUS" | grep -qi "fixed\|resolved\|patched"; then
-            echo "status=FIXED" >> $GITHUB_OUTPUT
+            echo "status=FIXED" >> "$GITHUB_OUTPUT"
             echo "✅ CVE-2024-56433 has been fixed!"
           else
-            echo "status=UNFIXED" >> $GITHUB_OUTPUT
+            echo "status=UNFIXED" >> "$GITHUB_OUTPUT"
             echo "⏳ CVE-2024-56433 still awaiting patch"
           fi
 
@@ -234,19 +234,21 @@ jobs:
           if [ "$FIXED_COUNT" -eq 0 ]; then
             echo "- ⏳ All CVEs still awaiting patches - continue monitoring" >> /tmp/cve-monitoring-report.md
           else
-            echo "" >> /tmp/cve-monitoring-report.md
-            echo "**Immediate Actions:**" >> /tmp/cve-monitoring-report.md
-            echo "1. Pull latest base images: \`docker pull python:3.13-slim\`" >> /tmp/cve-monitoring-report.md
-            echo "2. Rebuild FraiseQL images" >> /tmp/cve-monitoring-report.md
-            echo "3. Run Trivy scan to verify fixes" >> /tmp/cve-monitoring-report.md
-            echo "4. Remove fixed CVEs from .trivyignore" >> /tmp/cve-monitoring-report.md
-            echo "5. Deploy updated images within 7 days (SLA)" >> /tmp/cve-monitoring-report.md
+            {
+              echo ""
+              echo "**Immediate Actions:**"
+              echo "1. Pull latest base images: \`docker pull python:3.13-slim\`"
+              echo "2. Rebuild FraiseQL images"
+              echo "3. Run Trivy scan to verify fixes"
+              echo "4. Remove fixed CVEs from .trivyignore"
+              echo "5. Deploy updated images within 7 days (SLA)"
+            } >> /tmp/cve-monitoring-report.md
           fi
 
           cat /tmp/cve-monitoring-report.md
 
           # Export for next step
-          echo "fixed_count=$FIXED_COUNT" >> $GITHUB_ENV
+          echo "fixed_count=$FIXED_COUNT" >> "$GITHUB_ENV"
 
       - name: Create GitHub Issue if patches available
         if: env.fixed_count > 0

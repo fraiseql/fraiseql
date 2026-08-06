@@ -29,19 +29,19 @@ jobs:
     steps:
       - name: Validate required secrets
         run: |
-          echo "## Secrets Validation" >> $GITHUB_STEP_SUMMARY
+          echo "## Secrets Validation" >> "$GITHUB_STEP_SUMMARY"
           MISSING=0
 
           if [ -z "${{ secrets.CARGO_TOKEN }}" ]; then
-            echo "CARGO_TOKEN missing" >> $GITHUB_STEP_SUMMARY; MISSING=1
+            echo "CARGO_TOKEN missing" >> "$GITHUB_STEP_SUMMARY"; MISSING=1
           else
-            echo "CARGO_TOKEN present" >> $GITHUB_STEP_SUMMARY
+            echo "CARGO_TOKEN present" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           if [ -z "${{ secrets.PYPI_TOKEN }}" ]; then
-            echo "PYPI_TOKEN missing" >> $GITHUB_STEP_SUMMARY; MISSING=1
+            echo "PYPI_TOKEN missing" >> "$GITHUB_STEP_SUMMARY"; MISSING=1
           else
-            echo "PYPI_TOKEN present" >> $GITHUB_STEP_SUMMARY
+            echo "PYPI_TOKEN present" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           # npm uses Trusted Publishing (OIDC) in npm-publish.yml — no NPM_TOKEN.
@@ -146,7 +146,7 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Create or update GitHub Release
         env:
@@ -274,12 +274,7 @@ jobs:
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
 
       - name: Add Rust target (explicit, for cross-compilation)
-        if: '!matrix.use_cross'
         run: rustup target add ${{ matrix.target }}
-
-      - name: Install cross for cross-compiled targets
-        if: matrix.use_cross
-        run: cargo install cross
 
       # cargo-zigbuild pins the target glibc floor (`.2.28`) using zig as the linker,
       # and produces fully-static musl binaries — the mechanism that keeps the release
@@ -308,12 +303,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
 
-      - name: Build binary (cross)
-        if: matrix.use_cross
-        run: cross build --release --target ${{ matrix.target }} --package fraiseql --features cli,server,postgres
-
       - name: Build binary (cargo)
-        if: '!matrix.use_cross && !matrix.zig_target'
+        if: '!matrix.zig_target'
         run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features cli,server,postgres
 
       - name: Build binary (zigbuild, glibc-floored / musl)
@@ -321,7 +312,7 @@ jobs:
         run: cargo zigbuild --release --target ${{ matrix.zig_target }} --package fraiseql --features cli,server,postgres
 
       - name: Strip binary (Linux/macOS native)
-        if: matrix.os != 'windows-latest' && !matrix.use_cross
+        if: matrix.os != 'windows-latest'
         run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}
 
       - name: Create archive (tar.gz)
@@ -724,26 +715,26 @@ jobs:
       - name: Report crates.io publishing results
         if: always()
         run: |
-          echo "## 📦 Crates.io Publishing Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 Crates.io Publishing Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          [ "${{ steps.publish-guard.outcome }}" = "success" ] && echo "- ✅ fraiseql-guard" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-guard" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-error.outcome }}" = "success" ] && echo "- ✅ fraiseql-error" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-error" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-auth" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-wire" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-db.outcome }}" = "success" ] && echo "- ✅ fraiseql-db" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-db" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-storage.outcome }}" = "success" ] && echo "- ✅ fraiseql-storage" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-storage" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-federation" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-codegen.outcome }}" = "success" ] && echo "- ✅ fraiseql-codegen" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-codegen" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-observers.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-functions.outcome }}" = "success" ] && echo "- ✅ fraiseql-functions" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-functions" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-server.outcome }}" = "success" ] && echo "- ✅ fraiseql-server" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-server" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-cli.outcome }}" = "success" ] && echo "- ✅ fraiseql-cli" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-cli" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-root.outcome }}" = "success" ] && echo "- ✅ fraiseql (root)" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql (root)" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-guard.outcome }}" = "success" ] && echo "- ✅ fraiseql-guard" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-guard" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-error.outcome }}" = "success" ] && echo "- ✅ fraiseql-error" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-error" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-auth" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-webhooks" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-wire" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-db.outcome }}" = "success" ] && echo "- ✅ fraiseql-db" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-db" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-storage.outcome }}" = "success" ] && echo "- ✅ fraiseql-storage" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-storage" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-federation" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-core" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-codegen.outcome }}" = "success" ] && echo "- ✅ fraiseql-codegen" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-codegen" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-arrow" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-secrets" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-observers.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-observers" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-functions.outcome }}" = "success" ] && echo "- ✅ fraiseql-functions" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-functions" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-server.outcome }}" = "success" ] && echo "- ✅ fraiseql-server" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-server" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-cli.outcome }}" = "success" ] && echo "- ✅ fraiseql-cli" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-cli" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-root.outcome }}" = "success" ] && echo "- ✅ fraiseql (root)" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql (root)" >> "$GITHUB_STEP_SUMMARY"
 
   # Build and publish Python package
   publish-python:
@@ -808,12 +799,12 @@ jobs:
       - name: Report Python publishing results
         if: always()
         run: |
-          echo "## 🐍 Python Package Publishing Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🐍 Python Package Publishing Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          [ "${{ steps.build-python.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ Build: FAILED" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ❌ PyPI upload: FAILED" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> $GITHUB_STEP_SUMMARY || echo "- ⚠️ Validation: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.build-python.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ Build: FAILED" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ PyPI upload: FAILED" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ⚠️ Validation: SKIPPED" >> "$GITHUB_STEP_SUMMARY"
 
   # npm publishing moved to .github/workflows/npm-publish.yml (Trusted Publishing
   # / OIDC, no NPM_TOKEN). It triggers on the same `v*` tag, so npm ships in
@@ -831,7 +822,7 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Verify every crate is published on crates.io (+ PyPI + npm)
         run: |
@@ -939,9 +930,11 @@ jobs:
       - name: Summary
         if: success()
         run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Release v${{ steps.get_version.outputs.version }} complete!**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Installation:** https://fraiseql.dev/install" >> $GITHUB_STEP_SUMMARY
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "🎉 **Release v${{ steps.get_version.outputs.version }} complete!**"
+            echo ""
+            echo "**Installation:** https://fraiseql.dev/install"
+          } >> "$GITHUB_STEP_SUMMARY"

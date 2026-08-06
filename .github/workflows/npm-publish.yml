@@ -102,9 +102,11 @@ jobs:
       - name: Report results
         if: always()
         run: |
-          echo "## npm Publish Results (Trusted Publishing)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: ${{ steps.ver.outputs.version }} (from ${{ steps.ver.outputs.source }})" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.build.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ Build: FAILED" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.publish.outcome }}" = "success" ] && echo "- ✅ npm upload: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ npm upload: FAILED" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.validate.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ⚠️ Validation: SKIPPED/PENDING" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## npm Publish Results (Trusted Publishing)"
+            echo ""
+            echo "- Version: ${{ steps.ver.outputs.version }} (from ${{ steps.ver.outputs.source }})"
+            [ "${{ steps.build.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" || echo "- ❌ Build: FAILED"
+            [ "${{ steps.publish.outcome }}" = "success" ] && echo "- ✅ npm upload: SUCCESS" || echo "- ❌ npm upload: FAILED"
+            [ "${{ steps.validate.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" || echo "- ⚠️ Validation: SKIPPED/PENDING"
+          } >> "$GITHUB_STEP_SUMMARY"

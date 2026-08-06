@@ -112,12 +112,14 @@ jobs:
 
      - name: Generate compliance report
        run: |
-         echo "# Container Security Report - ${{ matrix.dockerfile.label }}" > security-report.md
-         echo "" >> security-report.md
-         echo "**Image**: ${{ matrix.dockerfile.tag }}" >> security-report.md
-         echo "**Scan Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> security-report.md
-         echo "**Compliance Level**: Government Agency Ready" >> security-report.md
-         echo "" >> security-report.md
+         {
+           echo "# Container Security Report - ${{ matrix.dockerfile.label }}"
+           echo ""
+           echo "**Image**: ${{ matrix.dockerfile.tag }}"
+           echo "**Scan Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+           echo "**Compliance Level**: Government Agency Ready"
+           echo ""
+         } > security-report.md
 
          # Count vulnerabilities by severity
          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
@@ -125,18 +127,22 @@ jobs:
          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
          LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="LOW")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
 
-         echo "## Vulnerability Summary" >> security-report.md
-         echo "- 🔴 Critical: $CRITICAL" >> security-report.md
-         echo "- 🟠 High: $HIGH" >> security-report.md
-         echo "- 🟡 Medium: $MEDIUM" >> security-report.md
-         echo "- 🔵 Low: $LOW" >> security-report.md
-         echo "" >> security-report.md
+         {
+           echo "## Vulnerability Summary"
+           echo "- 🔴 Critical: $CRITICAL"
+           echo "- 🟠 High: $HIGH"
+           echo "- 🟡 Medium: $MEDIUM"
+           echo "- 🔵 Low: $LOW"
+           echo ""
+         } >> security-report.md
 
          # Check for unpatched vulnerabilities
          UNPATCHED=$(jq '[.Results[]?.Vulnerabilities[]? | select(.FixedVersion=="")] | length' trivy-${{ matrix.dockerfile.label }}-detailed.json)
-         echo "## Patch Availability" >> security-report.md
-         echo "- Unpatched vulnerabilities: $UNPATCHED" >> security-report.md
-         echo "" >> security-report.md
+         {
+           echo "## Patch Availability"
+           echo "- Unpatched vulnerabilities: $UNPATCHED"
+           echo ""
+         } >> security-report.md
 
          # Government compliance gate
          if [ "$CRITICAL" -gt 0 ]; then
