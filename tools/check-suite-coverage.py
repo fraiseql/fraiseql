@@ -128,6 +128,16 @@ def parse_cargo_toml(crate_dir: Path) -> dict:
         return tomllib.load(f)
 
 
+def strip_line_comments(src: str) -> str:
+    """Drop `//`, `///` and `//!` comment text, keeping line structure.
+
+    Deliberately naive — it does not understand `//` inside a string literal —
+    because it is only used to count attributes, which cannot appear in a string
+    that matters here. Block comments are left alone for the same reason.
+    """
+    return "\n".join(line.split("//", 1)[0] for line in src.splitlines())
+
+
 def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestBinary]:
     tests_dir = crate_dir / "tests"
     if not tests_dir.is_dir():
@@ -144,8 +154,16 @@ def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestB
         src = f.read_text(encoding="utf-8", errors="replace")
         # Count the binary's own tests BEFORE appending shared-harness sources:
         # a helper-only file with zero tests is not a suite.
-        b.n_tests = len(re.findall(r"#\[(?:tokio::)?test[\]\(]", src))
-        b.n_ignored = len(re.findall(r"#\[ignore\b", src))
+        #
+        # Counted over the code, not the comments: a module doc that explains the
+        # suite self-skips "(no `#[ignore]`)" is prose, and counting it made a
+        # single-test suite look entirely #[ignore]d — a false ORPHAN. Attributes
+        # never legitimately live in a comment, so stripping them is lossless here.
+        # Service detection below deliberately still scans the raw source: over-
+        # detecting a service need is the fail-closed direction.
+        code = strip_line_comments(src)
+        b.n_tests = len(re.findall(r"#\[(?:tokio::)?test[\]\(]", code))
+        b.n_ignored = len(re.findall(r"#\[ignore\b", code))
         # Shared harness modules can hold the service getter for the binary.
         if re.search(r"^\s*(pub\s+)?mod common\b", src, re.M):
             for cf in sorted((tests_dir / "common").glob("**/*.rs")):

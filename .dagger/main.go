@@ -1080,6 +1080,11 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// (admin REST management + live authenticator on one store).
 		"echo '### cargo test -p fraiseql-server --test api_key_postgres_e2e_pg (#627 postgres api keys)'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test api_key_postgres_e2e_pg -- --test-threads=1",
+		// #934 service accounts under [auth_hs256]: the bearer-less x-api-key request
+		// must reach the handler's ADR-0018 seam, while a credential-less request, an
+		// invalid bearer and an unmatched secret all still 401 at the layer.
+		"echo '### cargo test -p fraiseql-server --test hs256_service_account_e2e_pg (#934)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test hs256_service_account_e2e_pg -- --test-threads=1",
 		// #368 P26 — social login through the shipped mount, against a stub IdP:
 		// Google OIDC full loop, the GitHub /user/emails second hop (email-keyed
 		// linking), the auth_start path bucket on /auth/v1/authorize (#788), and
