@@ -377,8 +377,9 @@ func (m *FraiseqlCi) Test(
 		// prints them regardless), and warm runs are short.
 		"cargo build --all-features",
 		"echo '### skipped in-engine (env-incompatible; restored in a later phase):'",
+		// (runtime-deno was on this list until #971 — the SIGSEGV was #969's
+		// per-process second-isolate crash, not a sandbox limitation.)
 		"echo '###   testcontainers (need Docker): storage metadata/migrations/routes::tests, functions migrations::tests, fraiseql-wire tests/*'",
-		"echo '###   runtime-deno (v8 SIGSEGVs in exec sandbox): functions deno tests, excluded by feature'",
 		"echo '### cargo test --workspace (non-DB crates; wire+functions run separately below)'",
 		"cargo test --workspace" +
 			// fraiseql-arrow is excluded here and run explicitly below, so its
@@ -398,16 +399,14 @@ func (m *FraiseqlCi) Test(
 		// gracefully without DATABASE_URL, so the whole crate runs here.
 		"echo '### cargo test -p fraiseql-arrow --all-features (DB-backed binaries skip gracefully without DATABASE_URL)'",
 		"cargo test -p fraiseql-arrow --all-features",
-		// fraiseql-functions runs with all features EXCEPT runtime-deno. Every v8
-		// path (the 23 runtime::deno tests + observer::tests::*dispatches_ts_to_deno)
-		// is #[cfg(feature = "runtime-deno")], and embedded V8 SIGSEGVs inside the
-		// engine's exec sandbox even single-threaded (it works on the bare-metal
-		// runner). Dropping the feature cfgs those tests out cleanly; the build
-		// --all-features step above still compiles the deno path. migrations::tests
-		// skipped (testcontainers). v8-in-sandbox is a follow-up (host-run or a
-		// relaxed exec sandbox) — see parity-notes.md.
-		"echo '### cargo test -p fraiseql-functions (all features except runtime-deno: v8 SIGSEGVs in-engine; migrations::tests skipped: testcontainers)'",
-		"cargo test -p fraiseql-functions --features 'runtime-wasm,host-live,host-storage' -- --skip migrations::tests",
+		// fraiseql-functions including runtime-deno (#971): the old "V8 SIGSEGVs
+		// in the exec sandbox" diagnosis was wrong — the crash was the
+		// second-V8-isolate-per-process bug, fixed by #969; the sandbox was never
+		// shown to be at fault. `cargo test` runs one process per binary, and the
+		// whole deno suite passes in one shared process since #969.
+		// migrations::tests skipped (testcontainers).
+		"echo '### cargo test -p fraiseql-functions (all features incl. runtime-deno per #971/#969; migrations::tests skipped: testcontainers)'",
+		"cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live,host-storage' -- --skip migrations::tests",
 		// core/db: --lib only. Their src/ unit tests are Docker-free, but their
 		// tests/* integration binaries boot Postgres via tests/common/testcontainer.rs
 		// (and the federation/* docker tests) — those belong to Phase 04's integration
@@ -751,10 +750,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// seam, the SourcePoller build_host composition (cursor round-trip vs PG +
 		// executor reachable via host.query), and the scheduler's schedulable/config
 		// resolution. `--features sources` pulls the Deno path (compiled only). The
-		// one V8 end-to-end (fires_a_model_b_connector_end_to_end — a real connector)
-		// is local-only, excluded here by name (embedded V8 SIGSEGVs in the exec
-		// sandbox), like the functions runtime-deno tests.
-		"cargo test -p fraiseql-server --features sources --lib sources:: -- --skip fires_a_model_b_connector_end_to_end --test-threads=1",
+		// The fires_a_model_b_connector_end_to_end name-skip is lifted (#971):
+		// the "V8 SIGSEGVs in the exec sandbox" diagnosis was #969's
+		// second-isolate-per-process crash, fixed there — this run is the
+		// sandbox re-test the issue asked for.
+		"cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1",
 		// P16 functions-runtime gate (#796/#803/#840/#841/#842): the cron
 		// fire-window + cross-restart guard vs real PG (`cron::tests` reads
 		// back `_fraiseql_cron_state`), and the dispatched host's identity /
