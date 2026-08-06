@@ -16,3 +16,19 @@ chmod 600 "$PGDATA/server.key"
     echo "ssl_cert_file = 'server.crt'"
     echo "ssl_key_file = 'server.key'"
 } >>"$PGDATA/postgresql.conf"
+
+# The wire TLS suite queries v_test_entity and expects at least 10 rows (#997).
+# `tlsPgService()` seeds it, so the CI leg passed while every local run failed with
+# `relation "v_test_entity" does not exist`. Keep this in step with the Dagger
+# heredoc — "mirrors tlsPgService()" is the whole contract of this file.
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-'EOSQL'
+    CREATE TABLE IF NOT EXISTS test_entities (
+        id   SERIAL PRIMARY KEY,
+        name TEXT  NOT NULL,
+        data JSONB NOT NULL DEFAULT '{}'
+    );
+    INSERT INTO test_entities (name, data)
+    SELECT 'entity_' || i, jsonb_build_object('index', i, 'tag', md5(i::text))
+    FROM generate_series(1, 20) AS i;
+    CREATE OR REPLACE VIEW v_test_entity AS SELECT id, name, data FROM test_entities;
+EOSQL
