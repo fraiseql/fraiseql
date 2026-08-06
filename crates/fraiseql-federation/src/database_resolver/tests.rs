@@ -12,12 +12,6 @@ use crate::{
 };
 
 #[test]
-fn test_database_resolver_creation() {
-    // Test that resolver can be created (mock adapter would be used)
-    // Actual DB tests are in integration tests
-}
-
-#[test]
 fn quote_relation_quotes_a_bare_view_name() {
     assert_eq!(quote_relation("v_organization").unwrap(), "\"v_organization\"");
 }

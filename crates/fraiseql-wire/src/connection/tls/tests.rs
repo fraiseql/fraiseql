@@ -27,11 +27,6 @@ fn test_tls_config_builder_with_hostname_verification() {
 }
 
 #[test]
-fn test_tls_config_builder_with_custom_ca() {
-    // This test would require an actual PEM file
-}
-
-#[test]
 fn test_parse_server_name_valid() {
     let _name = parse_server_name("localhost").expect("localhost should be a valid server name");
     let _name =

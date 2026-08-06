@@ -452,6 +452,12 @@ lint-suite-coverage:
 lint-snapshot-pairing:
 	@bash tools/check-snapshot-pairing.sh
 
+# Gate: no #[test] whose body is only comments — write the assertion or delete
+# the test (#895; the #748 empty-test class).
+.PHONY: lint-empty-tests
+lint-empty-tests:
+	@bash tools/check-empty-tests.sh
+
 # Gate: deployment artifacts must not re-expose backing services (H46) or regress the
 # Phase-13 sweep — loopback-only ports, authenticated Redis, fail-loud secrets, no
 # :latest pins, no readOnlyRootFilesystem: false. See tools/check-deploy-security.sh.
@@ -500,7 +506,7 @@ lint-docs-version:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-suite-coverage lint-snapshot-pairing test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

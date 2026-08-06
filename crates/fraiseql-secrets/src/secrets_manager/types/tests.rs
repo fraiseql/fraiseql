@@ -67,17 +67,6 @@ fn test_secret_properties() {
     assert!(empty.is_empty());
 }
 
-/// Test `SecretsBackend` trait requirements
-#[test]
-fn test_secrets_backend_trait_definition() {
-    // Trait should require:
-    // 1. Send + Sync for thread safety
-    // 2. get_secret(&self, name: &str) -> Future<Result<String>>
-    // 3. get_secret_with_expiry(&self, name: &str) -> Future<Result<(String, DateTime<Utc>)>>
-    // 4. rotate_secret(&self, name: &str) -> Future<Result<String>>
-    // All methods async for I/O operations
-}
-
 // ---------------------------------------------------------------------------
 // F012 regression: Secret::drop must zero the underlying buffer.
 // ---------------------------------------------------------------------------

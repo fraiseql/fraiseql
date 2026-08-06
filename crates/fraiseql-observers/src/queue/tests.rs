@@ -409,10 +409,4 @@ mod redis_tests {
 }
 
 #[cfg(test)]
-mod worker_tests {
-    #[test]
-    fn test_job_worker_pool_creation() {
-        // Pool structure is tested through type system
-        // Runtime tests require full async setup
-    }
-}
+mod worker_tests {}
