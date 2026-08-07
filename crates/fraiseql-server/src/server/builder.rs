@@ -5,7 +5,7 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    cache::CachedDatabaseAdapter,
     db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -144,43 +144,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         // Read every schema-derived subsystem through the one shared seam.
         let subsystems = Self::schema_subsystems(&schema, &config).await?;
 
-        // Validate cache + RLS safety at startup. One shared check for every
-        // constructor — see `tenant_isolation_declaration_check`.
-        crate::server::initialization::tenant_isolation_declaration_check(
+        // Build the result cache and wrap the adapter — the one seam every
+        // constructor shares, so `cache_enabled` cannot mean three different
+        // things by constructor (#889). Runs the cache+RLS gates.
+        let (cached, cache_config) = crate::server::initialization::build_cached_adapter(
             &schema,
             config.cache_enabled,
-        )?;
-        // #623: declared cache TTLs with the cache off are silently inert — say so.
-        crate::server::initialization::warn_on_inert_cache_ttls(&schema, config.cache_enabled);
-
-        // Build cache from config.
-        let cache_config = CacheConfig::from(config.cache_enabled);
-        let cache = QueryResultCache::new(cache_config);
-
-        // Log cache state before consuming config.
-        if cache_config.enabled {
-            tracing::info!(
-                max_entries   = cache_config.max_entries,
-                ttl_seconds   = cache_config.ttl_seconds,
-                rls_enforcement = ?cache_config.rls_enforcement,
-                "Query result cache: active"
-            );
-        } else {
-            tracing::info!("Query result cache: disabled");
-        }
-
-        // Unwrap Arc: refcount is 1 here — adapter has not been cloned since being passed in.
-        let inner = Arc::into_inner(adapter)
-            .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
-        let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_cache_metadata_from_schema(&schema)
-            .with_rls(schema.has_rls_configured());
-
-        // Turn the RLS *declaration* into a checked claim against the live catalog.
-        crate::server::initialization::verify_declared_rls(
-            &schema,
-            &cached,
-            cache_config.rls_enforcement,
+            adapter,
         )
         .await?;
 

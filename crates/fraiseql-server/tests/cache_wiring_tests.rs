@@ -219,3 +219,164 @@ async fn test_server_new_cache_disabled_also_builds() {
         .await
         .expect("Server::new must succeed when cache_enabled = false");
 }
+
+// ── Test 5: the Arrow/Flight constructor caches too (#889) ─────────────────
+//
+// `with_flight_service` used to hand the raw adapter straight to the executor, so
+// `cache_enabled = true` did nothing on the arrow boot path — the same TOML behaved
+// completely differently depending on which feature the binary was built with. The
+// assertion is a *hit count* through the shipped HTTP entry point, not a log line:
+// two identical queries must reach the adapter once.
+
+/// A schema whose one query is annotated cacheable. The annotation is required:
+/// `with_cache_metadata_from_schema` puts the adapter in opt-in mode, so a view with
+/// no `cache_ttl_seconds` bypasses the cache on *every* constructor.
+#[cfg(feature = "arrow")]
+fn cacheable_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::default();
+    let mut query = fraiseql_core::schema::QueryDefinition::new("items", "Item");
+    query.sql_source = Some("v_item".to_string());
+    query.cache_ttl_seconds = Some(60);
+    schema.queries.push(query);
+    schema
+}
+
+#[cfg(feature = "arrow")]
+async fn post_graphql(port: u16, body: &str) -> String {
+    reqwest::Client::new()
+        .post(format!("http://127.0.0.1:{port}/graphql"))
+        .header("Content-Type", "application/json")
+        .body(body.to_string())
+        .send()
+        .await
+        .expect("POST /graphql")
+        .text()
+        .await
+        .expect("body")
+}
+
+/// Serve `server` on an ephemeral port, issue the same query twice, and return the
+/// adapter call count plus the first response body.
+#[cfg(feature = "arrow")]
+async fn count_adapter_calls_for_two_identical_queries<A>(
+    server: Server<A>,
+    counter: &Arc<AtomicU64>,
+) -> (u64, String)
+where
+    A: fraiseql_core::db::DatabaseAdapter + Clone + Send + Sync + 'static,
+{
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("local addr").port();
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+
+    let query = r#"{"query":"query { items { id name } }"}"#;
+    let first = post_graphql(port, query).await;
+    let _ = post_graphql(port, query).await;
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    (counter.load(Ordering::SeqCst), first)
+}
+
+#[cfg(feature = "arrow")]
+fn caching_config() -> ServerConfig {
+    ServerConfig {
+        cache_enabled: true,
+        // #874: production validate() refuses cors_enabled=true + empty origins
+        cors_enabled: false,
+        ..ServerConfig::default()
+    }
+}
+
+/// The headline: the arrow boot path caches, and it caches the *same way*
+/// `Server::new` does. Both halves run against the same schema and the same query,
+/// so a difference is a constructor difference and nothing else.
+#[cfg(feature = "arrow")]
+#[tokio::test]
+async fn with_flight_service_caches_exactly_as_server_new_does() {
+    let (adapter, counter) = CountingAdapter::new();
+    let server = Server::new(caching_config(), cacheable_schema(), Arc::new(adapter), None)
+        .await
+        .expect("Server::new must boot with cache_enabled = true");
+    let (baseline, body) = count_adapter_calls_for_two_identical_queries(server, &counter).await;
+    assert!(
+        body.contains("\"data\""),
+        "the query must succeed before any cache assertion means anything; got: {body}"
+    );
+    assert_eq!(
+        baseline, 1,
+        "reference: with Server::new, the second identical query is served from cache"
+    );
+
+    let (adapter, counter) = CountingAdapter::new();
+    let server = Server::with_flight_service(
+        caching_config(),
+        cacheable_schema(),
+        Arc::new(adapter),
+        None,
+        None,
+    )
+    .await
+    .expect("with_flight_service must boot with cache_enabled = true");
+    let (arrow_calls, body) = count_adapter_calls_for_two_identical_queries(server, &counter).await;
+    assert!(
+        body.contains("\"data\""),
+        "the query must succeed on the arrow path too; got: {body}"
+    );
+    assert_eq!(
+        arrow_calls, baseline,
+        "the arrow boot path must build the same result cache as Server::new: the second \
+         identical query must not reach the adapter (#889)"
+    );
+}
+
+/// The one combination the cache cannot be made honest for: an allow-listed Flight
+/// Upload writes rows without passing the mutation runner, so nothing invalidates.
+/// Refused at boot rather than served stale.
+#[cfg(feature = "arrow")]
+#[tokio::test]
+async fn cache_plus_flight_upload_is_refused_at_boot() {
+    let (adapter, _counter) = CountingAdapter::new();
+    let config = ServerConfig {
+        flight_upload_tables: vec!["ta_measurements".to_string()],
+        ..caching_config()
+    };
+
+    let err =
+        Server::with_flight_service(config, cacheable_schema(), Arc::new(adapter), None, None)
+            .await
+            .err()
+            .expect("cache_enabled + a non-empty Upload allow-list must refuse to boot (#889)");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("flight_upload_tables") && msg.contains("cache_enabled"),
+        "the refusal must name both knobs so the operator knows which to change; got: {msg}"
+    );
+}
+
+/// Guard against over-refusal: the default (Upload disabled) still boots with caching.
+#[cfg(feature = "arrow")]
+#[tokio::test]
+async fn cache_with_upload_disabled_still_boots() {
+    let (adapter, _counter) = CountingAdapter::new();
+    let result = Server::with_flight_service(
+        caching_config(),
+        cacheable_schema(),
+        Arc::new(adapter),
+        None,
+        None,
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "an empty flight_upload_tables leaves Upload disabled, so caching is safe"
+    );
+}

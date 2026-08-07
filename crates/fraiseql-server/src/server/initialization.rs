@@ -1187,6 +1187,74 @@ pub fn tenant_isolation_declaration_check(
     Ok(())
 }
 
+/// Build the query-result cache and wrap the adapter in it — the one place any
+/// constructor decides what `cache_enabled` means.
+///
+/// Three constructors used to make this decision independently, and they disagreed:
+/// `Server::new` logged the cache state, `with_relay_pagination` did not, and
+/// `with_flight_service` built no cache at all, so `cache_enabled = true` was accepted
+/// and silently ignored on the arrow boot path (#889). That is the #750 builder-drift
+/// shape: a decision duplicated per constructor drifts, and the constructor nobody
+/// reads is the one that loses a step.
+///
+/// Runs, in order, every gate that depends on the effective cache state:
+/// [`tenant_isolation_declaration_check`], [`warn_on_inert_cache_ttls`], and
+/// [`verify_declared_rls`] against the live catalog.
+///
+/// The adapter is unwrapped from its `Arc` when this is its only handle and cloned
+/// otherwise. A `DatabaseAdapter + Clone` is a pool handle — `PostgresAdapter` clones
+/// share one `deadpool` `Pool` — so the clone costs a refcount bump, and the arrow
+/// path genuinely holds a second handle: `main.rs` passes the same adapter to
+/// `create_flight_service`. The previous `Arc::into_inner(...).expect(...)` would have
+/// panicked at boot there.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when the schema is multi-tenant and caching
+/// cannot be made safe for it, or when a declared RLS posture is not true of the
+/// live database.
+pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    schema: &CompiledSchema,
+    cache_enabled: bool,
+    adapter: Arc<A>,
+) -> crate::Result<(
+    fraiseql_core::cache::CachedDatabaseAdapter<A>,
+    fraiseql_core::cache::CacheConfig,
+)> {
+    use fraiseql_core::cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache};
+
+    // Validate cache + RLS safety at startup — the static, declarations-only half.
+    tenant_isolation_declaration_check(schema, cache_enabled)?;
+    // #623: declared cache TTLs with the cache off are silently inert — say so.
+    warn_on_inert_cache_ttls(schema, cache_enabled);
+
+    let cache_config = CacheConfig::from(cache_enabled);
+    if cache_config.enabled {
+        info!(
+            max_entries = cache_config.max_entries,
+            ttl_seconds = cache_config.ttl_seconds,
+            rls_enforcement = ?cache_config.rls_enforcement,
+            "Query result cache: active"
+        );
+    } else {
+        info!("Query result cache: disabled");
+    }
+
+    let inner = Arc::try_unwrap(adapter).unwrap_or_else(|shared| (*shared).clone());
+    let cached = CachedDatabaseAdapter::new(
+        inner,
+        QueryResultCache::new(cache_config),
+        schema.content_hash(),
+    )
+    .with_cache_metadata_from_schema(schema)
+    .with_rls(schema.has_rls_configured());
+
+    // Turn the RLS *declaration* into a checked claim against the live catalog.
+    verify_declared_rls(schema, &cached, cache_config.rls_enforcement).await?;
+
+    Ok((cached, cache_config))
+}
+
 /// Verify a declared RLS posture against the live database, and refuse to boot when
 /// the declaration is not true.
 ///

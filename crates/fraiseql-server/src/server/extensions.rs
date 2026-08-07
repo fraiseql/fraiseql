@@ -6,7 +6,7 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    cache::CachedDatabaseAdapter,
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -15,7 +15,7 @@ use fraiseql_core::{
 use tokio::sync::RwLock;
 #[cfg(any(feature = "observers", feature = "mcp"))]
 use tracing::info;
-#[cfg(any(feature = "observers", feature = "arrow"))]
+#[cfg(feature = "observers")]
 use tracing::warn;
 
 #[cfg(feature = "observers")]
@@ -45,12 +45,6 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
     ///
     /// Returns error if OIDC validator initialization fails.
     ///
-    /// # Panics
-    ///
-    /// Panics if the `adapter` `Arc` has been cloned before calling this constructor
-    /// (refcount > 1). The builder must have exclusive ownership to unwrap the adapter
-    /// for `CachedDatabaseAdapter` construction.
-    ///
     /// # Example
     ///
     /// ```text
@@ -65,14 +59,6 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        // Validate cache + RLS safety — the same shared check `Server::new` runs.
-        crate::server::initialization::tenant_isolation_declaration_check(
-            &schema,
-            config.cache_enabled,
-        )?;
-        // #623: declared cache TTLs with the cache off are silently inert — say so.
-        crate::server::initialization::warn_on_inert_cache_ttls(&schema, config.cache_enabled);
-
         // Same boot gates as `Server::new` — these must not drift by constructor (H16).
         // Refuse to boot if any field is marked for at-rest encryption (H12); the write
         // path does not encrypt, so the data would be stored in plaintext.
@@ -89,18 +75,11 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         // Read every schema-derived subsystem through the one shared seam.
         let subsystems = Self::schema_subsystems(&schema, &config).await?;
 
-        let cache_config = CacheConfig::from(config.cache_enabled);
-        let cache = QueryResultCache::new(cache_config);
-        // Unwrap Arc: refcount is 1 here — adapter has not been cloned since being passed in.
-        let inner = Arc::into_inner(adapter)
-            .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
-        let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_cache_metadata_from_schema(&schema)
-            .with_rls(schema.has_rls_configured());
-        crate::server::initialization::verify_declared_rls(
+        // The one shared cache seam — see `build_cached_adapter` (#889).
+        let (cached, cache_config) = crate::server::initialization::build_cached_adapter(
             &schema,
-            &cached,
-            cache_config.rls_enforcement,
+            config.cache_enabled,
+            adapter,
         )
         .await?;
         let executor = Arc::new(Executor::with_config_and_relay(
@@ -135,10 +114,17 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+#[cfg(feature = "arrow")]
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
     /// Create new server with pre-configured Arrow Flight service.
     ///
     /// Use this constructor when you want to provide a Flight service with a real database adapter.
+    ///
+    /// The GraphQL side is wrapped in a [`CachedDatabaseAdapter`] exactly as
+    /// [`Server::new`] wraps it — `cache_enabled` means the same thing on this boot
+    /// path as on every other (#889). The Flight service keeps its own handle to the
+    /// raw adapter; the two do not share a cache, which is why `flight_upload_tables`
+    /// and `cache_enabled` are mutually exclusive (see Errors).
     ///
     /// # Arguments
     ///
@@ -150,8 +136,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// # Errors
     ///
-    /// Returns error if OIDC validator initialization fails.
-    #[cfg(feature = "arrow")]
+    /// Returns `ServerError::ConfigError` when `cache_enabled = true` is combined with a
+    /// non-empty `flight_upload_tables`: a Flight `Upload` is a direct INSERT that never
+    /// reaches the mutation runner, so nothing invalidates the result cache for the views
+    /// over the uploaded table and GraphQL reads would serve pre-upload rows until the TTL
+    /// expired. Also returns an error if OIDC validator initialization fails.
     pub async fn with_flight_service(
         config: ServerConfig,
         schema: CompiledSchema,
@@ -164,6 +153,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Same boot gates as `Server::new` — these must not drift by constructor (H16).
         // Refuse to boot on at-rest-encryption-marked fields (H12, plaintext write path).
         crate::server::initialization::field_encryption_unsupported_check(&schema)?;
+
+        // The one combination the cache cannot be made honest for. Everything else on
+        // this path caches exactly like `Server::new`; an allow-listed Upload writes
+        // rows behind the cache's back, so refuse rather than serve stale reads.
+        if config.cache_enabled && !config.flight_upload_tables.is_empty() {
+            return Err(super::ServerError::ConfigError(
+                "`cache_enabled = true` cannot be combined with a non-empty \
+                 `flight_upload_tables`: a Flight Upload writes rows directly and does not \
+                 pass the mutation pipeline, so it invalidates nothing and cached GraphQL \
+                 reads would keep serving pre-upload rows until the TTL expired. Set \
+                 `cache_enabled = false`, or leave `flight_upload_tables` empty to keep \
+                 Upload disabled."
+                    .to_string(),
+            ));
+        }
+
         // Build the runtime config from the compiled schema (validates format version,
         // reads the audit flag, applies the #421 page-size ceiling + change-log toggle).
         let executor_config = crate::server::initialization::executor_runtime_config(
@@ -176,32 +181,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Read every schema-derived subsystem through the one shared seam.
         let subsystems = Self::schema_subsystems(&schema, &config).await?;
 
-        // No `CachedDatabaseAdapter` is built on this path — the arrow/Flight
-        // constructor keeps the raw adapter, because `main.rs` has already cloned
-        // it into `create_flight_service` and `CachedDatabaseAdapter` requires
-        // exclusive ownership. `config.cache_enabled` therefore does nothing here.
-        // Say so rather than letting the operator believe the TOML took effect.
-        if config.cache_enabled {
-            warn!(
-                "[cache] enabled = true has no effect in an Arrow build: the Flight \
-                 constructor shares the raw database adapter with the Flight service and \
-                 cannot wrap it in a result cache. Queries are served uncached. Use a \
-                 non-Arrow build if query-result caching is required."
-            );
-        }
-        // Run the shared cache+RLS gate anyway, with the *effective* cache state,
-        // so this constructor is on the same footing as its siblings rather than
-        // being the one that quietly skips a boot gate (#758).
-        crate::server::initialization::tenant_isolation_declaration_check(&schema, false)?;
+        // The one shared cache seam — see `build_cached_adapter` (#889). This path
+        // used to skip it entirely, which is what made `cache_enabled` inert here.
+        let (cached, cache_config) = crate::server::initialization::build_cached_adapter(
+            &schema,
+            config.cache_enabled,
+            adapter,
+        )
+        .await?;
 
-        let executor = Arc::new(Executor::with_config(schema.clone(), adapter, executor_config));
+        let executor =
+            Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Boxed: `from_executor` constructs every subsystem, and its future is
         // large enough that inlining it tips each public constructor past
         // clippy's `large_futures` stack budget — and, more to the point, puts a
         // multi-KiB frame on every caller's stack.
-        let server = Box::pin(Self::from_executor(
+        let mut server = Box::pin(Self::from_executor(
             config,
             executor,
             subscription_manager,
@@ -211,9 +208,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         ))
         .await?;
 
+        server.adapter_cache_enabled = cache_config.enabled;
+
         server.apply_compiled_config()
     }
+}
 
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Initialize observer runtime from configuration.
     ///
     /// # Errors

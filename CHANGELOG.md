@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The Arrow/Flight boot path now honours `cache_enabled` — and `Server::with_flight_service`
+  returns `Server<CachedDatabaseAdapter<A>>` (#889).** The constructor `main.rs` selects
+  whenever the `arrow` feature is on passed the raw adapter straight to the executor, so
+  `cache_enabled = true` was accepted, logged nowhere, and did nothing. The same
+  `server.toml` behaved completely differently depending on which feature the binary was
+  built with, and an operator measuring p99 against a deployment they believed was caching
+  got no cache and no line saying so.
+
+  All three constructors now build the cache through one
+  `build_cached_adapter` seam, which also runs the cache+RLS gates
+  (`tenant_isolation_declaration_check`, `warn_on_inert_cache_ttls`, `verify_declared_rls`)
+  in one order. Three constructors deciding independently is the #750 drift shape.
+
+  **New boot refusal:** `cache_enabled = true` together with a non-empty
+  `flight_upload_tables` is refused. A Flight `Upload` is a direct INSERT that never reaches
+  the mutation runner, so it invalidates nothing and cached GraphQL reads would keep serving
+  pre-upload rows until the TTL expired. Set `cache_enabled = false`, or leave
+  `flight_upload_tables` empty (the default, which keeps Upload disabled).
+
+  **What changes for you:** library callers of `with_flight_service` get a
+  `Server<CachedDatabaseAdapter<A>>`; a tenant executor factory paired with it must be
+  built for `CachedDatabaseAdapter<A>` (`main.rs` does this on every PG path now). The
+  constructor also no longer panics when the adapter `Arc` has been cloned — the shared
+  seam clones the adapter instead of requiring exclusive ownership.
 - **`fraiseql_core::config` is removed — `FraiseQLConfig` and its whole `[server]`,
   `[database]`, `[cors]`, `[auth]`, `[rate_limit]`, `[cache]`, `[collation]` TOML tree
   (#909).** The type parsed a full configuration file, validated it, expanded `${VAR}`
