@@ -38,11 +38,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// boot step that only one of two entry points performs is the same class of
     /// defect as a guard only one of two call sites consults.
     ///
-    /// **Scope is deliberately "tables the mounted routes read from", not "every
-    /// startup step".** Subsystem startup that re-reads the compiled schema from disk
-    /// or opens external connections — the functions runtime, the observer runtime,
-    /// Flight, the IMAP/cron/source pollers — stays in `serve_with_shutdown`, which
-    /// `serve_on_listener` documents itself as skipping.
+    /// **Scope is deliberately "what the mounted routes need in place", not "every
+    /// startup step".** Subsystem startup that opens external connections — the
+    /// observer runtime, Flight, the IMAP/cron/source pollers — stays in
+    /// `serve_with_shutdown`, which `serve_on_listener` documents itself as skipping.
+    /// The functions runtime moved here in #896, once it stopped needing a file on
+    /// disk: both entry points must mount the same before-mutation hooks, or the
+    /// in-process one greens a dispatch surface that never ran.
     ///
     /// # Errors
     ///
@@ -305,6 +307,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Prepare functions-runtime dispatch (load modules, register runtimes, attach
+        // the `send_email` wiring) before the router is built, so `build_app_state`
+        // mounts the before-mutation hooks and after:mutation functions actually fire.
+        //
+        // This step lived on `serve_with_shutdown` alone until #896, because it
+        // re-read the compiled schema from `config.schema_path` and `serve_on_listener`
+        // is driven with an in-memory schema and no file on disk. It now reads the
+        // functions section the server was built with, so it belongs here with every
+        // other provisioning step — and the in-process entry point stops silently
+        // mounting no functions at all.
+        #[cfg(feature = "functions-runtime")]
+        self.prepare_functions_runtime().await?;
+
         Ok(())
     }
 
@@ -322,16 +337,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         F: std::future::Future<Output = ()> + Send + 'static,
     {
         self.provision_persistent_schemas().await?;
-
-        // Prepare functions-runtime dispatch (load modules, register runtimes,
-        // attach the send_email wiring) before the router is built, so
-        // `build_app_state` mounts the before-mutation hooks. Async + fail-loud,
-        // like the schema provisioning above. It re-reads the compiled schema from
-        // `config.schema_path`, so it belongs to this entry point rather than to the
-        // shared provisioning step: `serve_on_listener` is driven with an in-memory
-        // schema and no file on disk.
-        #[cfg(feature = "functions-runtime")]
-        self.prepare_functions_runtime().await?;
 
         let (app, app_state) = self.build_router();
 

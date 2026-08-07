@@ -705,6 +705,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             storage_state: None,
             #[cfg(feature = "functions-runtime")]
             functions_hooks: None,
+            #[cfg(feature = "functions-runtime")]
+            functions_config: None,
             tenant_executor_factory: None,
             #[cfg(feature = "rest")]
             rest_router_builder: None,
@@ -1190,6 +1192,28 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub fn with_storage_state(mut self, state: fraiseql_storage::StorageState) -> Self {
         self.storage_state = Some(state);
+        self
+    }
+
+    /// Supply the compiled schema's `functions` section (#896).
+    ///
+    /// The functions subsystem is built from this value at serve time, on **both**
+    /// entry points. Without it the server runs no functions — it no longer reaches
+    /// behind the caller to read `config.schema_path`, which could name a different
+    /// artifact than the schema the server is serving.
+    ///
+    /// `main.rs` fills it from `CompiledSchemaLoader::load_extended`, so an operator
+    /// running the binary sees no change. A library caller that constructs a `Server`
+    /// from a schema it loaded, transformed or hot-reloaded itself must pass the
+    /// matching section here — which is the point: the two artifacts can no longer
+    /// disagree by accident.
+    #[cfg(feature = "functions-runtime")]
+    #[must_use]
+    pub fn with_functions_config(
+        mut self,
+        functions: Option<crate::schema::loader::FunctionsConfig>,
+    ) -> Self {
+        self.functions_config = functions;
         self
     }
 

@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The functions subsystem is configured from the schema the server was built with
+  (#896).** `prepare_functions_runtime` re-read the compiled schema from
+  `config.schema_path` instead of using the `CompiledSchema` the `Server` was given, so
+  the functions subsystem could be configured from a different artifact than the one
+  serving queries — a stale file, or one the process's CWD resolved elsewhere — with
+  nothing checking they matched. Because it needed a file, it also could only run on
+  `serve_with_shutdown`: `serve_on_listener`, the in-process entry point every e2e test
+  drives, mounted **no functions at all**.
+
+  The `functions` section now travels with the server via the new
+  `Server::with_functions_config`, and provisioning moved into the boot prologue both
+  entry points share. `main.rs` loads it with `CompiledSchemaLoader::load_extended` and
+  passes it, so running the binary is unchanged.
+
+  **What changes for you:** a library caller that builds a `Server` and expects
+  functions to run must now pass the section explicitly —
+  `Server::new(...).await?.with_functions_config(extended.functions)`. Without it the
+  server runs no functions instead of silently reading whatever is at `schema_path`.
 - **`[security] default_role` now does what it says (#894).** The key was accepted in
   `fraiseql.toml`, compiled into the schema, and deserialized into the runtime struct —
   and no production code ever read it. An operator who set `default_role = "viewer"`

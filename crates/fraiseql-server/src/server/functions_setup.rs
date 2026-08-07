@@ -11,31 +11,31 @@ use std::sync::Arc;
 use fraiseql_core::db::traits::DatabaseAdapter;
 
 use super::{Server, ServerError};
-use crate::{schema::loader::CompiledSchemaLoader, subsystems::loader::build_functions_subsystem};
+use crate::subsystems::loader::build_functions_subsystem;
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
-    /// Prepare functions-runtime dispatch from the compiled schema.
+    /// Prepare functions-runtime dispatch from the functions section this server
+    /// was built with.
     ///
-    /// Loads the extended schema's functions config; when it declares functions,
-    /// builds the subsystem (modules loaded from `module_dir`, runtimes
-    /// registered), attaches the `send_email` wiring, and stores the resulting
-    /// hooks. A no-op (hooks stay `None`) when no functions are declared.
+    /// When it declares functions, builds the subsystem (modules loaded from
+    /// `module_dir`, runtimes registered), attaches the `send_email` wiring, and
+    /// stores the resulting hooks. A no-op (hooks stay `None`) when no functions are
+    /// declared.
+    ///
+    /// Reads [`Server::functions_config`], **not** `config.schema_path` (#896). The
+    /// disk re-read could configure the functions subsystem from a different artifact
+    /// than the one serving queries, and it made this step impossible on a server
+    /// built from an in-memory schema — which is why it used to run on one of the two
+    /// serving entry points.
     ///
     /// # Errors
     ///
-    /// Returns [`ServerError::ConfigError`] if the schema cannot be loaded or a
-    /// declared function's module is missing/unreadable (fail-loud: a declared
-    /// function that can never run is a misconfiguration).
+    /// Returns [`ServerError::ConfigError`] if a declared function's module is
+    /// missing/unreadable (fail-loud: a declared function that can never run is a
+    /// misconfiguration).
     pub(super) async fn prepare_functions_runtime(&mut self) -> Result<(), ServerError> {
-        let extended = CompiledSchemaLoader::new(&self.config.schema_path)
-            .load_extended()
-            .await
-            .map_err(|error| {
-                ServerError::ConfigError(format!("failed to load functions config: {error}"))
-            })?;
-
-        let Some(functions_config) = extended.functions else {
-            return Ok(()); // no `functions` in the compiled schema
+        let Some(functions_config) = self.functions_config.take() else {
+            return Ok(()); // no `functions` section was supplied
         };
         if functions_config.definitions.is_empty() {
             return Ok(());

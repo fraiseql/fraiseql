@@ -824,6 +824,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// pg_function_dlq observers module are functions-runtime-gated too and
 		// executed in no leg.
 		"cargo test -p fraiseql-server --features functions-runtime,observers --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: --test-threads=1",
+		// #896: the functions subsystem is configured from the schema the server was
+		// built with, on BOTH serving entry points. Its own binary, and
+		// functions-runtime-gated, so it belongs on this line rather than in
+		// serverInProcessTests — which omits the feature and would run zero tests.
+		"cargo test -p fraiseql-server --features functions-runtime --test functions_schema_seam_test",
 		// #429 wired saga forward execution + compensation + recovery + coordinator
 		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the
