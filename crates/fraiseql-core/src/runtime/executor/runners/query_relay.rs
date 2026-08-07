@@ -475,6 +475,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 path:    Some("node.id".to_string()),
             })?;
 
+        // 2b. #939: the selection set is scoped to the type the opaque id resolved,
+        //     so field-existence can only be checked here — the matcher never sees
+        //     this path. An undeclared field would otherwise be projected as
+        //     `data->>'name'`, i.e. a `null` under a 200.
+        crate::graphql::validate_selection_set(&self.ctx.schema, &type_name, selections)?;
+
         // #423: the Relay `node` lookup has no SecurityContext and emits the entity blob
         // directly; fail closed if the resolved type has any policy-gated field.
         if self.ctx.schema.type_has_gated_field(&type_name) {

@@ -653,6 +653,115 @@ async fn multi_root_query_honours_a_nested_directive() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// B3. Undeclared fields are validation errors — #939
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// GraphQL § 5.3.1 (Field Selections on Objects): a document selecting a field
+// the type does not define is **invalid**, and an invalid document must not
+// execute. The runtime instead lowered the unknown name into the projection,
+// where `data->>'phantom_field'` evaluates to SQL NULL and serialises as a
+// legitimate-looking `null` — HTTP 200, no `errors` array.
+//
+// That is the silent-drop meta-pattern on the read path: `{ users { name emial } }`
+// renders every user with a blank email, and nothing in the response or the logs
+// points at the typo.
+
+/// The issue's repro: an undeclared field at the root selection.
+#[tokio::test]
+async fn an_undeclared_root_field_is_a_validation_error() {
+    let (exec, adapter) = executor();
+    let err = exec
+        .execute("{ users { phantom_field } }", None)
+        .await
+        .expect_err("selecting a field the type does not define is an invalid document");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("phantom_field") && msg.contains("User"),
+        "the error must name the field and the type it is not on, got: {msg}"
+    );
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an invalid document must not execute — the database was queried anyway"
+    );
+}
+
+/// The same rule one level down.
+#[tokio::test]
+async fn an_undeclared_nested_field_is_a_validation_error() {
+    let (exec, _) = executor();
+    let err = exec
+        .execute("{ users { id profile { nope } } }", None)
+        .await
+        .expect_err("an undeclared nested field is invalid too");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("nope") && msg.contains("Profile"),
+        "the error must name the nested type the field is not on, got: {msg}"
+    );
+}
+
+/// …and when the field arrives through a fragment spread, which is where it is
+/// least visible in the document.
+#[tokio::test]
+async fn an_undeclared_field_via_a_fragment_spread_is_a_validation_error() {
+    let (exec, _) = executor();
+    let err = exec
+        .execute("fragment F on User { phantom_field } query { users { id ...F } }", None)
+        .await
+        .expect_err("a spread contributes fields; they validate like any other");
+    assert!(err.to_string().contains("phantom_field"), "got: {err}");
+}
+
+/// …and inside an inline fragment, validated against the fragment's own type.
+#[tokio::test]
+async fn an_undeclared_field_in_an_inline_fragment_is_a_validation_error() {
+    let (exec, _) = executor();
+    let err = exec
+        .execute("{ users { id ... on User { phantom_field } } }", None)
+        .await
+        .expect_err("an inline fragment's selection validates against its type condition");
+    assert!(err.to_string().contains("phantom_field"), "got: {err}");
+}
+
+/// Control: `__typename` is a meta-field valid on every selection set — the
+/// validator must not mistake "not in the type's field list" for "undeclared".
+#[tokio::test]
+async fn typename_is_valid_at_every_level() {
+    let (exec, _) = executor();
+    exec.execute("{ users { __typename id profile { __typename tier } } }", None)
+        .await
+        .expect("`__typename` is valid wherever a selection set is");
+}
+
+/// Control: a declared field the caller may not see is **not** an undeclared
+/// field. Under `on_deny = Mask` it keeps returning its key with a null value;
+/// it must not be rerouted into the unknown-field error, which would report a
+/// field that exists as one that does not.
+#[tokio::test]
+async fn a_masked_field_is_not_reported_as_undeclared() {
+    let (exec, _) = masking_executor();
+    let response = exec
+        .execute_with_security("{ users { id secret } }", None, &scopeless_security_context())
+        .await
+        .expect("a masked field is declared — the document is valid");
+    assert_eq!(user_keys(&response), vec!["id", "secret"], "{response}");
+    assert!(response["data"]["users"][0]["secret"].is_null(), "{response}");
+}
+
+/// Control: every declared field still executes. A validator that rejects a
+/// legitimate query is worse than the bug it fixes.
+#[tokio::test]
+async fn declared_fields_still_execute() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ users { id name email profile { tier } } }", None)
+        .await
+        .expect("a fully-declared document must still run");
+    assert_eq!(response["data"]["users"][0]["name"], "Alice", "{response}");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // B2. `__typename` on a nested object — #912
 // ══════════════════════════════════════════════════════════════════════════════
 //
