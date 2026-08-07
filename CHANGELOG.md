@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`FragmentResolver::merge_selections` and `FragmentResolver::evaluate_inline_fragment`
+  are removed (#905).** Both were `pub`, and neither had a production caller — fragment
+  expansion goes through `FragmentResolver::resolve_spreads` (via
+  `graphql::selection_set`), which preserves document order by construction, and
+  inline-fragment type conditions are handled by the projector.
+
+  `merge_selections` returned `HashMap::into_values()`, so its result was in hash order —
+  unspecified, and randomised per process. A GraphQL response's fields must appear in the
+  order the query asked for them (spec § Response Format), which the runtime now honours
+  via workspace-level `serde_json/preserve_order`. Any future caller reaching for the
+  obviously-named helper would have got a correct field *set* in an arbitrary *order*: a
+  response-ordering violation invisible in a diff and intermittent at runtime. Its own
+  tests asserted `names.contains(…)` — the set, never the order — so nothing would have
+  caught it.
+
+  Keeping a helper that silently violates a guarantee the crate now makes is worse than
+  its absence. If a merge helper is wanted later it should be built order-preserving (walk
+  `base`, then append unseen keys from `additional`) and covered by a test that asserts
+  the order rather than the set.
 - **A typo in a compiled schema's `security` object is now a load error, not a
   silently disabled subsystem (#977).** `SecurityConfig` carried a
   `#[serde(flatten)]` catch-all that seven security subsystems read by string

@@ -3,7 +3,6 @@
 //! Handles:
 //! - Fragment spread resolution (`...FragmentName`)
 //! - Inline fragment handling (`... on TypeName { fields }`)
-//! - Selection set merging with deduplication
 
 use std::collections::{HashMap, HashSet};
 
@@ -30,8 +29,9 @@ pub enum FragmentError {
 
 /// Resolves GraphQL fragment spreads in query selection sets.
 ///
-/// Handles fragment spreads (`...FragmentName`) by expanding them to their actual field selections.
-/// Also merges multiple fragment definitions and handles field deduplication.
+/// Handles fragment spreads (`...FragmentName`) by expanding them to their actual field selections,
+/// in document order — a GraphQL response's fields must appear in the order the query asked for
+/// them (spec § Response Format).
 ///
 /// # Example
 ///
@@ -173,73 +173,5 @@ impl FragmentResolver {
         }
 
         Ok(result)
-    }
-
-    /// Handle inline fragments with type conditions.
-    ///
-    /// Evaluates whether an inline fragment applies based on type conditions.
-    /// Returns the selections if the type condition matches, or an empty vector if it doesn't.
-    #[must_use]
-    pub fn evaluate_inline_fragment(
-        selections: &[FieldSelection],
-        type_condition: Option<&str>,
-        actual_type: &str,
-    ) -> Vec<FieldSelection> {
-        // If no type condition, inline fragment applies to all types
-        if type_condition.is_none() {
-            return selections.to_vec();
-        }
-
-        // If type condition matches actual type, include the fields
-        if type_condition == Some(actual_type) {
-            selections.to_vec()
-        } else {
-            // Type condition doesn't match - skip these fields
-            vec![]
-        }
-    }
-
-    /// Merge field selections from multiple sources (e.g., fragment spreads).
-    ///
-    /// Handles:
-    /// - Combining fields from multiple fragments
-    /// - Deduplicating fields by name/alias
-    /// - Merging nested selections
-    #[must_use]
-    pub fn merge_selections(
-        base: &[FieldSelection],
-        additional: Vec<FieldSelection>,
-    ) -> Vec<FieldSelection> {
-        // Build map of existing fields by response key (alias or name)
-        let mut by_key: HashMap<String, FieldSelection> =
-            base.iter().map(|f| (f.response_key().to_string(), f.clone())).collect();
-
-        // Merge additional fields
-        for field in additional {
-            let key = field.response_key().to_string();
-            if let Some(existing) = by_key.get_mut(&key) {
-                // Field already exists - merge nested selections
-                if !field.nested_fields.is_empty() {
-                    existing.nested_fields.extend(field.nested_fields);
-                    // Deduplicate nested fields
-                    existing.nested_fields = Self::deduplicate_fields(&existing.nested_fields);
-                }
-            } else {
-                // New field - add it
-                by_key.insert(key, field);
-            }
-        }
-
-        by_key.into_values().collect()
-    }
-
-    /// Deduplicate fields in a selection set by response key.
-    fn deduplicate_fields(fields: &[FieldSelection]) -> Vec<FieldSelection> {
-        let mut seen = HashSet::new();
-        fields
-            .iter()
-            .filter(|f| seen.insert(f.response_key().to_string()))
-            .cloned()
-            .collect()
     }
 }
