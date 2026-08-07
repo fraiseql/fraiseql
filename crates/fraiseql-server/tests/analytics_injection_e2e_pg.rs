@@ -45,9 +45,9 @@ use tower::ServiceExt as _;
 /// The fact table the root field `injprobe_window` / `injprobe_aggregate` resolves to.
 ///
 /// Deliberately **not** `tf_sales`: that name is a seeded fixture in
-/// `docker/init/postgres-test.sql` which `fraiseql-core`'s `fact_table_integration`
-/// suite introspects. Dropping and recreating it here would silently break those tests
-/// against the shared database.
+/// `tests/sql/postgres/init-analytics.sql` which `fraiseql-core`'s
+/// `fact_table_integration` suite introspects. Dropping and recreating it here would
+/// silently break those tests against the shared database.
 const FACT_TABLE: &str = "tf_injprobe";
 
 /// Metadata as the compiled schema would carry it: one measure, one declared dimension.

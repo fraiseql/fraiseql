@@ -73,8 +73,8 @@ const MAX_BULK_AFFECTED: u64 = 2;
 async fn seed(adapter: &PostgresAdapter) {
     let mut stmts = vec![
         // The `app.mutation_response` contract. Provisioned here, idempotently, rather than
-        // assumed: neither the local compose seed (`docker/init/postgres-test.sql`) nor the
-        // Dagger service seed (`tests/sql/postgres/init.sql`) creates it. Any suite relying
+        // assumed: the shared seed (`tests/sql/postgres/init.sql`, mounted by both the
+        // Dagger service and the local compose rig) does not create it. Any suite relying
         // on it being present was relying on a *previous* suite in the same database having
         // created it — which is green until the run order changes or the volume is reset,
         // and is not a property CI can depend on. `make db-reset` reproduces the failure
