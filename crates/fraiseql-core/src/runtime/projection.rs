@@ -770,6 +770,123 @@ fn project_nested_lists_at(
     }
 }
 
+/// Stamp `__typename` on the nested single objects whose selection asked for it.
+///
+/// `__typename` is `String!` (GraphQL spec § Type Name Introspection): it can
+/// never be null, and a requested field can never be absent. It is a meta-field,
+/// not a JSONB key, so it is stripped from the SQL projection at every depth —
+/// projecting it would emit `data->>'__typename'`, a literal NULL (the symptom
+/// #912 reports). Something on the Rust side has to put it back.
+///
+/// Two of the three levels already had an owner: the root object is stamped by
+/// [`ResultProjector::configure_typename_from_selections`], and list elements by
+/// [`project_entity`]. A *single* nested object had none, so a requested nested
+/// `__typename` was dropped from the response with no error at all.
+///
+/// The key is inserted at the position the client's selection set puts it, not
+/// appended: a response's fields follow the query's order (spec § Response
+/// Format).
+pub fn stamp_nested_typenames(
+    value: &mut JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+) {
+    stamp_nested_typenames_at(value, type_name, selections, schema, 0);
+}
+
+fn stamp_nested_typenames_at(
+    value: &mut JsonValue,
+    type_name: &str,
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    depth: usize,
+) {
+    if depth >= MAX_ENTITY_PROJECTION_DEPTH {
+        return;
+    }
+    match value {
+        // A list-returning query: each element is an entity of `type_name` (the
+        // list itself is not a nesting level).
+        JsonValue::Array(arr) => {
+            for el in arr.iter_mut() {
+                stamp_nested_typenames_at(el, type_name, selections, schema, depth);
+            }
+        },
+        JsonValue::Object(obj) => {
+            let type_def = schema.find_type(type_name);
+            for sel in effective_selections(selections, type_name, schema) {
+                // This level's own `__typename` belongs to whoever built this
+                // object; only children are this pass's business.
+                if sel.name == "__typename" {
+                    continue;
+                }
+                let Some(fd) =
+                    type_def.and_then(|td| td.fields.iter().find(|f| f.name.as_str() == sel.name))
+                else {
+                    continue;
+                };
+                // Lists are projected element-by-element through `project_entity`,
+                // which stamps them already.
+                if fd.field_type.is_scalar() || fd.field_type.is_list() {
+                    continue;
+                }
+                let Some(child_type) = fd.field_type.type_name() else {
+                    continue;
+                };
+                let key = sel.response_key().to_string();
+                let child_selections = &sel.nested_fields;
+                let Some(child) = obj.get_mut(&key) else {
+                    continue;
+                };
+                if let JsonValue::Object(child_obj) = child {
+                    reinsert_typename_in_order(child_obj, child_selections, child_type, schema);
+                }
+                stamp_nested_typenames_at(child, child_type, child_selections, schema, depth + 1);
+            }
+        },
+        _ => {},
+    }
+}
+
+/// Rebuild `obj` with its selected `__typename` keys in their requested
+/// positions, leaving every other key in its existing order.
+///
+/// `serde_json::Map` preserves insertion order (`preserve_order`), so a plain
+/// insert would append — putting `__typename` last however the client wrote it.
+fn reinsert_typename_in_order(
+    obj: &mut Map<String, JsonValue>,
+    selections: &[FieldSelection],
+    type_name: &str,
+    schema: &CompiledSchema,
+) {
+    // Nothing to insert → leave the object, and its existing order, untouched.
+    if !effective_selections(selections, type_name, schema)
+        .iter()
+        .any(|sel| sel.name == "__typename")
+    {
+        return;
+    }
+
+    let mut rebuilt = Map::new();
+    for sel in effective_selections(selections, type_name, schema) {
+        let key = sel.response_key();
+        if sel.name == "__typename" {
+            rebuilt.insert(key.to_string(), JsonValue::String(type_name.to_string()));
+        } else if let Some(v) = obj.get(key) {
+            rebuilt.insert(key.to_string(), v.clone());
+        }
+    }
+    // Anything the selection walker did not account for keeps its place at the
+    // end rather than being dropped — this pass adds a key, it never removes one.
+    for (k, v) in obj.iter() {
+        if !rebuilt.contains_key(k) {
+            rebuilt.insert(k.clone(), v.clone());
+        }
+    }
+    *obj = rebuilt;
+}
+
 /// Look up a field's stored value: canonical `snake_case` key first, then a
 /// `camelCase` fallback for legacy metadata that used the GraphQL surface casing.
 fn lookup_source<'a>(obj: &'a Map<String, JsonValue>, field_name: &str) -> Option<&'a JsonValue> {

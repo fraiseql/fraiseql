@@ -46,9 +46,11 @@ DROP TABLE IF EXISTS v_selection_conformance_user;
 CREATE TABLE v_selection_conformance_user (pk_user bigint, data jsonb);
 INSERT INTO v_selection_conformance_user (pk_user, data) VALUES
   (1, '{"id":"aaaa0000-0000-0000-0000-000000000001","name":"Alice","pk_user":1,
-     "email":"alice@example.com","secret":"SECRET-VALUE"}'::jsonb),
+     "email":"alice@example.com","secret":"SECRET-VALUE",
+     "profile":{"tier":"gold"}}'::jsonb),
   (2, '{"id":"bbbb0000-0000-0000-0000-000000000002","name":"Bob","pk_user":2,
-     "email":"bob@example.com","secret":"SECRET-VALUE"}'::jsonb);
+     "email":"bob@example.com","secret":"SECRET-VALUE",
+     "profile":{"tier":"silver"}}'::jsonb);
 "#;
 
 fn schema() -> CompiledSchema {
@@ -59,6 +61,12 @@ fn schema() -> CompiledSchema {
         .with_simple_field("name", FieldType::String)
         .with_simple_field("email", FieldType::String)
         .with_simple_field("secret", FieldType::String)
+        // A nested single object, so `__typename` inside one has somewhere to land (#912).
+        .with_simple_field("profile", FieldType::Object("Profile".to_string()))
+        .build();
+
+    let profile_type = TestTypeBuilder::new("Profile", "v_selection_conformance_profile")
+        .with_simple_field("tier", FieldType::String)
         .build();
 
     let users_query = TestQueryBuilder::new("users", "User")
@@ -78,6 +86,7 @@ fn schema() -> CompiledSchema {
 
     let mut schema = TestSchemaBuilder::new()
         .with_type(user_type)
+        .with_type(profile_type)
         .with_query(users_query)
         .with_query(connection_query)
         .build();
@@ -357,6 +366,60 @@ async fn multi_root_query_carries_fragments_and_directives() {
         .collect();
     assert_eq!(a_keys, vec!["id", "name"], "{response}");
     assert_eq!(b_keys, vec!["id"], "{response}");
+}
+
+/// #912: a nested `__typename` survives the real SQL projection.
+///
+/// This is the case only a real database can make: `__typename` is a meta-field,
+/// not a JSONB key, so it is stripped from the projection at every depth — a
+/// projection that emitted it would produce `data->>'__typename'`, a literal
+/// NULL. The mock-adapter suite cannot see that, because the mock hands back the
+/// fixture row whole and never applies the hint at all.
+#[tokio::test]
+async fn nested_typename_survives_the_sql_projection() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let response = exec
+        .execute("{ users { id profile { __typename tier } } }", None)
+        .await
+        .expect("nested-typename query must run");
+
+    let profile = response["data"]["users"][0]["profile"]
+        .as_object()
+        .unwrap_or_else(|| panic!("expected a profile object: {response}"));
+
+    assert_eq!(
+        profile.get("__typename").and_then(Value::as_str),
+        Some("Profile"),
+        "`__typename` is `String!` — a requested nested one is neither null nor absent: {response}"
+    );
+    assert_eq!(
+        profile.get("tier").and_then(Value::as_str),
+        Some("gold"),
+        "the sibling field must still be projected: {response}"
+    );
+    let keys: Vec<&str> = profile.keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        vec!["__typename", "tier"],
+        "the response's fields follow the query's order: {response}"
+    );
+
+    // Control: unrequested stays absent, never present-and-null.
+    let plain = exec
+        .execute("{ users { profile { tier } } }", None)
+        .await
+        .expect("control query must run");
+    assert!(
+        !plain["data"]["users"][0]["profile"]
+            .as_object()
+            .unwrap_or_else(|| panic!("{plain}"))
+            .contains_key("__typename"),
+        "an unrequested `__typename` must be absent, not null: {plain}"
+    );
 }
 
 /// #904: an inline `where:` on a Relay connection must narrow the page.
