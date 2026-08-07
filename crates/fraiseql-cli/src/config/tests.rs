@@ -481,18 +481,31 @@ mod security_tests {
         assert!(config.constant_time.enabled);
     }
 
+    /// #983 — the four `[fraiseql.security.error_sanitization]` keys that reached no
+    /// runtime shape are gone, so `deny_unknown_fields` refuses them by name. The
+    /// old test asserted that `leak_sensitive_details = true` was rejected as "a
+    /// security risk"; it switched nothing either way, which is the more alarming
+    /// half of that sentence.
     #[test]
-    fn test_error_sanitization_validation() {
-        let mut config = ErrorSanitizationConfig::default();
-        config
+    fn error_sanitization_refuses_the_keys_that_never_had_a_consumer() {
+        ErrorSanitizationConfig::default()
             .validate()
             .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
-        config.leak_sensitive_details = true;
-        assert!(
-            config.validate().is_err(),
-            "expected Err when leak_sensitive_details=true, got Ok"
-        );
+        for key in [
+            "generic_messages = true",
+            "internal_logging = true",
+            "leak_sensitive_details = true",
+            "user_facing_format = \"detailed\"",
+        ] {
+            let toml = format!("enabled = true\n{key}\n");
+            let err = toml::from_str::<ErrorSanitizationConfig>(&toml)
+                .expect_err("a key with no consumer must not parse");
+            assert!(
+                err.to_string().contains("unknown field"),
+                "the refusal must name the key; got: {err}"
+            );
+        }
     }
 
     #[test]
@@ -540,19 +553,28 @@ mod security_tests {
         );
     }
 
+    /// #983 — nonce and key sizes are fixed by the algorithm, so there was nothing
+    /// for these keys to size. Refused by name rather than validated into a range
+    /// that had no effect.
     #[test]
-    fn test_state_encryption_validation() {
-        let mut config = StateEncryptionConfig::default();
-        config
+    fn state_encryption_refuses_the_keys_that_never_had_a_consumer() {
+        StateEncryptionConfig::default()
             .validate()
             .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
-        config.key_size = 20;
-        assert!(config.validate().is_err(), "expected Err when key_size=20, got Ok");
-
-        config.key_size = 32;
-        config.nonce_size = 16;
-        assert!(config.validate().is_err(), "expected Err when nonce_size=16, got Ok");
+        for key in [
+            "key_rotation_enabled = true",
+            "nonce_size = 12",
+            "key_size = 32",
+        ] {
+            let toml = format!("enabled = true\n{key}\n");
+            let err = toml::from_str::<StateEncryptionConfig>(&toml)
+                .expect_err("a key with no consumer must not parse");
+            assert!(
+                err.to_string().contains("unknown field"),
+                "the refusal must name the key; got: {err}"
+            );
+        }
     }
 
     #[test]

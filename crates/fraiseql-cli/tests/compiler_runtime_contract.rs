@@ -101,7 +101,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 
 [security.enterprise]
 rate_limiting_enabled = false
@@ -137,7 +136,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 
 [security.enterprise]
 rate_limiting_enabled = false
@@ -176,12 +174,11 @@ type = "ID"
 required = true
 
 [security]
-default_policy = "public"
 
-# Note: [[security.rules]] / [[security.policies]] are intentionally absent —
-# declared-but-unenforced authorization is rejected at compile (#612 item 4 / #626).
-# The emit↔parse contract this test guards is exercised by the remaining security
-# fields (default_policy, enterprise).
+# Note: [[security.rules]] / [[security.policies]] / [security] default_policy are
+# intentionally absent — declared-but-unenforced authorization is rejected
+# (#612 item 4 / #626 / #983). The emit↔parse contract this test guards is exercised
+# by the remaining security fields (enterprise).
 
 [security.enterprise]
 rate_limiting_enabled = true
@@ -231,7 +228,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 persisted_queries_only = true
 "#;
     let compiled_json = compile(TYPES_JSON, toml);
@@ -258,7 +254,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 "#;
     let compiled_json = compile(TYPES_JSON, toml);
     let schema = CompiledSchema::from_json(&compiled_json, false).unwrap();
@@ -285,7 +280,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 
 [security.cost_budget]
 per_request_max = 50
@@ -316,7 +310,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 "#;
     let compiled_json = compile(TYPES_JSON, toml);
     let schema = CompiledSchema::from_json(&compiled_json, false).unwrap();

@@ -22,7 +22,6 @@ version = "1.0.0"
 # session variables FraiseQL sets from the caller's validated JWT. See README.md for
 # the full path and sql/01_schema.sql for the policies.
 [security]
-default_policy = "authenticated"
 # Every row in this schema belongs to exactly one account, so the deployment is
 # multi-tenant. This activates the subscription tenant fail-closed gate and the
 # cache+RLS boot gate.

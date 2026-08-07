@@ -123,7 +123,6 @@ return_array = true
 sql_source = "v_{}"
 
 [security]
-default_policy = "public"
 
 [security.enterprise]
 rate_limiting_enabled = false
@@ -243,7 +242,6 @@ type = "ID"
 required = true
 
 [security]
-default_policy = "public"
 
 [security.enterprise]
 rate_limiting_enabled = false
@@ -327,7 +325,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 
 [[security.rules]]
 name = "read_own_data"
@@ -416,7 +413,6 @@ database_target = "postgresql"
 [database]
 url = "postgresql://localhost/test"
 [security]
-default_policy = "public"
 [security.enterprise]
 rate_limiting_enabled = false
 audit_logging_enabled = false
@@ -567,7 +563,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 
 [security]
-default_policy = "public"
 
 [security.enterprise]
 rate_limiting_enabled = false

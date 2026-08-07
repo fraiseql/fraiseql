@@ -112,25 +112,6 @@ pub struct EntityCircuitBreakerOverride {
     pub success_threshold: Option<u32>,
 }
 
-/// Security configuration compiled from fraiseql.toml.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CompiledSecurityConfig {
-    /// Default authorization policy.
-    pub default_policy: Option<String>,
-    /// Custom authorization rules.
-    #[serde(default)]
-    pub rules:          Vec<AuthorizationRule>,
-    /// Authorization policies (RBAC/ABAC).
-    #[serde(default)]
-    pub policies:       Vec<AuthorizationPolicy>,
-    /// Field-level authorization.
-    #[serde(default)]
-    pub field_auth:     Vec<FieldAuthRule>,
-    /// Enterprise security features.
-    #[serde(default)]
-    pub enterprise:     EnterpriseSecurityConfig,
-}
-
 /// Custom authorization rule.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

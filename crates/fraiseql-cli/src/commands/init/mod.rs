@@ -321,7 +321,6 @@ auth_start_window_secs = 60
 
 [fraiseql.security.audit_logging]
 enabled = true
-log_level = "info"
 
 # Database connection URL — set via DATABASE_URL environment variable at runtime
 # {db_url}

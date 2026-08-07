@@ -100,7 +100,6 @@ const MANIFEST: &[(&str, &str)] = &[
          per-minute window default (#379)",
     ),
     ("security.trusted_documents", "server trusted-documents allowlist"),
-    ("security.default_policy", "server default authorization policy"),
     (
         "security.multi_tenant",
         "CompiledSchema::is_multi_tenant → subscription tenant fail-closed gate + \

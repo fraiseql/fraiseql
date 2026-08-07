@@ -695,7 +695,10 @@ impl SchemaMerger {
             rls:                    sec.rls.clone(),
             tenancy:                fraiseql_core::schema::TenancyConfig::default(),
             cost_budget:            sec.cost_budget.clone(),
-            default_policy:         sec.default_policy.clone(),
+            // #983: not emitted — no consumer reads it, and every Workflow-A schema
+            // used to carry `"authenticated"` here by default, which is precisely the
+            // kind of declaration an operator reads as an enforced boundary.
+            default_policy:         None,
             rules:                  sec.rules.clone(),
             policies:               sec.policies.clone(),
             field_auth:             sec.field_auth.clone(),

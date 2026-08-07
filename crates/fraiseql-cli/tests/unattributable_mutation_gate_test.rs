@@ -1,5 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-//! #910 — a mutation that resolves to no view must not compile alongside a cacheable view.
+//! Compile-time refusals for declarations the runtime cannot honour (#910, #983).
+//!
+//! **#910** — a mutation that resolves to no view must not compile alongside a cacheable view.
 //!
 //! The issue's shape, verbatim: `@fraiseql.mutation(sql_source="fn_rebuild_pricing")`
 //! returning `RebuildResult` — a payload with no backing view and no `entity` field —
@@ -16,7 +18,8 @@
 //! **Parallelism:** unsafe to split. `compile_to_schema` resolves its input against the
 //! *process* working directory, so three `#[tokio::test]`s each chdir'ing into their own
 //! temp dir race: the first draft of this file passed its negative case because a sibling
-//! had already chdir'd to a schema that legitimately compiles. One test, three phases.
+//! had already chdir'd to a schema that legitimately compiles — and adding #983's case as a
+//! second `#[tokio::test]` reproduced it immediately. Everything goes in the one test.
 
 use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use tempfile::TempDir;
@@ -113,4 +116,56 @@ async fn the_unattributable_mutation_gate() {
     let uncached = UNATTRIBUTABLE.replace(r#""cache_ttl_seconds": 0,"#, "");
     assert_ne!(uncached, UNATTRIBUTABLE, "the fixture edit must have applied");
     compile(&uncached).await.expect("a schema with no cacheable view is unaffected");
+
+    // 4. #983's gate, in the same test for the same chdir reason. An authorization rule no enforcer
+    //    reads must not compile — a rule that is silently not applied is the worst shape a security
+    //    declaration can take.
+    let err = compile(UNENFORCED_AUTHZ)
+        .await
+        .expect_err("a rule that enforces nothing must not compile (#983)");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("no enforcer"),
+        "the refusal must say the declaration enforces nothing; got: {msg}"
+    );
+    assert!(
+        msg.contains("security.rules"),
+        "the refusal must name the declaration; got: {msg}"
+    );
+    assert!(
+        msg.contains("requires_scope"),
+        "the refusal must name the mechanism that does work; got: {msg}"
+    );
 }
+
+/// #983 — `security.rules`, `security.field_auth` and `security.default_policy` are
+/// carried by the compiled seam and read by nothing. An operator who writes an
+/// authorization rule must not get a successful compile and zero enforcement.
+const UNENFORCED_AUTHZ: &str = r#"
+{
+  "types": [
+    {
+      "name": "Price",
+      "fields": [{"name": "id", "type": "Int", "nullable": false}],
+      "sql_source": "v_price",
+      "is_input": false
+    }
+  ],
+  "queries": [
+    {
+      "name": "prices",
+      "return_type": "Price",
+      "returns_list": true,
+      "sql_source": "v_price",
+      "nullable": false,
+      "arguments": []
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "security": {
+    "rules": [{"name": "deny_all", "rule": "false"}]
+  },
+  "version": "2.0.0"
+}
+"#;
