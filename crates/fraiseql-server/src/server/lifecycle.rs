@@ -747,8 +747,23 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Start both HTTP and gRPC servers concurrently if Arrow Flight is enabled
         #[cfg(feature = "arrow")]
-        if let Some(flight_service) = self.flight_service.take() {
+        if let Some(mut flight_service) = self.flight_service.take() {
             let flight_addr = self.config.flight_bind_addr;
+
+            // #954: attach the policy seam, never a bare executor. This is the
+            // first point where both halves exist — `create_flight_service` builds
+            // the service before there is any `AppState` to enforce policy from —
+            // so the wiring lives here rather than in the constructor. Without it
+            // Flight is the one transport that skips tenant resolution, the
+            // suspended-tenant gate, per-tenant quotas and trusted documents.
+            flight_service.set_executor(crate::arrow::policy_seam::policy_gated_executor(
+                self.build_app_state(),
+            ));
+            info!(
+                "Arrow Flight GraphQL execution enabled through the policy seam (tenant \
+                 dispatch, trusted documents, per-tenant quotas)"
+            );
+
             info!("Arrow Flight server listening on grpc://{}", flight_addr);
 
             // Spawn Flight server in background, registered on the server's

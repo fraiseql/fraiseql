@@ -360,7 +360,10 @@ pub(super) async fn handle(
                     RequestType::Upload { table, batch } => {
                         let session = UploadSession {
                             allowed_tables: upload_allowed_tables.as_ref(),
-                            tenant_id:      security_context.tenant_id.as_ref().map(|t| t.0.as_str()),
+                            tenant_id:      security_context
+                                .tenant_id
+                                .as_ref()
+                                .map(|t| t.0.as_str()),
                             user_id:        &user_id,
                             correlation_id: &correlation_id,
                         };
