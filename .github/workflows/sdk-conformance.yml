@@ -54,7 +54,7 @@ jobs:
       # --- every SDK's toolchain, natively -----------------------------------------
       # Installed rather than containerised so a missing toolchain is a hard failure
       # here, not a silent fallback that hides a broken image.
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: '3.12'
       - run: pip install uv
@@ -143,7 +143,7 @@ jobs:
         with:
           shared-key: sdk-conformance
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: '3.12'
       - run: pip install uv
