@@ -861,7 +861,36 @@ mod playground_tests {
 }
 
 mod subscriptions_tests {
-    use super::super::subscriptions::extract_subscription_name;
+    use super::super::subscriptions::extract_subscription_root;
+
+    /// The field name the schema lookup is given.
+    fn extract_subscription_name(query: &str) -> Option<String> {
+        extract_subscription_root(query).map(|r| r.name)
+    }
+
+    /// The key the delivered payload must be under.
+    fn extract_response_key(query: &str) -> Option<String> {
+        extract_subscription_root(query).map(|r| r.response_key)
+    }
+
+    /// #906: an alias renames only the response key — the field the runtime
+    /// resolves is still `orderUpdated`. The hand-rolled scan this replaced took
+    /// the first identifier in the selection set, which for an aliased root is
+    /// the alias, and `SchemaLookup::find_subscription` then missed.
+    #[test]
+    fn test_aliased_root_resolves_the_field_and_keys_by_the_alias() {
+        let query =
+            "subscription OrderUpdated($id: ID) { order: orderUpdated(id: $id) { id status } }";
+        assert_eq!(extract_subscription_name(query), Some("orderUpdated".to_string()));
+        assert_eq!(extract_response_key(query), Some("order".to_string()));
+    }
+
+    /// Control: with no alias, the response key is the field name.
+    #[test]
+    fn test_unaliased_root_keys_by_its_own_name() {
+        let query = "subscription { orderCreated { id } }";
+        assert_eq!(extract_response_key(query), Some("orderCreated".to_string()));
+    }
 
     #[test]
     fn test_extract_subscription_name_simple() {

@@ -332,9 +332,9 @@ mod create_next_message_tests {
             seq: Some(42),
             ..Default::default()
         };
-        let msg = create_next_message("op_1", &payload_with(Some(env)));
+        let msg = create_next_message("op_1", "orderUpdated", &payload_with(Some(env)));
         let payload = msg.payload.expect("next payload");
-        // Resolved data is untouched under `data.<subscriptionName>`.
+        // Resolved data is untouched under the client's response key.
         assert_eq!(payload["data"]["orderUpdated"]["status"], "PAID");
         // Envelope rides in extensions.changeSpine, camelCase, nulls omitted.
         let cs = &payload["extensions"]["changeSpine"];
@@ -346,12 +346,28 @@ mod create_next_message_tests {
 
     #[test]
     fn no_envelope_emits_no_extensions() {
-        let msg = create_next_message("op_1", &payload_with(None));
+        let msg = create_next_message("op_1", "orderUpdated", &payload_with(None));
         let payload = msg.payload.expect("next payload");
         assert_eq!(payload["data"]["orderUpdated"]["status"], "PAID");
         assert!(
             payload.get("extensions").is_none(),
             "events without an envelope keep the plain next payload (back-compat)"
+        );
+    }
+
+    /// #906: the frame is keyed by the client's response key, which is the root
+    /// field's alias when it wrote one — not by the subscription's own name.
+    #[test]
+    fn keys_the_frame_by_the_clients_response_key() {
+        let msg = create_next_message("op_1", "order", &payload_with(None));
+        let payload = msg.payload.expect("next payload");
+        assert_eq!(
+            payload["data"]["order"]["status"], "PAID",
+            "the alias must be the response key: {payload}"
+        );
+        assert!(
+            payload["data"].get("orderUpdated").is_none(),
+            "the subscription's own name must not appear when an alias was given: {payload}"
         );
     }
 }

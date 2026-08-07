@@ -180,6 +180,76 @@ async fn ws_e2e_subscribe_and_receive_next_frame() {
     assert_eq!(data["orderCreated"]["status"], "pending");
 }
 
+/// #906: a spec-valid **aliased** subscription root field resolves the field
+/// name and delivers under the alias.
+///
+/// An alias renames only the response key; the executed field is still
+/// `orderCreated` (GraphQL spec § Response). Both halves are asserted here
+/// because they fail independently: resolving the alias as the field name gets
+/// `SubscriptionNotFound` and never delivers, while resolving the field name but
+/// keying the payload by it delivers under a key the client did not ask for, so
+/// a client reading `data.order` sees nothing arrive.
+#[tokio::test]
+async fn ws_e2e_aliased_root_field_delivers_under_the_alias() {
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let state = SubscriptionState::new(manager.clone());
+
+    let url = spawn_ws_server(state).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_1",
+            "payload": { "query": "subscription { order: orderCreated { id status } }" }
+        }),
+    )
+    .await;
+
+    // Half one: the field name is resolved, so the subscription is established
+    // at all. Looking up the alias yields `SubscriptionNotFound` and the count
+    // stays at zero.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "an aliased root field must resolve the FIELD name (`orderCreated`); resolving the \
+             alias (`order`) finds no such subscription and delivery never starts"
+        );
+        tokio::task::yield_now().await;
+    }
+
+    let event = SubscriptionEvent::new(
+        "Order",
+        "order_42",
+        SubscriptionOperation::Create,
+        json!({"id": "order_42", "status": "pending"}),
+    );
+    assert_eq!(manager.publish_event(event), 1, "event should match exactly one subscription");
+
+    let next_frame = recv_json(&mut stream).await;
+    assert_eq!(next_frame["type"], "next", "expected next frame, got {next_frame}");
+    assert_eq!(next_frame["id"], "op_1");
+
+    // Half two: the response is keyed by the ALIAS the client wrote.
+    let data = &next_frame["payload"]["data"];
+    assert_eq!(
+        data["order"]["id"], "order_42",
+        "the delivered payload must be keyed by the alias the client wrote, not by the \
+         underlying field name — a client reading `data.order` sees nothing arrive: {next_frame}"
+    );
+    assert_eq!(data["order"]["status"], "pending", "{next_frame}");
+    assert!(
+        data.get("orderCreated").is_none(),
+        "the field name must not appear as a response key when an alias was given: {next_frame}"
+    );
+}
+
 /// #425 acceptance: a delivered `next` frame carries the Change-Spine envelope in
 /// the graphql-transport-ws `extensions.changeSpine` slot, with the resolved
 /// `data` untouched. Proves the envelope round-trips event → payload → client.
