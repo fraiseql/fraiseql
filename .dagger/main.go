@@ -263,6 +263,9 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-deadlines.sh",
 		"bash tools/check-docs-env-vars.sh",
 		"bash tools/check-docs-version.sh",
+		// Every typed TOML config loader has a coverage manifest naming each
+		// key's consumer (#909). Retrospective rule 2: no unconsumed surface.
+		"bash tools/check-config-loaders.sh",
 	}, "\n")
 
 	return m.shellBase().

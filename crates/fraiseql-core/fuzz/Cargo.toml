@@ -20,11 +20,6 @@ path = "fuzz_targets/schema_compile.rs"
 
 [[bin]]
 doc = false
-name = "toml_config"
-path = "fuzz_targets/toml_config.rs"
-
-[[bin]]
-doc = false
 name = "query_variables"
 path = "fuzz_targets/query_variables.rs"
 

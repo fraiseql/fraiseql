@@ -20,6 +20,33 @@ const FEATURE_GATED_SECTIONS: &[(&str, &str, bool)] = &[
     ("saml", "auth-saml", cfg!(feature = "auth-saml")),
 ];
 
+/// Grouping tables `ServerConfig` has never had, mapped to the keys that do the job.
+///
+/// These are the sections of the deleted `fraiseql_core::config::FraiseQLConfig`
+/// (#909): a parallel config tree that parsed a whole `[server]`/`[database]`/`[cache]`
+/// file and that nothing outside its own module ever read. `deny_unknown_fields`
+/// already refuses them, but serde's "unknown field `cache`, expected one of …"
+/// followed by a hundred names does not tell an operator that `response_cache_enabled`
+/// is spelled `cache_enabled` and lives at the top level. Naming the working knob is
+/// the difference between a refusal and a usable one.
+const REMOVED_SECTIONS: &[(&str, &str)] = &[
+    ("server", "`bind_addr`, `max_request_body_bytes`"),
+    (
+        "database",
+        "`database_url`, `pool_max_size`, `pool_min_size`, `pool_timeout_secs`, `[database_tls]`",
+    ),
+    ("cors", "`cors_enabled`, `cors_origins`"),
+    (
+        "rate_limit",
+        "`[rate_limiting]`, and the compiled schema's `security.rate_limiting`",
+    ),
+    (
+        "cache",
+        "`cache_enabled` (query result cache), `apq_enabled` (persisted queries)",
+    ),
+    ("collation", "nothing — locale-aware collation was never wired to a config key"),
+];
+
 /// Append a build-feature hint to a config parse error for every compiled-out
 /// section the raw TOML declares.
 ///
@@ -44,6 +71,15 @@ pub(super) fn enrich_parse_error(
                 );
             }
         }
+        for (key, replacement) in REMOVED_SECTIONS {
+            if table.contains_key(*key) {
+                let _ = write!(
+                    msg,
+                    "\nnote: there is no `[{key}]` table in a server config file; the keys \
+                     are top-level. Use {replacement}."
+                );
+            }
+        }
     }
     msg
 }
@@ -54,7 +90,9 @@ impl ServerConfig {
     /// The file is deserialized directly into `ServerConfig` — keys are top-level,
     /// and an unknown key is a hard error rather than a silent drop (#839). When
     /// the unknown key is a section this build compiled out (e.g. `[observers]`
-    /// without the `observers` feature), the error names the missing build feature.
+    /// without the `observers` feature), the error names the missing build feature;
+    /// when it is one of the grouping tables this file has never had (`[cache]`,
+    /// `[database]`, …), it names the keys that do the job (#909).
     ///
     /// # Errors
     ///

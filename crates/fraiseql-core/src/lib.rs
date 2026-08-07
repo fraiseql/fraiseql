@@ -69,7 +69,6 @@
 #![forbid(unsafe_code)]
 
 // Core modules
-pub mod config;
 pub mod error;
 pub mod http;
 pub mod schema;
@@ -100,7 +99,6 @@ pub mod validation;
 pub mod prelude;
 
 // Re-exports for convenience
-pub use config::FraiseQLConfig;
 pub use error::{FraiseQLError, Result};
 pub use schema::CompiledSchema;
 pub use tenancy::TenantContext;

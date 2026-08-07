@@ -9,6 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`fraiseql_core::config` is removed — `FraiseQLConfig` and its whole `[server]`,
+  `[database]`, `[cors]`, `[auth]`, `[rate_limit]`, `[cache]`, `[collation]` TOML tree
+  (#909).** The type parsed a full configuration file, validated it, expanded `${VAR}`
+  references and round-tripped it in its own tests. No code outside its own module ever
+  read a single field — the whole crate compiles unchanged with the module deleted. An
+  operator who wrote
+
+  ```toml
+  [cache]
+  response_cache_enabled = true
+  response_cache_ttl_secs = 300
+  ```
+
+  got a file that parsed, validated, and did nothing: no response cache was ever
+  constructed, and nothing said so. Every section had a live twin elsewhere, which is why
+  the dead one was never missed.
+
+  **Where each section's working knob lives.** The server's runtime config is
+  `ServerConfig`, deserialized directly from the `--config` file with flat top-level keys
+  and `deny_unknown_fields`:
+
+  | removed | working knob |
+  |---|---|
+  | `[server] host`/`port` | `bind_addr` |
+  | `[server] max_body_size` | `max_request_body_bytes` |
+  | `[server] workers` | tokio runtime default (never wired) |
+  | `[database] url` | `database_url` |
+  | `[database] max_connections`/`min_connections` | `pool_max_size`/`pool_min_size` |
+  | `[database] connect_timeout_secs` | `pool_timeout_secs` |
+  | `[database] ssl_mode` | `[database_tls]` |
+  | `[database] mutation_timing` | no key — the outbox path stamps `fraiseql.started_at` itself; `PostgresAdapter::with_mutation_timing` is the library seam |
+  | `[cors] enabled`/`allowed_origins` | `cors_enabled`/`cors_origins` |
+  | `[auth] *` | `[auth]` (OIDC `issuer`/`audience`), `[auth_hs256]`, `[identity]` |
+  | `[rate_limit] *` | `[rate_limiting]` + the compiled `security.rate_limiting` |
+  | `[cache] apq_*` | `apq_enabled` |
+  | `[cache] response_cache_*` | `cache_enabled` (the adapter query-result cache) |
+  | `[collation] *` | never wired on any path |
+
+  Because `ServerConfig` and the CLI's `fraiseql.toml` loaders both use
+  `deny_unknown_fields`, a config file carrying any of the removed sections is refused at
+  boot rather than silently ignored.
+
+  **What changes for you:** `fraiseql_core::config::*`, `fraiseql_core::FraiseQLConfig`,
+  `fraiseql_core::prelude::FraiseQLConfig`, `fraiseql::FraiseQLConfig` and
+  `fraiseql::prelude::FraiseQLConfig` no longer exist. Library embedders that constructed
+  one were building a value nothing consumed; configure the server through `ServerConfig`.
+
+  A new gate, `tools/check-config-loaders.sh` (preflight + the CI ShellGates leg), refuses
+  a typed TOML config loader that has no coverage manifest naming each accepted key's
+  consumer — the check that would have caught this at the PR that added it.
 - **Selecting a field the type does not define is now a validation error (#939).** GraphQL
   § 5.3.1 (Field Selections on Objects) makes such a document invalid, and an invalid
   document must not execute. The runtime instead lowered the unknown name into the SQL
