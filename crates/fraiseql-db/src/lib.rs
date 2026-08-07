@@ -87,7 +87,7 @@ pub use projection_generator::{FieldKind, PostgresProjectionGenerator, Projectio
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite, CursorValue, DatabaseAdapter,
     DatabaseCapabilities, DirectMutationContext, DirectMutationOp, MutationStrategy,
-    ProjectionRequest, RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
+    ProjectionRequest, RelayDatabaseAdapter, RelayPageResult, ResultCacheStats, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

@@ -131,6 +131,7 @@ mod admin_tests {
         let response = CacheClearResponse {
             success:         true,
             entries_cleared: 42,
+            caches:          vec![],
             message:         "Cleared".to_string(),
         };
 
@@ -202,15 +203,25 @@ mod admin_tests {
     #[test]
     fn test_cache_stats_response_structure() {
         let response = CacheStatsResponse {
-            entries_count: 100,
-            cache_enabled: true,
-            ttl_secs:      60,
-            message:       "Cache statistics".to_string(),
+            caches:  vec![CacheStatsEntry {
+                cache:         "query_result",
+                configured:    true,
+                entries_count: 100,
+                hits:          Some(7),
+                misses:        Some(3),
+                ttl_secs:      60,
+                max_entries:   Some(1000),
+            }],
+            message: "Cache statistics".to_string(),
         };
 
-        assert_eq!(response.entries_count, 100);
-        assert!(response.cache_enabled);
-        assert_eq!(response.ttl_secs, 60);
+        // #941: the shape is per-cache. A flat `cache_enabled` could only ever describe
+        // one of the two caches, and it described the wrong one.
+        assert_eq!(response.caches.len(), 1);
+        assert_eq!(response.caches[0].cache, "query_result");
+        assert!(response.caches[0].configured);
+        assert_eq!(response.caches[0].entries_count, 100);
+        assert_eq!(response.caches[0].ttl_secs, 60);
         assert!(!response.message.is_empty());
     }
 

@@ -1003,6 +1003,41 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         CachedDatabaseAdapter::invalidate_by_entity(self, entity_type, entity_id)
     }
 
+    /// The operator-visible snapshot of the cache that actually serves queries (#941).
+    ///
+    /// `None` when the cache is disabled: an operator asking "what is cached?" of a
+    /// server running `cache_enabled = false` must be told there is no cache, not
+    /// handed a zero-entry snapshot of one.
+    fn result_cache_stats(&self) -> Option<fraiseql_db::ResultCacheStats> {
+        if !self.cache.is_enabled() {
+            return None;
+        }
+        // Settle moka's pending writes first: without this an entry cached moments ago
+        // is not counted, and the endpoint reports an empty cache that is not empty.
+        self.cache.run_pending_tasks();
+        let metrics = self.cache.metrics().ok()?;
+        let config = self.cache.config();
+        Some(fraiseql_db::ResultCacheStats {
+            entries:       metrics.size,
+            hits:          metrics.hits,
+            misses:        metrics.misses,
+            invalidations: metrics.invalidations,
+            memory_bytes:  metrics.memory_bytes,
+            ttl_seconds:   config.ttl_seconds,
+            max_entries:   config.max_entries,
+        })
+    }
+
+    async fn clear_result_cache(&self) -> Result<Option<usize>> {
+        if !self.cache.is_enabled() {
+            return Ok(None);
+        }
+        self.cache.run_pending_tasks();
+        let before = self.cache.metrics().map(|m| m.size).unwrap_or_default();
+        self.cache.clear()?;
+        Ok(Some(before))
+    }
+
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
         self.bump_fact_table_versions_impl(tables).await
     }

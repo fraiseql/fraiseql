@@ -157,10 +157,27 @@ cache_invalidations_total
 cache_memory_bytes_estimated
 ```
 
-**Manual invalidation**: there is no HTTP endpoint for the result cache.
-Invalidation is mutation-driven (per-view / per-entity), and a schema reload
-clears the cache. (`POST /api/v1/admin/cache/clear` operates on the Arrow
-query-plan cache, a different cache.)
+**Manual invalidation**: invalidation is normally mutation-driven (per-view /
+per-entity), and a schema reload clears the cache. For an operator, the admin API
+reaches this cache directly:
+
+```bash
+# Drop everything
+curl -X POST localhost:8000/api/v1/admin/cache/clear \
+  -H "Authorization: Bearer $FRAISEQL_ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"scope": "all"}'
+
+# Drop the entries reading one type's view
+curl -X POST localhost:8000/api/v1/admin/cache/clear \
+  -H "Authorization: Bearer $FRAISEQL_ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"scope": "entity", "entity_type": "Price"}'
+```
+
+Both endpoints report each cache separately under `caches[]`, because a server may
+also hold the Arrow Flight query-plan cache — a different cache with the same
+vocabulary. `scope: "pattern"` applies only to the Arrow cache: result-cache keys are
+hashes, not globbable strings, and the response says so rather than reporting a
+successful clear of nothing.
 
 **Mutation-invalidated-only caching** for a specific query — set
 `cache_ttl_seconds = 0` in the schema (cached, no time-based expiry, evicted by
