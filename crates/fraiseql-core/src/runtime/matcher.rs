@@ -224,6 +224,27 @@ impl QueryMatcher {
             })?
             .clone();
 
+        // 5b. #939: the selected fields must exist on the type being queried
+        //     (GraphQL § 5.3.1). An undeclared name used to be lowered into the
+        //     projection as `data->>'phantom_field'`, which is SQL NULL and
+        //     serialises as a legitimate-looking `null` under a 200 — a client
+        //     typo shipped silently. Spreads are already expanded above, so a
+        //     field contributed by one validates like any other.
+        //
+        //     Relay connections are exempt: `query_def.return_type` is the *node*
+        //     type, while the selection set is scoped to the generated
+        //     `XxxConnection` (`edges`/`pageInfo`/`totalCount`). Validating the
+        //     one against the other would reject every relay query.
+        if !query_def.relay {
+            if let Some(root) = final_selections.first() {
+                crate::graphql::validate_selection_set(
+                    &self.schema,
+                    &query_def.return_type,
+                    &root.nested_fields,
+                )?;
+            }
+        }
+
         // 6. Extract field names for backward compatibility
         let fields = self.extract_field_names(&final_selections);
 

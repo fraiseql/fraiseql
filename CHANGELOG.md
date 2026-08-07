@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **Selecting a field the type does not define is now a validation error (#939).** GraphQL
+  § 5.3.1 (Field Selections on Objects) makes such a document invalid, and an invalid
+  document must not execute. The runtime instead lowered the unknown name into the SQL
+  projection, where `data->>'phantom_field'` evaluates to NULL and serialises as a
+  legitimate-looking `null` — **HTTP 200, no `errors` array**:
+
+  ```
+  { "data": { "users": [ { "phantom_field": null } ] } }
+  ```
+
+  A client typo (`emial` for `email`, or a snake/camel mixup) therefore shipped silently:
+  the response shape looked correct and the value was always null, with nothing in the
+  logs or the response pointing at it.
+
+  **What changes for you:** a query that today returns 200 with `"field": null` for an
+  undeclared selection now fails validation with
+  `Cannot query field '<field>' on type '<Type>'.` and never reaches the database. If any
+  client is relying on that null — including one whose typo has been invisible — it will
+  start erroring. That is the point; check your clients' field names before upgrading.
+
+  Validated on the regular query path (single- and multi-root) and the Relay `node(id:)`
+  path. Deliberately *not* rejected, so a rejection the schema cannot justify never breaks
+  a working query: types the compiled schema does not carry, types whose field list is
+  empty (an object type must have at least one field, so an empty list means the compiler
+  emitted no field information), `__typename` and the introspection meta-fields, inline
+  fragments on unknown type conditions, and Relay connection selections — whose scoped
+  type is the generated `XxxConnection`, not the query's node `return_type`.
+
+  **Interaction with `on_deny` (#423), decided and documented:** a *denied* field is not
+  an *undeclared* field. Policy-gated fields are in the type's field list, so they pass
+  validation and continue through the RBAC layer — `on_deny = Mask` still returns the key
+  with a null value, and `Reject` still returns its authorization error. The unknown-field
+  error therefore only ever names a field that genuinely does not exist. It does let a
+  caller distinguish "exists but masked" from "does not exist", which is the same
+  information introspection publishes and what every spec-conformant GraphQL server
+  reports; masking withholds a *value*, not the schema. Operators who need that hidden
+  should disable introspection and enable error sanitization together.
+
+  Mutation payload selections are not yet validated (#1005): a payload type may be a union
+  resolved per-result, and validating against the wrong variant would reject a working
+  mutation — strictly worse than the bug. Named rather than silently left.
 - **`FragmentResolver::merge_selections` and `FragmentResolver::evaluate_inline_fragment`
   are removed (#905).** Both were `pub`, and neither had a production caller — fragment
   expansion goes through `FragmentResolver::resolve_spreads` (via

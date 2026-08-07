@@ -90,6 +90,9 @@ pub mod fragments;
 /// The shared selection-resolution routine used by every entry point.
 pub mod selection_set;
 
+/// Field-existence validation for a resolved selection set (GraphQL § 5.3.1).
+pub mod selection_validation;
+
 /// Query complexity analysis and `DoS` prevention.
 pub mod complexity;
 
@@ -113,6 +116,7 @@ pub use fragments::FragmentGraph;
 pub use parser::parse_query;
 pub use require_permission_directive::RequirePermissionDirective;
 pub use selection_set::SelectionError;
+pub use selection_validation::validate_selection_set;
 pub use types::{
     Directive, FieldSelection, FragmentDefinition, GraphQLArgument, GraphQLType, ParsedQuery,
     VariableDefinition,

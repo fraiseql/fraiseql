@@ -368,6 +368,52 @@ async fn multi_root_query_carries_fragments_and_directives() {
     assert_eq!(b_keys, vec!["id"], "{response}");
 }
 
+/// #939: an undeclared field is a validation error, and execution never starts.
+///
+/// The symptom is only visible against a real database: the unknown name was
+/// lowered into the projection as `data->>'phantom_field'`, which PostgreSQL
+/// evaluates to NULL and the runtime serialises as a legitimate-looking `null`
+/// under HTTP 200 with no `errors` array. A mock adapter that hands back the
+/// fixture row cannot produce that null, so it cannot show the defect.
+#[tokio::test]
+async fn an_undeclared_field_never_reaches_the_database() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let err = exec
+        .execute("{ users { phantom_field } }", None)
+        .await
+        .expect_err("a selection on an undeclared field is an invalid document (§ 5.3.1)");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("phantom_field") && msg.contains("User"),
+        "the error names the field and the type it is not on, got: {msg}"
+    );
+
+    // The same document one level down, and through a spread.
+    for query in [
+        "{ users { id profile { nope } } }",
+        "fragment F on User { emial } query { users { id ...F } }",
+    ] {
+        let err = exec.execute(query, None).await.expect_err(&format!("invalid: {query}"));
+        assert!(
+            matches!(err, fraiseql_core::error::FraiseQLError::Validation { .. }),
+            "expected a validation error for `{query}`, got: {err:?}"
+        );
+    }
+
+    // Control: the declared shape still executes against the same fixture, so
+    // the assertions above are not passing because the query is broken for some
+    // unrelated reason.
+    let ok = exec
+        .execute("{ users { id name email } }", None)
+        .await
+        .expect("the declared shape must still run");
+    assert_eq!(ok["data"]["users"][0]["name"], json!("Alice"), "{ok}");
+}
+
 /// #912: a nested `__typename` survives the real SQL projection.
 ///
 /// This is the case only a real database can make: `__typename` is a meta-field,
