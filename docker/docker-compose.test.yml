@@ -23,7 +23,16 @@ services:
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
-      - ./init/postgres-test.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      # The SAME files the Dagger `pgService` mounts (.dagger/main.go). They used
+      # to be a local twin, `./init/postgres-test.sql`, and the two had drifted
+      # structurally: the twin seeded `users`/`posts` with `v_user AS SELECT data
+      # FROM users`, while CI seeded `tb_user`/`tb_post` with `v_user AS SELECT
+      # id, data FROM tb_user`. Same view name, same `public` schema, different
+      # shape — so a fixture assertion could only ever hold on one rig, and
+      # `seed_fixture_integrity` (#936) was green locally and red in CI. One
+      # owner, mounted by both, is the fix; ordering matches CI's numeric prefixes.
+      - ../tests/sql/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ../tests/sql/postgres/init-analytics.sql:/docker-entrypoint-initdb.d/01-init-analytics.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
       interval: 5s
