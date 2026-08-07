@@ -580,7 +580,22 @@ impl SecurityContext {
     ///
     /// # Returns
     ///
-    /// `true` if user's roles grant the required scope, `false` otherwise.
+    /// `true` if the user's roles grant the required scope, `false` otherwise.
+    ///
+    /// # `default_role`
+    ///
+    /// A principal carrying **no role at all** falls back to
+    /// `SecurityConfig::default_role` (#894). The condition is an *empty* role set,
+    /// not a failed lookup: a principal that has been assigned roles has been given
+    /// its authority, and quietly widening it when those roles fall short would make
+    /// `default_role` a floor under every principal rather than a default.
+    ///
+    /// The fallback reaches authenticated principals only, because a
+    /// `SecurityContext` exists only for one — an anonymous request has no principal
+    /// and is classified by `apply_anonymous_field_rbac_filtering`, which never calls
+    /// this method. That is deliberate: extending the fallback to anonymous callers
+    /// would re-open #743's privilege inversion from the other side, handing every
+    /// `requires_scope` field to callers who presented no credential.
     ///
     /// # Example
     ///
@@ -600,9 +615,22 @@ impl SecurityContext {
         required_scope: &str,
     ) -> bool {
         // Check if any of user's roles grant this scope
-        self.roles
+        if self
+            .roles
             .iter()
             .any(|role_name| security_config.role_has_scope(role_name, required_scope))
+        {
+            return true;
+        }
+
+        // #894: no role at all → the schema's declared default, if it declared one.
+        if self.roles.is_empty() {
+            if let Some(default_role) = security_config.default_role.as_deref() {
+                return security_config.role_has_scope(default_role, required_scope);
+            }
+        }
+
+        false
     }
 }
 

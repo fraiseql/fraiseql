@@ -399,14 +399,30 @@ fn test_executor_field_access_check_pattern() {
     assert!(!can_access_analytics, "Reader should not access analytics field");
 }
 
+/// #894 — this test used to assert only that `default_role` round-tripped into the
+/// compiled schema. It now asserts the executor's field filter *applies* it: a
+/// principal with no role claim sees exactly what `reader` sees.
 #[test]
 fn test_executor_default_role_applied() {
-    // GIVEN: Security config with default role
     let schema = create_executor_test_schema();
-    let security_value = schema.security.as_ref().expect("Should have security config");
+    let security_config = schema.security.as_ref().expect("Should have security config").clone();
+    assert_eq!(security_config.default_role.as_deref(), Some("reader"), "fixture precondition");
 
-    // THEN: Should have default role set to "reader"
-    assert_eq!(security_value.default_role.as_deref(), Some("reader"));
+    let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
+    let content_field = post_type.fields.iter().find(|f| f.name.as_str() == "content").unwrap();
+    let analytics_field = post_type.fields.iter().find(|f| f.name.as_str() == "analytics").unwrap();
+
+    let mut roleless = create_executor_context("reader");
+    roleless.roles.clear();
+
+    assert!(
+        can_access_field(&roleless, &security_config, content_field),
+        "a principal with no roles must inherit `default_role = reader` (#894)"
+    );
+    assert!(
+        !can_access_field(&roleless, &security_config, analytics_field),
+        "the fallback grants reader's scopes and nothing beyond them"
+    );
 }
 
 #[test]

@@ -342,17 +342,53 @@ fn test_multiple_roles_aggregate_scopes() {
     assert!(context.roles.contains(&"moderator".to_string()));
 }
 
+/// #894 — this test used to assert only that `default_role` round-tripped, which was
+/// true while the field had no reader at all. It now exercises the fallback: an
+/// authenticated principal carrying no role claim inherits the default role's scopes.
 #[test]
 fn test_default_role_fallback() {
     let schema = create_schema_with_scoped_fields();
+    let security = schema.security.as_ref().expect("Schema should have security config");
+    assert_eq!(security.default_role.as_deref(), Some("viewer"), "fixture precondition");
 
-    // Get security config
+    let roleless = create_security_context(vec![]);
+    assert!(
+        roleless.can_access_scope(security, "read:User.email"),
+        "a principal with no roles must inherit `default_role`'s scopes (#894)"
+    );
+    assert!(
+        !roleless.can_access_scope(security, "admin:everything"),
+        "the fallback grants the default role's scopes and nothing more"
+    );
+}
+
+/// The fallback applies to an *absent* role set, not to a role set that happens not
+/// to grant the scope. A principal that has been assigned `guest` has been given its
+/// authority; silently topping it up with `viewer` would make `default_role` a floor
+/// under every principal.
+#[test]
+fn test_default_role_does_not_top_up_an_assigned_role() {
+    let schema = create_schema_with_scoped_fields();
     let security = schema.security.as_ref().expect("Schema should have security config");
 
-    // Verify default role is set
-    assert_eq!(
-        security.default_role.as_deref(),
-        Some("viewer"),
-        "Should have viewer as default role"
+    let guest = create_security_context(vec!["guest".to_string()]);
+    assert!(
+        !guest.can_access_scope(security, "read:User.email"),
+        "an assigned role that does not grant the scope must not fall back to `default_role`"
+    );
+}
+
+/// With no `default_role` declared, an empty role set grants nothing — the behaviour
+/// every schema had before #894, and the one #743 depends on for its deny-all path.
+#[test]
+fn test_no_default_role_means_no_fallback() {
+    let mut schema = create_schema_with_scoped_fields();
+    schema.security.as_mut().expect("security config").default_role = None;
+    let security = schema.security.as_ref().expect("security config");
+
+    let roleless = create_security_context(vec![]);
+    assert!(
+        !roleless.can_access_scope(security, "read:User.email"),
+        "no declared default means an empty role set grants nothing"
     );
 }
