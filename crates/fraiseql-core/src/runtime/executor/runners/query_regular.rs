@@ -108,12 +108,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
             return self
-                .execute_relay_query(
-                    &query_match,
-                    variables,
-                    Some(security_context),
-                    &session_pairs,
-                )
+                .execute_relay_query(&query_match, Some(security_context), &session_pairs)
                 .await;
         }
 
@@ -602,7 +597,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // Route relay queries to dedicated handler.
         // No session vars: unauthenticated entrypoint (no SecurityContext). See #329.
         if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, variables, None, &[]).await;
+            return self.execute_relay_query(&query_match, None, &[]).await;
         }
 
         // #423: the unauthenticated path has no principal, so a selected policy-gated

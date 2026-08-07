@@ -2275,6 +2275,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Relay connection queries read their arguments from the document, not only from the
+  request variables (#904).** `execute_relay_query` took every one of `first`, `last`,
+  `after`, `before`, `where`, `orderBy` and `nearest` from the raw request `variables`
+  object, while the regular query path took them from the matcher's merged argument map
+  (inline arguments under variables, variables winning). An argument written **inline** —
+  the normal way to write a GraphQL query by hand, and the form every non-relay example
+  in `docs/` uses — was therefore invisible to the relay runner, and dropped *silently*:
+  the query succeeded and returned a page.
+
+  `where:` is the sharp case. A dropped filter does not narrow a result set, it widens
+  it: `{ orders(first: 20, where: { status: { eq: "OPEN" } }) { … } }` with no variables
+  served a default-sized page of **every** order the caller could see, shaped exactly
+  like the filtered set that was asked for. RLS and `inject_params` are composed
+  separately and still applied, so this stayed inside the caller's authorization
+  boundary — but within it, the client's own filter was gone. `first`/`last` fell back to
+  the default page size, `after`/`before` re-served the first page, `orderBy` returned an
+  arbitrarily ordered page, and the `nearest` refusal (#386, which has no relay lowering)
+  was bypassed so a similarity search was answered with an ordinary keyset page.
+
+  The relay runner now reads `QueryMatch::arguments`, the same source every other query
+  path reads, and its redundant `variables` parameter is gone. Each relay argument is
+  covered by a test asserting the inline form and the variable form produce the same
+  adapter call — a suite covering only the variable form is what let this ship — plus a
+  real-PostgreSQL case asserting an inline `where:` narrows the **rows**.
 - **Arrow Flight `do_exchange` `Upload` is gated on an operator allow-list, and every
   allow-listed write reaches the Change Spine (#953).** Any caller holding a valid Flight
   session token could send `Upload { table, batch }` with an **arbitrary client-supplied

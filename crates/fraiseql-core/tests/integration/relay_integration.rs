@@ -1095,23 +1095,60 @@ mod relay_security {
 
     use super::*;
 
-    /// A relay mock adapter that records the WHERE clause passed to
-    /// `execute_relay_page`, so tests can assert RLS/inject composition.
+    /// One `execute_relay_page` call, recorded whole.
+    ///
+    /// #904: the relay runner read its arguments from the raw request
+    /// `variables` while every other query path read them from the matcher's
+    /// merged map, so an argument written *inline* in the document was dropped.
+    /// Recording only the WHERE clause cannot see that — a dropped `first`
+    /// arrives as the default page size, which is indistinguishable from a
+    /// legitimate one. The inline-argument suite below asserts the whole call.
+    ///
+    /// The clauses are kept **structural**, not rendered to `Debug` strings: a
+    /// `WhereClause::Typed` node carries the declared field types in a `HashMap`,
+    /// and `RandomState` reseeds per map, so two maps with identical contents
+    /// render in different orders on the same thread. Comparing the renderings
+    /// would make this suite intermittently red for no reason — the same defect
+    /// shape as #1002. `PartialEq` on a `HashMap` is order-independent.
+    #[derive(Clone, Debug, PartialEq)]
+    struct RecordedPage {
+        where_clause:        Option<WhereClause>,
+        after:               Option<String>,
+        before:              Option<String>,
+        limit:               u32,
+        forward:             bool,
+        order_by:            Option<Vec<OrderByClause>>,
+        include_total_count: bool,
+    }
+
+    /// A relay mock adapter that records every argument passed to
+    /// `execute_relay_page`, so tests can assert RLS/inject composition and
+    /// that the runner's arguments arrive at all.
     struct RecordingRelayAdapter {
-        rows:           Vec<JsonbValue>,
-        recorded_where: Mutex<Vec<Option<String>>>,
+        rows:  Vec<JsonbValue>,
+        calls: Mutex<Vec<RecordedPage>>,
     }
 
     impl RecordingRelayAdapter {
         fn new() -> Self {
             Self {
-                rows:           vec![alice(), bob(), carol()],
-                recorded_where: Mutex::new(Vec::new()),
+                rows:  vec![alice(), bob(), carol()],
+                calls: Mutex::new(Vec::new()),
             }
         }
 
+        /// The recorded WHERE clauses rendered for substring assertions.
         fn recorded_wheres(&self) -> Vec<Option<String>> {
-            self.recorded_where.lock().unwrap().clone()
+            self.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|c| c.where_clause.as_ref().map(|w| format!("{w:?}")))
+                .collect()
+        }
+
+        fn recorded_pages(&self) -> Vec<RecordedPage> {
+            self.calls.lock().unwrap().clone()
         }
     }
 
@@ -1191,15 +1228,23 @@ mod relay_security {
             _view: &str,
             cursor_column: &str,
             after: Option<CursorValue>,
-            _before: Option<CursorValue>,
+            before: Option<CursorValue>,
             limit: u32,
             forward: bool,
             where_clause: Option<&fraiseql_core::db::WhereClause>,
-            _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
+            order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
             include_total_count: bool,
         ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
-            // Record the WHERE clause for assertion.
-            self.recorded_where.lock().unwrap().push(where_clause.map(|w| format!("{w:?}")));
+            // Record the whole call for assertion.
+            self.calls.lock().unwrap().push(RecordedPage {
+                where_clause: where_clause.cloned(),
+                after: after.as_ref().map(|c| format!("{c:?}")),
+                before: before.as_ref().map(|c| format!("{c:?}")),
+                limit,
+                forward,
+                order_by: order_by.map(<[OrderByClause]>::to_vec),
+                include_total_count,
+            });
 
             // Minimal keyset pagination (same as RelayMockAdapter).
             let total_count = if include_total_count {
@@ -1329,8 +1374,6 @@ mod relay_security {
         let exec =
             Executor::with_config_and_relay(schema, adapter.clone(), RuntimeConfig::default());
 
-        // The relay runner reads its arguments from the request variables, not
-        // from `QueryMatch::arguments` — see the note on the inline case below.
         exec.execute(
             "{ users { edges { node { id } } } }",
             Some(&json!({
@@ -1463,5 +1506,231 @@ mod relay_security {
             err_msg.contains("inject params") || err_msg.contains("security context"),
             "error should mention inject params or security context; got: {err_msg}"
         );
+    }
+
+    // ── #904: inline arguments reach the relay runner ─────────────────
+    //
+    // Inline arguments are how a GraphQL query is written by hand, and the form
+    // every non-relay example in `docs/` uses. The relay runner read the raw
+    // request `variables` instead of the matcher's merged argument map, so an
+    // inline argument was dropped *silently*: the query succeeded and returned a
+    // page. `where:` is the sharp one — dropping a filter does not narrow a
+    // result set, it widens it.
+    //
+    // Every test here pairs the inline form against the variable form of the
+    // same argument. One form on its own proves nothing: the existing relay
+    // suite covers only the variable form, which is exactly what let this ship.
+    mod inline_arguments {
+        use fraiseql_core::runtime::relay::encode_edge_cursor;
+
+        use super::*;
+
+        /// An executor whose relay query accepts every auto-generated argument.
+        ///
+        /// `TestQueryBuilder` leaves `auto_params` off, and the runner only
+        /// reads `where:`/`orderBy:` when the compiled schema says the query
+        /// accepts them — without this the arguments would be dropped for a
+        /// legitimate reason and the test would prove nothing.
+        fn arg_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
+            let adapter = Arc::new(RecordingRelayAdapter::new());
+            let mut schema = relay_schema();
+            for q in &mut schema.queries {
+                q.auto_params.has_where = true;
+                q.auto_params.has_order_by = true;
+            }
+            let exec =
+                Executor::with_config_and_relay(schema, adapter.clone(), RuntimeConfig::default());
+            (exec, adapter)
+        }
+
+        /// Execute one relay query and return the single page call it produced.
+        async fn page_for(query: &str, variables: Option<serde_json::Value>) -> RecordedPage {
+            let (exec, adapter) = arg_executor();
+            exec.execute(query, variables.as_ref())
+                .await
+                .unwrap_or_else(|e| panic!("relay query executes: {query}\n{e}"));
+            let mut pages = adapter.recorded_pages();
+            assert_eq!(pages.len(), 1, "exactly one relay page call expected for: {query}");
+            pages.remove(0)
+        }
+
+        /// An inline `where:` must reach the adapter — dropping it widens the page.
+        #[tokio::test]
+        async fn inline_where_reaches_the_adapter() {
+            let inline = page_for(
+                r#"{ users(first: 1, where: { name: { eq: "Alice" } }) { edges { node { id } } } }"#,
+                None,
+            )
+            .await;
+            let via_variable = page_for(
+                "query($w: UserWhereInput) { users(first: 1, where: $w) { edges { node { id } } } }",
+                Some(json!({"w": {"name": {"eq": "Alice"}}})),
+            )
+            .await;
+
+            let clause = inline.where_clause.as_ref().expect(
+                "an inline `where:` must reach the relay adapter — dropping it returns \
+                         every row the caller may see, presented as the filtered set",
+            );
+            let rendered = format!("{clause:?}");
+            assert!(
+                rendered.contains("Alice"),
+                "the inline filter's value must survive to the adapter, got: {rendered}"
+            );
+            assert_eq!(
+                inline.where_clause, via_variable.where_clause,
+                "the inline and variable forms of `where:` must produce the same clause"
+            );
+        }
+
+        /// An inline `first:` must set the page size, not fall back to the default.
+        #[tokio::test]
+        async fn inline_first_sets_the_page_size() {
+            let inline = page_for("{ users(first: 2) { edges { node { id } } } }", None).await;
+            let via_variable = page_for(
+                "query($n: Int) { users(first: $n) { edges { node { id } } } }",
+                Some(json!({"n": 2})),
+            )
+            .await;
+
+            // The runner fetches page_size + 1 rows to detect `hasNextPage`.
+            assert_eq!(
+                inline.limit, 3,
+                "`first: 2` must fetch 3 rows; the default page size (20 -> 21) means the \
+                 argument was dropped"
+            );
+            assert!(inline.forward, "`first:` paginates forward");
+            assert_eq!(inline, via_variable, "inline `first:` must equal the variable form");
+        }
+
+        /// An inline `last:` must select backward pagination at the requested size.
+        #[tokio::test]
+        async fn inline_last_paginates_backward() {
+            let inline = page_for("{ users(last: 2) { edges { node { id } } } }", None).await;
+            let via_variable = page_for(
+                "query($n: Int) { users(last: $n) { edges { node { id } } } }",
+                Some(json!({"n": 2})),
+            )
+            .await;
+
+            assert!(
+                !inline.forward,
+                "`last:` written inline must paginate backward; forward means it was dropped \
+                 and `first`'s default took over"
+            );
+            assert_eq!(inline.limit, 3, "`last: 2` must fetch 3 rows");
+            assert_eq!(inline, via_variable, "inline `last:` must equal the variable form");
+        }
+
+        /// An inline `after:` cursor must reach the adapter as a decoded cursor.
+        #[tokio::test]
+        async fn inline_after_cursor_reaches_the_adapter() {
+            let cursor = encode_edge_cursor(PK_ALICE);
+            let inline = page_for(
+                &format!(
+                    "{{ users(first: 2, after: \"{cursor}\") {{ edges {{ node {{ id }} }} }} }}"
+                ),
+                None,
+            )
+            .await;
+            let via_variable = page_for(
+                "query($c: String) { users(first: 2, after: $c) { edges { node { id } } } }",
+                Some(json!({"c": cursor})),
+            )
+            .await;
+
+            assert_eq!(
+                inline.after,
+                Some(format!("Int64({PK_ALICE})")),
+                "an inline `after:` cursor must reach the adapter — dropping it silently \
+                 re-serves the first page"
+            );
+            assert_eq!(inline, via_variable, "inline `after:` must equal the variable form");
+        }
+
+        /// An inline `before:` cursor must reach the adapter as a decoded cursor.
+        #[tokio::test]
+        async fn inline_before_cursor_reaches_the_adapter() {
+            let cursor = encode_edge_cursor(PK_CAROL);
+            let inline = page_for(
+                &format!(
+                    "{{ users(last: 2, before: \"{cursor}\") {{ edges {{ node {{ id }} }} }} }}"
+                ),
+                None,
+            )
+            .await;
+            let via_variable = page_for(
+                "query($c: String) { users(last: 2, before: $c) { edges { node { id } } } }",
+                Some(json!({"c": cursor})),
+            )
+            .await;
+
+            assert_eq!(
+                inline.before,
+                Some(format!("Int64({PK_CAROL})")),
+                "an inline `before:` cursor must reach the adapter"
+            );
+            assert_eq!(inline, via_variable, "inline `before:` must equal the variable form");
+        }
+
+        /// An inline `orderBy:` must reach the adapter — dropping it returns an
+        /// arbitrarily ordered page that reads as a sorted one.
+        #[tokio::test]
+        async fn inline_order_by_reaches_the_adapter() {
+            let inline = page_for(
+                r#"{ users(first: 2, orderBy: { name: "DESC" }) { edges { node { id } } } }"#,
+                None,
+            )
+            .await;
+            let via_variable = page_for(
+                "query($o: UserOrderBy) { users(first: 2, orderBy: $o) { edges { node { id } } } }",
+                Some(json!({"o": {"name": "DESC"}})),
+            )
+            .await;
+
+            let order = inline
+                .order_by
+                .as_ref()
+                .expect("an inline `orderBy:` must reach the relay adapter");
+            assert!(
+                order.iter().any(|c| c.field == "name"),
+                "the ordered field must survive to the adapter, got: {order:?}"
+            );
+            assert_eq!(
+                inline.order_by, via_variable.order_by,
+                "the inline and variable forms of `orderBy:` must produce the same clause"
+            );
+        }
+
+        /// An inline `nearest:` must be refused, exactly as the variable form is.
+        ///
+        /// `nearest` (#386) has no relay lowering. The guard reading only
+        /// `variables` meant an inline `nearest:` was accepted and answered with
+        /// an ordinary keyset page — an unordered result that reads as a
+        /// successful similarity search.
+        #[tokio::test]
+        async fn inline_nearest_is_refused() {
+            let (exec, adapter) = arg_executor();
+            let result = exec
+                .execute(
+                    "{ users(first: 2, nearest: { embedding: [0.1, 0.2] })
+                         { edges { node { id } } } }",
+                    None,
+                )
+                .await;
+
+            let err = result.expect_err(
+                "`nearest:` has no relay lowering; accepting it inline answers a similarity \
+                 search with an ordinary keyset page",
+            );
+            assert!(
+                err.to_string().contains("nearest"),
+                "the refusal must name `nearest`, got: {err}"
+            );
+            assert!(
+                adapter.recorded_pages().is_empty(),
+                "the refusal must happen before the adapter is called"
+            );
+        }
     }
 }

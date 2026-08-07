@@ -38,13 +38,16 @@ const VIEW: &str = "v_selection_conformance_user";
 
 const ALICE_UUID: &str = "aaaa0000-0000-0000-0000-000000000001";
 
+/// `pk_user` is both a real column (the keyset cursor the relay SQL orders and
+/// filters on) and a `data` key (the runtime reads the emitted cursor out of the
+/// JSONB blob).
 const FIXTURE: &str = r#"
 DROP TABLE IF EXISTS v_selection_conformance_user;
-CREATE TABLE v_selection_conformance_user (data jsonb);
-INSERT INTO v_selection_conformance_user (data) VALUES
-  ('{"id":"aaaa0000-0000-0000-0000-000000000001","name":"Alice",
+CREATE TABLE v_selection_conformance_user (pk_user bigint, data jsonb);
+INSERT INTO v_selection_conformance_user (pk_user, data) VALUES
+  (1, '{"id":"aaaa0000-0000-0000-0000-000000000001","name":"Alice","pk_user":1,
      "email":"alice@example.com","secret":"SECRET-VALUE"}'::jsonb),
-  ('{"id":"bbbb0000-0000-0000-0000-000000000002","name":"Bob",
+  (2, '{"id":"bbbb0000-0000-0000-0000-000000000002","name":"Bob","pk_user":2,
      "email":"bob@example.com","secret":"SECRET-VALUE"}'::jsonb);
 "#;
 
@@ -63,7 +66,21 @@ fn schema() -> CompiledSchema {
         .with_sql_source(VIEW)
         .build();
 
-    let mut schema = TestSchemaBuilder::new().with_type(user_type).with_query(users_query).build();
+    // The same rows behind a Relay connection, so the relay runner's arguments
+    // can be asserted in rows against a real database (#904).
+    let mut connection_query = TestQueryBuilder::new("usersConnection", "User")
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .relay_cursor_column("pk_user")
+        .build();
+    connection_query.auto_params.has_where = true;
+    connection_query.auto_params.has_order_by = true;
+
+    let mut schema = TestSchemaBuilder::new()
+        .with_type(user_type)
+        .with_query(users_query)
+        .with_query(connection_query)
+        .build();
     schema.interfaces.push(
         InterfaceDefinition::new("Node").with_field(FieldDefinition::new("id", FieldType::Id)),
     );
@@ -102,6 +119,21 @@ fn user_keys(response: &Value) -> Vec<String> {
         .unwrap_or_else(|| panic!("expected an object at data.users[0], got: {response}"))
         .keys()
         .cloned()
+        .collect()
+}
+
+/// `name` of every node in a relay connection, in page order.
+fn edge_names(response: &Value) -> Vec<String> {
+    response["data"]["usersConnection"]["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("expected edges at data.usersConnection, got: {response}"))
+        .iter()
+        .map(|e| {
+            e["node"]["name"]
+                .as_str()
+                .unwrap_or_else(|| panic!("edge node has no name: {response}"))
+                .to_string()
+        })
         .collect()
 }
 
@@ -325,4 +357,69 @@ async fn multi_root_query_carries_fragments_and_directives() {
         .collect();
     assert_eq!(a_keys, vec!["id", "name"], "{response}");
     assert_eq!(b_keys, vec!["id"], "{response}");
+}
+
+/// #904: an inline `where:` on a Relay connection must narrow the page.
+///
+/// Asserted in **rows**, not in the absence of an error. A dropped filter does
+/// not fail the query — it succeeds and serves every row the caller is allowed
+/// to see, shaped exactly like the filtered set the client asked for. Only a
+/// row count distinguishes the two.
+#[tokio::test]
+async fn relay_inline_arguments_narrow_the_page() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    // Control: no arguments — the whole connection.
+    let all = exec
+        .execute("{ usersConnection { edges { node { name } } } }", None)
+        .await
+        .expect("unfiltered relay query must run");
+    assert_eq!(
+        edge_names(&all),
+        vec!["Alice", "Bob"],
+        "the unfiltered connection is the baseline the filtered cases narrow: {all}"
+    );
+
+    // Inline `where:` — one row.
+    let inline = exec
+        .execute(
+            r#"{ usersConnection(where: { name: { eq: "Alice" } }) { edges { node { name } } } }"#,
+            None,
+        )
+        .await
+        .expect("inline-filtered relay query must run");
+    assert_eq!(
+        edge_names(&inline),
+        vec!["Alice"],
+        "an inline `where:` must narrow the page; serving both rows is the whole of #904 — \
+         the response is a superset of what was asked for, and nothing says so: {inline}"
+    );
+
+    // The variable form of the same filter agrees.
+    let via_variable = exec
+        .execute(
+            "query($w: UserWhereInput) { usersConnection(where: $w) { edges { node { name } } } }",
+            Some(&json!({"w": {"name": {"eq": "Alice"}}})),
+        )
+        .await
+        .expect("variable-filtered relay query must run");
+    assert_eq!(
+        edge_names(&via_variable),
+        edge_names(&inline),
+        "the inline and variable forms of `where:` must return the same rows: {via_variable}"
+    );
+
+    // Inline `first:` bounds the page against the real LIMIT.
+    let first_one = exec
+        .execute("{ usersConnection(first: 1) { edges { node { name } } } }", None)
+        .await
+        .expect("inline `first:` relay query must run");
+    assert_eq!(
+        edge_names(&first_one),
+        vec!["Alice"],
+        "an inline `first: 1` must bound the page to one edge: {first_one}"
+    );
 }
