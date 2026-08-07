@@ -356,6 +356,16 @@ impl QueryResultCache {
         self.config.enabled
     }
 
+    /// The configuration this cache was built with (immutable after creation).
+    ///
+    /// The admin surface reports the effective TTL and entry ceiling, which used to be
+    /// hard-coded constants in the handler that happened to match a different cache's
+    /// defaults (#941).
+    #[must_use]
+    pub const fn config(&self) -> &CacheConfig {
+        &self.config
+    }
+
     /// Look up a cached result by its cache key.
     ///
     /// Returns `None` when caching is disabled or the key is not present or expired.
@@ -729,9 +739,14 @@ impl QueryResultCache {
 
     /// Flush pending background tasks in the moka store.
     ///
-    /// Used in tests to synchronise async eviction/invalidation before assertions.
-    #[cfg(test)]
-    pub(crate) fn run_pending_tasks(&self) {
+    /// Moka applies writes and evictions on a background schedule, so `entry_count()`
+    /// lags: a `put` followed immediately by `metrics()` reports zero entries. Tests
+    /// need this to synchronise before an assertion, and so does the admin stats
+    /// endpoint — an operator asking how many entries are cached wants the settled
+    /// number, not an estimate that reads as "nothing is cached" (#941).
+    ///
+    /// Not on the query path: this walks the pending write buffer.
+    pub fn run_pending_tasks(&self) {
         self.store.run_pending_tasks();
     }
 }

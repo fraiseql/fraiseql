@@ -3,6 +3,437 @@
 //! Provides a static `OpenAPI` 3.0.0 specification documenting all API endpoints,
 //! request/response schemas, and authentication requirements.
 
+/// The per-cache result the admin cache endpoints report (#941).
+///
+/// Built outside the document's own `json!` because that macro expands recursively
+/// once per nesting level and the whole spec already sits near the crate's recursion
+/// limit; a nested literal here tips it over.
+fn cache_operation_result_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "cache": {
+                "type": "string",
+                "enum": ["query_result", "arrow_flight"],
+                "description": "query_result serves GraphQL; arrow_flight caches Flight query plans"
+            },
+            "configured": {
+                "type": "boolean",
+                "description": "Whether this cache exists on this server"
+            },
+            "entries_cleared": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Entries dropped, or absent when the scope does not apply to this cache"
+            },
+            "note": {
+                "type": "string",
+                "nullable": true,
+                "description": "Why nothing happened, when nothing happened"
+            }
+        }
+    })
+}
+
+/// The admin cache-clear response (#941), for the same recursion-depth reason.
+fn cache_clear_response_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "success": { "type": "boolean" },
+            "entries_cleared": {
+                "type": "integer",
+                "description": "Total entries dropped, summed across every cache that served the scope"
+            },
+            "caches": {
+                "type": "array",
+                "description": "Per-cache outcome: the server can hold a query result cache and an Arrow Flight cache, and one request may apply to only one of them",
+                "items": { "$ref": "#/components/schemas/CacheOperationResult" }
+            },
+            "message": { "type": "string" }
+        }
+    })
+}
+
+/// The `components` section of the spec.
+///
+/// Split out of [`get_openapi_spec`]'s literal because `serde_json::json!` recurses
+/// once per entry while parsing an object, and the schema map had reached the crate's
+/// recursion limit — adding one key (#941's `CacheOperationResult`) stopped the crate
+/// compiling. A separate call starts the expansion budget over.
+fn components_schema() -> serde_json::Value {
+    serde_json::json!({
+            "securitySchemes": {
+                "BearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "description": "Bearer token for admin endpoints"
+                }
+            },
+            "schemas": {
+                "ExplainRequest": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "GraphQL query to analyze",
+                            "example": "query { users { id name } }"
+                        }
+                    }
+                },
+                "ComplexityInfo": {
+                    "type": "object",
+                    "properties": {
+                        "depth": {
+                            "type": "integer",
+                            "description": "Query nesting depth",
+                            "example": 2
+                        },
+                        "field_count": {
+                            "type": "integer",
+                            "description": "Total fields requested",
+                            "example": 10
+                        },
+                        "score": {
+                            "type": "integer",
+                            "description": "Complexity score (depth × field_count)",
+                            "example": 45
+                        }
+                    }
+                },
+                "ExplainResponse": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string"
+                        },
+                        "sql": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Generated SQL execution plan"
+                        },
+                        "estimated_cost": {
+                            "type": "integer"
+                        },
+                        "complexity": {
+                            "$ref": "#/components/schemas/ComplexityInfo"
+                        },
+                        "warnings": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "ValidateRequest": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "GraphQL query to validate"
+                        }
+                    }
+                },
+                "ValidateResponse": {
+                    "type": "object",
+                    "properties": {
+                        "valid": {
+                            "type": "boolean"
+                        },
+                        "errors": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "StatsResponse": {
+                    "type": "object",
+                    "properties": {
+                        "query_count": {
+                            "type": "integer"
+                        },
+                        "avg_latency_ms": {
+                            "type": "number"
+                        }
+                    }
+                },
+                "SubgraphInfo": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "example": "users"
+                        },
+                        "url": {
+                            "type": "string",
+                            "example": "http://users.local/graphql"
+                        },
+                        "entities": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "healthy": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "SubgraphsResponse": {
+                    "type": "object",
+                    "properties": {
+                        "subgraphs": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/components/schemas/SubgraphInfo"
+                            }
+                        }
+                    }
+                },
+                "GraphResponse": {
+                    "type": "object",
+                    "properties": {
+                        "format": {
+                            "type": "string",
+                            "enum": ["json", "dot", "mermaid"]
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Graph in requested format"
+                        }
+                    }
+                },
+                "JsonSchemaResponse": {
+                    "type": "object",
+                    "properties": {
+                        "schema": {
+                            "type": "object",
+                            "description": "Compiled schema as JSON"
+                        }
+                    }
+                },
+                "ReloadSchemaRequest": {
+                    "type": "object",
+                    "required": ["schema_path"],
+                    "properties": {
+                        "schema_path": {
+                            "type": "string",
+                            "description": "Path to compiled schema file",
+                            "example": "/path/to/schema.compiled.json"
+                        },
+                        "validate_only": {
+                            "type": "boolean",
+                            "description": "If true, only validate without applying",
+                            "default": false
+                        }
+                    }
+                },
+                "ReloadSchemaResponse": {
+                    "type": "object",
+                    "properties": {
+                        "success": {
+                            "type": "boolean"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "CacheClearRequest": {
+                    "type": "object",
+                    "required": ["scope"],
+                    "properties": {
+                        "scope": {
+                            "type": "string",
+                            "enum": ["all", "entity", "pattern"],
+                            "description": "Scope for cache clearing"
+                        },
+                        "entity_type": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Required if scope is 'entity'"
+                        },
+                        "pattern": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Required if scope is 'pattern'"
+                        }
+                    }
+                },
+                "CacheClearResponse": cache_clear_response_schema(),
+                "CacheOperationResult": cache_operation_result_schema(),
+                "AdminConfigResponse": {
+                    "type": "object",
+                    "properties": {
+                        "version": {
+                            "type": "string",
+                            "example": "2.0.0-a1"
+                        },
+                        "config": {
+                            "type": "object",
+                            "description": "Sanitized configuration (no secrets)",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "ApiResponse": {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "example": "success"
+                        },
+                        "data": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "ApiResponseExplain": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/ExplainResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseValidate": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/ValidateResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseStats": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/StatsResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseSubgraphs": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/SubgraphsResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseGraph": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/GraphResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseSchemaJson": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/JsonSchemaResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseReloadSchema": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/ReloadSchemaResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseCacheClear": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/CacheClearResponse"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "ApiResponseConfig": {
+                    "allOf": [
+                        {
+                            "$ref": "#/components/schemas/ApiResponse"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "$ref": "#/components/schemas/AdminConfigResponse"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+    })
+}
+
 /// Get complete `OpenAPI` 3.0.0 specification as JSON string.
 #[must_use]
 pub fn get_openapi_spec() -> String {
@@ -308,387 +739,6 @@ pub fn get_openapi_spec() -> String {
                 }
             }
         },
-        "components": {
-            "securitySchemes": {
-                "BearerAuth": {
-                    "type": "http",
-                    "scheme": "bearer",
-                    "description": "Bearer token for admin endpoints"
-                }
-            },
-            "schemas": {
-                "ExplainRequest": {
-                    "type": "object",
-                    "required": ["query"],
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "GraphQL query to analyze",
-                            "example": "query { users { id name } }"
-                        }
-                    }
-                },
-                "ComplexityInfo": {
-                    "type": "object",
-                    "properties": {
-                        "depth": {
-                            "type": "integer",
-                            "description": "Query nesting depth",
-                            "example": 2
-                        },
-                        "field_count": {
-                            "type": "integer",
-                            "description": "Total fields requested",
-                            "example": 10
-                        },
-                        "score": {
-                            "type": "integer",
-                            "description": "Complexity score (depth × field_count)",
-                            "example": 45
-                        }
-                    }
-                },
-                "ExplainResponse": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string"
-                        },
-                        "sql": {
-                            "type": "string",
-                            "nullable": true,
-                            "description": "Generated SQL execution plan"
-                        },
-                        "estimated_cost": {
-                            "type": "integer"
-                        },
-                        "complexity": {
-                            "$ref": "#/components/schemas/ComplexityInfo"
-                        },
-                        "warnings": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "ValidateRequest": {
-                    "type": "object",
-                    "required": ["query"],
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "GraphQL query to validate"
-                        }
-                    }
-                },
-                "ValidateResponse": {
-                    "type": "object",
-                    "properties": {
-                        "valid": {
-                            "type": "boolean"
-                        },
-                        "errors": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "StatsResponse": {
-                    "type": "object",
-                    "properties": {
-                        "query_count": {
-                            "type": "integer"
-                        },
-                        "avg_latency_ms": {
-                            "type": "number"
-                        }
-                    }
-                },
-                "SubgraphInfo": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string",
-                            "example": "users"
-                        },
-                        "url": {
-                            "type": "string",
-                            "example": "http://users.local/graphql"
-                        },
-                        "entities": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "healthy": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "SubgraphsResponse": {
-                    "type": "object",
-                    "properties": {
-                        "subgraphs": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/components/schemas/SubgraphInfo"
-                            }
-                        }
-                    }
-                },
-                "GraphResponse": {
-                    "type": "object",
-                    "properties": {
-                        "format": {
-                            "type": "string",
-                            "enum": ["json", "dot", "mermaid"]
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Graph in requested format"
-                        }
-                    }
-                },
-                "JsonSchemaResponse": {
-                    "type": "object",
-                    "properties": {
-                        "schema": {
-                            "type": "object",
-                            "description": "Compiled schema as JSON"
-                        }
-                    }
-                },
-                "ReloadSchemaRequest": {
-                    "type": "object",
-                    "required": ["schema_path"],
-                    "properties": {
-                        "schema_path": {
-                            "type": "string",
-                            "description": "Path to compiled schema file",
-                            "example": "/path/to/schema.compiled.json"
-                        },
-                        "validate_only": {
-                            "type": "boolean",
-                            "description": "If true, only validate without applying",
-                            "default": false
-                        }
-                    }
-                },
-                "ReloadSchemaResponse": {
-                    "type": "object",
-                    "properties": {
-                        "success": {
-                            "type": "boolean"
-                        },
-                        "message": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "CacheClearRequest": {
-                    "type": "object",
-                    "required": ["scope"],
-                    "properties": {
-                        "scope": {
-                            "type": "string",
-                            "enum": ["all", "entity", "pattern"],
-                            "description": "Scope for cache clearing"
-                        },
-                        "entity_type": {
-                            "type": "string",
-                            "nullable": true,
-                            "description": "Required if scope is 'entity'"
-                        },
-                        "pattern": {
-                            "type": "string",
-                            "nullable": true,
-                            "description": "Required if scope is 'pattern'"
-                        }
-                    }
-                },
-                "CacheClearResponse": {
-                    "type": "object",
-                    "properties": {
-                        "success": {
-                            "type": "boolean"
-                        },
-                        "entries_cleared": {
-                            "type": "integer"
-                        },
-                        "message": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "AdminConfigResponse": {
-                    "type": "object",
-                    "properties": {
-                        "version": {
-                            "type": "string",
-                            "example": "2.0.0-a1"
-                        },
-                        "config": {
-                            "type": "object",
-                            "description": "Sanitized configuration (no secrets)",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "ApiResponse": {
-                    "type": "object",
-                    "properties": {
-                        "status": {
-                            "type": "string",
-                            "example": "success"
-                        },
-                        "data": {
-                            "type": "object"
-                        }
-                    }
-                },
-                "ApiResponseExplain": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/ExplainResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseValidate": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/ValidateResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseStats": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/StatsResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseSubgraphs": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/SubgraphsResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseGraph": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/GraphResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseSchemaJson": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/JsonSchemaResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseReloadSchema": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/ReloadSchemaResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseCacheClear": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/CacheClearResponse"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "ApiResponseConfig": {
-                    "allOf": [
-                        {
-                            "$ref": "#/components/schemas/ApiResponse"
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "data": {
-                                    "$ref": "#/components/schemas/AdminConfigResponse"
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-        }
+        "components": components_schema()
     }).to_string()
 }

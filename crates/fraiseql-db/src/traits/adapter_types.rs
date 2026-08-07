@@ -50,6 +50,33 @@ impl RelayPageResult {
     }
 }
 
+/// A snapshot of an adapter's query-result cache, for the operator surface.
+///
+/// Exists because the admin API could see only the Arrow Flight query cache, and so
+/// answered "Cache is not configured" for a server whose sibling endpoint reported the
+/// query result cache active in the same breath (#941). An adapter that caches nothing
+/// returns `None` from
+/// [`DatabaseAdapter::result_cache_stats`](super::DatabaseAdapter::result_cache_stats)
+/// — "no such cache" and "a cache holding zero entries" are different answers and the
+/// endpoint must not conflate them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ResultCacheStats {
+    /// Entries currently held.
+    pub entries:       usize,
+    /// Lookups served from cache.
+    pub hits:          u64,
+    /// Lookups that reached the database.
+    pub misses:        u64,
+    /// Invalidations performed (mutation sweeps, entity evictions, admin clears).
+    pub invalidations: u64,
+    /// Estimated memory held, in bytes.
+    pub memory_bytes:  usize,
+    /// Configured default entry TTL, in seconds.
+    pub ttl_seconds:   u64,
+    /// Configured entry ceiling.
+    pub max_entries:   usize,
+}
+
 /// Database capabilities and feature support.
 ///
 /// Describes what features a database backend supports, allowing the runtime

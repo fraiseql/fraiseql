@@ -184,23 +184,37 @@ fi
 
 3. **Clear in-memory caches**
 
-   The reliable way to drop every in-process cache (including the query-result
-   adapter cache) is a restart:
-
-   ```bash
-   docker restart fraiseql-server
-   sleep 5
-   curl http://localhost:8000/health
-   ```
-
    The admin API's cache-clear endpoint (requires `admin_api_enabled = true` and an
-   admin token) clears only the Arrow Flight query cache, when one is configured:
+   admin token) drops the query result cache — the one serving GraphQL — and the Arrow
+   Flight cache when one is configured, reporting each separately:
 
    ```bash
    curl -X POST http://localhost:8000/api/v1/admin/cache/clear \
      -H "Authorization: Bearer $FRAISEQL_ADMIN_TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"scope": "all"}'
+   ```
+
+   ```json
+   {"status":"success","data":{"success":true,"entries_cleared":1284,
+    "caches":[{"cache":"query_result","configured":true,"entries_cleared":1284}],
+    "message":"Cleared 1284 entries from query_result"}}
+   ```
+
+   A `configured: false` entry means that cache is not present on this server — for
+   `query_result` that is `cache_enabled = false`. Check what is holding memory first:
+
+   ```bash
+   curl http://localhost:8000/api/v1/admin/cache/stats \
+     -H "Authorization: Bearer $FRAISEQL_ADMIN_TOKEN"
+   ```
+
+   A restart still drops every in-process cache, including ones with no admin surface:
+
+   ```bash
+   docker restart fraiseql-server
+   sleep 5
+   curl http://localhost:8000/health
    ```
 
 4. **Reduce connection pool size temporarily**

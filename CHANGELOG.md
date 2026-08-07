@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The admin cache API sees the cache that actually serves queries, and its response
+  shape is per-cache (#941).** On a server with `cache_enabled = true` and no Arrow
+  Flight service, `GET /api/v1/admin/config` reported `cache_enabled: "true",
+  cache_status: "active"` while `GET /api/v1/admin/cache/stats` on the same server
+  answered `"Cache is not configured"` and `POST /api/v1/admin/cache/clear` returned
+  **500 `Cache not configured`**. Two different caches shared one vocabulary: `config`
+  reported the query result cache, `stats` and `clear` could see only the Arrow Flight
+  cache. An operator following runbook 04 got a 500 from an endpoint whose sibling said
+  the cache was active.
+
+  Both endpoints now operate on both caches and report them separately:
+
+  ```json
+  {"caches":[{"cache":"query_result","configured":true,"entries_count":1284,
+              "hits":90211,"misses":1284,"ttl_secs":300,"max_entries":10000}],
+   "message":"Configured cache(s): query_result"}
+  ```
+
+  **What changes for you:** `CacheStatsResponse`'s flat `entries_count` / `cache_enabled`
+  / `ttl_secs` are replaced by `caches[]`; `CacheClearResponse` gains `caches[]` beside
+  its (now summed) `entries_cleared`. `cache/clear` no longer 500s when a cache is
+  absent — it returns 200 with `configured: false` for that cache, since "there is no
+  such cache" is an answer, not a server error. `scope: "pattern"` applies only to the
+  Arrow cache (result-cache keys are hashes, not globbable strings) and says so in
+  `note` rather than reporting a successful clear of nothing. `scope: "entity"` now
+  resolves the view from the compiled schema instead of guessing `v_{lowercase}`, which
+  mapped `OrderItem` to `v_orderitem` and evicted nothing.
+
+  New on `DatabaseAdapter`: `result_cache_stats()` and `clear_result_cache()`, both
+  defaulting to "no cache" and overridden by `CachedDatabaseAdapter`.
+  `QueryResultCache::run_pending_tasks` is now public and is called before reporting
+  stats: moka settles writes on a background schedule, so an entry cached moments
+  earlier was reported as an empty cache.
 - **A mutation that resolves to no view no longer compiles beside a cacheable view
   (#910).** A successful mutation's invalidation is resolved from `invalidates_views`,
   the return type's view, the entity a payload type wraps, the `entity_type` its SQL

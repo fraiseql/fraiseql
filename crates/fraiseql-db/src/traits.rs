@@ -929,6 +929,33 @@ pub trait DatabaseAdapter: Send + Sync {
         Ok(0)
     }
 
+    /// A snapshot of this adapter's query-result cache, or `None` if it has none.
+    ///
+    /// The operator surface for the cache that actually serves GraphQL queries.
+    /// `None` means "this adapter does not cache" — distinct from `Some(stats)` with
+    /// zero entries, which means "the cache is there and currently empty". The admin
+    /// API reported the second as the first for every non-Arrow deployment (#941).
+    ///
+    /// The default implementation returns `None`; `CachedDatabaseAdapter` overrides it.
+    fn result_cache_stats(&self) -> Option<crate::ResultCacheStats> {
+        None
+    }
+
+    /// Drop every entry in this adapter's query-result cache.
+    ///
+    /// Returns the number of entries dropped, or `None` if this adapter has no cache
+    /// — again so the caller can say "there is no such cache" rather than reporting a
+    /// successful clear of nothing.
+    ///
+    /// The default implementation returns `Ok(None)`; `CachedDatabaseAdapter` overrides it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError` if the underlying cache cannot be cleared.
+    async fn clear_result_cache(&self) -> Result<Option<usize>> {
+        Ok(None)
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

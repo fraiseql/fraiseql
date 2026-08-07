@@ -104,6 +104,7 @@ fn test_cache_clear_response_structure() {
     let response = CacheClearResponse {
         success:         true,
         entries_cleared: 150,
+        caches:          vec![],
         message:         "Cache cleared".to_string(),
     };
 
@@ -172,6 +173,7 @@ fn test_cache_clear_response_json_serialization() {
     let response = CacheClearResponse {
         success:         true,
         entries_cleared: 42,
+        caches:          vec![],
         message:         "Cache cleared".to_string(),
     };
 
@@ -205,6 +207,7 @@ fn test_api_response_wrapper_cache_clear() {
         data:   CacheClearResponse {
             success:         true,
             entries_cleared: 10,
+            caches:          vec![],
             message:         "Cleared".to_string(),
         },
     };
@@ -326,6 +329,7 @@ fn test_cache_clear_response_zero_entries() {
     let response = CacheClearResponse {
         success:         true,
         entries_cleared: 0,
+        caches:          vec![],
         message:         "Cache was empty".to_string(),
     };
 
@@ -340,6 +344,7 @@ fn test_cache_clear_response_multiple_entries() {
     let response = CacheClearResponse {
         success:         true,
         entries_cleared: 1000,
+        caches:          vec![],
         message:         "Cleared 1000 entries".to_string(),
     };
 
