@@ -964,11 +964,11 @@ async fn handle_subscription_connection(
                             _ => true,
                         };
                         if tenant_matches && tenant_active {
-                            if let Some((op_id, _)) = active_operations
+                            if let Some((op_id, op)) = active_operations
                                 .iter()
                                 .find(|(_, op)| op.subscription_id == payload.subscription_id)
                             {
-                                let msg = create_next_message(op_id, &payload);
+                                let msg = create_next_message(op_id, &op.response_key, &payload);
                                 if send_server_message(&codec, &mut sender, msg).await.is_err() {
                                     warn!(connection_id = %connection_id, "Failed to send event");
                                     break;
@@ -1035,12 +1035,16 @@ async fn handle_subscription_connection(
     info!(connection_id = %connection_id, "WebSocket connection closed");
 }
 
-/// A live operation on a connection: the manager-side subscription id plus the
+/// A live operation on a connection: the manager-side subscription id, the
 /// subscription field name it was established for (needed to re-derive its
-/// row-visibility conditions on a policy hot-reload, #611).
+/// row-visibility conditions on a policy hot-reload, #611), and the response key
+/// the client asked its data under (#906).
 struct ActiveOperation {
     subscription_id:   SubscriptionId,
     subscription_name: String,
+    /// The root field's alias when the client wrote one, else its name. Every
+    /// `next` frame for this operation is keyed by it.
+    response_key:      String,
 }
 
 /// Wait for the next policy-reload signal (#611). Returns `true` when the
@@ -1212,8 +1216,13 @@ async fn handle_client_message(
                 }
             }
 
-            // Extract subscription name from query
-            let Some(subscription_name) = extract_subscription_name(&payload.query) else {
+            // Extract the root field from the query: the name to resolve, and the
+            // key the client asked its data under (#906).
+            let Some(SubscriptionRoot {
+                name: subscription_name,
+                response_key,
+            }) = extract_subscription_root(&payload.query)
+            else {
                 let error = ServerMessage::error(
                     &op_id,
                     vec![GraphQLError::with_code(
@@ -1461,6 +1470,7 @@ async fn handle_client_message(
                         ActiveOperation {
                             subscription_id:   sub_id,
                             subscription_name: subscription_name.clone(),
+                            response_key:      response_key.clone(),
                         },
                     );
                     WS_SUBSCRIPTIONS_ACCEPTED.fetch_add(1, Ordering::Relaxed);
@@ -1585,9 +1595,18 @@ async fn send_server_message(
 /// graphql-transport-ws `ExecutionResult` `extensions` slot as `changeSpine` —
 /// the spec-blessed, client-ignorable channel — leaving the resolved entity
 /// `data` untouched. Events without an envelope produce the plain `next` message.
-fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> ServerMessage {
+///
+/// `response_key` is the key the client asked its data under: the root field's
+/// alias when it wrote one, the field name otherwise (#906). Keying by the
+/// subscription's own name instead delivers under a key the client never wrote,
+/// so a conformant client reading its alias sees nothing arrive.
+fn create_next_message(
+    operation_id: &str,
+    response_key: &str,
+    payload: &SubscriptionPayload,
+) -> ServerMessage {
     let data = serde_json::json!({
-        payload.subscription_name.clone(): payload.data
+        response_key.to_owned(): payload.data
     });
     match &payload.event.change_spine {
         Some(envelope) => {
@@ -1598,19 +1617,34 @@ fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> Ser
     }
 }
 
-/// Extract the root field name from a GraphQL subscription document.
+/// The root field of a subscription document.
+///
+/// The two are not the same string whenever the client aliases its root field,
+/// and conflating them is #906: `name` is what the schema is searched for, and
+/// `response_key` is what the delivered payload must be keyed by.
+pub(crate) struct SubscriptionRoot {
+    /// The field name — what `SchemaLookup::find_subscription` is given.
+    pub name:         String,
+    /// The response key — the alias when the client wrote one, else the field
+    /// name (GraphQL spec § Response: an alias renames only the response key).
+    pub response_key: String,
+}
+
+/// Extract the root field of a GraphQL subscription document.
 ///
 /// Parses with the real GraphQL parser (#786) — the previous hand-rolled scan
 /// took the first `{` after the literal `subscription` as the selection-set
 /// brace, so an object literal in a variable default or directive argument
-/// yielded a bogus name and a valid subscription was rejected.
+/// yielded a bogus name and a valid subscription was rejected. That scan also
+/// took the first identifier inside the selection set as the name, which for
+/// `order: orderCreated` is the *alias* (#906).
 ///
 /// Returns `None` for unparseable documents, documents with no subscription
 /// operation, and — explicitly — subscriptions with multiple root fields or
 /// multiple subscription operations: the runtime serves exactly one root per
 /// connection operation, and silently dropping the second field would be a
 /// silent-loss bug.
-pub(crate) fn extract_subscription_name(query: &str) -> Option<String> {
+pub(crate) fn extract_subscription_root(query: &str) -> Option<SubscriptionRoot> {
     use graphql_parser::query::{Definition, OperationDefinition, Selection};
 
     // Through the guarded seam: the parser can panic on a client-controlled
@@ -1635,7 +1669,10 @@ pub(crate) fn extract_subscription_name(query: &str) -> Option<String> {
         return None;
     }
 
-    Some(first.name.clone())
+    Some(SubscriptionRoot {
+        name:         first.name.clone(),
+        response_key: first.alias.clone().unwrap_or_else(|| first.name.clone()),
+    })
 }
 
 #[cfg(test)]

@@ -1302,6 +1302,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A subscription that aliases its root field now delivers under the alias (#906).**
+  `subscription { order: orderUpdated(id: $id) { id status } }` is spec-valid — an alias
+  renames only the response key, and the executed field is still `orderUpdated` (GraphQL
+  spec § Response). The `/ws` handler resolved the root field correctly (#786 replaced
+  the hand-rolled scan that returned the alias and got `SubscriptionNotFound`), but then
+  keyed every `next` frame by the *subscription's own name*. A conformant client — GraphQL
+  codegen emits aliases to normalise response shapes — subscribed successfully, received
+  events, and read `data.order` forever on a payload delivered under `data.orderUpdated`.
+
+  The root-field extractor now returns both strings (`SubscriptionRoot { name,
+  response_key }`), the live operation carries the response key, and `create_next_message`
+  keys by it. Un-aliased subscriptions are unaffected: the response key *is* the field
+  name. Verified end-to-end over a real `graphql-transport-ws` connection.
 - **NUMERIC values beyond 28 significant digits, `NaN` and `Infinity` no longer
   decode to null (#980).** The PostgreSQL adapter's row decoder read
   `NUMERIC`/`DECIMAL` columns through `rust_decimal::Decimal`, whose 96-bit
