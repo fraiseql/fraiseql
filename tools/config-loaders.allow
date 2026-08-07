@@ -1,0 +1,20 @@
+# Deliberate exceptions for tools/check-config-loaders.sh — one path per line.
+#
+# A typed `toml::from_str` site belongs here only with an answer to "what maps each
+# accepted key to its consumer?". For an operator config surface that answer is a
+# coverage manifest test, named as `# manifest: <path>`; the gate checks the file
+# exists. For a file that is not an operator config surface at all, say what it is.
+
+# server.toml — the runtime config the `fraiseql-server` binary loads with --config.
+crates/fraiseql-server/src/server_config/methods.rs  # manifest: crates/fraiseql-server/tests/config_coverage_manifest_test.rs
+
+# fraiseql.toml, Workflow B (schema.json + project config).
+crates/fraiseql-cli/src/config/mod.rs  # manifest: crates/fraiseql-cli/tests/config_coverage_manifest_test.rs
+
+# fraiseql.toml, Workflow A (TOML-only schema authoring) — same manifest, and the
+# seam gate in seam_coverage_manifest_test.rs covers what reaches the compiled schema.
+crates/fraiseql-cli/src/config/toml_schema/mod.rs  # manifest: crates/fraiseql-cli/tests/config_coverage_manifest_test.rs
+crates/fraiseql-cli/src/commands/compile.rs  # manifest: crates/fraiseql-cli/tests/config_coverage_manifest_test.rs
+
+# Not an operator config surface: Cargo.lock, read to build the SBOM package list.
+crates/fraiseql-cli/src/commands/sbom.rs  # reads Cargo.lock, not fraiseql config

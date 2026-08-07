@@ -69,8 +69,8 @@ pub use fraiseql_cli as cli;
 #[cfg(feature = "federation")]
 pub use fraiseql_core::federation;
 pub use fraiseql_core::{
-    CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext, apq, cache, compiler, db,
-    graphql, runtime, schema, security, tenancy, validation,
+    CompiledSchema, FraiseQLError, Result, TenantContext, apq, cache, compiler, db, graphql,
+    runtime, schema, security, tenancy, validation,
 };
 // Re-export error types. The canonical workspace error is `FraiseQLError`
 // (re-exported via `fraiseql_core` above). `ConfigError` and `FileError` are
@@ -94,7 +94,7 @@ pub mod prelude {
     //! Import with: `use fraiseql::prelude::*;`
     //!
     //! Provides:
-    //! - Core schema and config types: [`CompiledSchema`], [`FraiseQLConfig`]
+    //! - Core schema types: [`CompiledSchema`]
     //! - Error handling: [`FraiseQLError`], [`Result`]
     //! - Database abstraction: [`DatabaseAdapter`], [`db`] module
     //! - GraphQL execution: [`Executor`], [`ExecutorAdapter`]
@@ -124,7 +124,7 @@ pub mod prelude {
     #[cfg(feature = "server")]
     pub use crate::server::{Server, ServerConfig};
     // Core types
-    pub use crate::{CompiledSchema, FraiseQLConfig, TenantContext};
+    pub use crate::{CompiledSchema, TenantContext};
     pub use crate::{FraiseQLError, Result};
 }
 

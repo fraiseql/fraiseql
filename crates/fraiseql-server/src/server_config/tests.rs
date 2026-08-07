@@ -187,6 +187,59 @@ fn unknown_top_level_table_is_rejected_not_discarded() {
     );
 }
 
+// #909: `[cache] response_cache_enabled = true` used to be accepted — by
+// `fraiseql_core::config::FraiseQLConfig`, a parallel config tree nothing outside its
+// own module read. That type is gone, so the section is now refused; this asserts the
+// refusal is *usable*, naming the keys that do the job instead of leaving the operator
+// to find `cache_enabled` in a hundred-name serde field list.
+#[test]
+fn a_removed_grouping_table_names_the_working_knob() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("server.toml");
+    std::fs::write(
+        &path,
+        "[cache]\nresponse_cache_enabled = true\nresponse_cache_ttl_secs = 300\n",
+    )
+    .expect("write config");
+
+    let err = ServerConfig::from_file(&path)
+        .expect_err("[cache] is not a ServerConfig key and must be refused");
+    // Not just `err.contains("cache_enabled")`: serde's deny_unknown_fields message
+    // already lists every valid field, so that assertion passes with the note removed.
+    // The note itself is what has to be there.
+    assert!(
+        err.contains("there is no `[cache]` table"),
+        "the refusal must say the section does not exist (#909); got: {err}"
+    );
+    assert!(
+        err.contains("Use `cache_enabled` (query result cache), `apq_enabled`"),
+        "the refusal must name the keys that do the job (#909); got: {err}"
+    );
+}
+
+// The whole removed tree, not just [cache] — every section of the deleted
+// FraiseQLConfig gets a note. Driven through the helper so it runs under every
+// feature set.
+#[test]
+fn every_removed_section_gets_a_replacement_note() {
+    for (section, expected) in [
+        ("server", "`bind_addr`"),
+        ("database", "`database_url`"),
+        ("cors", "`cors_enabled`"),
+        ("rate_limit", "`[rate_limiting]`"),
+        ("cache", "`cache_enabled`"),
+        ("collation", "never wired"),
+    ] {
+        let content = format!("[{section}]\nx = 1\n");
+        let msg = super::methods::enrich_parse_error(
+            &[],
+            &content,
+            format!("Invalid TOML config: unknown field `{section}`"),
+        );
+        assert!(msg.contains(expected), "[{section}] must point at {expected}; got: {msg}");
+    }
+}
+
 // A section compiled out of a build must be refused with an error that names the
 // missing build feature, not a bare serde "unknown field" (the operator's fix is a
 // rebuild or a config edit — the message must say which). Tested through the

@@ -498,6 +498,13 @@ lint-docs-env-vars:
 lint-docs-version:
 	@bash tools/check-docs-version.sh
 
+# Gate: every typed TOML config loader has a coverage manifest naming each key's consumer
+# (#909 — `fraiseql_core::config` accepted a whole `[server]`/`[database]`/`[cache]` tree
+# that no code outside its own module ever read).
+.PHONY: lint-config-loaders
+lint-config-loaders:
+	@bash tools/check-config-loaders.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -506,7 +513,7 @@ lint-docs-version:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

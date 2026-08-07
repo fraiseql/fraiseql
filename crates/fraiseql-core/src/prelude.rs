@@ -6,7 +6,6 @@ pub use fraiseql_db::DatabaseAdapter;
 pub use fraiseql_error::{FraiseQLError, Result};
 
 pub use crate::{
-    config::FraiseQLConfig,
     schema::CompiledSchema,
     types::{ConnectionId, OrgId, SubscriptionId, TenantId, UserId},
 };
