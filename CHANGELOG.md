@@ -9,6 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The security-config keys that reached no consumer are refused by name (#983).** Four
+  leftovers from the #977 seam typing, all of the same class — config that is accepted or
+  emitted and read by nothing:
+
+  1. **`[fraiseql.security.audit_logging]`** keeps `enabled` (it lowers onto
+     `enterprise.audit_logging_enabled`); `log_level`, `include_sensitive_data`,
+     `async_logging`, `buffer_size` and `flush_interval_secs` are gone.
+     **`[fraiseql.security.error_sanitization]`** keeps `enabled`; `generic_messages`,
+     `internal_logging`, `leak_sensitive_details` and `user_facing_format` are gone.
+     **`[fraiseql.security.state_encryption]`** keeps `enabled` and `algorithm`;
+     `key_rotation_enabled`, `nonce_size` and `key_size` are gone (both sizes are fixed by
+     the algorithm). Each section is `deny_unknown_fields`, so a removed key is now a parse
+     error naming it. `leak_sensitive_details = true` used to be *refused* as "a security
+     risk" — it switched nothing either way, which is the more alarming half of that
+     sentence.
+  2. **`[security] default_policy` is removed from the authoring surface.** No enforcer read
+     it, and `SecuritySettings::default()` emitted `"authenticated"` into *every*
+     Workflow-A schema — a declaration an operator reads as an access boundary, attached to
+     nothing. `examples/saas` and `examples/multitenant` both shipped it. `fraiseql compile`
+     also now refuses `security.rules`, `security.field_auth` and `security.default_policy`
+     in a hand-authored `schema.json`, the one route that could still reach them.
+  3. **`CompiledSecurityConfig` is deleted** (no producer, no consumer, one `default()` in a
+     test), along with the dead `ConstantTimeConfig::to_json` and the three other
+     per-section `to_json` helpers the #977 typed emit replaced.
+  4. **`[fraiseql.security.service_accounts]` is now authorable.** The server has consumed
+     `security.service_accounts` since #977, but no authoring workflow could write it — only
+     a hand-written `schema.json`, so the feature was reachable only by accident:
+
+     ```toml
+     [fraiseql.security.service_accounts.reconciler]
+     secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
+     roles      = ["reconciler"]
+     scopes     = ["write:Invoice"]
+     ```
+
+     An account with no `secret_env`, or with neither roles nor scopes, is refused.
+
+  `fraiseql doctor`'s cache+auth coherence check keyed on the presence of `default_policy`;
+  it now keys on `[security.rls] enabled` or `[[security.role_definitions]]` — the
+  mechanisms that actually gate a cached read. A schema with no access control could clear
+  that check by declaring one word.
+
+  **What changes for you:** `fraiseql compile` fails on any removed key, naming it. Delete
+  the key — none of them did anything. `fraiseql init`'s scaffold no longer writes
+  `log_level`.
 - **The functions subsystem is configured from the schema the server was built with
   (#896).** `prepare_functions_runtime` re-read the compiled schema from
   `config.schema_path` instead of using the `CompiledSchema` the `Server` was given, so

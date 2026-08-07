@@ -1440,16 +1440,6 @@ fn test_circuit_breaker_config_default() {
 }
 
 #[test]
-fn test_security_config_default() {
-    let config = CompiledSecurityConfig::default();
-    assert!(config.default_policy.is_none());
-    assert!(config.rules.is_empty());
-    assert!(config.policies.is_empty());
-    assert!(config.field_auth.is_empty());
-    assert!(config.enterprise.rate_limiting_enabled);
-}
-
-#[test]
 fn test_observers_config_default() {
     let config = ObserversConfig::default();
     assert!(!config.enabled);

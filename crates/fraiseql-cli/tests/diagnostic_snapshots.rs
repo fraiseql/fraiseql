@@ -419,19 +419,6 @@ fn diagnostic_circuit_breaker_per_database_zero_success_threshold() {
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
-// 23. SecurityConfig: leak_sensitive_details = true
-// ---------------------------------------------------------------------------
-
-#[test]
-fn diagnostic_security_leak_sensitive_details() {
-    let mut config = SecurityConfig::default();
-    config.error_sanitization.leak_sensitive_details = true;
-
-    let err = config.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
-}
-
-// ---------------------------------------------------------------------------
 // 24. SecurityConfig: rate limit window = 0
 // ---------------------------------------------------------------------------
 
@@ -465,32 +452,6 @@ fn diagnostic_security_rate_limit_zero_max_requests() {
 fn diagnostic_security_unsupported_encryption_algorithm() {
     let mut config = SecurityConfig::default();
     config.state_encryption.algorithm = "rot13".to_string();
-
-    let err = config.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
-}
-
-// ---------------------------------------------------------------------------
-// 27. SecurityConfig: invalid key_size
-// ---------------------------------------------------------------------------
-
-#[test]
-fn diagnostic_security_invalid_key_size() {
-    let mut config = SecurityConfig::default();
-    config.state_encryption.key_size = 20;
-
-    let err = config.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
-}
-
-// ---------------------------------------------------------------------------
-// 28. SecurityConfig: invalid nonce_size
-// ---------------------------------------------------------------------------
-
-#[test]
-fn diagnostic_security_invalid_nonce_size() {
-    let mut config = SecurityConfig::default();
-    config.state_encryption.nonce_size = 16;
 
     let err = config.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());

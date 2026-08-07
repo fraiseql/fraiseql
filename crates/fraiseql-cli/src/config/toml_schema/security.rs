@@ -4,7 +4,7 @@ use fraiseql_core::security::oidc::MeEndpointConfig;
 use serde::{Deserialize, Serialize};
 
 /// Security configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SecuritySettings {
     /// Declare that this schema serves multiple tenants.
@@ -17,8 +17,6 @@ pub struct SecuritySettings {
     ///
     /// `[security.rls] enabled = true`. Verified against the live catalog at boot.
     pub rls:                    fraiseql_core::schema::RlsConfig,
-    /// Default policy to apply if none specified
-    pub default_policy:         Option<String>,
     /// Custom authorization rules
     pub rules:                  Vec<AuthorizationRule>,
     /// Authorization policies
@@ -53,29 +51,6 @@ pub struct SecuritySettings {
     /// without their own budget). Shares the runtime's own type so the
     /// authoring and consuming shapes cannot drift.
     pub cost_budget:            Option<fraiseql_core::schema::CostBudgetConfig>,
-}
-
-impl Default for SecuritySettings {
-    fn default() -> Self {
-        Self {
-            multi_tenant:           false,
-            rls:                    fraiseql_core::schema::RlsConfig::default(),
-            default_policy:         Some("authenticated".to_string()),
-            rules:                  vec![],
-            policies:               vec![],
-            field_auth:             vec![],
-            enterprise:             EnterpriseSecurityConfig::default(),
-            error_sanitization:     None,
-            rate_limiting:          None,
-            state_encryption:       None,
-            pkce:                   None,
-            api_keys:               None,
-            token_revocation:       None,
-            trusted_documents:      None,
-            persisted_queries_only: false,
-            cost_budget:            None,
-        }
-    }
 }
 
 // The `[security.*]` section shapes are owned by `fraiseql_core::schema` (#977):

@@ -503,12 +503,20 @@ pub fn check_rls_cache_coherence(config_path: &Path) -> DoctorCheck {
         .and_then(toml::Value::as_bool)
         .unwrap_or(false);
     let security = value.get("security");
-    let has_policies = security
-        .and_then(|s| s.get("policies"))
+    // #983: keyed on the mechanisms that actually gate a cached read — database RLS,
+    // and role definitions backing `requires_scope`. It used to accept the presence of
+    // `[security] default_policy`, a key no enforcer read, so a schema with no access
+    // control at all could pass this check by declaring one word.
+    let has_rls = security
+        .and_then(|s| s.get("rls"))
+        .and_then(|r| r.get("enabled"))
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false);
+    let has_roles = security
+        .and_then(|s| s.get("role_definitions"))
         .and_then(toml::Value::as_array)
         .is_some_and(|a| !a.is_empty());
-    let has_default = security.and_then(|s| s.get("default_policy")).is_some();
-    let has_auth_policy = has_policies || has_default;
+    let has_auth_policy = has_rls || has_roles;
 
     match (caching_enabled, has_auth_policy) {
         (false, _) => {
@@ -520,7 +528,8 @@ pub fn check_rls_cache_coherence(config_path: &Path) -> DoctorCheck {
         (true, false) => DoctorCheck::warn(
             "Cache + auth coherence",
             "caching enabled without authorization policy — cached results may leak across users",
-            "Add [security.policies] entries or set [security] default_policy in fraiseql.toml",
+            "Declare [security.rls] enabled = true (with policies in the database), or \
+             define [[security.role_definitions]] and mark fields `requires_scope`",
         ),
     }
 }

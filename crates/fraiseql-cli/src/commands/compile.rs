@@ -498,7 +498,58 @@ pub async fn compile_to_schema(
     // 5f. Refuse a schema in which a mutation could invalidate nothing (#910).
     refuse_unattributable_mutations(&schema)?;
 
+    // 5g. Refuse authorization declarations no enforcer reads (#983).
+    refuse_unenforced_authz_declarations(&schema)?;
+
     Ok((schema, report))
+}
+
+/// Refuse `security.rules`, `security.field_auth` and `security.default_policy` (#983).
+///
+/// All three are carried by the compiled seam and read by **nothing**: field-level
+/// RBAC runs on `role_definitions` + scopes, and `#677` lowered type gates onto
+/// operations. An operator who writes `[[security.rules]]` in a hand-authored
+/// `schema.json` gets a successful compile and zero enforcement — an authorization
+/// rule that is silently not applied, which is the worst shape a security
+/// declaration can take.
+///
+/// Refused rather than wired: an enforcer for them is `#626`'s design, and wiring
+/// three keys ad hoc to make the compile stop lying would prejudge it. This is the
+/// same disposition `#612` gave `security.policies`, which is why that one is
+/// already unproducible.
+///
+/// # Errors
+///
+/// Returns an error naming each declaration present.
+fn refuse_unenforced_authz_declarations(schema: &CompiledSchema) -> Result<()> {
+    let Some(security) = schema.security.as_ref() else {
+        return Ok(());
+    };
+
+    let mut declared: Vec<String> = Vec::new();
+    if !security.rules.is_empty() {
+        declared.push(format!("`security.rules` ({} rule(s))", security.rules.len()));
+    }
+    if !security.field_auth.is_empty() {
+        declared.push(format!("`security.field_auth` ({} rule(s))", security.field_auth.len()));
+    }
+    if let Some(policy) = security.default_policy.as_deref() {
+        declared.push(format!("`security.default_policy` (\"{policy}\")"));
+    }
+    if declared.is_empty() {
+        return Ok(());
+    }
+
+    anyhow::bail!(
+        "authorization declaration(s) with no enforcer: {}.\n\n\
+         FraiseQL enforces field-level authorization through `security.role_definitions` \
+         (roles → scopes) and each field's `requires_scope`; nothing reads these keys, so a \
+         rule written here is not applied to any request. Remove them, or express the same \
+         intent with role definitions and `requires_scope`.\n\n\
+         (A general authorization-rule engine is tracked separately; until it exists, a \
+         declaration that silently enforces nothing is refused rather than accepted.)",
+        declared.join(", ")
+    )
 }
 
 /// Refuse a schema whose caching depends on a mutation the engine cannot attribute (#910).

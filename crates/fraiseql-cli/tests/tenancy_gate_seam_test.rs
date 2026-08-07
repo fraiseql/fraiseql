@@ -98,7 +98,6 @@ return_array = true
 sql_source = "v_user"
 
 [security]
-default_policy = "authenticated"
 {security_extra}
 "#
     )

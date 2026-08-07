@@ -1475,15 +1475,19 @@ mod doctor_tests {
 
     #[test]
     fn test_cache_auth_coherence_cache_enabled_no_policy_is_warn() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security]\ndefault_policy = \"\"\n";
+        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security]\nmulti_tenant = false\n";
         let f = temp_file_with(toml);
         let result = check_rls_cache_coherence(f.path());
         assert!(matches!(result.status, CheckStatus::Pass | CheckStatus::Warn));
     }
 
+    /// #983 — the check now keys on RLS (or role definitions), the mechanisms that
+    /// actually gate a cached read. It used to pass on the presence of
+    /// `[security] default_policy`, a key no enforcer read, so a schema with no
+    /// access control at all cleared the coherence check by declaring one word.
     #[test]
     fn test_cache_auth_coherence_cache_enabled_with_policy_is_pass() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security]\ndefault_policy = \"authenticated\"\n";
+        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security.rls]\nenabled = true\n";
         let f = temp_file_with(toml);
         let result = check_rls_cache_coherence(f.path());
         assert_eq!(result.status, CheckStatus::Pass);

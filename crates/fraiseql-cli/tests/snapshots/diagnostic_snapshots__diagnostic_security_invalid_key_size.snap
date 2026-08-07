@@ -1,5 +1,0 @@
----
-source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
-expression: err.to_string()
----
-key_size must be 16, 24, or 32 bytes

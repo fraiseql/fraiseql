@@ -7,44 +7,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AuditLoggingConfig {
-    /// Enable audit logging
-    pub enabled:                bool,
-    /// Log level threshold ("debug", "info", "warn")
-    pub log_level:              String,
-    /// Include sensitive data in audit logs
-    pub include_sensitive_data: bool,
-    /// Use asynchronous logging
-    pub async_logging:          bool,
-    /// Buffer size for async logging
-    pub buffer_size:            u32,
-    /// Interval to flush logs in seconds
-    pub flush_interval_secs:    u32,
+    /// Enable audit logging.
+    ///
+    /// The only key with a consumer: it lowers onto
+    /// `enterprise.audit_logging_enabled`, which the runtime reads. `log_level`,
+    /// `include_sensitive_data`, `async_logging`, `buffer_size` and
+    /// `flush_interval_secs` were accepted here and read by nothing, so they are
+    /// gone and `deny_unknown_fields` now refuses them by name (#983).
+    pub enabled: bool,
 }
 
 impl Default for AuditLoggingConfig {
     fn default() -> Self {
-        Self {
-            enabled:                true,
-            log_level:              "info".to_string(),
-            include_sensitive_data: false,
-            async_logging:          true,
-            buffer_size:            1000,
-            flush_interval_secs:    5,
-        }
-    }
-}
-
-impl AuditLoggingConfig {
-    /// Convert to JSON representation for schema
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "enabled": self.enabled,
-            "logLevel": self.log_level,
-            "includeSensitiveData": self.include_sensitive_data,
-            "asyncLogging": self.async_logging,
-            "bufferSize": self.buffer_size,
-            "flushIntervalSecs": self.flush_interval_secs,
-        })
+        Self { enabled: true }
     }
 }
 
@@ -52,55 +27,31 @@ impl AuditLoggingConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ErrorSanitizationConfig {
-    /// Enable error sanitization
-    pub enabled:                bool,
-    /// Use generic error messages for users
-    pub generic_messages:       bool,
-    /// Log full errors internally
-    pub internal_logging:       bool,
-    /// Never leak sensitive details (security flag)
-    pub leak_sensitive_details: bool,
-    /// User-facing error format ("generic", "simple", "detailed")
-    pub user_facing_format:     String,
+    /// Enable error sanitization.
+    ///
+    /// The only key with a consumer. `generic_messages`, `internal_logging`,
+    /// `leak_sensitive_details` and `user_facing_format` reached no runtime shape,
+    /// so they are gone and `deny_unknown_fields` refuses them by name (#983).
+    /// `leak_sensitive_details = true` used to be refused here as "a security risk";
+    /// it switched nothing, which is the more alarming half of that sentence.
+    pub enabled: bool,
 }
 
 impl Default for ErrorSanitizationConfig {
     fn default() -> Self {
-        Self {
-            enabled:                true,
-            generic_messages:       true,
-            internal_logging:       true,
-            leak_sensitive_details: false,
-            user_facing_format:     "generic".to_string(),
-        }
+        Self { enabled: true }
     }
 }
 
 impl ErrorSanitizationConfig {
-    /// Validate error sanitization configuration
+    /// Validate error sanitization configuration.
     ///
     /// # Errors
     ///
-    /// Returns an error if `leak_sensitive_details` is `true`, which is a
-    /// security risk that must not be enabled in production.
-    pub fn validate(&self) -> Result<()> {
-        if self.leak_sensitive_details {
-            anyhow::bail!(
-                "leak_sensitive_details=true is a security risk! Never enable in production."
-            );
-        }
+    /// Currently infallible; kept so the section keeps its place in
+    /// [`SecurityConfig::validate`]'s sequence as keys are added.
+    pub const fn validate(&self) -> Result<()> {
         Ok(())
-    }
-
-    /// Convert to JSON representation for schema
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "enabled": self.enabled,
-            "genericMessages": self.generic_messages,
-            "internalLogging": self.internal_logging,
-            "leakSensitiveDetails": self.leak_sensitive_details,
-            "userFacingFormat": self.user_facing_format,
-        })
     }
 }
 
@@ -250,25 +201,20 @@ impl RateLimitConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct StateEncryptionConfig {
     /// Enable state encryption
-    pub enabled:              bool,
+    pub enabled:   bool,
     /// Encryption algorithm ("chacha20-poly1305")
-    pub algorithm:            String,
-    /// Enable automatic key rotation
-    pub key_rotation_enabled: bool,
-    /// Nonce size in bytes (typically 12 for 96-bit)
-    pub nonce_size:           u32,
-    /// Key size in bytes (16, 24, or 32)
-    pub key_size:             u32,
+    pub algorithm: String,
+    // `key_rotation_enabled`, `nonce_size` and `key_size` were accepted here and
+    // reached no runtime shape — nonce and key sizes are fixed by the algorithm, so
+    // there was nothing for them to size (#983). `deny_unknown_fields` refuses them
+    // by name now.
 }
 
 impl Default for StateEncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled:              true,
-            algorithm:            "chacha20-poly1305".to_string(),
-            key_rotation_enabled: false,
-            nonce_size:           12,
-            key_size:             32,
+            enabled:   true,
+            algorithm: "chacha20-poly1305".to_string(),
         }
     }
 }
@@ -291,24 +237,7 @@ impl StateEncryptionConfig {
                 SUPPORTED_ALGORITHMS.join(", ")
             );
         }
-        if ![16, 24, 32].contains(&self.key_size) {
-            anyhow::bail!("key_size must be 16, 24, or 32 bytes");
-        }
-        if self.nonce_size != 12 {
-            anyhow::bail!("nonce_size must be 12 bytes (96-bit)");
-        }
         Ok(())
-    }
-
-    /// Convert to JSON representation for schema
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "enabled": self.enabled,
-            "algorithm": self.algorithm,
-            "keyRotationEnabled": self.key_rotation_enabled,
-            "nonceSize": self.nonce_size,
-            "keySize": self.key_size,
-        })
     }
 }
 
@@ -337,19 +266,6 @@ impl Default for ConstantTimeConfig {
             apply_to_csrf_tokens:    true,
             apply_to_refresh_tokens: true,
         }
-    }
-}
-
-impl ConstantTimeConfig {
-    /// Convert to JSON representation for schema
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "enabled": self.enabled,
-            "applyToJwt": self.apply_to_jwt,
-            "applyToSessionTokens": self.apply_to_session_tokens,
-            "applytoCsrfTokens": self.apply_to_csrf_tokens,
-            "applyToRefreshTokens": self.apply_to_refresh_tokens,
-        })
     }
 }
 
@@ -473,6 +389,23 @@ pub struct SecurityConfig {
     /// (`[fraiseql.security.rls] enabled = true`). Verified against the live
     /// catalog at boot.
     pub rls:                fraiseql_core::schema::RlsConfig,
+
+    /// Machine service accounts, keyed by account name (#983).
+    ///
+    /// ```toml
+    /// [fraiseql.security.service_accounts.reconciler]
+    /// secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
+    /// roles      = ["reconciler"]
+    /// scopes     = ["write:Invoice"]
+    /// ```
+    ///
+    /// The server has consumed `security.service_accounts` since #977, but no
+    /// authoring workflow could write it: only a hand-written `schema.json` could,
+    /// so the feature was reachable only by accident. The secret is never inlined —
+    /// `secret_env` names the environment variable holding it (ADR-0018).
+    #[serde(skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub service_accounts:
+        std::collections::HashMap<String, fraiseql_core::schema::ServiceAccountConfig>,
 }
 
 impl SecurityConfig {
@@ -487,6 +420,22 @@ impl SecurityConfig {
         self.rate_limiting.validate()?;
         self.state_encryption.validate()?;
         self.reject_constant_time_section()?;
+
+        for (name, account) in &self.service_accounts {
+            if account.secret_env.trim().is_empty() {
+                anyhow::bail!(
+                    "service account '{name}' must set `secret_env` — the name of the \
+                     environment variable holding its bearer secret. The secret itself is \
+                     never written to the config."
+                );
+            }
+            if account.roles.is_empty() && account.scopes.is_empty() {
+                anyhow::bail!(
+                    "service account '{name}' grants neither roles nor scopes, so it can do \
+                     nothing. Give it a `run_as` ceiling, or remove it."
+                );
+            }
+        }
 
         // Validate role definitions if present
         for role in &self.role_definitions {
@@ -611,6 +560,10 @@ impl SecurityConfig {
                 algorithm,
                 ..Default::default()
             }),
+            // #983: the server has read this since #977; this is the authoring side
+            // it never had. Absent when empty so the compiled section stays quiet.
+            service_accounts: (!self.service_accounts.is_empty())
+                .then(|| self.service_accounts.clone()),
             ..fraiseql_core::schema::SecurityConfig::default()
         };
         serde_json::to_value(runtime).unwrap_or_else(|_| serde_json::json!({}))
@@ -639,6 +592,53 @@ mod security_seam_tests {
         "rate_limiting",
         "state_encryption",
     ];
+
+    /// #983 — the server has consumed `security.service_accounts` since #977, but no
+    /// authoring workflow could write it: only a hand-written `schema.json` could, so
+    /// the feature was reachable only by accident. This is the authoring side, and it
+    /// must reach the compiled seam under the name the consumer declares.
+    #[test]
+    fn a_toml_service_account_reaches_the_compiled_seam() {
+        let toml = r#"
+[service_accounts.reconciler]
+secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
+roles      = ["reconciler"]
+scopes     = ["write:Invoice"]
+"#;
+        let config: SecurityConfig = toml::from_str(toml).expect("the section must parse");
+        config
+            .validate()
+            .expect("a service account with a secret_env and a ceiling is valid");
+
+        let json = config.to_json();
+        let account = &json["service_accounts"]["reconciler"];
+        assert_eq!(account["secret_env"], "FRAISEQL_SA_RECONCILER_SECRET");
+        assert_eq!(account["roles"][0], "reconciler");
+        assert_eq!(account["scopes"][0], "write:Invoice");
+
+        // The compiled seam is `deny_unknown_fields`, so round-tripping through the
+        // consumer's own type is what proves the key names match.
+        let compiled: fraiseql_core::schema::SecurityConfig =
+            serde_json::from_value(json).expect("the emitted block must load as the consumer type");
+        let accounts = compiled.service_accounts.expect("service_accounts must survive");
+        assert_eq!(accounts["reconciler"].secret_env, "FRAISEQL_SA_RECONCILER_SECRET");
+    }
+
+    /// A service account that grants nothing can do nothing — refused rather than
+    /// compiled into a credential with no authority.
+    #[test]
+    fn a_service_account_with_no_ceiling_is_refused() {
+        let toml = r#"
+[service_accounts.ghost]
+secret_env = "FRAISEQL_SA_GHOST_SECRET"
+"#;
+        let config: SecurityConfig = toml::from_str(toml).expect("parses");
+        let err = config.validate().expect_err("no roles and no scopes must be refused");
+        assert!(
+            err.to_string().contains("neither roles nor scopes"),
+            "the refusal must say why; got: {err}"
+        );
+    }
 
     #[test]
     fn to_json_emits_exactly_the_sections_consumers_read() {
