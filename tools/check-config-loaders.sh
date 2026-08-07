@@ -44,12 +44,27 @@ is_test_path() {
     esac
 }
 
+# …and neither is an inline `#[cfg(test)]` module. Test modules go at the end of a
+# file by convention here, so the first `#[cfg(test)]` marks where the file stops
+# being production code. Approximate on purpose: a test module in the middle of a
+# file would hide a later loader, and the answer to that is to move the module,
+# which the repo's layout gate already asks for.
+first_test_module_line() {
+    # `|| true`: no match is the common case, and under `set -e -o pipefail` grep's
+    # exit 1 would abort the script instead of meaning "no test module here".
+    { grep -n '^#\[cfg(test)\]' "$1" 2>/dev/null || true; } | head -1 | cut -d: -f1
+}
+
 while IFS= read -r hit; do
     file=${hit%%:*}
     rest=${hit#*:}
     line=${rest%%:*}
 
     is_test_path "$file" && continue
+    test_from=$(first_test_module_line "$file")
+    if [ -n "$test_from" ] && [ "$line" -gt "$test_from" ]; then
+        continue
+    fi
 
     # Untyped read: the type appears turbofished on the call or annotated on the
     # binding the call feeds, which `toml::from_str` splits across two lines when
