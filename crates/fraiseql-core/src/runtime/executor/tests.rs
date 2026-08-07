@@ -1678,6 +1678,41 @@ mod field_rbac {
         );
     }
 
+    /// #894 × #743: `default_role` must not reach an anonymous caller.
+    ///
+    /// The fallback exists for a principal who authenticated and carries no role
+    /// claim. Applying it to a request with no principal would hand every
+    /// `requires_scope` field to callers who presented no credential — #743's
+    /// privilege inversion, re-opened from the other side. Same schema as the test
+    /// above, plus a `default_role` that grants `read:User.salary`.
+    #[tokio::test]
+    async fn test_default_role_does_not_reach_an_anonymous_request() {
+        let mut schema = schema_with_rbac_fields();
+        {
+            let security = schema.security.as_mut().expect("fixture has a security config");
+            security.role_definitions.push(RoleDefinition {
+                name:        "public".into(),
+                description: None,
+                scopes:      vec!["read:User.salary".into()],
+            });
+            security.default_role = Some("public".to_string());
+        }
+        let results = vec![JsonbValue::new(
+            serde_json::json!({"id": "1", "name": "Alice", "salary": 120_000}),
+        )];
+        let adapter = Arc::new(MockAdapter::new(results));
+        let executor = Executor::with_config(schema, adapter, RuntimeConfig::default());
+
+        let result = executor.execute("{ users { id salary } }", None).await;
+
+        assert!(
+            result.is_err(),
+            "an anonymous caller must stay deny-all even when the schema declares a \
+             default_role granting the scope, got: {:?}",
+            result.ok()
+        );
+    }
+
     /// #743: the `on_deny = Mask` half — an anonymous caller gets null, not the value.
     #[tokio::test]
     async fn test_mask_field_returns_null_for_anonymous_request() {

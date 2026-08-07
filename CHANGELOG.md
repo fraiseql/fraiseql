@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`[security] default_role` now does what it says (#894).** The key was accepted in
+  `fraiseql.toml`, compiled into the schema, and deserialized into the runtime struct —
+  and no production code ever read it. An operator who set `default_role = "viewer"`
+  expecting authenticated principals with no role claim to inherit `viewer`'s scopes got
+  nothing, and every `requires_scope` field was denied to them.
+
+  `SecurityContext::can_access_scope` now falls back to `default_role` when the
+  principal's role set is **empty**. Two boundaries, both deliberate:
+
+  - It is an *absent* role set, not a failed lookup. A principal assigned `guest` has
+    been given its authority; topping it up when `guest` falls short would make
+    `default_role` a floor under every principal rather than a default.
+  - It reaches **authenticated principals only**. A `SecurityContext` exists only for
+    one; an anonymous request is classified by a separate path that stays deny-all.
+    Extending the fallback there would re-open #743's privilege inversion from the other
+    side, handing every `requires_scope` field to callers with no credential.
+
+  **What changes for you:** if your compiled schema sets `default_role`, principals whose
+  token carries no role claim now receive that role's scopes where they previously
+  received none. Set `default_role` to `None` to keep the old behaviour. The two tests
+  named after this behaviour — `test_default_role_fallback` and
+  `test_executor_default_role_applied` — asserted only that the field round-tripped;
+  they now exercise the fallback, and three more pin its boundaries.
 - **The admin cache API sees the cache that actually serves queries, and its response
   shape is per-cache (#941).** On a server with `cache_enabled = true` and no Arrow
   Flight service, `GET /api/v1/admin/config` reported `cache_enabled: "true",

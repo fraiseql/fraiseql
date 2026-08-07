@@ -170,12 +170,17 @@ pub(in super::super) fn apply_field_rbac_filtering(
 /// unauthenticated callers while authenticated-but-unscoped callers were denied it
 /// — a privilege inversion (#743).
 ///
-/// This is [`apply_field_rbac_filtering`] evaluated for a principal with no roles:
-/// [`SecurityContext::can_access_scope`] folds over `roles`, so an empty role set
-/// can never grant a scope, and every `requires_scope` field is denied through its
-/// own `on_deny` policy. Deriving the answer directly avoids fabricating a
-/// stand-in `SecurityContext` that could leak into RLS session variables or
-/// inject-param resolution.
+/// Every `requires_scope` field is denied here, through its own `on_deny` policy.
+/// Deriving the answer directly avoids fabricating a stand-in `SecurityContext` that
+/// could leak into RLS session variables or inject-param resolution.
+///
+/// **Not the same as an authenticated principal with no roles.** That used to be an
+/// exact equivalence — `can_access_scope` folded over `roles`, so an empty set granted
+/// nothing — but since #894 an empty role set falls back to
+/// `SecurityConfig::default_role`. The fallback is for principals who authenticated
+/// and carry no role claim; extending it here would hand every `requires_scope` field
+/// to callers who presented no credential, which is #743's privilege inversion in the
+/// opposite direction. Anonymous stays deny-all, unconditionally.
 ///
 /// # Errors
 ///
@@ -217,7 +222,6 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
         if field.requires_scope.is_none() {
             continue;
         }
-
         match field.on_deny {
             FieldDenyPolicy::Mask => masked.push(name.clone()),
             FieldDenyPolicy::Reject => {
