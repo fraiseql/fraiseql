@@ -90,17 +90,76 @@ async fn handle_query(
     }
 }
 
+/// Decide whether `table` may be written by an `Upload`, and **say so** when it may not.
+///
+/// Fail-closed by construction (#953): an absent allow-list disables `Upload`
+/// entirely, and a table not on the list is refused. Deciding and reporting are one
+/// call so a caller cannot take the decision and forget to log it — an operator who
+/// allow-listed nothing must find the reason in the log, not an unexplained write
+/// that never happened.
+///
+/// Returns `Err(message)` with the message to send the client; the same message is
+/// logged at `warn`.
+fn authorize_upload(
+    allowed_tables: Option<&std::collections::HashSet<String>>,
+    user_id: &str,
+    table: &str,
+) -> Result<(), String> {
+    let refusal = match allowed_tables {
+        None => format!(
+            "Upload is disabled, so table '{table}' cannot be written. Allow-list specific \
+             tables with with_upload_tables()."
+        ),
+        Some(allowed) if !allowed.contains(table) => {
+            format!("Upload is not permitted for table '{table}'.")
+        },
+        Some(_) => return Ok(()),
+    };
+    warn!(user_id, table = %table, "Refused Flight Upload: {}", refusal);
+    Err(refusal)
+}
+
+/// What an `Upload` needs from its `do_exchange` session to be authorized and
+/// attributed: the operator's allow-list, and who is writing under which tenant.
+///
+/// Grouped rather than passed positionally so a new piece of provenance is added in
+/// one place and cannot be dropped at the call site.
+struct UploadSession<'a> {
+    /// Operator-configured tables `Upload` may write; `None` disables Upload.
+    allowed_tables: Option<&'a std::collections::HashSet<String>>,
+    /// Tenant the write belongs to, from the session's `SecurityContext`.
+    tenant_id:      Option<&'a str>,
+    /// Authenticated Flight session subject.
+    user_id:        &'a str,
+    /// Correlates the response with the client's request.
+    correlation_id: &'a str,
+}
+
 /// Process an `Upload` exchange request: decode Arrow batch and INSERT into target table.
 #[allow(clippy::cognitive_complexity)] // Reason: multi-step upload protocol with sequential validation and error handling
 async fn handle_upload(
     tx: &Sender<Result<FlightData, Status>>,
     db_adapter: &Option<Arc<dyn crate::db::ArrowDatabaseAdapter>>,
-    user_id: &str,
-    correlation_id: &str,
+    session: &UploadSession<'_>,
     table: String,
     batch: Vec<u8>,
 ) {
+    let UploadSession {
+        allowed_tables,
+        tenant_id,
+        user_id,
+        correlation_id,
+    } = *session;
     info!(user_id, correlation_id, table = %table, "Processing exchange upload");
+
+    // #953: the table is named by the *client* and the rows bypass the mutation
+    // pipeline entirely, so the allow-list is checked before anything else — before
+    // the batch is even decoded. A refused Upload must do no work and leave no trace
+    // beyond the refusal.
+    if let Err(message) = authorize_upload(allowed_tables, user_id, &table) {
+        send_exchange_error(tx, correlation_id, &message).await;
+        return;
+    }
 
     let Some(ref adapter) = db_adapter else {
         warn!("Database adapter not configured");
@@ -126,10 +185,34 @@ async fn handle_upload(
         },
     };
 
-    match adapter.execute_raw_query(&sql).await {
+    // #953: the rows and their change-log outbox rows commit together or not at all.
+    // `execute_raw_query` is deliberately no longer on this path — it cannot express
+    // the transaction, and using it left the Change Spine blind to every Upload.
+    let upload = crate::db::GatedUpload {
+        table: &table,
+        insert_sql: &sql,
+        user_id,
+        tenant_id,
+    };
+    match adapter.execute_gated_upload(&upload).await {
         Ok(_) => {
             let rows_inserted = record_batch.num_rows();
             info!(user_id, table = %table, rows = rows_inserted, "Upload successful");
+            // The mutation-audit event (#953). `runners/mutation` emits this for every
+            // path that goes through the mutation pipeline; an Upload does not, so it
+            // emits its own with the same target and shape — otherwise the one write
+            // surface that skips the authorizer is also the one absent from the audit.
+            tracing::info!(
+                target: "fraiseql::mutation_audit",
+                mutation_name = "flightUpload",
+                entity_type = %table,
+                operation = "INSERT",
+                tenant_id = tenant_id.unwrap_or(""),
+                actor = user_id,
+                transport = "flight",
+                rows = rows_inserted,
+                "mutation.executed"
+            );
             let success_msg = format!("Inserted {} rows", rows_inserted).into_bytes();
             let response = ExchangeMessage::Response {
                 correlation_id: correlation_id.to_string(),
@@ -248,6 +331,7 @@ pub(super) async fn handle(
     let (tx, rx) = tokio::sync::mpsc::channel(100);
 
     let db_adapter = svc.db_adapter.clone();
+    let upload_allowed_tables = svc.upload_allowed_tables.clone();
     let executor = svc.executor.clone();
     let subscription_manager = svc.subscription_manager.clone();
     let user_id = authenticated_user.user_id.0;
@@ -274,8 +358,13 @@ pub(super) async fn handle(
                         .await;
                     },
                     RequestType::Upload { table, batch } => {
-                        handle_upload(&tx, &db_adapter, &user_id, &correlation_id, table, batch)
-                            .await;
+                        let session = UploadSession {
+                            allowed_tables: upload_allowed_tables.as_ref(),
+                            tenant_id:      security_context.tenant_id.as_ref().map(|t| t.0.as_str()),
+                            user_id:        &user_id,
+                            correlation_id: &correlation_id,
+                        };
+                        handle_upload(&tx, &db_adapter, &session, table, batch).await;
                     },
                     RequestType::Subscribe {
                         entity_type,

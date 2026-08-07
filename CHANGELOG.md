@@ -2275,6 +2275,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Arrow Flight `do_exchange` `Upload` is gated on an operator allow-list, and every
+  allow-listed write reaches the Change Spine (#953).** Any caller holding a valid Flight
+  session token could send `Upload { table, batch }` with an **arbitrary client-supplied
+  table name** and have the rows land: `handle_upload` went from session validation
+  straight to `build_insert_query` and `execute_raw_query`. That path had no table
+  allow-list, no tenant scoping, no RLS, no operation authorizer, no field RBAC, no
+  mutation-audit event and no change-log outbox row — an unauthorized-write surface onto
+  every table the connection role can write, `_system`, audit and outbox tables included.
+  (Escaping was correct throughout, so this was never SQL injection.) It was reachable in
+  the shipped binary: `create_flight_service` passes the live database adapter.
+
+  `Upload` is now **disabled by default** and refused unless its table appears in the new
+  `flight_upload_tables` config key, mirroring the existing `BulkExport` allow-list —
+  which, unlike it, is wired from the config file rather than a library-only setter. An
+  allow-listed Upload writes its rows and one `core.tb_entity_change_log` outbox row per
+  row **in a single transaction**, stamped with the session's tenant, the ingress
+  `transport` and the Flight subject, and emits the `fraiseql::mutation_audit` event the
+  mutation pipeline emits for every other write path.
+
+  ```toml
+  # Empty (the default) leaves Upload disabled.
+  flight_upload_tables = ["ta_measurements", "ta_events"]
+  ```
+
+  The atomic write is a new `ArrowDatabaseAdapter::execute_gated_upload`, whose **default
+  implementation refuses**: an adapter that cannot write the rows and the outbox row
+  together must be unable to serve an Upload, rather than quietly writing rows the Change
+  Spine never sees. Allow-listing a table for an adapter that has not implemented it —
+  the `wire-backend` build, for one — therefore still cannot open the surface.
+
 - **A project-wide `[inject_defaults]` tenant predicate reaches the operations it configures
   (#847).** Python, Go, Java, PHP, C#, Elixir and F# each ship a `ConfigLoader` that parses
   `[inject_defaults]` from `fraiseql.toml` and emits it as a top-level key. No compiler code
