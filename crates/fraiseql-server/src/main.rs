@@ -703,12 +703,9 @@ async fn run_postgres(
 
     // Multi-tenant runtime provisioning (#330): the per-tenant executor factory is
     // built when `[tenancy.runtime] enabled = true`. Its adapter type MUST match the
-    // server's, which differs by build. The non-arrow PG path wraps the adapter in
-    // `CachedDatabaseAdapter` (via `Server::new`/`with_relay_pagination`), while the
-    // arrow path keeps the raw `PostgresAdapter` (via `Server::with_flight_service`,
-    // which never caches). Both implement `FromPoolConfig`, so each branch below builds
-    // its factory with the matching type. Capture the flag here, before `config` is
-    // moved into the constructor.
+    // server's — `CachedDatabaseAdapter<PostgresAdapter>` on every PG constructor
+    // since #889 gave the arrow path the same result cache as its siblings. Capture
+    // the flag here, before `config` is moved into the constructor.
     let tenancy_runtime_enabled = config.tenancy.runtime.enabled;
 
     // Captured before `config` is moved into the constructor, for the same reason.
@@ -738,12 +735,15 @@ async fn run_postgres(
         let server =
             Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
                 .await?;
-        // Arrow path: the server holds the raw `PostgresAdapter`, so the tenant
-        // factory must produce `PostgresAdapter` executors to match its adapter type.
+        // Every constructor wraps the adapter in `CachedDatabaseAdapter` (#889), so the
+        // tenant factory must produce cached executors to match the server's adapter
+        // type — the same expression the non-arrow branch uses.
         // Tenant pools inherit the server's `[database_tls]`; the registration request
         // body cannot influence it (see `make_executor_factory`).
         let tenant_factory = tenancy_runtime_enabled.then(|| {
-            fraiseql_server::tenancy::make_executor_factory::<PostgresAdapter>(database_tls.clone())
+            fraiseql_server::tenancy::make_executor_factory::<
+                fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
+            >(database_tls.clone())
         });
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
