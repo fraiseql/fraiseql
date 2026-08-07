@@ -28,7 +28,8 @@ use crate::{
 impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Execute a Relay connection query with cursor-based (keyset) pagination.
     ///
-    /// Reads `first`, `after`, `last`, `before` from `variables`, fetches a page
+    /// Reads `first`, `after`, `last`, `before` from the match's merged arguments
+    /// (inline arguments under request variables, variables winning), fetches a page
     /// of rows using `pk_{type}` keyset ordering, and wraps the result in the
     /// Relay `XxxConnection` format:
     /// ```json
@@ -53,7 +54,6 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     pub(super) async fn execute_relay_query(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
-        variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         session_vars: &[(&str, &str)],
     ) -> Result<serde_json::Value> {
@@ -168,30 +168,34 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         };
 
-        // Extract relay pagination arguments from variables.
-        let vars = variables.and_then(|v| v.as_object());
+        // Extract relay pagination arguments from the matcher's merged argument map
+        // (#904). Reading the raw request `variables` instead dropped every argument
+        // written inline in the document — silently, because the query still returned
+        // a page. `where:` is the sharp case: a dropped filter widens the result set.
+        // The matcher merges inline arguments under the request variables, variables
+        // winning, so this is the same source every other query path reads.
+        let args = &query_match.arguments;
         // `nearest` (#386) has no relay lowering; ignoring it here would return
         // an unordered page that reads as a successful similarity search.
-        if vars.is_some_and(|v| v.contains_key("nearest")) {
+        if args.contains_key("nearest") {
             return Err(FraiseQLError::validation(
                 "`nearest` is not supported on relay (connection) queries; use a plain \
                  list query for similarity search",
             ));
         }
-        let first: Option<u32> = vars
-            .and_then(|v| v.get("first"))
-            .and_then(|v| v.as_u64())
+        let first: Option<u32> = args
+            .get("first")
+            .and_then(serde_json::Value::as_u64)
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
-        let last: Option<u32> = vars
-            .and_then(|v| v.get("last"))
-            .and_then(|v| v.as_u64())
+        let last: Option<u32> = args
+            .get("last")
+            .and_then(serde_json::Value::as_u64)
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
         // Cap the requested page size before it reaches SQL (#421: unbounded-pagination DoS guard).
         let first = enforce_max_page_size(first, self.ctx.config.max_page_size, "first")?;
         let last = enforce_max_page_size(last, self.ctx.config.max_page_size, "last")?;
-        let after_cursor: Option<&str> = vars.and_then(|v| v.get("after")).and_then(|v| v.as_str());
-        let before_cursor: Option<&str> =
-            vars.and_then(|v| v.get("before")).and_then(|v| v.as_str());
+        let after_cursor: Option<&str> = args.get("after").and_then(serde_json::Value::as_str);
+        let before_cursor: Option<&str> = args.get("before").and_then(serde_json::Value::as_str);
 
         // Decode base64 cursors — type depends on relay_cursor_type.
         // If a cursor string is provided but fails to decode, return a validation
@@ -259,9 +263,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // unbounded `first` (when max_page_size is disabled) cannot overflow to LIMIT 0.
         let fetch_limit = page_size.saturating_add(1);
 
-        // Parse optional `where` filter from variables.
+        // Parse optional `where` filter.
         let user_where_clause = if query_def.auto_params.has_where {
-            vars.and_then(|v| v.get("where"))
+            args.get("where")
                 .map(|w| {
                     let types = where_field_types(&self.ctx.schema, &query_def.return_type);
                     WhereClause::from_graphql_json(w, &types)
@@ -280,9 +284,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
         };
 
-        // Parse optional `orderBy` from variables, enriched with schema type info.
+        // Parse optional `orderBy`, enriched with schema type info.
         let order_by = if query_def.auto_params.has_order_by {
-            vars.and_then(|v| v.get("orderBy"))
+            args.get("orderBy")
                 .map(OrderByClause::from_graphql_json)
                 .transpose()?
                 .map(|clauses| {
