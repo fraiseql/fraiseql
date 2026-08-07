@@ -7,8 +7,10 @@
 //! refused on each of them — a persisted-only mode one transport ignores is
 //! not a mode. The out-of-band transports are pinned elsewhere: MCP and REST
 //! never execute client-authored documents, subscriptions honor only the root
-//! field name, and the Flight service refuses GraphQL outright (no executor is
-//! ever attached).
+//! field name, and Arrow Flight enforces the same mode through its policy seam
+//! (`arrow::policy_seam_tests`, #954) — Flight used to refuse GraphQL only
+//! because no executor was ever attached, which is not a policy and stopped
+//! being true the moment one was.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
 use std::sync::Arc;

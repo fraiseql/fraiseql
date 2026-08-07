@@ -37,6 +37,10 @@
 pub mod database_adapter;
 #[cfg(feature = "arrow")]
 pub mod executor_wrapper;
+#[cfg(feature = "arrow")]
+pub mod policy_seam;
+#[cfg(all(test, feature = "arrow"))]
+mod policy_seam_tests;
 
 #[cfg(test)]
 mod tests;
@@ -54,14 +58,20 @@ use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
 use fraiseql_core::db::postgres::PostgresAdapter;
+#[cfg(feature = "arrow")]
+pub use policy_seam::PolicyGatedExecutor;
 
 /// Create an Arrow Flight service with a real database adapter.
 ///
-/// **No `QueryExecutor` is attached — deliberately.** The Flight GraphQL paths
-/// therefore refuse every ad-hoc query fail-closed ("no executor configured").
-/// Wiring one in must go through the tenant-dispatch/policy seam (tenant
-/// resolution, suspension, quotas, trusted documents), not a bare
-/// `set_executor`, or Flight becomes the one transport that skips them.
+/// **No `QueryExecutor` is attached here** — the service is built before there is
+/// an `AppState` to enforce policy from. The server attaches
+/// [`PolicyGatedExecutor`] at serve time (`server::lifecycle`), so the Flight
+/// GraphQL paths run through tenant resolution, the suspended-tenant gate,
+/// per-tenant quotas and trusted documents like every other transport (#954).
+/// A service that never reaches `serve()` keeps refusing GraphQL fail-closed
+/// ("no executor configured"). Do **not** attach a bare
+/// [`ExecutorQueryAdapter`] instead: that is precisely the shape that makes
+/// Flight the one transport skipping all of the above.
 ///
 /// Supports both PostgreSQL and FraiseQL Wire adapters depending on feature flags:
 /// - Default: PostgreSQL adapter for traditional database connections

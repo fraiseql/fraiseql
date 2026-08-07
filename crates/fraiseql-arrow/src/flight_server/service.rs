@@ -449,14 +449,16 @@ impl FraiseQLFlightService {
     ///
     /// The executor must be passed as `Arc<Executor<A>>` wrapped in Arc for shared ownership.
     ///
-    /// **fraiseql-server deliberately never calls this.** Without an executor,
-    /// the Flight GraphQL paths (`do_get`, `do_exchange` `Query`) refuse
-    /// fail-closed — and that refusal is the intended state until the wiring
-    /// goes through the server's tenant-dispatch/policy seam (tenant
-    /// resolution, suspended-tenant gate, quotas, trusted-documents mode).
-    /// Attaching a bare executor here bypasses every one of those controls;
-    /// the executor's own GATE-1 and `[security.cost_budget] per_request_max`
-    /// (#379) still apply, but they are the floor, not the policy.
+    /// **What you attach here decides the transport's policy.** Without an
+    /// executor the Flight GraphQL paths (`do_get`, `do_exchange` `Query`) refuse
+    /// fail-closed. A **bare** executor bypasses tenant resolution, the
+    /// suspended-tenant gate, per-tenant quotas and trusted-documents mode — the
+    /// executor's own GATE-1 and `[security.cost_budget] per_request_max` (#379)
+    /// still apply, but they are the floor, not the policy.
+    ///
+    /// fraiseql-server therefore attaches its `PolicyGatedExecutor` at serve
+    /// time, which runs the same chokepoints the HTTP handler runs (#954). Any
+    /// other consumer wiring this seam owes its transport the same.
     ///
     /// # Example
     ///
