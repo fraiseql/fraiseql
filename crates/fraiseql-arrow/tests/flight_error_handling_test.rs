@@ -1,51 +1,58 @@
-//! Error handling tests for Arrow Flight service.
+//! Error handling on the Arrow Flight `do_get` path, exercised over a real socket
+//! against a real PostgreSQL.
 //!
-//! These tests verify proper error reporting and recovery for:
-//! - Invalid view names
-//! - Database connection failures
-//! - Arrow conversion errors
-//! - IPC encoding failures
-//! - Batched query validation errors
-//! - Partial batch failures
+//! Until #1001 these tests asserted schema-registry membership —
+//! `assert!(service.schema_registry().contains("ta_users"))`, true for any service
+//! with or without a database, since `register_defaults()` hardcodes it — while
+//! their doc comments claimed to verify that "request fails gracefully without
+//! panicking", "appropriate error is returned to client" and so on. No Flight RPC
+//! was ever issued and no error was ever produced. Each one still created a fixture
+//! database it never queried.
+//!
+//! Each test now provokes the failure it names and asserts on the `Status` the
+//! client actually receives. `test_ipc_encoding_failure` was **deleted** rather than
+//! rewritten: there is no way to force an IPC encoding failure from outside the
+//! service, so the honest options were a lie or nothing.
+//!
+//! `#[ignore]` — needs `DATABASE_URL`. Named explicitly by the Dagger
+//! `integration` leg (`observers` suite, which binds a Postgres). Run with:
+//! `cargo test -p fraiseql-arrow --all-features --test flight_error_handling_test --
+//! --ignored --test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
+use arrow_flight::{Ticket, flight_service_client::FlightServiceClient};
+use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
 use sqlx::postgres::PgPoolOptions;
+use tonic::{
+    Code,
+    transport::{Endpoint, Server},
+};
+
+const TEST_FLIGHT_SECRET: &str = "flight-error-handling-session-secret";
 
 /// Test database setup and teardown.
 struct TestDb {
-    #[allow(dead_code)] // Reason: pool held alive to keep connection open; not read directly
-    pool: sqlx::PgPool,
+    pool:          sqlx::PgPool,
     database_name: String,
 }
 
 impl TestDb {
     /// Create a test database and set up tables.
     ///
-    /// Returns `Ok(None)` when `DATABASE_URL` is not set, allowing the test
-    /// to be skipped gracefully in environments without PostgreSQL.
+    /// Returns `Ok(None)` when `DATABASE_URL` is not set. These tests are
+    /// `#[ignore]`d and named explicitly by the leg, so this is the local
+    /// convenience path, not a way for CI to skip them.
     async fn setup() -> Result<Option<Self>, Box<dyn std::error::Error>> {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| "debug".into()),
-            )
-            .try_init();
-
         let Ok(db_url) = std::env::var("DATABASE_URL") else {
             eprintln!("Skipping: DATABASE_URL not set");
             return Ok(None);
         };
 
-        tracing::info!("Connecting to PostgreSQL: {}", db_url);
-
         let pool = PgPoolOptions::new().max_connections(1).connect(&db_url).await?;
-
         let test_db_name =
             format!("fraiseql_arrow_err_{}", uuid::Uuid::new_v4().to_string().replace('-', "_"));
-        tracing::info!("Creating test database: {}", test_db_name);
-
         sqlx::query(&format!("CREATE DATABASE \"{}\"", test_db_name))
             .execute(&pool)
             .await?;
@@ -55,7 +62,6 @@ impl TestDb {
             None => format!("{}/{}", db_url, test_db_name),
         };
         let test_pool = PgPoolOptions::new().max_connections(5).connect(&test_db_url).await?;
-
         Self::create_tables(&test_pool).await?;
 
         Ok(Some(TestDb {
@@ -64,10 +70,7 @@ impl TestDb {
         }))
     }
 
-    /// Create test tables.
     async fn create_tables(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
-        tracing::info!("Creating test tables");
-
         sqlx::query(
             r"
             CREATE TABLE ta_users (
@@ -93,16 +96,9 @@ impl TestDb {
         .execute(pool)
         .await?;
 
-        tracing::info!("Tables created");
         Ok(())
     }
 
-    /// Get the database URL for fraiseql-core adapter.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `DATABASE_URL` is not set. This is safe because `setup()`
-    /// already verified its presence.
     fn connection_string(&self) -> String {
         let db_url =
             std::env::var("DATABASE_URL").expect("DATABASE_URL must be set — setup() checks this");
@@ -116,18 +112,14 @@ impl TestDb {
 impl Drop for TestDb {
     fn drop(&mut self) {
         let db_name = self.database_name.clone();
-        let default_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
-                .to_string()
-        });
-
+        let Ok(default_url) = std::env::var("DATABASE_URL") else {
+            return;
+        };
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                if let Ok(pool) = PgPoolOptions::new()
-                    .max_connections(1)
-                    .connect(&default_url)
-                    .await
+                if let Ok(pool) =
+                    PgPoolOptions::new().max_connections(1).connect(&default_url).await
                 {
                     let _ = sqlx::query(&format!(
                         "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '{}' AND pid <> pg_backend_pid()",
@@ -135,209 +127,248 @@ impl Drop for TestDb {
                     ))
                     .execute(&pool)
                     .await;
-
                     let _ = sqlx::query(&format!("DROP DATABASE \"{}\"", db_name))
                         .execute(&pool)
                         .await;
-
-                    tracing::info!("Test database {} cleaned up", db_name);
                 }
             });
         });
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// ------------------------------------------------------------- flight harness
 
-    /// Test adapter that wraps `PostgresAdapter` for Arrow Flight integration tests.
-    ///
-    /// Arrow Flight operates on raw SQL, so it always uses PostgreSQL directly.
-    struct TestFlightAdapter {
-        inner: fraiseql_core::db::PostgresAdapter,
+struct TestFlightAdapter {
+    inner: fraiseql_core::db::PostgresAdapter,
+}
+
+#[async_trait::async_trait]
+impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> fraiseql_arrow::db::DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
+        use fraiseql_core::db::traits::DatabaseAdapter as _;
+        self.inner
+            .execute_raw_query(sql)
+            .await
+            .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
+    }
+}
+
+async fn flight_adapter(conn: &str) -> Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter> {
+    let pg = fraiseql_core::db::PostgresAdapter::new(conn).await.unwrap();
+    Arc::new(TestFlightAdapter { inner: pg })
+}
+
+fn session_token() -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct Claims {
+        sub:          String,
+        exp:          i64,
+        iat:          i64,
+        scopes:       Vec<String>,
+        session_type: String,
     }
 
-    #[async_trait::async_trait]
-    impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
-        async fn execute_raw_query(
-            &self,
-            sql: &str,
-        ) -> fraiseql_arrow::db::DatabaseResult<
-            Vec<std::collections::HashMap<String, serde_json::Value>>,
-        > {
-            use fraiseql_core::db::traits::DatabaseAdapter as _;
-            self.inner
-                .execute_raw_query(sql)
-                .await
-                .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
-        }
+    let now = chrono::Utc::now();
+    encode(
+        &Header::new(Algorithm::HS256),
+        &Claims {
+            sub:          "error-handling-user".to_string(),
+            exp:          (now + chrono::Duration::minutes(5)).timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
+            session_type: "flight".to_string(),
+        },
+        &EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+async fn serve(service: FraiseQLFlightService) -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        Server::builder()
+            .add_service(service.into_server())
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
+            .await
+            .unwrap();
+    });
+    tokio::task::yield_now().await;
+    format!("http://127.0.0.1:{}", addr.port())
+}
+
+/// Issue one authenticated `do_get` and drain the stream, returning the first
+/// error the client sees (errors can surface at call time or mid-stream).
+async fn do_get(addr: &str, ticket: &FlightTicket) -> Result<usize, tonic::Status> {
+    let channel = Endpoint::from_shared(addr.to_string()).unwrap().connect().await.unwrap();
+    let mut client = FlightServiceClient::new(channel);
+
+    let mut request = tonic::Request::new(Ticket {
+        ticket: ticket.encode().unwrap().into(),
+    });
+    request
+        .metadata_mut()
+        .insert("authorization", format!("Bearer {}", session_token()).parse().unwrap());
+
+    let mut stream = client.do_get(request).await?.into_inner();
+    let mut frames = 0;
+    while let Some(_data) = stream.message().await? {
+        frames += 1;
     }
+    Ok(frames)
+}
 
-    /// Create a PostgreSQL-backed Arrow Flight adapter for testing.
-    async fn create_flight_adapter(
-        conn_string: &str,
-    ) -> Result<Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter>, Box<dyn std::error::Error>> {
-        let pg_adapter = fraiseql_core::db::PostgresAdapter::new(conn_string).await?;
-        let adapter: Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter> =
-            Arc::new(TestFlightAdapter { inner: pg_adapter });
-        Ok(adapter)
+fn view_ticket(view: &str, limit: Option<usize>) -> FlightTicket {
+    FlightTicket::OptimizedView {
+        view: view.to_string(),
+        filter: None,
+        order_by: None,
+        limit,
+        offset: None,
     }
+}
 
-    /// Test invalid view name returns appropriate error
-    ///
-    /// Verifies:
-    /// 1. Request for non-existent view returns `NotFound` error
-    /// 2. Error message includes view name
-    /// 3. Service remains functional after error
-    #[tokio::test]
-    async fn test_invalid_view_name_error() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+// -------------------------------------------------------------------- tests
 
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+/// A ticket naming a view the registry does not know is refused with `NotFound`,
+/// the message names the view, and the service serves the next request normally.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn an_unknown_view_is_refused_and_the_service_survives_it() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
 
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
+    let status = do_get(&addr, &view_ticket("nonexistent_view", None))
+        .await
+        .expect_err("an unknown view must be refused");
 
-        // Verify non-existent view is properly rejected
-        let result = service.schema_registry().get("nonexistent_view");
-        assert!(result.is_err(), "Should reject non-existent view");
+    assert_eq!(status.code(), Code::NotFound, "got: {status:?}");
+    assert!(
+        status.message().contains("nonexistent_view"),
+        "the error must name the view the client asked for, got: {}",
+        status.message()
+    );
 
-        // Verify service is still functional
-        let valid = service.schema_registry().get("ta_users");
-        assert!(valid.is_ok(), "Service should still work after error");
+    // Recovery: the same server still answers a valid request.
+    let frames = do_get(&addr, &view_ticket("ta_users", None)).await.unwrap();
+    assert!(frames >= 2, "schema message plus at least one batch");
+}
 
-        tracing::info!("✓ Invalid view name error test passed");
-        Ok(())
-    }
+/// When the database is gone, the client gets an error — not a panic, not an
+/// empty-but-successful stream that reads as "no rows".
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn a_failing_database_surfaces_as_an_error_not_an_empty_success() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
 
-    /// Test database connection failure error handling
-    ///
-    /// Verifies:
-    /// 1. Service detects database connectivity issues
-    /// 2. Error message is informative
-    /// 3. Request fails gracefully without panicking
-    #[tokio::test]
-    async fn test_database_connection_failure() -> Result<(), Box<dyn std::error::Error>> {
-        // Create a Flight service without database adapter
-        let service = fraiseql_arrow::FraiseQLFlightService::new();
+    // Take the table away underneath the running service.
+    sqlx::query("DROP TABLE ta_users").execute(&db.pool).await.unwrap();
 
-        // Service should still have schema registry
-        assert!(service.schema_registry().contains("ta_users"), "Should have default schemas");
+    let status = do_get(&addr, &view_ticket("ta_users", None))
+        .await
+        .expect_err("a query against a missing table must not answer success");
 
-        tracing::info!("✓ Database connection failure test passed");
-        Ok(())
-    }
+    assert_eq!(status.code(), Code::Internal, "got: {status:?}");
+    assert!(
+        status.message().contains("Database query failed"),
+        "the error must say the database failed, got: {}",
+        status.message()
+    );
+}
 
-    /// Test Arrow conversion error handling
-    ///
-    /// Verifies:
-    /// 1. Invalid data types are handled gracefully
-    /// 2. Error message describes conversion problem
-    /// 3. Streaming can continue or fails gracefully
-    #[tokio::test]
-    async fn test_arrow_conversion_error() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+/// `limit = 0` is refused up front (H38) rather than reaching the chunker, where a
+/// zero-sized chunk used to panic.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn a_zero_limit_is_refused_before_it_reaches_the_chunker() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
 
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+    let status = do_get(&addr, &view_ticket("ta_users", Some(0)))
+        .await
+        .expect_err("limit = 0 is a meaningless request and must be refused");
 
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
+    assert_eq!(status.code(), Code::InvalidArgument, "got: {status:?}");
+    assert!(
+        status.message().contains("greater than 0"),
+        "the error must tell the client what is wrong with the limit, got: {}",
+        status.message()
+    );
+}
 
-        // Verify schema conversion works for valid table
-        let result = service.schema_registry().get("ta_users");
-        assert!(result.is_ok(), "Should convert valid table schema");
+/// An empty `BatchedQueries` ticket is refused rather than answered with an empty
+/// stream.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn an_empty_batched_queries_ticket_is_refused() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET)
+        .with_raw_sql_enabled();
+    let addr = serve(service).await;
 
-        let schema = result?;
-        assert!(!schema.fields.is_empty(), "Schema should have fields");
+    let status = do_get(&addr, &FlightTicket::BatchedQueries { queries: vec![] })
+        .await
+        .expect_err("an empty batch is not a request");
 
-        tracing::info!("✓ Arrow conversion error test passed");
-        Ok(())
-    }
+    assert_eq!(status.code(), Code::InvalidArgument, "got: {status:?}");
+}
 
-    /// Test IPC encoding failure handling
-    ///
-    /// Verifies:
-    /// 1. IPC encoding errors are caught
-    /// 2. Appropriate error is returned to client
-    /// 3. Service recovers and can handle subsequent requests
-    #[tokio::test]
-    async fn test_ipc_encoding_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+/// One bad query fails the **whole** batch — the client is never handed a partial
+/// result it cannot tell apart from a complete one.
+///
+/// The old doc comment claimed the opposite ("partial results are streamed
+/// correctly", "error doesn't break the entire batch"). It asserted neither, and
+/// the service does neither: a Flight stream carries one schema header, so there is
+/// no way to signal "query 2 of 3 failed" mid-stream. All-or-nothing is the correct
+/// behaviour and this pins it.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn one_bad_query_fails_the_whole_batch_rather_than_returning_part_of_it() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET)
+        .with_raw_sql_enabled();
+    let addr = serve(service).await;
 
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+    let ticket = FlightTicket::BatchedQueries {
+        queries: vec![
+            "SELECT id FROM ta_users ORDER BY id".to_string(),
+            "SELECT id FROM table_that_does_not_exist".to_string(),
+        ],
+    };
 
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
+    let status = do_get(&addr, &ticket)
+        .await
+        .expect_err("a batch containing a failing query must fail as a whole");
 
-        // Verify schema can be encoded
-        let schema = service.schema_registry().get("ta_users")?;
-        assert!(!schema.fields.is_empty(), "Schema should be valid for encoding");
-
-        tracing::info!("✓ IPC encoding failure test passed");
-        Ok(())
-    }
-
-    /// Test empty batched queries validation
-    ///
-    /// Verifies:
-    /// 1. Empty query vector is rejected
-    /// 2. Error message indicates invalid argument
-    /// 3. Service is ready for next request
-    #[tokio::test]
-    async fn test_batched_queries_empty_error() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
-
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
-
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
-
-        // Verify service handles empty batches gracefully
-        // In a real implementation, empty query vectors should be rejected
-        assert!(
-            service.schema_registry().contains("ta_users"),
-            "Service should remain functional"
-        );
-
-        tracing::info!("✓ Batched queries empty error test passed");
-        Ok(())
-    }
-
-    /// Test partial batch failure (some queries succeed, some fail)
-    ///
-    /// Verifies:
-    /// 1. Successful queries return results
-    /// 2. Failed queries return appropriate errors
-    /// 3. Partial results are streamed correctly
-    /// 4. Error doesn't break the entire batch
-    #[tokio::test]
-    async fn test_batched_queries_partial_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
-
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
-
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
-
-        // Verify both valid schemas exist
-        assert!(service.schema_registry().contains("ta_users"), "Should have ta_users");
-        assert!(
-            !service.schema_registry().contains("nonexistent"),
-            "Should reject nonexistent table"
-        );
-
-        tracing::info!("✓ Batched queries partial failure test passed");
-        Ok(())
-    }
+    assert_eq!(status.code(), Code::Internal, "got: {status:?}");
+    assert!(
+        status.message().contains("Database query failed"),
+        "the error must name the database failure, got: {}",
+        status.message()
+    );
 }

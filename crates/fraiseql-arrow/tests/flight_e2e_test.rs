@@ -1,48 +1,58 @@
-//! End-to-end integration tests for Arrow Flight `DoGet` flows.
+//! End-to-end `DoGet` flows: a real Flight server on a real socket, a real
+//! session token, and a real PostgreSQL behind it.
 //!
-//! These tests verify complete request→response cycles for:
-//! - Optimized view queries with cache
-//! - Batched multi-query execution
-//! - Large result set streaming
-//! - Concurrent client requests
+//! Until #1001 these six tests carried numbered "1. Create `FlightTicket` 2. Send
+//! `DoGet` request 3. Receive schema message 4. Receive data batches" doc comments
+//! and called **no Flight RPC at all** — each reduced to
+//! `assert!(service.schema_registry().contains("ta_users"))`, which
+//! `register_defaults()` makes true for any service, with or without a database.
+//! Every one of them created a fixture database it never queried. The `do_get`
+//! path could have been broken in every way they named and all six passed.
+//!
+//! Each test now performs the flow its name describes and asserts on the rows that
+//! come back.
+//!
+//! `#[ignore]` — needs `DATABASE_URL` (a real PostgreSQL, with permission to
+//! `CREATE DATABASE`). Named explicitly by the Dagger `integration` leg (`observers` suite, which
+//! binds a Postgres),
+//! so these either run or the leg fails; they can no longer self-skip into a false
+//! green. Run with:
+//! `cargo test -p fraiseql-arrow --all-features --test flight_e2e_test --
+//! --ignored --test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
+use arrow::record_batch::RecordBatch;
+use arrow_flight::{Ticket, flight_service_client::FlightServiceClient};
+use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
 use sqlx::postgres::PgPoolOptions;
+use tonic::transport::{Endpoint, Server};
+
+const TEST_FLIGHT_SECRET: &str = "flight-e2e-session-secret";
 
 /// Test database setup and teardown (reused from `flight_integration.rs`).
 struct TestDb {
-    #[allow(dead_code)] // Reason: pool held alive to keep connection open; not read directly
-    pool: sqlx::PgPool,
+    pool:          sqlx::PgPool,
     database_name: String,
 }
 
 impl TestDb {
     /// Create a test database and set up tables.
     ///
-    /// Returns `Ok(None)` when `DATABASE_URL` is not set, allowing the test
-    /// to be skipped gracefully in environments without PostgreSQL.
+    /// Returns `Ok(None)` when `DATABASE_URL` is not set. These tests are
+    /// `#[ignore]`d and named explicitly by the leg, so this is the local
+    /// convenience path, not a way for CI to skip them.
     async fn setup() -> Result<Option<Self>, Box<dyn std::error::Error>> {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| "debug".into()),
-            )
-            .try_init();
-
         let Ok(db_url) = std::env::var("DATABASE_URL") else {
             eprintln!("Skipping: DATABASE_URL not set");
             return Ok(None);
         };
 
-        tracing::info!("Connecting to PostgreSQL: {}", db_url);
-
         let pool = PgPoolOptions::new().max_connections(1).connect(&db_url).await?;
 
         let test_db_name =
             format!("fraiseql_arrow_e2e_{}", uuid::Uuid::new_v4().to_string().replace('-', "_"));
-        tracing::info!("Creating test database: {}", test_db_name);
 
         sqlx::query(&format!("CREATE DATABASE \"{}\"", test_db_name))
             .execute(&pool)
@@ -62,11 +72,10 @@ impl TestDb {
         }))
     }
 
-    /// Create `ta_users` and `ta_orders` tables with additional test data.
+    /// Create `ta_users` and `ta_orders` with the columns the registry's
+    /// pre-compiled Arrow schemas declare — the conversion step matches rows to
+    /// that schema by name, so the table must carry those columns.
     async fn create_tables(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
-        tracing::info!("Creating test tables");
-
-        // Create ta_users table
         sqlx::query(
             r"
             CREATE TABLE ta_users (
@@ -81,7 +90,6 @@ impl TestDb {
         .execute(pool)
         .await?;
 
-        // Create ta_orders table
         sqlx::query(
             r"
             CREATE TABLE ta_orders (
@@ -96,7 +104,6 @@ impl TestDb {
         .execute(pool)
         .await?;
 
-        // Insert test data into ta_users
         sqlx::query(
             r"
             INSERT INTO ta_users (id, name, email, created_at)
@@ -111,7 +118,6 @@ impl TestDb {
         .execute(pool)
         .await?;
 
-        // Insert test data into ta_orders
         sqlx::query(
             r"
             INSERT INTO ta_orders (id, total, created_at, customer_name)
@@ -126,16 +132,9 @@ impl TestDb {
         .execute(pool)
         .await?;
 
-        tracing::info!("Tables created and populated with test data");
         Ok(())
     }
 
-    /// Get the database URL for fraiseql-core adapter.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `DATABASE_URL` is not set. This is safe because `setup()`
-    /// already verified its presence.
     fn connection_string(&self) -> String {
         let db_url =
             std::env::var("DATABASE_URL").expect("DATABASE_URL must be set — setup() checks this");
@@ -149,18 +148,15 @@ impl TestDb {
 impl Drop for TestDb {
     fn drop(&mut self) {
         let db_name = self.database_name.clone();
-        let default_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
-                .to_string()
-        });
+        let Ok(default_url) = std::env::var("DATABASE_URL") else {
+            return;
+        };
 
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                if let Ok(pool) = PgPoolOptions::new()
-                    .max_connections(1)
-                    .connect(&default_url)
-                    .await
+                if let Ok(pool) =
+                    PgPoolOptions::new().max_connections(1).connect(&default_url).await
                 {
                     let _ = sqlx::query(&format!(
                         "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '{}' AND pid <> pg_backend_pid()",
@@ -172,220 +168,324 @@ impl Drop for TestDb {
                     let _ = sqlx::query(&format!("DROP DATABASE \"{}\"", db_name))
                         .execute(&pool)
                         .await;
-
-                    tracing::info!("Test database {} cleaned up", db_name);
                 }
             });
         });
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// ------------------------------------------------------------- flight harness
 
-    /// Test adapter that wraps `PostgresAdapter` for Arrow Flight integration tests.
-    ///
-    /// Arrow Flight operates on raw SQL, so it always uses PostgreSQL directly.
-    struct TestFlightAdapter {
-        inner: fraiseql_core::db::PostgresAdapter,
+/// The adapter shape the shipped server passes to the Flight service.
+struct TestFlightAdapter {
+    inner: fraiseql_core::db::PostgresAdapter,
+}
+
+#[async_trait::async_trait]
+impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> fraiseql_arrow::db::DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
+        use fraiseql_core::db::traits::DatabaseAdapter as _;
+        self.inner
+            .execute_raw_query(sql)
+            .await
+            .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
+    }
+}
+
+async fn flight_adapter(conn_string: &str) -> Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter> {
+    let pg = fraiseql_core::db::PostgresAdapter::new(conn_string).await.unwrap();
+    Arc::new(TestFlightAdapter { inner: pg })
+}
+
+fn session_token() -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct Claims {
+        sub:          String,
+        exp:          i64,
+        iat:          i64,
+        scopes:       Vec<String>,
+        session_type: String,
     }
 
-    #[async_trait::async_trait]
-    impl fraiseql_arrow::ArrowDatabaseAdapter for TestFlightAdapter {
-        async fn execute_raw_query(
-            &self,
-            sql: &str,
-        ) -> fraiseql_arrow::db::DatabaseResult<
-            Vec<std::collections::HashMap<String, serde_json::Value>>,
-        > {
-            use fraiseql_core::db::traits::DatabaseAdapter as _;
-            self.inner
-                .execute_raw_query(sql)
-                .await
-                .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
+    let now = chrono::Utc::now();
+    encode(
+        &Header::new(Algorithm::HS256),
+        &Claims {
+            sub:          "e2e-user".to_string(),
+            exp:          (now + chrono::Duration::minutes(5)).timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
+            session_type: "flight".to_string(),
+        },
+        &EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+/// Serve `service` on an ephemeral port; returns the endpoint URL.
+async fn serve(service: FraiseQLFlightService) -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        Server::builder()
+            .add_service(service.into_server())
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
+            .await
+            .unwrap();
+    });
+    tokio::task::yield_now().await;
+    format!("http://127.0.0.1:{}", addr.port())
+}
+
+async fn connect(addr: &str) -> FlightServiceClient<tonic::transport::Channel> {
+    let channel = Endpoint::from_shared(addr.to_string()).unwrap().connect().await.unwrap();
+    FlightServiceClient::new(channel)
+}
+
+/// Send one authenticated `do_get` and decode the whole stream into batches.
+///
+/// The first `FlightData` is the schema message, the rest are batches — this is
+/// the "receive schema message → receive data batches" the old doc comments
+/// described and never performed.
+async fn do_get(addr: &str, ticket: &FlightTicket) -> Result<Vec<RecordBatch>, tonic::Status> {
+    let mut client = connect(addr).await;
+    let mut request = tonic::Request::new(Ticket {
+        ticket: ticket.encode().unwrap().into(),
+    });
+    request
+        .metadata_mut()
+        .insert("authorization", format!("Bearer {}", session_token()).parse().unwrap());
+
+    let mut stream = client.do_get(request).await?.into_inner();
+    let mut frames = Vec::new();
+    while let Some(data) = stream.message().await? {
+        frames.push(data);
+    }
+    Ok(arrow_flight::utils::flight_data_to_batches(&frames)
+        .expect("the server's own stream must decode as Arrow"))
+}
+
+fn total_rows(batches: &[RecordBatch]) -> usize {
+    batches.iter().map(RecordBatch::num_rows).sum()
+}
+
+/// Collect one string column across all batches.
+fn column_values(batches: &[RecordBatch], column: &str) -> Vec<String> {
+    use arrow::array::{Array as _, StringArray};
+    let mut out = Vec::new();
+    for batch in batches {
+        let Some(idx) = batch.schema().index_of(column).ok() else {
+            continue;
+        };
+        let array = batch
+            .column(idx)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("column is Utf8");
+        for i in 0..array.len() {
+            out.push(array.value(i).to_string());
         }
     }
+    out
+}
 
-    /// Create a PostgreSQL-backed Arrow Flight adapter for testing.
-    async fn create_flight_adapter(
-        conn_string: &str,
-    ) -> Result<Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter>, Box<dyn std::error::Error>> {
-        let pg_adapter = fraiseql_core::db::PostgresAdapter::new(conn_string).await?;
-        let adapter: Arc<dyn fraiseql_arrow::ArrowDatabaseAdapter> =
-            Arc::new(TestFlightAdapter { inner: pg_adapter });
-        Ok(adapter)
+fn view_ticket(view: &str, limit: Option<usize>) -> FlightTicket {
+    FlightTicket::OptimizedView {
+        view: view.to_string(),
+        filter: None,
+        order_by: None,
+        limit,
+        offset: None,
     }
+}
 
-    /// Test complete `DoGet` flow: create ticket → execute → stream results
-    ///
-    /// This test verifies the end-to-end path:
-    /// 1. Create `FlightTicket` for optimized view
-    /// 2. Send `DoGet` request with ticket
-    /// 3. Receive schema message
-    /// 4. Receive data batches
-    /// 5. Verify data integrity
-    #[tokio::test]
-    async fn test_do_get_optimized_view_full_flow() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+// -------------------------------------------------------------------- tests
 
-        // Create adapters
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+/// Complete `DoGet` flow: ticket → request → schema message → data batches →
+/// the rows that are actually in the table.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn do_get_optimized_view_returns_the_rows_in_the_table() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
 
-        // Create Flight service with database
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
+    let batches = do_get(&addr, &view_ticket("ta_users", None)).await.unwrap();
 
-        // Verify schema registry contains ta_users
-        assert!(service.schema_registry().contains("ta_users"), "Should have ta_users schema");
+    assert_eq!(total_rows(&batches), 5, "ta_users holds five seeded rows");
+    let mut ids = column_values(&batches, "id");
+    ids.sort();
+    assert_eq!(ids, ["user-1", "user-2", "user-3", "user-4", "user-5"]);
+    let names = column_values(&batches, "name");
+    assert!(
+        names.contains(&"Alice Johnson".to_string()),
+        "row values must survive the round trip"
+    );
+}
 
-        tracing::info!("✓ DoGet optimized view full flow test passed");
-        Ok(())
-    }
+/// A cache **hit** serves the earlier result without touching the database.
+///
+/// Proven by deleting every row between the two requests: with a cold cache the
+/// second request would return nothing, so five rows can only have come from the
+/// cache.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn do_get_serves_a_repeat_request_from_cache() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service =
+        FraiseQLFlightService::new_with_cache(flight_adapter(&db.connection_string()).await, 60)
+            .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
+    let ticket = view_ticket("ta_users", None);
 
-    /// Test cache hit scenario in `DoGet` flow
-    ///
-    /// This test verifies:
-    /// 1. Execute query without cache (first request)
-    /// 2. Execute same query with cache enabled (second request)
-    /// 3. Verify cache hit (same result, no database query)
-    #[tokio::test]
-    async fn test_do_get_with_cache_hit() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+    let first = do_get(&addr, &ticket).await.unwrap();
+    assert_eq!(total_rows(&first), 5);
 
-        // Create adapters
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+    sqlx::query("DELETE FROM ta_users").execute(&db.pool).await.unwrap();
 
-        // Create Flight service with 60-second cache
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_cache(flight_adapter, 60);
+    let second = do_get(&addr, &ticket).await.unwrap();
+    assert_eq!(
+        total_rows(&second),
+        5,
+        "the repeat request must be served from cache — the table is now empty"
+    );
+}
 
-        // Verify cache is enabled
-        let schema = service.schema_registry().get("ta_users")?;
-        assert!(!schema.fields.is_empty(), "Schema should have fields");
+/// A cache **miss** goes to the database.
+///
+/// The cache is keyed by SQL text, so a different `limit` is a different key. The
+/// row inserted after the first request is invisible to the cached entry and must
+/// appear under the new one.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn a_differently_keyed_request_misses_the_cache_and_reads_the_database() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service =
+        FraiseQLFlightService::new_with_cache(flight_adapter(&db.connection_string()).await, 60)
+            .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
 
-        tracing::info!("✓ DoGet cache hit test passed");
-        Ok(())
-    }
+    let warm = do_get(&addr, &view_ticket("ta_users", Some(5))).await.unwrap();
+    assert_eq!(total_rows(&warm), 5);
 
-    /// Test cache miss scenario in `DoGet` flow
-    ///
-    /// This test verifies:
-    /// 1. Cache is enabled but empty
-    /// 2. Query is executed and result is cached
-    /// 3. Verify cache now contains result
-    #[tokio::test]
-    async fn test_do_get_with_cache_miss() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+    sqlx::query(
+        "INSERT INTO ta_users (id, name, email, created_at)
+         VALUES ('user-6', 'Frank Castle', 'frank@example.com', NOW())",
+    )
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
-        // Create adapters
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+    let cached = do_get(&addr, &view_ticket("ta_users", Some(5))).await.unwrap();
+    assert_eq!(total_rows(&cached), 5, "the identical request is still the cached one");
 
-        // Create Flight service with cache
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_cache(flight_adapter, 60);
+    let fresh = do_get(&addr, &view_ticket("ta_users", Some(6))).await.unwrap();
+    assert_eq!(total_rows(&fresh), 6, "a different key must miss and re-read the database");
+    assert!(column_values(&fresh, "id").contains(&"user-6".to_string()));
+}
 
-        // Verify service is functional
-        assert!(service.schema_registry().contains("ta_orders"), "Should have ta_orders schema");
+/// A `BatchedQueries` ticket returns every query's rows in one stream.
+///
+/// Raw SQL is disabled by default, so this enables it explicitly — which is also
+/// the point: the surface exists only when an operator opts in.
+///
+/// ⚠ **Single column, deliberately (#1002).** The inferred schema takes its field
+/// order from a `HashMap` iteration, so two queries with an identical column set
+/// can produce differently-*ordered* schemas and be refused by the #717
+/// heterogeneous-schema guard — intermittently, since the order varies per process.
+/// A one-column projection has only one possible order, so this test measures the
+/// batched-stream path rather than that lottery. Widen it once #1002 lands.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn batched_queries_stream_every_query_in_one_response() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET)
+        .with_raw_sql_enabled();
+    let addr = serve(service).await;
 
-        tracing::info!("✓ DoGet cache miss test passed");
-        Ok(())
-    }
+    let ticket = FlightTicket::BatchedQueries {
+        queries: vec![
+            "SELECT id FROM ta_users ORDER BY id LIMIT 2".to_string(),
+            "SELECT id FROM ta_users ORDER BY id OFFSET 2".to_string(),
+        ],
+    };
 
-    /// Test batched queries full flow: multiple queries → combined streaming
-    ///
-    /// This test verifies:
-    /// 1. Create `BatchedQueries` ticket with 2+ queries
-    /// 2. Send `DoGet` request
-    /// 3. Receive combined Arrow stream
-    /// 4. Verify results from all queries are streamed
-    #[tokio::test]
-    async fn test_batched_queries_full_flow() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+    let batches = do_get(&addr, &ticket).await.unwrap();
 
-        // Create adapters
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+    assert_eq!(total_rows(&batches), 5, "both queries' rows must reach the client");
+    let mut ids = column_values(&batches, "id");
+    ids.sort();
+    assert_eq!(ids, ["user-1", "user-2", "user-3", "user-4", "user-5"]);
+}
 
-        // Create Flight service
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
+/// A large result set streams in full.
+///
+/// Note the honest scope: `execute_optimized_view` derives its batch size from the
+/// request's `limit` (`limit.unwrap_or(10_000)`), so an `OptimizedView` response is
+/// a single batch by construction — the old body's claim to "verify streaming
+/// produces multiple batches" was untestable through this path as well as untested.
+/// What is real, and what this asserts, is that every one of 1 500 rows arrives.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn a_large_result_set_streams_every_row() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    sqlx::query(
+        "INSERT INTO ta_users (id, name, email, created_at)
+         SELECT 'bulk-' || g, 'Bulk User ' || g, 'bulk' || g || '@example.com', NOW()
+         FROM generate_series(1, 1495) AS g",
+    )
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
-        // Verify both tables exist
-        assert!(service.schema_registry().contains("ta_users"), "Should have ta_users");
-        assert!(service.schema_registry().contains("ta_orders"), "Should have ta_orders");
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
 
-        tracing::info!("✓ Batched queries full flow test passed");
-        Ok(())
-    }
+    let batches = do_get(&addr, &view_ticket("ta_users", None)).await.unwrap();
 
-    /// Test large result set streaming (1000+ rows across multiple batches)
-    ///
-    /// This test verifies:
-    /// 1. Insert 1000+ rows into a table
-    /// 2. Execute query that returns all rows
-    /// 3. Verify streaming produces multiple batches
-    /// 4. Verify all rows are streamed correctly
-    /// 5. Verify batch size limits are respected
-    #[tokio::test]
-    async fn test_large_result_set_streaming() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
+    assert_eq!(total_rows(&batches), 1500, "every row must arrive, none dropped by chunking");
+    assert_eq!(column_values(&batches, "id").len(), 1500);
+}
 
-        // Create adapters
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
+/// Ten concurrent clients each get a correct, complete result.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn concurrent_do_get_requests_each_return_the_full_result() {
+    let Some(db) = TestDb::setup().await.unwrap() else {
+        return;
+    };
+    let service = FraiseQLFlightService::new_with_db(flight_adapter(&db.connection_string()).await)
+        .with_session_secret(TEST_FLIGHT_SECRET);
+    let addr = serve(service).await;
 
-        // Create Flight service
-        let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let addr = addr.clone();
+            tokio::spawn(async move { do_get(&addr, &view_ticket("ta_orders", None)).await })
+        })
+        .collect();
 
-        // Verify service is functional
-        assert!(
-            !service.schema_registry().contains("nonexistent_table"),
-            "Should reject unknown tables"
-        );
-
-        tracing::info!("✓ Large result set streaming test passed");
-        Ok(())
-    }
-
-    /// Test concurrent `DoGet` requests from multiple clients
-    ///
-    /// This test verifies:
-    /// 1. Launch 10+ concurrent requests to same service
-    /// 2. Each request executes independently
-    /// 3. All requests complete successfully
-    /// 4. No data corruption or race conditions
-    /// 5. Cache is thread-safe if enabled
-    #[tokio::test]
-    async fn test_concurrent_do_get_requests() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else {
-            return Ok(());
-        };
-        let conn_string = test_db.connection_string();
-
-        // Create adapters
-        let flight_adapter = create_flight_adapter(&conn_string).await?;
-
-        // Create Flight service
-        let service = Arc::new(fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter));
-
-        // Verify service is shared safely
-        let schema1 = service.schema_registry().get("ta_users")?;
-        let schema2 = service.schema_registry().get("ta_orders")?;
-
-        assert!(!schema1.fields.is_empty(), "ta_users should have fields");
-        assert!(!schema2.fields.is_empty(), "ta_orders should have fields");
-
-        tracing::info!("✓ Concurrent DoGet requests test passed");
-        Ok(())
+    for handle in handles {
+        let batches = handle.await.unwrap().expect("every concurrent request must succeed");
+        assert_eq!(total_rows(&batches), 5, "no request may see a partial or crossed result");
     }
 }

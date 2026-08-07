@@ -1813,6 +1813,17 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// adapter has no atomic-upload seam) and would run zero tests while reading
 		// green — the #940-class trap.
 		"cargo test -p fraiseql-server --features arrow --test flight_upload_outbox_pg -- --ignored --test-threads=1",
+		// #908/#1001: the three DB-backed Flight suites. They self-skipped on a
+		// missing DATABASE_URL and the test leg has none, so all 31 tests read as
+		// passing while running nothing — and two of the three asserted a
+		// hardcoded registry constant even when they did run. Rewritten to drive
+		// real do_get/do_exchange RPCs, marked #[ignore] so a no-database leg
+		// cannot show them green, and named here so they either execute or the
+		// leg fails. Each CREATE DATABASEs its own fixture: --test-threads=1.
+		"echo '### #908/#1001: Flight DoGet e2e + error handling + adapter integration (real RPCs)'",
+		"cargo test -p fraiseql-arrow --all-features --test flight_e2e_test -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-arrow --all-features --test flight_error_handling_test -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-arrow --all-features --test flight_integration -- --ignored --test-threads=1",
 		"echo 'test-integration OK: observers suite passed'",
 	}, "\n")
 
