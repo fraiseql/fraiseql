@@ -1800,6 +1800,19 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// only leg that runs fraiseql-arrow with a live DATABASE_URL — the test
 		// leg's arrow run has no database and its DB-backed tests self-skip.
 		"cargo test -p fraiseql-arrow --all-features --test insert_sql_pg -- --ignored --test-threads=1",
+		// #953 Flight Upload gate. Two halves, each against the bound Postgres:
+		// the decision half over a real Flight socket (which tables are refused,
+		// and that an adapter with no atomic-write seam refuses even an
+		// allow-listed one), and the write half at the server's adapter (the rows
+		// AND their change-log outbox rows, or neither). The hole these close was
+		// reachable in the shipped binary, so both drive the mounted path.
+		"echo '### #953: Flight Upload gate + Change Spine outbox (against the bound Postgres)'",
+		"cargo test -p fraiseql-arrow --all-features --test flight_upload_gate_pg -- --ignored --test-threads=1",
+		// `--features arrow` deliberately, NOT serverTestFeatures: that set includes
+		// `wire-backend`, under which this suite is `cfg`'d out entirely (the wire
+		// adapter has no atomic-upload seam) and would run zero tests while reading
+		// green — the #940-class trap.
+		"cargo test -p fraiseql-server --features arrow --test flight_upload_outbox_pg -- --ignored --test-threads=1",
 		"echo 'test-integration OK: observers suite passed'",
 	}, "\n")
 

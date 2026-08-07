@@ -1,8 +1,7 @@
 //! Database adapter trait for Arrow Flight service.
 //!
-//! This module defines a minimal database adapter interface for executing
-//! raw SQL queries and returning results as JSON. It's designed to be independent
-//! of fraiseql-core to avoid circular dependencies.
+//! This module defines a minimal database adapter interface for the Arrow Flight
+//! layer: raw SQL reads, and the one atomic write path a gated `Upload` needs.
 //!
 //! # Note
 //!
@@ -53,9 +52,13 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///
 /// # Why a separate trait?
 ///
-/// `fraiseql-arrow` must not take a compile-time dependency on `fraiseql-core` (to avoid
-/// circular crate dependencies). `ArrowDatabaseAdapter` carries only what the Flight layer
-/// needs; `fraiseql-server` wraps a core adapter to satisfy both traits.
+/// `ArrowDatabaseAdapter` carries only what the Flight layer needs, so a consumer can
+/// back Flight with something that is not a full `fraiseql_db::DatabaseAdapter`;
+/// `fraiseql-server` wraps a core adapter to satisfy both traits.
+///
+/// (This trait's separateness is **not** about avoiding a dependency: `fraiseql-arrow`
+/// does depend on `fraiseql-core`, and the Flight handlers use `SecurityContext`
+/// directly. The module docs said otherwise until #953.)
 ///
 /// # Example
 ///
@@ -99,4 +102,62 @@ pub trait ArrowDatabaseAdapter: Send + Sync {
         &self,
         sql: &str,
     ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>>;
+
+    /// Execute one allow-listed Flight `Upload`: the client's rows **and** the
+    /// `core.tb_entity_change_log` outbox rows that record them, in a **single
+    /// transaction** (#953).
+    ///
+    /// # Why this is not `execute_raw_query`
+    ///
+    /// An `Upload` is a client-directed write that never passes through the mutation
+    /// pipeline, so nothing else will write its Change Spine rows. Running the INSERT
+    /// and the outbox write as two statements would let the rows commit while the
+    /// outbox write failed — the split brain the Change Spine exists to prevent, and
+    /// invisible to CDC and every observer downstream.
+    ///
+    /// # The default refuses, deliberately
+    ///
+    /// An adapter that has not implemented this **cannot** serve a gated Upload. The
+    /// tempting default — run the statements one after another — is fail-open: it
+    /// produces exactly the silent split brain above, on every adapter that forgot to
+    /// override it. Refusing means an unimplemented adapter is loudly unable to
+    /// Upload rather than quietly writing unrecorded rows.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DatabaseError` when the adapter cannot write atomically (the default),
+    /// or when the transaction fails — in which case **nothing** has been written.
+    async fn execute_gated_upload(&self, upload: &GatedUpload<'_>) -> DatabaseResult<u64> {
+        Err(DatabaseError::new(format!(
+            "This database adapter cannot write a Flight Upload and its change-log row \
+             atomically, so the Upload into '{}' is refused. An adapter must implement \
+             ArrowDatabaseAdapter::execute_gated_upload before Upload can be allow-listed \
+             for it.",
+            upload.table
+        )))
+    }
+}
+
+/// One allow-listed Flight `Upload`, ready for the atomic write (#953).
+///
+/// Carries what the outbox row needs beyond the INSERT itself: who is writing, and
+/// under which tenant. The `insert_sql` is already built and escaped by
+/// `build_insert_query`; the adapter's job is to run it and the change-log write in
+/// one transaction, not to re-derive it.
+///
+/// Intentionally **not** `#[non_exhaustive]`: this is the *call shape* of
+/// [`ArrowDatabaseAdapter::execute_gated_upload`], and adding a field is a breaking
+/// trait change regardless. Callers construct it with a struct literal so that
+/// omitting a field — a new piece of provenance an outbox row must carry — is a hard
+/// compile error at every call site rather than a silently defaulted NULL.
+#[derive(Debug)]
+pub struct GatedUpload<'a> {
+    /// Target table — allow-listed by the operator, already verified by the caller.
+    pub table:      &'a str,
+    /// The multi-row `INSERT INTO "<table>" …` to execute.
+    pub insert_sql: &'a str,
+    /// Authenticated Flight session subject, recorded on the outbox row.
+    pub user_id:    &'a str,
+    /// Tenant this write belongs to, or `None` for a single-tenant deployment.
+    pub tenant_id:  Option<&'a str>,
 }

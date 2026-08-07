@@ -93,6 +93,30 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_flight_bind_addr")]
     pub flight_bind_addr: SocketAddr,
 
+    /// Tables an authenticated Arrow Flight client may `Upload` into (#953).
+    ///
+    /// **Empty (the default) disables `Upload` entirely** — the fail-closed
+    /// position, and the only safe default: an `Upload` is a raw, client-directed
+    /// INSERT whose target table is named by the *request*, and it does not pass
+    /// through the mutation pipeline, so it carries no operation authorizer and no
+    /// field RBAC. Ungated, any holder of a valid Flight session token could write
+    /// every table the connection role can write.
+    ///
+    /// Allow-list only tables every `Upload`-capable client is permitted to write.
+    /// Naming an audit, `_system` or outbox table here hands those clients the
+    /// ledger.
+    ///
+    /// The rows and their `core.tb_entity_change_log` outbox rows are written in one
+    /// transaction, so an allow-listed Upload is visible to the Change Spine and to
+    /// CDC like any other write.
+    ///
+    /// ```toml
+    /// flight_upload_tables = ["ta_measurements", "ta_events"]
+    /// ```
+    #[cfg(feature = "arrow")]
+    #[serde(default)]
+    pub flight_upload_tables: Vec<String>,
+
     /// Enable CORS.
     #[serde(default = "defaults::default_true")]
     pub cors_enabled: bool,
@@ -1090,6 +1114,9 @@ impl Default for ServerConfig {
             bind_addr: default_bind_addr(),
             #[cfg(feature = "arrow")]
             flight_bind_addr: defaults::default_flight_bind_addr(),
+            // #953: fail-closed — Upload is off until an operator names tables.
+            #[cfg(feature = "arrow")]
+            flight_upload_tables: Vec::new(),
             cors_enabled: true,
             cors_origins: Vec::new(),
             compression_enabled: false,

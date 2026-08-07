@@ -719,8 +719,22 @@ async fn run_postgres(
     #[cfg(feature = "arrow")]
     {
         use fraiseql_server::arrow::create_flight_service;
-        let flight_service = create_flight_service(adapter.clone());
-        tracing::info!("Arrow Flight service initialized with real database adapter");
+        // #953: the Upload allow-list is an operator decision, read from
+        // `flight_upload_tables`. Empty (the default) leaves Upload disabled.
+        let flight_service = create_flight_service(adapter.clone(), &config.flight_upload_tables);
+        if config.flight_upload_tables.is_empty() {
+            tracing::info!(
+                "Arrow Flight service initialized with real database adapter (Upload disabled: \
+                 flight_upload_tables is empty)"
+            );
+        } else {
+            tracing::warn!(
+                tables = ?config.flight_upload_tables,
+                "Arrow Flight service initialized with real database adapter; Upload is ENABLED \
+                 for these tables — clients may INSERT into them without passing the mutation \
+                 pipeline's authorizer or field RBAC"
+            );
+        }
         let server =
             Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
                 .await?;

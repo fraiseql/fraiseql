@@ -127,6 +127,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             bulk_export_allowed_tables: None,
+            upload_allowed_tables: None,
             session_secret: read_flight_session_secret(),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -176,6 +177,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             bulk_export_allowed_tables: None,
+            upload_allowed_tables: None,
             session_secret: read_flight_session_secret(),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -223,6 +225,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             bulk_export_allowed_tables: None,
+            upload_allowed_tables: None,
             session_secret: read_flight_session_secret(),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -306,6 +309,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             bulk_export_allowed_tables: None,
+            upload_allowed_tables: None,
             session_secret: Some(session_secret),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
@@ -406,6 +410,39 @@ impl FraiseQLFlightService {
                 .collect::<std::collections::HashSet<String>>(),
         );
         self
+    }
+
+    /// Allow-list the tables an authenticated client may `Upload` into (#953).
+    ///
+    /// **SECURITY WARNING**: an `Upload` is a raw, client-directed INSERT. The target
+    /// table comes from the request, and the rows do not pass through the mutation
+    /// pipeline — no operation authorizer, no field RBAC. `Upload` is disabled by
+    /// default (the allow-list is `None`); call this only for tables every
+    /// `Upload`-capable client is permitted to write. Allow-listing an audit, `_system`
+    /// or outbox table hands those clients the ledger.
+    #[must_use]
+    pub fn with_upload_tables<I, S>(mut self, tables: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.upload_allowed_tables = Some(
+            tables
+                .into_iter()
+                .map(Into::into)
+                .collect::<std::collections::HashSet<String>>(),
+        );
+        self
+    }
+
+    /// The tables `Upload` may write, or `None` when `Upload` is disabled (#953).
+    ///
+    /// Exposed so a consumer can assert what its own configuration produced —
+    /// "the operator wrote an allow-list and the service received it" is otherwise
+    /// only observable by attempting a write.
+    #[must_use]
+    pub const fn upload_allowed_tables(&self) -> Option<&std::collections::HashSet<String>> {
+        self.upload_allowed_tables.as_ref()
     }
 
     /// Set the query executor for GraphQL query execution.

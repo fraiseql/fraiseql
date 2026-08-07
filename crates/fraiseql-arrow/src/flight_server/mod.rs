@@ -177,6 +177,18 @@ pub struct FraiseQLFlightService {
     /// `with_bulk_export_tables`. Only allow-list tables whose full contents every
     /// `BulkExport`-capable client is permitted to read.
     pub(crate) bulk_export_allowed_tables: Option<std::collections::HashSet<String>>,
+    /// Tables an authenticated client may `Upload` into via `do_exchange` (#953).
+    ///
+    /// **SECURITY**: `None` (the default) disables `Upload` entirely. An Upload is a
+    /// raw client-directed INSERT — it does not pass through the mutation pipeline, so
+    /// it carries no operation authorizer and no field RBAC, and the target table is
+    /// named by the *client*. Left ungated, a caller holding any valid Flight session
+    /// token could write to every table the connection role can write, `_system`, audit
+    /// and outbox tables included. It is therefore fail-closed: a request is refused
+    /// unless its table is explicitly allow-listed here via
+    /// [`with_upload_tables`](FraiseQLFlightService::with_upload_tables). Only
+    /// allow-list tables every `Upload`-capable client is permitted to write.
+    pub(crate) upload_allowed_tables: Option<std::collections::HashSet<String>>,
     /// HMAC-SHA256 secret used to sign and verify Flight session tokens.
     ///
     /// Read once at service construction from `FLIGHT_SESSION_SECRET` environment

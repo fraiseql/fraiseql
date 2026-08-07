@@ -177,6 +177,11 @@ const MANIFEST: &[(&str, &str)] = &[
     // long enough that four remediation phases recorded it as a pre-existing failure
     // rather than a missing row. Naming the consumer is the whole job.
     ("flight_bind_addr", "Arrow Flight gRPC listener (lifecycle.rs, `arrow` feature)"),
+    (
+        "flight_upload_tables",
+        "Arrow Flight `Upload` allow-list — main.rs → create_flight_service → \
+         with_upload_tables (#953); empty leaves Upload disabled",
+    ),
     ("mailbox", "inbound email IMAP pollers + startup probes (lifecycle.rs)"),
     (
         "send.challenge_suppress_after",
