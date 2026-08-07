@@ -57,6 +57,7 @@ fn alice_row() -> JsonbValue {
         "email":   "alice@example.com",
         "secret":  "SECRET-VALUE",
         "pk_user": 1,
+        "profile": { "tier": "gold" },
     }))
 }
 
@@ -232,6 +233,12 @@ fn user_schema() -> CompiledSchema {
         .with_simple_field("name", FieldType::String)
         .with_simple_field("email", FieldType::String)
         .with_simple_field("secret", FieldType::String)
+        // A nested single object, so `__typename` inside one has somewhere to land (#912).
+        .with_simple_field("profile", FieldType::Object("Profile".to_string()))
+        .build();
+
+    let profile_type = TestTypeBuilder::new("Profile", "v_profile")
+        .with_simple_field("tier", FieldType::String)
         .build();
 
     let users_query = TestQueryBuilder::new("users", "User")
@@ -246,6 +253,7 @@ fn user_schema() -> CompiledSchema {
 
     let mut schema = TestSchemaBuilder::new()
         .with_type(user_type)
+        .with_type(profile_type)
         .with_query(users_query)
         .with_query(user_query)
         .build();
@@ -641,6 +649,104 @@ async fn multi_root_query_honours_a_nested_directive() {
         user_keys(&response),
         vec!["id"],
         "@skip on a nested field was dropped by re-serialization: {response}"
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// B2. `__typename` on a nested object — #912
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// `__typename` is `String!` (spec § Type Name Introspection) — it can never be
+// null, and a requested field can never be absent. It is a meta-field, not a
+// JSONB key, so it is stripped from the SQL projection at every depth (emitting
+// `data->>'__typename'` would produce a literal NULL — the symptom #912 reports
+// from the v1 stack). Something on the Rust side must put it back.
+//
+// Two of the three levels had an owner: the root object is stamped by
+// `configure_typename_from_selections`, and list elements by `project_entity`.
+// A *single* nested object had none, so a requested nested `__typename` was
+// dropped from the response with no error — a `String!` field simply missing.
+
+/// A nested `__typename` resolves to the nested type, in its requested position.
+#[tokio::test]
+async fn nested_typename_resolves_to_the_nested_type() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ users { id profile { __typename tier } } }", None)
+        .await
+        .expect("query must run");
+
+    let profile = response["data"]["users"][0]["profile"]
+        .as_object()
+        .unwrap_or_else(|| panic!("expected a profile object: {response}"));
+
+    assert_eq!(
+        profile.get("__typename").and_then(serde_json::Value::as_str),
+        Some("Profile"),
+        "a requested nested `__typename` must resolve to the nested type — `String!` cannot be \
+         null and cannot be absent: {response}"
+    );
+    let keys: Vec<&str> = profile.keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        vec!["__typename", "tier"],
+        "the response's fields follow the query's order, `__typename` included: {response}"
+    );
+}
+
+/// Control: the root `__typename` and a nested one resolve to *different* types.
+#[tokio::test]
+async fn root_and_nested_typenames_are_each_their_own_type() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ users { __typename profile { __typename } } }", None)
+        .await
+        .expect("query must run");
+
+    assert_eq!(response["data"]["users"][0]["__typename"], "User", "{response}");
+    assert_eq!(
+        response["data"]["users"][0]["profile"]["__typename"], "Profile",
+        "the nested object's typename is its own type, not the root's: {response}"
+    );
+}
+
+/// Control: an unrequested nested `__typename` stays absent — the key is not
+/// injected unconditionally, and never as a literal null (#912's own wording:
+/// "either the concrete type name … or the key omitted entirely when not
+/// requested — never a literal `null`").
+#[tokio::test]
+async fn unrequested_nested_typename_is_absent_not_null() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ users { profile { tier } } }", None)
+        .await
+        .expect("query must run");
+
+    let profile = response["data"]["users"][0]["profile"]
+        .as_object()
+        .unwrap_or_else(|| panic!("expected a profile object: {response}"));
+    assert!(
+        !profile.contains_key("__typename"),
+        "an unrequested `__typename` must be absent, not present-and-null: {response}"
+    );
+}
+
+/// A nested `__typename` under an alias is keyed by the alias.
+#[tokio::test]
+async fn aliased_nested_typename_uses_the_alias_as_its_key() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ users { profile { kind: __typename tier } } }", None)
+        .await
+        .expect("query must run");
+
+    assert_eq!(
+        response["data"]["users"][0]["profile"]["kind"], "Profile",
+        "an aliased `__typename` is keyed by the alias: {response}"
+    );
+    assert!(
+        response["data"]["users"][0]["profile"].get("__typename").is_none(),
+        "the meta-field name must not also appear when an alias was given: {response}"
     );
 }
 

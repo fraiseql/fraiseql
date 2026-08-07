@@ -1321,6 +1321,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A `__typename` selected on a nested object now resolves to that object's type (#912).**
+  `__typename` is `String!` (spec § Type Name Introspection): it can never be null, and a
+  requested field can never be absent. It is a meta-field, not a JSONB key, so it is
+  stripped from the SQL projection at every depth — a projection that emitted it would
+  produce `data->>'__typename'`, a literal NULL, which is the symptom the issue reports
+  from the 1.x stack. Something on the Rust side has to put it back.
+
+  Two of the three levels had an owner: the root object is stamped by the result
+  projector, and list elements by `project_entity`. A **single nested object** had none,
+  so `{ users { profile { __typename tier } } }` returned a `profile` with no
+  `__typename` at all — a non-null field silently missing, with no error. The v2 runtime
+  never emitted the literal `null` the issue names; it dropped the key instead, which
+  breaks the same Apollo cache normalisation from the other side.
+
+  `stamp_nested_typenames` now runs alongside the existing nested-list pass at all three
+  query entry points. The key lands in the position the client's selection set puts it —
+  a response's fields follow the query's order — and honours an alias
+  (`kind: __typename`). An *unrequested* nested `__typename` stays absent, as before:
+  the key is never injected unconditionally, and never as a literal null.
 - **A subscription that aliases its root field now delivers under the alias (#906).**
   `subscription { order: orderUpdated(id: $id) { id status } }` is spec-valid — an alias
   renames only the response key, and the executed field is still `orderUpdated` (GraphQL

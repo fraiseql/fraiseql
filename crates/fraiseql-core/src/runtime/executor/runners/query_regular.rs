@@ -421,6 +421,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             &self.ctx.schema,
         );
 
+        // #912: `__typename` is stripped from the SQL projection at every depth (it
+        //       is a meta-field, not a JSONB key — projecting it emits a literal
+        //       NULL). The root object is stamped by the projector and list elements
+        //       by `project_entity`; nested single objects have no other owner.
+        crate::runtime::stamp_nested_typenames(
+            &mut projected,
+            &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+            &self.ctx.schema,
+        );
+
         // 11. Null out masked fields in the projected result
         if !access.masked.is_empty() {
             null_masked_fields(&mut projected, &access.masked);
@@ -791,6 +802,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             &self.ctx.schema,
         );
 
+        // #912: `__typename` is stripped from the SQL projection at every depth (it
+        //       is a meta-field, not a JSONB key — projecting it emits a literal
+        //       NULL). The root object is stamped by the projector and list elements
+        //       by `project_entity`; nested single objects have no other owner.
+        crate::runtime::stamp_nested_typenames(
+            &mut projected,
+            &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+            &self.ctx.schema,
+        );
+
         // 4a. #743: null out fields denied to the anonymous caller under on_deny=Mask.
         if !access.masked.is_empty() {
             null_masked_fields(&mut projected, &access.masked);
@@ -1037,6 +1059,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             projector.project_results(&results, query_match.query_def.returns_list)?;
         // #489: recase + project nested list-of-object fields left raw by SQL projection.
         crate::runtime::project_nested_lists(
+            &mut projected,
+            &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+            &self.ctx.schema,
+        );
+
+        // #912: `__typename` is stripped from the SQL projection at every depth (it
+        //       is a meta-field, not a JSONB key — projecting it emits a literal
+        //       NULL). The root object is stamped by the projector and list elements
+        //       by `project_entity`; nested single objects have no other owner.
+        crate::runtime::stamp_nested_typenames(
             &mut projected,
             &query_match.query_def.return_type,
             query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),

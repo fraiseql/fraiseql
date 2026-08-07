@@ -86,6 +86,7 @@ pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{
     FieldMapping, ProjectionMapper, ResultProjector, project_entity, project_nested_lists,
+    stamp_nested_typenames,
 };
 pub use query_tracing::{
     QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder, create_phase_span, create_query_span,
