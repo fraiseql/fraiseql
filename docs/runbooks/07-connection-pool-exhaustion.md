@@ -214,12 +214,27 @@ done
    docker restart fraiseql-server
    ```
 
-3. **Enable query timeout**
+3. **Cap request processing time**
+
+   `request_timeout_secs` is a config-file key with no environment override: a request
+   that has not completed within it returns **408 Request Timeout**, releasing the
+   connection it was holding.
+
+   ```toml
+   # server.toml
+   request_timeout_secs = 30
+   ```
+
+   To bound the *database* side as well, put `statement_timeout` on the connection —
+   PostgreSQL enforces it, so a runaway query is cancelled in the server rather than
+   waited on:
+
+   ```toml
+   # server.toml
+   database_url = "postgres://user:pass@host/db?options=-c%20statement_timeout%3D30000"
+   ```
 
    ```bash
-   # Kill any query that takes > 30 seconds
-   export FRAISEQL_QUERY_TIMEOUT=30000  # milliseconds
-
    docker restart fraiseql-server
    ```
 
@@ -419,8 +434,9 @@ EOF
 # - Use connection context managers
 # - Never hold connections across awaits/yields
 
-# 3. Set reasonable query timeouts
-export FRAISEQL_QUERY_TIMEOUT=30000  # 30 seconds max
+# 3. Set reasonable timeouts (config-file keys — no env override)
+#    server.toml: request_timeout_secs = 30
+#    server.toml: database_url = "postgres://…/db?options=-c%20statement_timeout%3D30000"
 
 # 4. Monitor queue depth
 # Prometheus: rate(connection_wait_total[5m])
