@@ -83,6 +83,9 @@ fn mutation_success_row() -> HashMap<String, serde_json::Value> {
 #[derive(Default)]
 struct RecordingAdapter {
     projections:    std::sync::Mutex<Vec<Option<String>>>,
+    /// The `orderBy` each read was handed — a re-serialized argument that fails
+    /// to *apply* is as silent as one that fails to parse (#902).
+    order_bys:      std::sync::Mutex<Vec<Option<String>>>,
     function_calls: std::sync::Mutex<Vec<String>>,
     /// Database function whose call fails, for the partial-failure case.
     failing_fn:     Option<String>,
@@ -109,6 +112,10 @@ impl RecordingAdapter {
     fn recorded_function_calls(&self) -> Vec<String> {
         self.function_calls.lock().unwrap().clone()
     }
+
+    fn recorded_order_bys(&self) -> Vec<Option<String>> {
+        self.order_bys.lock().unwrap().clone()
+    }
 }
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -121,14 +128,14 @@ impl DatabaseAdapter for RecordingAdapter {
         projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
-        _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         self.projections
             .lock()
             .unwrap()
             .push(projection.map(|p| p.projection_template.clone()));
-        self.execute_where_query(view, where_clause, limit, None, None).await
+        self.execute_where_query(view, where_clause, limit, offset, order_by).await
     }
 
     async fn execute_where_query(
@@ -137,8 +144,9 @@ impl DatabaseAdapter for RecordingAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
+        self.order_bys.lock().unwrap().push(order_by.map(|o| format!("{o:?}")));
         Ok(vec![alice_row()])
     }
 
@@ -634,6 +642,130 @@ async fn multi_root_query_honours_a_nested_directive() {
         vec!["id"],
         "@skip on a nested field was dropped by re-serialization: {response}"
     );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// C2. Multi-root argument re-serialization — #902
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// The multi-root fan-out re-serializes each root field back to GraphQL text and
+// re-parses it. A stored argument value is JSON, and JSON object keys are
+// quoted — `[{"field": "name"}]` is not valid GraphQL. Emitting a stored value
+// verbatim therefore fails the *whole request* with a parse error naming a token
+// the client never wrote, for `orderBy: [{ field, direction }]`: a documented,
+// supported input shape. Single-root queries never re-serialize, so the same
+// document succeeds on its own — which makes the failure look like a client bug.
+//
+// The cases below are the issue's three-way split: multi-root + list-of-objects
+// against its two controls (single-root, and the object form of the same
+// argument), plus a list of scalars so a fix that unquotes too eagerly is caught.
+
+/// The relay/`orderBy`-accepting variant of `user_schema`, so a re-serialized
+/// `orderBy` is not dropped for the legitimate reason that the query does not
+/// declare the argument.
+fn ordering_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+    let mut schema = user_schema();
+    for q in &mut schema.queries {
+        q.auto_params.has_order_by = true;
+        q.auto_params.has_where = true;
+    }
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
+}
+
+#[tokio::test]
+async fn multi_root_list_of_objects_argument_reaches_the_adapter() {
+    let (exec, adapter) = ordering_executor();
+    let response = exec
+        .execute(
+            r#"{ a: users(orderBy: [{field: "name", direction: "DESC"}]) { id } b: users { id } }"#,
+            None,
+        )
+        .await
+        .expect(
+            "a multi-root root field carrying `orderBy: [{field, direction}]` — the array form \
+             the compiled argument documents — must run; re-emitting the stored JSON verbatim \
+             fails the parse on a quoted object key",
+        );
+
+    assert!(response["data"].get("a").is_some(), "first root missing: {response}");
+    assert!(response["data"].get("b").is_some(), "second root missing: {response}");
+
+    // …and the argument was applied, not merely parsed. A re-serialization that
+    // loses the sort is as silent as one that fails it.
+    let applied: Vec<String> = adapter
+        .recorded_order_bys()
+        .into_iter()
+        .flatten()
+        .filter(|o| o.contains("name"))
+        .collect();
+    assert_eq!(
+        applied.len(),
+        1,
+        "exactly the aliased root must reach the adapter sorted by `name`; got {:?}",
+        adapter.recorded_order_bys()
+    );
+    assert!(applied[0].contains("Desc"), "the direction must survive: {}", applied[0]);
+}
+
+#[tokio::test]
+async fn single_root_list_of_objects_argument_is_the_control() {
+    // The half that never re-serializes — it passed throughout, which is why the
+    // multi-root failure read as a client bug.
+    let (exec, adapter) = ordering_executor();
+    exec.execute(r#"{ users(orderBy: [{field: "name", direction: "DESC"}]) { id } }"#, None)
+        .await
+        .expect("single-root list-of-objects argument must run");
+    let recorded = adapter.recorded_order_bys();
+    assert!(
+        recorded.iter().flatten().any(|o| o.contains("name")),
+        "single-root control did not apply its sort: {recorded:?}"
+    );
+}
+
+#[tokio::test]
+async fn multi_root_object_form_argument_is_the_control() {
+    // The object form already took the arm that unquotes keys, so it worked
+    // where the array form of the same argument did not.
+    let (exec, adapter) = ordering_executor();
+    exec.execute(r#"{ a: users(orderBy: {name: "DESC"}) { id } b: users { id } }"#, None)
+        .await
+        .expect("multi-root object-form argument must run");
+    let recorded = adapter.recorded_order_bys();
+    assert!(
+        recorded.iter().flatten().any(|o| o.contains("name")),
+        "multi-root object-form control did not apply its sort: {recorded:?}"
+    );
+}
+
+#[tokio::test]
+async fn multi_root_list_of_scalars_argument_still_works() {
+    // A list of scalars was always valid GraphQL verbatim. It is asserted here so
+    // that unquoting the list arm cannot regress it into `[a, b]` — bare names,
+    // which parse as enum values rather than strings.
+    let (exec, _) = ordering_executor();
+    let response = exec
+        .execute(
+            r#"{ a: users(where: {name: {in: ["Alice", "Bob"]}}) { id } b: users { id } }"#,
+            None,
+        )
+        .await
+        .expect("multi-root list-of-scalars argument must run");
+    assert!(response["data"].get("a").is_some(), "first root missing: {response}");
+    assert!(response["data"].get("b").is_some(), "second root missing: {response}");
+}
+
+#[tokio::test]
+async fn multi_root_list_of_nested_objects_argument_runs() {
+    // The issue's second reported shape — `filter: [{name: {eq: "a"}}]` — so the
+    // case is pinned to the list-of-objects *shape* rather than to `orderBy`.
+    let (exec, _) = ordering_executor();
+    let response = exec
+        .execute(r#"{ a: users(filter: [{name: {eq: "Alice"}}]) { id } b: users { id } }"#, None)
+        .await
+        .expect("multi-root list-of-nested-objects argument must run");
+    assert!(response["data"].get("a").is_some(), "first root missing: {response}");
+    assert!(response["data"].get("b").is_some(), "second root missing: {response}");
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
