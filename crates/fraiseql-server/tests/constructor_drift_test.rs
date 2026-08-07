@@ -311,3 +311,74 @@ async fn declaring_rls_changes_the_outcome() {
         result.err()
     );
 }
+
+// ── #910: an unattributable mutation must not boot beside a cacheable view ────
+//
+// `fraiseql compile` refuses this shape, so this is the backstop for a
+// hand-authored `schema.compiled.json` or one from an older CLI. The consequence
+// it guards is silent and permanent: a successful mutation whose views resolve to
+// nothing leaves every entry for a `cache_ttl_seconds = 0` view warm forever.
+
+/// A schema with one cacheable view and one mutation that resolves to no view —
+/// an unbacked payload, no `entity` field, no `invalidates_views`.
+fn unattributable_mutation_schema() -> CompiledSchema {
+    use fraiseql_core::schema::{MutationDefinition, QueryDefinition, TypeDefinition};
+
+    let mut schema = current_schema();
+    schema.types.push(TypeDefinition::new("Price", "v_price"));
+    schema.types.push(TypeDefinition::new("RebuildResult", ""));
+
+    let mut query = QueryDefinition::new("prices", "Price");
+    query.sql_source = Some("v_price".to_string());
+    query.cache_ttl_seconds = Some(0);
+    schema.queries.push(query);
+
+    schema
+        .mutations
+        .push(MutationDefinition::new("rebuildPricing", "RebuildResult"));
+    schema
+}
+
+#[tokio::test]
+async fn an_unattributable_mutation_refuses_to_boot_with_the_cache_on() {
+    let err = Server::new(
+        caching_config(),
+        unattributable_mutation_schema(),
+        Arc::new(NoopRelayAdapter),
+        None,
+    )
+    .await
+    .err()
+    .expect("a mutation that resolves to no view must refuse to boot with caching on (#910)");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("rebuildPricing") && msg.contains("invalidates_views"),
+        "the refusal must name the mutation and the fix; got: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn the_same_schema_boots_with_the_cache_off() {
+    // Guard against over-refusal: with no result cache there is no entry to strand.
+    let config = ServerConfig {
+        cache_enabled: false,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let result =
+        Server::new(config, unattributable_mutation_schema(), Arc::new(NoopRelayAdapter), None)
+            .await;
+    assert!(result.is_ok(), "cache_enabled = false must still boot: {:?}", result.err());
+}
+
+#[tokio::test]
+async fn declaring_invalidates_views_lets_it_boot() {
+    let mut schema = unattributable_mutation_schema();
+    schema.mutations[0].invalidates_views = vec!["v_price".to_string()];
+    let result = Server::new(caching_config(), schema, Arc::new(NoopRelayAdapter), None).await;
+    assert!(
+        result.is_ok(),
+        "declaring what the mutation writes must change the outcome: {:?}",
+        result.err()
+    );
+}

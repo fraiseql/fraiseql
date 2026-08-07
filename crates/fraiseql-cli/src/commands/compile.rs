@@ -495,7 +495,63 @@ pub async fn compile_to_schema(
     // to snake_case SQL functions on the single-JSONB mutation path (#456).
     warn_jsonb_preserve_mismatch(&schema);
 
+    // 5f. Refuse a schema in which a mutation could invalidate nothing (#910).
+    refuse_unattributable_mutations(&schema)?;
+
     Ok((schema, report))
+}
+
+/// Refuse a schema whose caching depends on a mutation the engine cannot attribute (#910).
+///
+/// A mutation's invalidation is resolved from `invalidates_views`, the return type's
+/// view, the entity a payload type wraps, the `entity_type` its function stamps on
+/// `mutation_response`, and its cascade envelope. The first three are knowable here;
+/// the last two are not. When the knowable ones resolve to nothing, the mutation
+/// *may* invalidate nothing at runtime — and for a view annotated
+/// `cache_ttl_seconds = 0`, documented as "mutation-invalidated only", nothing means
+/// **forever**: the write lands, every cached entry stays warm for the process
+/// lifetime, and no log line says so.
+///
+/// The compiler knows every mutation and every `cache_ttl_seconds`, so it can make
+/// the shape impossible instead of loud. A `tracing::warn!` beside a successful
+/// compile is the same defect with more text; a boot-time refusal is later and
+/// per-deployment. Declaring `invalidates_views` costs one line and is checkable.
+///
+/// Schemas that annotate no view as cacheable are unaffected — there is no entry
+/// to strand.
+///
+/// # Errors
+///
+/// Returns an error naming every unattributable mutation when the schema also
+/// declares at least one cacheable view.
+fn refuse_unattributable_mutations(schema: &CompiledSchema) -> Result<()> {
+    if !fraiseql_core::cache::declares_cacheable_views(schema) {
+        return Ok(());
+    }
+    let unattributable = fraiseql_core::cache::unattributable_mutations(schema);
+    if unattributable.is_empty() {
+        return Ok(());
+    }
+
+    let cacheable: Vec<&str> = schema
+        .queries
+        .iter()
+        .filter(|q| q.cache_ttl_seconds.is_some())
+        .filter_map(|q| q.sql_source.as_deref())
+        .collect();
+    let list = unattributable.iter().map(|m| format!("  - {m}")).collect::<Vec<_>>().join("\n");
+    anyhow::bail!(
+        "mutation(s) whose cache invalidation cannot be resolved from the schema:\n{list}\n\n\
+         This schema annotates {} cacheable view(s) ({}), and a mutation that resolves to no \
+         view invalidates nothing when it succeeds — permanently, for any view annotated \
+         `cache_ttl_seconds = 0`.\n\n\
+         Fix by declaring what each mutation writes:\n\
+         \x20   invalidates_views = [\"v_price\"]\n\n\
+         A mutation whose return type is backed by a view, or whose payload wraps an entity \
+         that is, already resolves and needs no annotation.",
+        cacheable.len(),
+        cacheable.join(", "),
+    )
 }
 
 /// Run the compile command

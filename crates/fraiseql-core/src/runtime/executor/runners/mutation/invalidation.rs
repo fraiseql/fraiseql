@@ -58,15 +58,7 @@ fn push_view(views: &mut Vec<ViewName>, view: ViewName) {
     }
 }
 
-/// The view a type reads from, if it declares one.
-fn view_of_type(schema: &CompiledSchema, type_name: &str) -> Option<ViewName> {
-    schema
-        .types
-        .iter()
-        .find(|t| t.name == type_name)
-        .filter(|t| !t.sql_source.as_str().is_empty())
-        .map(|t| ViewName::from(t.sql_source.as_str()))
-}
+use crate::cache::mutation_reach::{statically_resolved_views, view_of_type};
 
 /// Decide what a mutation outcome invalidates.
 ///
@@ -99,22 +91,12 @@ pub(super) fn plan_invalidation(
         return InvalidationPlan::default();
     };
 
-    let mut views: Vec<ViewName> = Vec::new();
-
-    // 1. Declared.
-    for declared in &mutation_def.invalidates_views {
-        push_view(&mut views, ViewName::from(declared.as_str()));
-    }
-
-    // 2. The return type, and the entity a payload type wraps.
-    if let Some(view) = view_of_type(schema, &mutation_def.return_type) {
-        push_view(&mut views, view);
-    }
-    if let Some(inner) = super::payload_entity_type(&mutation_def.return_type, schema) {
-        if let Some(view) = view_of_type(schema, &inner) {
-            push_view(&mut views, view);
-        }
-    }
+    // 1 + 2. Declared `invalidates_views`, the return type's view, and the view of
+    // the entity a payload type wraps — the half of the resolution that is knowable
+    // from the schema alone. The compiler refuses a schema in which this is empty
+    // for some mutation while any view is cacheable (#910), and it refuses it by
+    // calling this same function, so gate and plan cannot disagree.
+    let mut views: Vec<ViewName> = statically_resolved_views(mutation_def, schema);
 
     // 3. The entity type the function stamped. For a mutation returning an unbacked payload this is
     //    the only thing that names the written view.
