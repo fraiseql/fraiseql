@@ -212,6 +212,22 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "functions-runtime")]
     pub(super) functions_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
 
+    /// The compiled schema's `functions` section, supplied by whoever built this
+    /// server (#896).
+    ///
+    /// `prepare_functions_runtime` used to re-read it from `config.schema_path`
+    /// instead — so the functions subsystem could be configured from a *different*
+    /// artifact than the one serving queries (an older revision, or a file the
+    /// process's CWD resolved elsewhere), with nothing checking the two matched. It
+    /// also meant the step could only run where a file existed, which is why it sat
+    /// on `serve_with_shutdown` alone and `serve_on_listener` mounted no functions at
+    /// all. Carried here, both entry points provision from the same value.
+    ///
+    /// `None` means no functions — the schema declared none, or the caller supplied
+    /// none. `main.rs` fills it from `load_extended`.
+    #[cfg(feature = "functions-runtime")]
+    pub(super) functions_config: Option<crate::schema::loader::FunctionsConfig>,
+
     /// Factory for building per-tenant executors at registration time.
     ///
     /// Set by the binary's PostgreSQL boot path (where the concrete adapter

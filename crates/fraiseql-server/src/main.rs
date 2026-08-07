@@ -232,15 +232,31 @@ fn load_and_validate_config(cli: &Cli) -> anyhow::Result<ServerConfig> {
 }
 
 /// Load and validate the compiled schema from the path in `config`.
-async fn load_schema(config: &ServerConfig) -> anyhow::Result<CompiledSchema> {
+async fn load_schema(config: &ServerConfig) -> anyhow::Result<LoadedSchema> {
     validate_schema_path(&config.schema_path)?;
     let schema_loader = CompiledSchemaLoader::new(&config.schema_path);
-    let schema = schema_loader.load().await?;
+    // `load_extended` rather than `load`: the `functions` section is handed to the
+    // server explicitly (#896) instead of being re-read from `schema_path` inside
+    // `prepare_functions_runtime`, where it could name a different artifact than the
+    // schema serving queries.
+    let extended = schema_loader.load_extended().await?;
     // Install the schema's casing acronyms (on top of the built-in defaults) so the
     // runtime's `to_snake_case` JSONB-key resolution matches the compiled surface.
-    fraiseql_core::utils::casing::set_runtime_acronyms(&schema.naming_acronyms);
+    fraiseql_core::utils::casing::set_runtime_acronyms(&extended.schema.naming_acronyms);
     tracing::info!("Compiled schema loaded successfully");
-    Ok(schema)
+    Ok(LoadedSchema {
+        schema: extended.schema,
+        #[cfg(feature = "functions-runtime")]
+        functions: extended.functions,
+    })
+}
+
+/// The compiled schema plus the platform sections the server is given explicitly.
+struct LoadedSchema {
+    schema:    CompiledSchema,
+    /// The `functions` section, handed to `Server::with_functions_config` (#896).
+    #[cfg(feature = "functions-runtime")]
+    functions: Option<fraiseql_server::schema::loader::FunctionsConfig>,
 }
 
 /// Initialize security configuration from the compiled schema (auth feature only).
@@ -596,17 +612,17 @@ async fn main() -> anyhow::Result<()> {
         fraiseql_server::metrics_recorder::install();
     }
 
-    let schema = load_schema(&config).await?;
-    init_security(&schema)?;
+    let loaded = load_schema(&config).await?;
+    init_security(&loaded.schema)?;
 
     warn_files_not_wired(&config);
     #[cfg(not(feature = "sources"))]
-    warn_sources_feature_missing(&schema);
+    warn_sources_feature_missing(&loaded.schema);
 
     // Box::pin: the per-scheme dispatch holds adapter init futures for all
     // enabled adapters, which combined exceeds clippy's `large_futures`
     // 16-KiB stack threshold. Heap-allocating once at startup is fine.
-    Box::pin(dispatch_server(config, schema, &cli)).await
+    Box::pin(dispatch_server(config, loaded, &cli)).await
 }
 
 /// Dispatch on the configured database URL scheme and run the matching
@@ -617,14 +633,23 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(feature = "wire-backend")]
 async fn dispatch_server(
     config: ServerConfig,
-    schema: CompiledSchema,
+    loaded: LoadedSchema,
     cli: &Cli,
 ) -> anyhow::Result<()> {
+    let LoadedSchema {
+        schema,
+        #[cfg(feature = "functions-runtime")]
+        functions,
+    } = loaded;
     warn_storage_requires_postgres(&config, "wire-backend");
     warn_tenant_provisioning_requires_postgres(&config, "wire-backend");
     warn_revocation_requires_postgres(&schema, "wire-backend");
     let adapter = build_wire_adapter(&config).await?;
     let server = Server::new(config, schema, adapter, None).await?;
+    // #896: the functions section comes from the artifact we loaded, not from a
+    // second read of `schema_path` inside the serve path.
+    #[cfg(feature = "functions-runtime")]
+    let server = server.with_functions_config(functions);
     // Box::pin: with the wire backend enabled the combined server/serve future
     // exceeds clippy's `large_futures` 16-KiB threshold. Heap-allocating once at
     // startup is fine.
@@ -634,7 +659,7 @@ async fn dispatch_server(
 #[cfg(not(feature = "wire-backend"))]
 async fn dispatch_server(
     config: ServerConfig,
-    schema: CompiledSchema,
+    loaded: LoadedSchema,
     cli: &Cli,
 ) -> anyhow::Result<()> {
     use fraiseql_server::url_guard::{DatabaseScheme, parse_database_url};
@@ -643,18 +668,19 @@ async fn dispatch_server(
     // 16-KiB threshold once optional subsystems (observers, MCP) are enabled.
     // Heap-allocating once at startup is fine.
     match parse_database_url(&config.database_url)? {
-        DatabaseScheme::Postgres => Box::pin(run_postgres(config, schema, cli)).await,
+        DatabaseScheme::Postgres => Box::pin(run_postgres(config, loaded, cli)).await,
     }
 }
 
 /// PostgreSQL entry point — preserves the existing observer-pool, Arrow
 /// Flight, and relay-detection behaviour.
 #[cfg(not(feature = "wire-backend"))]
-async fn run_postgres(
-    config: ServerConfig,
-    schema: CompiledSchema,
-    cli: &Cli,
-) -> anyhow::Result<()> {
+async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> anyhow::Result<()> {
+    let LoadedSchema {
+        schema,
+        #[cfg(feature = "functions-runtime")]
+        functions,
+    } = loaded;
     let adapter = build_postgres_adapter(&config).await?;
 
     // #487: opt-in fail-fast existence check — every declared `sql_source` (query
@@ -735,6 +761,10 @@ async fn run_postgres(
         let server =
             Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
                 .await?;
+        // #896: the functions section comes from the artifact we loaded, not from a
+        // second read of `schema_path` inside the serve path.
+        #[cfg(feature = "functions-runtime")]
+        let server = server.with_functions_config(functions);
         // Every constructor wraps the adapter in `CachedDatabaseAdapter` (#889), so the
         // tenant factory must produce cached executors to match the server's adapter
         // type — the same expression the non-arrow branch uses.
@@ -771,6 +801,10 @@ async fn run_postgres(
         } else {
             Server::new(config, schema, adapter, db_pool).await?
         };
+        // #896: the functions section comes from the artifact we loaded, not from a
+        // second read of `schema_path` inside the serve path.
+        #[cfg(feature = "functions-runtime")]
+        let server = server.with_functions_config(functions);
         // Non-arrow path: `Server::new`/`with_relay_pagination` wrap the adapter in
         // `CachedDatabaseAdapter`, so the tenant factory must produce cached executors
         // to match the server's adapter type.
