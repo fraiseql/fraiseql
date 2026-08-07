@@ -220,6 +220,9 @@ pub mod uuid_extractor;
 // Fact table aggregation caching
 pub mod fact_table_version;
 
+// What a mutation can be proven, from the schema alone, to invalidate (#910).
+pub mod mutation_reach;
+
 // Public exports
 //
 // Re-export `ViewName` from `fraiseql-db` so consumers of the cache API can
@@ -241,6 +244,9 @@ pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{
     extract_accessed_views, generate_cache_key, generate_projection_query_key,
     generate_response_cache_key, generate_view_query_key,
+};
+pub use mutation_reach::{
+    declares_cacheable_views, statically_resolved_views, unattributable_mutations,
 };
 pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use response_cache::{ResponseCache, ResponseCacheConfig};

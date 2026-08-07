@@ -1225,6 +1225,9 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
 
     // Validate cache + RLS safety at startup — the static, declarations-only half.
     tenant_isolation_declaration_check(schema, cache_enabled)?;
+    // #910's boot-time backstop. The compiler refuses this shape, so a schema that
+    // reaches here carrying it was hand-authored or compiled by an older CLI.
+    unattributable_mutation_check(schema, cache_enabled)?;
     // #623: declared cache TTLs with the cache off are silently inert — say so.
     warn_on_inert_cache_ttls(schema, cache_enabled);
 
@@ -1253,6 +1256,41 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
     verify_declared_rls(schema, &cached, cache_config.rls_enforcement).await?;
 
     Ok((cached, cache_config))
+}
+
+/// Refuse to boot when a mutation could invalidate nothing and something is cached (#910).
+///
+/// `fraiseql compile` already refuses this shape, so in practice this fires only for a
+/// hand-authored `schema.compiled.json` or one produced by an older CLI. It is here
+/// because the consequence is silent and permanent: a successful mutation whose views
+/// resolve to nothing leaves every entry for a `cache_ttl_seconds = 0` view warm for
+/// the process lifetime, and nothing in the response or the log says so.
+///
+/// Only fires when the result cache is on. With `cache_enabled = false` there is no
+/// entry to strand.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming every unattributable mutation.
+pub(super) fn unattributable_mutation_check(
+    schema: &CompiledSchema,
+    cache_enabled: bool,
+) -> crate::Result<()> {
+    if !cache_enabled || !fraiseql_core::cache::declares_cacheable_views(schema) {
+        return Ok(());
+    }
+    let unattributable = fraiseql_core::cache::unattributable_mutations(schema);
+    if unattributable.is_empty() {
+        return Ok(());
+    }
+    Err(crate::ServerError::ConfigError(format!(
+        "The compiled schema declares cacheable views and mutation(s) whose invalidation \
+         cannot be resolved from it: {}. A successful mutation that resolves to no view \
+         invalidates nothing — permanently, for a view annotated `cache_ttl_seconds = 0`. \
+         Declare `invalidates_views` on each mutation and recompile, or disable the result \
+         cache with `cache_enabled = false`.",
+        unattributable.join(", ")
+    )))
 }
 
 /// Verify a declared RLS posture against the live database, and refuse to boot when

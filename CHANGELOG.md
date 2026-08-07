@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **A mutation that resolves to no view no longer compiles beside a cacheable view
+  (#910).** A successful mutation's invalidation is resolved from `invalidates_views`,
+  the return type's view, the entity a payload type wraps, the `entity_type` its SQL
+  function stamps on `mutation_response`, and its cascade envelope. When none of them
+  names a view the plan is empty and the mutation invalidates **nothing** — silently,
+  and for a view annotated `cache_ttl_seconds = 0` ("mutation-invalidated only") that
+  means for the process lifetime.
+
+  The reachable shape: a `Custom` mutation returning a payload with no `sql_source` and
+  no `entity` field, whose function stamps no `entity_type`, declaring no
+  `invalidates_views`. `fn_rebuild_pricing` rewrites `tb_price`; `v_price` is cached
+  forever; nothing says so.
+
+  `fraiseql compile` now refuses such a schema, naming every unattributable mutation
+  and the cacheable views at risk. A `tracing::warn!` beside a successful compile is
+  the same defect with more text, so this is an error, not an advisory. Schemas that
+  annotate no view as cacheable are unaffected — there is no entry to strand.
+
+  **What changes for you:** add `invalidates_views = ["v_price"]` to each mutation the
+  error names. A mutation whose return type is backed by a view, or whose payload wraps
+  an entity that is, already resolves and needs no annotation. The server carries the
+  same refusal at boot (only when `cache_enabled = true`) as a backstop for a
+  hand-authored or older-CLI `schema.compiled.json`. The compile gate and the runtime
+  invalidation plan read the same `fraiseql_core::cache::statically_resolved_views`, so
+  they cannot drift into disagreeing about what "resolves to a view" means.
 - **The Arrow/Flight boot path now honours `cache_enabled` — and `Server::with_flight_service`
   returns `Server<CachedDatabaseAdapter<A>>` (#889).** The constructor `main.rs` selects
   whenever the `arrow` feature is on passed the raw adapter straight to the executor, so
