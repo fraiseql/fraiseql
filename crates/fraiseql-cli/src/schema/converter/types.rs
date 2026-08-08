@@ -8,7 +8,7 @@ use fraiseql_core::{
     validation::CustomTypeDef,
 };
 
-use super::SchemaConverter;
+use super::{DeclaredTypeNames, SchemaConverter};
 use crate::schema::intermediate::{
     IntermediateEnum, IntermediateEnumValue, IntermediateField, IntermediateInputField,
     IntermediateInputObject, IntermediateInterface, IntermediateRest, IntermediateScalar,
@@ -21,11 +21,14 @@ impl SchemaConverter {
     /// # Errors
     ///
     /// Returns an error if any field in the type cannot be converted.
-    pub(super) fn convert_type(intermediate: IntermediateType) -> Result<TypeDefinition> {
+    pub(super) fn convert_type(
+        intermediate: IntermediateType,
+        declared: &DeclaredTypeNames,
+    ) -> Result<TypeDefinition> {
         let fields = intermediate
             .fields
             .into_iter()
-            .map(Self::convert_field)
+            .map(|f| Self::convert_field(f, declared))
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert type '{}'", intermediate.name))?;
 
@@ -247,11 +250,12 @@ impl SchemaConverter {
     /// Convert `IntermediateInterface` to `InterfaceDefinition`
     pub(super) fn convert_interface(
         intermediate: IntermediateInterface,
+        declared: &DeclaredTypeNames,
     ) -> Result<InterfaceDefinition> {
         let fields = intermediate
             .fields
             .into_iter()
-            .map(Self::convert_field)
+            .map(|f| Self::convert_field(f, declared))
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert interface '{}'", intermediate.name))?;
 
@@ -280,8 +284,11 @@ impl SchemaConverter {
     ///
     /// Returns an error if the field's type string cannot be parsed into a
     /// `FieldType`.
-    pub(super) fn convert_field(intermediate: IntermediateField) -> Result<FieldDefinition> {
-        let field_type = Self::parse_field_type(&intermediate.field_type)?;
+    pub(super) fn convert_field(
+        intermediate: IntermediateField,
+        declared: &DeclaredTypeNames,
+    ) -> Result<FieldDefinition> {
+        let field_type = Self::parse_field_type(&intermediate.field_type, declared)?;
 
         // #386: vector_config is required on Vector fields (DDL and request-time
         // dimension validation both need it) and meaningless anywhere else —
@@ -354,12 +361,19 @@ impl SchemaConverter {
     /// field nullability is tracked separately in `nullable`) is stripped before
     /// the base name is matched.
     ///
+    /// A non-builtin name is resolved against the schema's declared enum, interface and
+    /// union names before falling through to [`FieldType::Object`] (`#923`) — see
+    /// [`DeclaredTypeNames`].
+    ///
     /// # Errors
     ///
-    /// Currently infallible; unrecognised type names are treated as
-    /// `FieldType::Object`. The `Result` return type is reserved for future
-    /// strict validation.
-    pub(super) fn parse_field_type(type_name: &str) -> Result<FieldType> {
+    /// Currently infallible; a name declared nowhere is treated as `FieldType::Object`,
+    /// and reported by name by `SchemaValidator`. The `Result` return type is reserved for
+    /// future strict validation.
+    pub(super) fn parse_field_type(
+        type_name: &str,
+        declared: &DeclaredTypeNames,
+    ) -> Result<FieldType> {
         let type_name = type_name.trim();
 
         // Strip a trailing non-null marker first — it can wrap a list ("[Inner!]!")
@@ -371,7 +385,7 @@ impl SchemaConverter {
         // SDL list wrapper: "[Inner]" / "[Inner!]" → List(parse(Inner)). Recurse so
         // nested lists ("[[Inner!]!]") and the element non-null marker are handled.
         if let Some(inner) = type_name.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-            return Ok(FieldType::List(Box::new(Self::parse_field_type(inner)?)));
+            return Ok(FieldType::List(Box::new(Self::parse_field_type(inner, declared)?)));
         }
 
         Ok(match type_name {
@@ -387,8 +401,9 @@ impl SchemaConverter {
             "UUID" => FieldType::Uuid,
             "Decimal" => FieldType::Decimal,
             "Vector" => FieldType::Vector,
-            // Custom object types (User, Post, etc.)
-            custom => FieldType::Object(custom.to_string()),
+            // Author-declared enum / interface / union references keep their kind; anything
+            // else is an object reference (#923).
+            custom => declared.resolve(custom),
         })
     }
 

@@ -215,7 +215,11 @@ fn convert_field_maps_authorize_true() {
         authorize:      Some(true),
         hierarchy:      None,
     };
-    let compiled = SchemaConverter::convert_field(intermediate).unwrap();
+    let compiled = SchemaConverter::convert_field(
+        intermediate,
+        &crate::schema::converter::DeclaredTypeNames::default(),
+    )
+    .unwrap();
     assert!(compiled.authorize, "authorize: Some(true) must compile to authorize == true");
 }
 
@@ -233,7 +237,11 @@ fn convert_field_authorize_absent_defaults_false() {
         authorize:      None,
         hierarchy:      None,
     };
-    let compiled = SchemaConverter::convert_field(intermediate).unwrap();
+    let compiled = SchemaConverter::convert_field(
+        intermediate,
+        &crate::schema::converter::DeclaredTypeNames::default(),
+    )
+    .unwrap();
     assert!(!compiled.authorize, "absent authorize must compile to authorize == false");
 }
 
@@ -247,7 +255,11 @@ fn convert_field_authorize_absent_defaults_false() {
 #[test]
 fn parse_field_type_unwraps_list_of_objects() {
     assert_eq!(
-        SchemaConverter::parse_field_type("[Item!]").unwrap(),
+        SchemaConverter::parse_field_type(
+            "[Item!]",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
         FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
     );
 }
@@ -255,7 +267,11 @@ fn parse_field_type_unwraps_list_of_objects() {
 #[test]
 fn parse_field_type_unwraps_nullable_element_list() {
     assert_eq!(
-        SchemaConverter::parse_field_type("[Item]").unwrap(),
+        SchemaConverter::parse_field_type(
+            "[Item]",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
         FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
     );
 }
@@ -263,7 +279,11 @@ fn parse_field_type_unwraps_nullable_element_list() {
 #[test]
 fn parse_field_type_unwraps_list_of_scalars() {
     assert_eq!(
-        SchemaConverter::parse_field_type("[String!]").unwrap(),
+        SchemaConverter::parse_field_type(
+            "[String!]",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
         FieldType::List(Box::new(FieldType::String)),
     );
 }
@@ -271,25 +291,51 @@ fn parse_field_type_unwraps_list_of_scalars() {
 #[test]
 fn parse_field_type_strips_trailing_nonnull() {
     assert_eq!(
-        SchemaConverter::parse_field_type("Item!").unwrap(),
+        SchemaConverter::parse_field_type(
+            "Item!",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
         FieldType::Object("Item".to_string()),
     );
-    assert_eq!(SchemaConverter::parse_field_type("String!").unwrap(), FieldType::String);
+    assert_eq!(
+        SchemaConverter::parse_field_type(
+            "String!",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
+        FieldType::String
+    );
 }
 
 #[test]
 fn parse_field_type_nested_list() {
     assert_eq!(
-        SchemaConverter::parse_field_type("[[Item!]!]").unwrap(),
+        SchemaConverter::parse_field_type(
+            "[[Item!]!]",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
         FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Object("Item".to_string()))))),
     );
 }
 
 #[test]
 fn parse_field_type_plain_scalar_and_object_unchanged() {
-    assert_eq!(SchemaConverter::parse_field_type("String").unwrap(), FieldType::String);
     assert_eq!(
-        SchemaConverter::parse_field_type("User").unwrap(),
+        SchemaConverter::parse_field_type(
+            "String",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
+        FieldType::String
+    );
+    assert_eq!(
+        SchemaConverter::parse_field_type(
+            "User",
+            &crate::schema::converter::DeclaredTypeNames::default()
+        )
+        .unwrap(),
         FieldType::Object("User".to_string()),
     );
 }
@@ -308,7 +354,11 @@ fn convert_field_list_type_compiles_to_list() {
         authorize:      None,
         hierarchy:      None,
     };
-    let compiled = SchemaConverter::convert_field(intermediate).unwrap();
+    let compiled = SchemaConverter::convert_field(
+        intermediate,
+        &crate::schema::converter::DeclaredTypeNames::default(),
+    )
+    .unwrap();
     assert_eq!(
         compiled.field_type,
         FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
@@ -1850,7 +1900,11 @@ mod tenancy_tests {
         use fraiseql_core::schema::InputStyle;
 
         use crate::schema::SchemaConverter;
-        let md = SchemaConverter::convert_mutation(make_mutation("createUser", "User")).unwrap();
+        let md = SchemaConverter::convert_mutation(
+            make_mutation("createUser", "User"),
+            &crate::schema::converter::DeclaredTypeNames::default(),
+        )
+        .unwrap();
         assert_eq!(md.input_style, InputStyle::Flatten);
     }
 
@@ -1868,7 +1922,11 @@ mod tenancy_tests {
             input_style: InputStyle::Jsonb,
             ..make_mutation("createUser", "User")
         };
-        let md = SchemaConverter::convert_mutation(im).unwrap();
+        let md = SchemaConverter::convert_mutation(
+            im,
+            &crate::schema::converter::DeclaredTypeNames::default(),
+        )
+        .unwrap();
         assert_eq!(md.input_style, InputStyle::Jsonb);
         assert!(matches!(md.operation, MutationOperation::Insert { .. }));
     }
@@ -1894,7 +1952,11 @@ mod tenancy_tests {
     #[test]
     fn convert_mutation_defaults_changelog_pre_image_to_false() {
         use crate::schema::SchemaConverter;
-        let md = SchemaConverter::convert_mutation(make_mutation("createUser", "User")).unwrap();
+        let md = SchemaConverter::convert_mutation(
+            make_mutation("createUser", "User"),
+            &crate::schema::converter::DeclaredTypeNames::default(),
+        )
+        .unwrap();
         assert!(!md.changelog_pre_image);
     }
 
@@ -1907,7 +1969,11 @@ mod tenancy_tests {
             changelog_pre_image: true,
             ..make_mutation("updatePrice", "Price")
         };
-        let md = SchemaConverter::convert_mutation(im).unwrap();
+        let md = SchemaConverter::convert_mutation(
+            im,
+            &crate::schema::converter::DeclaredTypeNames::default(),
+        )
+        .unwrap();
         assert!(md.changelog_pre_image);
     }
 
@@ -1932,7 +1998,11 @@ mod tenancy_tests {
     #[test]
     fn convert_mutation_defaults_cascade_to_false() {
         use crate::schema::SchemaConverter;
-        let md = SchemaConverter::convert_mutation(make_mutation("createPost", "Post")).unwrap();
+        let md = SchemaConverter::convert_mutation(
+            make_mutation("createPost", "Post"),
+            &crate::schema::converter::DeclaredTypeNames::default(),
+        )
+        .unwrap();
         assert!(!md.cascade);
     }
 
@@ -1946,7 +2016,11 @@ mod tenancy_tests {
             cascade: true,
             ..make_mutation("createPost", "Post")
         };
-        let md = SchemaConverter::convert_mutation(im).unwrap();
+        let md = SchemaConverter::convert_mutation(
+            im,
+            &crate::schema::converter::DeclaredTypeNames::default(),
+        )
+        .unwrap();
         assert!(md.cascade);
     }
 
@@ -3047,8 +3121,11 @@ fn absent_sources_convert_to_an_empty_list() {
 #[test]
 fn builtin_scalar_names_match_the_converter() {
     for name in crate::schema::BUILTIN_SCALAR_NAMES {
-        let parsed = SchemaConverter::parse_field_type(name)
-            .unwrap_or_else(|e| panic!("scalar {name:?} must parse: {e}"));
+        let parsed = SchemaConverter::parse_field_type(
+            name,
+            &crate::schema::converter::DeclaredTypeNames::default(),
+        )
+        .unwrap_or_else(|e| panic!("scalar {name:?} must parse: {e}"));
         assert!(
             !matches!(parsed, FieldType::Object(_)),
             "{name:?} is listed as a built-in scalar but the converter parses it as an object \
@@ -3078,7 +3155,7 @@ fn converter_scalars_are_all_listed_as_builtins() {
     // A non-scalar must stay an object reference, or the table is over-broad.
     assert!(
         matches!(
-            SchemaConverter::parse_field_type("User").unwrap(),
+            SchemaConverter::parse_field_type("User", &crate::schema::converter::DeclaredTypeNames::default()).unwrap(),
             FieldType::Object(ref n) if n == "User"
         ),
         "an ordinary type name must parse as an object reference"

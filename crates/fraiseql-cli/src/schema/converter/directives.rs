@@ -2,17 +2,18 @@ use anyhow::{Context, Result};
 use fraiseql_core::schema::{DirectiveDefinition, DirectiveLocationKind};
 use tracing::warn;
 
-use super::SchemaConverter;
+use super::{DeclaredTypeNames, SchemaConverter};
 use crate::schema::intermediate::IntermediateDirective;
 
 impl SchemaConverter {
     pub(super) fn convert_directive(
         intermediate: IntermediateDirective,
+        declared: &DeclaredTypeNames,
     ) -> Result<DirectiveDefinition> {
         let arguments = intermediate
             .arguments
             .into_iter()
-            .map(Self::convert_argument)
+            .map(|a| Self::convert_argument(a, declared))
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert directive '{}'", intermediate.name))?;
 

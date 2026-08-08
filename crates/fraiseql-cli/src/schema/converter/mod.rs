@@ -34,6 +34,65 @@ use super::intermediate::{IntermediateFactTable, IntermediateInjectDefaults, Int
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
 
+/// The author-declared enum, interface and union names of one schema (`#923`).
+///
+/// `parse_field_type` matched the twelve builtin scalar names and routed everything else
+/// to `FieldType::Object`, because it is a free function with no view of the document it
+/// is parsing a name from. So `status: OrderStatus`, where the same file declares
+/// `enum OrderStatus`, compiled to `{"Object": "OrderStatus"}` — and
+/// `FieldType::Enum`/`Interface`/`Union` had **no producer at all** for authored schemas;
+/// their only writers were the compiler's own synthesized cascade types.
+///
+/// Everything downstream branches on the variant:
+///
+/// * introspection (`field_resolver`) reports `TypeKind::Object` for an enum-typed field, so an
+///   introspection-driven client (Apollo, Relay, graphql-codegen) is told a scalar enum is an
+///   object with no fields;
+/// * the TypeScript client generator treats `Object` as requiring a nested selection and emits
+///   `status { … }` for a scalar value;
+/// * `--emit-ddl` maps `Object` to `JSONB` rather than to the enum's own Postgres type.
+///
+/// Held by name rather than by definition because that is all resolution needs, and
+/// because it must be built *before* the type arrays are consumed by conversion.
+#[derive(Debug, Default)]
+pub(crate) struct DeclaredTypeNames {
+    enums:      HashSet<String>,
+    interfaces: HashSet<String>,
+    unions:     HashSet<String>,
+}
+
+impl DeclaredTypeNames {
+    /// Collect the names an intermediate schema declares.
+    fn collect(schema: &IntermediateSchema) -> Self {
+        Self {
+            enums:      schema.enums.iter().map(|e| e.name.clone()).collect(),
+            interfaces: schema.interfaces.iter().map(|i| i.name.clone()).collect(),
+            unions:     schema.unions.iter().map(|u| u.name.clone()).collect(),
+        }
+    }
+
+    /// Resolve a non-builtin type name to the variant the rest of the codebase branches on.
+    ///
+    /// Falls back to `FieldType::Object` for a name declared nowhere. That fallback is
+    /// deliberate and is **not** the silent drop this fixes: `SchemaValidator` already
+    /// reports an undeclared field type by name, and #724 chose a warning there rather than
+    /// an error because a `--schema-dir` author can legitimately declare a custom scalar in
+    /// a file this pass cannot see. Reversing that decision belongs with #724's reasoning,
+    /// not here.
+    fn resolve(&self, name: &str) -> FieldType {
+        let owned = || name.to_string();
+        if self.enums.contains(name) {
+            FieldType::Enum(owned())
+        } else if self.interfaces.contains(name) {
+            FieldType::Interface(owned())
+        } else if self.unions.contains(name) {
+            FieldType::Union(owned())
+        } else {
+            FieldType::Object(owned())
+        }
+    }
+}
+
 /// Optional, default-off behaviours for [`SchemaConverter::convert_with_options`].
 ///
 /// Threaded here rather than on [`IntermediateSchema`] so adding an option never
@@ -126,6 +185,11 @@ impl SchemaConverter {
             );
         }
 
+        // #923: collect the declared enum / interface / union names BEFORE the arrays are
+        // consumed below, so a field or argument naming one resolves to that kind instead of
+        // to a phantom `FieldType::Object`.
+        let declared = DeclaredTypeNames::collect(&intermediate);
+
         // Split the authored `types` array on `is_input` before converting anything (#848).
         //
         // A type marked `is_input` is an input object that four SDKs happen to declare in
@@ -138,7 +202,7 @@ impl SchemaConverter {
 
         let types = object_types
             .into_iter()
-            .map(Self::convert_type)
+            .map(|t| Self::convert_type(t, &declared))
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert types")?;
 
@@ -169,7 +233,7 @@ impl SchemaConverter {
             .into_iter()
             .map(|mut q| {
                 IntermediateInjectDefaults::apply_to(&query_defaults_inject, &mut q.inject);
-                Self::convert_query(q, &defaults)
+                Self::convert_query(q, &defaults, &declared)
             })
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert queries")?;
@@ -180,7 +244,7 @@ impl SchemaConverter {
             .into_iter()
             .map(|mut m| {
                 IntermediateInjectDefaults::apply_to(&mutation_defaults_inject, &mut m.inject);
-                Self::convert_mutation(m)
+                Self::convert_mutation(m, &declared)
             })
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert mutations")?;
@@ -212,7 +276,7 @@ impl SchemaConverter {
         let interfaces = intermediate
             .interfaces
             .into_iter()
-            .map(Self::convert_interface)
+            .map(|i| Self::convert_interface(i, &declared))
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert interfaces")?;
 
@@ -223,7 +287,7 @@ impl SchemaConverter {
         let subscriptions = intermediate
             .subscriptions
             .into_iter()
-            .map(Self::convert_subscription)
+            .map(|s| Self::convert_subscription(s, &declared))
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert subscriptions")?;
 
@@ -232,7 +296,7 @@ impl SchemaConverter {
             .directives
             .unwrap_or_default()
             .into_iter()
-            .map(Self::convert_directive)
+            .map(|d| Self::convert_directive(d, &declared))
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert directives")?;
 
