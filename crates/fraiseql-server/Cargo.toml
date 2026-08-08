@@ -158,6 +158,10 @@ fraiseql-federation = {workspace = true, features = ["test-utils"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 futures = "0.3"
+# Raw Redis client for the #985 cache-mount e2e: seed a key, then assert the
+# server-booted observer actually removed it. Dev-only; the production Redis
+# dependency is the optional `redis` above.
+redis = {workspace = true}
 proptest = {workspace = true}
 # HTTP testing
 reqwest = {workspace = true}
@@ -273,6 +277,11 @@ observers = ["fraiseql-observers", "fraiseql-observers/checkpoint"]
 observers-metrics = ["observers", "fraiseql-observers/metrics"]
 observers-enterprise = ["observers", "observers-metrics", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
+# observers-cache (#985): compile the Redis cache/invalidate observer transport
+# and the boot-time mount that makes a `type = "cache"` action in fraiseql.toml
+# reachable. Without it the transport is not in the binary at all, and a declared
+# cache action is refused at boot rather than failing once per event.
+observers-cache = ["observers", "fraiseql-observers/caching"]
 redis-apq = ["fraiseql-core/redis-apq"]
 # REST idempotency backed by Redis for multi-replica deployments
 redis-idempotency = ["redis", "rmp-serde"]

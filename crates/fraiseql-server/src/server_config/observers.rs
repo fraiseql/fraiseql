@@ -194,6 +194,21 @@ pub struct ObserverRuntimeSettings {
     /// truncated to a marker regardless (#468).
     #[serde(default)]
     pub log_payloads: bool,
+
+    /// Redis backend for the `cache`/`invalidate` observer action
+    /// (`[observers.runtime.redis]`).
+    ///
+    /// Absent (`None`) leaves the cache action without a backend. Because this
+    /// struct is `deny_unknown_fields`, its absence was not merely a missing
+    /// default — the key was **rejected at config load**, so no `fraiseql.toml`
+    /// could reach the Redis cache-invalidation transport at all, even though
+    /// the transport itself shipped and was tested (#985).
+    ///
+    /// Declaring a `cache` action without this block is a boot error, and so is
+    /// declaring one in a binary built without the `observers-cache` feature:
+    /// the operator learns once, at startup, rather than once per event.
+    #[serde(default)]
+    pub redis: Option<fraiseql_observers::config::RedisConfig>,
 }
 
 #[cfg(feature = "observers")]
@@ -210,6 +225,7 @@ impl Default for ObserverRuntimeSettings {
             email:                None,
             pool:                 ObserverPoolConfig::default(),
             log_payloads:         false,
+            redis:                None,
         }
     }
 }

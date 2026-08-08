@@ -157,6 +157,14 @@ pub struct ObserverRuntimeConfig {
     /// replicas of one deployment share this identity (they are the same
     /// logical consumer). Default: `"change_log"`.
     pub listener_id: String,
+
+    /// Redis backend for the `cache`/`invalidate` observer transport (#985).
+    ///
+    /// `Some` mounts a [`RedisCacheInvalidator`] onto the executor at boot, so a
+    /// `cache` action declared in `fraiseql.toml` actually invalidates keys.
+    /// `None` with a declared `cache` action is a **boot error** — the operator
+    /// learns at startup rather than one failed dispatch at a time.
+    pub redis: Option<fraiseql_observers::config::RedisConfig>,
 }
 
 impl ObserverRuntimeConfig {
@@ -175,9 +183,16 @@ impl ObserverRuntimeConfig {
             email: None,
             log_payloads: false,
             listener_id: "change_log".to_string(),
+            redis: None,
         }
     }
 
+    /// Set the Redis backend backing `cache`/`invalidate` actions (#985).
+    #[must_use]
+    pub fn with_redis(mut self, redis: Option<fraiseql_observers::config::RedisConfig>) -> Self {
+        self.redis = redis;
+        self
+    }
 
     /// Set poll interval
     #[must_use]
@@ -292,6 +307,12 @@ pub struct ObserverRuntime {
     /// dispatches `after:capture` functions for genuinely-captured writes
     /// (`cdc_source == "fallback_trigger"`). `None` compiles the capture path out.
     capture_dispatch:    Option<CaptureDispatchFn>,
+    /// The Redis cache-invalidation transport connected at boot (#985), kept so
+    /// a hot reload re-mounts it. A reload rebuilds the executor from scratch;
+    /// without this the `cache` actions of a reloaded observer set would silently
+    /// stop working while every other action kept going.
+    #[cfg(feature = "observers-cache")]
+    cache_invalidator:   Option<Arc<fraiseql_observers::RedisCacheInvalidator>>,
 }
 
 /// A hook the observer runtime calls for each change-log event (#366).
@@ -323,6 +344,8 @@ impl ObserverRuntime {
             dlq: Arc::new(InMemoryDlq::new_with_max(max_dlq_size)),
             event_bridge_sender: None,
             capture_dispatch: None,
+            #[cfg(feature = "observers-cache")]
+            cache_invalidator: None,
         }
     }
 
@@ -457,6 +480,10 @@ impl ObserverRuntime {
         let (observers, entity_type_index) = self.load_observers().await?;
         self.observer_count.store(observers.len(), Ordering::SeqCst);
 
+        // #985: the mount decision reads the loaded action set, and
+        // `EventMatcher::build` consumes it.
+        let observers_for_mount = observers.clone();
+
         // Build event matcher
         let matcher = EventMatcher::build(observers).map_err(|e| {
             ServerError::ConfigError(format!("Failed to build event matcher: {}", e))
@@ -466,8 +493,7 @@ impl ObserverRuntime {
         let matcher_for_logging = matcher.clone();
 
         // Create executor with the shared in-memory DLQ
-        let executor = Arc::new(
-            ObserverExecutor::new_with_email(
+        let built = ObserverExecutor::new_with_email(
             matcher.clone(),
             self.dlq.clone(),
             self.config.email.as_ref(),
@@ -475,8 +501,21 @@ impl ObserverRuntime {
         .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
         // #632: wire the pool so `database` actions call their PostgreSQL
         // function for real instead of failing "no pool wired".
-            .with_database_pool(self.config.pool.clone()),
-        );
+        .with_database_pool(self.config.pool.clone());
+        // #985: same idea for `cache` actions — mount the Redis transport, or
+        // refuse to boot if one is declared with no backend (or no build support).
+        #[cfg(feature = "observers-cache")]
+        let built = {
+            self.cache_invalidator =
+                connect_cache_invalidator(&observers_for_mount, self.config.redis.as_ref()).await?;
+            match self.cache_invalidator.clone() {
+                Some(invalidator) => built.with_cache_invalidation(invalidator),
+                None => built,
+            }
+        };
+        #[cfg(not(feature = "observers-cache"))]
+        reject_cache_actions_not_compiled_in(&observers_for_mount)?;
+        let executor = Arc::new(built);
 
         // Store in shared references for hot reload
         {
@@ -1033,6 +1072,18 @@ impl ObserverRuntime {
             // #632: keep the database pool wired across hot reloads.
             .with_database_pool(self.config.pool.clone()),
         );
+        // #985: and keep the cache transport wired too — a reload rebuilds the
+        // executor, so without this a reloaded `cache` action silently stops
+        // invalidating while every other action keeps working.
+        #[cfg(feature = "observers-cache")]
+        let new_executor = match self.cache_invalidator.clone() {
+            Some(invalidator) => Arc::new(
+                Arc::try_unwrap(new_executor)
+                    .unwrap_or_else(|_| unreachable!("sole owner before publication"))
+                    .with_cache_invalidation(invalidator),
+            ),
+            None => new_executor,
+        };
 
         // Atomic swap - write locks block readers briefly
         debug!("Swapping matcher, executor, and entity_type_index atomically");
@@ -1288,6 +1339,97 @@ fn truncate_log_payload(data: &serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// Whether any loaded observer declares a `cache`/`invalidate` action.
+///
+/// Drives the #985 mount decision: the transport is only connected when
+/// something actually uses it, so a deployment with no cache observers never
+/// requires Redis.
+#[cfg_attr(not(feature = "observers-cache"), allow(dead_code))]
+// Reason: without `observers-cache` the transport is not compiled in; the check
+// still runs, to refuse the declaration at boot.
+fn declares_cache_action(observers: &HashMap<String, ObserverDefinition>) -> bool {
+    observers
+        .values()
+        .flat_map(|o| o.actions.iter())
+        .any(|a| matches!(a, ObserverActionConfig::Cache { .. }))
+}
+
+/// Connect the Redis cache-invalidation transport when the loaded observers need
+/// it, and refuse to boot when they need it and it is not configured (#985).
+///
+/// Before this, `RedisCacheInvalidator` was reachable only by embedding the
+/// library: the server builds its executor with `ObserverExecutor::new_with_email`,
+/// and the only mount was an alternative constructor that discards the email
+/// config. A `type = "cache"` action therefore loaded fine and then failed at
+/// every single dispatch with "no backend wired" — honest, but the transport was
+/// unreachable from any `fraiseql.toml`.
+///
+/// The no-backend case is a boot error rather than a per-event failure because
+/// it is a configuration mistake, and an operator should find it out once, at
+/// startup, not once per event forever.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when a `cache` action is declared with no
+/// `[observers.runtime.redis]` backend, or when connecting to Redis fails.
+#[cfg(feature = "observers-cache")]
+async fn connect_cache_invalidator(
+    observers: &HashMap<String, ObserverDefinition>,
+    redis: Option<&fraiseql_observers::config::RedisConfig>,
+) -> crate::Result<Option<Arc<fraiseql_observers::RedisCacheInvalidator>>> {
+    if !declares_cache_action(observers) {
+        return Ok(None);
+    }
+
+    let Some(redis_config) = redis else {
+        return Err(ServerError::ConfigError(
+            "an observer declares a `cache` action but no Redis backend is configured; \
+             add [observers.runtime.redis] (url = \"redis://…\") or remove the action"
+                .to_string(),
+        ));
+    };
+
+    let invalidator = fraiseql_observers::RedisCacheInvalidator::connect(redis_config)
+        .await
+        .map_err(|e| {
+            ServerError::ConfigError(format!(
+                "an observer declares a `cache` action but the configured Redis backend \
+                 ({}) could not be reached: {e}",
+                redis_config.url
+            ))
+        })?;
+
+    info!(
+        redis_url = %redis_config.url,
+        "Mounted the Redis cache-invalidation transport for `cache` observer actions"
+    );
+    Ok(Some(Arc::new(invalidator)))
+}
+
+/// Refuse to boot when a `cache` action is declared by a binary built without the
+/// `observers-cache` feature (#985).
+///
+/// The transport is genuinely absent from this build, so there is nothing to
+/// mount and every dispatch would fail identically, forever. Saying so once, at
+/// boot, names the actual fix — rebuild with the feature — instead of leaving an
+/// operator to infer it from a repeating per-event error.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when any enabled observer declares a
+/// `cache` action.
+#[cfg(not(feature = "observers-cache"))]
+fn reject_cache_actions_not_compiled_in(
+    observers: &HashMap<String, ObserverDefinition>,
+) -> crate::Result<()> {
+    if declares_cache_action(observers) {
+        return Err(ServerError::ConfigError(
+            "an observer declares a `cache` action but this binary was built without the              `observers-cache` feature, so the Redis cache-invalidation transport is not              compiled in; rebuild with --features observers-cache or remove the action"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
 
 /// The `tb_observer_log.status` this runtime writes for a dispatched observer
 /// whose actions succeeded.

@@ -283,7 +283,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_max_dlq_size(observer_config.runtime.max_dlq_size)
             .with_transport(transport)
             .with_email(observer_config.runtime.email.clone())
-            .with_log_payloads(observer_config.runtime.log_payloads);
+            .with_log_payloads(observer_config.runtime.log_payloads)
+            // #985: the Redis backend that makes a `type = "cache"` action work.
+            // Same `[observers.runtime.redis]` block dedup/result-cache use.
+            .with_redis(observer_config.runtime.redis.clone());
 
         let runtime = ObserverRuntime::new(runtime_config);
         Ok(Some(Arc::new(RwLock::new(runtime))))

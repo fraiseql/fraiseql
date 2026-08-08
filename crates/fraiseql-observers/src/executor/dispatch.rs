@@ -45,13 +45,21 @@ pub(super) struct DefaultActionDispatcher {
     pub(super) slack_action:      Arc<SlackAction>,
     /// Email action executor
     pub(super) email_action:      Arc<EmailAction>,
-    /// Redis cache-invalidation transport (#428).
+    /// Redis cache-invalidation transport slot (#428, mounted by #985).
     ///
-    /// `None` means no Redis backend was wired: a `cache` action then fails loud
+    /// A shared `OnceLock` set by
+    /// [`super::ObserverExecutor::with_cache_invalidation`] after construction —
+    /// the same shape as `database_pool` below, and for the same reason: the
+    /// server builds its executor with `new_with_email`, so anything mountable
+    /// only by an alternative *constructor* is unreachable from the binary. That
+    /// is exactly why this transport shipped with no caller outside the crate.
+    ///
+    /// Unset means no Redis backend was wired: a `cache` action then fails loud
     /// (permanent) rather than silently no-opping, exactly like an email action
     /// with no SMTP backend.
     #[cfg(feature = "caching")]
-    pub(super) cache_invalidator: Option<Arc<crate::cache::redis::RedisCacheInvalidator>>,
+    pub(super) cache_invalidator:
+        Arc<std::sync::OnceLock<Arc<crate::cache::redis::RedisCacheInvalidator>>>,
     /// PostgreSQL pool slot for `database` actions (#632).
     ///
     /// A shared `OnceLock` set by [`super::ObserverExecutor::with_database_pool`]
@@ -389,7 +397,7 @@ impl DefaultActionDispatcher {
             });
         }
 
-        let Some(invalidator) = self.cache_invalidator.as_ref() else {
+        let Some(invalidator) = self.cache_invalidator.get() else {
             return Err(ObserverError::ActionPermanentlyFailed {
                 reason: "Cache action has no Redis backend configured (#428): set \
                          [observers.runtime.redis] and build the executor with a cache invalidator"
@@ -622,7 +630,7 @@ mod dispatch_632_tests {
             slack_action: Arc::new(crate::actions::SlackAction::new()),
             email_action: Arc::new(crate::actions::EmailAction::new()),
             #[cfg(feature = "caching")]
-            cache_invalidator: None,
+            cache_invalidator: Arc::new(std::sync::OnceLock::new()),
             database_pool: Arc::new(std::sync::OnceLock::new()),
         };
 
@@ -647,7 +655,7 @@ mod dispatch_632_tests {
             slack_action: Arc::new(crate::actions::SlackAction::new()),
             email_action: Arc::new(crate::actions::EmailAction::new()),
             #[cfg(feature = "caching")]
-            cache_invalidator: None,
+            cache_invalidator: Arc::new(std::sync::OnceLock::new()),
             database_pool: Arc::new(std::sync::OnceLock::new()),
         };
 
@@ -706,7 +714,7 @@ mod dispatch_632_tests {
             slack_action: Arc::new(crate::actions::SlackAction::new()),
             email_action: Arc::new(crate::actions::EmailAction::new()),
             #[cfg(feature = "caching")]
-            cache_invalidator: None,
+            cache_invalidator: Arc::new(std::sync::OnceLock::new()),
             database_pool: slot,
         };
 
