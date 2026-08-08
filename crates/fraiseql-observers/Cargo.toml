@@ -48,6 +48,13 @@ fraiseql-webhooks = {path = "../fraiseql-webhooks"}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 proptest = {workspace = true}
+# #884: the idempotency token must be canonical whatever `serde_json::Map` the
+# final binary unifies to. The defect was invisible crate-scoped, because only a
+# workspace build pulled `preserve_order` in (via deno_core) and no CI leg runs
+# `cargo test --workspace --all-features`. Enabling it here makes the *test*
+# build the risky configuration — an IndexMap — so the guard runs where it can
+# actually fail.
+serde_json = {workspace = true, features = ["preserve_order"]}
 # Raw Redis client for the #428 cache-invalidation integration test: seed keys and
 # assert deletions against the bound Redis service. Dev-only (the production Redis
 # dependency is the optional `redis` behind the `caching` feature).
