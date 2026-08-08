@@ -17,6 +17,23 @@ pub struct SecuritySettings {
     ///
     /// `[security.rls] enabled = true`. Verified against the live catalog at boot.
     pub rls:                    fraiseql_core::schema::RlsConfig,
+    /// Field-level RBAC role definitions — `[[security.role_definitions]]` (`#897`).
+    ///
+    /// `role_has_scope` is the only input to field-level access, and it consults nothing
+    /// else. Without a producer on this workflow, marking a field `requires_scope` in a
+    /// `--schema-dir` or TOML-schema project produced a schema where no role could ever
+    /// grant that scope, so every caller was denied the field with no way out but
+    /// migrating to the other compile workflow.
+    ///
+    /// Shares `RoleDefinitionConfig` and its single lowering with the project-config
+    /// producer, so the two cannot drift the way #757's did.
+    pub role_definitions:       Vec<crate::config::security::RoleDefinitionConfig>,
+    /// Role granted to an authenticated principal that carries none — `[security]
+    /// default_role` (`#897`).
+    ///
+    /// Consulted by `can_access_scope` when the principal's role set is empty (#894).
+    /// Never reaches an anonymous request, which is classified before that point.
+    pub default_role:           Option<String>,
     /// Custom authorization rules
     pub rules:                  Vec<AuthorizationRule>,
     /// Authorization policies

@@ -205,3 +205,136 @@ fn no_camel_case_security_keys_survive_the_compile() {
         );
     }
 }
+
+// ── #897: the same grants, on the TOML-schema workflow ────────────────────────
+//
+// Everything above compiles a project `fraiseql.toml` over a JSON schema. That is one
+// of two security producers: `config/security.rs::to_json` for the project config, and
+// `schema/merger.rs` for a TOML schema / `--schema-dir`. The merger emitted
+// `role_definitions: Vec::new()` and `default_role: None` unconditionally, so field-level
+// RBAC was undeclarable for that entire workflow — `[[security.role_definitions]]` was a
+// hard `deny_unknown_fields` error, and removing it left a schema where `role_has_scope`
+// answered `false` for every role. A team marking `Employee.salary` with
+// `requires_scope` could not express who holds that scope; every caller was denied the
+// field, with no fix short of migrating compile workflows.
+//
+// Guarding only one producer is this seam's recurring defect (#755, #756, #757, #806,
+// #807, #847, #892), so these mirror the assertions above on the other half.
+
+const TYPES_JSON: &str = r#"{
+  "types": [{"name": "Employee", "fields": [
+    {"name": "id", "type": "ID", "nullable": false},
+    {"name": "salary", "type": "Int", "nullable": true,
+     "requires_scope": "read:Employee.salary"}
+  ]}]
+}"#;
+
+/// A TOML *schema* (`fraiseql compile schema.toml --types types.json`) whose
+/// `[security]` section carries `security_extra`.
+fn toml_schema_dir(security_extra: &str) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("types.json"), TYPES_JSON).unwrap();
+    fs::write(
+        dir.path().join("schema.toml"),
+        format!(
+            r#"[schema]
+name = "rbac_seam"
+version = "1.0.0"
+database_target = "postgresql"
+
+[queries.employees]
+return_type = "Employee"
+return_array = true
+sql_source = "v_employee"
+
+[security]
+{security_extra}
+"#
+        ),
+    )
+    .unwrap();
+    dir
+}
+
+const HR_ROLE_TOML: &str = r#"
+[[security.role_definitions]]
+name = "hr"
+description = "Human resources"
+scopes = ["read:Employee.salary"]
+"#;
+
+/// The question the runtime asks. Asserting on the compiled JSON key instead would
+/// pass under the #757 drift that this file exists because of.
+#[test]
+fn a_toml_schema_declared_role_grants_its_scope_at_runtime() {
+    let dir = toml_schema_dir(HR_ROLE_TOML);
+    let schema = compile(&dir, &["schema.toml", "--types", "types.json"]);
+    let security = schema.security.as_ref().expect("security section");
+
+    assert!(
+        security.role_has_scope("hr", "read:Employee.salary"),
+        "#897: `[[security.role_definitions]]` in a TOML schema must reach \
+         `role_has_scope` — it is the only thing `can_access_scope` consults"
+    );
+
+    let ctx =
+        SecurityContext::service_account("alice", "req-1", vec!["hr".to_string()], vec![], None);
+    assert!(
+        ctx.can_access_scope(security, "read:Employee.salary"),
+        "#897: a member of `hr` must be able to read the field `hr` was granted"
+    );
+}
+
+/// Counterweight: the grant must be a grant, not a blanket allow.
+#[test]
+fn a_toml_schema_undeclared_role_grants_nothing() {
+    let dir = toml_schema_dir(HR_ROLE_TOML);
+    let schema = compile(&dir, &["schema.toml", "--types", "types.json"]);
+    let security = schema.security.as_ref().expect("security section");
+
+    assert!(!security.role_has_scope("intern", "read:Employee.salary"));
+    assert!(!security.role_has_scope("hr", "write:Employee.salary"));
+}
+
+/// `default_role` is the second half of the pair, and #894 gave it real semantics:
+/// an authenticated principal with an empty role set inherits its scopes.
+#[test]
+fn a_toml_schema_default_role_grants_scopes_to_a_principal_with_no_roles() {
+    let dir = toml_schema_dir(&format!("default_role = \"hr\"\n{HR_ROLE_TOML}"));
+    let schema = compile(&dir, &["schema.toml", "--types", "types.json"]);
+    let security = schema.security.as_ref().expect("security section");
+
+    assert_eq!(security.default_role.as_deref(), Some("hr"));
+
+    let ctx = SecurityContext::service_account("bob", "req-2", vec![], vec![], None);
+    assert!(
+        ctx.can_access_scope(security, "read:Employee.salary"),
+        "#897/#894: a principal with no roles must inherit `default_role`'s scopes on \
+         this workflow too"
+    );
+}
+
+/// A role that can grant nothing is refused rather than compiled into an entry no
+/// principal can ever match — the project-config path already validates this.
+#[test]
+fn a_toml_schema_role_with_no_scopes_is_refused() {
+    let dir = toml_schema_dir("\n[[security.role_definitions]]\nname = \"hr\"\nscopes = []\n");
+    let out = dir.path().join("schema.compiled.json");
+    let result = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args([
+            "compile",
+            "schema.toml",
+            "--types",
+            "types.json",
+            "--output",
+            out.to_str().unwrap(),
+        ])
+        .current_dir(dir.path())
+        .output()
+        .expect("run fraiseql-cli");
+
+    assert!(!result.status.success(), "#897: a scopeless role must be refused");
+    let err = String::from_utf8_lossy(&result.stderr);
+    assert!(err.contains("at least one scope"), "must say why, naming the role: {err}");
+    assert!(err.contains("hr"), "must name the offending role: {err}");
+}
