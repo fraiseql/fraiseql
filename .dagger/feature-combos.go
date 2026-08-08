@@ -128,6 +128,15 @@ var featureCombos = []featureCombo{
 	// while the tenant factory was typed for the cached adapter). check-only on purpose:
 	// arrow stays out of the clippy combos (see the server-multidb note above).
 	{name: "server-rest-arrow", crate: "fraiseql-server", features: []string{"rest", "arrow"}},
+	// #920: `export-csv` and `export-xlsx` are independently selectable, and no leg
+	// built either one alone — preflight and the unit legs are `--all-features`, the
+	// Docker image ships `rest,arrow`. The XLSX writer imported the formula-injection
+	// guard from the CSV module, so `rest,export-xlsx` did not compile at all. One
+	// combo per writer, so a cross-module import in EITHER direction reddens here.
+	// (`export-parquet` gets no combo on purpose: it has zero `cfg` usage, so building
+	// it exercises nothing — that ghost is #1012's to delete or allowlist.)
+	{name: "server-rest-export-xlsx", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-xlsx"}},
+	{name: "server-rest-export-csv", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-csv"}},
 
 	// ── core: database-matrix (cargo check -p fraiseql-core --no-default-features) ──
 	{name: "core-postgres", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres"}},
