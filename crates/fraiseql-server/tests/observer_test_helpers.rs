@@ -136,6 +136,35 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     .execute(pool)
     .await?;
 
+    // #932: production's `ck_observer_log_status` CHECK, which this fixture
+    // lacked. Without it every status the writer emits is accepted here and the
+    // suite can never see the constraint violation that silently drops the row
+    // in a real deployment — the #982 fixture-drift shape, on the one table
+    // whose whole job is recording failures. The vocabulary comes from the
+    // observers crate's canonical constant (pinned to migration 06 by its own
+    // unit test), never a third inline copy.
+    //
+    // Added by ALTER, not inline: the CREATE above is IF NOT EXISTS, so a warm
+    // database from a previous run would otherwise keep the unconstrained table.
+    let statuses = fraiseql_observers::migrations::OBSERVER_LOG_STATUSES
+        .iter()
+        .map(|s| format!("'{s}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    sqlx::query("ALTER TABLE tb_observer_log DROP CONSTRAINT IF EXISTS ck_observer_log_status")
+        .execute(pool)
+        .await?;
+    // NOT VALID: enforce on every new write without validating history. A warm
+    // test database still holds rows written before the writer was corrected,
+    // and validating them would fail *setup* — turning the whole suite red for a
+    // reason unrelated to what it asserts.
+    sqlx::query(&format!(
+        "ALTER TABLE tb_observer_log
+         ADD CONSTRAINT ck_observer_log_status CHECK (status IN ({statuses})) NOT VALID"
+    ))
+    .execute(pool)
+    .await?;
+
     // 5. Create checkpoint table
     sqlx::query(
         r"

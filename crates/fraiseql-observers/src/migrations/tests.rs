@@ -1,9 +1,9 @@
 //! Unit tests for the change-log contract DDL (no database required).
 
 use super::{
-    ENTITY_CHANGE_LOG_CONTRACT, ENTITY_CHANGE_LOG_CONTRACT_COLUMNS,
+    ENTITY_CHANGE_LOG_CONTRACT, ENTITY_CHANGE_LOG_CONTRACT_COLUMNS, OBSERVER_LOG_STATUSES,
     entity_change_log_capture_trigger_sql, entity_change_log_contract_sql,
-    entity_change_log_rls_sql, observer_dispatch_sql,
+    entity_change_log_rls_sql, observer_dispatch_sql, observer_management_sql,
 };
 
 #[test]
@@ -350,6 +350,27 @@ fn capture_trigger_stamps_tenant_and_marks_its_source() {
     assert!(
         sql.contains("'cdc_source', 'fallback_trigger'"),
         "marks captured rows with extra_metadata.cdc_source"
+    );
+}
+
+/// #932: `OBSERVER_LOG_STATUSES` is the writer's contract with the table, so it
+/// must be exactly what migration 06's CHECK accepts. When the two drift, the
+/// INSERT is rejected and the audit row is lost silently — the failure mode that
+/// bites when delivery is failing and the record matters most.
+#[test]
+fn observer_log_statuses_match_the_migration_check() {
+    let sql = observer_management_sql();
+    let check = sql
+        .split("CONSTRAINT ck_observer_log_status CHECK (")
+        .nth(1)
+        .and_then(|rest| rest.split(')').next())
+        .expect("migration 06 declares ck_observer_log_status");
+
+    let declared: Vec<&str> = check.split('\'').skip(1).step_by(2).collect();
+
+    assert_eq!(
+        declared, OBSERVER_LOG_STATUSES,
+        "the status vocabulary drifted from migration 06's CHECK (DDL says {declared:?})"
     );
 }
 

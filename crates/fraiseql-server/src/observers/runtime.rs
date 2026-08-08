@@ -1109,10 +1109,15 @@ async fn process_entity_event(
                 .get(&(event.entity_type.clone(), event_type_str.clone()))
                 .cloned();
             if let Some(observer_ids) = observer_ids {
+                // #932: statuses must come from `tb_observer_log`'s own
+                // vocabulary (migration 06's `ck_observer_log_status`). The
+                // writer used to emit "error", which the CHECK rejects — so
+                // every failure row was refused by the database and dropped with
+                // only a warn, exactly when the audit record matters most.
                 let status = if summary.successful_actions > 0 {
-                    "success"
+                    OBSERVER_LOG_STATUS_SUCCESS
                 } else {
-                    "error"
+                    OBSERVER_LOG_STATUS_FAILED
                 };
                 // Pick the per-action detail that best represents this row's
                 // outcome (#468): for a success row the first action that
@@ -1210,7 +1215,7 @@ async fn process_entity_event(
                         pool,
                         observer_id,
                         event,
-                        "error",
+                        OBSERVER_LOG_STATUS_FAILED,
                         None,
                         None,
                         Some(&error_message),
@@ -1283,6 +1288,24 @@ fn truncate_log_payload(data: &serde_json::Value) -> serde_json::Value {
     }
 }
 
+
+/// The `tb_observer_log.status` this runtime writes for a dispatched observer
+/// whose actions succeeded.
+///
+/// Both status constants are asserted to be members of
+/// [`fraiseql_observers::migrations::OBSERVER_LOG_STATUSES`] — the vocabulary
+/// migration 06's `ck_observer_log_status` CHECK accepts — by
+/// `observer_log_statuses_are_accepted_by_the_shipped_check`. A status outside
+/// it is refused by the database and the audit row vanishes with only a `warn!`
+/// (#932).
+const OBSERVER_LOG_STATUS_SUCCESS: &str = "success";
+
+/// The `tb_observer_log.status` this runtime writes when an observer's actions
+/// failed, or when the event could not be processed at all.
+///
+/// Was `"error"` — a value the CHECK constraint has never accepted, so every
+/// failure row was silently rejected (#932).
+const OBSERVER_LOG_STATUS_FAILED: &str = "failed";
 
 /// Write a single `tb_observer_log` row, populating the per-action audit columns
 /// from `detail` when available (#468).

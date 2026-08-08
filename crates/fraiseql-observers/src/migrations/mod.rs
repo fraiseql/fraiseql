@@ -138,6 +138,44 @@ pub const fn observer_dispatch_sql() -> &'static str {
     include_str!("../../migrations/14_create_observer_dispatch.sql")
 }
 
+/// SQL DDL that installs the observer management tables — `tb_observer` and its
+/// execution log `tb_observer_log` — with their indexes, stats view and helper
+/// functions.
+///
+/// PostgreSQL only; idempotent (`CREATE TABLE IF NOT EXISTS` / `CREATE OR
+/// REPLACE`).
+///
+/// # Example
+///
+/// ```
+/// let sql = fraiseql_observers::migrations::observer_management_sql();
+/// assert!(sql.contains("tb_observer_log"));
+/// ```
+#[must_use]
+pub const fn observer_management_sql() -> &'static str {
+    include_str!("../../migrations/06_create_observer_management.sql")
+}
+
+/// The status vocabulary `tb_observer_log.status` accepts — the values in
+/// migration 06's `ck_observer_log_status` CHECK constraint, in its order.
+///
+/// This is the contract between the writer and the table, and it is *enforced*:
+/// a status the runtime emits that is not listed here is rejected by the CHECK,
+/// the INSERT fails, and the audit row is silently lost — precisely when
+/// delivery is failing and the record matters most (#932). The
+/// `observer_log_statuses_match_the_migration_check` unit test pins this list to
+/// the shipped DDL so the two cannot drift, and test fixtures build their CHECK
+/// from here rather than from a second inline copy.
+pub const OBSERVER_LOG_STATUSES: &[&str] = &[
+    "pending",
+    "running",
+    "success",
+    "failed",
+    "skipped",
+    "timeout",
+    "cancelled",
+];
+
 /// One column of the `core.tb_entity_change_log` contract: its name and the
 /// canonical PostgreSQL base type the migration installs it as.
 ///

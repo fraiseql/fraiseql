@@ -419,15 +419,16 @@ async fn test_observer_dlq_permanent_failure() {
     // 100ms + 200ms + 300ms = 600ms minimum, plus processing overhead
     tokio::time::sleep(Duration::from_secs(10)).await;
 
-    // Verify the failure was logged for THIS entity. The log writer's failure
-    // status is "error" — the "failed" string this test originally asserted
-    // never existed in the writer (#928: assertions written against an
-    // imagined schema, never run).
-    let failed_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "error")
+    // Verify the failure was logged for THIS entity. The writer's failure status
+    // is "failed" — one of the seven `ck_observer_log_status` accepts. It used to
+    // be "error", which that CHECK rejects, so on a production-shaped table the
+    // INSERT was refused and the row silently vanished (#932). This assertion
+    // only means anything because the fixture now carries the constraint.
+    let failed_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "failed")
         .await
         .expect("Failed to query observer logs");
 
-    assert!(failed_count >= 1, "Expected at least 1 error log entry, got {}", failed_count);
+    assert!(failed_count >= 1, "Expected at least 1 failed log entry, got {}", failed_count);
 
     // Verify no success entries for this entity (all attempts failed)
     let success_count = get_observer_log_count_for_entity(&pool, &order_id.to_string(), "success")
