@@ -6,7 +6,7 @@ use fraiseql_core::schema::{
 };
 use tracing::warn;
 
-use super::SchemaConverter;
+use super::{DeclaredTypeNames, SchemaConverter};
 use crate::schema::intermediate::{
     IntermediateArgument, IntermediateAutoParams, IntermediateQuery, IntermediateQueryDefaults,
 };
@@ -56,6 +56,7 @@ impl SchemaConverter {
     pub(super) fn convert_query(
         intermediate: IntermediateQuery,
         defaults: &IntermediateQueryDefaults,
+        declared: &DeclaredTypeNames,
     ) -> Result<QueryDefinition> {
         // Validate relay constraints before conversion.
         if intermediate.relay {
@@ -79,7 +80,7 @@ impl SchemaConverter {
         let arguments = intermediate
             .arguments
             .into_iter()
-            .map(Self::convert_argument)
+            .map(|a| Self::convert_argument(a, declared))
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert query '{}'", intermediate.name))?;
 
@@ -170,8 +171,9 @@ impl SchemaConverter {
     /// Convert `IntermediateArgument` to `ArgumentDefinition`
     pub(super) fn convert_argument(
         intermediate: IntermediateArgument,
+        declared: &DeclaredTypeNames,
     ) -> Result<ArgumentDefinition> {
-        let arg_type = Self::parse_field_type(&intermediate.arg_type)?;
+        let arg_type = Self::parse_field_type(&intermediate.arg_type, declared)?;
 
         let deprecation = intermediate
             .deprecated

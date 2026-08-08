@@ -1628,6 +1628,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An enum-, interface- or union-typed field keeps its kind through the compile (#923).**
+  `SchemaConverter::parse_field_type` matched the twelve builtin scalar names and routed
+  everything else to `FieldType::Object`, because it had no view of the document it was
+  parsing a name from. So `status: OrderStatus`, where the same file declares
+  `enum OrderStatus`, compiled to `{"Object": "OrderStatus"}` — and `FieldType::Enum`,
+  `::Interface` and `::Union` had no producer at all for an authored schema; their only
+  writers were the compiler's own synthesized cascade types. Introspection then reported
+  `Order.status` as `OBJECT OrderStatus`, so an introspection-driven client (Apollo, Relay,
+  graphql-codegen) was told a scalar enum was an object with no fields; the TypeScript
+  client generator emitted `status { … }` for it; and `--emit-ddl` gave the column `JSONB`
+  instead of the enum's own Postgres type. The converter now resolves a non-builtin name
+  against the schema's declared enum/interface/union names — for fields, list elements and
+  operation arguments alike — before falling through to `Object`. A name declared nowhere
+  still compiles to an object reference and is reported by `SchemaValidator`, which is
+  #724's deliberate choice and is unchanged here.
+
 - **Field-level RBAC is declarable in the TOML-schema workflow (#897).**
   `role_definitions` and `default_role` existed only in a project `fraiseql.toml`
   (`[fraiseql.security]`). The TOML-schema / `--schema-dir` workflow has a separate security

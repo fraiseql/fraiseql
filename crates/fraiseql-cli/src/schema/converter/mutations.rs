@@ -3,18 +3,19 @@ use std::collections::HashSet;
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{MutationDefinition, MutationOperation};
 
-use super::SchemaConverter;
+use super::{DeclaredTypeNames, SchemaConverter};
 use crate::schema::intermediate::IntermediateMutation;
 
 impl SchemaConverter {
     /// Convert `IntermediateMutation` to `MutationDefinition`
     pub(super) fn convert_mutation(
         intermediate: IntermediateMutation,
+        declared: &DeclaredTypeNames,
     ) -> Result<MutationDefinition> {
         let arguments = intermediate
             .arguments
             .into_iter()
-            .map(Self::convert_argument)
+            .map(|a| Self::convert_argument(a, declared))
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert mutation '{}'", intermediate.name))?;
 

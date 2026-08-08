@@ -1,17 +1,18 @@
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{SubscriptionDefinition, SubscriptionFilter};
 
-use super::SchemaConverter;
+use super::{DeclaredTypeNames, SchemaConverter};
 use crate::schema::intermediate::IntermediateSubscription;
 
 impl SchemaConverter {
     pub(super) fn convert_subscription(
         intermediate: IntermediateSubscription,
+        declared: &DeclaredTypeNames,
     ) -> Result<SubscriptionDefinition> {
         let arguments = intermediate
             .arguments
             .into_iter()
-            .map(Self::convert_argument)
+            .map(|a| Self::convert_argument(a, declared))
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert subscription '{}'", intermediate.name))?;
 
