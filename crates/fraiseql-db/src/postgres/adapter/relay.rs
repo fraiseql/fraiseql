@@ -6,7 +6,7 @@ use super::PostgresAdapter;
 use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
-    postgres::where_generator::PostgresWhereGenerator,
+    postgres::{pg_detail, where_generator::PostgresWhereGenerator},
     traits::{CursorValue, RelayDatabaseAdapter, RelayPageResult},
     types::{DatabaseType, QueryParam, sql_hints::OrderByClause},
     where_clause::WhereClause,
@@ -108,7 +108,10 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         let mut client = self.acquire_read_connection_with_retry().await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start relay session-var transaction: {e}"),
+                message:   format!(
+                    "Failed to start relay session-var transaction: {}",
+                    pg_detail(&e)
+                ),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
         super::database::apply_session_vars(&txn, session_vars).await?;
@@ -127,7 +130,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
             )
             .await?;
         txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit relay session-var transaction: {e}"),
+            message:   format!("Failed to commit relay session-var transaction: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
         Ok(result)
@@ -271,7 +274,7 @@ impl PostgresAdapter {
 
         let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   e.to_string(),
+                message:   pg_detail(&e),
                 sql_state: e.code().map(|c| c.code().to_string()),
             }
         })?;
@@ -301,7 +304,7 @@ impl PostgresAdapter {
 
             let count_row = client.query_one(&count_sql, &count_param_refs).await.map_err(|e| {
                 FraiseQLError::Database {
-                    message:   e.to_string(),
+                    message:   pg_detail(&e),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 }
             })?;

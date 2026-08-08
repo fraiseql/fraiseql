@@ -16,6 +16,7 @@ use super::{
 };
 use crate::{
     identifier::quote_postgres_identifier,
+    postgres::pg_detail,
     traits::{DatabaseAdapter, ProjectionRequest, SupportsMutations},
     types::{
         DatabaseType, JsonbValue, PoolMetrics, QueryParam,
@@ -261,14 +262,17 @@ pub(super) async fn apply_session_vars(
             txn.execute("SELECT set_config($1, clock_timestamp()::text, true)", &[name])
                 .await
                 .map_err(|e| FraiseQLError::Database {
-                    message:   format!("set_config({name:?}, clock_timestamp()) failed: {e}"),
+                    message:   format!(
+                        "set_config({name:?}, clock_timestamp()) failed: {}",
+                        pg_detail(&e)
+                    ),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
         } else {
             txn.execute("SELECT set_config($1, $2, true)", &[name, value])
                 .await
                 .map_err(|e| FraiseQLError::Database {
-                    message:   format!("set_config({name:?}) failed: {e}"),
+                    message:   format!("set_config({name:?}) failed: {}", pg_detail(&e)),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
         }
@@ -297,7 +301,11 @@ pub(super) async fn mark_cdc_mediated(txn: &tokio_postgres::Transaction<'_>) -> 
     )
     .await
     .map_err(|e| FraiseQLError::Database {
-        message:   format!("Failed to set {} marker: {e}", crate::changelog::CDC_MEDIATED_VAR),
+        message:   format!(
+            "Failed to set {} marker: {}",
+            crate::changelog::CDC_MEDIATED_VAR,
+            pg_detail(&e)
+        ),
         sql_state: e.code().map(|c| c.code().to_string()),
     })?;
     Ok(())
@@ -416,13 +424,9 @@ async fn prepare_cached_stmt(
 ) -> Result<tokio_postgres::Statement> {
     client.prepare_cached(sql).await.map_err(|e| {
         // Surface the underlying PostgreSQL diagnostic (SQLSTATE message, e.g.
-        // `function "foo" does not exist`). The top-level `Display` renders only
-        // as the opaque `db error`, dropping the one detail that names the
-        // offending object (#451). The function-call path extracts the same
-        // `as_db_error()` detail; here we put it *in place of* the useless
-        // `db error` (rather than alongside it), falling back to `Display` so the
-        // message is never empty.
-        let detail = e.as_db_error().map_or_else(|| e.to_string(), |d| d.message().to_string());
+        // `function "foo" does not exist`) rather than the opaque `db error` the
+        // top-level `Display` renders (#451, generalised to every query path by #888).
+        let detail = pg_detail(&e);
         let hint = changelog_prepare_hint(&detail);
         FraiseQLError::Database {
             message:   format!("Failed to prepare statement: {detail}{hint}"),
@@ -517,7 +521,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_read_connection_with_retry().await?;
         let rows = client.query(explain_sql.as_str(), &param_refs).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   format!("EXPLAIN ANALYZE failed: {e}"),
+                message:   format!("EXPLAIN ANALYZE failed: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             }
         })?;
@@ -542,7 +546,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
 
         client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Health check failed: {e}"),
+            message:   format!("Health check failed: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -573,7 +577,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
 
         let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Query execution failed: {e}"),
+            message:   format!("Query execution failed: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -599,7 +603,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_read_connection_with_retry().await?;
         let rows: Vec<Row> =
             client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Parameterized aggregate query failed: {e}"),
+                message:   format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -626,17 +630,17 @@ impl DatabaseAdapter for PostgresAdapter {
         let mut client = self.acquire_read_connection_with_retry().await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start session-var transaction: {e}"),
+                message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
         apply_session_vars(&txn, session_vars).await?;
         let rows: Vec<Row> =
             txn.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Parameterized aggregate query failed: {e}"),
+                message:   format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
         txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit session-var transaction: {e}"),
+            message:   format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -693,7 +697,10 @@ impl DatabaseAdapter for PostgresAdapter {
             // SET LOCAL and is parameterized to avoid SQL injection.
             let txn =
                 client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                    message:   format!("Failed to start mutation timing transaction: {e}"),
+                    message:   format!(
+                        "Failed to start mutation timing transaction: {}",
+                        pg_detail(&e)
+                    ),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
 
@@ -703,20 +710,21 @@ impl DatabaseAdapter for PostgresAdapter {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {e}"),
+                message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
-            let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
-                let detail = e.as_db_error().map_or("", |d| d.message());
-                FraiseQLError::Database {
-                    message:   format!("Function call {function_name} failed: {e}: {detail}"),
+            let rows: Vec<Row> =
+                txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
+                    message:   format!("Function call {function_name} failed: {}", pg_detail(&e)),
                     sql_state: e.code().map(|c| c.code().to_string()),
-                }
-            })?;
+                })?;
 
             txn.commit().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to commit mutation timing transaction: {e}"),
+                message:   format!(
+                    "Failed to commit mutation timing transaction: {}",
+                    pg_detail(&e)
+                ),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
             self.mark_write();
@@ -727,9 +735,8 @@ impl DatabaseAdapter for PostgresAdapter {
             Ok(results)
         } else {
             let rows: Vec<Row> = client.query(&stmt, params.as_slice()).await.map_err(|e| {
-                let detail = e.as_db_error().map_or("", |d| d.message());
                 FraiseQLError::Database {
-                    message:   format!("Function call {function_name} failed: {e}: {detail}"),
+                    message:   format!("Function call {function_name} failed: {}", pg_detail(&e)),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 }
             })?;
@@ -777,7 +784,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start dry-run transaction: {e}"),
+                message:   format!("Failed to start dry-run transaction: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -788,17 +795,18 @@ impl DatabaseAdapter for PostgresAdapter {
         // mutation path; the marker rolls back with everything else.
         mark_cdc_mediated(&txn).await?;
 
-        let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
-            let detail = e.as_db_error().map_or("", |d| d.message());
-            FraiseQLError::Database {
-                message:   format!("Dry-run function call {function_name} failed: {e}: {detail}"),
+        let rows: Vec<Row> =
+            txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
+                message:   format!(
+                    "Dry-run function call {function_name} failed: {}",
+                    pg_detail(&e)
+                ),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
+            })?;
 
         // The whole point of dry-run: discard every write.
         txn.rollback().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to roll back dry-run transaction: {e}"),
+            message:   format!("Failed to roll back dry-run transaction: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -848,7 +856,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start session-var transaction: {e}"),
+                message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -869,21 +877,19 @@ impl DatabaseAdapter for PostgresAdapter {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {e}"),
+                message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
         }
 
-        let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
-            let detail = e.as_db_error().map_or("", |d| d.message());
-            FraiseQLError::Database {
-                message:   format!("Function call {function_name} failed: {e}: {detail}"),
+        let rows: Vec<Row> =
+            txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Function call {function_name} failed: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
+            })?;
 
         txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit session-var transaction: {e}"),
+            message:   format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
         self.mark_write();
@@ -973,7 +979,10 @@ impl DatabaseAdapter for PostgresAdapter {
         let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start change-log outbox transaction: {e}"),
+                message:   format!(
+                    "Failed to start change-log outbox transaction: {}",
+                    pg_detail(&e)
+                ),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -993,7 +1002,7 @@ impl DatabaseAdapter for PostgresAdapter {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {e}"),
+                message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
         }
@@ -1015,23 +1024,22 @@ impl DatabaseAdapter for PostgresAdapter {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to stamp change-log started_at: {e}"),
+                message:   format!("Failed to stamp change-log started_at: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
         }
 
-        let rows: Vec<Row> = txn.query(&stmt, params.as_slice()).await.map_err(|e| {
-            let detail = e.as_db_error().map_or("", |d| d.message());
-            FraiseQLError::Database {
+        let rows: Vec<Row> =
+            txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
                 message:   format!(
-                    "Function call {function_name} (with change-log outbox) failed: {e}: {detail}"
+                    "Function call {function_name} (with change-log outbox) failed: {}",
+                    pg_detail(&e)
                 ),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
+            })?;
 
         txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit change-log outbox transaction: {e}"),
+            message:   format!("Failed to commit change-log outbox transaction: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
         self.mark_write();
@@ -1123,7 +1131,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 .query(explain_sql.as_str(), &[])
                 .await
                 .map_err(|e| FraiseQLError::Database {
-                    message:   format!("EXPLAIN failed: {e}"),
+                    message:   format!("EXPLAIN failed: {}", pg_detail(&e)),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
 

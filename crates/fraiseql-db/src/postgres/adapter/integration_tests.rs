@@ -662,6 +662,49 @@ async fn execute_raw_query_surfaces_sqlstate_22p02_for_malformed_cast() {
     }
 }
 
+// #888: `tokio_postgres::Error`'s `Display` for a server-side failure is the literal
+// string `db error` — the half that names the relation, column or constraint lives on
+// the `DbError` behind `as_db_error()`. These two drive real Postgres failures through
+// the two query paths the adapter exposes and require the server's own text.
+
+#[tokio::test]
+async fn execute_raw_query_names_the_missing_relation() {
+    let adapter = create_test_adapter().await;
+    let result = adapter.execute_raw_query("SELECT data FROM v_p09_no_such_relation").await;
+    match result {
+        Err(FraiseQLError::Database { message, sql_state }) => {
+            assert_eq!(sql_state.as_deref(), Some("42P01"), "expected undefined_table SQLSTATE");
+            assert!(
+                message.contains("v_p09_no_such_relation"),
+                "the error must name the relation Postgres reported as missing, \
+                 not just `db error`; got: {message}"
+            );
+        },
+        other => panic!("expected Database error for a missing relation, got: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn parameterized_aggregate_names_the_missing_relation() {
+    let adapter = create_test_adapter().await;
+    let result = adapter
+        .execute_parameterized_aggregate(
+            "SELECT count(*) FROM tb_p09_no_such_relation WHERE data->>'k' = $1",
+            &[json!("v")],
+        )
+        .await;
+    match result {
+        Err(FraiseQLError::Database { message, sql_state }) => {
+            assert_eq!(sql_state.as_deref(), Some("42P01"), "expected undefined_table SQLSTATE");
+            assert!(
+                message.contains("tb_p09_no_such_relation"),
+                "the aggregate path must carry Postgres' own message too; got: {message}"
+            );
+        },
+        other => panic!("expected Database error for a missing relation, got: {other:?}"),
+    }
+}
+
 // ========================================================================
 // Pool Pre-warming Tests (Issue #183)
 // ========================================================================

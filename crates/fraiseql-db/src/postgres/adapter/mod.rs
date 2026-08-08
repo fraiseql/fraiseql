@@ -32,6 +32,7 @@ use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
     order_by::append_order_by,
+    postgres::pg_detail,
     traits::DatabaseAdapter,
     types::{
         DatabaseType, JsonbValue, QueryParam,
@@ -414,7 +415,10 @@ async fn build_read_replica_set(
         })?;
         let row = client.query_one("SELECT pg_is_in_recovery()", &[]).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   format!("Read replica {index} failed its boot health check: {e}"),
+                message:   format!(
+                    "Read replica {index} failed its boot health check: {}",
+                    pg_detail(&e)
+                ),
                 sql_state: e.code().map(|c| c.code().to_string()),
             }
         })?;
@@ -601,7 +605,7 @@ impl PostgresAdapter {
         })?;
 
         client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to connect to database: {e}"),
+            message:   format!("Failed to connect to database: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -756,7 +760,7 @@ impl PostgresAdapter {
 
         let rows: Vec<Row> =
             client.query(sql, params).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Query execution failed: {e}"),
+                message:   format!("Query execution failed: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -791,19 +795,19 @@ impl PostgresAdapter {
         let mut client = self.acquire_read_connection_with_retry().await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start session-var transaction: {e}"),
+                message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
         database::apply_session_vars(&txn, session_vars).await?;
 
         let rows: Vec<Row> = txn.query(sql, params).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Query execution failed: {e}"),
+            message:   format!("Query execution failed: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
         txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit session-var transaction: {e}"),
+            message:   format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
