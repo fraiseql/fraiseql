@@ -100,6 +100,9 @@ var featureCombos = []featureCombo{
 	{name: "server-azure-blob", crate: "fraiseql-server", features: []string{"azure-blob"}},
 	{name: "server-gcs", crate: "fraiseql-server", features: []string{"gcs"}},
 	{name: "server-metrics-observers", crate: "fraiseql-server", features: []string{"metrics", "observers"}},
+	// #985: the Redis cache/invalidate mount. Without a combo naming it, only
+	// the all-features clippy leg ever compiles the `observers-cache` ON path.
+	{name: "server-observers-cache", crate: "fraiseql-server", features: []string{"observers-cache"}},
 	{name: "server-webhooks-auth", crate: "fraiseql-server", features: []string{"webhooks", "auth"}},
 	// Poll-IMAP email adapter: pulls async-imap + a rustls
 	// TLS transport, so clippy it in isolation to catch feature-gating regressions.
