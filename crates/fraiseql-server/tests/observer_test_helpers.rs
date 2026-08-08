@@ -146,24 +146,33 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     //
     // Added by ALTER, not inline: the CREATE above is IF NOT EXISTS, so a warm
     // database from a previous run would otherwise keep the unconstrained table.
-    let statuses = fraiseql_observers::migrations::OBSERVER_LOG_STATUSES
-        .iter()
-        .map(|s| format!("'{s}'"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    sqlx::query("ALTER TABLE tb_observer_log DROP CONSTRAINT IF EXISTS ck_observer_log_status")
+    //
+    // `fraiseql-observers` is an OPTIONAL dependency, and this file is itself a
+    // test binary that some leg steps compile without the `observers` feature —
+    // where the crate is not linked at all. Gate the reference, not just the
+    // call: every test that uses this schema requires the feature anyway, so the
+    // constraint still lands wherever it can matter.
+    #[cfg(feature = "observers")]
+    {
+        let statuses = fraiseql_observers::migrations::OBSERVER_LOG_STATUSES
+            .iter()
+            .map(|s| format!("'{s}'"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        sqlx::query("ALTER TABLE tb_observer_log DROP CONSTRAINT IF EXISTS ck_observer_log_status")
+            .execute(pool)
+            .await?;
+        // NOT VALID: enforce on every new write without validating history. A warm
+        // test database still holds rows written before the writer was corrected,
+        // and validating them would fail *setup* — turning the whole suite red for a
+        // reason unrelated to what it asserts.
+        sqlx::query(&format!(
+            "ALTER TABLE tb_observer_log
+         ADD CONSTRAINT ck_observer_log_status CHECK (status IN ({statuses})) NOT VALID"
+        ))
         .execute(pool)
         .await?;
-    // NOT VALID: enforce on every new write without validating history. A warm
-    // test database still holds rows written before the writer was corrected,
-    // and validating them would fail *setup* — turning the whole suite red for a
-    // reason unrelated to what it asserts.
-    sqlx::query(&format!(
-        "ALTER TABLE tb_observer_log
-         ADD CONSTRAINT ck_observer_log_status CHECK (status IN ({statuses})) NOT VALID"
-    ))
-    .execute(pool)
-    .await?;
+    }
 
     // 5. Create checkpoint table
     sqlx::query(
