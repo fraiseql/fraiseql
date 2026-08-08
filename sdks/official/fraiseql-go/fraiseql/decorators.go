@@ -143,28 +143,6 @@ func (qb *QueryBuilder) SqlSource(source string) *QueryBuilder {
 	return qb
 }
 
-// SqlSourceDispatch sets dispatch configuration with an explicit parameter-to-source mapping.
-// The paramName is the GraphQL argument name whose value selects the SQL source.
-// The mapping maps enum values to SQL table/view names.
-func (qb *QueryBuilder) SqlSourceDispatch(paramName string, mapping map[string]string) *QueryBuilder {
-	qb.config["sql_source_dispatch"] = map[string]interface{}{
-		"param":   paramName,
-		"mapping": mapping,
-	}
-	return qb
-}
-
-// SqlSourceDispatchWithTemplate sets dispatch configuration using a template string.
-// The paramName is the GraphQL argument name whose value is substituted into the template.
-// Example: SqlSourceDispatchWithTemplate("env", "v_users_{env}")
-func (qb *QueryBuilder) SqlSourceDispatchWithTemplate(paramName string, template string) *QueryBuilder {
-	qb.config["sql_source_dispatch"] = map[string]interface{}{
-		"param":    paramName,
-		"template": template,
-	}
-	return qb
-}
-
 // Relay marks the query as a Relay connection query.
 // Requires ReturnsArray(true) and a sql_source set via Config or SqlSource.
 // The compiler derives the cursor column from the return type name (e.g. User -> pk_user).
@@ -291,20 +269,6 @@ func (qb *QueryBuilder) Register() error {
 		if len(remaining) > 0 {
 			definition.Config = remaining
 		}
-	}
-
-	// `sql_source_dispatch` has no consumer anywhere in the compiler — not in the
-	// intermediate schema, not in the converter, not in the compiled artifact. It used
-	// to be emitted under `config`, which made the whole schema uncompilable; dropping
-	// it silently would be worse, since the author would get a clean compile and a query
-	// that never dispatches. Refusing is the only outcome that is not a lie.
-	if _, dispatching := qb.config["sql_source_dispatch"]; dispatching {
-		return fmt.Errorf(
-			"query %q sets SqlSourceDispatch, which the compiler does not implement: "+
-				"no compiled schema carries dynamic source selection, so the setting "+
-				"would have no effect. Declare one query per source instead",
-			qb.name,
-		)
 	}
 
 	return RegisterQuery(definition)

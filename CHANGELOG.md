@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **SQL-source dispatch is removed from the Go, Java and Dart SDKs (#926).** Go's
+  `QueryBuilder.SqlSourceDispatch` / `SqlSourceDispatchWithTemplate`, Java's
+  `sqlSourceDispatch()` / `sqlSourceDispatchTemplate()`, and Dart's `SqlSourceDispatch`
+  annotation are gone. No part of the compiler ever read `sql_source_dispatch`: it is
+  absent from the intermediate schema, the converter and the compiled artifact. Go's
+  emitted it under `config`, which — once `IntermediateQuery` denied unknown fields — made
+  the whole schema uncompilable with an error naming a key the author never wrote; Java
+  stored it in a registry field nothing serialized; Dart's annotation was read by nothing,
+  because Dart has no reflection layer over its annotations. Two of the three were
+  completely inert. Declare **one query per source** instead, which also gives each source
+  its own compile-time SQL identifier validation. Java's `QueryInfo.config` /
+  `getConfig()` and the `registerQuery` overload that carried it go with them — dispatch
+  was their only producer. A new `tools/check-sdk-dead-surface.sh` gate, wired into
+  preflight and the Dagger ShellGates leg, fails if any of the three names returns to an
+  SDK authoring surface.
+
 - **`fraiseql_cli::schema::intermediate::reject_drifted_security_keys` is renamed to
   `reject_drifted_keys` (#890).** The guard now also covers a non-security key —
   `return_array`, the `[queries.*]` TOML spelling of `returns_list` — so the old name no

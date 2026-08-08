@@ -51,6 +51,12 @@ void main() {
 - Custom scalar types
 - CRUD auto-generation
 
+> **Dynamic SQL-source selection is not supported.** The `SqlSourceDispatch` annotation was removed in #926:
+> no part of the compiler ever read `sql_source_dispatch`, so a query using it dispatched
+> nothing. Declare **one query per source** — `ordersDaily` on `tf_orders_day`,
+> `ordersWeekly` on `tf_orders_week` — which also gives each source its own compile-time
+> SQL identifier validation.
+
 ## Field Metadata
 
 ```dart

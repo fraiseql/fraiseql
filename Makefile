@@ -513,6 +513,14 @@ lint-config-loaders:
 lint-examples-postgres-only:
 	@bash tools/check-examples-postgres-only.sh
 
+# Gate: an SDK authoring surface removed for having no compiler consumer stays
+# removed (#926). The compiled-schema seam denies unknown fields, but a surface that
+# never reaches the wire at all — Java's registry-only dispatch config, Dart's
+# unreflected annotation — is invisible to it. Only a grep sees those.
+.PHONY: lint-sdk-dead-surface
+lint-sdk-dead-surface:
+	@bash tools/check-sdk-dead-surface.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -521,7 +529,7 @@ lint-examples-postgres-only:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

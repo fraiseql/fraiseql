@@ -227,16 +227,6 @@ public class SchemaRegistry {
         queries.put(queryName, queryInfo);
     }
 
-    /** Register a query with all extended fields including REST annotation and config. */
-    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description,
-                              boolean relay, String sqlSource, Long cacheTtlSeconds,
-                              Map<String, String> injectParams, List<String> additionalViews,
-                              String restPath, String restMethod, Map<String, Object> config) {
-        QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay,
-            sqlSource, cacheTtlSeconds, injectParams, additionalViews, restPath, restMethod, config);
-        queries.put(queryName, queryInfo);
-    }
-
     /**
      * Register a mutation in the schema.
      *
@@ -703,35 +693,26 @@ public class SchemaRegistry {
         public final List<String> additionalViews;
         public final String restPath;
         public final String restMethod;
-        public final Map<String, Object> config;
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, false, null, null, null, null, null, null, null);
+            this(name, returnType, arguments, description, false, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
-            this(name, returnType, arguments, description, relay, null, null, null, null, null, null, null);
+            this(name, returnType, arguments, description, relay, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews) {
             this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
-                injectParams, additionalViews, null, null, null);
+                injectParams, additionalViews, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews,
                          String restPath, String restMethod) {
-            this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
-                injectParams, additionalViews, restPath, restMethod, null);
-        }
-
-        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
-                         boolean relay, String sqlSource, Long cacheTtlSeconds,
-                         Map<String, String> injectParams, List<String> additionalViews,
-                         String restPath, String restMethod, Map<String, Object> config) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -745,8 +726,6 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableList(new ArrayList<>(additionalViews)) : null;
             this.restPath = restPath;
             this.restMethod = restMethod;
-            this.config = config != null
-                ? Collections.unmodifiableMap(new LinkedHashMap<>(config)) : null;
         }
 
         /** Returns the query name. */
@@ -757,9 +736,6 @@ public class SchemaRegistry {
 
         /** Returns the query arguments map. */
         public Map<String, String> getArguments() { return arguments; }
-
-        /** Returns the query config map (dispatch settings, etc.). */
-        public Map<String, Object> getConfig() { return config; }
 
         @Override
         public String toString() {

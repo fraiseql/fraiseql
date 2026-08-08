@@ -61,10 +61,10 @@ type QueryDefinition struct {
 	Rest              *RestAnnotation        `json:"rest,omitempty"`
 	// Config is an SDK-internal bag of builder settings and is never serialized: the
 	// compiler has no `config` key and, denying unknown fields, rejects the whole
-	// schema when it sees one. The only thing that ever reached it was
-	// `sql_source_dispatch`, which has no consumer anywhere in the compiler either —
-	// so emitting it turned a working schema into an uncompilable one in exchange for
-	// nothing. `SqlSourceDispatch` now refuses at Register() instead.
+	// schema when it sees one. The only setting that ever reached it was
+	// `sql_source_dispatch`, whose builders were removed in #926 — the compiler
+	// implements no dynamic source selection, so the setting could never do anything.
+	// One query per source is the supported pattern.
 	Config map[string]interface{} `json:"-"`
 }
 

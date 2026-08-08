@@ -79,6 +79,12 @@ QueryBuilder usersQuery = FraiseQL.query("users")
     .description("Get all users with pagination");
 ```
 
+> **Dynamic SQL-source selection is not supported.** `sqlSourceDispatch()` / `sqlSourceDispatchTemplate()` was removed in #926:
+> no part of the compiler ever read `sql_source_dispatch`, so a query using it dispatched
+> nothing. Declare **one query per source** — `ordersDaily` on `tf_orders_day`,
+> `ordersWeekly` on `tf_orders_week` — which also gives each source its own compile-time
+> SQL identifier validation.
+
 ### 3. Define Mutations
 
 ```java

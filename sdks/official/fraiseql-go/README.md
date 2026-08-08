@@ -222,6 +222,12 @@ Methods:
 - `Description(string)` - Set description
 - `Register()` - Register the query
 
+> **Dynamic SQL-source selection is not supported.** `SqlSourceDispatch` and
+> `SqlSourceDispatchWithTemplate` were removed in #926: no part of the compiler ever read
+> `sql_source_dispatch`, so a query using them dispatched nothing. Declare **one query per
+> source** — `ordersDaily` on `tf_orders_day`, `ordersWeekly` on `tf_orders_week` — which
+> also gives each source its own compile-time SQL identifier validation.
+
 Example:
 
 ```go
