@@ -79,7 +79,6 @@ docker-compose up -d
 # Wait for all services to be healthy
 print_info "Waiting for services to become healthy..."
 wait_for_service "postgres"
-wait_for_service "mysql"
 wait_for_service "users-service"
 wait_for_service "orders-service"
 wait_for_service "inventory-service"

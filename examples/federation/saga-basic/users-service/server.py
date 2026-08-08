@@ -59,7 +59,7 @@ def handle_verify_user(variables):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute('SELECT * FROM users WHERE id = %s', (user_id,))
+        cur.execute('SELECT * FROM tb_user WHERE id = %s', (user_id,))
         user = cur.fetchone()
         cur.close()
         conn.close()
@@ -94,7 +94,7 @@ def handle_get_user(variables):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute('SELECT * FROM users WHERE id = %s', (user_id,))
+        cur.execute('SELECT * FROM tb_user WHERE id = %s', (user_id,))
         user = cur.fetchone()
         cur.close()
         conn.close()
@@ -127,7 +127,7 @@ def handle_get_users():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute('SELECT * FROM users ORDER BY created_at DESC')
+        cur.execute('SELECT * FROM tb_user ORDER BY created_at DESC')
         users = cur.fetchall()
         cur.close()
         conn.close()

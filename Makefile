@@ -505,6 +505,14 @@ lint-docs-version:
 lint-config-loaders:
 	@bash tools/check-config-loaders.sh
 
+# Gate: no example provisions or points at a database backend #374 removed. The
+# PostgreSQL-only de-scope covered crates/; examples/federation/saga-basic kept a
+# running MySQL topology for three phases afterwards (#940), demonstrating in
+# working form a shape the engine refuses at boot.
+.PHONY: lint-examples-postgres-only
+lint-examples-postgres-only:
+	@bash tools/check-examples-postgres-only.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -513,7 +521,7 @@ lint-config-loaders:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
+preflight: fmt-check lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

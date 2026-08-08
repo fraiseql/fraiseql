@@ -6,9 +6,14 @@ This example demonstrates how to use **sagas** in FraiseQL to orchestrate distri
 
 An **e-commerce order processing saga** that coordinates between three microservices:
 
-- **Users Service** (PostgreSQL): Manages user accounts
-- **Orders Service** (MySQL): Manages order creation and fulfillment
-- **Inventory Service** (MySQL): Manages product inventory and reservations
+- **Users Service** (`fraiseql`): Manages user accounts, and holds the saga tables
+- **Orders Service** (`fraiseql_orders`): Manages order creation and fulfillment
+- **Inventory Service** (`fraiseql_inventory`): Manages product inventory and reservations
+
+Each subgraph owns its own PostgreSQL **database** on a single instance. That
+separation is the point: no transaction spans them, so a failure part-way through
+has to be undone by compensating writes rather than a rollback — which is what a
+saga is for.
 
 ### The Order Saga Flow
 
@@ -36,35 +41,32 @@ When a customer places an order, the saga orchestrates these steps:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│         Apollo Router (Gateway)         │
-│         localhost:4000/graphql          │
-└────────────┬────────────────────────────┘
-             │
-     ┌───────┴────────┬──────────────┐
-     │                │              │
-┌────▼────────┐ ┌────▼────────┐ ┌──▼────────┐
-│Users Service│ │Orders       │ │Inventory  │
-│(Flask)      │ │Service      │ │Service    │
-│Port: 4001   │ │(Flask)      │ │(Flask)    │
-└────────┬────┘ │Port: 4002   │ │Port: 4003 │
-         │      └────┬────────┘ └──┬────────┘
-    ┌────▼──┐        │             │
-    │Postgres┐       │    ┌────────▼───┐
-    │(5432)  │       │    │    MySQL    │
-    └────────┘       │    │ (3306)      │
-                     │    │             │
-                ┌────▼───┐│ ┌───────────┘
-                │Orders  ││ │
-                │Inventory│
-                └────────┘
+              ┌─────────────────────────────────────────┐
+              │         Apollo Router (Gateway)         │
+              │         localhost:4000/graphql          │
+              └────────────────────┬────────────────────┘
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         │                         │                         │
+┌────────▼────────┐      ┌─────────▼───────┐      ┌──────────▼──────┐
+│  Users Service  │      │ Orders Service  │      │Inventory Service│
+│     (Flask)     │      │     (Flask)     │      │     (Flask)     │
+│    Port: 4001   │      │    Port: 4002   │      │    Port: 4003   │
+└────────┬────────┘      └────────┬────────┘      └────────┬────────┘
+         │                        │                        │
+         │      ┌─────────────────┴────────────────┐       │
+         └──────┤     PostgreSQL 15  (5432)        ├───────┘
+                │                                  │
+                │  fraiseql            saga, users │
+                │  fraiseql_orders           orders│
+                │  fraiseql_inventory     inventory│
+                └──────────────────────────────────┘
 ```
 
 ## Files
 
 - **docker-compose.yml** - Multi-container setup with all services
-- **fixtures/postgres-init.sql** - Users database schema
-- **fixtures/mysql-init.sql** - Orders and inventory database schemas
+- **fixtures/postgres-init.sql** - All three databases: saga + users, orders, inventory
 - **fixtures/supergraph.graphql** - Apollo Federation schema composition
 - **fixtures/router.yaml** - Apollo Router configuration
 - **users-service/schema.graphql** - Users subgraph schema
@@ -245,7 +247,6 @@ and their defaults.
 ```bash
 # Check Docker logs
 docker-compose logs postgres
-docker-compose logs mysql
 docker-compose logs users-service
 
 # Restart services
@@ -259,10 +260,9 @@ The services wait for databases to be healthy before starting. If you see connec
 ```bash
 # Check database status
 docker-compose exec postgres pg_isready -U fraiseql
-docker-compose exec mysql mysqladmin ping -u fraiseql -pfraise ql123
 
 # Restart databases
-docker-compose restart postgres mysql
+docker-compose restart postgres
 ```
 
 ### Router not composing schemas
@@ -365,7 +365,6 @@ When `test-saga.sh` succeeds:
 ============================================
 ℹ Waiting for services to become healthy...
 ✓ postgres is healthy
-✓ mysql is healthy
 ✓ users-service is healthy
 ✓ orders-service is healthy
 ✓ inventory-service is healthy
