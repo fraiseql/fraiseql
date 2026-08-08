@@ -239,7 +239,10 @@ async fn test_list_logs_filters() {
 
     let trace = format!("trace-{id}");
     insert_log(&pool, pk, "success", Some(&trace)).await;
-    insert_log(&pool, pk, "failure", None).await;
+    // "failed", not "failure": `ck_observer_log_status` accepts seven values and
+    // the writer emits two of them (#932). The fixture carries that CHECK now,
+    // so a status no deployment could ever hold is rejected here too.
+    insert_log(&pool, pk, "failed", None).await;
 
     let obs_uuid: (Uuid,) = sqlx::query_as("SELECT id FROM tb_observer WHERE pk_observer = $1")
         .bind(pk)
