@@ -1,18 +1,33 @@
 //! Change log listener that polls `tb_entity_change_log` for entity mutations.
 //!
 //! This module implements a polling event listener that:
-//! 1. Polls `tb_entity_change_log` for new entries
+//! 1. Polls `tb_entity_change_log` for undispatched entries
 //! 2. Parses Debezium envelope format (before/after/op/source)
 //! 3. Converts entries to `EntityEvent` for observer processing
-//! 4. Tracks an **in-memory** cursor (`last_processed_id`) as it reads
+//! 4. Records each dispatched batch in a durable per-listener ledger
 //! 5. Handles backpressure and batch processing
 //!
-//! The cursor is not durable by itself: restart recovery is the driver's job.
-//! A driver restores the persisted cursor at startup (via
-//! [`crate::checkpoint::CheckpointStore::load`] +
-//! [`ChangeLogListenerConfig::with_resume_from`]) and persists it after each
-//! dispatched batch — otherwise every process start replays the entire change
-//! log from row 0 and re-fires every historical observer action (#805).
+//! # What "already handled" means (#935)
+//!
+//! Not "its pk is below a watermark". `pk_entity_change_log` is allocated at
+//! INSERT time but only becomes visible at COMMIT, so under concurrent writes pk
+//! order and commit order diverge and a strict `pk > cursor` cursor silently and
+//! permanently skips rows that commit late. Instead the poll is an **anti-join**
+//! against `core.tb_observer_dispatch` (migration 14): a row is undispatched
+//! until this listener has recorded dispatching it. Each poll considers rows
+//! above the scan bound plus anything inside
+//! [`ChangeLogListenerConfig::commit_lag_window`], and a periodic full sweep
+//! recovers rows whose transaction outlived even that, at `WARN`.
+//!
+//! The driver's two jobs, both still required:
+//!
+//! - Call [`ChangeLogListener::record_dispatched`] once a batch's actions have run. Recording
+//!   *after* dispatch is what keeps delivery at-least-once; recording at all is what keeps the
+//!   commit-lag rescan from re-delivering across a restart.
+//! - Restore the persisted cursor at startup (via [`crate::checkpoint::CheckpointStore::load`] +
+//!   [`ChangeLogListenerConfig::with_resume_from`]) and persist it after each dispatched batch
+//!   (#805). The cursor is now a scan bound and the floor a sweep drops back to, so without it a
+//!   fresh process still walks the whole change log.
 //!
 //! **Requires the `postgres` Cargo feature.**
 
@@ -22,12 +37,15 @@ compile_error!(
      Enable it with: fraiseql-observers = { features = [\"postgres\"] }"
 );
 
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    time::{Duration, Instant},
+};
 
 use chrono::{DateTime, TimeZone, Utc};
 use serde_json::Value;
 use sqlx::postgres::PgPool;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -96,18 +114,76 @@ pub struct ChangeLogListenerConfig {
 
     /// Resume from this change log ID (for recovery)
     pub resume_from_id: Option<i64>,
+
+    /// Stable listener identity — the key of this listener's dispatch ledger
+    /// (`core.tb_observer_dispatch`) and, for the drivers that persist one, of
+    /// its `observer_checkpoints` row. Two listeners sharing an id share a
+    /// ledger and therefore split the change log between them; two listeners
+    /// with different ids each dispatch every row.
+    pub listener_id: String,
+
+    /// How long after `created_at` a writing transaction may commit and still be
+    /// caught by the cheap per-poll scan (#935). Rows whose transaction outlives
+    /// this are only recovered by the periodic full sweep, loudly.
+    ///
+    /// Must exceed the longest transaction that writes to the change log.
+    pub commit_lag_window: Duration,
+
+    /// Run the full recovery sweep every N polls (the first poll always sweeps).
+    /// The sweep is the safety net for a transaction that outlived
+    /// `commit_lag_window`; each row it finds is reported at `WARN`.
+    pub sweep_every: u64,
 }
+
+/// Default bound on how long after `created_at` a writing transaction may commit
+/// and still be caught by the cheap per-poll scan. Matches the cdc drain's
+/// window (#797), which solves the identical ordering problem.
+const DEFAULT_COMMIT_LAG_WINDOW: Duration = Duration::from_secs(15 * 60);
+
+/// Default poll period of the full recovery sweep (the first poll always sweeps).
+const DEFAULT_SWEEP_EVERY: u64 = 256;
+
+/// The listener identity used when a driver does not set one.
+const DEFAULT_LISTENER_ID: &str = "default";
 
 impl ChangeLogListenerConfig {
     /// Create config with defaults
     #[must_use]
-    pub const fn new(pool: PgPool) -> Self {
+    pub fn new(pool: PgPool) -> Self {
         Self {
             pool,
             poll_interval_ms: 100,
             batch_size: 100,
             resume_from_id: None,
+            listener_id: DEFAULT_LISTENER_ID.to_string(),
+            commit_lag_window: DEFAULT_COMMIT_LAG_WINDOW,
+            sweep_every: DEFAULT_SWEEP_EVERY,
         }
+    }
+
+    /// Set the stable listener identity keying the dispatch ledger (#935).
+    ///
+    /// Drivers that persist a checkpoint should pass the **same** id they use
+    /// for [`crate::checkpoint::CheckpointStore`], so cursor and ledger describe
+    /// one listener.
+    #[must_use]
+    pub fn with_listener_id(mut self, id: impl Into<String>) -> Self {
+        self.listener_id = id.into();
+        self
+    }
+
+    /// Set the commit-lag window the per-poll scan reaches back over (#935).
+    #[must_use]
+    pub const fn with_commit_lag_window(mut self, window: Duration) -> Self {
+        self.commit_lag_window = window;
+        self
+    }
+
+    /// Run the full recovery sweep every `polls` polls (the first always sweeps).
+    #[must_use]
+    pub const fn with_sweep_every(mut self, polls: u64) -> Self {
+        self.sweep_every = polls;
+        self
     }
 
     /// Set poll interval
@@ -414,10 +490,48 @@ impl ChangeLogEntry {
     }
 }
 
-/// Change log listener that polls database for mutations
+/// Change log listener that polls database for mutations.
+///
+/// # Why there is no pk watermark (#935)
+///
+/// `pk_entity_change_log` is allocated at INSERT time but only becomes visible
+/// at COMMIT, so pk order and commit order diverge under concurrent writes. A
+/// strict `pk > last_processed_id` cursor therefore skipped — permanently and
+/// silently — any row whose transaction committed after a higher-pk row had
+/// already been polled. The cursor is now an *anti-join* against durable
+/// per-listener dispatched state (`core.tb_observer_dispatch`, migration 14),
+/// the same shape #797 shipped for the cdc drain: what has been handled is a
+/// recorded fact, not an inference from ordering.
+///
+/// `last_processed_id` survives as a cheap scan bound, not as a correctness
+/// boundary: each poll considers rows above it **plus** anything still inside
+/// [`ChangeLogListenerConfig::commit_lag_window`], and a periodic full sweep
+/// recovers rows whose transaction outlived even that, loudly.
+///
+/// # Drivers must record dispatch
+///
+/// [`next_batch`](Self::next_batch) hands out rows; the driver calls
+/// [`record_dispatched`](Self::record_dispatched) once their actions have run.
+/// Recording afterwards is what keeps delivery **at-least-once** — a crash in
+/// between replays that batch. A driver that never records still cannot lose a
+/// row (in-process state suppresses re-delivery for the window); it will
+/// re-deliver duplicates after a restart or a sweep.
 pub struct ChangeLogListener {
     config:            ChangeLogListenerConfig,
     last_processed_id: i64,
+    /// The checkpoint this listener resumed from: rows at or below it were
+    /// dispatched by a previous incarnation. Fixed for the listener's life — it
+    /// is the floor a full sweep drops back to, never further.
+    resume_floor:      i64,
+    /// Rows handed out by `next_batch` but not yet recorded dispatched, with the
+    /// instant they were handed out. Suppresses in-process re-delivery across
+    /// the window the scan reaches back over; pruned at the window bound so it
+    /// stays bounded by (window x throughput).
+    in_flight:         VecDeque<(Instant, i64)>,
+    /// Polls completed, driving the periodic full sweep (poll 0 always sweeps).
+    polls:             u64,
+    /// Whether the dispatch ledger DDL has been applied in this process.
+    ledger_ready:      bool,
 }
 
 impl ChangeLogListener {
@@ -429,7 +543,120 @@ impl ChangeLogListener {
         Self {
             config,
             last_processed_id,
+            resume_floor: last_processed_id,
+            in_flight: VecDeque::new(),
+            polls: 0,
+            ledger_ready: false,
         }
+    }
+
+    /// Apply the dispatch-ledger DDL (`core.tb_observer_dispatch`, idempotent).
+    ///
+    /// Called automatically on the first poll; exposed so a driver can surface a
+    /// DDL permission failure at startup rather than on the first event.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if the DDL fails.
+    pub async fn init_dispatch_ledger(&mut self) -> Result<()> {
+        let ddl = sqlx::raw_sql(crate::migrations::observer_dispatch_sql())
+            .execute(&self.config.pool)
+            .await;
+
+        if let Err(ddl_error) = ddl {
+            // A least-privilege deployment runs the poller as a role with no
+            // CREATE on `core` — the same shape migration 12's RLS notes assume.
+            // PostgreSQL refuses `CREATE TABLE IF NOT EXISTS` on privilege
+            // grounds *before* the existence check, so a DDL error here does not
+            // mean the ledger is missing. Ask the catalog before failing: an
+            // already-migrated database must keep polling.
+            let present: bool =
+                sqlx::query_scalar("SELECT to_regclass('core.tb_observer_dispatch') IS NOT NULL")
+                    .fetch_one(&self.config.pool)
+                    .await
+                    .unwrap_or(false);
+
+            if !present {
+                return Err(ObserverError::DatabaseError {
+                    reason: format!(
+                        "the observer dispatch ledger core.tb_observer_dispatch is missing and \
+                         could not be created (apply fraiseql-observers migration \
+                         14_create_observer_dispatch.sql, or grant CREATE on schema core): \
+                         {ddl_error}"
+                    ),
+                });
+            }
+            debug!(
+                "Dispatch ledger DDL was refused but the table exists; \
+                 continuing (least-privilege role)"
+            );
+        }
+
+        self.ledger_ready = true;
+        Ok(())
+    }
+
+    /// Drop in-flight entries older than the commit-lag window: past it the
+    /// windowed scan no longer reaches them, so the durable ledger (or a sweep)
+    /// is the only thing that can surface them again.
+    fn prune_in_flight(&mut self) {
+        let horizon = self.config.commit_lag_window;
+        while let Some(&(handed_out, _)) = self.in_flight.front() {
+            if handed_out.elapsed() > horizon {
+                self.in_flight.pop_front();
+            } else {
+                break;
+            }
+        }
+    }
+
+    /// Record that a batch's actions have been dispatched, so the rows are never
+    /// handed out again — the durable half of the #935 anti-join.
+    ///
+    /// Call this **after** the batch's observers have run: the ordering is what
+    /// makes delivery at-least-once rather than at-most-once. Idempotent
+    /// (`ON CONFLICT DO NOTHING`), so re-recording after a partial failure is
+    /// safe.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] if the write fails.
+    pub async fn record_dispatched(&mut self, entries: &[ChangeLogEntry]) -> Result<()> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+        if !self.ledger_ready {
+            self.init_dispatch_ledger().await?;
+        }
+
+        let pks: Vec<i64> = entries.iter().map(|e| e.id).collect();
+
+        // The ledger key and `created_at` are read from the authoritative
+        // change-log row rather than round-tripped through the entry's string
+        // fields. The pk is only the lookup — what is stored is the row's stable
+        // UUID, so a rebuilt change log cannot alias a previous incarnation.
+        sqlx::query(
+            r"
+                INSERT INTO core.tb_observer_dispatch
+                    (listener_id, change_log_id, created_at)
+                SELECT $1, e.id, e.created_at
+                FROM core.tb_entity_change_log e
+                WHERE e.pk_entity_change_log = ANY($2::bigint[])
+                ON CONFLICT (listener_id, change_log_id) DO NOTHING
+                ",
+        )
+        .bind(&self.config.listener_id)
+        .bind(&pks)
+        .execute(&self.config.pool)
+        .await
+        .map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to record dispatched change-log rows: {e}"),
+        })?;
+
+        // Now durable — the in-process suppression set no longer needs them.
+        self.in_flight.retain(|(_, pk)| !pks.contains(pk));
+
+        Ok(())
     }
 
     /// Fetch next batch of entries from change log
@@ -438,14 +665,41 @@ impl ChangeLogListener {
     ///
     /// Returns [`ObserverError::DatabaseError`] if the database query fails.
     pub async fn next_batch(&mut self) -> Result<Vec<ChangeLogEntry>> {
-        // Query: SELECT * FROM tb_entity_change_log
-        // WHERE pk_entity_change_log > last_processed_id
-        // ORDER BY pk_entity_change_log ASC
-        // LIMIT batch_size
+        if !self.ledger_ready {
+            self.init_dispatch_ledger().await?;
+        }
+        self.prune_in_flight();
+
+        // The first poll always sweeps (initial reconciliation), then every
+        // `sweep_every` polls.
+        //
+        // A poll's pk bound is the only thing a sweep changes: normally it is the
+        // advancing scan bound, and a sweep drops back to the **resume floor** —
+        // the checkpoint a previous incarnation left, below which that incarnation
+        // already dispatched everything. So a sweep re-examines every undispatched
+        // row this process could still owe, including one whose transaction
+        // outlived `commit_lag_window` and so fell out of the windowed clause.
+        //
+        // It deliberately does NOT drop below the floor. Dropping to 0 would make
+        // the first poll after an upgrade (checkpoint present, ledger empty)
+        // re-dispatch the entire history. Rows below the floor are covered by the
+        // window clause instead, so the worst case is a bounded, one-time replay
+        // of the last `commit_lag_window` — at-least-once, as documented.
+        let sweeping = self.config.sweep_every == 0 || self.polls % self.config.sweep_every == 0;
+        self.polls = self.polls.wrapping_add(1);
+        let pk_bound = if sweeping {
+            self.resume_floor
+        } else {
+            self.last_processed_id
+        };
 
         #[allow(clippy::cast_possible_wrap)]
         // Reason: batch_size is bounded by config and won't exceed i64::MAX
         let batch_size_i64 = self.config.batch_size as i64;
+        let in_flight_pks: Vec<i64> = self.in_flight.iter().map(|&(_, pk)| pk).collect();
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: the window is an operator-set duration; sub-microsecond precision is irrelevant
+        let window_secs = self.config.commit_lag_window.as_secs_f64();
         let rows: Vec<ChangeLogRow> = sqlx::query_as(
             r"
                 SELECT
@@ -467,14 +721,27 @@ impl ChangeLogListener {
                     actor_type,
                     acting_for,
                     schema_version
-                FROM core.tb_entity_change_log
-                WHERE pk_entity_change_log > $1
-                ORDER BY pk_entity_change_log ASC
+                FROM core.tb_entity_change_log e
+                WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM core.tb_observer_dispatch d
+                        WHERE d.listener_id = $3
+                          AND d.change_log_id = e.id
+                      )
+                  AND NOT (e.pk_entity_change_log = ANY($5::bigint[]))
+                  AND (
+                        e.pk_entity_change_log > $1
+                        OR e.created_at > now() - make_interval(secs => $4)
+                      )
+                ORDER BY e.pk_entity_change_log ASC
                 LIMIT $2
                 ",
         )
-        .bind(self.last_processed_id)
+        .bind(pk_bound)
         .bind(batch_size_i64)
+        .bind(&self.config.listener_id)
+        .bind(window_secs)
+        .bind(&in_flight_pks)
         .fetch_all(&self.config.pool)
         .await
         .map_err(|e| ObserverError::DatabaseError {
@@ -482,6 +749,14 @@ impl ChangeLogListener {
         })?;
 
         let mut entries = Vec::new();
+        // Rows only a sweep could have reached: their transaction outlived the
+        // commit-lag window. Delivery is still correct, but the window is now
+        // known to be too small for this workload, so say so.
+        let mut late_recovered = 0_u32;
+        let scan_floor = self.last_processed_id;
+        let window_horizon = Utc::now()
+            - chrono::Duration::from_std(self.config.commit_lag_window)
+                .unwrap_or_else(|_| chrono::Duration::zero());
 
         for ChangeLogRow {
             pk_entity_change_log: pk,
@@ -506,6 +781,12 @@ impl ChangeLogListener {
         {
             let created_at_str =
                 created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
+
+            // Below the scan floor AND older than the window: nothing but the
+            // full sweep could have surfaced this row.
+            if pk <= scan_floor && created.is_some_and(|dt| dt <= window_horizon) {
+                late_recovered += 1;
+            }
 
             entries.push(ChangeLogEntry {
                 id: pk,
@@ -535,8 +816,21 @@ impl ChangeLogListener {
                 schema_version,
             });
 
-            // Update checkpoint for recovery
-            self.last_processed_id = pk;
+            // Advance the scan bound and suppress in-process re-delivery until
+            // the driver records the dispatch (or the window lapses).
+            self.last_processed_id = self.last_processed_id.max(pk);
+            self.in_flight.push_back((Instant::now(), pk));
+        }
+
+        if late_recovered > 0 {
+            warn!(
+                listener_id = %self.config.listener_id,
+                late_recovered,
+                commit_lag_window_secs = self.config.commit_lag_window.as_secs(),
+                "Recovered change-log rows whose transaction outlived the commit-lag window; \
+                 they were delivered late. Raise commit_lag_window above the longest \
+                 change-log-writing transaction."
+            );
         }
 
         debug!("Fetched {} entries from change log", entries.len());
@@ -550,9 +844,14 @@ impl ChangeLogListener {
         self.last_processed_id
     }
 
-    /// Set checkpoint (for recovery)
+    /// Set checkpoint (for recovery).
+    ///
+    /// Declares that everything at or below `id` was already dispatched, so it
+    /// moves the sweep floor as well as the scan bound (#935) — a recovery point
+    /// a sweep could drop below would replay history.
     pub const fn set_checkpoint(&mut self, id: i64) {
         self.last_processed_id = id;
+        self.resume_floor = id;
     }
 
     /// Poll indefinitely for events (for background task)

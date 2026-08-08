@@ -111,6 +111,33 @@ pub const fn source_cursor_sql() -> &'static str {
     include_str!("../../migrations/13_create_source_cursor.sql")
 }
 
+/// SQL DDL that installs `core.tb_observer_dispatch`, the change-log poller's
+/// durable dispatch ledger (#935).
+///
+/// One row per `(listener_id, dispatched change-log row)`. The poller anti-joins
+/// against it instead of trusting a `pk_entity_change_log > watermark` cursor,
+/// which permanently skipped rows whose transaction committed after a higher-pk
+/// row had already been polled — identity pks are allocated in statement order
+/// but become visible in commit order. Same fix shape as #797 for the cdc drain.
+///
+/// Applied automatically on the poller's first batch
+/// ([`crate::listener::ChangeLogListener::init_dispatch_ledger`]); exposed here
+/// for migration runners and for drivers that would rather fail at startup.
+///
+/// PostgreSQL only; idempotent (`CREATE TABLE IF NOT EXISTS`).
+///
+/// # Example
+///
+/// ```
+/// let sql = fraiseql_observers::migrations::observer_dispatch_sql();
+/// assert!(sql.contains("core.tb_observer_dispatch"));
+/// assert!(sql.contains("PRIMARY KEY (listener_id, change_log_id)"));
+/// ```
+#[must_use]
+pub const fn observer_dispatch_sql() -> &'static str {
+    include_str!("../../migrations/14_create_observer_dispatch.sql")
+}
+
 /// One column of the `core.tb_entity_change_log` contract: its name and the
 /// canonical PostgreSQL base type the migration installs it as.
 ///

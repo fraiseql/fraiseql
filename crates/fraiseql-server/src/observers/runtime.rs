@@ -178,6 +178,7 @@ impl ObserverRuntimeConfig {
         }
     }
 
+
     /// Set poll interval
     #[must_use]
     pub const fn with_poll_interval(mut self, ms: u64) -> Self {
@@ -467,13 +468,13 @@ impl ObserverRuntime {
         // Create executor with the shared in-memory DLQ
         let executor = Arc::new(
             ObserverExecutor::new_with_email(
-                matcher.clone(),
-                self.dlq.clone(),
-                self.config.email.as_ref(),
-            )
-            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
-            // #632: wire the pool so `database` actions call their PostgreSQL
-            // function for real instead of failing "no pool wired".
+            matcher.clone(),
+            self.dlq.clone(),
+            self.config.email.as_ref(),
+        )
+        .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
+        // #632: wire the pool so `database` actions call their PostgreSQL
+        // function for real instead of failing "no pool wired".
             .with_database_pool(self.config.pool.clone()),
         );
 
@@ -528,9 +529,12 @@ impl ObserverRuntime {
         }
 
         // Create change log listener
+        // The listener's dispatch ledger (#935) is keyed by the SAME identity as
+        // the checkpoint above, so cursor and ledger describe one listener.
         let mut listener_config = ChangeLogListenerConfig::new(self.config.pool.clone())
             .with_poll_interval(self.config.poll_interval_ms)
-            .with_batch_size(self.config.batch_size);
+            .with_batch_size(self.config.batch_size)
+            .with_listener_id(self.config.listener_id.clone());
         if let Some(state) = &restored {
             listener_config = listener_config.with_resume_from(state.last_processed_id);
         }
@@ -668,6 +672,22 @@ impl ObserverRuntime {
                                     if let Some(ref dispatch) = capture_dispatch {
                                         dispatch(&event);
                                     }
+                                }
+
+                                // Record the batch as dispatched (#935) BEFORE the
+                                // cursor advances: the ledger is what lets the
+                                // poller reach back over the commit-lag window for
+                                // late-committing rows without re-delivering these
+                                // ones. Written after the actions ran, so a crash
+                                // in between replays the batch — at-least-once,
+                                // unchanged. A failure here is loud but not fatal:
+                                // the cost is duplicate delivery, never a skip.
+                                if let Err(e) = listener.record_dispatched(&entries).await {
+                                    errors.fetch_add(1, Ordering::Relaxed);
+                                    error!(
+                                        "Failed to record dispatched change-log rows; this batch \
+                                         may be re-delivered: {e}"
+                                    );
                                 }
 
                                 // Advance the durable cursor (#805): persisted
@@ -1262,6 +1282,7 @@ fn truncate_log_payload(data: &serde_json::Value) -> serde_json::Value {
         data.clone()
     }
 }
+
 
 /// Write a single `tb_observer_log` row, populating the per-action audit columns
 /// from `detail` when available (#468).
