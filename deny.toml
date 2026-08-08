@@ -345,8 +345,8 @@ version = "=0.21.12"
 
 [[bans.skip-tree]]
 name = "wasmtime"
-reason = "wasmtime v44 pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat; upgrade tracked for 2026-12-01"
-version = "=44.0.3"
+reason = "wasmtime pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat, plus its own wasm-tooling versions (wasm-encoder, wasmparser, wast). NOTE: this is an exact-version pin — a wasmtime bump that forgets to move it un-skips the whole tree and `cargo deny check bans` reports every duplicate under it (#933)."
+version = "=46.0.2"
 
 [[bans.skip-tree]]
 name = "windows-sys"
