@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`fraiseql_cli::schema::intermediate::reject_drifted_security_keys` is renamed to
+  `reject_drifted_keys` (#890).** The guard now also covers a non-security key —
+  `return_array`, the `[queries.*]` TOML spelling of `returns_list` — so the old name no
+  longer describes what it refuses. Behaviour for the security keys is unchanged.
+
 - **`WindowFunctionPlanner` is removed (#881).** `fraiseql-core` shipped two window
   planners. Only `WindowPlanner` is reachable from the binary
   (`WindowQueryParser::parse` → `WindowPlanner::plan` → `WindowSqlGenerator::generate`);
@@ -1622,6 +1627,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   archived onto issue #687 before removal.
 
 ### Fixed
+
+- **A query authored with `return_array` is refused by name instead of by field list (#890).**
+  `return_array` is the `[queries.*]` TOML spelling; the JSON/`types.json` authoring surface
+  reads `returns_list`. The original defect — the key binding to nothing and the query
+  compiling as a nullable single object under a `✓ Schema compiled successfully`, which all
+  three shipped `[domain_discovery]` examples hit — was closed structurally by
+  `deny_unknown_fields` on `IntermediateQuery` (#755). What remained was the diagnostic:
+  serde refuses with a list of all seventeen valid field names and never says that the other
+  authoring surface spells this one key differently. The drifted-key guard now carries
+  `return_array → returns_list` alongside `#806`'s `inject → inject_params`, so both compile
+  workflows — `commands::compile` for JSON and `schema::merger` for TOML/`--schema-dir` —
+  name the offending query and the key to write. `return_array` remains correct, and
+  unaffected, in `[queries.*]`.
 
 - **A `__typename` selected on a nested object now resolves to that object's type (#912).**
   `__typename` is `String!` (spec § Type Name Introspection): it can never be null, and a

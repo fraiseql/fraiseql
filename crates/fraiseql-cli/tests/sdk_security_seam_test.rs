@@ -29,7 +29,7 @@
 
 use fraiseql_cli::schema::{
     SchemaConverter,
-    intermediate::{IntermediateSchema, reject_drifted_security_keys},
+    intermediate::{IntermediateSchema, reject_drifted_keys},
 };
 use fraiseql_core::schema::InjectedParamSource;
 use serde_json::json;
@@ -40,7 +40,7 @@ use serde_json::json;
 /// The ordering is the point. The guard has to see the raw JSON, because after
 /// deserialization a drifted key is indistinguishable from an absent one.
 fn compile(raw: &serde_json::Value) -> Result<fraiseql_core::schema::CompiledSchema, String> {
-    reject_drifted_security_keys(raw)?;
+    reject_drifted_keys(raw)?;
     let intermediate: IntermediateSchema =
         serde_json::from_value(raw.clone()).map_err(|e| e.to_string())?;
     SchemaConverter::convert(intermediate).map_err(|e| e.to_string())
