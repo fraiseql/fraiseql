@@ -2,7 +2,7 @@
 name = "fraiseql-storage"
 version.workspace = true
 edition = "2021"
-rust-version = "1.75"
+rust-version.workspace = true
 license = "Apache-2.0"
 repository.workspace = true
 homepage = "https://fraiseql.dev"

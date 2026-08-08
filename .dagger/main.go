@@ -17,7 +17,7 @@ import (
 type FraiseqlCi struct{}
 
 const (
-	// rustImage pins the toolchain to the workspace MSRV (rust-toolchain.toml channel = 1.92).
+	// rustImage pins the toolchain to the workspace MSRV (rust-toolchain.toml channel = 1.94).
 	// The default (non-slim) variant is buildpack-deps-based, so gcc/perl/curl/git are present.
 	// (Later: pin by digest — see parity-notes.md Phase 02.)
 	//
@@ -27,7 +27,7 @@ const (
 	// them anonymously. Every ghcr.io/fraiseql/* tag below MUST have a matching entry in that
 	// workflow's IMAGES list. (mcr.microsoft.com/* and the Apollo router stay as-is — not
 	// Docker Hub, not rate-limited.)
-	rustImage = "ghcr.io/fraiseql/rust:1.92"
+	rustImage = "ghcr.io/fraiseql/rust:1.94"
 	// ubuntuImage backs shellBase (the toolchain-free shell-gate container).
 	ubuntuImage = "ghcr.io/fraiseql/ubuntu:24.04"
 	// unwrapAllowLimit: the ShellGates `make lint-unwrap` budget (see Makefile).
@@ -35,7 +35,7 @@ const (
 	// sccacheVersion pins the prebuilt sccache binary fetched into rustBase.
 	sccacheVersion = "v0.8.2"
 	// rustMsrv mirrors Cargo.toml workspace rust-version and rust-toolchain.toml channel.
-	rustMsrv = "1.92"
+	rustMsrv = "1.94"
 
 	// SYNC:* feature sets — this file is the single authority since the legacy
 	// ci.yml was retired (#951); the SYNC tags mark every use site in this file.
@@ -362,7 +362,7 @@ func (m *FraiseqlCi) shellBase() *dagger.Container {
 //
 // The workspace test leg: a full `cargo build --all-features`
 // followed by the feature-scoped `cargo test -p …` invocations (the SYNC:* lists)
-// and the doctest pass. Parameterized by toolchain (stable | MSRV 1.92).
+// and the doctest pass. Parameterized by toolchain (stable | MSRV 1.94).
 
 // Test runs the workspace test suite for the given toolchain. `rust` is "msrv"
 // (default — the pinned floor, == rust-toolchain.toml) or "stable" (latest stable).
@@ -382,7 +382,7 @@ func (m *FraiseqlCi) Test(
 	rust string,
 ) (string, error) {
 	toolchain := resolveToolchain(rust)
-	// Per-toolchain target cache: stable and 1.92 produce incompatible artifacts,
+	// Per-toolchain target cache: stable and 1.94 produce incompatible artifacts,
 	// so they must not share a target dir (kept separate from the Phase-02 gates'
 	// `fraiseql-rust-target`, which holds clippy/rustdoc check artifacts).
 	// `test2-` bump (2026-06-30): the `test-` volume held stale fraiseql-cli/-db

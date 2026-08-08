@@ -62,7 +62,7 @@ Deployment: Server downloads from S3 at startup
 ### Option B: Compile into Docker image
 
 ```dockerfile
-FROM rust:1.92 AS builder
+FROM rust:1.94 AS builder
 COPY fraiseql.toml types.json ./
 RUN fraiseql compile fraiseql.toml
 

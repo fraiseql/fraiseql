@@ -372,5 +372,5 @@ homepage = "https://fraiseql.dev"
 keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
-rust-version = "1.92"  # MSRV — fraiseql-error@2.1.0 on crates.io requires 1.92
+rust-version = "1.94"  # MSRV — wasmtime 46's cranelift 0.133 requires 1.94 (#933)
 version = "2.14.1"

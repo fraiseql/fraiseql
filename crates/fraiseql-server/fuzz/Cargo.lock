@@ -1205,6 +1205,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "sha2 0.11.0",
  "subtle",
  "thiserror 2.0.18",
@@ -1279,6 +1280,9 @@ dependencies = [
 [[package]]
 name = "fraiseql-guard"
 version = "2.14.1"
+dependencies = [
+ "tracing",
+]
 
 [[package]]
 name = "fraiseql-observers"
