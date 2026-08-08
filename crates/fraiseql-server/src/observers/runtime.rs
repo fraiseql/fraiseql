@@ -160,8 +160,9 @@ pub struct ObserverRuntimeConfig {
 
     /// Redis backend for the `cache`/`invalidate` observer transport (#985).
     ///
-    /// `Some` mounts a [`RedisCacheInvalidator`] onto the executor at boot, so a
-    /// `cache` action declared in `fraiseql.toml` actually invalidates keys.
+    /// `Some` mounts a [`fraiseql_observers::RedisCacheInvalidator`] onto the
+    /// executor at boot, so a `cache` action declared in `fraiseql.toml` really
+    /// invalidates keys.
     /// `None` with a declared `cache` action is a **boot error** — the operator
     /// learns at startup rather than one failed dispatch at a time.
     pub redis: Option<fraiseql_observers::config::RedisConfig>,
