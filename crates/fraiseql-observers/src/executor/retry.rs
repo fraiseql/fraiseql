@@ -309,7 +309,7 @@ impl ObserverExecutor {
                     let mut processing_errors = 0;
 
                     // Convert and process each entry
-                    for entry in entries {
+                    for entry in &entries {
                         match entry.to_entity_event() {
                             Ok(event) => {
                                 match self.process_event(&event).await {
@@ -334,6 +334,14 @@ impl ObserverExecutor {
                                 // Continue processing other entries despite error
                             },
                         }
+                    }
+
+                    // Record the batch as dispatched (#935), after its actions
+                    // ran. The listener's scan reaches back over the commit-lag
+                    // window to catch late-committing rows; the ledger is what
+                    // stops it re-delivering these across a restart.
+                    if let Err(e) = listener.record_dispatched(&entries).await {
+                        error!("Failed to record dispatched change-log rows: {e}");
                     }
 
                     // Log batch summary

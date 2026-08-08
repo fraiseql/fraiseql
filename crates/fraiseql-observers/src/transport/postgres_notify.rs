@@ -101,6 +101,14 @@ impl EventTransport for PostgresNotifyTransport {
                         let mut listener_guard = listener.lock().await;
                         match listener_guard.next_batch().await {
                             Ok(entries) => {
+                                // This transport's delivery boundary is the
+                                // stream: once buffered, the entries are the
+                                // consumer's. Record them (#935) so the poller's
+                                // commit-lag rescan cannot re-emit them after a
+                                // restart.
+                                if let Err(e) = listener_guard.record_dispatched(&entries).await {
+                                    error!("Failed to record dispatched change-log rows: {e}");
+                                }
                                 drop(listener_guard);
                                 entries
                             },

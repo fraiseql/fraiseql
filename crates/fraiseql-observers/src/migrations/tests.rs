@@ -3,7 +3,7 @@
 use super::{
     ENTITY_CHANGE_LOG_CONTRACT, ENTITY_CHANGE_LOG_CONTRACT_COLUMNS,
     entity_change_log_capture_trigger_sql, entity_change_log_contract_sql,
-    entity_change_log_rls_sql,
+    entity_change_log_rls_sql, observer_dispatch_sql,
 };
 
 #[test]
@@ -350,5 +350,34 @@ fn capture_trigger_stamps_tenant_and_marks_its_source() {
     assert!(
         sql.contains("'cdc_source', 'fallback_trigger'"),
         "marks captured rows with extra_metadata.cdc_source"
+    );
+}
+
+/// The dispatch ledger's key must be the change-log row's stable UUID, never its
+/// IDENTITY pk: a rebuilt log restarts the pk sequence, so a pk-keyed ledger
+/// would anti-join fresh rows against a previous incarnation's records and skip
+/// them silently — the #935 defect, re-entered by another door.
+#[test]
+fn dispatch_ledger_is_keyed_by_the_stable_uuid() {
+    // The header prose necessarily names `pk_entity_change_log` (it explains why
+    // the pk is the wrong key), so assert against the DDL, not the whole file.
+    let sql = observer_dispatch_sql();
+    let ddl: String = sql
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        ddl.contains("change_log_id UUID"),
+        "the ledger key is the change-log row's UUID: {ddl}"
+    );
+    assert!(
+        ddl.contains("PRIMARY KEY (listener_id, change_log_id)"),
+        "per-listener ledger keyed by (listener, change-log id): {ddl}"
+    );
+    assert!(
+        !ddl.contains("pk_entity_change_log"),
+        "the recycling IDENTITY pk must not appear in the ledger DDL: {ddl}"
     );
 }

@@ -1784,6 +1784,13 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		"cargo test -p fraiseql-observers --features postgres --test entity_change_log_contract -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features postgres --test changelog_views -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features postgres --test capture_trigger -- --ignored --test-threads=1",
+		// #935: the two-session commit-order repro. Identity pks are allocated in
+		// statement order but become visible in commit order, so the old
+		// `pk > watermark` cursor permanently skipped late-committing rows and
+		// their observers never fired. Needs a real Postgres — a mock cannot
+		// produce the divergence — and its own binary, since it owns
+		// core.tb_entity_change_log and the dispatch ledger.
+		"cargo test -p fraiseql-observers --features postgres --test change_log_commit_order_pg -- --ignored --test-threads=1",
 		// #573 source coordination primitives: the advisory-lease mutual-exclusion
 		// + crash-safety boundary (Phase 00), and the source cursor store (CAS
 		// advance, in-tx rollback, deny-by-default RLS) + single-firing runner
