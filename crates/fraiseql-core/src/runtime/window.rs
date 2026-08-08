@@ -39,10 +39,10 @@ pub struct WindowSql {
     ///
     /// This comment previously claimed the identifiers were "schema-derived",
     /// "allowlist-validated" and "not user-controlled at runtime". All three were false on
-    /// this path: the allowlist was only ever consulted by `WindowFunctionPlanner`, which
-    /// nothing outside tests calls, and four sinks interpolated request strings verbatim
-    /// (#794). Keep this description honest — it is load-bearing for anyone auditing the
-    /// emitters below.
+    /// this path: the allowlist was only ever consulted by a second planner that nothing
+    /// outside tests called (deleted in #881), and four sinks interpolated request strings
+    /// verbatim (#794). Keep this description honest — it is load-bearing for anyone
+    /// auditing the emitters below.
     pub raw_sql: String,
 
     /// Bind parameters in placeholder order, passed to

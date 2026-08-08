@@ -46,6 +46,7 @@ here with a non-empty status, and every row here names a snapshot that exists.
 | `edge_cases__snapshot_special_characters_in_like` | `doc-only` | `sql_snapshots::edge_cases::snapshot_special_characters_in_like` — hand-written PG spec pin, no generator to call |
 | `edge_cases__snapshot_type_casting_timestamp` | `doc-only` | `sql_snapshots::edge_cases::snapshot_type_casting_timestamp` — hand-written PG spec pin, no generator to call |
 | `edge_cases__snapshot_type_casting_uuid` | `doc-only` | `sql_snapshots::edge_cases::snapshot_type_casting_uuid` — hand-written PG spec pin, no generator to call |
+| `filtered__postgres` | `generator` | `window_function_snapshots::filtered::postgres` |
 | `frame_exclusion__exclude_current_row_postgres` | `generator` | `window_function_snapshots::frame_exclusion::exclude_current_row_postgres` |
 | `fts_parity__snapshot_postgres_fts_matches` | `doc-only` | `sql_snapshots::fts_parity::snapshot_postgres_fts_matches` — hand-written PG spec pin, no generator to call |
 | `fts_parity__snapshot_postgres_fts_phrase_query` | `doc-only` | `sql_snapshots::fts_parity::snapshot_postgres_fts_phrase_query` — hand-written PG spec pin, no generator to call |

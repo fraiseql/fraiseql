@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`WindowFunctionPlanner` is removed (#881).** `fraiseql-core` shipped two window
+  planners. Only `WindowPlanner` is reachable from the binary
+  (`WindowQueryParser::parse` → `WindowPlanner::plan` → `WindowSqlGenerator::generate`);
+  `WindowFunctionPlanner` took a different, raw-SQL-string request shape and nothing
+  outside tests ever called it. It was the root cause of #794 — the identifier allowlist
+  was wired into it, so every guard test passed while the live path interpolated client
+  strings verbatim — and #878 fixed the vulnerability in `WindowPlanner` while leaving
+  the dead planner in place so the security patch stayed reviewable. It is gone from the
+  `compiler` re-export along with its `validate` companion, whose only job was refusing
+  GROUPS frames and frame exclusion on the non-PostgreSQL dialects removed in #374.
+  Callers construct a `WindowRequest` (or let `WindowQueryParser` build one) instead of
+  passing a `serde_json::Value` of SQL fragments. Its 36 tests were ported onto the live
+  chain rather than dropped; two snapshots changed in the process, because the dead
+  planner emitted `data->>'category' as category AS data->>'category' as category` for a
+  selected dimension — SQL PostgreSQL rejects.
+
 - **`EventListener`, `ListenerConfig` and `OverflowPolicy` are removed (#931).** The
   LISTEN/NOTIFY listener's `overflow_policy` knob (`Drop` / `Block` / `DropOldest`) was
   accepted, documented and stored, and never read: the loop hard-coded `try_send` and warned
