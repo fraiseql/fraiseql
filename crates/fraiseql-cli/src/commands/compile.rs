@@ -212,7 +212,7 @@ pub async fn compile_to_schema(
         // Must run on the raw JSON: after deserialization the evidence is gone, which is
         // precisely the defect — an unread key becomes an empty default and nothing
         // downstream can distinguish "no scope declared" from "scope declared and lost".
-        crate::schema::intermediate::reject_drifted_security_keys(&raw)
+        crate::schema::intermediate::reject_drifted_keys(&raw)
             .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         let input_has_federation = ["federation", "federation_config"].iter().any(|key| {

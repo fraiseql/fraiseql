@@ -889,8 +889,7 @@ impl SchemaMerger {
         // only the JSON path would have left every `--schema-dir` and `types.json` user
         // with the original silent drop, which is the shape of defect this guard exists
         // to close: a check that exists and has a call site routing around it.
-        super::intermediate::reject_drifted_security_keys(&merged)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        super::intermediate::reject_drifted_keys(&merged).map_err(|e| anyhow::anyhow!("{e}"))?;
 
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)

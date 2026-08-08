@@ -18,7 +18,7 @@ pub use analytics::{
     IntermediateAggregateQuery, IntermediateDimensionPath, IntermediateDimensions,
     IntermediateFactTable, IntermediateFilter, IntermediateMeasure,
 };
-pub use drift_guard::reject_drifted_security_keys;
+pub use drift_guard::reject_drifted_keys;
 pub use fragments::{
     IntermediateAppliedDirective, IntermediateDirective, IntermediateFragment,
     IntermediateFragmentField, IntermediateFragmentFieldDef,

@@ -1,5 +1,5 @@
-//! Refuse intermediate schemas that declare a security control under a key the compiler
-//! does not read.
+//! Refuse intermediate schemas that declare something under a key the compiler does not
+//! read, and say what to write instead.
 //!
 //! Every entry in the tables below is a key a **shipped** SDK emits today, for a control
 //! that the compiler reads under a different name. Because `IntermediateSchema` uses
@@ -23,6 +23,14 @@
 //! seventh SDK free to invent a seventh; an error tells the author exactly what to write,
 //! once.
 //!
+//! `#890` is the same drift one layer out from security: `return_array` is the
+//! `[queries.*]` TOML spelling of the key the JSON/intermediate surface calls
+//! `returns_list`. That one no longer silently drops — `deny_unknown_fields` on
+//! `IntermediateQuery` has refused it since `#755` — but it is refused with a serde message
+//! listing all seventeen valid field names, which never tells an author who wrote the TOML
+//! spelling that the two authoring surfaces disagree about one word. This module supplies
+//! that sentence; serde supplies the refusal.
+//!
 //! Scope is deliberately narrow: these specific keys, on these specific structures. The
 //! general "no unknown fields anywhere in the compiled-schema seam" invariant is a larger
 //! change that belongs with the rest of that class.
@@ -31,6 +39,14 @@ use serde_json::Value;
 
 /// Injection keys that do not bind, and the key to use instead.
 const DRIFTED_INJECT_KEYS: &[(&str, &str)] = &[("inject", "inject_params")];
+
+/// Operation-shape keys that do not bind, and the key to use instead (`#890`).
+///
+/// Distinct from the security tables above: a drop here does not open an access hole, it
+/// changes the *cardinality* the compiled query advertises. It earns a place in this guard
+/// because the failure is the same one — one concept, two authoring spellings — and because
+/// the author who hits it is following the other surface's documentation correctly.
+const DRIFTED_SHAPE_KEYS: &[(&str, &str)] = &[("return_array", "returns_list")];
 
 /// Field-scope keys that do not bind, and the key to use instead.
 const DRIFTED_SCOPE_KEYS: &[&str] = &[
@@ -44,7 +60,7 @@ const DRIFTED_SCOPE_KEYS: &[&str] = &[
 /// The key the compiler reads for a field-level scope requirement.
 const CANONICAL_SCOPE_KEY: &str = "requires_scope";
 
-/// Reject a raw intermediate schema that declares a security control under a drifted key.
+/// Reject a raw intermediate schema that declares something under a drifted key.
 ///
 /// Called on the raw JSON *before* deserialization, because after deserialization the
 /// evidence is gone: that is the entire defect — the key vanishes into a default and
@@ -54,7 +70,7 @@ const CANONICAL_SCOPE_KEY: &str = "requires_scope";
 /// # Errors
 ///
 /// Returns a message naming the operation or field, the key found, and the key to use.
-pub fn reject_drifted_security_keys(raw: &Value) -> Result<(), String> {
+pub fn reject_drifted_keys(raw: &Value) -> Result<(), String> {
     for collection in ["queries", "mutations"] {
         for operation in raw.get(collection).and_then(Value::as_array).into_iter().flatten() {
             let name = operation.get("name").and_then(Value::as_str).unwrap_or("<unnamed>");
@@ -66,6 +82,16 @@ pub fn reject_drifted_security_keys(raw: &Value) -> Result<(), String> {
                          with no injected filter and no diagnostic. Rename it to `{canonical}`. \
                          Values may be either \"jwt:<claim>\" or {{\"source\": \"jwt\", \"claim\": \
                          \"<claim>\"}}."
+                    ));
+                }
+            }
+            for (found, canonical) in DRIFTED_SHAPE_KEYS {
+                if operation.get(*found).is_some() {
+                    return Err(format!(
+                        "{collection} → '{name}' declares list-ness under `{found}`, which is the \
+                         TOML `[queries.*]` spelling — this authoring surface reads `{canonical}`. \
+                         Rename it to `{canonical}`. The two surfaces name one concept two ways; \
+                         only `{canonical}` binds here."
                     ));
                 }
             }
