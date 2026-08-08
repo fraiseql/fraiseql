@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`EventListener`, `ListenerConfig` and `OverflowPolicy` are removed (#931).** The
+  LISTEN/NOTIFY listener's `overflow_policy` knob (`Drop` / `Block` / `DropOldest`) was
+  accepted, documented and stored, and never read: the loop hard-coded `try_send` and warned
+  "Channel full, dropping event" whatever was configured, so an operator setting `Block` to
+  avoid event loss got drop-newest anyway, silently. Nothing in the workspace wired
+  `EventListener`, and LISTEN/NOTIFY is ephemeral by construction — a notification delivered
+  while no listener is connected is gone. `ChangeLogListener` is the one delivery path, and
+  it now has a durable dispatch ledger (#935). `ObserverRuntimeConfig.overflow_policy` goes
+  with the enum; it was likewise never read. That struct is not `deny_unknown_fields`, so an
+  existing TOML carrying `overflow_policy = "drop"` still parses and the key is ignored — as
+  it effectively always was. Embedders needing backpressure should consume
+  `ChangeLogListener` and apply it at their own dispatch boundary, where a bounded channel
+  can block without dropping a durable row.
+
+- **Observer `cache` actions now require a backend, or the server refuses to boot (#985).**
+  The Redis cache/invalidate transport shipped in #428 but no `fraiseql.toml` could reach it.
+  It is now mounted from `[observers.runtime.redis]` when an enabled observer declares a
+  `cache` action. Declaring one **without** that block is a boot error, as is declaring one
+  in a binary built without the new `observers-cache` feature (in `full`). Previously such a
+  deployment booted and failed every dispatch forever with "no backend wired".
+
+- **`tb_observer_log.status` values changed (#932).** The runtime wrote `"error"`, which
+  migration 06's `ck_observer_log_status` CHECK has never accepted, so every failure row was
+  rejected by the database and dropped behind a `warn!`. It now writes `"failed"`. Queries or
+  dashboards filtering `status = 'error'` should filter `'failed'` — they were matching
+  nothing before, since the rows never landed.
+
 - **The security-config keys that reached no consumer are refused by name (#983).** Four
   leftovers from the #977 seam typing, all of the same class — config that is accepted or
   emitted and read by nothing:
