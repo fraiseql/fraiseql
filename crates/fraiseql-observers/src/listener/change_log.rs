@@ -685,7 +685,8 @@ impl ChangeLogListener {
         // re-dispatch the entire history. Rows below the floor are covered by the
         // window clause instead, so the worst case is a bounded, one-time replay
         // of the last `commit_lag_window` — at-least-once, as documented.
-        let sweeping = self.config.sweep_every == 0 || self.polls % self.config.sweep_every == 0;
+        let sweeping =
+            self.config.sweep_every == 0 || self.polls.is_multiple_of(self.config.sweep_every);
         self.polls = self.polls.wrapping_add(1);
         let pk_bound = if sweeping {
             self.resume_floor

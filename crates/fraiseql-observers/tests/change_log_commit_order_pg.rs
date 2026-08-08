@@ -20,7 +20,7 @@
 //! ```
 
 #![cfg(feature = "postgres")]
-#![allow(clippy::unwrap_used)] // Reason: integration test file
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: integration test file
 
 use std::str::FromStr;
 
