@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **The minimum supported Rust version is now 1.94 (was 1.92) (#933).** Required to clear
+  RUSTSEC-2026-0222 (`wasmtime`: stores can mix up type indices between engines): the 44.x
+  line we shipped has no patched release, and every patched line (46.0.2 / 47.0.3) pulls
+  cranelift 0.133, which requires 1.94. The same bump also clears **RUSTSEC-2026-0188**
+  (`wasmtime-wasi`: WASI hard links and renames bypass `FilePerms` on the destination path),
+  whose fix likewise landed outside the 44.x line — both advisory ignores are removed from
+  `deny.toml` and `.cargo/audit.toml`, and no wasmtime advisory is accepted any more.
+  Raised now rather than at the 2026-10-01 ignore deadline, because an expiring ignore
+  reddens the *required* `security` check on a date rather than on a push, i.e. on every
+  branch at once.
+
+  `wasmtime` and `wasmtime-wasi` move together to 46.0.2 (opt-in `runtime-wasm` feature;
+  not in a default build). `rust-version`, `rust-toolchain.toml`, the Dagger MSRV leg and
+  its mirrored `rust:1.94` base image all move in lockstep. Two published crates carried
+  MSRV metadata that was already untrue and now inherit the workspace value:
+  `fraiseql-storage` claimed `1.75`, and `fraiseql-federation` declared no `rust-version`
+  at all.
+
 - **`computed` is pinned as an authoring-only flag (#927).** Python's
   `@fraiseql.field(computed=True)` and F#'s `[<GraphQLField(Computed = true)>]` both used to
   serialize a `computed` key into `schema.json`. `IntermediateField` has no such member and

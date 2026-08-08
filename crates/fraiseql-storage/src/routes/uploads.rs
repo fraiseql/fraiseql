@@ -421,7 +421,7 @@ async fn load_owned_session(
 /// The uniform refusal for a session the caller cannot see: `401` for an
 /// unauthenticated caller (who can never own a session), `404` otherwise.
 fn session_not_visible(user: Option<&Extension<StorageUser>>) -> Response {
-    if user.map_or(true, |Extension(u)| u.user_id.is_none()) {
+    if user.is_none_or(|Extension(u)| u.user_id.is_none()) {
         error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
     } else {
         error_response(StatusCode::NOT_FOUND, "not_found", "Upload not found")
