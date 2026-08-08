@@ -1063,28 +1063,24 @@ impl ObserverRuntime {
             .map_err(|e| ServerError::ConfigError(format!("Failed to build matcher: {}", e)))?;
 
         // Build new executor sharing the existing DLQ
-        let new_executor = Arc::new(
-            ObserverExecutor::new_with_email(
-                new_matcher.clone(),
-                self.dlq.clone(),
-                self.config.email.as_ref(),
-            )
-            .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
-            // #632: keep the database pool wired across hot reloads.
-            .with_database_pool(self.config.pool.clone()),
-        );
+        let rebuilt = ObserverExecutor::new_with_email(
+            new_matcher.clone(),
+            self.dlq.clone(),
+            self.config.email.as_ref(),
+        )
+        .map_err(|e| ServerError::ConfigError(format!("invalid observer email config: {e}")))?
+        // #632: keep the database pool wired across hot reloads.
+        .with_database_pool(self.config.pool.clone());
         // #985: and keep the cache transport wired too — a reload rebuilds the
         // executor, so without this a reloaded `cache` action silently stops
-        // invalidating while every other action keeps working.
+        // invalidating while every other action keeps working. Mounted before
+        // the `Arc`, so there is no shared owner to unwrap back out of.
         #[cfg(feature = "observers-cache")]
-        let new_executor = match self.cache_invalidator.clone() {
-            Some(invalidator) => Arc::new(
-                Arc::try_unwrap(new_executor)
-                    .unwrap_or_else(|_| unreachable!("sole owner before publication"))
-                    .with_cache_invalidation(invalidator),
-            ),
-            None => new_executor,
+        let rebuilt = match self.cache_invalidator.clone() {
+            Some(invalidator) => rebuilt.with_cache_invalidation(invalidator),
+            None => rebuilt,
         };
+        let new_executor = Arc::new(rebuilt);
 
         // Atomic swap - write locks block readers briefly
         debug!("Swapping matcher, executor, and entity_type_index atomically");
