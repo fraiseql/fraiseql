@@ -42,7 +42,6 @@ enable_concurrent = true  # Still use concurrent action execution
 enable_dedup = false  # No deduplication (at-most-once delivery)
 max_concurrency = 50
 max_concurrent_actions = 10
-overflow_policy = "drop"
 shutdown_timeout = "30s"
 
 # Transport configuration

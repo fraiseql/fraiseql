@@ -15,11 +15,11 @@
 //! ```text
 //! Database mutation (INSERT/UPDATE/DELETE)
 //!     ↓
-//! PostgreSQL pg_notify('fraiseql_events', event_data)
+//! Row appended to core.tb_entity_change_log (the outbox)
 //!     ↓
-//! EventListener (separate connection) receives NOTIFY
+//! ChangeLogListener polls it, anti-joining the dispatch ledger
 //!     ↓
-//! Events sent to bounded mpsc::channel (backpressure)
+//! Each dispatched batch recorded, so nothing is replayed or skipped
 //!     ↓
 //! ObserverExecutor processes in parallel worker pool
 //!     ├─ Condition evaluation (skip if condition false)
@@ -108,8 +108,7 @@ pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, MultiListenerConfig,
-    ObserverDefinition, ObserverRuntimeConfig, OverflowPolicy, RedisConfig, RetryConfig,
-    SmtpTlsMode,
+    ObserverDefinition, ObserverRuntimeConfig, RedisConfig, RetryConfig, SmtpTlsMode,
 };
 #[cfg(feature = "dedup")]
 pub use dedup::redis::RedisDeduplicationStore;
@@ -131,9 +130,7 @@ pub use job_queue::traits::{JobQueue as JobQueueTrait, MockJobQueue};
 #[cfg(feature = "queue")]
 pub use job_queue::{Job as JobQueueItem, JobState};
 #[cfg(feature = "postgres")]
-pub use listener::{
-    ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, EventListener, ListenerConfig,
-};
+pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
 pub use listener::{
     CheckpointLease, FailoverEvent, FailoverManager, ListenerHandle, ListenerHealth, ListenerState,
     ListenerStateMachine, MultiListenerCoordinator,

@@ -135,7 +135,6 @@ async fn main() -> fraiseql_observers::Result<()> {
             observers:               HashMap::new(),
             channel_capacity:        1000,
             max_concurrency:         50,
-            overflow_policy:         fraiseql_observers::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
             shutdown_timeout:        "30s".to_string(),
             max_dlq_size:            None,

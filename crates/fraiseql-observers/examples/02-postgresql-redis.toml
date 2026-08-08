@@ -72,7 +72,6 @@ enable_concurrent = true  # ✅ Concurrent action execution
 enable_dedup = true  # ✅ Event deduplication (prevents duplicate processing)
 max_concurrency = 50
 max_concurrent_actions = 10
-overflow_policy = "drop"
 shutdown_timeout = "30s"
 
 # Redis configuration (dedup + caching)

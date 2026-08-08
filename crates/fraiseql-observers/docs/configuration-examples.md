@@ -116,7 +116,6 @@ pub async fn production_config() -> ObserverRuntimeConfig {
         }),
 
         // Backpressure: Drop oldest events if queue fills
-        overflow_policy: OverflowPolicy::DropOldest,
         max_queue_size: 10000,
 
         // Logging
@@ -209,7 +208,6 @@ pub async fn development_config() -> ObserverRuntimeConfig {
         multi_listener_config: None,
 
         // No backpressure limits in dev
-        overflow_policy: OverflowPolicy::Block,
         max_queue_size: 1000,
 
         log_level: "debug".to_string(),
@@ -333,7 +331,6 @@ pub async fn performance_config() -> ObserverRuntimeConfig {
         },
 
         // Backpressure: Large queue for throughput
-        overflow_policy: OverflowPolicy::DropOldest,
         max_queue_size: 50000,  // Large buffer
 
         log_level: "warn".to_string(),  // Reduce logging overhead
@@ -395,7 +392,6 @@ pub async fn budget_config() -> ObserverRuntimeConfig {
         multi_listener_config: None,
 
         // Moderate queue
-        overflow_policy: OverflowPolicy::DropOldest,
         max_queue_size: 5000,
 
         log_level: "warn".to_string(),
