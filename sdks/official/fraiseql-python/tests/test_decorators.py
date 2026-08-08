@@ -1754,6 +1754,49 @@ def test_computed_field_excluded_from_both_inputs() -> None:
         assert "price" in field_names
 
 
+def test_computed_is_never_emitted_into_the_exported_schema() -> None:
+    """#927: `computed` is authoring-only and must not reach `schema.json`.
+
+    The three tests above prove the flag *works* — `crud.py` reads it to decide which
+    fields to omit from the input types it generates, and that generation happens here,
+    before export. This one proves it stops there.
+
+    `IntermediateField` has no `computed` member and denies unknown fields, so emitting
+    the key made a schema the compiler refuses outright: `@fraiseql.field(computed=True)`,
+    exactly as `decorators.py`'s own docstring shows it, produced
+    ``unknown field `computed` `` naming a parameter the SDK documents as supported.
+
+    Asserted on the *output* type's fields rather than on the input types, because that is
+    where `_build_field_def` runs and where the key used to be added. Whether `computed`
+    should become a real compiled-schema member — so a generated client knows not to send
+    the field — was decided against: it would add surface under the freeze, and the CRUD
+    generator that consumes it runs before the compiler ever sees the schema.
+    """
+    from typing import Annotated
+
+    @fraiseql.type(crud=True, sql_source="v_invoice")
+    class Invoice:
+        pk_invoice: int
+        slug: Annotated[str, fraiseql.field(computed=True)]
+        amount: float
+
+    schema = SchemaRegistry.get_schema()
+    invoice = next(t for t in schema["types"] if t["name"] == "Invoice")
+
+    slug = next(f for f in invoice["fields"] if f["name"] == "slug")
+    assert "computed" not in slug, (
+        "#927: `computed` must not be emitted — the compiler denies unknown fields, so the "
+        f"key makes the whole schema uncompilable. Got: {slug}"
+    )
+    for field in invoice["fields"]:
+        assert "computed" not in field, f"#927: no field may carry `computed`, got {field}"
+
+    # The flag is still doing its job — otherwise this test would pass by the flag having
+    # been removed outright rather than by it staying authoring-only.
+    create_t = next(t for t in schema["input_types"] if t["name"] == "CreateInvoiceInput")
+    assert "slug" not in [f["name"] for f in create_t["fields"]]
+
+
 # ── Federation field-level directive tests ──────────────────────────────
 
 
