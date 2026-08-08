@@ -488,6 +488,17 @@ impl SchemaMerger {
         // `tenant_claim` compiles to a tenancy config that can resolve no tenant at all.
         toml_schema.tenancy.validate()?;
 
+        // #897: likewise for role definitions — a role with no name or no scopes grants
+        // nothing and cannot be referenced, so it is refused on both workflows rather
+        // than compiled into a `role_definitions` entry that can never match.
+        for role in &toml_schema.security.role_definitions {
+            role.validate()?;
+        }
+
+        // #897: likewise for role definitions — a role with no name or no scopes grants
+        // nothing and cannot be referenced, so it is refused on both workflows rather
+        // than compiled into a `role_definitions` entry that can never match.
+
         // #892: same reasoning, same funnel. `[tenancy]` is self-contained — it references
         // no type — so it is checked here rather than only in `TomlSchema::validate()`,
         // which `merge_files` does not call. A `mode` other than `none` with an empty
@@ -700,8 +711,17 @@ impl SchemaMerger {
         // a compiled file rather than checking key presence.
         let sec = &toml_schema.security;
         merged["security"] = serde_json::to_value(fraiseql_core::schema::SecurityConfig {
-            role_definitions:       Vec::new(),
-            default_role:           None,
+            // #897: lowered from `[[security.role_definitions]]` / `default_role`, through
+            // the same `to_runtime` the project-config producer uses. Hard-coded empty
+            // until then, which made field-level RBAC undeclarable on this workflow: a
+            // field marked `requires_scope` was denied to everyone, because no role could
+            // be defined to grant the scope.
+            role_definitions:       sec
+                .role_definitions
+                .iter()
+                .map(crate::config::security::RoleDefinitionConfig::to_runtime)
+                .collect(),
+            default_role:           sec.default_role.clone(),
             multi_tenant:           sec.multi_tenant,
             rls:                    sec.rls.clone(),
             // #892: lowered from `[tenancy]`, through the same `to_runtime` the project-

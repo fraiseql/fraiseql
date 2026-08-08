@@ -282,6 +282,38 @@ pub struct RoleDefinitionConfig {
     pub scopes:      Vec<String>,
 }
 
+impl RoleDefinitionConfig {
+    /// Lower into the type the runtime's `role_has_scope` consults.
+    ///
+    /// The single lowering shared by both security producers — `SecurityConfig::to_json`
+    /// for a project `fraiseql.toml` and `schema::merger` for a TOML schema (`#897`).
+    /// `role_has_scope` is the sole input to field-level access, so a grant that does not
+    /// arrive here is a grant that does not exist; #757 is what a second hand-written copy
+    /// of this mapping costs.
+    #[must_use]
+    pub fn to_runtime(&self) -> fraiseql_core::schema::RoleDefinition {
+        fraiseql_core::schema::RoleDefinition {
+            description: self.description.clone(),
+            ..fraiseql_core::schema::RoleDefinition::new(self.name.clone(), self.scopes.clone())
+        }
+    }
+
+    /// Reject a role that cannot grant anything.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the name is empty or the role declares no scopes.
+    pub fn validate(&self) -> Result<()> {
+        if self.name.is_empty() {
+            anyhow::bail!("Role name cannot be empty");
+        }
+        if self.scopes.is_empty() {
+            anyhow::bail!("Role '{}' must have at least one scope", self.name);
+        }
+        Ok(())
+    }
+}
+
 /// Tenancy isolation mode from fraiseql.toml.
 ///
 /// Determines how tenant data is separated at the database level.
@@ -447,12 +479,7 @@ impl SecurityConfig {
 
         // Validate role definitions if present
         for role in &self.role_definitions {
-            if role.name.is_empty() {
-                anyhow::bail!("Role name cannot be empty");
-            }
-            if role.scopes.is_empty() {
-                anyhow::bail!("Role '{}' must have at least one scope", role.name);
-            }
+            role.validate()?;
         }
 
         Ok(())
@@ -509,14 +536,8 @@ impl SecurityConfig {
     ///   and `key_size` have no consumer (nonce/key sizes are fixed by the algorithm) and are not
     ///   emitted.
     pub fn to_json(&self) -> serde_json::Value {
-        let role_definitions: Vec<fraiseql_core::schema::RoleDefinition> = self
-            .role_definitions
-            .iter()
-            .map(|r| fraiseql_core::schema::RoleDefinition {
-                description: r.description.clone(),
-                ..fraiseql_core::schema::RoleDefinition::new(r.name.clone(), r.scopes.clone())
-            })
-            .collect();
+        let role_definitions: Vec<fraiseql_core::schema::RoleDefinition> =
+            self.role_definitions.iter().map(RoleDefinitionConfig::to_runtime).collect();
 
         let algorithm = if self.state_encryption.algorithm == "aes-256-gcm" {
             fraiseql_core::schema::EncryptionAlgorithm::Aes256Gcm

@@ -111,6 +111,16 @@ const MANIFEST: &[(&str, &str)] = &[
          via CachedDatabaseAdapter::validate_rls_active (#758/#762)",
     ),
     (
+        "security.role_definitions",
+        "CompiledSchema::role_has_scope → SecurityContext::can_access_scope → field-level \
+         RBAC filtering; the only input to a `requires_scope` decision (#897/#757)",
+    ),
+    (
+        "security.default_role",
+        "SecurityContext::can_access_scope fallback for an authenticated principal with an \
+         empty role set; never reaches an anonymous request (#897/#894)",
+    ),
+    (
         "tenancy.mode",
         "CompiledSchema::tenancy_mode → TenantExecutorFactory schema provisioning + \
          is_multi_tenant; row mode additionally drives compile-time @tenant_id \

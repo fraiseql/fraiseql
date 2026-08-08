@@ -1628,6 +1628,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Field-level RBAC is declarable in the TOML-schema workflow (#897).**
+  `role_definitions` and `default_role` existed only in a project `fraiseql.toml`
+  (`[fraiseql.security]`). The TOML-schema / `--schema-dir` workflow has a separate security
+  producer (`schema/merger.rs`), and it emitted `role_definitions: Vec::new()` and
+  `default_role: None` unconditionally. `SecuritySettings` is `deny_unknown_fields`, so
+  writing `[[security.role_definitions]]` was a hard compile error — the better failure —
+  but the effect was that a whole documented feature was unreachable from that workflow:
+  marking `Employee.salary` with `requires_scope` produced a schema where `role_has_scope`
+  answered `false` for every role, so every caller was denied the field with no fix short of
+  migrating compile workflows. Both keys are now accepted and lowered, sharing one
+  `RoleDefinitionConfig::to_runtime` with the project-config producer, and a role declaring
+  no scopes is refused on both paths rather than compiled into an entry nothing can match.
+
 - **`[tenancy]` is declarable in the TOML-schema workflow (#892).** `tenancy.mode` — which
   drives schema-per-tenant provisioning (`TenancyMode::Schema`), row-mode `@tenant_id`
   validation and `is_multi_tenant()` — existed only in a project `fraiseql.toml` as
