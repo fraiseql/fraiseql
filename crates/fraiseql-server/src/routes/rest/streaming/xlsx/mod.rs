@@ -403,8 +403,8 @@ fn write_cell(
     // 3. Downstream tooling that round-trips through CSV (a common export chain for analytics
     //    pipelines).
     //
-    // See `super::csv::guard_formula_injection` for the threat model.
-    use super::csv::guard_formula_injection;
+    // See `super::guard_formula_injection` for the threat model.
+    use super::guard_formula_injection;
     match value {
         serde_json::Value::Null => Ok(()),
         serde_json::Value::Bool(b) => worksheet.write_boolean(row, col, *b).map(|_| ()),

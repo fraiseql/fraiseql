@@ -310,3 +310,69 @@ fn requested_total_limit_distinguishes_absent_from_supplied() {
     // A malformed value is not a cap — the parameter validator rejects it upstream.
     assert_eq!(requested_total_limit(&[("limit", "abc")]), None);
 }
+
+// ---------------------------------------------------------------------------
+// Formula-injection (CSV injection) guard — OWASP mitigation. Added during
+// the v2.4.0 security audit of PR #328 (#269 REST exports); moved here from
+// `streaming::csv::tests` with the guard itself (#920) so an XLSX-only build
+// compiles and runs them too.
+// ---------------------------------------------------------------------------
+
+#[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+mod formula_injection {
+    use super::super::guard_formula_injection;
+
+    #[test]
+    fn guard_prefixes_equal_with_single_quote() {
+        assert_eq!(
+            guard_formula_injection("=HYPERLINK(\"http://evil\")"),
+            "'=HYPERLINK(\"http://evil\")"
+        );
+    }
+
+    #[test]
+    fn guard_prefixes_plus() {
+        assert_eq!(guard_formula_injection("+SUM(1+1)"), "'+SUM(1+1)");
+    }
+
+    #[test]
+    fn guard_prefixes_minus() {
+        assert_eq!(guard_formula_injection("-2+3"), "'-2+3");
+    }
+
+    #[test]
+    fn guard_prefixes_at_sign() {
+        // `@` triggers Excel's macro evaluation (e.g. legacy @SUM, @WEBSERVICE).
+        assert_eq!(guard_formula_injection("@SUM(A1:A10)"), "'@SUM(A1:A10)");
+    }
+
+    #[test]
+    fn guard_prefixes_leading_tab() {
+        // Tab + `=` is a documented OWASP variant — Excel treats it as
+        // whitespace-prefixed formula start.
+        assert_eq!(guard_formula_injection("\t=cmd|'/C calc'!A0"), "'\t=cmd|'/C calc'!A0");
+    }
+
+    #[test]
+    fn guard_prefixes_leading_cr() {
+        assert_eq!(guard_formula_injection("\rmalicious"), "'\rmalicious");
+    }
+
+    #[test]
+    fn guard_passes_through_safe_strings() {
+        // Common non-dangerous prefixes — alphanumerics, quotes, brackets,
+        // currency symbols — must not be touched.
+        for safe in ["Alice", "1234", "(NULL)", "$100.00", "false", "\"quoted\""] {
+            assert_eq!(
+                guard_formula_injection(safe),
+                safe,
+                "safe input {safe:?} must pass through unchanged"
+            );
+        }
+    }
+
+    #[test]
+    fn guard_passes_through_empty_string() {
+        assert_eq!(guard_formula_injection(""), "");
+    }
+}
