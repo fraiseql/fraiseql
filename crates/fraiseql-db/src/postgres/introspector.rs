@@ -3,6 +3,7 @@ use deadpool_postgres::Pool;
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
+use super::pg_detail;
 use crate::{
     DatabaseType,
     introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
@@ -40,7 +41,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to list fact tables: {e}"),
+                message:   format!("Failed to list fact tables: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -87,7 +88,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 .await
         }
         .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to query column information: {e}"),
+            message:   format!("Failed to query column information: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -143,7 +144,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 .await
         }
         .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to query index information: {e}"),
+            message:   format!("Failed to query index information: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -182,7 +183,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to list relations: {e}"),
+                message:   format!("Failed to list relations: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -228,7 +229,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(&query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query sample JSONB: {e}"),
+                message:   format!("Failed to query sample JSONB: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -273,7 +274,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(&query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query sample JSON rows: {e}"),
+                message:   format!("Failed to query sample JSON rows: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -319,7 +320,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 .await
         }
         .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to probe function existence: {e}"),
+            message:   format!("Failed to probe function existence: {}", pg_detail(&e)),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -345,7 +346,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
             .query_one("SELECT to_regclass($1) IS NOT NULL", &[&quoted])
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to probe relation existence: {e}"),
+                message:   format!("Failed to probe relation existence: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -412,7 +413,7 @@ impl PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(query, &[&view_name]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query view columns: {e}"),
+                message:   format!("Failed to query view columns: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -511,7 +512,7 @@ impl PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(query, &[&view_name]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query view columns: {e}"),
+                message:   format!("Failed to query view columns: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
