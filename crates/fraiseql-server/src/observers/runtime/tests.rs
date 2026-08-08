@@ -484,3 +484,25 @@ mod bridge_backpressure {
         handle.abort();
     }
 }
+
+/// #932: every status this runtime writes into `tb_observer_log` must be one the
+/// shipped `ck_observer_log_status` CHECK accepts. It emitted `"error"`, which
+/// the constraint has never permitted, so the INSERT was rejected and the audit
+/// row disappeared behind a `warn!` — precisely when a delivery is failing and
+/// the record is what an operator needs.
+#[test]
+fn observer_log_statuses_are_accepted_by_the_shipped_check() {
+    use fraiseql_observers::migrations::OBSERVER_LOG_STATUSES;
+
+    for status in [
+        super::OBSERVER_LOG_STATUS_SUCCESS,
+        super::OBSERVER_LOG_STATUS_FAILED,
+    ] {
+        assert!(
+            OBSERVER_LOG_STATUSES.contains(&status),
+            "the runtime writes tb_observer_log.status = {status:?}, which migration 06's \
+             ck_observer_log_status rejects (accepts: {OBSERVER_LOG_STATUSES:?}) — the row \
+             is silently dropped"
+        );
+    }
+}
