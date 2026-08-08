@@ -266,6 +266,10 @@ func (m *FraiseqlCi) ShellGates(
 		// Every typed TOML config loader has a coverage manifest naming each
 		// key's consumer (#909). Retrospective rule 2: no unconsumed surface.
 		"bash tools/check-config-loaders.sh",
+		// No example provisions or points at a backend #374 removed. The
+		// PostgreSQL-only de-scope covered crates/; examples/ kept a running
+		// MySQL topology for three phases afterwards (#940).
+		"bash tools/check-examples-postgres-only.sh",
 	}, "\n")
 
 	return m.shellBase().

@@ -1,7 +1,10 @@
-version: '3.8'
-
 services:
-  # PostgreSQL for saga coordination and users
+  # One PostgreSQL instance, three databases — one per subgraph's store.
+  #
+  # The saga pattern exists because there is no distributed transaction across
+  # those stores; separate databases (not separate schemas) keep that honest,
+  # since a single connection cannot span them. FraiseQL is PostgreSQL-only
+  # since v2.15.0 (#374), and a `mysql://` DATABASE_URL is a boot refusal.
   postgres:
     image: postgres:15-alpine
     environment:
@@ -19,30 +22,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # MySQL for orders
-  mysql:
-    image: mysql:8.0-alpine
-    environment:
-      MYSQL_ROOT_PASSWORD: root123
-      MYSQL_DATABASE: fraiseql
-      MYSQL_USER: fraiseql
-      MYSQL_PASSWORD: fraiseql123
-    ports:
-      - "3306:3306"
-    volumes:
-      - ./fixtures/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # SQLite for inventory (runs in-memory for simplicity)
-  # In real scenario, would be a separate service
-  # For this demo, inventory runs in the orders service
-
-  # Users Subgraph Service
+  # Users Subgraph Service — database `fraiseql` (saga coordination + users)
   users-service:
     build:
       context: ./users-service
@@ -61,20 +41,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # Orders Subgraph Service
+  # Orders Subgraph Service — database `fraiseql_orders`
   orders-service:
     build:
       context: ./orders-service
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: mysql://fraiseql:fraiseql123@mysql:3306/fraiseql
-      POSTGRES_URL: postgres://fraiseql:fraiseql123@postgres:5432/fraiseql
+      DATABASE_URL: postgres://fraiseql:fraiseql123@postgres:5432/fraiseql_orders
       RUST_LOG: info
     ports:
       - "4002:4000"
     depends_on:
-      mysql:
-        condition: service_healthy
       postgres:
         condition: service_healthy
     healthcheck:
@@ -83,18 +60,18 @@ services:
       timeout: 5s
       retries: 5
 
-  # Inventory Subgraph Service
+  # Inventory Subgraph Service — database `fraiseql_inventory`
   inventory-service:
     build:
       context: ./inventory-service
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: mysql://fraiseql:fraiseql123@mysql:3306/fraiseql_inventory
+      DATABASE_URL: postgres://fraiseql:fraiseql123@postgres:5432/fraiseql_inventory
       RUST_LOG: info
     ports:
       - "4003:4000"
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/graphql"]
@@ -120,7 +97,6 @@ services:
 
 volumes:
   postgres_data:
-  mysql_data:
 
 networks:
   default:

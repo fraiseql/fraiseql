@@ -3,8 +3,8 @@ import json
 import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify
-import mysql.connector
-from mysql.connector import Error
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 import logging
 
@@ -14,16 +14,21 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 def get_db_connection(database='fraiseql_inventory'):
-    """Get database connection"""
+    """Get database connection.
+
+    The inventory subgraph owns `fraiseql_inventory`, separate from the orders
+    and users stores — no transaction spans them, which is the whole reason the
+    saga compensates rather than rolls back.
+    """
     try:
-        conn = mysql.connector.connect(
-            host='mysql',
+        conn = psycopg2.connect(
+            host='postgres',
             database=database,
             user='fraiseql',
             password='fraiseql123'
         )
         return conn
-    except Error as e:
+    except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise
 
@@ -69,7 +74,7 @@ def handle_reserve_items(variables):
         # Check if items are in stock
         for item in items:
             cur.execute(
-                'SELECT stock FROM products WHERE id = %s',
+                'SELECT stock FROM tb_product WHERE id = %s',
                 (item['productId'],)
             )
             result = cur.fetchone()
@@ -83,19 +88,19 @@ def handle_reserve_items(variables):
 
         # Create reservation
         cur.execute('''
-            INSERT INTO reservations (id, order_id, status)
+            INSERT INTO tb_reservation (id, order_id, status)
             VALUES (%s, %s, %s)
         ''', (reservation_id, order_id, 'reserved'))
 
         # Create reservation items and decrease stock
         for item in items:
             cur.execute('''
-                INSERT INTO reservation_items (id, reservation_id, product_id, quantity)
-                VALUES (%s, %s, %s, %s)
-            ''', (str(uuid.uuid4()), reservation_id, item['productId'], item['quantity']))
+                INSERT INTO tb_reservation_item (id, fk_reservation, product_id, quantity)
+                SELECT %s, pk_reservation, %s, %s FROM tb_reservation WHERE id = %s
+            ''', (str(uuid.uuid4()), item['productId'], item['quantity'], reservation_id))
 
             cur.execute('''
-                UPDATE products SET stock = stock - %s WHERE id = %s
+                UPDATE tb_product SET stock = stock - %s WHERE id = %s
             ''', (item['quantity'], item['productId']))
 
         conn.commit()
@@ -138,19 +143,22 @@ def handle_release_reservation(variables):
 
         # Get reservation items
         cur.execute('''
-            SELECT product_id, quantity FROM reservation_items WHERE reservation_id = %s
+            SELECT i.product_id, i.quantity
+              FROM tb_reservation_item i
+              JOIN tb_reservation r ON r.pk_reservation = i.fk_reservation
+             WHERE r.id = %s
         ''', (reservation_id,))
         items = cur.fetchall()
 
         # Restore stock
         for product_id, quantity in items:
             cur.execute('''
-                UPDATE products SET stock = stock + %s WHERE id = %s
+                UPDATE tb_product SET stock = stock + %s WHERE id = %s
             ''', (quantity, product_id))
 
         # Update reservation status
         cur.execute('''
-            UPDATE reservations SET status = %s WHERE id = %s
+            UPDATE tb_reservation SET status = %s WHERE id = %s
         ''', ('released', reservation_id))
 
         conn.commit()
@@ -178,9 +186,9 @@ def handle_get_reservation(variables):
 
     try:
         conn = get_db_connection()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute('SELECT * FROM reservations WHERE id = %s', (reservation_id,))
+        cur.execute('SELECT * FROM tb_reservation WHERE id = %s', (reservation_id,))
         reservation = cur.fetchone()
 
         if not reservation:
@@ -192,7 +200,10 @@ def handle_get_reservation(variables):
             }), 404
 
         cur.execute('''
-            SELECT product_id, quantity FROM reservation_items WHERE reservation_id = %s
+            SELECT i.product_id, i.quantity
+              FROM tb_reservation_item i
+              JOIN tb_reservation r ON r.pk_reservation = i.fk_reservation
+             WHERE r.id = %s
         ''', (reservation_id,))
         items = cur.fetchall()
 
@@ -229,9 +240,9 @@ def handle_get_product(variables):
 
     try:
         conn = get_db_connection()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute('SELECT * FROM products WHERE id = %s', (product_id,))
+        cur.execute('SELECT * FROM tb_product WHERE id = %s', (product_id,))
         product = cur.fetchone()
 
         cur.close()

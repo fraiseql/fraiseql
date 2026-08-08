@@ -3,8 +3,8 @@ import json
 import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify
-import mysql.connector
-from mysql.connector import Error
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 import logging
 
@@ -13,17 +13,30 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Items join through the surrogate key, not the UUID — `tb_order_item.fk_order`
+# references `tb_order.pk_order` (the Trinity pattern).
+ORDER_ITEMS_SQL = '''
+    SELECT i.*
+      FROM tb_order_item i
+      JOIN tb_order o ON o.pk_order = i.fk_order
+     WHERE o.id = %s
+'''
+
 def get_db_connection():
-    """Get database connection"""
+    """Get database connection.
+
+    The orders subgraph owns `fraiseql_orders`; it cannot see the users or
+    inventory tables, which is what makes the saga's compensations necessary.
+    """
     try:
-        conn = mysql.connector.connect(
-            host='mysql',
-            database='fraiseql',
+        conn = psycopg2.connect(
+            host='postgres',
+            database='fraiseql_orders',
             user='fraiseql',
             password='fraiseql123'
         )
         return conn
-    except Error as e:
+    except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise
 
@@ -71,16 +84,16 @@ def handle_create_order(variables):
 
         # Create order
         cur.execute('''
-            INSERT INTO orders (id, user_id, status, total, created_at)
+            INSERT INTO tb_order (id, user_id, status, total, created_at)
             VALUES (%s, %s, %s, %s, NOW())
         ''', (order_id, user_id, 'confirmed', total))
 
         # Insert order items
         for item in items:
             cur.execute('''
-                INSERT INTO order_items (id, order_id, product_id, quantity, price)
-                VALUES (%s, %s, %s, %s, %s)
-            ''', (str(uuid.uuid4()), order_id, item['productId'], item['quantity'], item['price']))
+                INSERT INTO tb_order_item (id, fk_order, product_id, quantity, price)
+                SELECT %s, pk_order, %s, %s, %s FROM tb_order WHERE id = %s
+            ''', (str(uuid.uuid4()), item['productId'], item['quantity'], item['price'], order_id))
 
         conn.commit()
         cur.close()
@@ -123,7 +136,7 @@ def handle_cancel_order(variables):
         cur = conn.cursor()
 
         cur.execute('''
-            UPDATE orders SET status = %s WHERE id = %s
+            UPDATE tb_order SET status = %s WHERE id = %s
         ''', ('cancelled', order_id))
 
         conn.commit()
@@ -151,9 +164,9 @@ def handle_get_order(variables):
 
     try:
         conn = get_db_connection()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute('SELECT * FROM orders WHERE id = %s', (order_id,))
+        cur.execute('SELECT * FROM tb_order WHERE id = %s', (order_id,))
         order = cur.fetchone()
 
         if not order:
@@ -164,7 +177,7 @@ def handle_get_order(variables):
                 "errors": [{"message": f"Order {order_id} not found"}]
             }), 404
 
-        cur.execute('SELECT * FROM order_items WHERE order_id = %s', (order_id,))
+        cur.execute(ORDER_ITEMS_SQL, (order_id,))
         items = cur.fetchall()
 
         cur.close()
@@ -202,14 +215,14 @@ def handle_get_orders_by_user(variables):
 
     try:
         conn = get_db_connection()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute('SELECT * FROM orders WHERE user_id = %s ORDER BY created_at DESC', (user_id,))
+        cur.execute('SELECT * FROM tb_order WHERE user_id = %s ORDER BY created_at DESC', (user_id,))
         orders = cur.fetchall()
 
         result_orders = []
         for order in orders:
-            cur.execute('SELECT * FROM order_items WHERE order_id = %s', (order['id'],))
+            cur.execute(ORDER_ITEMS_SQL, (order['id'],))
             items = cur.fetchall()
 
             result_orders.append({

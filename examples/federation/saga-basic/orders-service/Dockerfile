@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install dependencies
-RUN pip install --no-cache-dir flask graphene mysql-connector-python
+RUN pip install --no-cache-dir flask graphene psycopg2-binary
 
 # Create non-root user
 RUN groupadd -r app && useradd -r -g app app
