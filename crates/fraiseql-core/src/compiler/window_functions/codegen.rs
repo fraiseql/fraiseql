@@ -60,8 +60,8 @@ impl WindowPlanner {
 
         // SECURITY (#794): defence-in-depth on top of the unconditional charset checks
         // below. Built here, in the planner the shipped binary actually calls — the
-        // allowlist existed but only `WindowFunctionPlanner::plan` consulted it, and
-        // nothing outside tests calls that.
+        // allowlist existed but was consulted only by a second, unreachable planner
+        // (deleted in #881, which moved its test coverage onto this one).
         let allowlist = WindowAllowlist::from_metadata(metadata);
 
         // Convert select columns to SQL expressions

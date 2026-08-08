@@ -30,7 +30,7 @@ pub use ir::{
 };
 pub use parser::SchemaParser;
 pub use validator::{SchemaValidationError, SchemaValidator};
-pub use window_functions::{WindowExecutionPlan, WindowFunction, WindowFunctionPlanner};
+pub use window_functions::{WindowExecutionPlan, WindowFunction, WindowPlanner};
 
 #[cfg(test)]
 mod tests;

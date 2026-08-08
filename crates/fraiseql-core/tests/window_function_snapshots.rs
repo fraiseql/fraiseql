@@ -2,8 +2,15 @@
 
 //! Snapshot tests for window function SQL generation.
 //!
-//! These tests verify that changes to the window function planner do not silently
-//! alter the generated SQL. Snapshots are stored in `snapshots/window_function_snapshots__*.snap`.
+//! These pin the exact SQL the live chain emits —
+//! `WindowQueryParser::parse` -> `WindowPlanner::plan` -> `WindowSqlGenerator::generate`
+//! — so a change to any of the three shows up as a snapshot diff rather than silently
+//! altering what reaches PostgreSQL. Snapshots are stored in
+//! `snapshots/window_function_snapshots__*.snap` and registered in
+//! `tests/snapshot-pairs.md`.
+//!
+//! Ported from `WindowFunctionPlanner` in #881; see the header of
+//! `e2e_window_functions.rs` for why that planner is gone.
 //!
 //! To generate or update snapshots:
 //! ```bash
@@ -14,8 +21,9 @@ mod common;
 
 use common::create_sales_metadata;
 use fraiseql_core::{
-    compiler::window_functions::WindowFunctionPlanner, db::types::DatabaseType,
-    runtime::WindowSqlGenerator,
+    compiler::window_functions::WindowPlanner,
+    db::types::DatabaseType,
+    runtime::{WindowQueryParser, WindowSqlGenerator},
 };
 use insta::assert_snapshot;
 use serde_json::json;
@@ -26,13 +34,14 @@ use serde_json::json;
 
 fn plan_and_generate(query: &serde_json::Value, db_type: DatabaseType) -> String {
     let metadata = create_sales_metadata();
-    let generator = WindowSqlGenerator::new(db_type);
-    let plan = WindowFunctionPlanner::plan(query, &metadata).unwrap();
-    generator.generate(&plan).unwrap().raw_sql
+    let request = WindowQueryParser::parse(query, &metadata).unwrap();
+    let plan = WindowPlanner::plan(request, &metadata).unwrap();
+
+    WindowSqlGenerator::new(db_type).generate(&plan).unwrap().raw_sql
 }
 
 // =============================================================================
-// ROW_NUMBER — all 4 dialects
+// ROW_NUMBER — partitioned by a JSONB dimension
 // =============================================================================
 
 mod row_number {
@@ -41,11 +50,14 @@ mod row_number {
     fn query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["revenue", "data->>'category' as category"],
+            "select": [
+                {"type": "measure", "name": "revenue", "alias": "revenue"},
+                {"type": "dimension", "path": "category", "alias": "category"}
+            ],
             "windows": [{
                 "function": {"type": "row_number"},
                 "alias": "rank",
-                "partitionBy": ["data->>'category'"],
+                "partitionBy": [{"type": "dimension", "path": "category"}],
                 "orderBy": [{"field": "revenue", "direction": "DESC"}]
             }]
         })
@@ -58,7 +70,7 @@ mod row_number {
 }
 
 // =============================================================================
-// RANK — no PARTITION BY, all 4 dialects
+// RANK — no PARTITION BY
 // =============================================================================
 
 mod rank {
@@ -67,7 +79,7 @@ mod rank {
     fn query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["revenue"],
+            "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "rank"},
                 "alias": "revenue_rank",
@@ -84,7 +96,7 @@ mod rank {
 }
 
 // =============================================================================
-// DENSE_RANK — partitioned, all 4 dialects
+// DENSE_RANK — partitioned
 // =============================================================================
 
 mod dense_rank {
@@ -93,11 +105,11 @@ mod dense_rank {
     fn query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["revenue"],
+            "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "dense_rank"},
                 "alias": "dense_rank",
-                "partitionBy": ["data->>'category'"],
+                "partitionBy": [{"type": "dimension", "path": "category"}],
                 "orderBy": [{"field": "revenue", "direction": "DESC"}]
             }]
         })
@@ -110,7 +122,7 @@ mod dense_rank {
 }
 
 // =============================================================================
-// LAG — value function, all 4 dialects
+// LAG — value function
 // =============================================================================
 
 mod lag {
@@ -119,7 +131,10 @@ mod lag {
     fn query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["occurred_at", "revenue"],
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"}
+            ],
             "windows": [{
                 "function": {
                     "type": "lag",
@@ -128,7 +143,7 @@ mod lag {
                     "default": 0
                 },
                 "alias": "prev_revenue",
-                "partitionBy": ["data->>'category'"],
+                "partitionBy": [{"type": "dimension", "path": "category"}],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
             }]
         })
@@ -141,7 +156,7 @@ mod lag {
 }
 
 // =============================================================================
-// LEAD — value function, all 4 dialects
+// LEAD — value function
 // =============================================================================
 
 mod lead {
@@ -150,7 +165,10 @@ mod lead {
     fn query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["occurred_at", "revenue"],
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"}
+            ],
             "windows": [{
                 "function": {
                     "type": "lead",
@@ -172,7 +190,7 @@ mod lead {
 }
 
 // =============================================================================
-// Cumulative SUM with frame clause — all 4 dialects
+// Cumulative SUM with frame clause
 // =============================================================================
 
 mod cumulative_sum {
@@ -181,9 +199,12 @@ mod cumulative_sum {
     fn query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["occurred_at", "revenue"],
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"}
+            ],
             "windows": [{
-                "function": {"type": "sum", "field": "revenue"},
+                "function": {"type": "running_sum", "measure": "revenue"},
                 "alias": "running_total",
                 "partitionBy": [],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -203,7 +224,7 @@ mod cumulative_sum {
 }
 
 // =============================================================================
-// Moving average with N PRECEDING frame — all 4 dialects
+// Moving average with N PRECEDING frame
 // =============================================================================
 
 mod moving_average {
@@ -212,9 +233,12 @@ mod moving_average {
     fn query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["occurred_at", "revenue"],
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"}
+            ],
             "windows": [{
-                "function": {"type": "avg", "field": "revenue"},
+                "function": {"type": "running_avg", "measure": "revenue"},
                 "alias": "moving_avg_3",
                 "partitionBy": [],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -234,7 +258,7 @@ mod moving_average {
 }
 
 // =============================================================================
-// Multiple window functions in one query — PostgreSQL
+// Multiple window functions in one query
 // =============================================================================
 
 mod multiple_windows {
@@ -244,18 +268,22 @@ mod multiple_windows {
     fn postgres() {
         let query = json!({
             "table": "tf_sales",
-            "select": ["occurred_at", "revenue", "data->>'category' as category"],
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"},
+                {"type": "dimension", "path": "category", "alias": "category"}
+            ],
             "windows": [
                 {
                     "function": {"type": "row_number"},
                     "alias": "row_num",
-                    "partitionBy": ["data->>'category'"],
+                    "partitionBy": [{"type": "dimension", "path": "category"}],
                     "orderBy": [{"field": "revenue", "direction": "DESC"}]
                 },
                 {
-                    "function": {"type": "sum", "field": "revenue"},
+                    "function": {"type": "running_sum", "measure": "revenue"},
                     "alias": "running_total",
-                    "partitionBy": ["data->>'category'"],
+                    "partitionBy": [{"type": "dimension", "path": "category"}],
                     "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
                     "frame": {
                         "frame_type": "ROWS",
@@ -266,7 +294,7 @@ mod multiple_windows {
                 {
                     "function": {"type": "lag", "field": "revenue", "offset": 1, "default": 0},
                     "alias": "prev_revenue",
-                    "partitionBy": ["data->>'category'"],
+                    "partitionBy": [{"type": "dimension", "path": "category"}],
                     "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
                 }
             ]
@@ -276,7 +304,7 @@ mod multiple_windows {
 }
 
 // =============================================================================
-// LAST_VALUE with UNBOUNDED FOLLOWING frame — PostgreSQL
+// LAST_VALUE with UNBOUNDED FOLLOWING frame
 // =============================================================================
 
 mod last_value {
@@ -286,11 +314,14 @@ mod last_value {
     fn postgres() {
         let query = json!({
             "table": "tf_sales",
-            "select": ["occurred_at", "revenue"],
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"}
+            ],
             "windows": [{
                 "function": {"type": "last_value", "field": "revenue"},
                 "alias": "last_revenue",
-                "partitionBy": ["data->>'category'"],
+                "partitionBy": [{"type": "dimension", "path": "category"}],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
                 "frame": {
                     "frame_type": "ROWS",
@@ -304,7 +335,7 @@ mod last_value {
 }
 
 // =============================================================================
-// NTILE — PostgreSQL
+// NTILE
 // =============================================================================
 
 mod ntile {
@@ -314,7 +345,7 @@ mod ntile {
     fn postgres() {
         let query = json!({
             "table": "tf_sales",
-            "select": ["revenue"],
+            "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "ntile", "n": 4},
                 "alias": "quartile",
@@ -327,7 +358,7 @@ mod ntile {
 }
 
 // =============================================================================
-// STDDEV / VARIANCE — SQL Server naming difference
+// STDDEV / VARIANCE
 // =============================================================================
 
 mod stddev_variance {
@@ -336,9 +367,9 @@ mod stddev_variance {
     fn stddev_query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["revenue"],
+            "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
-                "function": {"type": "stddev", "field": "revenue"},
+                "function": {"type": "running_stddev", "measure": "revenue"},
                 "alias": "stddev_revenue",
                 "partitionBy": [],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
@@ -349,9 +380,9 @@ mod stddev_variance {
     fn variance_query() -> serde_json::Value {
         json!({
             "table": "tf_sales",
-            "select": ["revenue"],
+            "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
-                "function": {"type": "variance", "field": "revenue"},
+                "function": {"type": "running_variance", "measure": "revenue"},
                 "alias": "var_revenue",
                 "partitionBy": [],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
@@ -383,9 +414,12 @@ mod frame_exclusion {
     fn exclude_current_row_postgres() {
         let query = json!({
             "table": "tf_sales",
-            "select": ["occurred_at", "revenue"],
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"}
+            ],
             "windows": [{
-                "function": {"type": "avg", "field": "revenue"},
+                "function": {"type": "running_avg", "measure": "revenue"},
                 "alias": "avg_excluding_current",
                 "partitionBy": [],
                 "orderBy": [{"field": "occurred_at", "direction": "ASC"}],
@@ -412,7 +446,7 @@ mod with_limit_offset {
     fn postgres() {
         let query = json!({
             "table": "tf_sales",
-            "select": ["revenue"],
+            "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
             "windows": [{
                 "function": {"type": "row_number"},
                 "alias": "rank",
@@ -421,6 +455,37 @@ mod with_limit_offset {
             }],
             "limit": 10,
             "offset": 5
+        });
+        assert_snapshot!(plan_and_generate(&query, DatabaseType::PostgreSQL));
+    }
+}
+
+// =============================================================================
+// WHERE clause — the parameterised half of the emitted SQL
+//
+// The dead planner turned any `where` key into an empty `WhereClause::And(vec![])`,
+// so no snapshot ever showed a real predicate or a bind parameter. The live parser
+// builds one, and the generator renders placeholders.
+// =============================================================================
+
+mod filtered {
+    use super::*;
+
+    #[test]
+    fn postgres() {
+        let query = json!({
+            "table": "tf_sales",
+            "select": [
+                {"type": "filter", "name": "occurred_at", "alias": "occurred_at"},
+                {"type": "measure", "name": "revenue", "alias": "revenue"}
+            ],
+            "windows": [{
+                "function": {"type": "running_sum", "measure": "revenue"},
+                "alias": "running_total",
+                "partitionBy": [],
+                "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
+            }],
+            "where": {"category_eq": "hardware"}
         });
         assert_snapshot!(plan_and_generate(&query, DatabaseType::PostgreSQL));
     }

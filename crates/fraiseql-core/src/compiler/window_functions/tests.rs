@@ -44,6 +44,14 @@ fn create_test_metadata() -> FactTableMetadata {
     }
 }
 
+/// Parse and plan a client `variables` object exactly as the runtime does
+/// (`WindowQueryParser::parse` -> `WindowPlanner::plan`).
+fn plan_from_query(query: &serde_json::Value, metadata: &FactTableMetadata) -> WindowExecutionPlan {
+    let request = crate::runtime::WindowQueryParser::parse(query, metadata)
+        .expect("window query should parse");
+    WindowPlanner::plan(request, metadata).expect("window plan should succeed")
+}
+
 // =============================================================================
 // Test Helpers
 // =============================================================================
@@ -96,16 +104,16 @@ fn test_parse_row_number_query() {
     let metadata = create_test_metadata();
     let query = serde_json::json!({
         "table": "tf_sales",
-        "select": ["revenue"],
+        "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
         "windows": [{
             "function": {"type": "row_number"},
             "alias": "rank",
-            "partitionBy": ["category"],
+            "partitionBy": [{"type": "dimension", "path": "category"}],
             "orderBy": [{"field": "revenue", "direction": "DESC"}]
         }]
     });
 
-    let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
+    let plan = plan_from_query(&query, &metadata);
 
     assert_eq!(plan.table, "tf_sales");
     assert_eq!(plan.windows.len(), 1);
@@ -130,7 +138,7 @@ fn test_parse_lag_function() {
         }]
     });
 
-    let plan = WindowFunctionPlanner::plan(&query, &metadata).expect("window plan should succeed");
+    let plan = plan_from_query(&query, &metadata);
 
     match &plan.windows[0].function {
         WindowFunctionType::Lag {
@@ -144,37 +152,6 @@ fn test_parse_lag_function() {
         },
         _ => panic!("Expected LAG function"),
     }
-}
-
-#[test]
-fn test_validate_groups_frame_postgres_only() {
-    use crate::db::types::DatabaseType;
-
-    let metadata = create_test_metadata();
-    let plan = WindowExecutionPlan {
-        table:        "tf_sales".to_string(),
-        select:       vec![],
-        windows:      vec![WindowFunction {
-            function:     WindowFunctionType::RowNumber,
-            alias:        "rank".to_string(),
-            partition_by: vec![],
-            order_by:     vec![],
-            frame:        Some(WindowFrame {
-                frame_type: FrameType::Groups,
-                start:      FrameBoundary::UnboundedPreceding,
-                end:        FrameBoundary::CurrentRow,
-                exclusion:  None,
-            }),
-        }],
-        where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
-    };
-
-    // Should pass for PostgreSQL
-    WindowFunctionPlanner::validate(&plan, &metadata, DatabaseType::PostgreSQL)
-        .unwrap_or_else(|e| panic!("expected Ok for PostgreSQL GROUPS frame: {e}"));
 }
 
 // =============================================================================
@@ -563,8 +540,10 @@ fn test_resolve_field_rejects_injection_in_order_by() {
 // These drive the same three calls the shipped binary makes —
 // `WindowQueryParser::parse` -> `WindowPlanner::plan` -> `WindowSqlGenerator::generate`
 // — with the payloads verbatim from the issue bodies. They are deliberately *not*
-// written against `WindowFunctionPlanner`, the planner that consults `WindowAllowlist`,
-// because nothing in the shipped binary calls it: testing that one is what let this ship.
+// written against `WindowFunctionPlanner`, a second planner that consulted
+// `WindowAllowlist` but that nothing in the shipped binary called: testing that one is
+// what let this ship. #881 has since deleted it, so every test here drives the live
+// chain by construction.
 // =============================================================================
 
 #[cfg(test)]
