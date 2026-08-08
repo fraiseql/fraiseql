@@ -36,7 +36,6 @@ batch_size = 100  # Events per batch
 channel_capacity = 1000
 max_concurrency = 10  # Not used (no observers)
 notify_channel = "fraiseql_events"  # PostgreSQL NOTIFY channel
-overflow_policy = "drop"
 poll_interval_secs = 1  # Poll frequency when idle
 shutdown_timeout = "30s"
 transport_name = "pg_to_nats_db1"  # Unique per database

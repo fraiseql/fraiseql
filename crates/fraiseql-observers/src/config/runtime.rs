@@ -42,10 +42,6 @@ pub struct ObserverRuntimeConfig {
     #[serde(default = "default_max_concurrency")]
     pub max_concurrency: usize,
 
-    /// What to do when channel is full
-    #[serde(default)]
-    pub overflow_policy: OverflowPolicy,
-
     /// Backlog threshold for alerts (default: 500)
     #[serde(default = "default_backlog_threshold")]
     pub backlog_alert_threshold: usize,
@@ -104,24 +100,6 @@ pub(super) const fn default_backlog_threshold() -> usize {
 
 pub(super) fn default_shutdown_timeout() -> String {
     "30s".to_string()
-}
-
-// ============================================================================
-// Overflow Policy
-// ============================================================================
-
-/// What to do when the event channel is full
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum OverflowPolicy {
-    /// Drop new events when channel is full (default)
-    #[default]
-    Drop,
-    /// Block sender (can cause issues with PG listener)
-    Block,
-    /// Drop oldest events to make room
-    DropOldest,
 }
 
 // ============================================================================

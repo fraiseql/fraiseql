@@ -37,11 +37,11 @@ A comprehensive, event-driven observer system for FraiseQL that enables post-mut
 ```
 Database Mutation
       ↓
-PostgreSQL LISTEN/NOTIFY
+core.tb_entity_change_log (durable outbox)
       ↓
-EventListener (watches on separate connection)
+ChangeLogListener (polls, anti-joins the dispatch ledger)
       ↓
-Bounded MPSC Channel (backpressure management)
+Batch recorded once dispatched (at-least-once, no silent skips)
       ↓
 ObserverExecutor (main engine)
       ├─ EventMatcher (find applicable observers)

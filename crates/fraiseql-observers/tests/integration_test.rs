@@ -33,8 +33,8 @@ use fraiseql_observers::{DeduplicationStore, RedisDeduplicationStore};
 use fraiseql_observers::{
     Result,
     config::{
-        ActionConfig, ObserverRuntimeConfig, OverflowPolicy, PerformanceConfig, RedisConfig,
-        TransportConfig, TransportKind,
+        ActionConfig, ObserverRuntimeConfig, PerformanceConfig, RedisConfig, TransportConfig,
+        TransportKind,
     },
     event::{EntityEvent, EventKind},
     executor::ObserverExecutor,
@@ -94,7 +94,6 @@ fn test_runtime_config() -> ObserverRuntimeConfig {
         max_concurrency:         50,
         shutdown_timeout:        "30s".to_string(),
         backlog_alert_threshold: 1000,
-        overflow_policy:         OverflowPolicy::Drop,
         max_dlq_size:            None,
     }
 }

@@ -71,7 +71,6 @@ enable_concurrent = true  # ✅ Parallel action execution
 enable_dedup = true  # ✅ CRITICAL: Prevents duplicate processing with at-least-once NATS delivery
 max_concurrency = 100  # Higher concurrency (worker is dedicated)
 max_concurrent_actions = 20  # Higher concurrency for worker
-overflow_policy = "drop"
 shutdown_timeout = "60s"  # Longer timeout for graceful NATS shutdown
 
 # Redis configuration (required for dedup + caching)
