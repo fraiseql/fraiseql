@@ -178,7 +178,13 @@ fn an_unrequested_bypass_is_not_reported_as_refused() {
 fn a_refused_bypass_is_logged_at_error_naming_the_variable() {
     let events = capture::install();
     with_posture(Some("production"), || {
-        assert!(!insecure_bypass("FRAISEQL_TEST_HATCH").is_honoured());
+        // #1010: `!is_honoured()` is satisfied by `NotRequested` too, so a hatch the
+        // test failed to set passed here and surfaced as an empty capture below.
+        assert_eq!(
+            insecure_bypass("FRAISEQL_TEST_HATCH"),
+            BypassDecision::RefusedInProduction,
+            "precondition: the hatch is set and the posture is production"
+        );
     });
     let logged = events.take();
     assert!(
@@ -283,6 +289,19 @@ mod capture {
 
     /// Install a thread-local capturing subscriber for the rest of the test.
     pub fn install() -> Captured {
+        // #1010: `tracing`'s max-level hint is process-global and is computed from the
+        // *global* dispatcher. With only thread-local subscribers it stays `OFF`, so
+        // `tracing::error!`'s callsite check can short-circuit before dispatch — the
+        // event never reaches this layer and the capture comes back empty, depending
+        // on a race with whatever other threads are doing. Raising the floor once,
+        // globally, is what makes the thread-local capture reliable.
+        static MAX_LEVEL: std::sync::Once = std::sync::Once::new();
+        MAX_LEVEL.call_once(|| {
+            let _ = tracing::subscriber::set_global_default(
+                Registry::default().with(tracing_subscriber::filter::LevelFilter::TRACE),
+            );
+        });
+
         let events: Events = Arc::default();
         let guard = tracing::subscriber::set_default(Registry::default().with(CapturingLayer {
             events: Arc::clone(&events),
