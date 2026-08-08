@@ -495,15 +495,6 @@ impl SchemaMerger {
             role.validate()?;
         }
 
-        // #897: likewise for role definitions — a role with no name or no scopes grants
-        // nothing and cannot be referenced, so it is refused on both workflows rather
-        // than compiled into a `role_definitions` entry that can never match.
-
-        // #892: same reasoning, same funnel. `[tenancy]` is self-contained — it references
-        // no type — so it is checked here rather than only in `TomlSchema::validate()`,
-        // which `merge_files` does not call. A `mode` other than `none` with an empty
-        // `tenant_claim` compiles to a tenancy config that can resolve no tenant at all.
-
         // Typo guard: [queries.defaults] is a common mistake for [query_defaults].
         if toml_schema.queries.contains_key("defaults") {
             anyhow::bail!(
