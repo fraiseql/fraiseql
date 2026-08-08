@@ -1496,6 +1496,14 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// (its Redis-touching tests self-skip when REDIS_URL is unset).
 		"cargo test -p fraiseql-observers --features caching --lib cache::tests::glob_tests -- --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,testing' --test cache_invalidation_redis -- --test-threads=1",
+		// #985: the same transport through the SERVER's boot path. The library
+		// slice above passed for years while no fraiseql.toml could reach it —
+		// the executor mount was an alternative constructor the server does not
+		// call, the [observers.runtime] table rejected a `redis` key, and the
+		// server crate never enabled fraiseql-observers/caching. This binary
+		// boots ObserverRuntime from config and asserts the key really leaves
+		// the bound Redis, so a library-only regression cannot read green.
+		"cargo test -p fraiseql-server --features observers-cache --test observer_cache_mount_redis -- --ignored --test-threads=1",
 		// #770: cross-replica token revocation through the shipped construction
 		// path against the bound Redis (skips when REDIS_URL is unset).
 		"cargo test -p fraiseql-server --features 'auth,redis-rate-limiting' --test revocation_redis_test -- --test-threads=1",

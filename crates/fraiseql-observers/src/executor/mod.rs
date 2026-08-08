@@ -39,20 +39,20 @@ use crate::{
 /// Main observer executor engine
 pub struct ObserverExecutor {
     /// Event-to-observer matcher
-    pub(super) matcher:            Arc<EventMatcher>,
+    pub(super) matcher:                Arc<EventMatcher>,
     /// Condition parser and evaluator
-    pub(super) condition_parser:   Arc<crate::condition::ConditionParser>,
+    pub(super) condition_parser:       Arc<crate::condition::ConditionParser>,
     /// Pre-parsed condition AST cache (condition string → compiled AST).
     ///
     /// Condition strings are deterministic: the same string always produces the
     /// same AST, so we can safely cache the parse result indefinitely.  This
     /// avoids re-lexing and re-parsing the condition on every incoming event,
     /// which was the dominant cost at high event throughput.
-    pub(super) condition_cache:    dashmap::DashMap<String, crate::condition::ConditionAst>,
+    pub(super) condition_cache:        dashmap::DashMap<String, crate::condition::ConditionAst>,
     /// Action dispatcher (production or mock)
-    pub(super) dispatcher:         Arc<dyn ActionDispatcher>,
+    pub(super) dispatcher:             Arc<dyn ActionDispatcher>,
     /// Dead letter queue for failed actions
-    pub(super) dlq:                Arc<dyn DeadLetterQueue>,
+    pub(super) dlq:                    Arc<dyn DeadLetterQueue>,
     /// Maximum number of entries the DLQ may hold (`None` = unbounded).
     ///
     /// When this limit is reached the newest entry is dropped and a warning is
@@ -60,28 +60,35 @@ pub struct ObserverExecutor {
     /// counter that acts as a conservative approximation of DLQ depth (it does
     /// not decrease when items are retried/acked, so it may trigger the cap
     /// earlier than strictly necessary, which is the safe direction).
-    pub(super) max_dlq_size:       Option<usize>,
+    pub(super) max_dlq_size:           Option<usize>,
     /// Monotonically-increasing count of pushes sent to the DLQ.
-    pub(super) dlq_push_count:     Arc<AtomicUsize>,
+    pub(super) dlq_push_count:         Arc<AtomicUsize>,
     /// Per-action dispatch timeout in milliseconds.
     ///
     /// When set, each call to `execute_action_internal` is wrapped in a
     /// `tokio::time::timeout`.  A slow or hung action is interrupted and
     /// returns a transient `ActionExecutionFailed` error so the retry loop
     /// can back off and retry.  `None` disables the timeout (default).
-    pub(super) action_timeout_ms:  Option<u64>,
+    pub(super) action_timeout_ms:      Option<u64>,
     /// Optional cache backend for action result caching
     #[cfg(feature = "caching")]
-    pub(super) cache_backend:      Option<Arc<dyn CacheBackendDyn>>,
+    pub(super) cache_backend:          Option<Arc<dyn CacheBackendDyn>>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    pub(super) metrics:            MetricsRegistry,
+    pub(super) metrics:                MetricsRegistry,
     /// Shared slot holding the PostgreSQL pool for `database` actions (#632).
     ///
     /// Created at construction and shared with the dispatcher; populated by
     /// [`Self::with_database_pool`]. Unset ⇒ `database` actions fail loud.
     #[cfg(feature = "postgres")]
-    pub(super) database_pool_slot: Arc<std::sync::OnceLock<sqlx::PgPool>>,
+    pub(super) database_pool_slot:     Arc<std::sync::OnceLock<sqlx::PgPool>>,
+    /// Shared slot holding the Redis cache-invalidation transport (#428/#985).
+    ///
+    /// Created at construction and shared with the dispatcher; populated by
+    /// [`Self::with_cache_invalidation`]. Unset ⇒ `cache` actions fail loud.
+    #[cfg(feature = "caching")]
+    pub(super) cache_invalidator_slot:
+        Arc<std::sync::OnceLock<Arc<crate::cache::redis::RedisCacheInvalidator>>>,
 }
 
 /// Build the production action dispatcher with the given (configured) email action.
@@ -90,6 +97,9 @@ pub struct ObserverExecutor {
 /// a single action set and only the email action varies.
 fn make_dispatcher(
     email_action: EmailAction,
+    #[cfg(feature = "caching")] cache_invalidator: Arc<
+        std::sync::OnceLock<Arc<crate::cache::redis::RedisCacheInvalidator>>,
+    >,
     #[cfg(feature = "postgres")] database_pool: Arc<std::sync::OnceLock<sqlx::PgPool>>,
 ) -> Arc<DefaultActionDispatcher> {
     Arc::new(DefaultActionDispatcher {
@@ -97,23 +107,6 @@ fn make_dispatcher(
         slack_action: Arc::new(SlackAction::new()),
         email_action: Arc::new(email_action),
         #[cfg(feature = "caching")]
-        cache_invalidator: None,
-        #[cfg(feature = "postgres")]
-        database_pool,
-    })
-}
-
-/// Build the production dispatcher with a wired Redis cache invalidator (#428).
-#[cfg(feature = "caching")]
-fn make_dispatcher_with_invalidator(
-    email_action: EmailAction,
-    cache_invalidator: Option<Arc<crate::cache::redis::RedisCacheInvalidator>>,
-    #[cfg(feature = "postgres")] database_pool: Arc<std::sync::OnceLock<sqlx::PgPool>>,
-) -> Arc<DefaultActionDispatcher> {
-    Arc::new(DefaultActionDispatcher {
-        webhook_action: Arc::new(WebhookAction::new()),
-        slack_action: Arc::new(SlackAction::new()),
-        email_action: Arc::new(email_action),
         cache_invalidator,
         #[cfg(feature = "postgres")]
         database_pool,
@@ -129,12 +122,16 @@ impl ObserverExecutor {
     pub fn new(matcher: EventMatcher, dlq: Arc<dyn DeadLetterQueue>) -> Self {
         #[cfg(feature = "postgres")]
         let database_pool_slot = Arc::new(std::sync::OnceLock::new());
+        #[cfg(feature = "caching")]
+        let cache_invalidator_slot = Arc::new(std::sync::OnceLock::new());
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             condition_cache: dashmap::DashMap::new(),
             dispatcher: make_dispatcher(
                 EmailAction::new(),
+                #[cfg(feature = "caching")]
+                Arc::clone(&cache_invalidator_slot),
                 #[cfg(feature = "postgres")]
                 Arc::clone(&database_pool_slot),
             ),
@@ -146,6 +143,8 @@ impl ObserverExecutor {
             cache_backend: None,
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
+            #[cfg(feature = "caching")]
+            cache_invalidator_slot,
             #[cfg(feature = "postgres")]
             database_pool_slot,
         }
@@ -169,12 +168,16 @@ impl ObserverExecutor {
         let email_action = EmailAction::from_smtp_config(email_config)?;
         #[cfg(feature = "postgres")]
         let database_pool_slot = Arc::new(std::sync::OnceLock::new());
+        #[cfg(feature = "caching")]
+        let cache_invalidator_slot = Arc::new(std::sync::OnceLock::new());
         Ok(Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             condition_cache: dashmap::DashMap::new(),
             dispatcher: make_dispatcher(
                 email_action,
+                #[cfg(feature = "caching")]
+                Arc::clone(&cache_invalidator_slot),
                 #[cfg(feature = "postgres")]
                 Arc::clone(&database_pool_slot),
             ),
@@ -188,6 +191,8 @@ impl ObserverExecutor {
             metrics: MetricsRegistry::global().unwrap_or_default(),
             #[cfg(feature = "postgres")]
             database_pool_slot,
+            #[cfg(feature = "caching")]
+            cache_invalidator_slot,
         })
     }
 
@@ -217,12 +222,16 @@ impl ObserverExecutor {
     ) -> Self {
         #[cfg(feature = "postgres")]
         let database_pool_slot = Arc::new(std::sync::OnceLock::new());
+        #[cfg(feature = "caching")]
+        let cache_invalidator_slot = Arc::new(std::sync::OnceLock::new());
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             condition_cache: dashmap::DashMap::new(),
             dispatcher: make_dispatcher(
                 EmailAction::new(),
+                #[cfg(feature = "caching")]
+                Arc::clone(&cache_invalidator_slot),
                 #[cfg(feature = "postgres")]
                 Arc::clone(&database_pool_slot),
             ),
@@ -233,6 +242,8 @@ impl ObserverExecutor {
             cache_backend,
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
+            #[cfg(feature = "caching")]
+            cache_invalidator_slot,
             #[cfg(feature = "postgres")]
             database_pool_slot,
         }
@@ -254,28 +265,31 @@ impl ObserverExecutor {
         dlq: Arc<dyn DeadLetterQueue>,
         invalidator: Arc<crate::cache::redis::RedisCacheInvalidator>,
     ) -> Self {
-        #[cfg(feature = "postgres")]
-        let database_pool_slot = Arc::new(std::sync::OnceLock::new());
-        Self {
-            matcher: Arc::new(matcher),
-            condition_parser: Arc::new(crate::condition::ConditionParser::new()),
-            condition_cache: dashmap::DashMap::new(),
-            dispatcher: make_dispatcher_with_invalidator(
-                EmailAction::new(),
-                Some(invalidator),
-                #[cfg(feature = "postgres")]
-                Arc::clone(&database_pool_slot),
-            ),
-            dlq,
-            max_dlq_size: None,
-            dlq_push_count: Arc::new(AtomicUsize::new(0)),
-            action_timeout_ms: None,
-            cache_backend: None,
-            #[cfg(feature = "metrics")]
-            metrics: MetricsRegistry::global().unwrap_or_default(),
-            #[cfg(feature = "postgres")]
-            database_pool_slot,
-        }
+        Self::new(matcher, dlq).with_cache_invalidation(invalidator)
+    }
+
+    /// Mount the Redis `cache`/`invalidate` transport on an executor built by any
+    /// constructor (#985).
+    ///
+    /// The chainable form of [`with_cache_invalidator`](Self::with_cache_invalidator),
+    /// and the one the server uses: the binary builds its executor with
+    /// [`new_with_email`](Self::new_with_email), so a mount available only as an
+    /// alternative constructor is unreachable from a deployment — which is
+    /// precisely why the transport shipped with zero callers outside this crate.
+    /// Mirrors [`with_database_pool`](Self::with_database_pool).
+    ///
+    /// Setting an invalidator twice keeps the first; the builder is called once
+    /// at boot.
+    ///
+    /// Only available when the `caching` feature is enabled.
+    #[cfg(feature = "caching")]
+    #[must_use]
+    pub fn with_cache_invalidation(
+        self,
+        invalidator: Arc<crate::cache::redis::RedisCacheInvalidator>,
+    ) -> Self {
+        let _ = self.cache_invalidator_slot.set(invalidator);
+        self
     }
 
     /// Wire a PostgreSQL pool so `database` actions dispatch for real (#632).
@@ -315,6 +329,8 @@ impl ObserverExecutor {
             metrics: MetricsRegistry::global().unwrap_or_default(),
             #[cfg(feature = "postgres")]
             database_pool_slot: Arc::new(std::sync::OnceLock::new()),
+            #[cfg(feature = "caching")]
+            cache_invalidator_slot: Arc::new(std::sync::OnceLock::new()),
         }
     }
 
