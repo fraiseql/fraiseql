@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **A schema declaring `aggregate_queries` is refused instead of silently dropped (#956).**
+  The section is listed in `AUTHORABLE_ARRAY_SECTIONS`, so it was valid input on every
+  compile path and every loader and merger carried it faithfully — and then the converter
+  mapped `fact_tables` and never read it. `CompiledSchema` has no corresponding field, so
+  the definitions reached the end of the seam and evaporated under
+  `✓ Schema compiled successfully`: the #755 shape surviving inside the seam built to kill
+  it, behind a `seam_coverage_manifest_test` excuse claiming parity with `fact_tables` that
+  was false in the one way that mattered — `fact_tables` reaches the compiled schema and
+  `aggregate_queries` did not. The compile now fails, naming the offending entries and the
+  supported spelling: `[[analytics.queries]]` in `fraiseql.toml`, which #624 gave real
+  semantics by lowering each entry onto an ordinary view-backed query. An empty or absent
+  block still compiles. The manifest excuse is corrected to state the refusal.
+
+- **Go: `NewAggregateQueryConfig` / `RegisterAggregateQuery` / `AggregateQueryDefinition` are
+  removed (#956).** The Go SDK was the only SDK emitting an `aggregate_queries` block, and
+  the compiler now refuses one — so the builder produced schemas that could no longer
+  compile. Two shipped examples (`examples/analytics`, `examples/complete`) used it and are
+  updated: they keep their fact tables, which is what actually makes analytics work, because
+  the executor dispatches the `<fact_table>_aggregate` and `<fact_table>_window` root fields
+  to the fact-table planners with no further declaration. For a *named* analytics query, use
+  `[[analytics.queries]]` in `fraiseql.toml` (#624).
+
 - **SQL-source dispatch is removed from the Go, Java and Dart SDKs (#926).** Go's
   `QueryBuilder.SqlSourceDispatch` / `SqlSourceDispatchWithTemplate`, Java's
   `sqlSourceDispatch()` / `sqlSourceDispatchTemplate()`, and Dart's `SqlSourceDispatch`

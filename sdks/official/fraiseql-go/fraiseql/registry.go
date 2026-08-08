@@ -134,17 +134,6 @@ type FactTableDefinition struct {
 	DenormalizedFilters []FilterDefinition   `json:"denormalized_filters"`
 }
 
-// AggregateQueryDefinition represents a GraphQL aggregate query
-type AggregateQueryDefinition struct {
-	Name           string                 `json:"name"`
-	FactTable      string                 `json:"fact_table"`
-	AutoGroupBy    bool                   `json:"auto_group_by"`
-	AutoAggregates bool                   `json:"auto_aggregates"`
-	Description    string                 `json:"description,omitempty"`
-	// See QueryDefinition.Config — an SDK-internal bag, never serialized.
-	Config map[string]interface{} `json:"-"`
-}
-
 // SubscriptionDefinition represents a GraphQL subscription
 // Subscriptions in FraiseQL are compiled projections of database events.
 // They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
@@ -200,7 +189,6 @@ type Schema struct {
 	Mutations        []MutationDefinition       `json:"mutations,omitempty"`
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions,omitempty"`
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
-	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
 	Observers        []ObserverDefinition       `json:"observers,omitempty"`
 	CustomScalars    []map[string]interface{}   `json:"custom_scalars,omitempty"`
 	InjectDefaults   *InjectDefaults            `json:"inject_defaults,omitempty"`
@@ -225,7 +213,6 @@ type SchemaRegistry struct {
 	mutations        map[string]MutationDefinition
 	subscriptions    map[string]SubscriptionDefinition
 	factTables       map[string]FactTableDefinition
-	aggregateQueries map[string]AggregateQueryDefinition
 	observers        map[string]ObserverDefinition
 	injectDefaults   *InjectDefaults
 }
@@ -244,7 +231,6 @@ func getInstance() *SchemaRegistry {
 			mutations:        make(map[string]MutationDefinition),
 			subscriptions:    make(map[string]SubscriptionDefinition),
 			factTables:       make(map[string]FactTableDefinition),
-			aggregateQueries: make(map[string]AggregateQueryDefinition),
 			observers:        make(map[string]ObserverDefinition),
 		}
 	})
@@ -356,20 +342,6 @@ func RegisterFactTable(definition FactTableDefinition) error {
 	return nil
 }
 
-// RegisterAggregateQuery registers an aggregate query with the schema registry.
-// Returns an error if an aggregate query with the same name is already registered.
-func RegisterAggregateQuery(definition AggregateQueryDefinition) error {
-	reg := getInstance()
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	if _, exists := reg.aggregateQueries[definition.Name]; exists {
-		return fmt.Errorf("aggregate query %q is already registered; each name must be unique within a schema", definition.Name)
-	}
-	reg.aggregateQueries[definition.Name] = definition
-	return nil
-}
-
 // RegisterSubscription registers a subscription with the schema registry.
 // Subscriptions in FraiseQL are compiled projections of database events.
 // They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
@@ -449,9 +421,6 @@ func GetSchema() Schema {
 		schema.FactTables = append(schema.FactTables, reg.factTables[name])
 	}
 
-	for _, name := range sortedKeys(reg.aggregateQueries) {
-		schema.AggregateQueries = append(schema.AggregateQueries, reg.aggregateQueries[name])
-	}
 
 	for _, name := range sortedKeys(reg.observers) {
 		schema.Observers = append(schema.Observers, reg.observers[name])
@@ -506,7 +475,6 @@ func Reset() {
 	reg.mutations = make(map[string]MutationDefinition)
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
-	reg.aggregateQueries = make(map[string]AggregateQueryDefinition)
 	reg.observers = make(map[string]ObserverDefinition)
 	reg.injectDefaults = nil
 

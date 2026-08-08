@@ -67,7 +67,14 @@ const KNOWN_UNPROBED: &[(&str, &str)] = &[
         "analytics metadata, covered end-to-end by the analytics compile tests rather than by \
          a presence probe",
     ),
-    ("aggregate_queries", "analytics metadata, same as fact_tables"),
+    (
+        "aggregate_queries",
+        "refused at compile time (#956) rather than carried — the round-trip suite asserts \
+         the refusal, not arrival. This excuse previously read 'analytics metadata, same as \
+         fact_tables', which was false in the one way that mattered: `fact_tables` reaches \
+         the compiled schema and `aggregate_queries` did not, so the manifest was covering \
+         for the drop it exists to expose",
+    ),
     (
         "directives",
         "custom directive definitions, covered by the directive conversion tests",

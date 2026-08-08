@@ -675,6 +675,80 @@ fn sdk_authored_observers_fail_the_compile_rather_than_vanishing() {
     );
 }
 
+// ===========================================================================
+// #956 — SDK-authored aggregate_queries must not be carried and then dropped
+// ===========================================================================
+
+/// `aggregate_queries` is in `AUTHORABLE_ARRAY_SECTIONS`, so it is valid input on every
+/// compile path and every loader and merger carries it faithfully — and then the converter
+/// maps `fact_tables` and never reads it. `CompiledSchema` has no field for it, so the
+/// definitions reach the end of the seam and evaporate under
+/// `✓ Schema compiled successfully`: the #755 shape surviving inside the seam built to kill
+/// it, hidden behind a manifest excuse claiming parity with `fact_tables` that was false in
+/// the one way that mattered.
+///
+/// #624 gave `[[analytics.queries]]` real semantics, so the capability has a supported
+/// spelling. The contract asserted here is the honest-loud one, as for observers: the
+/// compile **fails** and names it.
+#[test]
+fn sdk_authored_aggregate_queries_fail_the_compile_rather_than_vanishing() {
+    let corpus = json!({
+        "types": [
+            {"name": "Order", "sql_source": "v_order",
+             "fields": [{"name": "id", "type": "ID", "nullable": false}]}
+        ],
+        "queries": [
+            {"name": "orders", "return_type": "Order", "returns_list": true,
+             "sql_source": "v_order"}
+        ],
+        "aggregate_queries": [
+            {
+                "name": "orders_by_day",
+                "fact_table": "tf_orders",
+                "auto_group_by": true,
+                "auto_aggregates": true
+            }
+        ]
+    });
+
+    let intermediate: IntermediateSchema =
+        serde_json::from_value(corpus).expect("aggregate_queries must still deserialize");
+    let err = SchemaConverter::convert(intermediate)
+        .expect_err("a schema declaring aggregate_queries must not compile silently");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("orders_by_day"),
+        "the refusal must name the offending entry; got: {msg}"
+    );
+    assert!(
+        msg.contains("analytics.queries"),
+        "the refusal must name the supported spelling so the author can act on it — this is \
+         the half a bare 'not supported' message leaves out; got: {msg}"
+    );
+}
+
+/// Counterweight: an empty or absent block must still compile, or the refusal would be a
+/// blanket ban on the section rather than on declaring one.
+#[test]
+fn an_empty_aggregate_queries_block_still_compiles() {
+    let corpus = json!({
+        "types": [
+            {"name": "Order", "sql_source": "v_order",
+             "fields": [{"name": "id", "type": "ID", "nullable": false}]}
+        ],
+        "queries": [
+            {"name": "orders", "return_type": "Order", "returns_list": true,
+             "sql_source": "v_order"}
+        ],
+        "aggregate_queries": []
+    });
+
+    let intermediate: IntermediateSchema = serde_json::from_value(corpus).unwrap();
+    SchemaConverter::convert(intermediate)
+        .expect("#956: an empty block declares nothing and must not fail the compile");
+}
+
 /// #631: `observers_config.handlers` arriving through the seam must fail the compile too.
 ///
 /// The TOML path already bails on a non-empty `[[observers.handlers]]` (#612), but an
