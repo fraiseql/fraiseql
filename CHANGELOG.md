@@ -1628,6 +1628,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`[tenancy]` is declarable in the TOML-schema workflow (#892).** `tenancy.mode` — which
+  drives schema-per-tenant provisioning (`TenancyMode::Schema`), row-mode `@tenant_id`
+  validation and `is_multi_tenant()` — existed only in a project `fraiseql.toml` as
+  `[fraiseql.tenancy]`. `TomlSchema` had no `tenancy` field, and `commands::compile`
+  deliberately skips the project config when the compile input is itself TOML (the two
+  formats are not compatible). So a `fraiseql compile fraiseql.toml` project — including
+  every `[domain_discovery]` project — had no knob at all: `[tenancy]` was an unknown
+  field, and `[fraiseql.tenancy]` was silently ignored. An operator wanting schema-per-tenant
+  isolation could declare `[security] multi_tenant = true` (since #758) but could not select
+  an isolation mode, so `TenantExecutorFactory` never provisioned a schema.
+
+  `[tenancy]` is now a top-level section of a TOML schema, sharing `TenancyTomlConfig` and a
+  single lowering (`to_runtime`) with the project-config path so the two producers cannot
+  drift the way #757's did. Its validation runs in `merge_values` — the funnel all six
+  `merge_*` entry points pass through — because the `--types` path (`merge_files`) does not
+  call `TomlSchema::validate()`.
+
 - **A query authored with `return_array` is refused by name instead of by field list (#890).**
   `return_array` is the `[queries.*]` TOML spelling; the JSON/`types.json` authoring surface
   reads `returns_list`. The original defect — the key binding to nothing and the query

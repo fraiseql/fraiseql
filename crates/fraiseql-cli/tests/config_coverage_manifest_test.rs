@@ -111,6 +111,18 @@ const MANIFEST: &[(&str, &str)] = &[
          via CachedDatabaseAdapter::validate_rls_active (#758/#762)",
     ),
     (
+        "tenancy.mode",
+        "CompiledSchema::tenancy_mode → TenantExecutorFactory schema provisioning + \
+         is_multi_tenant; row mode additionally drives compile-time @tenant_id \
+         validation (#892)",
+    ),
+    (
+        "tenancy.tenant_claim",
+        "CompiledSchema::tenancy_config().tenant_claim → InjectedParamSource::Jwt tenant \
+         resolution at runtime, and the claim the compiler auto-injects for @tenant_id in \
+         row mode (#892/#757)",
+    ),
+    (
         "session_variables.variables",
         "runtime resolve_session_variables → set_config before every query/mutation \
          (the mechanism RLS policies read, #628)",

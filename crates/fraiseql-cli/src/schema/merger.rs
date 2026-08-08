@@ -482,6 +482,17 @@ impl SchemaMerger {
         // these sections are self-contained and must never compile silently.
         toml_schema.reject_accepted_but_unconsumed_config()?;
 
+        // #892: same reasoning, same funnel. `[tenancy]` is self-contained — it references
+        // no type — so it is checked here rather than only in `TomlSchema::validate()`,
+        // which `merge_files` does not call. A `mode` other than `none` with an empty
+        // `tenant_claim` compiles to a tenancy config that can resolve no tenant at all.
+        toml_schema.tenancy.validate()?;
+
+        // #892: same reasoning, same funnel. `[tenancy]` is self-contained — it references
+        // no type — so it is checked here rather than only in `TomlSchema::validate()`,
+        // which `merge_files` does not call. A `mode` other than `none` with an empty
+        // `tenant_claim` compiles to a tenancy config that can resolve no tenant at all.
+
         // Typo guard: [queries.defaults] is a common mistake for [query_defaults].
         if toml_schema.queries.contains_key("defaults") {
             anyhow::bail!(
@@ -693,7 +704,12 @@ impl SchemaMerger {
             default_role:           None,
             multi_tenant:           sec.multi_tenant,
             rls:                    sec.rls.clone(),
-            tenancy:                fraiseql_core::schema::TenancyConfig::default(),
+            // #892: lowered from `[tenancy]`, through the same `to_runtime` the project-
+            // config path uses. Hard-coded to the default until then, which made
+            // `tenancy.mode` — and so schema-per-tenant provisioning, row-mode
+            // `@tenant_id` validation and `is_multi_tenant()` — unreachable from this
+            // workflow and from every `[domain_discovery]` project.
+            tenancy:                toml_schema.tenancy.to_runtime(),
             cost_budget:            sec.cost_budget.clone(),
             // #983: not emitted — no consumer reads it, and every Workflow-A schema
             // used to carry `"authenticated"` here by default, which is precisely the
