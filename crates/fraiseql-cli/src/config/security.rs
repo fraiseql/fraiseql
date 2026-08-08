@@ -329,27 +329,35 @@ impl TenancyTomlConfig {
         Ok(())
     }
 
-    /// Convert to JSON representation for compiled schema.
+    /// Lower into the type the runtime deserializes.
     ///
-    /// Built by serializing the **runtime** type rather than by hand: this used to
-    /// emit `tenantClaim`, which `fraiseql_core::schema::TenancyConfig` does not
-    /// declare, so a configured claim vanished into the untyped catch-all and the
-    /// runtime silently reverted to its `"tenant_id"` default (#757). Compile-time
-    /// `@tenant_id` validation read the camelCase key, so the compiler and the
-    /// server disagreed about which claim carries the tenant.
+    /// This is the **only** lowering of authored tenancy into the compiled shape, and
+    /// both compile workflows go through it: `SecurityConfig::to_json` for a project
+    /// `fraiseql.toml`, and `schema::merger` for a TOML schema (`#892`). A second
+    /// hand-written copy is exactly how the seam produced `#757` — `to_json` emitted
+    /// `tenantClaim`, which `TenancyConfig` does not declare, so a configured claim
+    /// vanished into the untyped catch-all and the runtime silently reverted to its
+    /// `"tenant_id"` default while compile-time `@tenant_id` validation read the
+    /// camelCase key. Compiler and server then disagreed about which claim carries
+    /// the tenant.
     ///
-    /// Going through `TenancyConfig` makes the two agree by construction: a rename
-    /// on either side is a compile error here, not a silent default at runtime.
-    pub fn to_json(&self) -> serde_json::Value {
-        let runtime = fraiseql_core::schema::TenancyConfig {
+    /// Going through `TenancyConfig` makes them agree by construction: a rename on
+    /// either side is a compile error here, not a silent default at runtime.
+    #[must_use]
+    pub fn to_runtime(&self) -> fraiseql_core::schema::TenancyConfig {
+        fraiseql_core::schema::TenancyConfig {
             mode:         match self.mode {
                 TenancyModeConfig::None => fraiseql_core::schema::TenancyMode::None,
                 TenancyModeConfig::Row => fraiseql_core::schema::TenancyMode::Row,
                 TenancyModeConfig::Schema => fraiseql_core::schema::TenancyMode::Schema,
             },
             tenant_claim: self.tenant_claim.clone(),
-        };
-        serde_json::to_value(runtime).unwrap_or_else(|_| serde_json::json!({}))
+        }
+    }
+
+    /// Convert to JSON representation for compiled schema.
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::to_value(self.to_runtime()).unwrap_or_else(|_| serde_json::json!({}))
     }
 }
 

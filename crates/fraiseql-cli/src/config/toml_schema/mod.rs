@@ -104,6 +104,23 @@ pub struct TomlSchema {
     #[serde(rename = "security")]
     pub security: SecuritySettings,
 
+    /// Tenant isolation strategy (`#892`).
+    ///
+    /// Mirrors `[fraiseql.tenancy]` in a project `fraiseql.toml`, minus the prefix, and
+    /// lowers into the compiled schema's `security.tenancy` — the same place, read by the
+    /// same runtime. Before this existed, `tenancy.mode` was unreachable from this
+    /// authoring surface *and* from every `[domain_discovery]` project, because
+    /// `commands::compile` deliberately skips the project config when the compile input is
+    /// itself TOML (the two formats are not compatible). An operator wanting
+    /// schema-per-tenant had no knob at all: `[tenancy]` was an unknown field, and
+    /// `[fraiseql.tenancy]` was ignored.
+    ///
+    /// Shares `TenancyTomlConfig` with the project-config path so there is one authoring
+    /// shape and one lowering ([`crate::config::security::TenancyTomlConfig::to_runtime`]),
+    /// not two that can drift.
+    #[serde(default)]
+    pub tenancy: crate::config::security::TenancyTomlConfig,
+
     /// Observers/event system configuration
     #[serde(rename = "observers")]
     pub observers: ObserversConfig,
@@ -459,6 +476,11 @@ impl TomlSchema {
         use fraiseql_core::runtime::suggest_similar;
 
         self.reject_accepted_but_unconsumed_config()?;
+
+        // #892: the same validation the project-config path runs (`config::mod`'s
+        // `self.fraiseql.tenancy.validate()`). An empty `tenant_claim` under a non-`none`
+        // mode would compile to a tenancy config that resolves no tenant at all.
+        self.tenancy.validate()?;
 
         let type_names: Vec<&str> = self.types.keys().map(String::as_str).collect();
 

@@ -110,6 +110,12 @@ fn toml_schema_dir(security_extra: &str) -> TempDir {
     dir
 }
 
+/// A TOML schema carrying whole extra top-level sections rather than `[security]` keys —
+/// `[tenancy]` is a sibling of `[security]`, mirroring `[fraiseql.tenancy]` (`#892`).
+fn toml_schema_dir_with_sections(sections: &str) -> TempDir {
+    toml_schema_dir(&format!("\n{sections}"))
+}
+
 /// A project `fraiseql.toml` (`[fraiseql.*]`) applied over a JSON schema.
 fn project_config_dir(fraiseql_extra: &str) -> TempDir {
     let dir = TempDir::new().unwrap();
@@ -179,6 +185,68 @@ fn schema_tenancy_mode_implies_multi_tenant() {
     let schema = compile(&dir, &["schema.json"]);
     assert_eq!(schema.tenancy_mode(), TenancyMode::Schema);
     assert!(schema.is_multi_tenant());
+}
+
+// ── #892: the same two declarations, on the *other* compile workflow ───────────
+//
+// The four tests above cover the project-config path only. That asymmetry is the
+// defect: `[tenancy]` was not a field of `TomlSchema`, and `commands::compile` skips
+// the project config when the input is TOML, so a TOML-schema author — including
+// every `[domain_discovery]` project — could not select an isolation mode at all.
+// `[tenancy] mode = "schema"` was an unknown field and `[fraiseql.tenancy]` was
+// ignored, with no error and no warning either way.
+//
+// Asked of `tenancy_mode()`, not of key presence: a key can be in the file and still
+// be invisible to the runtime, which is #757 and the reason this seam has its own
+// test file.
+
+#[test]
+fn a_toml_schema_can_declare_schema_per_tenant_isolation() {
+    let dir = toml_schema_dir_with_sections("[tenancy]\nmode = \"schema\"");
+    let schema = compile(&dir, &["schema.toml", "--types", "types.json"]);
+
+    assert_eq!(
+        schema.tenancy_mode(),
+        TenancyMode::Schema,
+        "#892: `[tenancy] mode = \"schema\"` must reach the runtime — this is what \
+         `TenantExecutorFactory` consults to provision a schema per tenant"
+    );
+    assert!(
+        schema.is_multi_tenant(),
+        "#892: declaring an isolation mode is a multi-tenant declaration here too (#758)"
+    );
+}
+
+#[test]
+fn a_toml_schema_can_declare_row_isolation_and_its_claim() {
+    let dir = toml_schema_dir_with_sections("[tenancy]\nmode = \"row\"\ntenant_claim = \"org_id\"");
+    let schema = compile(&dir, &["schema.toml", "--types", "types.json"]);
+
+    assert_eq!(schema.tenancy_mode(), TenancyMode::Row);
+    assert_eq!(
+        schema
+            .tenancy_config()
+            .expect("compiled schema carries a tenancy section")
+            .tenant_claim,
+        "org_id",
+        "#892/#757: the claim must land in the typed `tenant_claim` the runtime reads. \
+         Compile-time `@tenant_id` validation reads the same key, so a drift here makes \
+         the compiler and the server inject different claims"
+    );
+}
+
+/// The declaration must be refused when it cannot work, not compiled into a tenancy
+/// config that resolves no tenant — the project-config path already validates this
+/// (`config::mod` calls `tenancy.validate()`), and the two paths must agree.
+#[test]
+fn a_toml_schema_with_an_empty_tenant_claim_is_refused() {
+    let dir = toml_schema_dir_with_sections("[tenancy]\nmode = \"row\"\ntenant_claim = \"\"");
+    let err = compile_err(&dir, &["schema.toml", "--types", "types.json"]);
+
+    assert!(
+        err.contains("tenant_claim"),
+        "#892: an empty claim under a non-`none` mode must be refused by name: {err}"
+    );
 }
 
 /// Counterweight: a single-tenant schema must stay single-tenant, or the boot gate
