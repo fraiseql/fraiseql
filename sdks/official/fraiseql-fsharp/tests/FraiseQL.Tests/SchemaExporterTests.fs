@@ -106,6 +106,29 @@ let ``export empty schema has empty mutations array`` () =
 // Type serialization tests
 // ---------------------------------------------------------------------------
 
+/// #927: `computed` is an authoring-time flag and must never reach `schema.json`.
+///
+/// `CrudGenerator` reads it to decide which fields to omit from the input types it
+/// generates, and that runs before export. `IntermediateField` has no `computed` member
+/// and denies unknown fields, so emitting the key made the schema uncompilable —
+/// `[<GraphQLField(Computed = true)>]`, exactly as documented, produced
+/// ``unknown field `computed` ``. `[<JsonIgnore>]` on the record member is what keeps it
+/// out; this asserts the outcome rather than the attribute, so removing the attribute
+/// fails here.
+[<Fact>]
+let ``export omits the authoring-only computed flag`` () =
+    let computedField = { singleField with name = "slug"; type_ = "String"; computed = true }
+    let schema =
+        { emptySchema with types = [ { singleType with fields = [ computedField ] } ] }
+
+    let json = SchemaExporter.exportSchema schema
+
+    json.Contains("computed") |> should equal false
+
+    let root = parseJson json
+    let field = root.GetProperty("types").[0].GetProperty("fields").[0]
+    field.TryGetProperty("computed") |> fst |> should equal false
+
 [<Fact>]
 let ``export type uses snake_case key sql_source`` () =
     let schema = { emptySchema with types = [ singleType ] }

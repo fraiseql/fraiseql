@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`computed` is pinned as an authoring-only flag (#927).** Python's
+  `@fraiseql.field(computed=True)` and F#'s `[<GraphQLField(Computed = true)>]` both used to
+  serialize a `computed` key into `schema.json`. `IntermediateField` has no such member and
+  denies unknown fields, so the compile failed outright with ``unknown field `computed` ``,
+  naming a parameter the SDKs' own docstrings document as supported. Both halves were fixed
+  during the cross-SDK conformance work (Python stopped listing it among the emitted keys;
+  F# marked the record member `[<JsonIgnore>]`), and the open question — whether `computed`
+  should reach the compiled schema and introspection so a generated client knows not to send
+  the field — is answered *no*: the flag's consumer is each SDK's own CRUD generator, which
+  runs before export, so carrying it would add compiled-schema surface with no runtime
+  reader. Each SDK now has a test asserting the key is absent from its exported schema while
+  the flag still excludes the field from generated CRUD inputs, so neither fix can silently
+  regress.
+
 - **A schema declaring `aggregate_queries` is refused instead of silently dropped (#956).**
   The section is listed in `AUTHORABLE_ARRAY_SECTIONS`, so it was valid input on every
   compile path and every loader and merger carried it faithfully — and then the converter
