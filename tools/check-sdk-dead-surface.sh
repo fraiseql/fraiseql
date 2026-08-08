@@ -22,7 +22,10 @@
 #
 # ADDING TO THIS LIST
 # -------------------
-# One entry per removed surface: a regex, and the issue that removed it. Keep the regex
+# One entry per removed surface: a regex, and the issue that removed it. The reason text is
+# shell-expanded when the array is built, so it must contain no backticks — one there turned
+# the explanation into a command substitution and the gate died before checking anything.
+# Keep the regex
 # specific enough that a prose mention in a CHANGELOG or migration note does not trip it —
 # those files are excluded below rather than made unwritable.
 #
@@ -38,6 +41,8 @@ REMOVED=(
     "sql_source_dispatch|sql_source_dispatch|#926 — no compiler consumer; one query per source is the supported pattern"
     "SqlSourceDispatch|SqlSourceDispatch|#926 — Go builders and the Dart annotation, same reason"
     "sqlSourceDispatch|sqlSourceDispatch|#926 — the Java builders, same reason"
+    "NewAggregateQueryConfig|NewAggregateQueryConfig|#956 — the compiler refuses aggregate_queries; declare the fact table (which gives you the <name>_aggregate root field) or use [[analytics.queries]]"
+    "RegisterAggregateQuery|RegisterAggregateQuery|#956 — the registry half of the same removed surface"
 )
 
 # Only SDK authoring code is in scope. Docs are where the removal is *explained*, so a

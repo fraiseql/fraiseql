@@ -8,21 +8,21 @@ import (
 
 // Sale represents a fact table for sales analytics
 type Sale struct {
-	ID        int     `fraiseql:"id,type=Int"`
-	Revenue   float64 `fraiseql:"revenue,type=Float"`
-	Quantity  int     `fraiseql:"quantity,type=Int"`
-	Cost      float64 `fraiseql:"cost,type=Float"`
-	Category  string  `fraiseql:"category,type=String"`
-	Region    string  `fraiseql:"region,type=String"`
-	OccurredAt string `fraiseql:"occurredAt,type=String"`
+	ID         int     `fraiseql:"id,type=Int"`
+	Revenue    float64 `fraiseql:"revenue,type=Float"`
+	Quantity   int     `fraiseql:"quantity,type=Int"`
+	Cost       float64 `fraiseql:"cost,type=Float"`
+	Category   string  `fraiseql:"category,type=String"`
+	Region     string  `fraiseql:"region,type=String"`
+	OccurredAt string  `fraiseql:"occurredAt,type=String"`
 }
 
 // Event represents a fact table for event analytics
 type Event struct {
-	ID        int    `fraiseql:"id,type=Int"`
-	EventType string `fraiseql:"eventType,type=String"`
-	Duration  int    `fraiseql:"duration,type=Int"`
-	UserID    string `fraiseql:"userId,type=String"`
+	ID         int    `fraiseql:"id,type=Int"`
+	EventType  string `fraiseql:"eventType,type=String"`
+	Duration   int    `fraiseql:"duration,type=Int"`
+	UserID     string `fraiseql:"userId,type=String"`
 	OccurredAt string `fraiseql:"occurredAt,type=String"`
 }
 
@@ -49,48 +49,13 @@ func init() {
 		Description("Events fact table for user behavior analysis").
 		Register()
 
-	// Register aggregate queries that use the fact tables
-	fraiseql.NewAggregateQueryConfig("salesByCategory").
-		FactTableName("sales").
-		AutoGroupBy(true).
-		AutoAggregates(true).
-		Description("Sales aggregated by category with all metrics").
-		Register()
-
-	fraiseql.NewAggregateQueryConfig("salesByRegion").
-		FactTableName("sales").
-		AutoGroupBy(true).
-		AutoAggregates(true).
-		Description("Sales aggregated by region").
-		Register()
-
-	fraiseql.NewAggregateQueryConfig("salesByMonthAndCategory").
-		FactTableName("sales").
-		AutoGroupBy(true).
-		AutoAggregates(true).
-		Description("Sales aggregated by month and category for trend analysis").
-		Register()
-
-	fraiseql.NewAggregateQueryConfig("eventsByType").
-		FactTableName("events").
-		AutoGroupBy(true).
-		AutoAggregates(true).
-		Description("Events aggregated by event type").
-		Register()
-
-	fraiseql.NewAggregateQueryConfig("userActivity").
-		FactTableName("events").
-		AutoGroupBy(true).
-		AutoAggregates(true).
-		Description("User activity analysis from events fact table").
-		Register()
-
-	fraiseql.NewAggregateQueryConfig("dailyEventMetrics").
-		FactTableName("events").
-		AutoGroupBy(true).
-		AutoAggregates(true).
-		Description("Daily event metrics and statistics").
-		Register()
+	// No aggregate-query declarations (#956). `aggregate_queries` reached no compiled
+	// schema — the compiler now refuses it — and it was never needed here: declaring the
+	// fact table above is what makes the analytics surface real. The executor dispatches
+	// the `<fact_table>_aggregate` and `<fact_table>_window` root fields to the fact-table
+	// planners, so `sales` and `events` are queryable with GROUP BY and aggregate functions
+	// without any further declaration. For a *named* analytics query, use
+	// `[[analytics.queries]]` in fraiseql.toml (#624).
 }
 
 func main() {

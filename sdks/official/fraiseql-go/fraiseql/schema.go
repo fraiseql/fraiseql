@@ -78,9 +78,6 @@ func ExportSchema(outputPath string) error {
 	if len(schema.FactTables) > 0 {
 		fmt.Printf("   Fact Tables: %d\n", len(schema.FactTables))
 	}
-	if len(schema.AggregateQueries) > 0 {
-		fmt.Printf("   Aggregate Queries: %d\n", len(schema.AggregateQueries))
-	}
 
 	return nil
 }

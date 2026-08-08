@@ -437,7 +437,10 @@ func (mb *MutationBuilder) Register() error {
 // The analytics module provides better-structured fact table builders
 // with support for Measure and Dimension types.
 
-// NOTE: AggregateQueryBuilder removed - use analytics.NewAggregateQueryConfig() instead
+// NOTE: aggregate-query authoring is removed entirely (#956). The compiler never read
+// `aggregate_queries` and now refuses a schema that declares it; a fact table alone
+// gives you the `<name>_aggregate` root field, and `[[analytics.queries]]` in
+// fraiseql.toml is the supported way to declare a named analytics query.
 // The analytics module provides better-structured aggregate query builders.
 
 // getTypeName gets the name of a type from a value

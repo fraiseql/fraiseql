@@ -185,6 +185,35 @@ impl SchemaConverter {
             );
         }
 
+        // Refuse a schema that declares `aggregate_queries`, rather than carrying it through
+        // the seam and dropping it (#956).
+        //
+        // `aggregate_queries` is listed in `AUTHORABLE_ARRAY_SECTIONS`, so it is valid input
+        // on every compile path and every loader and merger carries it faithfully — and then
+        // this converter maps `fact_tables` and never reads it. `CompiledSchema` has no
+        // corresponding field, so the definitions reach the end of the seam and evaporate
+        // under a `✓ Schema compiled successfully`. That is the #755 shape surviving inside
+        // the very seam built to kill it.
+        //
+        // #624 gave `[[analytics.queries]]` real semantics by lowering each entry onto an
+        // ordinary `QueryDefinition`, so the capability exists and has a supported spelling.
+        // Refusing here — the `#779` disposition — names it, instead of accepting a second
+        // spelling that does nothing.
+        if let Some(aggregates) = intermediate.aggregate_queries.as_ref().filter(|a| !a.is_empty())
+        {
+            let names: Vec<&str> = aggregates.iter().map(|a| a.name.as_str()).collect();
+            anyhow::bail!(
+                "This schema declares {} aggregate_queries entry/entries ({}), which no \
+                 compile path lowers into the compiled schema — `CompiledSchema` has no \
+                 field for them, so they would vanish silently.\n\nDeclare them as \
+                 `[[analytics.queries]]` in fraiseql.toml instead (#624): each entry \
+                 becomes a real list-returning, view-backed query. Then remove the \
+                 `aggregate_queries` block from the authored schema.",
+                aggregates.len(),
+                names.join(", ")
+            );
+        }
+
         // #923: collect the declared enum / interface / union names BEFORE the arrays are
         // consumed below, so a field or argument naming one resolves to that kind instead of
         // to a phantom `FieldType::Object`.
