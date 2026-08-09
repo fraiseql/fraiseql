@@ -147,6 +147,18 @@ pub trait MfaStore: Send + Sync {
     /// if the code is wrong.
     async fn confirm_enrollment(&self, user_id: &str, totp_code: &str) -> Result<()>;
 
+    /// Delete challenge rows whose expiry has passed. Returns the number removed.
+    ///
+    /// Required rather than defaulted: a store that cannot sweep must say so in its own
+    /// body, because a default no-op would let a new backend inherit unbounded growth
+    /// silently (#950). Every read already checks expiry, so this is about table size,
+    /// not correctness — and it must never touch an unexpired row.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::DatabaseError`] if the store fails.
+    async fn sweep_expired(&self) -> Result<u64>;
+
     /// Issue a `MFA` challenge token for the given user after first-factor auth.
     ///
     /// # Errors
@@ -363,6 +375,13 @@ impl MfaStore for InMemoryMfaStore {
         })
     }
 
+    async fn sweep_expired(&self) -> Result<u64> {
+        let now = unix_now()?;
+        let before = self.challenges.len();
+        self.challenges.retain(|_, c| c.expires > now);
+        Ok((before - self.challenges.len()) as u64)
+    }
+
     async fn confirm_enrollment(&self, user_id: &str, totp_code: &str) -> Result<()> {
         let mut record =
             self.enrollments.get_mut(user_id).ok_or_else(|| AuthError::InvalidToken {
@@ -575,6 +594,15 @@ pub struct MfaVerifyRequest {
     pub code:            String,
 }
 
+/// Request for `POST /auth/v1/mfa/confirm`.
+#[derive(Debug, Deserialize)]
+pub struct MfaConfirmRequest {
+    /// User whose pending enrollment to confirm.
+    pub user_id: String,
+    /// The first `TOTP` code from the authenticator, proving the secret was stored.
+    pub code:    String,
+}
+
 /// Request for `POST /auth/v1/mfa/unenroll`.
 #[derive(Debug, Deserialize)]
 pub struct MfaUnenrollRequest {
@@ -737,6 +765,58 @@ pub async fn mfa_verify(
     );
 
     (StatusCode::OK, Json(tokens)).into_response()
+}
+
+/// `POST /auth/v1/mfa/confirm`
+///
+/// Completes an enrollment begun by `/enroll` by verifying the first `TOTP` code.
+/// Until this succeeds the enrollment stays `confirmed = false` and `create_challenge`
+/// refuses to issue against it, so without this route `MFA` could be enrolled through
+/// the API and never used (#950).
+///
+/// # Errors
+///
+/// Returns 422 if there is no pending enrollment for the user or the code is wrong.
+pub async fn mfa_confirm(
+    State(state): State<Arc<MfaRouteState>>,
+    Json(req): Json<MfaConfirmRequest>,
+) -> Response {
+    let logger = get_audit_logger();
+
+    match state.mfa_store.confirm_enrollment(&req.user_id, &req.code).await {
+        Ok(()) => {
+            logger.log_success(
+                AuditEventType::AuthSuccess,
+                SecretType::SessionToken,
+                Some(req.user_id),
+                "mfa_confirm",
+            );
+            StatusCode::OK.into_response()
+        },
+        Err(e) => {
+            logger.log_failure(
+                AuditEventType::AuthFailure,
+                SecretType::SessionToken,
+                Some(req.user_id.clone()),
+                "mfa_confirm",
+                &e.to_string(),
+            );
+            if let Some(resp) = rate_limited_response(&e) {
+                return resp;
+            }
+            // One generic answer for "no pending enrollment" and "wrong code" alike:
+            // distinguishing them would tell an unauthenticated caller whether a given
+            // user has an enrollment in flight.
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({
+                    "error":   "invalid_code",
+                    "message": "enrollment confirmation failed"
+                })),
+            )
+                .into_response()
+        },
+    }
 }
 
 /// `POST /auth/v1/mfa/unenroll`

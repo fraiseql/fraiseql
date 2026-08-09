@@ -165,6 +165,18 @@ impl PgMfaStore {
 // Reason: async_trait required for dyn-compatibility; remove when RTN + Send is stable
 #[async_trait]
 impl MfaStore for PgMfaStore {
+    #[allow(clippy::cast_possible_wrap)] // Reason: expiry is only ever written from unix_now()
+    async fn sweep_expired(&self) -> Result<u64> {
+        let now = unix_now()? as i64;
+        let removed = sqlx::query("DELETE FROM core.tb_mfa_challenge WHERE expires_at <= $1")
+            .bind(now)
+            .execute(&self.db)
+            .await
+            .map_err(db_err)?
+            .rows_affected();
+        Ok(removed)
+    }
+
     async fn begin_enrollment(
         &self,
         user_id: &str,

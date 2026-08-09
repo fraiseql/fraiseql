@@ -14,7 +14,7 @@ use tracing::info;
 use super::super::{
     AuthMeState, AuthPkceState, Server, auth_callback, auth_me, auth_start, oidc_auth_middleware,
 };
-use crate::auth::{anon_signup, mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify};
+use crate::auth::{anon_signup, mfa_challenge, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Mount all `#[cfg(feature = "auth")]`-gated authentication routes.
@@ -95,13 +95,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if let Some(ref mfa) = self.mfa_state {
             let mfa_router = Router::new()
                 .route("/auth/v1/mfa/enroll", post(mfa_enroll))
+                // `/confirm` completes what `/enroll` begins. Without it an enrollment
+                // stays unconfirmed forever and `create_challenge` refuses to issue
+                // against it, so MFA was enrollable but unusable through the API (#950).
+                .route("/auth/v1/mfa/confirm", post(mfa_confirm))
                 .route("/auth/v1/mfa/challenge", post(mfa_challenge))
                 .route("/auth/v1/mfa/verify", post(mfa_verify))
                 .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
                 .with_state(Arc::clone(mfa));
             app = app.merge(mfa_router);
             info!(
-                "TOTP MFA routes mounted: POST /auth/v1/mfa/{{enroll,challenge,verify,unenroll}}"
+                "TOTP MFA routes mounted: POST \
+                 /auth/v1/mfa/{{enroll,confirm,challenge,verify,unenroll}}"
             );
         }
 
@@ -241,6 +246,7 @@ mod router_construction {
     async fn mfa_router_constructs() {
         let _router: Router = Router::new()
             .route("/auth/v1/mfa/enroll", post(mfa_enroll))
+            .route("/auth/v1/mfa/confirm", post(mfa_confirm))
             .route("/auth/v1/mfa/challenge", post(mfa_challenge))
             .route("/auth/v1/mfa/verify", post(mfa_verify))
             .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))

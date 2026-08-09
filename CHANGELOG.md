@@ -1716,6 +1716,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`POST /auth/v1/mfa/confirm` is mounted, so MFA can be finished through the API (#950).**
+  `MfaStore::confirm_enrollment` existed and both stores implemented it, but
+  `mount_auth_routes` mounted only enroll/challenge/verify/unenroll. An operator could
+  therefore begin an enrollment over HTTP and never complete it: the row stayed
+  `confirmed = false`, `create_challenge` refuses to issue against an unconfirmed
+  enrollment, and MFA was enrollable but unusable. The e2e had been reaching past the
+  surface an operator has — calling `PgMfaStore::confirm_enrollment` directly, with a
+  comment saying the endpoint was not mounted — which is why it kept passing; it now
+  confirms through the route, and the `use fraiseql_auth::MfaStore as _` that workaround
+  needed is gone with it.
+
+- **Expired MFA and OTP rows are swept (#950).** `core.tb_mfa_challenge`,
+  `core.tb_otp_code` and `core.tb_otp_send_budget` were never pruned. Correctness was
+  never at stake — every read checks expiry — but a challenge that is minted and simply
+  abandoned is never consumed and never observed expired, and the send-budget table kept
+  one row for every address that had ever requested a code, forever. `MfaStore` and
+  `OtpStore` gain a required `sweep_expired`, spawned per configured store on a
+  five-minute ticker into the server's `JoinSet` so graceful shutdown awaits it, beside
+  the PKCE cleanup that already worked this way. Required rather than defaulted: a
+  no-op default would let a new backend inherit unbounded growth in silence.
+
 - **TypeScript: `@Observer` and `@Source` read the decorated member's name under both
   decorator protocols (#925).** Both were written for the legacy three-argument form
   (`target, propertyKey, descriptor`) that `tsc` emits with `experimentalDecorators`, and

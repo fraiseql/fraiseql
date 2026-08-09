@@ -297,7 +297,7 @@ pub async fn build_local_auth_states(
     let otp = None;
 
     let mfa = if local.mfa {
-        info!("TOTP MFA enabled (POST /auth/v1/mfa/{{enroll,challenge,verify,unenroll}})");
+        info!("TOTP MFA enabled (POST /auth/v1/mfa/{{enroll,confirm,challenge,verify,unenroll}})");
         Some(Arc::new(fraiseql_auth::MfaRouteState {
             mfa_store:     Arc::new(fraiseql_auth::PgMfaStore::new(pool.clone())),
             session_store: Arc::clone(&session_store),
