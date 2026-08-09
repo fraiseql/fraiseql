@@ -979,6 +979,7 @@ mod rate_limit_boot_guard_tests {
             pkce_in_memory:         false,
             rate_limiter_in_memory: !limiter.is_distributed(),
             revocation_in_memory:   false,
+            saml_replay_in_memory:  false,
         }
         .per_process_subsystems();
         assert!(
@@ -1180,6 +1181,7 @@ mod require_redis_874 {
             pkce_in_memory:         false,
             rate_limiter_in_memory: true,
             revocation_in_memory:   true,
+            saml_replay_in_memory:  false,
         };
         let v = b.per_process_subsystems();
         assert!(
@@ -1198,6 +1200,7 @@ mod require_redis_874 {
             pkce_in_memory:         false,
             rate_limiter_in_memory: false,
             revocation_in_memory:   false,
+            saml_replay_in_memory:  false,
         };
         assert!(
             b.per_process_subsystems().is_empty(),

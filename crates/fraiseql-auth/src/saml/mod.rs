@@ -50,7 +50,7 @@ mod verify;
 pub use config::{SamlAttributeMapping, SamlIdpConfig, SamlIdpConfigBuilder};
 pub use handler::{SamlAuthState, saml_acs, saml_login, saml_routes};
 pub use linking::{effective_saml_email_verified, saml_provider_key};
-pub use replay::SamlReplayCache;
+pub use replay::{PG_SAML_REPLAY_SCHEMA_SQL, PgSamlReplayStore, SamlReplayCache, SamlReplayStore};
 pub use verify::{VerifiedAssertion, verify_saml_response};
 
 #[cfg(test)]

@@ -573,10 +573,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         }),
                     ),
                 );
-                let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool));
+                let account_store =
+                    Arc::new(fraiseql_auth::PostgresAccountStore::new(pool.clone()));
                 let state_store = Arc::new(fraiseql_auth::InMemoryStateStore::new());
+                // Replay protection is shared across replicas (#949). The in-process
+                // default holds only within one server, so a captured assertion replays
+                // against a replica that has never seen its ID — the signature is valid
+                // and nothing else would stop it. Postgres because `[saml]` already
+                // requires this pool, so it adds no infrastructure.
+                let replay_store = Arc::new(fraiseql_auth::PgSamlReplayStore::new(pool));
+                replay_store
+                    .init()
+                    .await
+                    .map_err(|e| ServerError::ConfigError(format!("[saml] replay store: {e}")))?;
                 let mut state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
-                    .with_user_store(account_store);
+                    .with_user_store(account_store)
+                    .with_replay_store(replay_store);
                 for (name, entry) in &saml_cfg.idps {
                     let xml = match (&entry.metadata_xml, &entry.metadata_xml_path) {
                         (Some(xml), _) => xml.clone(),
@@ -639,6 +651,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             revocation_in_memory: revocation_manager
                 .as_ref()
                 .is_some_and(|rm| !rm.is_distributed()),
+            // Gated on `auth-saml`, not `auth`: `saml_state` itself only exists on an
+            // `auth-saml` build, so a plain `auth` build has no SAML replay store to
+            // report on. Only reachable for a library embedder anyway — the binary
+            // always passes the pool `[saml]` already requires, so the store is
+            // Postgres-backed (#949).
+            #[cfg(feature = "auth-saml")]
+            saml_replay_in_memory: saml_state.as_ref().is_some_and(|s| !s.replay_is_distributed()),
+            #[cfg(not(feature = "auth-saml"))]
+            saml_replay_in_memory: false,
         })?;
 
         // Spawn background PKCE state cleanup task (every 5 minutes).

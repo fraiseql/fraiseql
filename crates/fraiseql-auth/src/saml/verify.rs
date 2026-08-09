@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
-use super::{SamlError, SamlIdpConfig, replay::SamlReplayCache};
+use super::{SamlError, SamlIdpConfig, replay::SamlReplayStore};
 
 /// SAML 1.1 email-address `NameID` format URN. When the subject `NameID` uses this format
 /// and no email attribute is present, the `NameID` value itself is the email.
@@ -77,11 +77,11 @@ pub fn reject_doctype(xml: &str) -> Result<(), SamlError> {
 ///   validation failed.
 /// - [`SamlError::Replay`] — the assertion `ID` was already consumed.
 /// - [`SamlError::MissingField`] — a required field (`NameID`) was absent.
-pub fn verify_saml_response(
+pub async fn verify_saml_response(
     idp: &SamlIdpConfig,
     response_b64: &str,
     possible_request_ids: &[&str],
-    replay: &SamlReplayCache,
+    replay: &dyn SamlReplayStore,
     now: DateTime<Utc>,
 ) -> Result<VerifiedAssertion, SamlError> {
     use base64::Engine as _;
@@ -109,7 +109,7 @@ pub fn verify_saml_response(
     let not_on_or_after = assertion.conditions.as_ref().and_then(|c| c.not_on_or_after);
     let replay_expiry = not_on_or_after
         .unwrap_or_else(|| now + chrono::Duration::seconds(FALLBACK_REPLAY_WINDOW_SECS));
-    if !replay.check_and_record(&assertion.id, replay_expiry, now) {
+    if !replay.check_and_record(&assertion.id, replay_expiry, now).await? {
         return Err(SamlError::Replay);
     }
 
