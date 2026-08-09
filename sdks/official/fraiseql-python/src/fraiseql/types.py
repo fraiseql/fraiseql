@@ -162,6 +162,32 @@ def _get_class_annotations(cls: type) -> dict[str, Any]:
         return dict(getattr(cls, "__annotations__", {}))
 
 
+def _get_function_annotations(func: Any) -> dict[str, Any]:
+    """Resolve a function's annotations to their actual types.
+
+    The function counterpart of :func:`_get_class_annotations`, and for the same
+    reason: with ``from __future__ import annotations`` — idiomatic modern Python,
+    and what this repository's own ``TCH`` lint rules push authors towards —
+    ``func.__annotations__`` holds *strings*. Handed to
+    :func:`python_type_to_graphql` unresolved they map to nothing, so every argument
+    took the Python source text as its GraphQL type and ``nullable: False``: an
+    author's ``tag: str | None`` was exported as a required argument of a type that
+    does not exist (issue #924).
+
+    Annotations are evaluated against the defining module's globals with an empty
+    local namespace, so a parameter named after an imported type resolves to the
+    type rather than to itself (the function-side shape of issue #233). Falls back
+    to the raw annotation map when resolution fails, keeping an unresolvable forward
+    reference a downstream compile error rather than an authoring traceback.
+    """
+    module = sys.modules.get(getattr(func, "__module__", "") or "")
+    globalns = getattr(module, "__dict__", None)
+    try:
+        return typing.get_type_hints(func, globalns=globalns, localns={}, include_extras=True)
+    except (NameError, TypeError):
+        return dict(getattr(func, "__annotations__", {}))
+
+
 # Wire-transparent string representations of an identity: `str` → "String",
 # and the explicit `UUID` scalar both serialize as a JSON string, identical to
 # GraphQL `ID`.
@@ -278,7 +304,7 @@ def extract_function_signature(func: Any) -> dict[str, Any]:
         }
     """
     sig = inspect.signature(func)
-    annotations = func.__annotations__
+    annotations = _get_function_annotations(func)
 
     # Extract arguments
     arguments = []

@@ -19,8 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-import fraiseql  # noqa: E402
-from fraiseql.registry import SchemaRegistry  # noqa: E402
+import fraiseql
+from fraiseql.registry import SchemaRegistry
 
 
 def main() -> None:

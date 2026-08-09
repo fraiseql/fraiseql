@@ -3,13 +3,23 @@
 Every declaration here exists to survive `fraiseql compile` and be observable in the
 compiled artifact — see `sdks/official/conformance/canonical.md` for the construct-by-
 construct rationale and `sdks/official/conformance/project.py` for what is asserted.
+
+The module opens with `from __future__ import annotations` deliberately. It is what
+modern Python does, it is what this repository's own `TCH` lint rules push authors
+towards, and under it every annotation the decorators see is a *string*. The function
+path used to hand those strings straight through, so `name: str | None` exported as a
+required argument of a nonexistent type `str | None` (#924) — silent until the compiler
+rejected the return type. Removing this line does not weaken a test; it removes the only
+place the deferred-annotation path is exercised end to end.
 """
+
+from __future__ import annotations
 
 from enum import Enum
 from typing import Annotated
 
 import fraiseql
-from fraiseql.scalars import ID
+from fraiseql.scalars import ID  # noqa: TC001 — deferred annotations are resolved at runtime
 
 
 @fraiseql.type(sql_source="v_user", relay=True)
@@ -52,7 +62,7 @@ def users() -> list[User]:
 
 
 @fraiseql.query(sql_source="v_user")
-def user(id: ID) -> User | None:  # noqa: A002 — `id` is the canonical argument name
+def user(id: ID) -> User | None:
     pass
 
 
