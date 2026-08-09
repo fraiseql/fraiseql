@@ -2940,6 +2940,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`examples/saas`: the intra-account write rules were nullified by permissive-policy OR
+  (#1070).** `account_isolation` is created with no `FOR` clause (so it covers ALL commands)
+  and no `WITH CHECK`, and PostgreSQL both combines permissive policies with OR and reuses a
+  policy's `USING` expression as its `WITH CHECK` for UPDATE. The two write rules the README
+  says are "enforced by PostgreSQL on every write, including writes that do not go through
+  FraiseQL at all" — owner-only `Account`, billing-admin-only `Subscription` — were therefore
+  OR'd with `account_id = current_account_id()`, true for every member of the account, and
+  neither ever fired. The section exists to replace `[[security.rules]]` blocks that enforced
+  nothing (#612/#626), so it repeated one layer down the defect it advertises fixing.
+
+  Scope, per the audit's refuters: **cross-account isolation was never affected** — the
+  surviving disjunct still pins every row to the caller's own account, and the e2e asserting
+  that property was correct, only silent on writes. What was nullified is the *intra*-account
+  role restriction. This is example SQL and the example declares no mutations, so no
+  FraiseQL-served request could trigger it; reachability is direct SQL as `saas_app` or an
+  operator copying the pattern into a deployment that does have writes.
+
+  Both rules are now `AS RESTRICTIVE FOR UPDATE`, which ANDs with the permissive set instead
+  of OR-ing into it. Making `account_isolation` restrictive — the remedy the issue originally
+  suggested — is *wrong*: it would leave both tables with no permissive policy and every
+  `SELECT` returning zero rows. The owner test also moved to the `USING` side, because with it
+  only in `WITH CHECK` a member could update the account row and satisfy the check by setting
+  `owner_id` to themselves, self-promoting to owner permanently. A new e2e case issues those
+  UPDATEs as a member and asserts each is refused while the billing admin's and the owner's
+  still land; no such test existed.
+
 - **Twilio: a JSON body is now covered by the signature (#1069).** `build_signing_string`
   returned the URL alone for any body starting with `{` or `[`, and the inbound route
   rejects every non-JSON body before verification (#1044) — so on the only path the route
