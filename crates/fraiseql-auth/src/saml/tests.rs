@@ -23,6 +23,7 @@ use samael::{
 use super::{
     SamlError, SamlIdpConfig, SamlReplayCache, effective_saml_email_verified,
     handler::{AcsForm, LoginQuery, SamlAuthState, saml_acs, saml_login, saml_routes},
+    replay::SamlReplayStore as _,
     saml_provider_key,
     verify::{reject_doctype, verify_saml_response},
 };
@@ -135,8 +136,8 @@ fn encode(xml: &str) -> String {
 
 // ─── Happy path ──────────────────────────────────────────────────────────────
 
-#[test]
-fn valid_response_verifies_and_extracts_identity() {
+#[tokio::test]
+async fn valid_response_verifies_and_extracts_identity() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
@@ -148,16 +149,17 @@ fn valid_response_verifies_and_extracts_identity() {
     assert!(xml.contains("<saml2:Assertion"), "expected saml2-prefixed Assertion: {xml}");
     assert!(xml.contains("Signature"), "expected an XML signature: {xml}");
 
-    let verified =
-        verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).expect("should verify");
+    let verified = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now())
+        .await
+        .expect("should verify");
     assert_eq!(verified.name_id, "nameid-123");
     assert_eq!(verified.email.as_deref(), Some("user@example.com"));
 }
 
 // ─── Signature / trust ───────────────────────────────────────────────────────
 
-#[test]
-fn wrong_idp_certificate_is_rejected() {
+#[tokio::test]
+async fn wrong_idp_certificate_is_rejected() {
     let signer = new_idp();
     // Config trusts a DIFFERENT IdP's certificate than the one that signed.
     let other = new_idp();
@@ -165,12 +167,12 @@ fn wrong_idp_certificate_is_rejected() {
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&signer, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now());
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
-#[test]
-fn tampered_attribute_breaks_signature() {
+#[tokio::test]
+async fn tampered_attribute_breaks_signature() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
@@ -179,12 +181,13 @@ fn tampered_attribute_breaks_signature() {
 
     // Flip the signed email value — the digest no longer matches.
     let tampered = decode(&b64).replace("user@example.com", "attacker@evil.test");
-    let result = verify_saml_response(&config, &encode(&tampered), &[REQ_ID], &replay, Utc::now());
+    let result =
+        verify_saml_response(&config, &encode(&tampered), &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
-#[test]
-fn unsigned_response_is_rejected() {
+#[tokio::test]
+async fn unsigned_response_is_rejected() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
@@ -201,12 +204,12 @@ fn unsigned_response_is_rejected() {
     );
     let b64 = encode(&unsigned.to_string().unwrap());
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now());
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
-#[test]
-fn strict_algorithm_allowlist_rejects_weak_digest() {
+#[tokio::test]
+async fn strict_algorithm_allowlist_rejects_weak_digest() {
     let test_idp = new_idp();
     let replay = SamlReplayCache::new();
     // samael signs RSA-SHA256 but with a SHA-1 reference digest.
@@ -218,7 +221,7 @@ fn strict_algorithm_allowlist_rejects_weak_digest() {
         .unwrap()
         .build()
         .unwrap();
-    let strict_result = verify_saml_response(&strict, &b64, &[REQ_ID], &replay, Utc::now());
+    let strict_result = verify_saml_response(&strict, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(
         matches!(strict_result, Err(SamlError::Verification(_))),
         "strict allow-list must reject the weak SHA-1 digest: {strict_result:?}"
@@ -229,26 +232,28 @@ fn strict_algorithm_allowlist_rejects_weak_digest() {
     let lenient = config_with_cert(&test_idp.cert);
     let replay2 = SamlReplayCache::new();
     assert!(
-        verify_saml_response(&lenient, &b64, &[REQ_ID], &replay2, Utc::now()).is_ok(),
+        verify_saml_response(&lenient, &b64, &[REQ_ID], &replay2, Utc::now())
+            .await
+            .is_ok(),
         "relaxed allow-list should accept the same fixture"
     );
 }
 
 // ─── Audience / recipient / request binding ──────────────────────────────────
 
-#[test]
-fn wrong_audience_is_rejected() {
+#[tokio::test]
+async fn wrong_audience_is_rejected() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&test_idp, "nameid-123", "https://evil.example", SP_ACS, REQ_ID, &[]);
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now());
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
-#[test]
-fn wrong_recipient_is_rejected() {
+#[tokio::test]
+async fn wrong_recipient_is_rejected() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
@@ -262,24 +267,24 @@ fn wrong_recipient_is_rejected() {
         &[],
     );
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now());
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
-#[test]
-fn unsolicited_in_response_to_is_rejected() {
+#[tokio::test]
+async fn unsolicited_in_response_to_is_rejected() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
     // Assertion is bound to a request ID we never issued.
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, "id-attacker", &[]);
 
-    let result = verify_saml_response(&config, &b64, &["id-legit"], &replay, Utc::now());
+    let result = verify_saml_response(&config, &b64, &["id-legit"], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
-#[test]
-fn expired_response_is_rejected() {
+#[tokio::test]
+async fn expired_response_is_rejected() {
     let test_idp = new_idp();
     let mut config = config_with_cert(&test_idp.cert);
     // Make the SP intolerant: a just-issued response is past max_issue_delay.
@@ -287,46 +292,46 @@ fn expired_response_is_rejected() {
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now());
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
 // ─── Replay ──────────────────────────────────────────────────────────────────
 
-#[test]
-fn replayed_assertion_is_rejected() {
+#[tokio::test]
+async fn replayed_assertion_is_rejected() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
-    let first = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now());
+    let first = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(first.is_ok(), "first presentation should verify: {first:?}");
 
-    let second = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now());
+    let second = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(second, Err(SamlError::Replay)), "replay must be rejected: {second:?}");
 }
 
-#[test]
-fn replay_cache_detects_duplicate_and_prunes_expired() {
+#[tokio::test]
+async fn replay_cache_detects_duplicate_and_prunes_expired() {
     let cache = SamlReplayCache::new();
     let now = Utc::now();
     let exp = now + Duration::minutes(5);
 
-    assert!(cache.check_and_record("a1", exp, now), "first record is fresh");
-    assert!(!cache.check_and_record("a1", exp, now), "duplicate is a replay");
+    assert!(cache.check_and_record("a1", exp, now).await.unwrap(), "first record is fresh");
+    assert!(!cache.check_and_record("a1", exp, now).await.unwrap(), "duplicate is a replay");
     assert_eq!(cache.len(), 1);
 
     // After the window closes the entry is pruned, so the same id is fresh again — by then
     // the signature's own time-check would already reject it.
     let later = exp + Duration::seconds(1);
-    assert!(cache.check_and_record("a1", later + Duration::minutes(5), later));
+    assert!(cache.check_and_record("a1", later + Duration::minutes(5), later).await.unwrap());
 }
 
 // ─── XXE ─────────────────────────────────────────────────────────────────────
 
-#[test]
-fn doctype_entity_is_rejected_before_parsing() {
+#[tokio::test]
+async fn doctype_entity_is_rejected_before_parsing() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
@@ -334,7 +339,7 @@ fn doctype_entity_is_rejected_before_parsing() {
     let xxe = r#"<?xml version="1.0"?>
 <!DOCTYPE Response [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]>
 <Response>&xxe;</Response>"#;
-    let result = verify_saml_response(&config, &encode(xxe), &[REQ_ID], &replay, Utc::now());
+    let result = verify_saml_response(&config, &encode(xxe), &[REQ_ID], &replay, Utc::now()).await;
     assert!(matches!(result, Err(SamlError::DocTypeForbidden)), "got {result:?}");
 }
 
@@ -351,8 +356,8 @@ fn reject_doctype_guards_dtd_and_entities() {
 
 // ─── XML Signature Wrapping (seam test) ──────────────────────────────────────
 
-#[test]
-fn signature_wrapping_never_yields_forged_identity() {
+#[tokio::test]
+async fn signature_wrapping_never_yields_forged_identity() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
@@ -368,7 +373,8 @@ fn signature_wrapping_never_yields_forged_identity() {
     let idx = xml.find("<saml2:Assertion").expect("assertion marker");
     let wrapped = format!("{}{forged}{}", &xml[..idx], &xml[idx..]);
 
-    let result = verify_saml_response(&config, &encode(&wrapped), &[REQ_ID], &replay, Utc::now());
+    let result =
+        verify_saml_response(&config, &encode(&wrapped), &[REQ_ID], &replay, Utc::now()).await;
     // Either rejected outright, or the *signed* identity is returned — never the attacker's.
     match result {
         Err(_) => {},
@@ -378,8 +384,8 @@ fn signature_wrapping_never_yields_forged_identity() {
 
 // ─── Comment-truncation NameID confusion (seam test) ─────────────────────────
 
-#[test]
-fn comment_truncation_never_truncates_nameid() {
+#[tokio::test]
+async fn comment_truncation_never_truncates_nameid() {
     let test_idp = new_idp();
     let config = config_with_cert(&test_idp.cert);
     let replay = SamlReplayCache::new();
@@ -390,7 +396,7 @@ fn comment_truncation_never_truncates_nameid() {
     // XML comments are excluded from C14N, so injecting one does not break the signature.
     // A vulnerable parser would split the text node and return "victim@example.com".
     let xml = decode(&b64).replace(signed_name_id, "victim@example.com<!---->.attacker.test");
-    let result = verify_saml_response(&config, &encode(&xml), &[REQ_ID], &replay, Utc::now());
+    let result = verify_saml_response(&config, &encode(&xml), &[REQ_ID], &replay, Utc::now()).await;
     match result {
         Err(_) => {},
         Ok(v) => {
@@ -427,8 +433,8 @@ fn effective_email_verified_optin_single_tenant() {
     assert!(effective_saml_email_verified(&config), "opt-in single-tenant is honored");
 }
 
-#[test]
-fn effective_email_verified_optin_multitenant_fails_closed() {
+#[tokio::test]
+async fn effective_email_verified_optin_multitenant_fails_closed() {
     let test_idp = new_idp();
     let config = SamlIdpConfig::builder("test-idp", SP_ENTITY, SP_ACS)
         .idp_parts(IDP_ENTITY, IDP_SSO, test_idp.cert.der_data())

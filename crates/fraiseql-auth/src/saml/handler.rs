@@ -18,7 +18,8 @@ use axum::{
 use serde::Deserialize;
 
 use super::{
-    SamlIdpConfig, SamlReplayCache, effective_saml_email_verified, verify::verify_saml_response,
+    SamlIdpConfig, SamlReplayCache, effective_saml_email_verified, replay::SamlReplayStore,
+    verify::verify_saml_response,
 };
 use crate::{
     account_linking::AccountStore,
@@ -59,8 +60,9 @@ pub struct SamlAuthState {
     /// Account store for resolving the assertion to a stable local user. When absent the
     /// raw `"saml:<idp>:<NameID>"` is used as the user ID.
     user_store:    Option<Arc<dyn AccountStore>>,
-    /// Single-use assertion replay cache.
-    replay:        Arc<SamlReplayCache>,
+    /// Single-use assertion replay store. In-process by default; the server swaps in
+    /// the Postgres-backed store so replay protection holds across replicas (#949).
+    replay:        Arc<dyn SamlReplayStore>,
 }
 
 impl SamlAuthState {
@@ -74,6 +76,24 @@ impl SamlAuthState {
             user_store: None,
             replay: Arc::new(SamlReplayCache::new()),
         }
+    }
+
+    /// Swap in a shared replay store.
+    ///
+    /// The default is the in-process [`SamlReplayCache`], which is correct for exactly
+    /// one server instance. Behind more than one replica a captured assertion replays
+    /// against a replica that has never seen its ID, so the server passes the
+    /// Postgres-backed store here (#949).
+    #[must_use]
+    pub fn with_replay_store(mut self, replay: Arc<dyn SamlReplayStore>) -> Self {
+        self.replay = replay;
+        self
+    }
+
+    /// Whether replay protection is shared across processes.
+    #[must_use]
+    pub fn replay_is_distributed(&self) -> bool {
+        self.replay.is_distributed()
     }
 
     /// Register an IdP under its [`SamlIdpConfig::idp_name`]. Builder-style; ignores a
@@ -221,9 +241,11 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
         idp,
         &form.saml_response,
         &[request_id.as_str()],
-        &state.replay,
+        state.replay.as_ref(),
         chrono::Utc::now(),
-    ) {
+    )
+    .await
+    {
         Ok(a) => a,
         Err(e) => {
             tracing::warn!(idp = %idp_name, error = %e, "SAML assertion verification failed");

@@ -785,6 +785,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// trigger poisons only the consuming statement, proving both stores fail closed
 		// instead of reporting a single-use guarantee the failed DELETE did not establish.
 		"cargo test -p fraiseql-auth --test postgres_single_use_consume -- --test-threads=1",
+		// #950 expiry sweeps for the MFA/OTP tables. Two-sided: the expired row goes and
+		// the live one stays, so a sweep that deleted everything would fail here.
+		"cargo test -p fraiseql-auth --test postgres_expiry_sweep -- --test-threads=1",
 		// #389 session-state store (_system.session_state: TTL visibility, upsert, atomic
 		// summary collapse, eviction sweep vs real PG).
 		"cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1",
@@ -920,6 +923,13 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		"cargo test -p fraiseql-auth --features auth-saml --lib saml:: -- --test-threads=1",
 		// Tenant-bounded trust policy ∘ PostgresAccountStore (reads DATABASE_URL via harness).
 		"cargo test -p fraiseql-auth --features auth-saml --test saml_sso -- --test-threads=1",
+		// #949 cross-replica SAML replay refusal. Two PgSamlReplayStores over two pools
+		// stand in for two replicas: an assertion consumed by one must be refused by the
+		// other. That assertion is structurally impossible for a single-process suite,
+		// which is why the in-process DashMap survived this long. It lives here, not in
+		// the `postgres` suite: the store is behind `auth-saml`, which only this leg
+		// enables, and this leg binds Postgres too.
+		"cargo test -p fraiseql-auth --features auth-saml --test postgres_saml_replay -- --test-threads=1",
 		// #381 P26: the SERVER mount — [saml] config → boot provisioning →
 		// /auth/saml/login redirect with SAMLRequest; configured-but-broken
 		// shapes (no pool, dud metadata) refuse to boot.

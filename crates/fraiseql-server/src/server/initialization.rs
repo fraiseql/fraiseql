@@ -73,6 +73,10 @@ pub(super) struct SharedStateBackends {
     pub rate_limiter_in_memory: bool,
     /// The token revocation store is per-process.
     pub revocation_in_memory:   bool,
+    /// The SAML assertion replay store is per-process (#949). Behind more than one
+    /// replica an assertion consumed by one is unknown to the others, so a captured
+    /// `SAMLResponse` replays against a replica that has never seen its ID.
+    pub saml_replay_in_memory:  bool,
 }
 
 impl SharedStateBackends {
@@ -87,6 +91,9 @@ impl SharedStateBackends {
         }
         if self.revocation_in_memory {
             v.push("token revocation ([security.token_revocation])");
+        }
+        if self.saml_replay_in_memory {
+            v.push("SAML assertion replay protection ([saml])");
         }
         v
     }
@@ -149,7 +156,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
              each of them a shared backend:\n    [security.pkce]            redis_url = \
              \"redis://…\"\n    [security.rate_limiting]   redis_url = \"redis://…\"\n    \
              [security.token_revocation] backend = \"postgres\" (or redis_url = \"redis://…\")\
-             \n\n  To allow per-process state (single-replica only): unset \
+             \n    [saml]                     uses the configured pool automatically; a \
+             per-process replay store means Server was built programmatically without \
+             one\n\n  To allow per-process state (single-replica only): unset \
              FRAISEQL_REQUIRE_REDIS",
             violations.join(", ")
         )))

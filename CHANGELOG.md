@@ -1716,6 +1716,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **SAML replay protection is shared across replicas (#949).** `SamlReplayCache` was an
+  in-process `DashMap`, and its own module doc said so: "replay protection therefore holds
+  within a single process". Behind more than one replica that is a real weakening, not a
+  theoretical one — an attacker who captures a signed `SAMLResponse` replays it against a
+  **different** replica, which has never seen that assertion ID and accepts it. The
+  signature is valid; only the replay cache would have stopped it. A restart has the same
+  shape. `SamlReplayStore` is now a trait: the `DashMap` remains the single-node
+  implementation, and the server builds `PgSamlReplayStore` over the pool `[saml]` already
+  requires for sessions and account linking, so no new infrastructure. The check is a
+  single `INSERT … ON CONFLICT` — atomic in Postgres, rather than a read-then-write two
+  replicas could interleave — and a row whose window has closed is reclaimable, so a stale
+  entry cannot permanently burn an assertion ID. Fail-closed: a backend error refuses the
+  assertion, deliberately unlike the JWT `jti` cache's fail-open default, because here the
+  store lives in the same database the session mint needs one statement later.
+  `FRAISEQL_REQUIRE_REDIS` now covers the replay store too, so an operator asserting
+  distributed state cannot silently get per-process replay protection. `verify_saml_response`
+  is now `async`.
+
 - **`POST /auth/v1/mfa/confirm` is mounted, so MFA can be finished through the API (#950).**
   `MfaStore::confirm_enrollment` existed and both stores implemented it, but
   `mount_auth_routes` mounted only enroll/challenge/verify/unenroll. An operator could

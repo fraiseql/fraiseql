@@ -121,9 +121,10 @@ pub use proxy::ProxyConfig;
 pub use rate_limiting::{AuthRateLimitConfig, Clock, KeyedRateLimiter, RateLimiters, SystemClock};
 #[cfg(feature = "auth-saml")]
 pub use saml::{
-    SamlAttributeMapping, SamlAuthState, SamlError, SamlIdpConfig, SamlIdpConfigBuilder,
-    SamlReplayCache, VerifiedAssertion, effective_saml_email_verified, saml_acs, saml_login,
-    saml_provider_key, saml_routes, verify_saml_response,
+    PgSamlReplayStore, SamlAttributeMapping, SamlAuthState, SamlError, SamlIdpConfig,
+    SamlIdpConfigBuilder, SamlReplayCache, SamlReplayStore, VerifiedAssertion,
+    effective_saml_email_verified, saml_acs, saml_login, saml_provider_key, saml_routes,
+    verify_saml_response,
 };
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, SecurityConfigFromSchema,
