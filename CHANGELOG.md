@@ -1754,6 +1754,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   five-minute ticker into the server's `JoinSet` so graceful shutdown awaits it, beside
   the PKCE cleanup that already worked this way. Required rather than defaulted: a
   no-op default would let a new backend inherit unbounded growth in silence.
+- **The no-orphan-suites gate can see `mod`-aggregator binaries (#1029).**
+  `tools/check-suite-coverage.py` counted `#[test]` attributes in the top-level
+  `tests/<name>.rs` only and `continue`d on zero, so a binary whose tests live in
+  submodules dropped out of every coverage check. `crates/fraiseql-server/tests/security.rs`
+  is fourteen lines of `mod security { … }` with no attributes of its own and 100 tests
+  across the six files it aggregates — including the JWT-validation and OIDC-provider
+  suites — and no CI leg ran any of them while the gate printed `OK … all covered`.
+  `property` (18) and `integration` (36) were the same shape in the same crate. Worse, the
+  gate reported `GHOST … tests/security.rs does not exist` for anyone who tried to wire the
+  suite in, so it actively blocked its own hole from being closed.
+
+  Submodule sources are now folded in before the count, recursively, handling both
+  `tests/<stem>/x.rs` and `tests/<stem>/x/mod.rs`. Service detection folds them too, but
+  only for an aggregator — a binary with its own tests shows its service usage in its own
+  file, and folding unconditionally over-detected (`http_server_e2e_test` declares
+  `mod test_helpers;`, whose `TestServerConfig::new()` reads `DATABASE_URL` as an unused
+  default while the suite drives a bound server over `FRAISEQL_TEST_URL`). The gate now
+  sees **402** binaries where it saw 395, and all three orphans are wired into legs:
+  `security` and `property` into the in-process server list, `integration` — whose tests
+  self-skip without `DATABASE_URL` — into the postgres leg.
 
 - **TypeScript: `@Observer` and `@Source` read the decorated member's name under both
   decorator protocols (#925).** Both were written for the legacy three-argument form
