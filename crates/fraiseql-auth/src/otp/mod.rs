@@ -99,6 +99,17 @@ struct RateRecord {
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait OtpStore: Send + Sync {
+    /// Delete expired codes and stale send-budget rows. Returns the number removed.
+    ///
+    /// Required rather than defaulted, for the reason [`crate::MfaStore::sweep_expired`]
+    /// gives. `tb_otp_send_budget` is the sharper case: it holds one row per address that
+    /// has ever requested a code and nothing removed them (#950).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::DatabaseError`] if the store fails.
+    async fn sweep_expired(&self) -> Result<u64>;
+
     /// Generate and store a new `OTP` for the given email.
     ///
     /// # Returns
@@ -163,6 +174,16 @@ impl Default for InMemoryOtpStore {
 // Reason: async_trait required for dyn-compatibility; remove when RTN + Send is stable
 #[async_trait]
 impl OtpStore for InMemoryOtpStore {
+    async fn sweep_expired(&self) -> Result<u64> {
+        let now = unix_now()?;
+        let before = self.codes.len() + self.rate_limits.len();
+        self.codes.retain(|_, r| r.expires > now);
+        // A budget row whose window has closed is dead weight: the next send for that
+        // address opens a fresh window regardless of what this row says.
+        self.rate_limits.retain(|_, r| now < r.window_start + OTP_RATE_WINDOW_SECS);
+        Ok((before - (self.codes.len() + self.rate_limits.len())) as u64)
+    }
+
     async fn create_otp(&self, email: &str) -> Result<String> {
         let now = unix_now()?;
 

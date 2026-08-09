@@ -142,6 +142,6 @@ pub use state_encryption::{
 pub use state_store::{InMemoryStateStore, StateStore};
 pub use totp_mfa::{
     EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore, TotpEnrollment, mfa_challenge,
-    mfa_enroll, mfa_unenroll, mfa_verify,
+    mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify,
     postgres::{PG_MFA_SCHEMA_SQL, PgMfaStore},
 };

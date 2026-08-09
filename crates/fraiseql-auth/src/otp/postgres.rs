@@ -78,6 +78,31 @@ impl PgOtpStore {
 // Reason: async_trait required for dyn-compatibility; remove when RTN + Send is stable
 #[async_trait]
 impl OtpStore for PgOtpStore {
+    #[allow(clippy::cast_possible_wrap)] // Reason: expiry is only ever written from unix_now()
+    async fn sweep_expired(&self) -> Result<u64> {
+        let now = unix_now()? as i64;
+        let codes = sqlx::query("DELETE FROM core.tb_otp_code WHERE expires_at <= $1")
+            .bind(now)
+            .execute(&self.db)
+            .await
+            .map_err(db_err)?
+            .rows_affected();
+
+        // See the in-memory twin: a closed window is dead weight, and this table is the
+        // one that otherwise keeps a row for every address that ever asked for a code.
+        let window = i64::try_from(crate::otp::OTP_RATE_WINDOW_SECS).unwrap_or(i64::MAX);
+        let budgets =
+            sqlx::query("DELETE FROM core.tb_otp_send_budget WHERE window_start + $1 <= $2")
+                .bind(window)
+                .bind(now)
+                .execute(&self.db)
+                .await
+                .map_err(db_err)?
+                .rows_affected();
+
+        Ok(codes + budgets)
+    }
+
     #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // Reason: unix seconds and small counters fit i64/i32
     async fn create_otp(&self, email: &str) -> Result<String> {
         let now = unix_now()?;

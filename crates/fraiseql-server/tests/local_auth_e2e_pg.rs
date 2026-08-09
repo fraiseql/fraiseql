@@ -31,7 +31,6 @@ use std::sync::Arc;
 
 #[cfg(feature = "inbound-email")]
 use fraiseql_auth::AccountStore as _;
-use fraiseql_auth::MfaStore as _;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     schema::{AuthClientConfig, CompiledSchema, LocalAuthConfig},
@@ -496,8 +495,11 @@ async fn mfa_enrollment_survives_a_restart() {
             .expect("enrollment row");
     assert!(!confirmed.0, "a fresh enrollment is unconfirmed until the first code verifies");
 
-    // Confirm it directly through the store (the confirm endpoint is not
-    // mounted; this exercises the Postgres store's own confirm path).
+    // Confirm through the HTTP route. This used to reach past the surface an operator
+    // has and call `PgMfaStore::confirm_enrollment` directly, because no route was
+    // mounted — which meant MFA could be enrolled but never used through the API alone
+    // (#950). Reaching past the surface is exactly how the gap survived: the test still
+    // passed. Confirming through the route is the operator's path.
     let secret = uri
         .split("secret=")
         .nth(1)
@@ -515,8 +517,21 @@ async fn mfa_enrollment_survives_a_restart() {
     )
     .expect("totp");
     let code = totp.generate_current().expect("generate code");
-    let store = fraiseql_auth::PgMfaStore::new(pool.clone());
-    store.confirm_enrollment("user-1", &code).await.expect("confirm enrollment");
+    let (status, body) = post_json(
+        &server.base,
+        "/auth/v1/mfa/confirm",
+        serde_json::json!({ "user_id": "user-1", "code": code }),
+    )
+    .await;
+    assert_eq!(status, 200, "confirm through the route: {body}");
+
+    let confirmed: (bool,) =
+        sqlx::query_as("SELECT confirmed FROM core.tb_mfa_enrollment WHERE user_id = $1")
+            .bind("user-1")
+            .fetch_one(&pool)
+            .await
+            .expect("enrollment row");
+    assert!(confirmed.0, "the route must confirm the enrollment, not just answer 200");
 
     // Restart the server: an in-memory store would lose the enrollment here,
     // which is exactly why `[auth.local] mfa` is backed by Postgres.

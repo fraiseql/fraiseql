@@ -645,6 +645,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         Self::spawn_pkce_cleanup(pkce_store.as_ref(), &mut tasks);
 
+        // Spawn the MFA/OTP expiry sweeps (#950). Every read of those tables already
+        // checks expiry, so this is about table growth: an abandoned challenge is never
+        // consumed and never observed expired, and the OTP send-budget table keeps a row
+        // for every address that has ever asked for a code.
+        #[cfg(feature = "auth")]
+        Self::spawn_local_auth_sweeps(&local_auth, &mut tasks);
+
         // Spawn the session-state eviction sweep (#389) at the configured cadence.
         #[cfg(feature = "auth")]
         Self::spawn_session_state_eviction(
@@ -751,6 +758,57 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 loop {
                     ticker.tick().await;
                     store_clone.cleanup_expired().await;
+                }
+            });
+        }
+    }
+
+    /// Spawn the `[auth.local]` MFA/OTP expiry sweeps onto the server's
+    /// [`JoinSet`](tokio::task::JoinSet), so graceful shutdown awaits them.
+    ///
+    /// One ticker per configured store, on the same five-minute cadence as the PKCE
+    /// cleanup next door. A sweep that errors is logged and the ticker continues: a
+    /// transient database error must not silently retire the task and let the tables
+    /// resume growing for the life of the process.
+    #[cfg(feature = "auth")]
+    pub(super) fn spawn_local_auth_sweeps(
+        local_auth: &crate::auth_local::LocalAuthStates,
+        tasks: &mut tokio::task::JoinSet<()>,
+    ) {
+        use std::time::Duration;
+
+        use tokio::time::MissedTickBehavior;
+
+        const SWEEP_INTERVAL: Duration = Duration::from_secs(300);
+
+        if let Some(ref mfa) = local_auth.mfa {
+            let store = Arc::clone(&mfa.mfa_store);
+            tasks.spawn(async move {
+                let mut ticker = tokio::time::interval(SWEEP_INTERVAL);
+                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                loop {
+                    ticker.tick().await;
+                    match store.sweep_expired().await {
+                        Ok(0) => {},
+                        Ok(n) => tracing::debug!(removed = n, "swept expired MFA challenges"),
+                        Err(e) => tracing::warn!(error = %e, "MFA expiry sweep failed"),
+                    }
+                }
+            });
+        }
+
+        if let Some(ref otp) = local_auth.otp {
+            let store = Arc::clone(&otp.otp_store);
+            tasks.spawn(async move {
+                let mut ticker = tokio::time::interval(SWEEP_INTERVAL);
+                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                loop {
+                    ticker.tick().await;
+                    match store.sweep_expired().await {
+                        Ok(0) => {},
+                        Ok(n) => tracing::debug!(removed = n, "swept expired OTP rows"),
+                        Err(e) => tracing::warn!(error = %e, "OTP expiry sweep failed"),
+                    }
                 }
             });
         }
