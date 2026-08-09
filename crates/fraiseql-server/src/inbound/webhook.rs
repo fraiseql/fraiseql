@@ -21,7 +21,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use axum::{
     Router,
     body::Bytes,
-    extract::{Path, State},
+    extract::{Path, RawQuery, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
@@ -312,6 +312,28 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
     Ok(())
 }
 
+/// The query parameter Twilio appends for non-form bodies, carrying the hex SHA-256
+/// of the raw request body (#1069). The verifier re-derives the digest and compares.
+const BODY_SHA256_PARAM: &str = "bodySHA256";
+
+/// The raw `bodySHA256` value from a request's query string, if it carries one.
+///
+/// Not percent-decoded: the value is hex, and the signing string must contain it byte
+/// for byte as the sender wrote it, or the HMAC will not match.
+fn body_sha256_query(query: Option<&str>) -> Option<&str> {
+    query?
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find_map(|(key, value)| (key == BODY_SHA256_PARAM).then_some(value))
+}
+
+/// Append `bodySHA256=<hash>` to a configured public URL, respecting whether it
+/// already carries a query string.
+fn append_query_param(base: &str, hash: &str) -> String {
+    let separator = if base.contains('?') { '&' } else { '?' };
+    format!("{base}{separator}{BODY_SHA256_PARAM}={hash}")
+}
+
 /// Collect request headers into a name→value map, dropping non-UTF-8 values.
 fn collect_headers(headers: &HeaderMap) -> BTreeMap<String, String> {
     headers
@@ -387,6 +409,7 @@ fn json_status(status: StatusCode, body: &Value) -> Response {
 pub async fn webhook_handler(
     State(state): State<WebhookInboundState>,
     Path(provider): Path<String>,
+    RawQuery(query): RawQuery,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
@@ -440,6 +463,19 @@ pub async fn webhook_handler(
         );
     }
 
+    // #1069: Twilio's non-form scheme appends `bodySHA256=<hex of body>` to the request
+    // URI and signs the URI *including* that parameter. The host/path half still comes
+    // from the configured `public_url` — reconstructing it from request headers would
+    // trust attacker-controlled input, which is the whole reason `requires_url` exists —
+    // but the body-hash parameter is taken from the request, because that is where the
+    // sender puts it. Taking it is safe in a way reconstructing the host is not: it is
+    // covered by the signature, and the verifier re-derives the digest from the body it
+    // actually received, so a hash that does not describe this body cannot verify.
+    let signing_url = route.public_url.as_ref().map(|base| {
+        body_sha256_query(query.as_deref())
+            .map_or_else(|| base.clone(), |hash| append_query_param(base, hash))
+    });
+
     let header_map = collect_headers(&headers);
     let event_id = extract_event_id(&payload, &body);
     let event_type = extract_event_type(&payload, &header_map);
@@ -470,7 +506,7 @@ pub async fn webhook_handler(
         body: &body,
         signature: &signature,
         timestamp: timestamp.as_deref(),
-        url: route.public_url.as_deref(),
+        url: signing_url.as_deref(),
         params,
     };
 
