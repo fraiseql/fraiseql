@@ -63,16 +63,6 @@ jobs:
           php-version: '8.2'
           tools: composer
 
-      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
-
-      - uses: ruby/setup-ruby@97ecb7b512899eb71ab1bf2310a624c6f1589ac6  # v1
-        with:
-          ruby-version: '3.3'
-
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1  # v2
         with:
