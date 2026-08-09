@@ -228,6 +228,27 @@ mod genuine_delivery_fixtures {
             url:       Some(twilio_url.into()),
         });
 
+        // Twilio, JSON body (#1069): Twilio appends `bodySHA256=<hex>` to the request URI
+        // and signs the URI including it. A second fixture rather than a replacement,
+        // because Twilio really does have two signing strings and both must hold — and
+        // because the form-only fixture is precisely why `every_tampered_delivery_is_rejected`
+        // never reached the JSON branch, where flipping a body byte used to change nothing
+        // the signature covered.
+        {
+            use sha2::Digest as _;
+            let base = "https://hooks.example.com/webhooks/twilio";
+            let body = br#"{"id":"twilio_json_1","type":"message.status"}"#.to_vec();
+            let url = format!("{base}?bodySHA256={}", hex::encode(Sha256::digest(&body)));
+            all.push(Fixture {
+                provider: "twilio",
+                signature: BASE64.encode(hmac_sha1(SECRET, url.as_bytes())),
+                body,
+                secret: SECRET.into(),
+                timestamp: None,
+                url: Some(url),
+            });
+        }
+
         // Discord: Ed25519 over `{ts}{body}`, hex signature, hex public key as secret.
         {
             use ed25519_dalek::{Signer as _, SigningKey};

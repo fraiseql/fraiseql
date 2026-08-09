@@ -34,7 +34,7 @@ use fraiseql_test_support::try_database_url;
 use fraiseql_webhooks::PostgresIdempotencyStore;
 use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
-use sha2::Sha256;
+use sha2::{Digest as _, Sha256};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tower::ServiceExt as _;
 
@@ -155,19 +155,24 @@ async fn a_genuine_twilio_delivery_is_processed() {
     };
     let router = router(pool);
 
-    // Twilio posts JSON here (the route requires a JSON body); Twilio's scheme
-    // then signs the URL alone for non-form payloads.
+    // Twilio posts JSON here (the route requires a JSON body). For a non-form body its
+    // scheme appends `bodySHA256=<hex>` to the request URI and signs the URI *including*
+    // that parameter (#1069) — this request is built the way Twilio actually sends one.
+    // Before #1069 the test signed `TWILIO_PUBLIC_URL` bare, which is why it passed
+    // against a verifier whose MAC covered no body material at all.
     let body = format!(r#"{{"id":"twilio-{}","type":"sms"}}"#, now());
+    let body_hash = hex::encode(Sha256::digest(body.as_bytes()));
+    let signed_url = format!("{TWILIO_PUBLIC_URL}?bodySHA256={body_hash}");
     let mut mac = Hmac::<Sha1>::new_from_slice(SECRET.as_bytes()).unwrap();
-    mac.update(TWILIO_PUBLIC_URL.as_bytes());
+    mac.update(signed_url.as_bytes());
     let signature = BASE64.encode(mac.finalize().into_bytes());
 
     let request = Request::builder()
         .method("POST")
-        .uri("/webhooks/twilio")
-        .header("X-Twilio-Signature", signature)
+        .uri(format!("/webhooks/twilio?bodySHA256={body_hash}"))
+        .header("X-Twilio-Signature", signature.clone())
         .header("content-type", "application/json")
-        .body(Body::from(body))
+        .body(Body::from(body.clone()))
         .unwrap();
     let (status, response) = send(&router, request).await;
 
@@ -178,6 +183,76 @@ async fn a_genuine_twilio_delivery_is_processed() {
          passed the configured public_url, so verification always errored; body: {response}"
     );
     assert!(response.contains("processed"), "expected processed, got: {response}");
+}
+
+/// The #1069 exploit, at the route: the same captured `X-Twilio-Signature`, a body the
+/// attacker wrote. It used to reach `emit_in_tx` and fire `after:ingest`; the route must
+/// now answer 401.
+#[tokio::test]
+async fn a_forged_twilio_body_under_a_captured_signature_is_refused() {
+    let Some(pool) = setup().await else {
+        eprintln!(
+            "skipping a_forged_twilio_body_under_a_captured_signature_is_refused: DATABASE_URL unset"
+        );
+        return;
+    };
+    let router = router(pool);
+
+    let genuine = format!(r#"{{"id":"twilio-{}","type":"sms"}}"#, now());
+    let body_hash = hex::encode(Sha256::digest(genuine.as_bytes()));
+    let signed_url = format!("{TWILIO_PUBLIC_URL}?bodySHA256={body_hash}");
+    let mut mac = Hmac::<Sha1>::new_from_slice(SECRET.as_bytes()).unwrap();
+    mac.update(signed_url.as_bytes());
+    let captured = BASE64.encode(mac.finalize().into_bytes());
+
+    // Same header, same query string, attacker-chosen payload.
+    let forged = r#"{"id":"forged-1","type":"anything","amount":999}"#;
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!("/webhooks/twilio?bodySHA256={body_hash}"))
+        .header("X-Twilio-Signature", captured)
+        .header("content-type", "application/json")
+        .body(Body::from(forged))
+        .unwrap();
+    let (status, response) = send(&router, request).await;
+
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a body that is not the one the signature covers must be refused; got: {response}"
+    );
+}
+
+/// A JSON delivery carrying no body hash at all cannot verify against the pre-#1069
+/// constant `HMAC(public_url)` — the value that, once captured anywhere, authorised
+/// arbitrary bodies forever.
+#[tokio::test]
+async fn the_legacy_body_free_twilio_signature_is_refused() {
+    let Some(pool) = setup().await else {
+        eprintln!("skipping the_legacy_body_free_twilio_signature_is_refused: DATABASE_URL unset");
+        return;
+    };
+    let router = router(pool);
+
+    let mut mac = Hmac::<Sha1>::new_from_slice(SECRET.as_bytes()).unwrap();
+    mac.update(TWILIO_PUBLIC_URL.as_bytes());
+    let legacy = BASE64.encode(mac.finalize().into_bytes());
+
+    let body = format!(r#"{{"id":"twilio-{}","type":"sms"}}"#, now());
+    let request = Request::builder()
+        .method("POST")
+        .uri("/webhooks/twilio")
+        .header("X-Twilio-Signature", legacy)
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let (status, response) = send(&router, request).await;
+
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "the body-free signature must no longer authorise anything; got: {response}"
+    );
 }
 
 #[tokio::test]

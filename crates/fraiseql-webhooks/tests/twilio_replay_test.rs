@@ -16,6 +16,7 @@ use base64::{Engine as _, engine::general_purpose};
 use fraiseql_webhooks::{signature::twilio::TwilioVerifier, traits::SignatureVerifier as _};
 use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
+use sha2::{Digest as _, Sha256};
 
 // ---------------------------------------------------------------------------
 // Reference implementation (mirrors build_signing_string in twilio.rs)
@@ -50,7 +51,9 @@ fn make_twilio_signature(url: &str, form_body: &[u8], secret: &str) -> String {
     let signing = if body_str.is_empty()
         || matches!(body_str.trim_start().chars().next(), Some('{' | '[') | None)
     {
-        // JSON or empty body: sign URL only.
+        // Non-form or empty body: the signing string is the URL itself. For a JSON
+        // delivery that URL carries Twilio's `bodySHA256=<hex>` parameter (#1069), which
+        // is what binds the body — callers build it before signing.
         url.to_string()
     } else {
         let mut params: Vec<(String, String)> = body_str
@@ -105,21 +108,45 @@ fn known_twilio_form_signature_verifies_correctly() {
 
 /// A correctly-signed Twilio JSON webhook must be accepted.
 ///
-/// For JSON payloads, Twilio signs the URL alone (no body params).
+/// For JSON payloads Twilio appends `bodySHA256=<hex>` to the request URI and signs the
+/// URI *including* it (#1069). This test used to sign the bare URL and assert acceptance,
+/// which pinned the defect: with no body material under the HMAC, the expected signature
+/// was a constant per `(auth_token, url)` and authorised any body forever.
 #[test]
 fn known_twilio_json_signature_verifies_correctly() {
     const SECRET: &str = "test_auth_token_12345";
-    const URL: &str = "https://example.com/twilio/json-webhook";
+    const BASE: &str = "https://example.com/twilio/json-webhook";
     const BODY: &[u8] = br#"{"event":"call.completed","callSid":"CA123"}"#;
 
-    let signature = make_twilio_signature(URL, BODY, SECRET);
+    let url = format!("{BASE}?bodySHA256={}", hex::encode(Sha256::digest(BODY)));
+    let signature = make_twilio_signature(&url, BODY, SECRET);
     let verifier = TwilioVerifier;
 
-    let result = verifier.verify(BODY, &signature, SECRET, None, Some(URL));
+    let result = verifier.verify(BODY, &signature, SECRET, None, Some(&url));
 
     assert!(
         result.unwrap_or(false),
         "O1 regression: known-good Twilio JSON signature was rejected"
+    );
+}
+
+/// The captured-signature replay this suite exists to rule out, in its JSON form: the
+/// same URL and the same `X-Twilio-Signature`, a body the attacker chose.
+#[test]
+fn a_captured_json_signature_does_not_authorise_another_body() {
+    const SECRET: &str = "test_auth_token_12345";
+    const BASE: &str = "https://example.com/twilio/json-webhook";
+    const GENUINE: &[u8] = br#"{"event":"call.completed","callSid":"CA123"}"#;
+    const FORGED: &[u8] = br#"{"id":"forged-1","type":"anything","amount":999}"#;
+
+    let url = format!("{BASE}?bodySHA256={}", hex::encode(Sha256::digest(GENUINE)));
+    let signature = make_twilio_signature(&url, GENUINE, SECRET);
+
+    assert!(
+        !TwilioVerifier
+            .verify(FORGED, &signature, SECRET, None, Some(&url))
+            .unwrap_or(true),
+        "a signature captured from a genuine delivery must not authorise a forged body"
     );
 }
 

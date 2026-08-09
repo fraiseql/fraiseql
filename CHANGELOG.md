@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **Twilio senders must use the `bodySHA256` scheme for non-form bodies (#1069).** A JSON
+  delivery signed the way this crate used to accept — `HMAC-SHA1(auth_token, public_url)`
+  with no body material — now answers 401. Genuine Twilio traffic is unaffected: Twilio
+  already sends the `bodySHA256` form this release implements, and could not verify against
+  the old code at all. Only a sender that followed FraiseQL's own (unsound) scheme breaks,
+  and it breaks because that scheme authenticated nothing about the message. See the
+  Security entry for the full account.
+
 - **The minimum supported Rust version is now 1.94 (was 1.92) (#933).** Required to clear
   RUSTSEC-2026-0222 (`wasmtime`: stores can mix up type indices between engines): the 44.x
   line we shipped has no patched release, and every patched line (46.0.2 / 47.0.3) pulls
@@ -2931,6 +2939,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   role and drive real session variables rather than comparing two different WHERE clauses.
 
 ### Security
+
+- **Twilio: a JSON body is now covered by the signature (#1069).** `build_signing_string`
+  returned the URL alone for any body starting with `{` or `[`, and the inbound route
+  rejects every non-JSON body before verification (#1044) — so on the only path the route
+  admits, the HMAC covered **no request-specific material at all**. The expected signature
+  was `base64(HMAC-SHA1(auth_token, public_url))`: one constant, identical on every delivery
+  forever, since Twilio's scheme carries no timestamp and this verifier has no freshness
+  check. `X-Twilio-Signature` was therefore not a per-message authenticator but a permanent
+  static bearer token, and one exposure of it — a load-balancer log with header capture, an
+  APM trace, a proxy record, or the copy `collect_headers` + `emit_in_tx` persist into
+  `_fraiseql_inbound_message.payload` — authorised arbitrary bodies into the spine and into
+  every `after:ingest` function, indefinitely. Body integrity on that path was zero.
+
+  The same gap was also a broken provider integration in the other direction: Twilio's
+  actual non-form scheme appends `bodySHA256=<hex>` to the request URI and signs the URI
+  *including* it. That form was unimplemented (`rg bodySHA256` returned nothing repo-wide),
+  so no genuine Twilio JSON delivery could ever have verified — the route processed nothing
+  real, which is why the constant never crossed the wire from Twilio itself. The realistic
+  capture sources were this deployment's own accepted requests: an operator smoke test, a
+  staging replay, a proxy or debug log.
+
+  Twilio's documented scheme is now implemented. The verifier reads `bodySHA256` from the
+  signing URL, re-derives `SHA-256` over the body it actually received, refuses on mismatch,
+  and signs the URL byte for byte as given. The parameter is attacker-reachable but not
+  trusted: it is inside the HMAC (tampering invalidates the signature) *and* checked against
+  the real body (a captured signature cannot be replayed over another body) — both
+  properties are needed. The route takes it from the request's query string while the
+  host/path half still comes from the configured `public_url`, since reconstructing that
+  from request headers would trust attacker-controlled input.
+
+  There is no longer any non-empty body whose signing string is the URL alone. The
+  `{`/`[` heuristic is gone with it, which also closes the scalar-JSON hole the audit's
+  refuters found (`42` is valid JSON, does not start with `{`, and fell into the form arm).
+  Form-encoded Twilio deliveries — the SMS/voice shape — are still rejected by the route
+  before verification; that is #1044 and is not addressed here.
 
 - **Federation `_entities` no longer bypasses field-level RBAC (#1030).**
   `execute_entities_query` did its own authorization rather than sharing the query path's,
