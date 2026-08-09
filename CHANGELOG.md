@@ -1754,6 +1754,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   five-minute ticker into the server's `JoinSet` so graceful shutdown awaits it, beside
   the PKCE cleanup that already worked this way. Required rather than defaulted: a
   no-op default would let a new backend inherit unbounded growth in silence.
+- **Flight `DoPut` is gated by the #953 upload allow-list (#1028).** #953 required an
+  operator to allow-list every writable table before a Flight upload could run, because
+  those rows name their own target and bypass the mutation pipeline entirely — no
+  `SecurityContext`, no cache invalidation, no change-log outbox row. The gate went into
+  `do_exchange`. `do_put` reached the same capability by a different RPC and was never
+  touched: any caller with a valid Flight session could open `DoPut` with
+  `FlightDescriptor { path: ["tb_user"] }` and stream a batch straight into an `INSERT`,
+  and be answered `Inserted N rows`. The byte-identical intent over `do_exchange` was
+  refused. `authorize_upload` now lives in a module neither handler owns and both call,
+  and `tools/check-guard-parity.sh` — whose whole premise is "there is only one" — fails
+  if any Flight handler builds an `INSERT` without calling it.
+
+  Six `*_unimplemented` tests are removed. Each asserted
+  `service.schema_registry().contains("…")`, a constant `register_defaults()` guarantees,
+  under a name claiming to cover Handshake, DoPut, DoAction, DoExchange, PollFlightInfo or
+  GetFlightInfo; none ever called the RPC it was named for, and `rg '\.do_put\('` was zero
+  workspace-wide. A suite that cannot fail is why the gate landed on one sibling and not
+  the other.
+
 - **The no-orphan-suites gate can see `mod`-aggregator binaries (#1029).**
   `tools/check-suite-coverage.py` counted `#[test]` attributes in the top-level
   `tests/<name>.rs` only and `continue`d on zero, so a binary whose tests live in

@@ -13,10 +13,13 @@ use tokio::sync::mpsc::Sender;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
 
-use super::super::{
-    FlightDataStream, FraiseQLFlightService, QueryExecutor, build_insert_query,
-    decode_upload_batch, encode_json_to_arrow_batch, extract_session_token,
-    record_batch_to_flight_data, validate_session_token,
+use super::{
+    super::{
+        FlightDataStream, FraiseQLFlightService, QueryExecutor, build_insert_query,
+        decode_upload_batch, encode_json_to_arrow_batch, extract_session_token,
+        record_batch_to_flight_data, validate_session_token,
+    },
+    upload_guard::authorize_upload,
 };
 use crate::{
     exchange_protocol::{ExchangeMessage, RequestType},
@@ -88,35 +91,6 @@ async fn handle_query(
             send_exchange_error(tx, correlation_id, &format!("Query execution failed: {e}")).await;
         },
     }
-}
-
-/// Decide whether `table` may be written by an `Upload`, and **say so** when it may not.
-///
-/// Fail-closed by construction (#953): an absent allow-list disables `Upload`
-/// entirely, and a table not on the list is refused. Deciding and reporting are one
-/// call so a caller cannot take the decision and forget to log it — an operator who
-/// allow-listed nothing must find the reason in the log, not an unexplained write
-/// that never happened.
-///
-/// Returns `Err(message)` with the message to send the client; the same message is
-/// logged at `warn`.
-fn authorize_upload(
-    allowed_tables: Option<&std::collections::HashSet<String>>,
-    user_id: &str,
-    table: &str,
-) -> Result<(), String> {
-    let refusal = match allowed_tables {
-        None => format!(
-            "Upload is disabled, so table '{table}' cannot be written. Allow-list specific \
-             tables with with_upload_tables()."
-        ),
-        Some(allowed) if !allowed.contains(table) => {
-            format!("Upload is not permitted for table '{table}'.")
-        },
-        Some(_) => return Ok(()),
-    };
-    warn!(user_id, table = %table, "Refused Flight Upload: {}", refusal);
-    Err(refusal)
 }
 
 /// What an `Upload` needs from its `do_exchange` session to be authorized and

@@ -16,6 +16,7 @@ use super::{
         extract_session_token, validate_session_token,
     },
     send_helpers::{send_err, send_ok},
+    upload_guard::authorize_upload,
 };
 
 /// `do_put` handler: receive a client data stream and INSERT batches into the target table.
@@ -50,6 +51,7 @@ pub(super) async fn handle(
 
     // Clone database adapter for spawned task
     let db_adapter = Arc::clone(db_adapter);
+    let upload_allowed_tables = svc.upload_allowed_tables.clone();
     let user_id = authenticated_user.user_id;
 
     // Spawn handler task to process incoming data
@@ -73,6 +75,23 @@ pub(super) async fn handle(
                     send_err(&tx, Status::invalid_argument("Missing FlightDescriptor")).await;
                     return;
                 };
+
+                // #1028: the table is named by the *client* and these rows bypass the
+                // mutation pipeline entirely, exactly as in `do_exchange`'s Upload. The
+                // #953 allow-list was applied there and not here, so DoPut was a second,
+                // ungated door to the same capability. Checked before any batch is read,
+                // so a refused upload does no work and leaves no trace but the refusal.
+                // #1028: the table is named by the *client* and these rows bypass the
+                // mutation pipeline entirely, exactly as in `do_exchange`'s Upload. The
+                // #953 allow-list was applied there and not here, so DoPut was a second,
+                // ungated door to the same capability. Checked before any batch is read,
+                // so a refused upload does no work and leaves no trace but the refusal.
+                if let Err(message) =
+                    authorize_upload(upload_allowed_tables.as_ref(), &user_id.0, &table_name)
+                {
+                    send_err(&tx, Status::permission_denied(message)).await;
+                    return;
+                }
 
                 info!(
                     user_id = %user_id,

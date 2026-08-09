@@ -186,8 +186,50 @@ if [ -n "$ungated_hatch_files" ]; then
   found=1
 fi
 
+# ── Flight upload guard (#953, #1028) ────────────────────────────────────────
+# Same failure mode, different capability. A Flight upload names its own target
+# table and inserts rows that never pass the mutation pipeline — no SecurityContext,
+# no cache invalidation, no change-log outbox row. #953 gated that behind an
+# operator allow-list, in `do_exchange`. `do_put` reached the identical capability
+# by a different RPC and nobody noticed for a release: two doors, one guarded.
+#
+# So: exactly one definition of `authorize_upload`, and every Flight handler that
+# builds an INSERT must call it.
+UPLOAD_GUARD='crates/fraiseql-arrow/src/flight_server/handlers/upload_guard.rs'
+
+defs=$(grep -rln 'fn authorize_upload' crates/ --include='*.rs' | grep -v "^${UPLOAD_GUARD}$" || true)
+if [ -n "$defs" ]; then
+  echo "ERROR: authorize_upload is defined outside the shared guard module:" >&2
+  echo "$defs" >&2
+  echo "" >&2
+  echo "  There must be exactly one. #1028 was two copies of one decision, and only" >&2
+  echo "  one of them existed." >&2
+  found=1
+fi
+
+# Any handler that builds an INSERT is a write path and must be gated.
+writers=$(grep -rln 'build_insert_query' crates/fraiseql-arrow/src/flight_server/handlers/ --include='*.rs' || true)
+ungated_writers=""
+for file in $writers; do
+  # Match the CALL, not the mention: a `use super::upload_guard::authorize_upload;`
+  # left behind after the call was deleted satisfied a bare grep, and this check went
+  # green through its own red-capability proof. Imports and comments are stripped first.
+  if ! grep -vE '^[[:space:]]*(//|\*|use )' "$file" | grep -qE 'authorize_upload[[:space:]]*\('; then
+    ungated_writers="${ungated_writers}${file}"$'\n'
+  fi
+done
+ungated_writers=$(printf '%s' "$ungated_writers" | grep -v '^$' || true)
+if [ -n "$ungated_writers" ]; then
+  echo "ERROR: Flight handler builds an INSERT without calling authorize_upload:" >&2
+  echo "$ungated_writers" >&2
+  echo "" >&2
+  echo "  Call handlers::upload_guard::authorize_upload before reading any batch." >&2
+  echo "  This is exactly how do_put shipped ungated beside a gated do_exchange (#1028)." >&2
+  found=1
+fi
+
 if [ "$found" -ne 0 ]; then
   exit 1
 fi
 
-echo "OK: one address guard, one production detector, no ungated escape hatches."
+echo "OK: one address guard, one production detector, no ungated escape hatches, one Flight upload guard."
