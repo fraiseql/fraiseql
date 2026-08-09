@@ -1689,6 +1689,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The Elixir, Dart, C# and F# parity generators (#952).** All four built the expected JSON
+  as a literal — `%{"name" => "User", "fields" => [...]}` — and never called their SDK, so
+  they could not fail whatever the SDK did; the two that "disagreed" with Python did so only
+  because someone had typed `"jwt:sub"` where the nested `{source, claim}` form belongs.
+  Correcting them would have made fiction agree with fiction. All four SDKs remain covered by
+  `sdk-conformance.yml`, which authors through the real API, runs the actual compiler and
+  asserts sixteen constructs. The parity gate now covers the seven SDKs whose generators
+  genuinely drive their SDK, plus the golden fixture, and says out loud which four it does not.
+
 - **Committed development archaeology (#735).** `v2.3.0-ext-phases/` (phase files from
   eleven releases ago) and the stray `target-user/` cargo dir are gone (with a
   `.gitignore` entry so a stray `--target-dir` cannot silently return); the frozen
@@ -1697,6 +1706,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   archived onto issue #687 before removal.
 
 ### Fixed
+
+- **PHP: a type authored with `TypeBuilder` keeps its `sql_source` and `is_error` through
+  export (#952).** `StaticAPI::registerTypeBuilder()` built the `GraphQLType` attribute from
+  only `name` and `description` and diverted the rest into a `SchemaRegistry` side table.
+  `SchemaExporter` — the exporter `vendor/bin/fraiseql export` runs — reads the attribute, so
+  every builder-authored type reached the compiler with **no source view and no error flag**:
+  a query compiled against nothing, and an error type was indistinguishable from a data type.
+  Only one reader ever consulted the side table, `StaticAPI::exportSchema()`, a second
+  serializer no shipped path used; it is removed, along with the now-unread
+  `SchemaRegistry::{get,set}TypeMeta` and the duplicate `StaticAPI::registerBuilder()` that
+  dropped the same fields. Three gates missed this: the conformance suite authors through
+  attributes and never walked the builder path, the parity generator used the builder but
+  exported through the removed serializer, and the parity comparison crashed before comparing
+  anything. `tests/TypeBuilderExportTest.php` now pins each fact against `SchemaExporter`.
+
+- **The cross-SDK parity gate is one gate that runs, not two that disagree (#952).**
+  `sdk-parity.yml` compared Python against TypeScript and Go strictly and seven more SDKs
+  behind `continue-on-error`; `make test-parity` inlined a *different* comparison over five
+  SDKs plus the golden fixture and ran only in the legacy `CI` workflow, which had been
+  failing for unrelated reasons (#951). Between them they read as full coverage. In fact the
+  soft comparison had been dying every run on `TypeError: string indices must be integers` —
+  PHP emitted `fields` as a name-keyed object, and iterating a dict yields its keys — so
+  PHP, Java, Ruby, Rust and the golden fixture had never been compared once. Both callers now
+  run one script, `sdks/official/tests/run_parity.sh`; `index_by_name` refuses a non-list
+  naming the producer and the section instead of raising an opaque `TypeError`, and a bad
+  shape no longer costs the producers after it their comparison.
 
 - **Python: `from __future__ import annotations` no longer inverts every argument's
   nullability (#924).** `extract_function_signature` read `func.__annotations__` raw, so

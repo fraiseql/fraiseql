@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -11,7 +11,8 @@ help:
 	@echo "  make test-full          - Run ALL categories: unit + snapshots + DBs + Redis/NATS/Vault + server + federation"
 	@echo "  make test-federation    - Run federation tests (requires Docker)"
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
-	@echo "  make test-parity        - Run cross-SDK parity checks (requires uv, bun, go, mvn, php)"
+	@echo "  make test-parity        - Cross-SDK schema parity (absent toolchains named, not gated)"
+	@echo "  make test-parity-strict - Cross-SDK schema parity exactly as CI runs it"
 	@echo "  make coverage           - Generate test coverage report"
 	@echo "  make load-test          - Run k6 mixed-workload load test (requires running server)"
 	@echo "  make load-test-all      - Run all k6 load test scenarios"
@@ -977,42 +978,19 @@ e2e-status:
 # Cross-SDK Parity Testing
 # ============================================================================
 
-PARITY_GOLDEN := tests/fixtures/golden/parity-schema.json
+## Run the cross-SDK parity gate locally (absent toolchains reported, not gated)
+##
+## Same script CI runs — one definition. CI runs it without --allow-missing, so a
+## toolchain this box does not have is a hard failure there and a named omission here.
+## There used to be a second, divergent copy of this comparison inlined in the Makefile;
+## it covered a different set of SDKs, ran in a workflow that had been failing for
+## unrelated reasons, and disagreed with the workflow about what "parity" meant (#952).
+test-parity:
+	@sdks/official/tests/run_parity.sh --allow-missing
 
-## Generate parity schemas from all 5 authoring SDKs into /tmp/parity-*.json
-parity-generate:
-	@echo "=== Generating parity schemas ==="
-	@cd sdks/official/fraiseql-python && uv run python tests/generate_parity_schema.py \
-	    > /tmp/parity-python.json
-	@echo "  [1/5] Python done"
-	@cd sdks/official/fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
-	    bun run tests/generate-parity-schema.ts > /tmp/parity-typescript.json
-	@echo "  [2/5] TypeScript done"
-	@cd sdks/official/fraiseql-go && SCHEMA_OUTPUT_FILE=/tmp/parity-go.json \
-	    go test -run TestGenerateParitySchema -v ./fraiseql/
-	@echo "  [3/5] Go done"
-	@cd sdks/official/fraiseql-java && \
-	    JAVA_HOME="$${JAVA_HOME:-$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1)}" \
-	    mvn -q test -Dtest=GenerateParitySchema "-DschemaOutputFile=/tmp/parity-java.json"
-	@echo "  [4/5] Java done"
-	@cd sdks/official/fraiseql-php && php tests/GenerateParitySchema.php \
-	    > /tmp/parity-php.json
-	@echo "  [5/5] PHP done"
-
-## Compare parity schemas against each other and the golden fixture
-parity-compare: parity-generate
-	@echo "=== Comparing parity schemas ==="
-	@python3 sdks/official/tests/compare_schemas.py \
-	    --reference /tmp/parity-python.json \
-	    --compare /tmp/parity-typescript.json \
-	              /tmp/parity-go.json \
-	              /tmp/parity-java.json \
-	              /tmp/parity-php.json \
-	              $(PARITY_GOLDEN)
-
-## Run all parity checks (generate + compare)
-test-parity: parity-compare
-	@echo "=== All SDK parity tests passed ==="
+## Run the cross-SDK parity gate exactly as CI does — every toolchain required
+test-parity-strict:
+	@sdks/official/tests/run_parity.sh
 
 # ============================================================================
 # Docker Demo Platform (Newcomer Onboarding)

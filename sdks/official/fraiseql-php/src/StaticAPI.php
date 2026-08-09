@@ -82,40 +82,6 @@ final class StaticAPI
     }
 
     /**
-     * Register a type from a TypeBuilder instance.
-     *
-     * @param TypeBuilder $builder The type builder
-     * @return void
-     */
-    public static function registerBuilder(TypeBuilder $builder): void
-    {
-        $registry = SchemaRegistry::getInstance();
-
-        // Create a temporary GraphQL type attribute
-        // We'll store it directly in the registry
-        $reflection = new \ReflectionClass($registry);
-        $typesProperty = $reflection->getProperty('types');
-        $typesProperty->setAccessible(true);
-        /** @var array<string, GraphQLType> $types */
-        $types = $typesProperty->getValue($registry);
-
-        $fieldsProperty = $reflection->getProperty('typeFields');
-        $fieldsProperty->setAccessible(true);
-        /** @var array<string, array<string, \FraiseQL\FieldDefinition>> $typeFields */
-        $typeFields = $fieldsProperty->getValue($registry);
-
-        // Store the type with a proper GraphQLType instance
-        $types[$builder->getName()] = new GraphQLType(
-            name: $builder->getName(),
-            description: $builder->getDescription(),
-        );
-        $typeFields[$builder->getName()] = $builder->getFields();
-
-        $typesProperty->setValue($registry, $types);
-        $fieldsProperty->setValue($registry, $typeFields);
-    }
-
-    /**
      * Get a registered type by name.
      *
      * @param string $typeName The GraphQL type name
@@ -257,9 +223,16 @@ final class StaticAPI
         /** @var array<string, array<string, \FraiseQL\FieldDefinition>> $typeFields */
         $typeFields = $fieldsProperty->getValue($registry);
 
-        $typeAttr = new \FraiseQL\Attributes\GraphQLType(
+        // Every fact the builder carries goes into the attribute, because the attribute
+        // is what `SchemaExporter` reads. `sqlSource` and `isError` used to be diverted
+        // into a `SchemaRegistry` side table instead, so a builder-authored type
+        // exported through the shipped exporter with no source view and no error flag
+        // (#952) — visible only to a second serializer that no shipped path used.
+        $typeAttr = new GraphQLType(
             name: $builder->getName(),
+            sqlSource: $builder->getSqlSource(),
             description: $builder->getDescription(),
+            isError: $builder->getIsError(),
         );
 
         $types[$builder->getName()] = $typeAttr;
@@ -267,83 +240,6 @@ final class StaticAPI
 
         $typesProperty->setValue($registry, $types);
         $fieldsProperty->setValue($registry, $typeFields);
-
-        // Store sql_source and is_error metadata
-        $registry->setTypeMeta($builder->getName(), [
-            'sql_source' => $builder->getSqlSource(),
-            'is_error'   => $builder->getIsError(),
-        ]);
-    }
-
-    /**
-     * Export the complete schema as an array (types + queries + mutations).
-     *
-     * @return array<string, mixed>
-     */
-    public static function exportSchema(): array
-    {
-        $registry = SchemaRegistry::getInstance();
-
-        // Build types section
-        $types = [];
-        foreach ($registry->getTypeNames() as $typeName) {
-            $typeAttr = $registry->getType($typeName);
-            $fields   = $registry->getTypeFields($typeName);
-
-            $typeDef = [
-                'name'   => $typeName,
-                'fields' => array_map(
-                    static fn(\FraiseQL\FieldDefinition $f) => [
-                        'name'     => $f->name,
-                        'type'     => $f->type,
-                        'nullable' => $f->nullable,
-                    ],
-                    $fields,
-                ),
-            ];
-
-            if ($typeAttr !== null && $typeAttr->description !== null) {
-                $typeDef['description'] = $typeAttr->description;
-            }
-
-            // Retrieve typeMeta if available
-            $meta = self::getTypeMeta($registry, $typeName);
-            if ($meta !== null) {
-                if ($meta['sql_source'] !== null) {
-                    $typeDef['sql_source'] = $meta['sql_source'];
-                }
-                if ($meta['is_error']) {
-                    $typeDef['is_error'] = true;
-                }
-            }
-
-            $types[$typeName] = $typeDef;
-        }
-
-        // Build queries section
-        $queries = [];
-        foreach ($registry->getAllQueries() as $name => $builder) {
-            $queries[$name] = $builder->toArray();
-        }
-
-        // Build mutations section
-        $mutations = [];
-        foreach ($registry->getAllMutations() as $name => $builder) {
-            $mutations[$name] = $builder->toArray();
-        }
-
-        $schema = ['version' => '1.0'];
-        if (!empty($types)) {
-            $schema['types'] = $types;
-        }
-        if (!empty($queries)) {
-            $schema['queries'] = $queries;
-        }
-        if (!empty($mutations)) {
-            $schema['mutations'] = $mutations;
-        }
-
-        return $schema;
     }
 
     /**
@@ -354,13 +250,5 @@ final class StaticAPI
     public static function clear(): void
     {
         SchemaRegistry::getInstance()->clear();
-    }
-
-    /**
-     * @return array{sql_source: string|null, is_error: bool}|null
-     */
-    private static function getTypeMeta(SchemaRegistry $registry, string $typeName): ?array
-    {
-        return $registry->getTypeMeta($typeName);
     }
 }

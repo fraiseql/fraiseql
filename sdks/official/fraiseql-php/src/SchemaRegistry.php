@@ -54,9 +54,6 @@ final class SchemaRegistry
      */
     private array $enums = [];
 
-    /** @var array<string, array{sql_source: string|null, is_error: bool}> Extra type metadata */
-    private array $typeMeta = [];
-
     private function __construct()
     {
     }
@@ -412,29 +409,6 @@ final class SchemaRegistry
     }
 
     /**
-     * Get type metadata (sql_source, is_error) for a specific type.
-     *
-     * @param string $typeName The type name
-     * @return array{sql_source: string|null, is_error: bool}|null
-     */
-    public function getTypeMeta(string $typeName): ?array
-    {
-        return $this->typeMeta[$typeName] ?? null;
-    }
-
-    /**
-     * Set type metadata (sql_source, is_error) for a specific type.
-     *
-     * @param string $typeName The type name
-     * @param array{sql_source: string|null, is_error: bool} $meta The metadata
-     * @return void
-     */
-    public function setTypeMeta(string $typeName, array $meta): void
-    {
-        $this->typeMeta[$typeName] = $meta;
-    }
-
-    /**
      * Clear all registered types (useful for testing).
      *
      * @return self Fluent interface
@@ -449,7 +423,6 @@ final class SchemaRegistry
         $this->mutations = [];
         $this->inputTypes = [];
         $this->enums = [];
-        $this->typeMeta = [];
         $this->injectDefaultsBase = [];
         $this->injectDefaultsQueries = [];
         $this->injectDefaultsMutations = [];
