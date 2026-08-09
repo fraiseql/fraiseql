@@ -11,6 +11,7 @@ mod do_get;
 mod do_put;
 mod metadata;
 mod send_helpers;
+mod upload_guard;
 
 use arrow_flight::{
     Action, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, PollInfo,
