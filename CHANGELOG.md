@@ -1698,6 +1698,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Python: `from __future__ import annotations` no longer inverts every argument's
+  nullability (#924).** `extract_function_signature` read `func.__annotations__` raw, so
+  under PEP 563 — idiomatic modern Python, and what this repository's own `TCH` lint rules
+  push authors towards — the decorators received annotation *strings*. `python_type_to_graphql`
+  maps a string to itself, so a query declared `def user(id: ID, tag: str | None) -> User`
+  exported `tag` as `{"type": "str | None", "nullable": false}`: a **required** argument of
+  a type that does not exist, where the author wrote an optional `String`. The return type
+  failed loudly (`list[User]` is not a registered type), which capped the severity, but the
+  argument inversion was silent — and an argument whose annotation happens to spell a valid
+  GraphQL name, like `id: ID`, passed through with no complaint at all. The function path now
+  resolves annotations with `typing.get_type_hints(..., include_extras=True)` against the
+  defining module's globals, exactly as the class path has since #233, with the same
+  `NameError`/`TypeError` fallback so an unresolvable forward reference stays a downstream
+  compile error rather than an authoring traceback. The `full` conformance fixture now opens
+  with `from __future__ import annotations`, so the deferred-annotation path is exercised
+  end to end by the cross-SDK gate. The Python SDK's lint job also covers `conformance/` and
+  `examples/` now, not just `src tests`.
+
 - **An enum-, interface- or union-typed field keeps its kind through the compile (#923).**
   `SchemaConverter::parse_field_type` matched the twelve builtin scalar names and routed
   everything else to `FieldType::Object`, because it had no view of the document it was
