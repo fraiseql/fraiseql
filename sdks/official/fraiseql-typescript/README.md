@@ -36,33 +36,34 @@ pnpm add fraiseql
 
 ### 1. Define Types
 
+TypeScript erases types at runtime, so a decorator on a class can see the class's *name*
+and nothing else — not its fields, not their GraphQL types, not their nullability. The
+authoring surface is therefore explicit:
+
 ```typescript
-import * as fraiseql from "fraiseql";
+import { registerTypeFields } from "fraiseql";
 
-@fraiseql.type()
-class User {
-  id!: number;
-  name!: string;
-  email!: string;
-}
-
-// Register fields (TypeScript doesn't preserve type info at runtime)
-fraiseql.registerTypeFields("User", [
-  { name: "id", type: "Int", nullable: false },
-  { name: "name", type: "String", nullable: false },
-  { name: "email", type: "String", nullable: false },
-]);
+registerTypeFields(
+  "User",
+  [
+    { name: "id", type: "Int", nullable: false },
+    { name: "name", type: "String", nullable: false },
+    { name: "email", type: "String", nullable: false },
+  ],
+  "A user of the system",
+  { sqlSource: "v_user" }
+);
 ```
+
+Write an ordinary `interface User { … }` alongside it for your own code; FraiseQL does not
+read it.
 
 ### 2. Define Queries
 
 ```typescript
-@fraiseql.query({ sqlSource: "v_user" })
-function users(limit: number = 10, offset: number = 0): User[] {
-  throw new Error("Not executed");
-}
+import { registerQuery } from "fraiseql";
 
-fraiseql.registerQuery(
+registerQuery(
   "users",
   "User",
   true,    // returns list
@@ -79,12 +80,9 @@ fraiseql.registerQuery(
 ### 3. Define Mutations
 
 ```typescript
-@fraiseql.mutation({ sqlSource: "fn_create_user", operation: "CREATE" })
-function createUser(name: string, email: string): User {
-  throw new Error("Not executed");
-}
+import { registerMutation } from "fraiseql";
 
-fraiseql.registerMutation(
+registerMutation(
   "createUser",
   "User",
   false,   // single item
@@ -94,7 +92,7 @@ fraiseql.registerMutation(
     { name: "email", type: "String", nullable: false },
   ],
   "Create a new user",
-  { sql_source: "fn_create_user", operation: "CREATE" }
+  { sql_source: "fn_create_user", operation: "insert" }
 );
 ```
 
@@ -119,95 +117,85 @@ fraiseql-server --schema schema.compiled.json --port 3000
 
 ## API Reference
 
-### Decorators
+### Authoring functions
 
-#### `@Type(config?)`
+TypeScript erases types at runtime. A decorator on a class or a function therefore cannot
+see the field types, argument types or nullability FraiseQL needs, so the authoring surface
+is a set of explicit `register*` functions. `@Query`, `@Mutation` and `@Subscription` exist
+only to **refuse**: applying one throws, pointing at the function to call instead, rather
+than registering a placeholder the compiler would emit as an empty type (#733).
 
-Mark a class as a GraphQL type.
+A decorator cannot be applied to a bare `function` in TypeScript at all — that is a syntax
+error, not a FraiseQL limitation.
 
-```typescript
-@fraiseql.type()
-class User {
-  id!: number;
-  name!: string;
-}
-```
-
-**Note**: Decorators alone don't capture field types. Use `registerTypeFields()` to provide field metadata.
-
-#### `@Query(config)`
-
-Mark a function as a GraphQL query.
+#### `registerTypeFields(name, fields, description?, options?)`
 
 ```typescript
-@fraiseql.query({ sqlSource: "v_user" })
-function users(limit: number = 10): User[] {
-  throw new Error("Not executed");
-}
-```
-
-**Config Options**:
-
-- `sqlSource`: SQL view/table name (required for data operations)
-- `autoParams`: Auto-parameter configuration
-- Other custom configuration
-
-#### `@Mutation(config)`
-
-Mark a function as a GraphQL mutation.
-
-```typescript
-@fraiseql.mutation({ sqlSource: "fn_create_user", operation: "CREATE" })
-function createUser(name: string): User {
-  throw new Error("Not executed");
-}
-```
-
-**Config Options**:
-
-- `sqlSource`: SQL function name (required)
-- `operation`: "CREATE" | "UPDATE" | "DELETE" | "CUSTOM"
-- Other custom configuration
-
-#### `@FactTable(config)`
-
-Mark a class as a fact table for analytics.
-
-```typescript
-@fraiseql.FactTable({
-  tableName: "tf_sales",
-  measures: ["revenue", "quantity"],
-  dimensionPaths: [
-    {
-      name: "category",
-      json_path: "data->>'category'",
-      data_type: "text",
-    },
+registerTypeFields(
+  "User",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "email", type: "String", nullable: false },
+    { name: "salary", type: "Float", nullable: true, requiresScope: "read:User.salary" },
   ],
-})
-@fraiseql.type()
-class Sale {
-  id!: number;
-  revenue!: number;
-  quantity!: number;
-}
+  "A user of the system",
+  { sqlSource: "v_user", relay: true }
+);
 ```
 
-#### `@AggregateQuery(config)`
+**Options**: `sqlSource`, `relay`, `jsonbColumn`, `isError`, `requiresRole`, `implements`,
+`crud`, `cascade`. A field may carry `description` and `requiresScope` (exactly one scope —
+more than one is refused, because the compiled schema and the runtime field filter each
+hold a single required scope).
 
-Mark a function as an aggregate query on a fact table.
+#### `registerQuery(name, returnType, returnsList, nullable, args, description?, config?)`
 
 ```typescript
-@fraiseql.AggregateQuery({
-  factTable: "tf_sales",
-  autoGroupBy: true,
-  autoAggregates: true,
-})
-@fraiseql.query()
-function salesAggregate(): Record<string, unknown>[] {
-  throw new Error("Not executed");
-}
+registerQuery(
+  "users",
+  "User",
+  true,   // returnsList
+  false,  // nullable
+  [{ name: "isActive", type: "Boolean", nullable: true }],
+  "List users",
+  { sql_source: "v_user", cache_ttl_seconds: 300, requires_role: "admin" }
+);
 ```
+
+The return type may name a type, an enum, a union or an interface declared in the same
+document.
+
+#### `registerMutation(name, returnType, returnsList, nullable, args, description?, config?)`
+
+```typescript
+registerMutation(
+  "createUser",
+  "User",
+  false,
+  false,
+  [{ name: "email", type: "String", nullable: false }],
+  "Create a user",
+  {
+    sql_source: "fn_create_user",
+    operation: "insert",           // insert | update | delete
+    inject_params: { tenant_id: "jwt:tenant_id" },
+    invalidates_views: ["v_user"],
+    invalidates_fact_tables: ["tf_signup"],
+  }
+);
+```
+
+#### `enum_(name, values, config?)` · `input(name, fields, config?)` · `union(name, members, config?)` · `interface_(name, fields, config?)`
+
+Declare the remaining type kinds. Each takes the name first and returns the registered
+definition.
+
+#### `SchemaRegistry.registerFactTable(tableName, measures, dimensions, denormalizedFilters)`
+
+Declare an analytics fact table. This is a `SchemaRegistry` static, not a top-level export
+and not a decorator. Aggregate queries are **not** declared in `schema.json` — the compiler
+refuses an `aggregate_queries` block (#956); declare each as an `[[analytics.queries]]`
+entry in `fraiseql.toml` instead, where it becomes an ordinary view-backed query.
 
 #### `@Subscription(config?)`
 
@@ -216,11 +204,20 @@ Mark a function as a GraphQL subscription for real-time events.
 Subscriptions in FraiseQL are **compiled database event projections** sourced from LISTEN/NOTIFY or CDC, not resolver-based.
 
 ```typescript
-@fraiseql.Subscription({ topic: "order_events" })
-function orderCreated(userId?: string): Order {
-  pass;
-}
+registerSubscription(
+  "orderCreated",
+  "Order",                                        // entity type
+  false,                                          // nullable
+  [{ name: "userId", type: "ID", nullable: true }],
+  "Fires when an order is created",
+  { topic: "order_events", operation: "CREATE" }
+);
 ```
+
+> **Not yet compilable.** Every SDK emits a subscription as `{name, entity_type, nullable,
+> …}` while the compiler's `IntermediateSubscription` expects `{name, return_type, topic,
+> filter, fields, …}`, and that struct denies unknown fields — so a schema declaring any
+> subscription is refused at compile, in every language. Tracked as #1024.
 
 ### Subscription Configuration
 
@@ -532,7 +529,7 @@ fraiseql.registerMutation(
     { name: "name", type: "String", nullable: false },
   ],
   "Create a new user",
-  { sql_source: "fn_create_user", operation: "CREATE" }
+  { sql_source: "fn_create_user", operation: "insert" }
 );
 ```
 
@@ -607,40 +604,37 @@ Fact tables are special analytics tables with:
 - **Denormalized Filters**: Indexed columns for fast WHERE clauses
 
 ```typescript
-@fraiseql.FactTable({
-  tableName: "tf_sales",           // Must start with "tf_"
-  measures: ["revenue", "cost"],   // Numeric columns
-  dimensionPaths: [
-    {
-      name: "category",
-      json_path: "data->>'category'",
-      data_type: "text",
-    },
+import { SchemaRegistry } from "fraiseql";
+
+SchemaRegistry.registerFactTable(
+  "tf_sale",                                       // must start with "tf_"
+  [
+    { name: "revenue", sql_type: "Float", nullable: false },
+    { name: "cost", sql_type: "Float", nullable: false },
   ],
-})
-@fraiseql.type()
-class Sale {
-  id!: number;
-  revenue!: number;
-  cost!: number;
-  customerId!: string;
-}
+  {
+    name: "data",
+    paths: [{ name: "category", json_path: "data->>'category'", data_type: "text" }],
+  },
+  [{ name: "occurred_at", sql_type: "Timestamp", indexed: true }]
+);
 ```
+
+A mutation keeps the facts current by declaring `invalidates_fact_tables: ["tf_sale"]`.
 
 ### Aggregate Queries
 
-Queries that perform GROUP BY aggregations on fact tables:
+Queries that perform GROUP BY aggregations on fact tables. **They are not declared in
+`schema.json`**: the compiler refuses an `aggregate_queries` block outright, because no
+compile path lowered it into the compiled schema (#956). Declare each one in
+`fraiseql.toml`, where it becomes an ordinary list-returning, view-backed query:
 
-```typescript
-@fraiseql.AggregateQuery({
-  factTable: "tf_sales",
-  autoGroupBy: true,       // Auto-generate groupBy fields
-  autoAggregates: true,    // Auto-generate aggregate functions
-})
-@fraiseql.query()
-function salesSummary(): Record<string, unknown>[] {
-  throw new Error("Not executed");
-}
+```toml
+[[analytics.queries]]
+name = "salesSummary"
+fact_table = "tf_sale"
+auto_group_by = true
+auto_aggregates = true
 ```
 
 These queries support:
@@ -657,13 +651,14 @@ These queries support:
 See the `examples/` directory:
 
 - **basic_schema.ts** - Simple CRUD queries and mutations
-- **analytics_schema.ts** - Fact tables and aggregate queries
+- **analytics_schema.ts** - Fact tables
 - **enums-example.ts** - Enum definitions and usage
 - **types-advanced.ts** - Comprehensive type system example (enums, interfaces, unions, input types)
 - **unions-interfaces-example.ts** - Interfaces, unions, and polymorphic queries
-- **field-metadata.ts** - Field-level access control, deprecation, and documentation
+- **field-metadata.ts** - Field-level access control and documentation
 - **subscriptions.ts** - Real-time subscriptions: event filtering, topics, CDC, alerts
-- **comprehensive-example.ts** - Full-featured schema with all FraiseQL capabilities
+- **ecommerce_with_observers.ts** - Observers reacting to database changes
+- **scheduled_source.ts** - A scheduled ingress source and its Deno connector
 
 Run examples:
 
