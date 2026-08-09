@@ -138,6 +138,33 @@ def strip_line_comments(src: str) -> str:
     return "\n".join(line.split("//", 1)[0] for line in src.splitlines())
 
 
+def submodule_sources(entry: Path, src: str, _seen: set[Path] | None = None) -> str:
+    """Concatenate the sources of every `mod x;` the binary declares, recursively.
+
+    Rust resolves `mod x;` from `tests/<stem>/x.rs` or `tests/<stem>/x/mod.rs` for an
+    entry file `tests/<stem>.rs`, and relative to its own directory for a nested one.
+    Both layouts are checked. Cycles are impossible in valid Rust but `_seen` guards
+    the walk anyway, because this gate must not hang on malformed input.
+
+    Inline `mod x { … }` blocks need no handling: their bodies are already in `src`.
+    """
+    seen = _seen if _seen is not None else set()
+    parent = entry.parent
+    stem_dir = parent / entry.stem
+    out = []
+    for name in MOD_DECL.findall(src):
+        for cand in (stem_dir / f"{name}.rs", stem_dir / name / "mod.rs",
+                     parent / f"{name}.rs", parent / name / "mod.rs"):
+            if not cand.is_file() or cand in seen or cand == entry:
+                continue
+            seen.add(cand)
+            sub = cand.read_text(encoding="utf-8", errors="replace")
+            out.append(sub)
+            out.append(submodule_sources(cand, sub, seen))
+            break
+    return "\n".join(out)
+
+
 def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestBinary]:
     tests_dir = crate_dir / "tests"
     if not tests_dir.is_dir():
@@ -162,12 +189,38 @@ def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestB
         # Service detection below deliberately still scans the raw source: over-
         # detecting a service need is the fail-closed direction.
         code = strip_line_comments(src)
+        own_tests = len(re.findall(r"#\[(?:tokio::)?test[\]\(]", code))
+        # A binary's tests may live in submodules rather than in the entry file.
+        # `crates/fraiseql-server/tests/security.rs` is fourteen lines of
+        # `mod security { mod auth_bypass_detection_test; … }` and holds zero
+        # `#[test]` attributes of its own — while the six files it aggregates hold
+        # 100, including the JWT-validation and OIDC-provider suites. Counting only
+        # the entry file scored it `n_tests == 0`, the `continue` below dropped the
+        # binary from every coverage check, and the gate printed `OK … all covered`
+        # over a suite no leg runs (#1029). Submodule sources are folded in first, so
+        # `n_tests == 0` means what it says: nothing to execute.
+        code += "\n" + strip_line_comments(submodule_sources(f, src))
         b.n_tests = len(re.findall(r"#\[(?:tokio::)?test[\]\(]", code))
         b.n_ignored = len(re.findall(r"#\[ignore\b", code))
         # Shared harness modules can hold the service getter for the binary.
         if re.search(r"^\s*(pub\s+)?mod common\b", src, re.M):
             for cf in sorted((tests_dir / "common").glob("**/*.rs")):
                 src += cf.read_text(encoding="utf-8", errors="replace")
+        # …and so can an aggregator's submodules. Service detection read only the
+        # entry file, so an aggregator whose DB-touching tests live in submodules
+        # scored `[plain]` and could be wired into a database-free leg, where the
+        # `try_database_url()` guard turns each of them into a silent skip that reads
+        # exactly like a pass (#1029).
+        #
+        # Folded in only when the entry file declares no tests of its own. A binary
+        # with its own tests shows its service usage in its own file (plus `common/`),
+        # whereas an aggregator has nowhere else to show it. Folding unconditionally
+        # over-detects: `http_server_e2e_test` and `concurrent_load_test` declare
+        # `mod test_helpers;`, whose `TestServerConfig::new()` reads `DATABASE_URL`
+        # as an unused default — those suites drive a bound server over
+        # `FRAISEQL_TEST_URL` and touch no database from the test container.
+        if own_tests == 0:
+            src += "\n" + submodule_sources(f, src)
         for group, spec in SERVICES.items():
             if spec["detect"].search(src):
                 b.needs.add(group)
