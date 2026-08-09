@@ -59,7 +59,7 @@ final class StaticAPITest extends TestCase
             ->field('hello', 'String')
             ->description('Root query type');
 
-        StaticAPI::registerBuilder($builder);
+        StaticAPI::registerTypeBuilder($builder);
 
         // Verify the type is registered and getType returns a proper GraphQLType
         $this->assertTrue(StaticAPI::hasType('Query'));
@@ -81,7 +81,7 @@ final class StaticAPITest extends TestCase
         $builder = StaticAPI::type('Mutation')
             ->field('createUser', 'User');
 
-        StaticAPI::registerBuilder($builder);
+        StaticAPI::registerTypeBuilder($builder);
 
         $type = StaticAPI::getType('Mutation');
         $this->assertNotNull($type);

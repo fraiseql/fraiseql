@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use FraiseQL\SchemaExporter;
 use FraiseQL\StaticAPI;
 use FraiseQL\TypeBuilder;
 
@@ -77,37 +78,20 @@ StaticAPI::mutation('placeOrder')
 
 // ── Export ───────────────────────────────────────────────────────────────────
 
-$raw = StaticAPI::exportSchema();
+// `SchemaExporter` is the exporter `vendor/bin/fraiseql export` runs, and it already
+// emits every section as a list. This script used to call a second serializer and then
+// hand-normalise its output, which is how the divergence went unnoticed: the normaliser
+// flattened the top-level sections and left `fields` and `arguments` name-keyed, so
+// `compare_schemas.py` died on `"id"["name"]` before comparing PHP, Java, or the golden
+// fixture at all (#952). A generator that post-processes is a generator that can hide a
+// producer defect — this one now emits exactly what the SDK ships.
+$schema = SchemaExporter::toArray();
 
-// Normalise to array-of-items format (same as Python / TypeScript / Go output)
-$output = [
-    'types'     => normaliseSection($raw['types']     ?? []),
-    'queries'   => normaliseSection($raw['queries']   ?? []),
-    'mutations' => normaliseSection($raw['mutations'] ?? []),
-];
-
-echo json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
-
-// ── Helper ────────────────────────────────────────────────────────────────────
-
-/**
- * Convert a section that may be a dict (name => data) or an array to a list.
- *
- * @param array<string|int, mixed> $section
- * @return list<mixed>
- */
-function normaliseSection(array $section): array
-{
-    if (array_is_list($section)) {
-        return $section;
-    }
-    // Dict-keyed-by-name: inject name key if missing
-    $result = [];
-    foreach ($section as $name => $item) {
-        if (is_array($item) && !isset($item['name'])) {
-            $item = array_merge(['name' => $name], $item);
-        }
-        $result[] = $item;
-    }
-    return $result;
-}
+echo json_encode(
+    [
+        'types'     => $schema['types'],
+        'queries'   => $schema['queries'],
+        'mutations' => $schema['mutations'],
+    ],
+    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+) . PHP_EOL;

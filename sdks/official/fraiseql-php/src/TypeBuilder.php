@@ -19,7 +19,7 @@ namespace FraiseQL;
  *     ->description('A user in the system');
  *
  * $registry = SchemaRegistry::getInstance();
- * $registry->registerBuilder($builder);
+ * $builder->register();
  * ```
  */
 final class TypeBuilder

@@ -29,7 +29,32 @@ def load(path: Path) -> dict:
         return json.load(f)
 
 
-def index_by_name(items: list[dict]) -> dict[str, dict]:
+class ShapeError(Exception):
+    """A producer emitted a section in a shape this comparator cannot compare."""
+
+
+def index_by_name(items: object, *, where: str) -> dict[str, dict]:
+    """Index a schema section by `name`, refusing anything that is not a list.
+
+    Every producer must emit sections as **lists** of objects. A name-keyed object
+    iterates as its keys, so `item["name"]` becomes `"id"["name"]` and the whole
+    comparison dies with `TypeError: string indices must be integers` — no SDK
+    named, no section named, and every SDK after the offender never compared at
+    all (#952). A shape mismatch is the exact thing this script exists to report,
+    so it is reported, with the coordinates needed to fix it.
+
+    `where` identifies the producer and section, e.g. `"php types"` or
+    `"php mutation createUser arguments"`.
+    """
+    if not isinstance(items, list):
+        raise ShapeError(
+            f"{where}: expected a list of objects, got {type(items).__name__}"
+            + (f" keyed by {sorted(items)[:5]}" if isinstance(items, dict) else "")
+            + " — every producer must emit this section as a list"
+        )
+    for item in items:
+        if not isinstance(item, dict) or "name" not in item:
+            raise ShapeError(f"{where}: entry {item!r} is not an object with a `name`")
     return {item["name"]: item for item in items}
 
 
@@ -53,8 +78,8 @@ def compare_schemas(
             errors.append(f"[{tag}] Top-level keys differ: {sorted(ref_keys)} vs {sorted(other_keys)}")
 
     # --- Type comparison ---
-    ref_types = index_by_name(ref.get("types", []))
-    other_types = index_by_name(other.get("types", []))
+    ref_types = index_by_name(ref.get("types", []), where=f"{ref_name} types")
+    other_types = index_by_name(other.get("types", []), where=f"{other_name} types")
 
     ref_type_names = set(ref_types.keys())
     other_type_names = set(other_types.keys())
@@ -62,8 +87,12 @@ def compare_schemas(
         errors.append(f"[{tag}] Type names differ: {sorted(ref_type_names)} vs {sorted(other_type_names)}")
 
     for type_name in ref_type_names & other_type_names:
-        ref_fields = index_by_name(ref_types[type_name].get("fields", []))
-        other_fields = index_by_name(other_types[type_name].get("fields", []))
+        ref_fields = index_by_name(
+            ref_types[type_name].get("fields", []), where=f"{ref_name} type {type_name} fields"
+        )
+        other_fields = index_by_name(
+            other_types[type_name].get("fields", []), where=f"{other_name} type {type_name} fields"
+        )
 
         # Level 2: field names
         if set(ref_fields.keys()) != set(other_fields.keys()):
@@ -98,8 +127,8 @@ def compare_schemas(
         return errors
 
     # --- Query comparison ---
-    ref_queries = index_by_name(ref.get("queries", []))
-    other_queries = index_by_name(other.get("queries", []))
+    ref_queries = index_by_name(ref.get("queries", []), where=f"{ref_name} queries")
+    other_queries = index_by_name(other.get("queries", []), where=f"{other_name} queries")
 
     if set(ref_queries.keys()) != set(other_queries.keys()):
         errors.append(
@@ -122,8 +151,8 @@ def compare_schemas(
                 errors.append(f"[{tag}] query {qname} {key}: {rq[key]} vs {oq[key]}")
 
     # --- Mutation comparison ---
-    ref_muts = index_by_name(ref.get("mutations", []))
-    other_muts = index_by_name(other.get("mutations", []))
+    ref_muts = index_by_name(ref.get("mutations", []), where=f"{ref_name} mutations")
+    other_muts = index_by_name(other.get("mutations", []), where=f"{other_name} mutations")
 
     if set(ref_muts.keys()) != set(other_muts.keys()):
         errors.append(
@@ -136,8 +165,12 @@ def compare_schemas(
         om = other_muts[mname]
 
         # Level 4: argument names + types
-        ref_args = index_by_name(rm.get("arguments", []))
-        other_args = index_by_name(om.get("arguments", []))
+        ref_args = index_by_name(
+            rm.get("arguments", []), where=f"{ref_name} mutation {mname} arguments"
+        )
+        other_args = index_by_name(
+            om.get("arguments", []), where=f"{other_name} mutation {mname} arguments"
+        )
         if set(ref_args.keys()) != set(other_args.keys()):
             errors.append(
                 f"[{tag}] mutation {mname} argument names differ: "
@@ -179,17 +212,23 @@ def main() -> int:
     ref = load(args.reference)
     all_errors: list[str] = []
 
+    # One producer's bad shape must not cost every producer after it its comparison:
+    # #952 was a PHP `TypeError` that aborted the run before Java, Ruby, Dart, C#, F#
+    # and the golden fixture were looked at even once, while the job read as covering
+    # all of them. A ShapeError is recorded against its own SDK and the sweep continues.
+    def run(name: str, other: dict, *, types_only: bool) -> None:
+        try:
+            all_errors.extend(compare_schemas("python", ref, name, other, types_only=types_only))
+        except ShapeError as exc:
+            all_errors.append(f"[python vs {name}] {exc}")
+
     for schema_path in args.compare:
-        other = load(schema_path)
         name = schema_path.stem.replace("schema_", "").replace("schema-", "")
-        errs = compare_schemas("python", ref, name, other)
-        all_errors.extend(errs)
+        run(name, load(schema_path), types_only=False)
 
     for schema_path in args.types_only:
-        other = load(schema_path)
         name = schema_path.stem.replace("schema_", "").replace("schema-", "")
-        errs = compare_schemas("python", ref, name, other, types_only=True)
-        all_errors.extend(errs)
+        run(name, load(schema_path), types_only=True)
 
     if all_errors:
         print(f"SDK parity check FAILED ({len(all_errors)} error(s)):")

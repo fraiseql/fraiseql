@@ -1,14 +1,32 @@
 name: SDK Schema Parity
 
+# Every SDK's `schema.json` must agree with Python's, and with the committed golden
+# fixture, before any of it reaches the compiler.
+#
+# One gate, one definition. The comparison lives in `sdks/official/tests/run_parity.sh`
+# and is what `make test-parity` runs too. There used to be two: this workflow compared
+# three SDKs strictly and seven more behind `continue-on-error`, while `make test-parity`
+# compared a different five plus the golden fixture and ran only in a legacy workflow that
+# had been failing for unrelated reasons. Between them they read as full coverage — while
+# the soft comparison had in fact been crashing on PHP's field shape every single run, so
+# PHP, Java, Ruby, Rust and the golden had never been compared once (#952).
+#
+# Deliberately narrower than `sdk-conformance.yml`, which compiles: this compares the
+# authored document, before the compiler has had a chance to normalise anything.
+
 on:
   push:
     paths:
       - 'sdks/official/**'
+      - 'tests/fixtures/golden/parity-schema.json'
+      - '.github/workflows/sdk-parity.yml'
   pull_request:
     paths:
       - 'sdks/official/**'
+      - 'tests/fixtures/golden/parity-schema.json'
+      - '.github/workflows/sdk-parity.yml'
+  workflow_dispatch:
 
-# Cancel in-progress runs for the same branch
 concurrency:
   group: sdk-parity-${{ github.ref }}
   cancel-in-progress: true
@@ -22,267 +40,55 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      # -----------------------------------------------------------------------
-      # Python SDK (reference)
-      # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      # Every toolchain the script requires, installed without `continue-on-error`.
+      # A setup step that is allowed to fail turns its SDK into a silent skip, and a
+      # skipped SDK reads exactly like a passing one — the failure mode this gate exists
+      # to end. If a toolchain cannot be installed, this job goes red.
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: '3.12'
+      - run: pip install uv
 
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install Python SDK dependencies
-        working-directory: sdks/official/fraiseql-python
-        run: uv sync
-
-      - name: Generate schema via Python SDK
-        working-directory: sdks/official/fraiseql-python
-        run: uv run python tests/generate_parity_schema.py > /tmp/schema_python.json
-
-      # -----------------------------------------------------------------------
-      # TypeScript SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: '20'
 
-      - name: Cache Node modules
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('sdks/official/fraiseql-typescript/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-npm-
-
-      - name: Install TypeScript SDK dependencies
-        working-directory: sdks/official/fraiseql-typescript
-        run: npm ci
-
-      - name: Generate schema via TypeScript SDK
-        working-directory: sdks/official/fraiseql-typescript
-        run: npx tsx tests/generate-parity-schema.ts > /tmp/schema_ts.json
-
-      # -----------------------------------------------------------------------
-      # Go SDK
-      # -----------------------------------------------------------------------
-      - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
         with:
           go-version: '1.23'
           cache-dependency-path: sdks/official/fraiseql-go/go.sum
 
-      - name: Download Go modules
-        working-directory: sdks/official/fraiseql-go
-        run: go mod download
-
-      - name: Generate schema via Go SDK
-        working-directory: sdks/official/fraiseql-go
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_go.json
-        run: |
-          go test -count=1 -run TestGenerateParitySchema -v ./fraiseql/
-
-      # -----------------------------------------------------------------------
-      # Deep structural comparison — hard gate (Python, TypeScript, Go)
-      # -----------------------------------------------------------------------
-      - name: Compare core SDK schema outputs (strict)
-        run: |
-          # Full parity: Python (reference) vs TypeScript, Go
-          # Checks: type/query/mutation names, field types, nullability,
-          # argument names/types, sql_source, operation, inject_params
-          python3 sdks/official/tests/compare_schemas.py \
-            --reference /tmp/schema_python.json \
-            --compare /tmp/schema_ts.json /tmp/schema_go.json
-
-      # -----------------------------------------------------------------------
-      # Rust SDK (types-only — authoring SDK is RBAC-focused)
-      # -----------------------------------------------------------------------
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
-        continue-on-error: true
-
-      - name: Generate schema via Rust SDK
-        working-directory: sdks/official/fraiseql-rust
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_rust.json
-        continue-on-error: true
-        run: cargo test --test generate_parity_schema -- --nocapture
-
-      # -----------------------------------------------------------------------
-      # PHP SDK (full parity)
-      # -----------------------------------------------------------------------
-      - name: Set up PHP
-        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc  # v2
-        continue-on-error: true
+      - uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc  # v2
         with:
           php-version: '8.2'
           tools: composer
 
-      - name: Install PHP SDK dependencies
-        working-directory: sdks/official/fraiseql-php
-        continue-on-error: true
-        run: composer install --prefer-dist --no-progress
-
-      - name: Generate schema via PHP SDK
-        working-directory: sdks/official/fraiseql-php
-        continue-on-error: true
-        run: php tests/GenerateParitySchema.php > /tmp/schema_php.json
-
-      # -----------------------------------------------------------------------
-      # Elixir SDK (full parity)
-      # -----------------------------------------------------------------------
-      - name: Set up Elixir
-        uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93  # v1
-        continue-on-error: true
-        with:
-          otp-version: '26'
-          elixir-version: '1.15'
-
-      - name: Install Elixir deps
-        working-directory: sdks/official/fraiseql-elixir
-        continue-on-error: true
-        run: mix deps.get
-
-      - name: Generate schema via Elixir SDK
-        working-directory: sdks/official/fraiseql-elixir
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_elixir.json
-        continue-on-error: true
-        run: mix test test/generate_parity_schema_test.exs
-
-      # -----------------------------------------------------------------------
-      # Java SDK (full parity)
-      # -----------------------------------------------------------------------
-      - name: Set up Java
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
-        continue-on-error: true
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'maven'
 
-      - name: Generate schema via Java SDK
-        working-directory: sdks/official/fraiseql-java
-        continue-on-error: true
-        run: mvn -q test -Dtest=GenerateParitySchema -DschemaOutputFile=/tmp/schema_java.json
-
-      # -----------------------------------------------------------------------
-      # Ruby SDK (full parity)
-      # -----------------------------------------------------------------------
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@97ecb7b512899eb71ab1bf2310a624c6f1589ac6  # v1
-        continue-on-error: true
+      - uses: ruby/setup-ruby@97ecb7b512899eb71ab1bf2310a624c6f1589ac6  # v1
         with:
           ruby-version: '3.3'
-          working-directory: sdks/official/fraiseql-ruby
 
-      - name: Generate schema via Ruby SDK
-        working-directory: sdks/official/fraiseql-ruby
-        continue-on-error: true
-        run: SCHEMA_OUTPUT_FILE=/tmp/schema_ruby.json ruby test/generate_parity_schema.rb
-
-      # -----------------------------------------------------------------------
-      # Dart SDK (full parity)
-      # -----------------------------------------------------------------------
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260  # v1
-        continue-on-error: true
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1  # v2
         with:
-          sdk: stable
+          shared-key: sdk-parity
+          workspaces: sdks/official/fraiseql-rust
 
-      - name: Install Dart SDK dependencies
-        working-directory: sdks/official/fraiseql-dart
-        continue-on-error: true
-        run: dart pub get
-
-      - name: Generate schema via Dart SDK
-        working-directory: sdks/official/fraiseql-dart
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_dart.json
-        continue-on-error: true
-        run: dart test test/generate_parity_schema_test.dart
-
-      # -----------------------------------------------------------------------
-      # C# + F# SDKs (full parity — shared dotnet toolchain)
-      # -----------------------------------------------------------------------
-      - name: Set up .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4
-        continue-on-error: true
-        with:
-          dotnet-version: '9.0.x'
-
-      - name: Generate schema via C# SDK
-        working-directory: sdks/official/fraiseql-csharp
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_csharp.json
-        continue-on-error: true
-        run: dotnet test tests/FraiseQL.Tests/FraiseQL.Tests.csproj --filter GenerateParitySchema
-
-      - name: Generate schema via F# SDK
-        working-directory: sdks/official/fraiseql-fsharp
-        env:
-          SCHEMA_OUTPUT_FILE: /tmp/schema_fsharp.json
-        continue-on-error: true
-        run: dotnet test tests/FraiseQL.Tests/FraiseQL.Tests.fsproj --filter GenerateParitySchema
-
-      # -----------------------------------------------------------------------
-      # Extended parity (Rust / PHP / Elixir / Java / Ruby / Dart / C# / F#)
-      # Soft gate for first landing — mismatch reported but does not fail the
-      # build. Flip to strict in a follow-up PR once all baselines are clean.
-      # -----------------------------------------------------------------------
-      - name: Compare extended SDK schema outputs (soft)
-        continue-on-error: true
+      - name: Install SDK dependencies
+        working-directory: sdks/official
         run: |
-          compare_args=()
-          types_only_args=()
+          set -euo pipefail
+          (cd fraiseql-python && uv sync)
+          (cd fraiseql-typescript && npm ci)
+          (cd fraiseql-go && go mod download)
+          (cd fraiseql-php && composer install --prefer-dist --no-progress)
 
-          for schema_file in \
-              /tmp/schema_php.json \
-              /tmp/schema_elixir.json \
-              /tmp/schema_java.json \
-              /tmp/schema_ruby.json \
-              /tmp/schema_dart.json \
-              /tmp/schema_csharp.json \
-              /tmp/schema_fsharp.json; do
-            sdk=$(basename "$schema_file" .json | sed 's/schema_//')
-            if [ -s "$schema_file" ]; then
-              compare_args+=("$schema_file")
-            else
-              echo "::warning::${sdk} parity schema missing — skipping"
-            fi
-          done
-
-          if [ -s /tmp/schema_rust.json ]; then
-            types_only_args+=(/tmp/schema_rust.json)
-          else
-            echo "::warning::rust parity schema missing — skipping"
-          fi
-
-          cmd=(python3 sdks/official/tests/compare_schemas.py --reference /tmp/schema_python.json)
-          if [ ${#compare_args[@]} -gt 0 ]; then
-            cmd+=(--compare "${compare_args[@]}")
-          fi
-          if [ ${#types_only_args[@]} -gt 0 ]; then
-            cmd+=(--types-only "${types_only_args[@]}")
-          fi
-          "${cmd[@]}"
-
-      - name: Upload schema artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          name: parity-schemas
-          path: |
-            /tmp/schema_python.json
-            /tmp/schema_ts.json
-            /tmp/schema_go.json
-            /tmp/schema_rust.json
-            /tmp/schema_php.json
-            /tmp/schema_elixir.json
-            /tmp/schema_java.json
-            /tmp/schema_ruby.json
-            /tmp/schema_dart.json
-            /tmp/schema_csharp.json
-            /tmp/schema_fsharp.json
-          retention-days: 7
+      # No `--allow-missing`: every SDK listed in the script must produce a schema and
+      # be compared, or this job fails.
+      - name: Cross-SDK parity
+        run: sdks/official/tests/run_parity.sh
