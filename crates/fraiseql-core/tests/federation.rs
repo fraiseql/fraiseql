@@ -17,6 +17,7 @@ mod federation {
     // Entity resolution — database integration
     mod entity_connection;
     mod entity_cross_db;
+    mod entity_field_rbac;
     mod entity_perf;
     mod entity_projection;
     mod entity_resolution;

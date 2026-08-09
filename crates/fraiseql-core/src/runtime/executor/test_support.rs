@@ -27,6 +27,12 @@ use crate::{
 /// Used to verify parameter threading from executor to adapter.
 pub struct CapturingMockAdapter {
     pub mock_results:                    Vec<JsonbValue>,
+    /// Rows the parameterized-aggregate path returns — the shape the federation
+    /// `_entities` resolver reads. Empty by default, which is what every caller
+    /// asserting only *whether* the resolver ran wants; set it with
+    /// [`with_aggregate_rows`](Self::with_aggregate_rows) to assert on the values
+    /// that come back (field masking, projection).
+    pub mock_aggregate_rows:             Vec<std::collections::HashMap<String, serde_json::Value>>,
     pub captured_where:                  std::sync::Mutex<Option<WhereClause>>,
     pub captured_limit:                  std::sync::Mutex<Option<u32>>,
     pub captured_offset:                 std::sync::Mutex<Option<u32>>,
@@ -39,6 +45,7 @@ impl CapturingMockAdapter {
     pub fn new(mock_results: Vec<JsonbValue>) -> Self {
         Self {
             mock_results,
+            mock_aggregate_rows: Vec::new(),
             captured_where: std::sync::Mutex::new(None),
             captured_limit: std::sync::Mutex::new(None),
             captured_offset: std::sync::Mutex::new(None),
@@ -46,6 +53,27 @@ impl CapturingMockAdapter {
             captured_aggregate_params: std::sync::Mutex::new(None),
             captured_aggregate_session_vars: std::sync::Mutex::new(None),
         }
+    }
+
+    /// Rows for the parameterized-aggregate path (the federation `_entities` read).
+    ///
+    /// Each row is a flat column→value map, exactly what
+    /// `DatabaseEntityResolver::project_results` matches against a representation's
+    /// key fields.
+    ///
+    /// Its only caller is the `entities_authz` test module, which is
+    /// `#[cfg(feature = "federation")]` — so in a build without that feature the method
+    /// genuinely has no caller and `-D dead-code` is right to say so. Allowed there and
+    /// **only** there, rather than with a blanket `#[allow(dead_code)]`, so the lint still
+    /// fires if the federation-enabled caller ever disappears.
+    #[cfg_attr(not(feature = "federation"), allow(dead_code))]
+    #[must_use]
+    pub fn with_aggregate_rows(
+        mut self,
+        rows: Vec<std::collections::HashMap<String, serde_json::Value>>,
+    ) -> Self {
+        self.mock_aggregate_rows = rows;
+        self
     }
 
     pub fn captured_where(&self) -> Option<WhereClause> {
@@ -138,7 +166,7 @@ impl DatabaseAdapter for CapturingMockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         *self.captured_aggregate_sql.lock().unwrap() = Some(sql.to_string());
         *self.captured_aggregate_params.lock().unwrap() = Some(params.to_vec());
-        Ok(vec![])
+        Ok(self.mock_aggregate_rows.clone())
     }
 
     async fn execute_parameterized_aggregate_with_session(

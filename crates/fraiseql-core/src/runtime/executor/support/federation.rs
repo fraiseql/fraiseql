@@ -66,10 +66,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        // #423: the federation `_entities` resolver has no SecurityContext and resolves
-        // entities by `__typename`; it does not run per-row field authorization. Fail
-        // closed if the schema declares any policy-gated field (tracked follow-up:
-        // thread an authorizer into the subgraph resolver).
+        // #423: the *dynamic* per-row field authorizer (`authorize = true`) is not wired
+        // into the subgraph resolver, so a schema declaring any such field shuts
+        // `_entities` down entirely rather than serving it unevaluated (tracked
+        // follow-up: thread an authorizer into the subgraph resolver). This check is
+        // schema-global and says nothing about the static `requires_scope` RBAC below,
+        // which #1030 found this path had simply never run.
         crate::security::field_authorizer::deny_if_schema_has_gated_field(
             &self.ctx.schema,
             "federation _entities",
@@ -134,6 +136,19 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
         };
 
+        // #1030: field-level RBAC, through the SAME classifier the query path uses.
+        // `_entities` ran its own two checks and this was not one of them, so a
+        // `requires_scope` field that answers 403 on `query { employee(id:…) { salary } }`
+        // came back in full through `_entities` — and `on_deny = Mask` came back
+        // *unmasked*, the quieter and worse half. Calling `classify_fields_for_read` is
+        // the point of the fix, not an implementation detail: a check added to the query
+        // path is now added to this one by construction, which is what stopped being
+        // true when this resolver grew a second copy of the gates.
+        //
+        // Runs before the read, so a `Reject` field denies without touching the database.
+        let masked_by_type =
+            self.classify_entities_fields(&representations, &selection, security_context)?;
+
         // Phase 03 (C1b/R1): compose per-row enforcement for authenticated requests.
         //  * `row_filters` — per entity type, the `inject_params` (tenant/owner) scoping rendered
         //    as a columnar predicate ANDed onto the key lookup, so a direct `_entities` hit with
@@ -167,7 +182,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let trace_context = crate::federation::FederationTraceContext::new();
 
         // Batch load entities from database with tracing support + per-row enforcement.
-        let entities = crate::federation::batch_load_entities_enforced(
+        let mut entities = crate::federation::batch_load_entities_enforced(
             &representations,
             &fed_resolver,
             Arc::clone(&self.ctx.adapter),
@@ -178,6 +193,24 @@ impl<A: DatabaseAdapter> Executor<A> {
         )
         .await?;
 
+        // #1030: null the fields the classifier masked, per entity. The resolver returns
+        // `Vec<Option<Value>>` positionally aligned with `representations` (the federation
+        // spec requires that alignment), so the type is read from the representation
+        // rather than from the payload's `__typename` — a selection that omits
+        // `__typename` still masks.
+        if masked_by_type.values().any(|masked| !masked.is_empty()) {
+            for (entity, rep) in entities.iter_mut().zip(representations.iter()) {
+                let (Some(entity), Some(masked)) =
+                    (entity.as_mut(), masked_by_type.get(&rep.typename))
+                else {
+                    continue;
+                };
+                if !masked.is_empty() {
+                    super::super::null_masked_fields(entity, masked);
+                }
+            }
+        }
+
         // Return federation response format
         let response = serde_json::json!({
             "data": {
@@ -186,6 +219,52 @@ impl<A: DatabaseAdapter> Executor<A> {
         });
 
         Ok(response)
+    }
+
+    /// Classify the requested selection for every requested entity type through the
+    /// **same** helper the query path uses (#1030).
+    ///
+    /// Returns each type's masked-field list; a `Reject` field the caller cannot read
+    /// returns `Err(FraiseQLError::Authorization)` instead, before any SQL runs.
+    ///
+    /// [`crate::federation::selection_parser::parse_field_selection`] flattens every
+    /// inline fragment into one list — `... on Employee { salary }` and
+    /// `... on Department { name }` arrive as `["salary", "name"]` with no record of
+    /// which condition each came from — so each requested type is classified against
+    /// the whole list. That is sound, not sloppy: both classifiers pass through a name
+    /// absent from the type's definition (their existing rule for built-ins such as
+    /// `__typename`), so another fragment's fields never deny here. The residue is a
+    /// field name declared on two requested types and gated on one, which is checked
+    /// against both — an over-denial, the direction that fails closed.
+    ///
+    /// The wildcard fallback needs no special case, which is worth stating because it looks
+    /// like it should. When `parse_field_selection` fails the caller substitutes `["*"]`,
+    /// which no type declares as a field, so nothing here is masked or rejected — and
+    /// nothing needs to be: `build_select_list` drops `*` (`is_safe_sql_identifier` admits
+    /// only `[A-Za-z0-9_]`) and emits the type's key fields alone. A gated non-key field
+    /// cannot be read on that path at all, and the keys are the values the caller supplied
+    /// in the representation, echoed back.
+    fn classify_entities_fields(
+        &self,
+        representations: &[crate::federation::EntityRepresentation],
+        selection: &crate::federation::FieldSelection,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<std::collections::HashMap<String, Vec<String>>> {
+        let mut masked_by_type: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for rep in representations {
+            if masked_by_type.contains_key(&rep.typename) {
+                continue;
+            }
+            let access = super::security::classify_fields_for_read(
+                &self.ctx.schema,
+                &rep.typename,
+                selection.fields.clone(),
+                security_context,
+            )?;
+            masked_by_type.insert(rep.typename.clone(), access.masked);
+        }
+        Ok(masked_by_type)
     }
 
     /// Fail-closed authorization gate for the federation `_entities` path (Phase 03 C1b).
@@ -211,8 +290,16 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// The type→gate association uses the same first-wins rule as the Relay `node` path
     /// (the query that exposes the type via a SQL view). A representation type with no
-    /// backing read query has no role/inject gate to enforce here; the global RLS gate
-    /// above still covers it.
+    /// backing read query still has its **type-level** `requires_role` enforced (#1030):
+    /// #677's lowering onto operations cannot reach an entity no operation returns, so
+    /// the declaration is read from the type directly. Such a type declares no
+    /// `inject_params` — it has nowhere to — and the global RLS gate above plus the
+    /// caller's session variables still cover it.
+    ///
+    /// This gate is role/row-shaped only. **Field**-level RBAC is
+    /// [`classify_entities_fields`](Self::classify_entities_fields), which delegates to the
+    /// query path's classifier rather than restating it here — the two checks living in
+    /// one function is how they drifted apart in the first place.
     fn enforce_entities_authz(
         &self,
         representations: &[crate::federation::EntityRepresentation],
@@ -227,18 +314,34 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         for rep in representations {
-            let Some(qdef) = self
+            let qdef = self
                 .ctx
                 .schema
                 .queries
                 .iter()
-                .find(|q| q.return_type == rep.typename && q.sql_source.is_some())
-            else {
-                continue;
-            };
+                .find(|q| q.return_type == rep.typename && q.sql_source.is_some());
 
             // requires_role: deny unless the request holds the role (anonymous or not).
-            if let Some(ref required_role) = qdef.requires_role {
+            //
+            // #1030(b): read the *type's* declaration too, not only the query's. #677
+            // lowers a type-level `requires_role` onto the operations that return the
+            // type — deliberately, so the five operation-level gates enforce it with no
+            // sixth enforcement site. But an entity reachable only through `_entities`
+            // has no operation to receive the lowering (an owner-split `extend type` with
+            // a type-level `sql_source` per #507, and the Python SDK synthesizes one for
+            // every non-embedded type), so this loop used to `continue` past it and
+            // `entity_sources()` served it ungated. Load-time validation
+            // (`CompiledSchema::type_role_violations`) rejects a query/type pair that
+            // disagrees, so at most one distinct role is ever in play here.
+            let required_role = qdef.and_then(|q| q.requires_role.as_deref()).or_else(|| {
+                self.ctx
+                    .schema
+                    .types
+                    .iter()
+                    .find(|t| t.name.as_str() == rep.typename)
+                    .and_then(|t| t.requires_role.as_deref())
+            });
+            if let Some(required_role) = required_role {
                 let has_role =
                     security_context.is_some_and(|sc| sc.roles.iter().any(|r| r == required_role));
                 if !has_role {
@@ -250,8 +353,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
 
             // inject_params (tenant/owner scoping): fail closed for anonymous callers —
-            // the resolver cannot apply the per-row filter.
-            if !qdef.inject_params.is_empty() && security_context.is_none() {
+            // the resolver cannot apply the per-row filter. A queryless entity declares
+            // no inject params (it has nowhere to); its session variables are still
+            // applied, so DB-native `current_setting()` RLS covers it.
+            if qdef.is_some_and(|q| !q.inject_params.is_empty()) && security_context.is_none() {
                 return Err(entities_authz_denied(&format!(
                     "type '{}' is tenant/owner-scoped but the _entities request is unauthenticated",
                     rep.typename
