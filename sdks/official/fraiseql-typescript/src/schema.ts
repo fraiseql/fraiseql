@@ -11,9 +11,15 @@ import { SchemaRegistry, Schema } from "./registry";
 const BUILTIN_SCALARS = new Set(["String", "Int", "Float", "Boolean", "ID"]);
 
 function validateSchemaBeforeExport(schema: Schema): void {
+  // Every kind an operation is allowed to return. Unions and interfaces were missing,
+  // so a query returning a union declared in the same document was refused at export
+  // with "is not a registered type" — while the compiler accepts exactly that document
+  // (#925). A validator added to catch a real defect (#733) must not invent new ones.
   const registeredTypeNames = new Set<string>([
     ...schema.types.map((t) => t.name),
     ...(schema.enums ?? []).map((e) => e.name),
+    ...(schema.unions ?? []).map((u) => u.name),
+    ...(schema.interfaces ?? []).map((i) => i.name),
     ...BUILTIN_SCALARS,
   ]);
 

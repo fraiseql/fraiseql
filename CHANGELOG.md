@@ -1689,6 +1689,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Two TypeScript examples that imported a module the package has never had (#925).**
+  `comprehensive-example.ts` imported `../src/views` and `ddl_generation_example.ts`
+  imported `@fraiseql/views`; no such module exists in the package or on npm, so neither
+  had ever run. Also removed: the committed `.js` / `.d.ts` / `.d.ts.map` build output
+  beside two of the examples — generated files nobody regenerated, the same way the three
+  `ecommerce_schema.json` artifacts rotted.
+
 - **The Elixir, Dart, C# and F# parity generators (#952).** All four built the expected JSON
   as a literal — `%{"name" => "User", "fields" => [...]}` — and never called their SDK, so
   they could not fail whatever the SDK did; the two that "disagreed" with Python did so only
@@ -1706,6 +1713,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   archived onto issue #687 before removal.
 
 ### Fixed
+
+- **TypeScript: `@Observer` and `@Source` read the decorated member's name under both
+  decorator protocols (#925).** Both were written for the legacy three-argument form
+  (`target, propertyKey, descriptor`) that `tsc` emits with `experimentalDecorators`, and
+  stored the second argument directly as the member's name. esbuild — and therefore `tsx`,
+  `bun` and every bundler built on it, including the runner the SDK's own examples name —
+  emits the **TC39** two-argument form, where that argument is a *context object*. So
+  `npx tsx examples/…` wrote `"name": {"kind":"method","name":"pollOrders",…}` into
+  `schema.json` and the compiler rejected the whole document with `invalid type: map,
+  expected a string`. This is the defect frozen into the committed `ecommerce_schema.json`
+  artifacts #925 found; deleting the artifacts had not fixed the producer. The SDK's own
+  suite missed it because vitest honours `experimentalDecorators`, so every existing test
+  exercised the protocol users do not get; the new tests call the decorators directly with
+  each protocol's arguments.
+
+- **TypeScript: a query may return a union or an interface (#925).** The pre-export
+  validator added for #733 built its set of known names from `types`, `enums` and the five
+  builtin scalars, so a query returning a union declared in the same document was refused
+  with "is not a registered type" — a document the compiler compiles without complaint.
+  Two shipped examples could not run because of it.
+
+- **TypeScript: `requiresScope` reaches the compiler as `requires_scope` (#925).** The key
+  is declared on the public `Field` type and documented in the field-metadata example, and
+  nothing ever normalised it, so it arrived camelCased and the compile was refused by name.
+  Declaring more than one required scope now throws at registration instead of being
+  truncated at some later layer: the compiled schema and the runtime field filter each hold
+  exactly one scope, and keeping the first would serve the field to callers holding only
+  that one. This matches the PHP exporter's rule from #807. Eleven existing assertions
+  pinned the camelCase spelling — they asserted a shape the compiler refuses — and now
+  assert the emitted one.
 
 - **PHP: a type authored with `TypeBuilder` keeps its `sql_source` and `is_error` through
   export (#952).** `StaticAPI::registerTypeBuilder()` built the `GraphQLType` attribute from

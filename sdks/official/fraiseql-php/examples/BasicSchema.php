@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace FraiseQL\Examples;
 
+// Composer's autoloader. Without it these files declared everything correctly and
+// died on the first `StaticAPI` reference, so they had never been run (#925).
+require_once __DIR__ . '/../vendor/autoload.php';
+
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\StaticAPI;

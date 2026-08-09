@@ -1,188 +1,105 @@
 /**
- * Example FraiseQL analytics schema with fact tables.
+ * Analytics: declaring a fact table.
  *
- * This example demonstrates:
- * - Fact table definitions with @FactTable()
- * - Aggregate query definitions with @AggregateQuery()
- * - Dimension paths and measure definitions
- * - Schema export with analytics support
+ * A fact table is a denormalized, append-only table FraiseQL maintains for you: numeric
+ * **measures** to aggregate, a JSONB **dimension** column with extracted paths to group
+ * by, and **denormalized filters** materialised as real columns so `WHERE` stays fast.
+ * Mutations declare `invalidates_fact_tables` to keep it current.
+ *
+ * **Aggregate queries are not declared here.** `aggregate_queries` in an authored schema
+ * reached no compiled artifact and is now refused outright (#956); declare each one as an
+ * `[[analytics.queries]]` entry in `fraiseql.toml` instead (#624), where it becomes an
+ * ordinary list-returning, view-backed query. The example below stops at the fact table,
+ * which is the half that compiles.
+ *
+ * `registerFactTable` is a `SchemaRegistry` static rather than a top-level export.
  *
  * Usage:
  *   npx tsx examples/analytics_schema.ts
- *   # Creates schema.json with analytics fact tables
+ *   fraiseql-cli compile schema.json
  */
 
-import * as fraiseql from "../src/index";
+import {
+  SchemaRegistry,
+  exportSchema,
+  registerMutation,
+  registerTypeFields,
+} from "../src/index";
 
 // ============================================================================
-// Type Definitions
+// The transactional type the facts are derived from
 // ============================================================================
 
-/**
- * Sale event type with analytics dimensions.
- */
-@fraiseql.type()
-class Sale {
-  id!: number;
-  revenue!: number;
-  quantity!: number;
-  cost!: number;
-  customerId!: string;
-  occurredAt!: string;
-}
+registerTypeFields(
+  "Sale",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "revenue", type: "Float", nullable: false },
+    { name: "quantity", type: "Int", nullable: false },
+    { name: "cost", type: "Float", nullable: false },
+    { name: "customerId", type: "ID", nullable: false },
+    { name: "occurredAt", type: "DateTime", nullable: false },
+  ],
+  "A single sale event",
+  { sqlSource: "v_sale" }
+);
 
 // ============================================================================
-// Field Registration
+// The fact table
 // ============================================================================
 
-fraiseql.registerTypeFields("Sale", [
-  { name: "id", type: "Int", nullable: false },
-  { name: "revenue", type: "Float", nullable: false },
-  { name: "quantity", type: "Int", nullable: false },
-  { name: "cost", type: "Float", nullable: false },
-  { name: "customerId", type: "String", nullable: false },
-  { name: "occurredAt", type: "String", nullable: false },
-]);
-
-// ============================================================================
-// Fact Table Definition
-// ============================================================================
-
-/**
- * Sales fact table for analytics.
- *
- * This fact table stores:
- * - Measures: revenue, quantity, cost (numeric aggregations)
- * - Dimensions: category, product_name (GROUP BY dimensions)
- * - Filters: customer_id, occurred_at (denormalized for fast WHERE)
- */
-fraiseql.registerFactTableManual(
-  "tf_sales",
+SchemaRegistry.registerFactTable(
+  "tf_sale",
+  // Measures: the numeric columns aggregations run over.
   [
     { name: "revenue", sql_type: "Float", nullable: false },
     { name: "quantity", sql_type: "Int", nullable: false },
     { name: "cost", sql_type: "Float", nullable: false },
   ],
+  // Dimensions: paths extracted from the JSONB column to GROUP BY.
   {
     name: "data",
     paths: [
-      {
-        name: "category",
-        json_path: "data->>'category'",
-        data_type: "text",
-      },
-      {
-        name: "product_name",
-        json_path: "data->>'product_name'",
-        data_type: "text",
-      },
+      { name: "category", json_path: "data->>'category'", data_type: "text" },
+      { name: "product_name", json_path: "data->>'product_name'", data_type: "text" },
     ],
   },
+  // Denormalized filters: real columns, so WHERE does not have to open the JSONB.
   [
     { name: "customer_id", sql_type: "Text", indexed: true },
     { name: "occurred_at", sql_type: "Timestamp", indexed: true },
-    { name: "id", sql_type: "Int", indexed: false },
   ]
 );
 
 // ============================================================================
-// Aggregate Queries
+// Keeping it current
 // ============================================================================
 
-/**
- * Sales aggregate query with flexible grouping and aggregation.
- *
- * Supports:
- * - groupBy: { category: true, occurred_at_day: true }
- * - aggregates: { count: true, revenue_sum: true, revenue_avg: true }
- * - where: { customer_id: { _eq: "uuid-123" } }
- * - having: { revenue_sum_gt: 1000 }
- * - orderBy: [{ field: "revenue_sum", direction: "DESC" }]
- * - limit: 100, offset: 0
- */
-fraiseql.registerAggregateQuery(
-  "salesAggregate",
-  "tf_sales",
-  true, // autoGroupBy
-  true // autoAggregates
-);
-
-fraiseql.registerQuery(
-  "salesAggregate",
-  "Record",
-  true, // returns list
-  false, // not nullable
-  [],
-  "Aggregate sales data with flexible grouping and aggregation"
-);
-
-/**
- * Monthly sales trend query.
- *
- * Aggregates sales by month and category.
- */
-fraiseql.registerAggregateQuery(
-  "monthlySalesTrend",
-  "tf_sales",
-  true, // autoGroupBy
-  true // autoAggregates
-);
-
-fraiseql.registerQuery(
-  "monthlySalesTrend",
-  "Record",
-  true, // returns list
-  false, // not nullable
-  [{ name: "category", type: "String", nullable: true }],
-  "Monthly sales trend by category"
-);
-
-/**
- * Customer revenue summary.
- *
- * Shows total and average revenue per customer.
- */
-fraiseql.registerAggregateQuery(
-  "customerRevenueSummary",
-  "tf_sales",
-  true, // autoGroupBy
-  true // autoAggregates
-);
-
-fraiseql.registerQuery(
-  "customerRevenueSummary",
-  "Record",
-  true, // returns list
-  false, // not nullable
+// `invalidates_fact_tables` is how a write tells the engine which facts went stale.
+// Without it the fact table drifts from the transactional data with nothing to notice.
+registerMutation(
+  "recordSale",
+  "Sale",
+  false,
+  false,
   [
-    { name: "limit", type: "Int", nullable: true, default: 100 },
-    { name: "minRevenue", type: "Float", nullable: true },
+    { name: "customerId", type: "ID", nullable: false },
+    { name: "revenue", type: "Float", nullable: false },
+    { name: "quantity", type: "Int", nullable: false },
   ],
-  "Top customers by revenue"
+  "Record a sale and refresh the sales facts",
+  {
+    sql_source: "fn_record_sale",
+    operation: "insert",
+    invalidates_views: ["v_sale"],
+    invalidates_fact_tables: ["tf_sale"],
+  }
 );
 
 // ============================================================================
-// Export Schema
+// Export
 // ============================================================================
 
-// Export schema to JSON when run as main module
-if (require.main === module) {
-  fraiseql.exportSchema("schema.json");
-
-  console.log("\n✅ Analytics schema exported successfully!");
-  console.log("   Fact Tables: 1 (tf_sales)");
-  console.log("   Aggregate Queries: 3");
-  console.log("   ");
-  console.log("   Next steps:");
-  console.log("   1. Compile schema: fraiseql-cli compile schema.json");
-  console.log("   2. Query sales data with aggregations:");
-  console.log("      query {");
-  console.log("        salesAggregate(");
-  console.log("          groupBy: { category: true }");
-  console.log("          aggregates: { count: true, revenue_sum: true }");
-  console.log("        ) { ... }");
-  console.log("      }");
-}
-
-// Also export for use as a module
-export { Sale };
+exportSchema("schema.json");
+console.log("   Fact table: tf_sale (3 measures, 2 dimensions, 2 filters)");
+console.log("   Aggregate queries: declare as [[analytics.queries]] in fraiseql.toml");

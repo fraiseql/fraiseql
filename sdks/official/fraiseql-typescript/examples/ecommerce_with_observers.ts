@@ -6,43 +6,53 @@
  * configurable actions like webhooks, Slack notifications, and emails.
  *
  * Usage:
- *   ts-node examples/ecommerce_with_observers.ts
+ *   npx tsx examples/ecommerce_with_observers.ts
  *
- * Output:
- *   ecommerce_schema.json (ready for fraiseql-cli compilation)
+ * Note: this example does not write a schema file. `fraiseql compile` refuses a schema
+ * that declares observers (#779) — observers are configured for the running server, not
+ * lowered into the compiled artifact — so writing one here would produce a document the
+ * very next command rejects. The registry contents are printed instead.
  */
 
 import {
-  Type,
   Observer,
-  webhook,
-  slack,
+  SchemaRegistry,
   email,
-  exportSchema,
-  RetryConfig,
+  registerTypeFields,
+  slack,
+  webhook,
 } from "../src/index";
-import type { ID, DateTime } from "../src/index";
 
-// Define types
-@Type()
-class Order {
-  /** E-commerce order */
-  id!: ID;
-  customer_email!: string;
-  status!: string;
-  total!: number;
-  created_at!: DateTime;
-}
+// The entities the observers watch. Declared with `registerTypeFields` rather than
+// `@Type()`: TypeScript erases the field types a class decorator would need, so `@Type()`
+// records only the name and the export is refused (#733). `@Observer` below is a *method*
+// decorator carrying its own config object, so it needs nothing erased — and it now reads
+// the member name under both the legacy and the TC39 decorator protocols (#925).
+registerTypeFields(
+  "Order",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "customer_email", type: "String", nullable: false },
+    { name: "status", type: "String", nullable: false },
+    { name: "total", type: "Float", nullable: false },
+    { name: "created_at", type: "DateTime", nullable: false },
+  ],
+  "E-commerce order",
+  { sqlSource: "v_order" }
+);
 
-@Type()
-class Payment {
-  /** Payment record */
-  id!: ID;
-  order_id!: ID;
-  amount!: number;
-  status!: string;
-  processed_at?: DateTime;
-}
+registerTypeFields(
+  "Payment",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "order_id", type: "ID", nullable: false },
+    { name: "amount", type: "Float", nullable: false },
+    { name: "status", type: "String", nullable: false },
+    { name: "processed_at", type: "DateTime", nullable: true },
+  ],
+  "Payment record",
+  { sqlSource: "v_payment" }
+);
 
 // Observers defined as class methods (required for TypeScript decorators)
 class OrderObservers {
@@ -137,18 +147,11 @@ class PaymentObservers {
 void OrderObservers;
 void PaymentObservers;
 
-// Export schema with observers
-if (require.main === module) {
-  exportSchema("ecommerce_schema.json");
-
-  console.log("\n🎯 Observer Summary:");
-  console.log("   1. onHighValueOrder → Webhooks, Slack, Email for total > 1000");
-  console.log("   2. onOrderShipped → Webhook + customer email when status='shipped'");
-  console.log("   3. onPaymentFailure → Slack + webhook with retry on payment failures");
-  console.log("   4. onOrderDeleted → Archive deleted orders via webhook");
-  console.log("   5. onOrderCreated → Slack notification for all new orders");
-  console.log("\n✨ Next steps:");
-  console.log("   1. fraiseql-cli compile ecommerce_schema.json");
-  console.log("   2. fraiseql-server --schema ecommerce_schema.compiled.json");
-  console.log("   3. Observers will execute automatically on database changes!");
+// Show what was registered. Every observer's `name` must be a plain string here: when
+// it was the decorator's context object, this printed `[object Object]` and the schema
+// it produced was rejected by the compiler with `invalid type: map, expected a string`.
+const observers = SchemaRegistry.getSchema().observers ?? [];
+console.log(`Registered ${observers.length} observer(s):`);
+for (const observer of observers) {
+  console.log(`   ${observer.name}  ${observer.entity} ${observer.event}`);
 }

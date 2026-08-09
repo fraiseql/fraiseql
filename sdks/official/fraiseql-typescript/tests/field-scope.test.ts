@@ -100,7 +100,7 @@ describe("Field-Level Scope Requirements", () => {
       expect(accountType?.fields).toHaveLength(3);
 
       const balanceField = accountType?.fields.find((f) => f.name === "balance");
-      expect(balanceField?.requiresScope).toBe("read:Account.balance");
+      expect(balanceField?.requires_scope).toBe("read:Account.balance");
     });
 
     it("should register type with mixed public and scoped fields", () => {
@@ -129,10 +129,10 @@ describe("Field-Level Scope Requirements", () => {
       const notesField = mixedType?.fields.find((f) => f.name === "internalNotes");
       const budgetField = mixedType?.fields.find((f) => f.name === "budget");
 
-      expect(idField?.requiresScope).toBeUndefined();
-      expect(nameField?.requiresScope).toBeUndefined();
-      expect(notesField?.requiresScope).toBe("internal:view_notes");
-      expect(budgetField?.requiresScope).toBe("finance:view_budget");
+      expect(idField?.requires_scope).toBeUndefined();
+      expect(nameField?.requires_scope).toBeUndefined();
+      expect(notesField?.requires_scope).toBe("internal:view_notes");
+      expect(budgetField?.requires_scope).toBe("finance:view_budget");
     });
 
     it("should register interface with scoped fields", () => {
@@ -155,7 +155,7 @@ describe("Field-Level Scope Requirements", () => {
 
       expect(nodeInterface?.fields).toHaveLength(2);
       const createdAtField = nodeInterface?.fields.find((f) => f.name === "createdAt");
-      expect(createdAtField?.requiresScope).toBe("read:*.createdAt");
+      expect(createdAtField?.requires_scope).toBe("read:*.createdAt");
     });
   });
 
@@ -174,7 +174,7 @@ describe("Field-Level Scope Requirements", () => {
       const docType = schema.types?.find((t) => t.name === "Document");
       const contentField = docType?.fields.find((f) => f.name === "content");
 
-      expect(contentField?.requiresScope).toBe("read:*");
+      expect(contentField?.requires_scope).toBe("read:*");
     });
 
     it("should support Type.* wildcard scope", () => {
@@ -191,7 +191,7 @@ describe("Field-Level Scope Requirements", () => {
       const profileType = schema.types?.find((t) => t.name === "Profile");
       const dataField = profileType?.fields.find((f) => f.name === "data");
 
-      expect(dataField?.requiresScope).toBe("read:Profile.*");
+      expect(dataField?.requires_scope).toBe("read:Profile.*");
     });
 
     it("should support custom scope identifiers", () => {
@@ -216,8 +216,8 @@ describe("Field-Level Scope Requirements", () => {
       const salaryField = empType?.fields.find((f) => f.name === "salary");
       const ssnField = empType?.fields.find((f) => f.name === "ssn");
 
-      expect(salaryField?.requiresScope).toBe("hr:view_compensation");
-      expect(ssnField?.requiresScope).toBe("pii:view");
+      expect(salaryField?.requires_scope).toBe("hr:view_compensation");
+      expect(ssnField?.requires_scope).toBe("pii:view");
     });
   });
 
@@ -249,30 +249,25 @@ describe("Field-Level Scope Requirements", () => {
       const emailField = type_?.fields.find((f) => f.name === "emailVerified");
       const configField = type_?.fields.find((f) => f.name === "config");
 
-      expect(emailField?.requiresScope).toBe("read:User.email_verified");
-      expect(configField?.requiresScope).toBe("admin_read:system_config");
+      expect(emailField?.requires_scope).toBe("read:User.email_verified");
+      expect(configField?.requires_scope).toBe("admin_read:system_config");
     });
 
-    it("should handle multiple scopes as array", () => {
-      SchemaRegistry.registerType("MultiScope", [
-        {
-          name: "data",
-          type: "String",
-          nullable: false,
-          requiresScope: ["read:MultiScope.data", "admin:view_all", "audit:log_access"],
-        },
-      ]);
-
-      const schema = SchemaRegistry.getSchema();
-      const type_ = schema.types?.find((t) => t.name === "MultiScope");
-      const dataField = type_?.fields.find((f) => f.name === "data");
-
-      expect(Array.isArray(dataField?.requiresScope)).toBe(true);
-      expect(dataField?.requiresScope).toEqual([
-        "read:MultiScope.data",
-        "admin:view_all",
-        "audit:log_access",
-      ]);
+    it("refuses a field requiring multiple scopes", () => {
+      // `field({ requiresScope: [...] })` still accepts a list — the helper is a plain
+      // metadata builder — but registering it does not: exactly one required scope
+      // survives into the compiled schema and the runtime field filter, so a list
+      // would have to be truncated, and truncating it grants access (#925).
+      expect(() =>
+        SchemaRegistry.registerType("MultiScope", [
+          {
+            name: "data",
+            type: "String",
+            nullable: false,
+            requiresScope: ["read:MultiScope.data", "admin:view_all", "audit:log_access"],
+          },
+        ])
+      ).toThrow(/single scope/);
     });
   });
 
@@ -303,7 +298,7 @@ describe("Field-Level Scope Requirements", () => {
       const secureType = parsed.types?.find((t: { name: string }) => t.name === "SecureData");
       const secretField = secureType?.fields.find((f: { name: string }) => f.name === "secret");
 
-      expect(secretField?.requiresScope).toBe("read:SecureData.secret");
+      expect(secretField?.requires_scope).toBe("read:SecureData.secret");
     });
 
     it("should preserve scope metadata through schema export and import", () => {
@@ -328,8 +323,8 @@ describe("Field-Level Scope Requirements", () => {
       const origType1 = schema1.types?.find((t) => t.name === "Original");
       const origType2 = schema2.types?.find((t: { name: string }) => t.name === "Original");
 
-      expect(origType1?.fields[0]?.requiresScope).toBe("special:access");
-      expect(origType2?.fields[0]?.requiresScope).toBe("special:access");
+      expect(origType1?.fields[0]?.requires_scope).toBe("special:access");
+      expect(origType2?.fields[0]?.requires_scope).toBe("special:access");
     });
   });
 

@@ -3,7 +3,9 @@
  *
  * This example demonstrates field-level access control, deprecation, and documentation:
  * - `requiresScope`: JWT scope required to access this field
- * - `deprecated`: Mark a field as deprecated with optional reason
+ * - `deprecated` is deliberately absent: `IntermediateField` has no such member and
+ *   `deny_unknown_fields` refuses the whole document, so a deprecated *field* cannot
+ *   be authored today (#1025). Deprecating a query or a mutation does work.
  * - `description`: Field documentation for GraphQL schema
  *
  * Field metadata allows fine-grained control over who can access which fields,
@@ -15,15 +17,6 @@ import * as fraiseql from "../src/index";
 // ============================================================================
 // EXAMPLE 1: Field-Level Access Control (PII Protection)
 // ============================================================================
-
-@fraiseql.Type()
-class User {
-  id!: string;
-  email!: string;
-  name!: string;
-  salary!: number;
-  ssn!: string;
-}
 
 // Register fields with access control
 fraiseql.registerTypeFields(
@@ -53,8 +46,11 @@ fraiseql.registerTypeFields(
       name: "ssn",
       type: "String",
       nullable: false,
-      requiresScope: ["pii:read", "hr:view_sensitive"],
-      description: "Social security number (requires PII or HR scope)",
+      // Exactly one scope. The compiled schema and the runtime field filter each
+      // represent a single required scope, so a list is refused rather than truncated
+      // — truncating it would grant the field to callers holding only the first.
+      requiresScope: "pii:read",
+      description: "Social security number (requires the PII scope)",
     },
   ],
   "User profile with sensitive fields protected by JWT scopes"
@@ -63,16 +59,6 @@ fraiseql.registerTypeFields(
 // ============================================================================
 // EXAMPLE 2: API Versioning with Deprecation
 // ============================================================================
-
-@fraiseql.Type()
-class Product {
-  id!: string;
-  name!: string;
-  oldPrice!: number;
-  newPrice!: number;
-  oldCategory!: string;
-  category!: string;
-}
 
 fraiseql.registerTypeFields("Product", [
   { name: "id", type: "ID", nullable: false },
@@ -86,7 +72,6 @@ fraiseql.registerTypeFields("Product", [
     name: "oldPrice",
     type: "Decimal",
     nullable: true,
-    deprecated: "Use pricing.list instead - moved to pricing structure",
     description: "Old pricing field (DEPRECATED)",
   },
   {
@@ -99,7 +84,6 @@ fraiseql.registerTypeFields("Product", [
     name: "oldCategory",
     type: "String",
     nullable: true,
-    deprecated: "Use categories (plural) instead - now supports multiple categories",
     description: "Single category (DEPRECATED - use categories instead)",
   },
   {
@@ -113,19 +97,6 @@ fraiseql.registerTypeFields("Product", [
 // ============================================================================
 // EXAMPLE 3: Rich Field Documentation
 // ============================================================================
-
-@fraiseql.Type()
-class Order {
-  id!: string;
-  customerId!: string;
-  items!: unknown;
-  subtotal!: number;
-  discount!: number;
-  tax!: number;
-  total!: number;
-  internalNotes!: string;
-  customerNotes!: string;
-}
 
 fraiseql.registerTypeFields("Order", [
   {
@@ -220,7 +191,6 @@ fraiseql.registerTypeFields("Document", [
     type: "String",
     nullable: true,
     ...fraiseql.field({
-      deprecated: "Legacy ID format - use id instead",
       description: "Old identifier format (deprecated)",
     }),
   },
@@ -229,11 +199,6 @@ fraiseql.registerTypeFields("Document", [
 // ============================================================================
 // QUERIES
 // ============================================================================
-
-@fraiseql.Query({ sqlSource: "v_user" })
-function getUser(id: string): User {
-  pass;
-}
 
 fraiseql.registerQuery(
   "getUser",
@@ -244,24 +209,14 @@ fraiseql.registerQuery(
   "Get user by ID - sensitive fields (salary, SSN) require appropriate JWT scopes"
 );
 
-@fraiseql.Query({ sqlSource: "v_product" })
-function getProduct(id: string): Product {
-  pass;
-}
-
 fraiseql.registerQuery(
   "getProduct",
   "Product",
   false,
   false,
   [{ name: "id", type: "ID", nullable: false }],
-  "Get product - note deprecated oldPrice and oldCategory fields"
+  "Get product"
 );
-
-@fraiseql.Query({ sqlSource: "v_order" })
-function getOrder(id: string): Order {
-  pass;
-}
 
 fraiseql.registerQuery(
   "getOrder",
@@ -302,11 +257,6 @@ const CreateUserInput = fraiseql.input("CreateUserInput", [
 // MUTATIONS
 // ============================================================================
 
-@fraiseql.Mutation({ sqlSource: "fn_create_user", operation: "CREATE" })
-function createUser(input: Record<string, unknown>): User {
-  pass;
-}
-
 fraiseql.registerMutation(
   "createUser",
   "User",
@@ -330,8 +280,6 @@ if (require.main === module) {
   console.log('      - ssn: requires ["pii:read", "hr:view_sensitive"] scopes');
   console.log("    ");
   console.log("    Product:");
-  console.log("      - oldPrice: deprecated (use pricing.list)");
-  console.log("      - oldCategory: deprecated (use categories)");
   console.log("    ");
   console.log("    Order:");
   console.log('      - discount: requires "orders:view_discounts" scope');

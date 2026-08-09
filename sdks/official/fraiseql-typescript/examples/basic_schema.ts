@@ -1,241 +1,171 @@
 /**
- * Example FraiseQL schema definition in TypeScript.
+ * A minimal FraiseQL schema authored with the TypeScript SDK.
  *
- * This example demonstrates:
- * - Type definitions with @Type()
- * - Query definitions with @Query()
- * - Mutation definitions with @Mutation()
- * - Schema export to JSON
+ * Start here. It shows the whole authoring surface in one file: declare a type's
+ * fields, declare the queries and mutations over them, export, compile.
+ *
+ * **Why there are no decorators here.** TypeScript erases types at runtime, so a
+ * `@Type()` decorator can see a class's *name* and nothing else — not its fields, not
+ * their GraphQL types, not their nullability. The SDK used to register placeholder
+ * types from decorators and emit them with empty `fields`; it now refuses instead
+ * (#733). And a decorator cannot go on a bare `function` at all — that is not valid
+ * TypeScript, whatever the syntax looks like in a Python example. So the authoring
+ * surface is the explicit `registerTypeFields` / `registerQuery` / `registerMutation`
+ * functions, and the `interface`s below are ordinary TypeScript for your own code.
  *
  * Usage:
  *   npx tsx examples/basic_schema.ts
- *   # Creates schema.json that can be compiled with: fraiseql-cli compile schema.json
+ *   fraiseql-cli compile schema.json
  */
 
-import * as fraiseql from "../src/index";
+import {
+  exportSchema,
+  registerMutation,
+  registerQuery,
+  registerTypeFields,
+} from "../src/index";
 
 // ============================================================================
-// Type Definitions
+// Types
 // ============================================================================
 
-/**
- * User type representing a user in the system.
- */
-@fraiseql.type()
-class User {
-  id!: number;
-  name!: string;
-  email!: string;
-  createdAt!: string;
-  isActive!: boolean;
+/** A user of the system. */
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  createdAt: string;
+  isActive: boolean;
 }
 
-/**
- * Post type representing a blog post.
- */
-@fraiseql.type()
-class Post {
-  id!: number;
-  title!: string;
-  content!: string;
-  authorId!: number;
-  published!: boolean;
-  createdAt!: string;
+/** A blog post, authored by a user. */
+export interface Post {
+  id: number;
+  title: string;
+  content: string;
+  authorId: number;
+  published: boolean;
+  createdAt: string;
 }
 
-// ============================================================================
-// Manual Field Registration
-// ============================================================================
-
-// Since TypeScript doesn't preserve field type information at runtime by default,
-// we manually register the fields for each type.
-
-fraiseql.registerTypeFields("User", [
-  { name: "id", type: "Int", nullable: false },
-  { name: "name", type: "String", nullable: false },
-  { name: "email", type: "String", nullable: false },
-  { name: "createdAt", type: "String", nullable: false },
-  { name: "isActive", type: "Boolean", nullable: false },
-]);
-
-fraiseql.registerTypeFields("Post", [
-  { name: "id", type: "Int", nullable: false },
-  { name: "title", type: "String", nullable: false },
-  { name: "content", type: "String", nullable: false },
-  { name: "authorId", type: "Int", nullable: false },
-  { name: "published", type: "Boolean", nullable: false },
-  { name: "createdAt", type: "String", nullable: false },
-]);
-
-// ============================================================================
-// Query Definitions
-// ============================================================================
-
-/**
- * Get list of users with pagination.
- *
- * Note: In a full implementation, this would use @fraiseql.query({ sqlSource: "v_user" })
- * but TypeScript decorators are only valid on classes/methods. Instead, we use
- * registerQuery() below for manual registration.
- */
-function users(_limit: number = 10, _offset: number = 0, _isActive?: boolean): User[] {
-  // Function body not executed - only for type/metadata
-  throw new Error("Not implemented");
-}
-
-fraiseql.registerQuery(
-  "users",
+// `sqlSource` is the view each type is read from. FraiseQL's convention is singular:
+// `v_user` serves the `users` list field just as it serves the `user` single field.
+registerTypeFields(
   "User",
-  true, // returns list
-  false, // not nullable
   [
-    { name: "limit", type: "Int", nullable: false, default: 10 },
-    { name: "offset", type: "Int", nullable: false, default: 0 },
-    { name: "isActive", type: "Boolean", nullable: true },
+    { name: "id", type: "Int", nullable: false },
+    { name: "name", type: "String", nullable: false },
+    { name: "email", type: "String", nullable: false },
+    { name: "createdAt", type: "String", nullable: false },
+    { name: "isActive", type: "Boolean", nullable: false },
   ],
-  "Get list of users with pagination",
-  { sql_source: "v_user", auto_params: { limit: true, offset: true, where: true } }
+  "A user of the system",
+  { sqlSource: "v_user" }
 );
 
-/**
- * Get a single user by ID.
- */
-function user(_id: number): User | null {
-  // Function body not executed
-  throw new Error("Not implemented");
-}
+registerTypeFields(
+  "Post",
+  [
+    { name: "id", type: "Int", nullable: false },
+    { name: "title", type: "String", nullable: false },
+    { name: "content", type: "String", nullable: false },
+    { name: "authorId", type: "Int", nullable: false },
+    { name: "published", type: "Boolean", nullable: false },
+    { name: "createdAt", type: "String", nullable: false },
+  ],
+  "A blog post",
+  { sqlSource: "v_post" }
+);
 
-fraiseql.registerQuery(
-  "user",
+// ============================================================================
+// Queries
+// ============================================================================
+
+// Arguments are declared, not inferred. The booleans after the return type are
+// `returnsList` and `nullable`, in that order.
+registerQuery(
+  "users",
   "User",
-  false, // single item
-  true, // nullable
-  [{ name: "id", type: "Int", nullable: false }],
-  "Get a single user by ID",
+  true,
+  false,
+  [{ name: "isActive", type: "Boolean", nullable: true }],
+  "List users, optionally filtered by active state",
   { sql_source: "v_user" }
 );
 
-/**
- * Get list of posts with filtering.
- */
-function posts(_authorId?: number, _published: boolean = true): Post[] {
-  // Function body not executed
-  throw new Error("Not implemented");
-}
+registerQuery(
+  "user",
+  "User",
+  false,
+  true,
+  [{ name: "id", type: "Int", nullable: false }],
+  "Fetch one user by id, or null",
+  { sql_source: "v_user" }
+);
 
-fraiseql.registerQuery(
+registerQuery(
   "posts",
   "Post",
-  true, // returns list
-  false, // not nullable
+  true,
+  false,
   [
     { name: "authorId", type: "Int", nullable: true },
     { name: "published", type: "Boolean", nullable: false, default: true },
   ],
-  "Get list of posts with filtering",
-  { sql_source: "v_post", auto_params: { limit: true, offset: true, where: true } }
+  "List posts, optionally filtered by author",
+  { sql_source: "v_post" }
 );
 
 // ============================================================================
-// Mutation Definitions
+// Mutations
 // ============================================================================
 
-/**
- * Create a new user.
- */
-function createUser(_name: string, _email: string): User {
-  // Function body not executed
-  throw new Error("Not implemented");
-}
-
-fraiseql.registerMutation(
+// `operation` is the DML verb the compiler lowers to: `insert`, `update` or `delete`.
+// `sql_source` is the function that performs it, not a view.
+registerMutation(
   "createUser",
   "User",
-  false, // single item
-  false, // not nullable
+  false,
+  false,
   [
     { name: "name", type: "String", nullable: false },
     { name: "email", type: "String", nullable: false },
   ],
-  "Create a new user",
-  { sql_source: "fn_create_user", operation: "CREATE" }
+  "Create a user",
+  { sql_source: "fn_create_user", operation: "insert", invalidates_views: ["v_user"] }
 );
 
-/**
- * Update an existing user.
- */
-function updateUser(_id: number, _name?: string, _email?: string): User {
-  // Function body not executed
-  throw new Error("Not implemented");
-}
-
-fraiseql.registerMutation(
+registerMutation(
   "updateUser",
   "User",
-  false, // single item
-  false, // not nullable
+  false,
+  false,
   [
     { name: "id", type: "Int", nullable: false },
     { name: "name", type: "String", nullable: true },
     { name: "email", type: "String", nullable: true },
   ],
-  "Update an existing user",
-  { sql_source: "fn_update_user", operation: "UPDATE" }
+  "Update a user; omitted arguments are left untouched",
+  { sql_source: "fn_update_user", operation: "update", invalidates_views: ["v_user"] }
 );
 
-/**
- * Delete a user.
- */
-function deleteUser(_id: number): User {
-  // Function body not executed
-  throw new Error("Not implemented");
-}
-
-fraiseql.registerMutation(
-  "deleteUser",
-  "User",
-  false, // single item
-  false, // not nullable
-  [{ name: "id", type: "Int", nullable: false }],
-  "Delete a user",
-  { sql_source: "fn_delete_user", operation: "DELETE" }
-);
-
-/**
- * Create a new blog post.
- */
-function createPost(_title: string, _content: string, _authorId: number): Post {
-  // Function body not executed
-  throw new Error("Not implemented");
-}
-
-fraiseql.registerMutation(
+registerMutation(
   "createPost",
   "Post",
-  false, // single item
-  false, // not nullable
+  false,
+  false,
   [
     { name: "title", type: "String", nullable: false },
     { name: "content", type: "String", nullable: false },
     { name: "authorId", type: "Int", nullable: false },
   ],
-  "Create a new blog post",
-  { sql_source: "fn_create_post", operation: "CREATE" }
+  "Create a post",
+  { sql_source: "fn_create_post", operation: "insert", invalidates_views: ["v_post"] }
 );
 
 // ============================================================================
-// Export Schema
+// Export
 // ============================================================================
 
-// Export schema to JSON when run as main module
-if (require.main === module) {
-  fraiseql.exportSchema("schema.json");
-
-  console.log("\n✅ Schema exported successfully!");
-  console.log("   Next steps:");
-  console.log("   1. Compile schema: fraiseql-cli compile schema.json");
-  console.log("   2. Start server: fraiseql-server --schema schema.compiled.json");
-}
-
-// Also export for use as a module
-export { User, Post };
+exportSchema("schema.json");
+console.log("Next: fraiseql-cli compile schema.json");

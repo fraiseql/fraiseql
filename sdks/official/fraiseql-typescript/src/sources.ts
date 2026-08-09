@@ -18,6 +18,7 @@
  * ```
  */
 
+import { decoratedMemberName } from "./decorator-name";
 import { SchemaRegistry, SourceRunAs } from "./registry";
 
 /**
@@ -48,12 +49,13 @@ interface SourceConfig {
  * @returns Method decorator
  */
 export function Source(config: SourceConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy method decorator target
-  return function (_target: any, propertyKey: string, _descriptor: PropertyDescriptor): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- method decorator target
+  return function (_target: any, propertyKeyOrContext: unknown, _descriptor?: PropertyDescriptor): void {
+    const name = decoratedMemberName(propertyKeyOrContext, "Source");
     SchemaRegistry.registerSource(
-      propertyKey,
+      name,
       config.schedule,
-      config.function ?? propertyKey,
+      config.function ?? name,
       config.cursor,
       config.enabled ?? true,
       config.runAs,
