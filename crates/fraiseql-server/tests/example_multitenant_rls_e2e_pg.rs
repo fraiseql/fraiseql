@@ -209,11 +209,17 @@ const ORG_A: &str = "aaaaaaaa-0000-0000-0000-000000000001";
 const ORG_B: &str = "bbbbbbbb-0000-0000-0000-000000000001";
 const TENANT_A: &str = "aaaaaaaa-0000-0000-0000-000000000002";
 const TENANT_B: &str = "bbbbbbbb-0000-0000-0000-000000000002";
+/// A user who belongs to account A but owns nothing in it — the principal #1070's
+/// intra-account write rules exist to constrain.
+const MEMBER_A: &str = "aaaaaaaa-0000-0000-0000-000000000003";
 
 /// Scratch databases, one per example — see the module docs on why they are not
 /// the harness database.
 const DB_MULTITENANT: &str = "p04_example_multitenant";
 const DB_SAAS: &str = "p04_example_saas";
+/// The write-rule case gets its own database: it mutates the rows the read case
+/// asserts on, and `--test-threads=1` is a rig convention, not a guarantee.
+const DB_SAAS_WRITES: &str = "p04_example_saas_writes";
 
 /// `examples/multitenant`: two organizations, two tenants, zero crossings.
 #[tokio::test]
@@ -371,4 +377,159 @@ async fn saas_example_isolates_two_accounts() {
     drop(executor);
     drop(admin);
     drop_example_database(&url, DB_SAAS).await;
+}
+
+/// Apply the three `app.*` claims for one statement's transaction, run it, and
+/// report **whether the write happened** — not how it was refused.
+///
+/// RLS refuses in two shapes and the choice between them is an implementation
+/// detail, not a security property: a row excluded by `USING` is simply not
+/// visible to the UPDATE and the statement affects zero rows, while a row rejected
+/// by `WITH CHECK` raises 42501. Asserting on one shape would fail an equally
+/// correct policy set that refuses in the other, so the assertions below are about
+/// the row, not the error.
+async fn wrote(
+    client: &tokio_postgres::Client,
+    account: &str,
+    user: &str,
+    role: &str,
+    sql: &str,
+) -> bool {
+    client.batch_execute("BEGIN").await.expect("begin");
+    client
+        .batch_execute(&format!(
+            "SELECT set_config('app.account_id', '{account}', true),
+                    set_config('app.user_id', '{user}', true),
+                    set_config('app.account_role', '{role}', true)"
+        ))
+        .await
+        .expect("apply claims");
+    let result = client.execute(sql, &[]).await;
+    client.batch_execute("COMMIT").await.expect("commit");
+    match result {
+        Ok(rows) => rows > 0,
+        // 42501 — `new row violates row-level security policy`. A refusal.
+        Err(e) if e.code().map(tokio_postgres::error::SqlState::code) == Some("42501") => false,
+        Err(e) => panic!("unexpected database error (not an RLS refusal): {e}"),
+    }
+}
+
+/// The account's current owner, read with the policies bypassed.
+async fn owner_of(admin: &tokio_postgres::Client, account: &str) -> String {
+    admin
+        .query_one(&format!("SELECT owner_id::text FROM tb_account WHERE id = '{account}'"), &[])
+        .await
+        .expect("read owner")
+        .get::<_, String>(0)
+}
+
+/// The subscription's current plan, read with the policies bypassed.
+async fn plan_of(admin: &tokio_postgres::Client, account: &str) -> String {
+    admin
+        .query_one(
+            &format!("SELECT data->>'plan' FROM tb_subscription WHERE account_id = '{account}'"),
+            &[],
+        )
+        .await
+        .expect("read plan")
+        .get::<_, String>(0)
+}
+
+/// `examples/saas`: the **write** rules the README says PostgreSQL enforces on every
+/// write, "including writes that do not go through FraiseQL at all" (#1070).
+///
+/// That claim had no test. `saas_example_isolates_two_accounts` issues only
+/// `listInvoices` reads, so it was silent on writes — and the two write policies were
+/// permissive with no `FOR` clause on `account_isolation`, which meant PostgreSQL OR'd
+/// their checks with `account_id = current_account_id()` and neither rule fired. The
+/// example declares no mutations, so this drives the policies the way the README's own
+/// threat model does: direct SQL as `saas_app`, the role it tells operators to use.
+///
+/// Every case is two-sided. A policy set that refused *every* write would satisfy the
+/// refusals below while breaking the example, so each refusal is paired with the
+/// authorised write that must still succeed.
+#[tokio::test]
+async fn saas_example_enforces_its_intra_account_write_rules() {
+    let Some(url) = try_database_url() else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let admin = provision_example_database(&url, "saas", DB_SAAS_WRITES).await;
+
+    // ORG_A is owned by TENANT_A. MEMBER_A belongs to the account but owns nothing.
+    admin
+        .batch_execute(&format!(
+            "INSERT INTO tb_account (id, owner_id, data) VALUES
+               ('{ORG_A}', '{TENANT_A}', '{{\"name\":\"Acme\"}}');
+             INSERT INTO tb_subscription (id, account_id, data) VALUES
+               ('aaaaaaaa-0000-0000-0000-000000000010', '{ORG_A}', '{{\"plan\":\"starter\"}}');"
+        ))
+        .await
+        .expect("seed");
+
+    let app = admin_client(&as_role(&url, DB_SAAS_WRITES, "saas_app", "saas_app")).await;
+
+    // ── tb_subscription: only an owner or billing admin may write ──────────────
+    let upgrade = format!(
+        "UPDATE tb_subscription SET data = data || '{{\"plan\":\"enterprise\"}}' \
+         WHERE account_id = '{ORG_A}'"
+    );
+
+    assert!(
+        !wrote(&app, ORG_A, MEMBER_A, "member", &upgrade).await,
+        "a plain member of the account must not be able to change its subscription — this \
+         is the exact statement #1070 found succeeding"
+    );
+    assert_eq!(
+        plan_of(&admin, ORG_A).await,
+        "starter",
+        "the refused upgrade must not have landed"
+    );
+
+    assert!(
+        wrote(&app, ORG_A, MEMBER_A, "billing_admin", &upgrade).await,
+        "a billing admin must still be able to change the subscription"
+    );
+    assert_eq!(plan_of(&admin, ORG_A).await, "enterprise", "the authorised upgrade must land");
+
+    // ── tb_account: only the owner may write ───────────────────────────────────
+    let rename = format!(
+        "UPDATE tb_account SET data = data || '{{\"name\":\"Renamed\"}}' WHERE id = '{ORG_A}'"
+    );
+    assert!(
+        !wrote(&app, ORG_A, MEMBER_A, "member", &rename).await,
+        "a non-owner must not be able to modify the account row"
+    );
+
+    // The sharpest case, and the one that separates this fix from the tempting
+    // half-fix: `AS RESTRICTIVE` alone, with the ownership test left in `WITH CHECK`,
+    // still lets a member set `owner_id` to themselves — the check passes precisely
+    // *because* they named themselves. The ownership test has to be on the `USING`
+    // side, which decides which existing rows may be updated at all.
+    let promote = format!("UPDATE tb_account SET owner_id = '{MEMBER_A}' WHERE id = '{ORG_A}'");
+    assert!(
+        !wrote(&app, ORG_A, MEMBER_A, "member", &promote).await,
+        "a member must not be able to make themselves the owner"
+    );
+    assert_eq!(
+        owner_of(&admin, ORG_A).await,
+        TENANT_A,
+        "the account owner must be unchanged after a refused self-promotion"
+    );
+
+    assert!(
+        wrote(&app, ORG_A, TENANT_A, "owner", &rename).await,
+        "the account's owner must still be able to modify it"
+    );
+
+    // ── and the isolation property still holds on the write side ───────────────
+    // A caller in another account cannot reach these rows even holding 'owner'.
+    assert!(
+        !wrote(&app, ORG_B, TENANT_B, "owner", &upgrade).await,
+        "a caller in another account must reach no rows here"
+    );
+
+    drop(app);
+    drop(admin);
+    drop_example_database(&url, DB_SAAS_WRITES).await;
 }

@@ -68,22 +68,47 @@ can modify Account" and "only billing admins can manage Subscription". FraiseQL 
 its operation and field authorizers to `None`, so those blocks compiled and enforced
 nothing (#612 / #626). They were removed rather than ship a false claim.
 
-`sql/01_schema.sql` expresses the same two rules as `WITH CHECK` policies, which
+`sql/01_schema.sql` expresses the same two rules as **restrictive** policies, which
 PostgreSQL enforces on every write — including writes that never go through
 FraiseQL:
 
 ```sql
 CREATE POLICY billing_admin_writes ON tb_subscription
+    AS RESTRICTIVE
     FOR UPDATE
-    USING (account_id = current_account_id())
+    USING (current_account_role() IN ('owner', 'billing_admin'))
     WITH CHECK (
         account_id = current_account_id()
-        AND current_setting('app.account_role', true) IN ('owner', 'billing_admin')
+        AND current_account_role() IN ('owner', 'billing_admin')
     );
 ```
 
 The `app.user_id` and `app.account_role` session variables those policies read are
 declared alongside `app.account_id` in `fraiseql.toml`.
+
+**`AS RESTRICTIVE` is the whole rule, not a style choice.** PostgreSQL combines
+*permissive* policies with **OR**, and a policy with `USING` but no `WITH CHECK`
+reuses its `USING` expression as the `WITH CHECK` for UPDATE. `account_isolation`
+is permissive, has no `FOR` clause (so it covers ALL commands) and no `WITH CHECK`
+— so written as permissive policies, both rules above were OR'd with
+`account_id = current_account_id()`, which is true for every member of the account.
+They enforced nothing, which is the same failure mode as the `[[security.rules]]`
+blocks they replaced, one layer down. Restrictive policies AND with the permissive
+set, which is what makes them conditions rather than alternatives.
+
+Two traps worth naming, because both look like fixes:
+
+- Making `account_isolation` itself restrictive leaves the table with **no**
+  permissive policy, so every `SELECT` returns zero rows.
+- Putting the ownership test only in `WITH CHECK` is not enough. A member could then
+  update the account row and satisfy the check by setting `owner_id` **to
+  themselves** — self-promotion, after which the rule is satisfied forever. Which
+  existing rows a caller may write is a `USING` question.
+
+These rules are scoped `FOR UPDATE` because UPDATE is the only write granted to
+`saas_app`. Granting INSERT or DELETE means writing the matching restrictive policy;
+otherwise cmd=ALL `account_isolation` governs that command by itself and nullifies
+any new rule the same way.
 
 ## Two things that will silently defeat this
 
@@ -143,5 +168,13 @@ examples' SQL to a real PostgreSQL, compiles both schemas through the real compi
 path, seeds two accounts, and asserts each sees only its own rows and an
 unauthenticated caller sees none. It runs in CI's `integration` leg. If the
 isolation story here stops being true, that test goes red.
+
+The **write** rules have their own case in the same file. It reads nothing through
+GraphQL — this example declares no mutations, and the claim above is specifically
+about writes that never go through FraiseQL — so it issues direct SQL as `saas_app`,
+the role this README tells you to connect as, and asserts a plain member can change
+neither the subscription nor the account nor their own membership into ownership,
+while a billing admin and the owner still can. That case did not exist until #1070,
+which is why both rules could be decorative without anything going red.
 
 See `../../docs/DOMAIN_ORGANIZATION.md` for more on domain organisation.
