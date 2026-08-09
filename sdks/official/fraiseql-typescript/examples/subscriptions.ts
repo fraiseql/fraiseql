@@ -10,6 +10,16 @@
  *
  * Subscriptions in FraiseQL are compiled database event projections,
  * sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+ *
+ * **This example does not write a schema file, and cannot yet.** Every SDK emits a
+ * subscription as `{name, entity_type, nullable, …}` while `IntermediateSubscription`
+ * expects `{name, return_type, topic, filter, fields, …}`, and that struct is
+ * `deny_unknown_fields` — so a document declaring any subscription is refused at
+ * compile, in every language (#1024). The registrations below are real and are printed;
+ * writing a `schema.json` here would only produce a file the next command rejects.
+ *
+ * Usage:
+ *   npx tsx examples/subscriptions.ts
  */
 
 import * as fraiseql from "../src/index";
@@ -18,29 +28,12 @@ import * as fraiseql from "../src/index";
 // TYPE DEFINITIONS
 // ============================================================================
 
-@fraiseql.Type()
-class User {
-  id!: string;
-  email!: string;
-  name!: string;
-  status!: string;
-}
-
 fraiseql.registerTypeFields("User", [
   { name: "id", type: "ID", nullable: false },
   { name: "email", type: "Email", nullable: false },
   { name: "name", type: "String", nullable: false },
   { name: "status", type: "String", nullable: false },
 ]);
-
-@fraiseql.Type()
-class Order {
-  id!: string;
-  customerId!: string;
-  status!: string;
-  totalAmount!: number;
-  createdAt!: string;
-}
 
 fraiseql.registerTypeFields("Order", [
   { name: "id", type: "ID", nullable: false },
@@ -49,15 +42,6 @@ fraiseql.registerTypeFields("Order", [
   { name: "totalAmount", type: "Decimal", nullable: false },
   { name: "createdAt", type: "DateTime", nullable: false },
 ]);
-
-@fraiseql.Type()
-class Payment {
-  id!: string;
-  orderId!: string;
-  amount!: number;
-  status!: string;
-  processedAt!: string;
-}
 
 fraiseql.registerTypeFields("Payment", [
   { name: "id", type: "ID", nullable: false },
@@ -301,11 +285,6 @@ fraiseql.registerSubscription(
 // EXAMPLE 8: Queries Complementing Subscriptions
 // ============================================================================
 
-@fraiseql.Query({ sqlSource: "v_user" })
-function getUser(id: string): User {
-  pass;
-}
-
 fraiseql.registerQuery(
   "getUser",
   "User",
@@ -315,11 +294,6 @@ fraiseql.registerQuery(
   "Get user by ID (works with userUpdatesForId subscription)"
 );
 
-@fraiseql.Query({ sqlSource: "v_order" })
-function getOrder(id: string): Order {
-  pass;
-}
-
 fraiseql.registerQuery(
   "getOrder",
   "Order",
@@ -328,11 +302,6 @@ fraiseql.registerQuery(
   [{ name: "id", type: "ID", nullable: false }],
   "Get order by ID (complements order subscriptions)"
 );
-
-@fraiseql.Query({ sqlSource: "v_order" })
-function customerOrders(customerId: string): Order[] {
-  pass;
-}
 
 fraiseql.registerQuery(
   "customerOrders",
@@ -347,11 +316,6 @@ fraiseql.registerQuery(
 // MUTATIONS
 // ============================================================================
 
-@fraiseql.Mutation({ sqlSource: "fn_create_order", operation: "CREATE" })
-function createOrder(customerId: string, amount: number): Order {
-  pass;
-}
-
 fraiseql.registerMutation(
   "createOrder",
   "Order",
@@ -363,11 +327,6 @@ fraiseql.registerMutation(
   ],
   "Create order (will trigger orderCreated subscription)"
 );
-
-@fraiseql.Mutation({ sqlSource: "fn_update_order", operation: "UPDATE" })
-function updateOrderStatus(orderId: string, status: string): Order {
-  pass;
-}
 
 fraiseql.registerMutation(
   "updateOrderStatus",
@@ -385,26 +344,12 @@ fraiseql.registerMutation(
 // EXPORT SCHEMA
 // ============================================================================
 
-if (require.main === module) {
-  fraiseql.exportSchema("schema.json");
-  console.log("✅ Schema exported to schema.json");
-  console.log("  ");
-  console.log("  Event Type Filtering:");
-  console.log("    ✓ userCreated (operation: CREATE)");
-  console.log("    ✓ userUpdated (operation: UPDATE)");
-  console.log("    ✓ userDeleted (operation: DELETE)");
-  console.log("  ");
-  console.log("  Topic-Based:");
-  console.log("    ✓ orderEvents (topic: order_events)");
-  console.log("    ✓ orderLifecycle (topic: orders, ops: CREATE/UPDATE/DELETE)");
-  console.log("  ");
-  console.log("  Filtered Subscriptions:");
-  console.log("    ✓ customerOrders (customerId filter)");
-  console.log("    ✓ expensiveOrders (minAmount, maxAmount filters)");
-  console.log("  ");
-  console.log("  Patterns Demonstrated:");
-  console.log("    ✓ Real-time notifications (paymentProcessed)");
-  console.log("    ✓ Change Data Capture (userCDC, orderCDC)");
-  console.log("    ✓ Alerts (unusualOrders, userStatusAlert)");
-  console.log("    ✓ Fan-out routing (criticalOrders, standardOrders)");
+const subscriptions = fraiseql.SchemaRegistry.getSchema().subscriptions;
+console.log(`Registered ${subscriptions.length} subscription(s):`);
+for (const subscription of subscriptions) {
+  const topic = subscription.topic ? `  topic=${subscription.topic}` : "";
+  const operation = subscription.operation ? `  op=${subscription.operation}` : "";
+  console.log(`   ${subscription.name}  ${subscription.entity_type}${operation}${topic}`);
 }
+console.log("");
+console.log("Not exported: `entity_type` is not a key the compiler accepts — see #1024.");

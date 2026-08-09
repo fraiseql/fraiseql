@@ -453,6 +453,39 @@ export class SchemaRegistry {
     );
   }
 
+  /**
+   * Rename `requiresScope` to the key the compiler reads.
+   *
+   * `FieldMetadata` declares `requiresScope`, the field-metadata example documents it,
+   * and nothing ever converted it — so it reached `fraiseql compile` camelCased and the
+   * compile was refused by name (#925). Loud, but it made the documented spelling
+   * unusable. The snake_case form is passed through untouched, since the conformance
+   * fixtures and every other SDK write it directly.
+   *
+   * Multiple scopes are refused rather than truncated: the compiled schema and the
+   * runtime field filter each represent exactly one required scope, so keeping the
+   * first would serve a field to callers holding only that one. This matches the PHP
+   * exporter's rule (#807).
+   */
+  private static canonicalizeFieldScopes<T extends Field>(fields: T[]): T[] {
+    return fields.map((f) => {
+      const { requiresScope, ...rest } = f as T & { requires_scope?: string };
+      if (requiresScope === undefined) {
+        return f;
+      }
+      if (Array.isArray(requiresScope)) {
+        if (requiresScope.length > 1) {
+          throw new Error(
+            `Field '${f.name}' requires ${requiresScope.length} scopes; multiple required ` +
+              `scopes are not supported — declare a single scope.`
+          );
+        }
+        return { ...rest, requires_scope: requiresScope[0] } as unknown as T;
+      }
+      return { ...rest, requires_scope: requiresScope } as unknown as T;
+    });
+  }
+
   static registerType(
     name: string,
     fields: Field[],
@@ -480,7 +513,7 @@ export class SchemaRegistry {
         `Type '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
-    fields = this.canonicalizeIdFields(fields);
+    fields = this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields));
     const typeDef: TypeDefinition = { name, fields, description };
     if (options?.relay) typeDef.relay = true;
     if (options?.sqlSource) typeDef.sql_source = options.sqlSource;
@@ -800,7 +833,7 @@ export class SchemaRegistry {
     }
     this.interfaces.set(name, {
       name,
-      fields: this.canonicalizeIdFields(fields),
+      fields: this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields)),
       description,
     });
   }
@@ -824,7 +857,7 @@ export class SchemaRegistry {
     }
     this.inputTypes.set(name, {
       name,
-      fields: this.canonicalizeIdFields(fields),
+      fields: this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields)),
       description,
     });
   }

@@ -15,6 +15,7 @@
  * ```
  */
 
+import { decoratedMemberName } from "./decorator-name";
 import { SchemaRegistry, ObserverAction, ObserverRetryConfig } from "./registry";
 
 /**
@@ -50,10 +51,11 @@ interface ObserverConfig {
  * @returns Method decorator
  */
 export function Observer(config: ObserverConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy method decorator target
-  return function (_target: any, propertyKey: string, _descriptor: PropertyDescriptor): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- method decorator target
+  return function (_target: any, propertyKeyOrContext: unknown, _descriptor?: PropertyDescriptor): void {
+    const name = decoratedMemberName(propertyKeyOrContext, "Observer");
     SchemaRegistry.registerObserver(
-      propertyKey,
+      name,
       config.entity,
       config.event,
       config.actions,

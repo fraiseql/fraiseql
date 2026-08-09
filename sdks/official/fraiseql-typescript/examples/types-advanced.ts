@@ -69,16 +69,6 @@ const Auditable = fraiseql.interface_("Auditable", [
 // ============================================================================
 
 // User type implements Node interface
-@fraiseql.Type()
-class User {
-  id!: string;
-  email!: string;
-  name!: string;
-  role!: string; // Will be cast to UserRole enum
-  createdAt!: string;
-  updatedAt!: string;
-}
-
 fraiseql.registerTypeFields("User", [
   { name: "id", type: "ID", nullable: false },
   { name: "email", type: "Email", nullable: false },
@@ -89,17 +79,6 @@ fraiseql.registerTypeFields("User", [
 ]);
 
 // Order type with status enum
-@fraiseql.Type()
-class Order {
-  id!: string;
-  userId!: string;
-  totalAmount!: number;
-  status!: string; // Will be cast to OrderStatus enum
-  paymentMethod!: string; // Will be cast to PaymentMethod enum
-  createdAt!: string;
-  updatedAt!: string;
-}
-
 fraiseql.registerTypeFields("Order", [
   { name: "id", type: "ID", nullable: false },
   { name: "userId", type: "ID", nullable: false },
@@ -111,17 +90,6 @@ fraiseql.registerTypeFields("Order", [
 ]);
 
 // Post type with description
-@fraiseql.Type()
-class Post {
-  id!: string;
-  authorId!: string;
-  title!: string;
-  content!: string;
-  published!: boolean;
-  createdAt!: string;
-  updatedAt!: string;
-}
-
 fraiseql.registerTypeFields("Post", [
   { name: "id", type: "ID", nullable: false },
   { name: "authorId", type: "ID", nullable: false },
@@ -171,11 +139,6 @@ const SearchInput = fraiseql.input("SearchInput", [
 // QUERIES - Using enums, interfaces, and unions
 // ============================================================================
 
-@fraiseql.Query({ sqlSource: "v_user" })
-function getUser(userId: string): User {
-  pass;
-}
-
 fraiseql.registerQuery(
   "getUser",
   "User",
@@ -184,11 +147,6 @@ fraiseql.registerQuery(
   [{ name: "userId", type: "ID", nullable: false }],
   "Get a single user by ID"
 );
-
-@fraiseql.Query({ sqlSource: "v_user" })
-function listUsers(limit: number = 10, offset: number = 0): User[] {
-  pass;
-}
 
 fraiseql.registerQuery(
   "listUsers",
@@ -202,11 +160,6 @@ fraiseql.registerQuery(
   "Get list of users"
 );
 
-@fraiseql.Query({ sqlSource: "v_order" })
-function listOrders(filter?: Record<string, unknown>): Order[] {
-  pass;
-}
-
 fraiseql.registerQuery(
   "listOrders",
   "Order",
@@ -217,11 +170,6 @@ fraiseql.registerQuery(
 );
 
 // Global search returning union type
-@fraiseql.Query()
-function search(input: Record<string, unknown>): unknown[] {
-  pass;
-}
-
 fraiseql.registerQuery(
   "search",
   "SearchResult",
@@ -235,11 +183,6 @@ fraiseql.registerQuery(
 // MUTATIONS - Using enums and input types
 // ============================================================================
 
-@fraiseql.Mutation({ sqlSource: "fn_create_user", operation: "CREATE" })
-function createUser(input: Record<string, unknown>): User {
-  pass;
-}
-
 fraiseql.registerMutation(
   "createUser",
   "User",
@@ -249,11 +192,6 @@ fraiseql.registerMutation(
   "Create a new user",
   { sql_source: "fn_create_user", operation: "CREATE" }
 );
-
-@fraiseql.Mutation({ sqlSource: "fn_update_order_status", operation: "UPDATE" })
-function updateOrderStatus(orderId: string, status: string): Order {
-  pass;
-}
 
 fraiseql.registerMutation(
   "updateOrderStatus",

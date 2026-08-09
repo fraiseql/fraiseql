@@ -11,23 +11,30 @@
  * by name.
  *
  * Usage:
- *   ts-node examples/scheduled_source.ts   # writes scheduled_source_schema.json
+ *   npx tsx examples/scheduled_source.ts   # writes scheduled_source_schema.json
  *
  * Then:
  *   fraiseql-cli compile scheduled_source_schema.json
  *   fraiseql-server --schema scheduled_source_schema.compiled.json   # (needs --features sources)
  */
 
-import { Type, Source, exportSchema } from "../src/index";
-import type { ID } from "../src/index";
+import { Source, exportSchema, registerTypeFields } from "../src/index";
 
 // The entity the connector upserts into.
-@Type()
-class Order {
-  /** A customer order ingested from the upstream orders API. */
-  id!: ID;
-  total!: number;
-}
+//
+// Declared with `registerTypeFields`, not `@Type()`: TypeScript erases the field types
+// a decorator would need, so `@Type()` can only record the name and the export is
+// refused as a type with no fields (#733). `@Source` below *is* a decorator, because a
+// method decorator carries its own configuration object and needs nothing erased.
+registerTypeFields(
+  "Order",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "total", type: "Float", nullable: false },
+  ],
+  "A customer order ingested from the upstream orders API",
+  { sqlSource: "v_order" }
+);
 
 // The source registrations live on a class; the method name is the source name.
 class OrderSources {
@@ -52,13 +59,11 @@ class OrderSources {
 // Reference the class to trigger decorator registration.
 void OrderSources;
 
-if (require.main === module) {
-  exportSchema("scheduled_source_schema.json");
+exportSchema("scheduled_source_schema.json");
 
-  console.log("\n🎯 Source Summary:");
-  console.log("   pollOrders → every 5 min, ingest orders as `ingest_writer`");
-  console.log("\n✨ Next steps:");
-  console.log("   1. fraiseql-cli compile scheduled_source_schema.json");
-  console.log("   2. Ship the connector: sources/poll_orders.connector.ts");
-  console.log("   3. fraiseql-server --schema ...compiled.json  (build --features sources)");
-}
+console.log("\nSource summary:");
+console.log("   pollOrders -> every 5 min, ingest orders as `ingest_writer`");
+console.log("\nNext steps:");
+console.log("   1. fraiseql-cli compile scheduled_source_schema.json");
+console.log("   2. Ship the connector: sources/poll_orders.connector.ts");
+console.log("   3. fraiseql-server --schema ...compiled.json  (build --features sources)");

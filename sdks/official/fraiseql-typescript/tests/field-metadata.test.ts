@@ -69,24 +69,23 @@ describe("Field-Level Metadata", () => {
       const salaryField = userType.fields.find((f) => f.name === "salary");
 
       expect(salaryField).toBeDefined();
-      expect(salaryField?.requiresScope).toBe("read:User.salary");
+      expect(salaryField?.requires_scope).toBe("read:User.salary");
     });
 
-    it("should register field with multiple scopes", () => {
-      registerTypeFields("User", [
-        {
-          name: "ssn",
-          type: "String",
-          nullable: false,
-          requiresScope: ["read:User.ssn", "hr:view_pii"],
-        },
-      ]);
-
-      const schema = SchemaRegistry.getSchema();
-      const ssnField = schema.types[0].fields[0];
-
-      expect(Array.isArray(ssnField.requiresScope)).toBe(true);
-      expect(ssnField.requiresScope).toEqual(["read:User.ssn", "hr:view_pii"]);
+    it("refuses a field requiring multiple scopes", () => {
+      // The compiled schema and the runtime field filter each carry exactly one
+      // required scope, so a list cannot be honoured; keeping the first would serve
+      // the field to callers holding only that one (#925, matching PHP's #807 rule).
+      expect(() =>
+        registerTypeFields("User", [
+          {
+            name: "ssn",
+            type: "String",
+            nullable: false,
+            requiresScope: ["read:User.ssn", "hr:view_pii"],
+          },
+        ])
+      ).toThrow(/single scope/);
     });
 
     it("should register field with deprecated marker", () => {
@@ -136,7 +135,7 @@ describe("Field-Level Metadata", () => {
       const schema = SchemaRegistry.getSchema();
       const salaryField = schema.types[0].fields[0];
 
-      expect(salaryField.requiresScope).toBe("read:User.salary");
+      expect(salaryField.requires_scope).toBe("read:User.salary");
       expect(salaryField.deprecated).toBe("Use totalCompensation instead");
       expect(salaryField.description).toBe(
         "Annual salary (deprecated - use totalCompensation)"
@@ -181,10 +180,10 @@ describe("Field-Level Metadata", () => {
       expect(emailField?.description).toBe("User email address");
 
       const salaryField = userType.fields.find((f) => f.name === "salary");
-      expect(salaryField?.requiresScope).toBe("read:User.salary");
+      expect(salaryField?.requires_scope).toBe("read:User.salary");
 
       const ssnField = userType.fields.find((f) => f.name === "ssn");
-      expect(ssnField?.requiresScope).toBe("hr:view_pii");
+      expect(ssnField?.requires_scope).toBe("hr:view_pii");
       expect(ssnField?.deprecated).toBe("Use nationalId instead");
     });
 
@@ -309,7 +308,7 @@ describe("Field-Level Metadata", () => {
           name: "salary",
           type: "Decimal",
           nullable: false,
-          requiresScope: ["read:User.salary", "admin:view"],
+          requiresScope: "read:User.salary",
           deprecated: "Use totalCompensation",
           description: "Annual salary",
         },
@@ -320,7 +319,7 @@ describe("Field-Level Metadata", () => {
       const parsed = JSON.parse(json);
 
       const salaryField = parsed.types[0].fields[0];
-      expect(salaryField.requiresScope).toEqual(["read:User.salary", "admin:view"]);
+      expect(salaryField.requires_scope).toBe("read:User.salary");
       expect(salaryField.deprecated).toBe("Use totalCompensation");
       expect(salaryField.description).toBe("Annual salary");
     });
@@ -349,10 +348,10 @@ describe("Field-Level Metadata", () => {
       const userType = schema.types[0];
 
       const ssnField = userType.fields.find((f) => f.name === "ssn");
-      expect(ssnField?.requiresScope).toBe("pii:read");
+      expect(ssnField?.requires_scope).toBe("pii:read");
 
       const salaryField = userType.fields.find((f) => f.name === "salary");
-      expect(salaryField?.requiresScope).toBe("hr:read_compensation");
+      expect(salaryField?.requires_scope).toBe("hr:read_compensation");
     });
 
     it("should support API versioning with deprecation", () => {
@@ -441,9 +440,9 @@ describe("Field-Level Metadata", () => {
       const schema = SchemaRegistry.getSchema();
       const userType = schema.types[0];
 
-      expect(userType.fields[0].requiresScope).toBeUndefined();
-      expect(userType.fields[1].requiresScope).toBe("read:User.salary");
-      expect(userType.fields[2].requiresScope).toBeUndefined();
+      expect(userType.fields[0].requires_scope).toBeUndefined();
+      expect(userType.fields[1].requires_scope).toBe("read:User.salary");
+      expect(userType.fields[2].requires_scope).toBeUndefined();
     });
   });
 });

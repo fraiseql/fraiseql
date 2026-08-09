@@ -35,15 +35,6 @@ const Publishable = fraiseql.interface_("Publishable", [
 // ============================================================================
 
 // User type implements Node
-@fraiseql.Type()
-class User {
-  id!: string;
-  email!: string;
-  name!: string;
-  createdAt!: string;
-  updatedAt!: string;
-}
-
 fraiseql.registerTypeFields("User", [
   { name: "id", type: "ID", nullable: false },
   { name: "email", type: "Email", nullable: false },
@@ -53,18 +44,6 @@ fraiseql.registerTypeFields("User", [
 ]);
 
 // Post type implements Node and Publishable
-@fraiseql.Type()
-class Post {
-  id!: string;
-  title!: string;
-  content!: string;
-  authorId!: string;
-  published!: boolean;
-  publishedAt!: string | null;
-  createdAt!: string;
-  updatedAt!: string;
-}
-
 fraiseql.registerTypeFields("Post", [
   { name: "id", type: "ID", nullable: false },
   { name: "title", type: "String", nullable: false },
@@ -77,18 +56,6 @@ fraiseql.registerTypeFields("Post", [
 ]);
 
 // Comment type implements Node and Publishable
-@fraiseql.Type()
-class Comment {
-  id!: string;
-  content!: string;
-  authorId!: string;
-  postId!: string;
-  published!: boolean;
-  publishedAt!: string | null;
-  createdAt!: string;
-  updatedAt!: string;
-}
-
 fraiseql.registerTypeFields("Comment", [
   { name: "id", type: "ID", nullable: false },
   { name: "content", type: "String", nullable: false },
@@ -123,11 +90,6 @@ const NodeType = fraiseql.union("NodeType", ["User", "Post", "Comment"], {
 // QUERIES - Returning unions and implementing interfaces
 // ============================================================================
 
-@fraiseql.Query({ sqlSource: "v_user" })
-function getUser(id: string): User {
-  pass;
-}
-
 fraiseql.registerQuery(
   "getUser",
   "User",
@@ -136,11 +98,6 @@ fraiseql.registerQuery(
   [{ name: "id", type: "ID", nullable: false }],
   "Get user by ID"
 );
-
-@fraiseql.Query({ sqlSource: "v_post" })
-function getPost(id: string): Post {
-  pass;
-}
 
 fraiseql.registerQuery(
   "getPost",
@@ -152,11 +109,6 @@ fraiseql.registerQuery(
 );
 
 // Search across multiple types - returns union
-@fraiseql.Query()
-function search(query: string, limit: number = 10): unknown[] {
-  pass;
-}
-
 fraiseql.registerQuery(
   "search",
   "SearchResult",
@@ -170,11 +122,6 @@ fraiseql.registerQuery(
 );
 
 // Get published content - returns union
-@fraiseql.Query()
-function getPublishedContent(limit: number = 10): unknown[] {
-  pass;
-}
-
 fraiseql.registerQuery(
   "getPublishedContent",
   "PublishedContent",
@@ -185,11 +132,6 @@ fraiseql.registerQuery(
 );
 
 // Get node by ID - returns union
-@fraiseql.Query()
-function getNode(id: string): unknown {
-  pass;
-}
-
 fraiseql.registerQuery(
   "getNode",
   "NodeType",
@@ -203,11 +145,6 @@ fraiseql.registerQuery(
 // MUTATIONS
 // ============================================================================
 
-@fraiseql.Mutation({ sqlSource: "fn_create_post", operation: "CREATE" })
-function createPost(title: string, content: string, authorId: string): Post {
-  pass;
-}
-
 fraiseql.registerMutation(
   "createPost",
   "Post",
@@ -220,11 +157,6 @@ fraiseql.registerMutation(
   ],
   "Create a new post"
 );
-
-@fraiseql.Mutation({ sqlSource: "fn_publish_post", operation: "UPDATE" })
-function publishPost(id: string): Post {
-  pass;
-}
 
 fraiseql.registerMutation(
   "publishPost",

@@ -84,15 +84,38 @@ for example in "$SDK_ROOT"/fraiseql-python/examples/*.py; do
 done
 
 echo
+echo "== TypeScript =="
+# `--tsconfig` is load-bearing, not tidiness: run from a directory with no tsconfig on the
+# path and esbuild falls back to TC39 decorators, under which `@Source`/`@Observer` used to
+# serialize the decorator's context object as the member's name (#925). The examples run in
+# a scratch directory so the schemas they write cannot be confused with the package's own
+# package.json / tsconfig.json.
+for example in "$SDK_ROOT"/fraiseql-typescript/examples/*.ts; do
+  [ -f "$example" ] || continue
+  workdir="$WORK/ts-$(basename "$example" .ts)"
+  mkdir -p "$workdir"
+  run_and_compile \
+    "typescript/$(basename "$example")" "$workdir" \
+    npx --yes tsx --tsconfig "$SDK_ROOT/fraiseql-typescript/tsconfig.json" "$example"
+done
+
+echo
+echo "== PHP =="
+for example in "$SDK_ROOT"/fraiseql-php/examples/*.php; do
+  [ -f "$example" ] || continue
+  workdir="$WORK/php-$(basename "$example" .php)"
+  mkdir -p "$workdir"
+  run_and_compile "php/$(basename "$example")" "$workdir" php "$example"
+done
+
+echo
 echo "== Not covered =="
 # Each entry is a deliberate, reviewed exclusion. Removing one is how coverage grows;
 # adding one requires an issue.
 cat <<'EXCLUSIONS'
-skip  typescript/examples  — all 11 call `fraiseql.type()` / `fraiseql.query()`, which the
-                             package has never exported (the decorators are `Type`/`Query`).
-                             They do not run at all, and predate this suite. See #925.
-skip  php/examples         — BasicSchema.php and EcommerceSchema.php are class definitions
-                             with no entry point; there is nothing to execute. See #925.
+skip  typescript/examples/sources/  — poll_orders.connector.ts is a Deno function that runs
+                                      inside FraiseQL's runtime against host ops, not
+                                      authoring code. There is no `node` that can execute it.
 EXCLUSIONS
 
 echo

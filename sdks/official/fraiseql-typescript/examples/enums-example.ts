@@ -1,32 +1,40 @@
 /**
- * FraiseQL Enum Example
+ * Enums and input types.
  *
- * Enums define fixed sets of allowed values.
- * They are compile-time only and generate GraphQL enum types in the schema.
+ * Enums are compile-time only: they become GraphQL enum types and constrain the values
+ * a field or argument accepts. Input types group arguments into one object.
  *
  * This example shows:
- * - Basic enum definition
- * - Enum with description
- * - Using enums as field types
- * - Enums in query parameters
+ * - a bare enum, and one carrying a description
+ * - using an enum as a field type and as an argument type
+ * - input types built from enum-typed fields
+ *
+ * Usage:
+ *   npx tsx examples/enums-example.ts
+ *   fraiseql-cli compile schema.json
  */
 
-import * as fraiseql from "../src/index";
+import {
+  enum_,
+  exportSchema,
+  input,
+  registerMutation,
+  registerQuery,
+  registerTypeFields,
+} from "../src/index";
 
 // ============================================================================
-// Define Enums
+// Enums
 // ============================================================================
 
-// Simple enum: Order status
-const OrderStatus = fraiseql.enum_("OrderStatus", {
+enum_("OrderStatus", {
   PENDING: "pending",
   SHIPPED: "shipped",
   DELIVERED: "delivered",
   CANCELLED: "cancelled",
 });
 
-// Enum with description
-const Priority = fraiseql.enum_(
+enum_(
   "Priority",
   {
     LOW: "low",
@@ -38,106 +46,81 @@ const Priority = fraiseql.enum_(
 );
 
 // ============================================================================
-// Define Types Using Enums
+// Types using those enums
 // ============================================================================
 
-@fraiseql.Type()
-class Order {
-  id!: string;
-  status!: string; // Will be OrderStatus enum
-  createdAt!: string;
-}
+// A field's `type` is the enum's *name*. The compiler resolves it against the enums
+// declared in the same document and emits `FieldType::Enum` — before #923 it fell
+// through to `Object`, and introspection told clients a scalar enum was an object.
+registerTypeFields(
+  "Order",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "status", type: "OrderStatus", nullable: false },
+    { name: "createdAt", type: "DateTime", nullable: false },
+  ],
+  "A customer order",
+  { sqlSource: "v_order" }
+);
 
-fraiseql.registerTypeFields("Order", [
-  { name: "id", type: "ID", nullable: false },
-  { name: "status", type: "OrderStatus", nullable: false },
-  { name: "createdAt", type: "DateTime", nullable: false },
-]);
-
-@fraiseql.Type()
-class Task {
-  id!: string;
-  title!: string;
-  priority!: string; // Will be Priority enum
-  completed!: boolean;
-}
-
-fraiseql.registerTypeFields("Task", [
-  { name: "id", type: "ID", nullable: false },
-  { name: "title", type: "String", nullable: false },
-  { name: "priority", type: "Priority", nullable: false },
-  { name: "completed", type: "Boolean", nullable: false },
-]);
+registerTypeFields(
+  "Task",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "title", type: "String", nullable: false },
+    { name: "priority", type: "Priority", nullable: false },
+    { name: "completed", type: "Boolean", nullable: false },
+  ],
+  "A task with a priority",
+  { sqlSource: "v_task" }
+);
 
 // ============================================================================
-// Define Input Types with Enums
+// Input types
 // ============================================================================
 
-const OrderFilter = fraiseql.input("OrderFilter", [
-  { name: "status", type: "OrderStatus", nullable: true },
-]);
+input("OrderFilter", [{ name: "status", type: "OrderStatus", nullable: true }]);
 
-const TaskFilter = fraiseql.input("TaskFilter", [
+input("TaskFilter", [
   { name: "priority", type: "Priority", nullable: true },
   { name: "completed", type: "Boolean", nullable: true },
 ]);
 
 // ============================================================================
-// Queries with Enum Parameters
+// Queries and mutations taking enum arguments
 // ============================================================================
 
-@fraiseql.Query({ sqlSource: "v_order" })
-function getOrder(id: string): Order {
-  pass;
-}
-
-fraiseql.registerQuery(
-  "getOrder",
+registerQuery(
+  "order",
   "Order",
   false,
-  false,
+  true,
   [{ name: "id", type: "ID", nullable: false }],
-  "Get order by ID"
+  "Fetch one order by id",
+  { sql_source: "v_order" }
 );
 
-@fraiseql.Query({ sqlSource: "v_order" })
-function listOrders(status?: string): Order[] {
-  pass;
-}
-
-fraiseql.registerQuery(
-  "listOrders",
+registerQuery(
+  "orders",
   "Order",
   true,
   false,
   [{ name: "status", type: "OrderStatus", nullable: true }],
-  "List orders, optionally filtered by status"
+  "List orders, optionally filtered by status",
+  { sql_source: "v_order" }
 );
 
-@fraiseql.Query({ sqlSource: "v_task" })
-function listTasks(filter?: Record<string, unknown>): Task[] {
-  pass;
-}
-
-fraiseql.registerQuery(
-  "listTasks",
+registerQuery(
+  "tasks",
   "Task",
   true,
   false,
   [{ name: "filter", type: "TaskFilter", nullable: true }],
-  "List tasks with optional filtering"
+  "List tasks, filtered by an input object",
+  { sql_source: "v_task" }
 );
 
-// ============================================================================
-// Mutations with Enums
-// ============================================================================
-
-@fraiseql.Mutation({ sqlSource: "fn_update_order", operation: "UPDATE" })
-function updateOrderStatus(orderId: string, status: string): Order {
-  pass;
-}
-
-fraiseql.registerMutation(
+registerMutation(
   "updateOrderStatus",
   "Order",
   false,
@@ -146,15 +129,11 @@ fraiseql.registerMutation(
     { name: "orderId", type: "ID", nullable: false },
     { name: "status", type: "OrderStatus", nullable: false },
   ],
-  "Update order status"
+  "Move an order to a new status",
+  { sql_source: "fn_update_order", operation: "update", invalidates_views: ["v_order"] }
 );
 
-@fraiseql.Mutation({ sqlSource: "fn_create_task", operation: "CREATE" })
-function createTask(title: string, priority: string): Task {
-  pass;
-}
-
-fraiseql.registerMutation(
+registerMutation(
   "createTask",
   "Task",
   false,
@@ -163,17 +142,14 @@ fraiseql.registerMutation(
     { name: "title", type: "String", nullable: false },
     { name: "priority", type: "Priority", nullable: false },
   ],
-  "Create a new task with priority"
+  "Create a task at a given priority",
+  { sql_source: "fn_create_task", operation: "insert", invalidates_views: ["v_task"] }
 );
 
 // ============================================================================
-// Export Schema
+// Export
 // ============================================================================
 
-if (require.main === module) {
-  fraiseql.exportSchema("schema.json");
-  console.log("✅ Schema exported to schema.json");
-  console.log("  Enums: OrderStatus, Priority");
-  console.log("  Types: Order, Task");
-  console.log("  Input Types: OrderFilter, TaskFilter");
-}
+exportSchema("schema.json");
+console.log("   Enums:       OrderStatus, Priority");
+console.log("   Input types: OrderFilter, TaskFilter");

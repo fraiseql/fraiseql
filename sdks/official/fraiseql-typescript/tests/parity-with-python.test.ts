@@ -351,7 +351,9 @@ describe("TypeScript ↔ Python Feature Parity", () => {
 
       const schema = SchemaRegistry.getSchema();
       const salaryField = schema.types[0].fields.find((f) => f.name === "salary");
-      expect(salaryField?.requiresScope).toBe("read:User.salary");
+      // Emitted as `requires_scope`, which is exactly what the Python equivalent above
+      // writes — the parity this test is named for (#925).
+      expect(salaryField?.requires_scope).toBe("read:User.salary");
     });
 
     it("should have parity: field deprecation", () => {
