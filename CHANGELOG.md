@@ -2932,6 +2932,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Federation `_entities` no longer bypasses field-level RBAC (#1030).**
+  `execute_entities_query` did its own authorization rather than sharing the query path's,
+  and two checks did not make the copy. A schema declaring `Employee.salary` with
+  `requires_scope` answered 403 to
+  `query { employee(id: "X") { salary } }` and returned the value **in full** to the same
+  caller through
+  `{ _entities(representations: [{__typename: "Employee", id: "X"}]) { ... on Employee { salary } } }`.
+  `on_deny = Mask` leaked identically — the value came back unmasked, which is the quieter
+  half and arguably the worse one, since nothing about the response looked wrong.
+  Authenticated-but-unscoped and anonymous callers were affected equally (this is not
+  #743's privilege inversion). Preconditions: the `federation` feature, federation metadata
+  present, `security` configured, and no `authorize = true` field anywhere in the schema —
+  that check is schema-global and shuts `_entities` down entirely when it fires.
+
+  The fix is not a third copy of the checks: `_entities` now calls the same
+  `classify_fields_for_read` the query runners call, before the read, so a `Reject` field
+  refuses without touching the database and a `Mask` field comes back `null`. A check added
+  to the query path is added to this one by construction — a second entry point re-deriving
+  its own guards is how the two drifted.
+
+  Separately, a **type-level `requires_role` on an entity that no query returns** was
+  unenforceable. #677 gates such a type by lowering its role onto the operations that
+  return it, precisely to avoid a sixth enforcement site; an entity reachable only through
+  `_entities` (an owner-split `extend type` with a type-level `sql_source`, and every
+  non-embedded type the Python SDK synthesizes one for) has no operation to receive the
+  lowering, so the gate found no backing query and the read proceeded ungated.
+  `enforce_entities_authz` now reads the type's own declaration when there is no query to
+  carry it. Such a type declares no `inject_params` — it has nowhere to — and its session
+  variables were and remain applied, so DB-native `current_setting()` RLS was never
+  affected.
+
 - **Relay connection queries read their arguments from the document, not only from the
   request variables (#904).** `execute_relay_query` took every one of `first`, `last`,
   `after`, `before`, `where`, `orderBy` and `nearest` from the raw request `variables`

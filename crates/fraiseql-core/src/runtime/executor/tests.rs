@@ -722,6 +722,263 @@ mod entities_authz {
             "the caller's tenant id must bind to $2 (offset past the IN clause), got: {params:?}"
         );
     }
+
+    // ── #1030: `_entities` was a second door around field RBAC ──────────────
+    //
+    // `execute_entities_query` re-implemented its authorization instead of sharing the
+    // query path's, and two checks did not make the copy. These pin both limbs, and the
+    // positive controls pin that the fix does not over-block.
+
+    /// The #1030 schema: `Employee` federated by `id`, with `salary` gated
+    /// `on_deny = Reject` and `email` gated `on_deny = Mask`. `viewer` holds neither
+    /// scope; `auditor` holds both.
+    ///
+    /// `with_query` chooses the limb: `true` gives `Employee` a backing query (limb a,
+    /// field RBAC), `false` leaves it reachable only through `_entities` via its
+    /// type-level `sql_source` — the owner-split shape of limb (b).
+    fn entities_employee_schema(with_query: bool, type_role: Option<&str>) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.federation = Some(FederationConfig {
+            enabled: true,
+            version: Some("v2".to_string()),
+            entities: vec![FederationEntity {
+                name: "Employee".to_string(),
+                key_fields: vec!["id".to_string()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        if with_query {
+            schema.queries.push(QueryDefinition {
+                name:                "employees".to_string(),
+                return_type:         "Employee".to_string(),
+                returns_list:        true,
+                nullable:            false,
+                arguments:           Vec::new(),
+                sql_source:          Some("v_employee".to_string()),
+                description:         None,
+                auto_params:         AutoParams::default(),
+                deprecation:         None,
+                jsonb_column:        "data".to_string(),
+                relay:               false,
+                relay_cursor_column: None,
+                relay_cursor_type:   CursorType::default(),
+                inject_params:       IndexMap::new(),
+                cache_ttl_seconds:   None,
+                additional_views:    vec![],
+                requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
+                native_columns:      HashMap::new(),
+            });
+        }
+        schema.types.push({
+            let mut t = TypeDefinition::new("Employee", "v_employee");
+            t.requires_role = type_role.map(str::to_string);
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::String),
+                FieldDefinition::new("name", FieldType::String),
+                FieldDefinition::new("salary", FieldType::Int)
+                    .with_requires_scope("read:Employee.salary")
+                    .with_on_deny(FieldDenyPolicy::Reject),
+                FieldDefinition::new("email", FieldType::String)
+                    .with_requires_scope("read:Employee.email")
+                    .with_on_deny(FieldDenyPolicy::Mask),
+            ];
+            t
+        });
+        schema.security = Some(SecurityConfig {
+            role_definitions: vec![
+                RoleDefinition {
+                    name:        "viewer".into(),
+                    description: None,
+                    scopes:      vec!["read:Employee".into()],
+                },
+                RoleDefinition {
+                    name:        "auditor".into(),
+                    description: None,
+                    scopes:      vec!["read:Employee.salary".into(), "read:Employee.email".into()],
+                },
+            ],
+            default_role: None,
+            multi_tenant: false,
+            rls: crate::schema::RlsConfig::default(),
+            tenancy: TenancyConfig::default(),
+            cost_budget: None,
+            ..Default::default()
+        });
+        schema
+    }
+
+    fn employee_representations() -> serde_json::Value {
+        serde_json::json!({
+            "representations": [{ "__typename": "Employee", "id": "e-1" }]
+        })
+    }
+
+    /// One `Employee` row on the parameterized-aggregate path the `_entities` resolver
+    /// reads — flat columns, not a jsonb blob.
+    fn employee_adapter() -> Arc<CapturingMockAdapter> {
+        let row: HashMap<String, serde_json::Value> = [
+            ("id".to_string(), serde_json::json!("e-1")),
+            ("name".to_string(), serde_json::json!("Ada")),
+            ("salary".to_string(), serde_json::json!(120_000)),
+            ("email".to_string(), serde_json::json!("ada@example.com")),
+        ]
+        .into_iter()
+        .collect();
+        Arc::new(CapturingMockAdapter::new(Vec::new()).with_aggregate_rows(vec![row]))
+    }
+
+    /// Limb (a), the loud half: a `Reject` field the caller cannot read must refuse —
+    /// and refuse *before* the read, not after.
+    #[tokio::test]
+    async fn entities_reject_scoped_field_is_refused_without_touching_the_database() {
+        let schema = entities_employee_schema(true, None);
+        let adapter = employee_adapter();
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let err = executor
+            .execute_with_security(
+                r#"{ _entities(representations: [{ __typename: "Employee", id: "e-1" }]) { ... on Employee { id salary } } }"#,
+                Some(&employee_representations()),
+                &ctx,
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            is_authz(&err),
+            "a requires_scope Reject field must refuse through _entities exactly as it does \
+             through the query path, got: {err}"
+        );
+        assert!(
+            adapter.captured_aggregate_sql().is_none(),
+            "the refusal must land before any SQL runs (fail closed)"
+        );
+    }
+
+    /// Limb (a), the quiet half — the one the issue calls "arguably the worse": with
+    /// `on_deny = Mask` the value came back **unmasked**, so nothing looked wrong.
+    #[tokio::test]
+    async fn entities_masked_scoped_field_comes_back_null() {
+        let schema = entities_employee_schema(true, None);
+        let adapter = employee_adapter();
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let result = executor
+            .execute_with_security(
+                r#"{ _entities(representations: [{ __typename: "Employee", id: "e-1" }]) { ... on Employee { id name email } } }"#,
+                Some(&employee_representations()),
+                &ctx,
+            )
+            .await
+            .unwrap();
+
+        let entity = &result["data"]["_entities"][0];
+        assert_eq!(entity["id"], serde_json::json!("e-1"), "the ungated key must survive");
+        assert_eq!(entity["name"], serde_json::json!("Ada"), "an ungated field must survive");
+        assert_eq!(
+            entity["email"],
+            serde_json::Value::Null,
+            "a Mask field must be nulled, not served in full; got: {entity}"
+        );
+    }
+
+    /// The anonymous limb. #743 closed this on the query path — a `requires_scope`
+    /// field served to a caller with no credential at all — and `_entities` kept it.
+    #[tokio::test]
+    async fn entities_anonymous_caller_is_refused_a_scoped_field() {
+        let schema = entities_employee_schema(true, None);
+        let adapter = employee_adapter();
+        let executor = Executor::new(schema, adapter.clone());
+
+        let err = executor
+            .execute(
+                r#"{ _entities(representations: [{ __typename: "Employee", id: "e-1" }]) { ... on Employee { id salary } } }"#,
+                Some(&employee_representations()),
+            )
+            .await
+            .unwrap_err();
+        assert!(is_authz(&err), "anonymous must not read a requires_scope field, got: {err}");
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    /// Positive control for limb (a): the fix must not deny a caller who *does* hold
+    /// the scope, or the tests above would pass on a resolver that refuses everything.
+    #[tokio::test]
+    async fn entities_scoped_caller_reads_both_gated_fields() {
+        let schema = entities_employee_schema(true, None);
+        let adapter = employee_adapter();
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["auditor"]);
+        let result = executor
+            .execute_with_security(
+                r#"{ _entities(representations: [{ __typename: "Employee", id: "e-1" }]) { ... on Employee { id salary email } } }"#,
+                Some(&employee_representations()),
+                &ctx,
+            )
+            .await
+            .unwrap();
+
+        let entity = &result["data"]["_entities"][0];
+        assert_eq!(entity["salary"], serde_json::json!(120_000));
+        assert_eq!(entity["email"], serde_json::json!("ada@example.com"));
+    }
+
+    /// Limb (b): a type-level `requires_role` on an entity **no query returns**. #677
+    /// lowers a type's role onto the operations that return it; with no such operation
+    /// there was nothing to lower onto, so `enforce_entities_authz` found no query and
+    /// `continue`d — while `entity_sources()` still supplied a relation from the
+    /// type-level `sql_source`, and the read proceeded ungated.
+    #[tokio::test]
+    async fn entities_type_level_role_is_enforced_for_a_queryless_entity() {
+        let schema = entities_employee_schema(false, Some("hr"));
+        let adapter = employee_adapter();
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]);
+        let err = executor
+            .execute_with_security(
+                r#"{ _entities(representations: [{ __typename: "Employee", id: "e-1" }]) { ... on Employee { id name } } }"#,
+                Some(&employee_representations()),
+                &ctx,
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            is_authz(&err),
+            "an entity reachable only through _entities must still honour its type-level \
+             requires_role, got: {err}"
+        );
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    /// Positive control for limb (b): the role-holder still resolves, so the test above
+    /// cannot be passing because queryless entities were refused wholesale.
+    #[tokio::test]
+    async fn entities_type_level_role_holder_resolves_a_queryless_entity() {
+        let schema = entities_employee_schema(false, Some("hr"));
+        let adapter = employee_adapter();
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["hr"]);
+        let result = executor
+            .execute_with_security(
+                r#"{ _entities(representations: [{ __typename: "Employee", id: "e-1" }]) { ... on Employee { id name } } }"#,
+                Some(&employee_representations()),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert_eq!(result["data"]["_entities"][0]["name"], serde_json::json!("Ada"));
+        assert!(
+            adapter.captured_aggregate_sql().is_some(),
+            "the role-holder's read must reach the resolver"
+        );
+    }
 }
 
 // ── mod context: ExecutionContext lifecycle ───────────────────────────────
