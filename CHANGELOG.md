@@ -1696,14 +1696,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   beside two of the examples — generated files nobody regenerated, the same way the three
   `ecommerce_schema.json` artifacts rotted.
 
-- **The Elixir, Dart, C# and F# parity generators (#952).** All four built the expected JSON
-  as a literal — `%{"name" => "User", "fields" => [...]}` — and never called their SDK, so
-  they could not fail whatever the SDK did; the two that "disagreed" with Python did so only
-  because someone had typed `"jwt:sub"` where the nested `{source, claim}` form belongs.
-  Correcting them would have made fiction agree with fiction. All four SDKs remain covered by
+- **The Elixir, Dart, C#, F#, Java and Ruby parity generators (#952).** All six built the
+  expected JSON as a literal — `%{"name" => "User", "fields" => [...]}`, importing a JSON
+  library and never their SDK — so they could not fail whatever the SDK did; the three that
+  "disagreed" with Python did so only because someone had typed `"jwt:sub"` where the nested
+  `{source, claim}` form belongs. Correcting them would have made fiction agree with fiction.
+  Six of eleven is exactly the count `sdks/official/conformance/manifest.json` already
+  records as the reason the conformance suite was built. All six SDKs remain covered by
   `sdk-conformance.yml`, which authors through the real API, runs the actual compiler and
-  asserts sixteen constructs. The parity gate now covers the seven SDKs whose generators
-  genuinely drive their SDK, plus the golden fixture, and says out loud which four it does not.
+  asserts sixteen constructs. The parity gate now covers the five generators that genuinely
+  drive their SDK, plus the golden fixture, and says out loud which six it does not.
 
 - **Committed development archaeology (#735).** `v2.3.0-ext-phases/` (phase files from
   eleven releases ago) and the stray `target-user/` cargo dir are gone (with a

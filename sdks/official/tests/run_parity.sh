@@ -21,17 +21,19 @@
 #
 # ── What this gate does NOT cover, and why ───────────────────────────────────────────
 #
-# Elixir, Dart, C# and F# are absent on purpose. Their parity "generators" built the
-# expected JSON by hand — `%{"name" => "User", "fields" => [...]}` written out as a
-# literal — and never called their SDK at all, so they could not fail no matter what the
-# SDK did. Two of them "disagreed" with Python only because someone had typed
-# `"jwt:sub"` where the nested `{source, claim}` form belongs. They were removed rather
-# than corrected: making fiction agree with fiction is not coverage.
+# Elixir, Dart, C#, F#, Java and Ruby are absent on purpose. Their parity "generators"
+# built the expected JSON by hand — `%{"name" => "User", "fields" => [...]}` written out
+# as a literal, importing only a JSON library and never their SDK — so they could not
+# fail no matter what the SDK did. Three of them "disagreed" with Python only because
+# someone had typed `"jwt:sub"` where the nested `{source, claim}` form belongs. They
+# were removed rather than corrected: making fiction agree with fiction is not coverage.
 #
-# All four remain fully covered by `sdk-conformance.yml`, which is the stronger gate
-# anyway — it authors through each SDK's real API, runs the actual compiler, and asserts
-# sixteen constructs with a declared-gap manifest. The seven SDKs below are the ones
-# whose parity generators genuinely drive their SDK, so their comparison means something.
+# Six of eleven, which is exactly the count `sdks/official/conformance/manifest.json`
+# already records — that comment is why the conformance suite exists. All six remain
+# fully covered by `sdk-conformance.yml`, the stronger gate: it authors through each
+# SDK's real API, runs the actual compiler, and asserts sixteen constructs against a
+# declared-gap manifest. The five below are the generators that genuinely drive their
+# SDK, so their comparison means something.
 #
 # Usage:
 #   sdks/official/tests/run_parity.sh                  # every SDK required
@@ -110,8 +112,6 @@ echo "ok    generated python (reference)"
 emit typescript full fraiseql-typescript npx  npx --yes tsx tests/generate-parity-schema.ts
 emit go         full fraiseql-go         go   go test -count=1 -run TestGenerateParitySchema ./fraiseql/
 emit php        full fraiseql-php        php  php tests/GenerateParitySchema.php
-emit java       full fraiseql-java       mvn  mvn -q -B test -Dtest=GenerateParitySchema -DfailIfNoTests=false
-emit ruby       full fraiseql-ruby       ruby ruby test/generate_parity_schema.rb
 
 # The Rust authoring SDK is RBAC-focused and declares no queries or mutations, so it is
 # compared on types only. That is a declared scope, not a silent one.
@@ -154,7 +154,8 @@ if [ ${#failures[@]} -gt 0 ]; then
 fi
 
 echo
-echo "Not compared here: elixir, dart, csharp, fsharp — their parity generators were"
-echo "hand-written JSON that never called the SDK. Covered by sdk-conformance.yml."
+echo "Not compared here: elixir, dart, csharp, fsharp, java, ruby — their parity"
+echo "generators were hand-written JSON that never called the SDK (six of eleven, the"
+echo "count manifest.json records). Covered by sdk-conformance.yml, which compiles."
 
 exit "$status"
