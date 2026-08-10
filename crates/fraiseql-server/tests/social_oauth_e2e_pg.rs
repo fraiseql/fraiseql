@@ -17,6 +17,11 @@
 //!   as a form `POST`. The suite proves the POST mount, that a second sign-in carrying no name or
 //!   email still resolves to the same account, and — the security-load-bearing one — that the
 //!   browser-supplied `user` payload's email never reaches the email-keyed linking space.
+//! - `Discord` and `Facebook` (#944, both plain `OAuth2`): the security-load-bearing case for each
+//!   — `Discord` reports `verified: false` and `Facebook` reports no verification signal at all, so
+//!   neither address may key an account. The provider's own half of that (it reports the flag
+//!   verbatim / never claims verification) is pinned by unit tests, because the trust gate is a
+//!   second, independent belt that would mask a broken provider here.
 //! - The `/auth/v1/authorize` flood faces the `auth_start` path bucket (#788).
 //! - Bogus state and unknown providers are refused.
 //!
@@ -53,6 +58,17 @@ const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_HS256";
 const GOOGLE_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_GOOGLE";
 const GITHUB_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_GITHUB";
 const APPLE_KEY_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_APPLE_P8";
+const DISCORD_SECRET_ENV: &str = "FRAISEQL_TEST_P14_SOCIAL_E2E_DISCORD";
+const FACEBOOK_SECRET_ENV: &str = "FRAISEQL_TEST_P14_SOCIAL_E2E_FACEBOOK";
+
+/// A non-default Graph version, so a provider that hard-codes one shows up as a
+/// 404 against the stub rather than passing by coincidence.
+const FACEBOOK_API_VERSION: &str = "v22.0";
+/// Discord reports this address as **unverified** — it must stay out of the
+/// email-keyed linking space.
+const DISCORD_UNVERIFIED_EMAIL: &str = "discord-unverified@example.com";
+/// Facebook hands this back with no verification signal of any kind — likewise.
+const FACEBOOK_EMAIL: &str = "facebook-user@example.com";
 
 /// Apple's services ID in this suite — the `client_id`, and the `aud` every
 /// stub `id_token` must name.
@@ -82,6 +98,8 @@ fn set_test_env() {
     std::env::set_var(GOOGLE_SECRET_ENV, "google-client-secret");
     std::env::set_var(GITHUB_SECRET_ENV, "github-client-secret");
     std::env::set_var(APPLE_KEY_ENV, TEST_P8);
+    std::env::set_var(DISCORD_SECRET_ENV, "discord-client-secret");
+    std::env::set_var(FACEBOOK_SECRET_ENV, "facebook-client-secret");
 }
 
 fn with_database(url: &str, db: &str) -> String {
@@ -140,8 +158,9 @@ fn unsigned_jwt(claims: &serde_json::Value) -> String {
     format!("{header}.{payload}.stub-signature")
 }
 
-/// Boot a stub `IdP` serving both a `Google`-shaped `OIDC` surface and a
-/// `GitHub`-shaped plain-`OAuth2` surface. Returns its base URL.
+/// Boot a stub `IdP` serving every configured provider's surface — `Google`'s
+/// `OIDC` shape, and the plain-`OAuth2` shapes of `Apple`, `Discord`, `Facebook`
+/// and `GitHub`. Returns its base URL.
 async fn stub_idp() -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind stub idp");
     let base = format!("http://127.0.0.1:{}", listener.local_addr().expect("addr").port());
@@ -185,6 +204,57 @@ async fn stub_idp() -> String {
                         "id_token": unsigned_jwt(&claims),
                     }))
                 }
+            }),
+        )
+        // Discord-shaped surface. The user object carries `verified` — this
+        // account's is false, which is the case that must not link on email.
+        .route(
+            "/api/oauth2/token",
+            post(|| async {
+                Json(serde_json::json!({
+                    "access_token": "discord-at",
+                    "token_type": "Bearer",
+                    "expires_in": 604_800,
+                    "refresh_token": "discord-rt",
+                    "scope": "identify email"
+                }))
+            }),
+        )
+        .route(
+            "/api/users/@me",
+            get(|| async {
+                Json(serde_json::json!({
+                    "id": "776655443322110099",
+                    "username": "carol",
+                    "global_name": "Carol",
+                    "email": DISCORD_UNVERIFIED_EMAIL,
+                    "verified": false,
+                    "avatar": null
+                }))
+            }),
+        )
+        // Facebook-shaped surface, under the configured API version — a
+        // provider that hard-coded a version would 404 here.
+        .route(
+            &format!("/{FACEBOOK_API_VERSION}/oauth/access_token"),
+            post(|| async {
+                Json(serde_json::json!({
+                    "access_token": "facebook-at",
+                    "token_type": "bearer",
+                    "expires_in": 5_183_944
+                }))
+            }),
+        )
+        .route(
+            &format!("/{FACEBOOK_API_VERSION}/me"),
+            get(|| async {
+                // An address, and no verification signal anywhere — Facebook
+                // publishes none.
+                Json(serde_json::json!({
+                    "id": "10223344556677889",
+                    "name": "Dave",
+                    "email": FACEBOOK_EMAIL
+                }))
             }),
         )
         // Google-shaped OIDC surface.
@@ -327,6 +397,20 @@ fn social_schema(stub_base: &str) -> CompiledSchema {
                 private_key_path: None,
                 redirect_uri:     "https://app.example.com/auth/v1/callback".to_string(),
                 base_url:         Some(stub_base.to_string()),
+            }),
+            discord:                Some(fraiseql_core::schema::DiscordSocialConfig {
+                client_id:         "discord-client".to_string(),
+                client_secret_env: DISCORD_SECRET_ENV.to_string(),
+                redirect_uri:      "https://app.example.com/auth/v1/callback".to_string(),
+                base_url:          Some(stub_base.to_string()),
+            }),
+            facebook:               Some(fraiseql_core::schema::FacebookSocialConfig {
+                client_id:         "facebook-client".to_string(),
+                client_secret_env: FACEBOOK_SECRET_ENV.to_string(),
+                redirect_uri:      "https://app.example.com/auth/v1/callback".to_string(),
+                api_version:       Some(FACEBOOK_API_VERSION.to_string()),
+                base_url:          Some(stub_base.to_string()),
+                graph_base_url:    Some(stub_base.to_string()),
             }),
         }),
     });
@@ -538,7 +622,7 @@ async fn google_and_github_full_loops_link_verified_emails() {
         .collect();
     assert_eq!(
         names,
-        vec!["apple", "github", "google"],
+        vec!["apple", "discord", "facebook", "github", "google"],
         "every configured provider is registered"
     );
 
@@ -601,7 +685,7 @@ async fn bogus_state_and_unknown_provider_are_refused() {
     // An unregistered provider is refused, not silently defaulted.
     let resp = client
         .get(format!(
-            "{base}/auth/v1/authorize?provider=facebook&redirect_uri=https://app.example.com/cb"
+            "{base}/auth/v1/authorize?provider=myspace&redirect_uri=https://app.example.com/cb"
         ))
         .send()
         .await
@@ -778,6 +862,82 @@ async fn apple_form_post_callback_refuses_a_forged_state() {
         resp.status(),
         reqwest::StatusCode::BAD_REQUEST,
         "the POST callback must consume the same CSRF state the GET one does"
+    );
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// #944: the assertion that decides whether Discord and Facebook are safe to
+/// ship — an unverified or unverifiable address must stay in the
+/// `(provider, id)` key space, so it can never collapse into an email-keyed
+/// account belonging to someone else.
+///
+/// Discord *reports* `verified: false` for this account, and Facebook reports
+/// nothing at all. Both addresses therefore own nothing, and a later trusted
+/// login on the same address must create a fresh account rather than land on
+/// theirs.
+#[tokio::test]
+async fn discord_and_facebook_keep_unverified_emails_out_of_the_linking_space() {
+    let Some(url) = database_url_or_skip("discord_and_facebook_linking_space") else {
+        return;
+    };
+    set_test_env();
+
+    let db = "fraiseql_p14_social_plain_oauth";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+
+    let (base, tx, handle) =
+        boot_server(social_config(&scratch_url), social_schema(&stub), pool.clone(), &scratch_url)
+            .await;
+    let store = fraiseql_auth::PostgresAccountStore::new(pool.clone());
+
+    // ── Discord: `verified: false` on the user object, honoured ──────────
+    let discord = login(&base, "discord").await;
+    assert_eq!(discord["provider"], "discord");
+    let discord_user = jwt_sub(discord["access_token"].as_str().expect("access_token"));
+
+    let discord_claim = store
+        .link_or_create_user(Some(DISCORD_UNVERIFIED_EMAIL), true, "google", "g-sub-discord-twin")
+        .await
+        .expect("claim the discord address from a trusted provider");
+    assert!(
+        discord_claim.is_new,
+        "an address Discord itself calls unverified must not own an account — otherwise anyone \
+         who sets that address on Discord without confirming it inherits the real owner's account"
+    );
+    assert_ne!(discord_claim.user_id, discord_user);
+
+    // The Discord identity is nonetheless durable: signing in again is the same
+    // account, resolved on `(discord, id)`.
+    let discord_again = login(&base, "discord").await;
+    assert_eq!(
+        jwt_sub(discord_again["access_token"].as_str().expect("access_token")),
+        discord_user,
+        "an unverified-email identity must still be stable across sign-ins"
+    );
+
+    // ── Facebook: no verification signal exists at all ───────────────────
+    let facebook = login(&base, "facebook").await;
+    assert_eq!(facebook["provider"], "facebook");
+    let facebook_user = jwt_sub(facebook["access_token"].as_str().expect("access_token"));
+
+    let facebook_claim = store
+        .link_or_create_user(Some(FACEBOOK_EMAIL), true, "google", "g-sub-facebook-twin")
+        .await
+        .expect("claim the facebook address from a trusted provider");
+    assert!(
+        facebook_claim.is_new,
+        "Facebook publishes no verification signal, so its address must never key an account"
+    );
+    assert_ne!(facebook_claim.user_id, facebook_user);
+
+    assert_ne!(
+        discord_user, facebook_user,
+        "two email-less identities must not collapse into one account"
     );
 
     let _ = tx.send(());

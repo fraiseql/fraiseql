@@ -495,6 +495,14 @@ pub struct SocialAuthConfig {
     /// `/auth/v1/callback` that `Apple`'s `response_mode=form_post` requires.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub apple: Option<AppleSocialConfig>,
+
+    /// `Discord` `OAuth2` social login (non-`OIDC`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub discord: Option<DiscordSocialConfig>,
+
+    /// `Facebook` `OAuth2` social login (non-`OIDC`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub facebook: Option<FacebookSocialConfig>,
 }
 
 /// `[auth.social.google]` — `Google` `OIDC` social-login client (#368).
@@ -573,4 +581,53 @@ pub struct AppleSocialConfig {
     /// runtime's SSRF guards still apply.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_url:         Option<String>,
+}
+
+/// `[auth.social.discord]` — `Discord` `OAuth2` social login (#944).
+///
+/// `Discord` reports `verified` on the user object, and the runtime honours it:
+/// an unverified address keys on `(discord, id)` rather than on the email. That
+/// check is why `discord` is in the default trusted-email set.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DiscordSocialConfig {
+    /// `OAuth2` `client_id` of the `Discord` application.
+    pub client_id:         String,
+    /// Name of the environment variable holding the client secret.
+    pub client_secret_env: String,
+    /// This server's `/auth/v1/callback` URL, registered with `Discord`.
+    pub redirect_uri:      String,
+    /// Base URL override (default `https://discord.com`). The runtime's SSRF
+    /// guards still apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url:          Option<String>,
+}
+
+/// `[auth.social.facebook]` — `Facebook` `OAuth2` social login (#944).
+///
+/// `Facebook` publishes **no** email-verification signal, so every `Facebook`
+/// identity keys on `(facebook, id)` and `facebook` is deliberately absent from
+/// the default trusted-email set. The Graph API version is part of the request
+/// path and `Meta` deprecates versions on a schedule, so it is configuration
+/// rather than a constant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FacebookSocialConfig {
+    /// `OAuth2` `client_id` (the `Meta` app ID).
+    pub client_id:         String,
+    /// Name of the environment variable holding the client secret.
+    pub client_secret_env: String,
+    /// This server's `/auth/v1/callback` URL, registered with `Meta`.
+    pub redirect_uri:      String,
+    /// Graph API version segment (default `v21.0`), e.g. `v22.0`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_version:       Option<String>,
+    /// Web base URL override (default `https://www.facebook.com`) — the
+    /// authorization dialog. The runtime's SSRF guards still apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url:          Option<String>,
+    /// Graph API base URL override (default `https://graph.facebook.com`) — the
+    /// token and profile endpoints. The runtime's SSRF guards still apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graph_base_url:    Option<String>,
 }

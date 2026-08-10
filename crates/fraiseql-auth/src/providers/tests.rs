@@ -1334,3 +1334,301 @@ mod apple_tests {
         assert_eq!(partial.display_name(), None, "a blank name is no name");
     }
 }
+
+/// Discord (#944).
+mod discord_tests {
+    use crate::{
+        provider::OAuthProvider as _,
+        providers::discord::{DiscordOAuth, DiscordUser, select_linkable_email},
+    };
+
+    fn provider() -> DiscordOAuth {
+        DiscordOAuth::new(
+            "discord-client".to_string(),
+            "discord-secret".to_string(),
+            "https://app.example.com/auth/v1/callback".to_string(),
+        )
+        .expect("construction is network-free")
+    }
+
+    fn user(email: Option<&str>, verified: Option<bool>) -> DiscordUser {
+        DiscordUser {
+            id: "776655443322110099".to_string(),
+            username: "carol".to_string(),
+            global_name: Some("Carol".to_string()),
+            email: email.map(str::to_string),
+            verified,
+            avatar: None,
+        }
+    }
+
+    #[test]
+    fn authorization_url_requests_identify_and_email() {
+        let url = provider().authorization_url("state-abc");
+        assert!(url.starts_with("https://discord.com/oauth2/authorize?"), "{url}");
+        // Without `email` the user object carries no address at all, and
+        // without `identify` there is no user object.
+        assert!(url.contains("scope=identify%20email"), "{url}");
+        assert!(url.contains("response_type=code"), "{url}");
+        assert!(url.contains("state=state-abc"), "{url}");
+    }
+
+    #[test]
+    fn a_verified_email_is_linkable() {
+        let (email, verified) = select_linkable_email(&user(Some("carol@example.com"), Some(true)));
+        assert_eq!(email.as_deref(), Some("carol@example.com"));
+        assert!(verified);
+    }
+
+    #[test]
+    fn an_unverified_email_is_reported_unverified() {
+        // The whole reason `discord` may sit in the default trusted set: the
+        // flag is read, not assumed. Assuming it would put an address the user
+        // never confirmed into the email-keyed linking space.
+        let (email, verified) =
+            select_linkable_email(&user(Some("carol@example.com"), Some(false)));
+        assert_eq!(email.as_deref(), Some("carol@example.com"));
+        assert!(!verified);
+    }
+
+    #[test]
+    fn an_absent_verified_flag_is_not_verified() {
+        let (_, verified) = select_linkable_email(&user(Some("carol@example.com"), None));
+        assert!(!verified, "a missing flag must fail closed, not default to trusted");
+    }
+
+    #[test]
+    fn an_absent_or_blank_email_is_no_email() {
+        assert_eq!(select_linkable_email(&user(None, Some(true))), (None, false));
+        assert_eq!(select_linkable_email(&user(Some("   "), Some(true))), (None, false));
+    }
+
+    #[test]
+    fn discord_is_trusted_for_email_verification_by_default() {
+        // Trust is warranted only because `verified` is honoured above; the two
+        // travel together.
+        assert!(crate::TrustedEmailProviders::default().is_trusted("discord"));
+    }
+
+    #[test]
+    fn a_private_base_url_is_refused_by_the_ssrf_guard() {
+        // The bypass is process-global, and sibling tests in this binary switch
+        // it on to reach a loopback stub. Clear it for this assertion's window,
+        // matching `github_endpoint_overrides_are_ssrf_guarded`.
+        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
+            let err = DiscordOAuth::with_base_url(
+                "c".to_string(),
+                "s".to_string(),
+                "https://app.example.com/cb".to_string(),
+                "http://169.254.169.254".to_string(),
+            )
+            .expect_err("a link-local override must be refused");
+            assert!(err.to_string().contains("SSRF") || err.to_string().contains("https"), "{err}");
+        });
+    }
+
+    /// The whole flow, against a stub: an address Discord reports as
+    /// unverified must arrive at the callback as **unverified**, so the account
+    /// store keys it on `(discord, id)`. The trust gate is a second, separate
+    /// belt — this pins the provider's own half.
+    #[tokio::test]
+    async fn user_info_reports_discords_verified_flag_verbatim() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        for (reported, expected) in [(Some(true), true), (Some(false), false), (None, false)] {
+            let server = MockServer::start().await;
+            let mut body = serde_json::json!({
+                "id": "776655443322110099",
+                "username": "carol",
+                "email": "carol@example.com",
+            });
+            if let Some(v) = reported {
+                body["verified"] = serde_json::json!(v);
+            }
+            Mock::given(method("GET"))
+                .and(path("/api/users/@me"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(body))
+                .mount(&server)
+                .await;
+
+            // Only *construction* consults the SSRF guard, so the bypass is held
+            // for that call alone rather than across the HTTP round-trip. The
+            // variable is process-global: a wider window races the guard tests
+            // in this same binary, which is exactly how this suite first went
+            // red in CI while passing locally.
+            let provider = temp_env::with_vars(
+                [
+                    ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+                    ("FRAISEQL_ENV", Some("development")),
+                    ("FRAISEQL_PROFILE", None),
+                    ("KUBERNETES_SERVICE_HOST", None),
+                ],
+                || {
+                    DiscordOAuth::with_base_url(
+                        "c".to_string(),
+                        "s".to_string(),
+                        "https://app.example.com/cb".to_string(),
+                        server.uri(),
+                    )
+                    .expect("stub provider constructs")
+                },
+            );
+            let info = provider.user_info("discord-at").await.expect("the user object parses");
+
+            assert_eq!(info.id, "776655443322110099");
+            assert_eq!(info.email.as_deref(), Some("carol@example.com"));
+            assert_eq!(
+                info.email_verified, expected,
+                "verified: {reported:?} must surface as email_verified = {expected}"
+            );
+            assert_eq!(info.raw_claims["email_verified"], serde_json::json!(expected));
+        }
+    }
+}
+
+/// Facebook (#944).
+mod facebook_tests {
+    use crate::{
+        provider::OAuthProvider as _,
+        providers::facebook::{DEFAULT_API_VERSION, FacebookOAuth},
+    };
+
+    fn provider() -> FacebookOAuth {
+        FacebookOAuth::new(
+            "facebook-client".to_string(),
+            "facebook-secret".to_string(),
+            "https://app.example.com/auth/v1/callback".to_string(),
+        )
+        .expect("construction is network-free")
+    }
+
+    #[test]
+    fn the_api_version_is_in_the_path_and_configurable() {
+        let url = provider().authorization_url("state-abc");
+        assert!(
+            url.starts_with(&format!(
+                "https://www.facebook.com/{DEFAULT_API_VERSION}/dialog/oauth?"
+            )),
+            "{url}"
+        );
+
+        // Meta deprecates versions on its own schedule, so an operator must be
+        // able to move without waiting for a FraiseQL release.
+        let pinned = FacebookOAuth::with_endpoints(
+            "facebook-client".to_string(),
+            "facebook-secret".to_string(),
+            "https://app.example.com/auth/v1/callback".to_string(),
+            "https://www.facebook.com".to_string(),
+            "https://graph.facebook.com".to_string(),
+            "v23.0".to_string(),
+        )
+        .expect("a later version constructs");
+        assert!(
+            pinned.authorization_url("s").contains("/v23.0/dialog/oauth"),
+            "the configured version must reach the request path"
+        );
+    }
+
+    #[test]
+    fn an_api_version_that_would_repoint_the_request_is_refused() {
+        for bad in [
+            "",
+            "  ",
+            "v21.0/../../evil",
+            "v21.0?x=1",
+            "v21.0#f",
+            "v21.0\\x",
+        ] {
+            FacebookOAuth::with_endpoints(
+                "c".to_string(),
+                "s".to_string(),
+                "https://app.example.com/cb".to_string(),
+                "https://www.facebook.com".to_string(),
+                "https://graph.facebook.com".to_string(),
+                bad.to_string(),
+            )
+            .expect_err(&format!("api_version {bad:?} lands in a URL path and must be refused"));
+        }
+    }
+
+    #[test]
+    fn facebook_is_never_trusted_for_email_verification() {
+        // Two independent reasons an address cannot become a linking key: the
+        // provider reports `email_verified = false` unconditionally (there is no
+        // signal to report), and the trust gate would downgrade it anyway.
+        assert!(!crate::TrustedEmailProviders::default().is_trusted("facebook"));
+    }
+
+    #[test]
+    fn a_private_graph_url_is_refused_by_the_ssrf_guard() {
+        // See the Discord twin: the bypass is process-global, so clear it here.
+        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
+            let err = FacebookOAuth::with_endpoints(
+                "c".to_string(),
+                "s".to_string(),
+                "https://app.example.com/cb".to_string(),
+                "https://www.facebook.com".to_string(),
+                "http://127.0.0.1:8080".to_string(),
+                DEFAULT_API_VERSION.to_string(),
+            )
+            .expect_err("a loopback graph override must be refused");
+            assert!(err.to_string().contains("SSRF") || err.to_string().contains("https"), "{err}");
+        });
+    }
+
+    /// Facebook publishes no verification signal, so the provider itself must
+    /// report `email_verified = false` — independently of the trust gate, which
+    /// would also downgrade it. Two belts, proven one at a time.
+    #[tokio::test]
+    async fn user_info_never_claims_a_facebook_email_is_verified() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/{DEFAULT_API_VERSION}/me")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "10223344556677889",
+                "name": "Dave",
+                "email": "dave@example.com",
+            })))
+            .mount(&server)
+            .await;
+
+        // See the Discord twin: the bypass is held for construction only, because
+        // it is process-global and a wider window races the guard tests.
+        let provider = temp_env::with_vars(
+            [
+                ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+                ("FRAISEQL_ENV", Some("development")),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
+            || {
+                FacebookOAuth::with_endpoints(
+                    "c".to_string(),
+                    "s".to_string(),
+                    "https://app.example.com/cb".to_string(),
+                    "https://www.facebook.com".to_string(),
+                    server.uri(),
+                    DEFAULT_API_VERSION.to_string(),
+                )
+                .expect("stub provider constructs")
+            },
+        );
+        let info = provider.user_info("facebook-at").await.expect("the profile parses");
+
+        assert_eq!(info.id, "10223344556677889");
+        assert_eq!(info.email.as_deref(), Some("dave@example.com"));
+        assert!(
+            !info.email_verified,
+            "there is no signal to base a verified claim on, so it must be false"
+        );
+        assert_eq!(info.raw_claims["email_verified"], serde_json::json!(false));
+    }
+}
