@@ -421,6 +421,22 @@ pub struct LocalAuthConfig {
     #[serde(default)]
     pub anonymous: bool,
 
+    /// Email verification for local-password accounts (#945): mounts
+    /// `POST /auth/v1/email/verify/{start,confirm}`, both of which require an
+    /// authenticated caller and act only on that caller's own account.
+    ///
+    /// Requires [`password`](Self::password) — verification proves the address a
+    /// *local* identity claims, and an account without one has nothing to verify
+    /// — plus [`email_from`](Self::email_from) and
+    /// [`verification_url_template`](Self::verification_url_template).
+    ///
+    /// Confirming promotes the account's own `core.tb_user.email`, which is what
+    /// lets a later trusted social sign-in for the same address link into it. It
+    /// never merges two accounts: an address already verified elsewhere is
+    /// refused.
+    #[serde(default)]
+    pub email_verification: bool,
+
     /// Service name shown in authenticator apps for `MFA` enrollment
     /// (`otpauth://…?issuer=`). Defaults to `"`FraiseQL`"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -443,6 +459,14 @@ pub struct LocalAuthConfig {
     /// when absent the email carries the bare six-digit code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub magic_link_template: Option<String>,
+
+    /// Template for the email-verification link, with `{token}` substituted for
+    /// the opaque verification token — e.g.
+    /// `https://app.example.com/verify-email?token={token}`. Required when
+    /// [`email_verification`](Self::email_verification) is enabled: the link
+    /// points at the operator's front end, which `FraiseQL` cannot guess.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification_url_template: Option<String>,
 }
 
 /// PKCE OAuth-client configuration compiled from the `[auth]` PKCE group (#621).

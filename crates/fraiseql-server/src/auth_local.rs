@@ -33,15 +33,20 @@ const RESET_TOKEN_PLACEHOLDER: &str = "{token}";
 #[cfg(feature = "inbound-email")]
 const MAGIC_CODE_PLACEHOLDER: &str = "{code}";
 
+/// Placeholder the verification-link template substitutes the opaque token for (#945).
+#[cfg(feature = "inbound-email")]
+const VERIFICATION_TOKEN_PLACEHOLDER: &str = "{token}";
+
 /// Default `MFA` issuer shown in authenticator apps.
 const DEFAULT_MFA_ISSUER: &str = "FraiseQL";
 
 /// The states `[auth.local]` produces, each `Some` only when its method is enabled.
 pub struct LocalAuthStates {
-    pub otp:      Option<Arc<fraiseql_auth::OtpRouteState>>,
-    pub mfa:      Option<Arc<fraiseql_auth::MfaRouteState>>,
-    pub password: Option<Arc<fraiseql_auth::LocalPasswordRouteState>>,
-    pub anon:     Option<Arc<fraiseql_auth::AnonSignupState>>,
+    pub otp:                Option<Arc<fraiseql_auth::OtpRouteState>>,
+    pub mfa:                Option<Arc<fraiseql_auth::MfaRouteState>>,
+    pub password:           Option<Arc<fraiseql_auth::LocalPasswordRouteState>>,
+    pub anon:               Option<Arc<fraiseql_auth::AnonSignupState>>,
+    pub email_verification: Option<Arc<fraiseql_auth::EmailVerificationRouteState>>,
 }
 
 /// Delivers `OTP` codes and password-reset links through a configured
@@ -52,13 +57,16 @@ pub struct LocalAuthStates {
 /// configures its outbound mail **once**.
 #[cfg(feature = "inbound-email")]
 pub struct MailboxEmailSender {
-    transport:           Arc<dyn fraiseql_functions::outbound::EmailTransport>,
+    transport: Arc<dyn fraiseql_functions::outbound::EmailTransport>,
     /// The verified sending address; selects the account inside the transport.
-    from:                fraiseql_functions::outbound::SenderIdentity,
+    from: fraiseql_functions::outbound::SenderIdentity,
     /// `{token}`-templated reset link. `None` disables reset delivery.
-    reset_url_template:  Option<String>,
+    reset_url_template: Option<String>,
     /// `{code}`-templated magic link. `None` sends the bare code.
     magic_link_template: Option<String>,
+    /// `{token}`-templated email-verification link. `None` disables verification
+    /// delivery.
+    verification_url_template: Option<String>,
 }
 
 #[cfg(feature = "inbound-email")]
@@ -105,6 +113,36 @@ impl fraiseql_auth::ResetEmailSender for MailboxEmailSender {
                 "Use the link below to choose a new password. It expires in one hour and can \
                  only be used once.\n\n{link}\n\nIf you did not request this, you can ignore \
                  this message."
+            ),
+        )
+        .await
+        .map_err(|e| fraiseql_auth::AuthError::Internal {
+            message: e.to_string(),
+        })
+    }
+}
+
+#[cfg(feature = "inbound-email")]
+#[async_trait::async_trait]
+impl fraiseql_auth::VerificationEmailSender for MailboxEmailSender {
+    async fn send_verification_link(&self, to: &str, token: &str) -> fraiseql_auth::Result<()> {
+        // Required by both the CLI validation and the boot check when
+        // email_verification is on, so `None` here is unreachable through
+        // configuration; refuse rather than mail a bare token.
+        let template = self.verification_url_template.as_ref().ok_or_else(|| {
+            fraiseql_auth::AuthError::ConfigError {
+                message: "[auth.local] verification_url_template is not configured".to_string(),
+            }
+        })?;
+        let link = template.replace(VERIFICATION_TOKEN_PLACEHOLDER, &urlencoding::encode(token));
+        self.send(
+            to,
+            "Verify your email address",
+            format!(
+                "Use the link below to confirm this address. It expires in one hour and can \
+                 only be used once, and it only works while you are signed in to the account \
+                 that asked for it.\n\n{link}\n\nIf you did not request this, you can ignore \
+                 this message — nothing changes until the link is used."
             ),
         )
         .await
@@ -190,6 +228,7 @@ fn build_email_sender(
         },
         reset_url_template: local.reset_url_template.clone(),
         magic_link_template: local.magic_link_template.clone(),
+        verification_url_template: local.verification_url_template.clone(),
     }))
 }
 
@@ -238,29 +277,34 @@ pub async fn build_local_auth_states(
     })?;
     let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
     // Mint the claims the configured validator demands, or every login would
-    // "succeed" and then 401 on the first validated request.
+    // "succeed" and then 401 on the first validated request. The same triple is
+    // handed to the bearer authenticator below, so what this server signs is
+    // exactly what it accepts back (#945) — one binding, not two that can drift.
+    let token_issuer = hs
+        .issuer
+        .clone()
+        .unwrap_or_else(|| fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string());
+    let token_audience = hs
+        .audience
+        .clone()
+        .unwrap_or_else(|| fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string());
+    let secret_bytes = secret.into_bytes();
     let session_store: Arc<dyn fraiseql_auth::SessionStore> = Arc::new(
-        fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool.clone(), secret.into_bytes())
-            .with_token_claims(
-                hs.issuer.clone().unwrap_or_else(|| {
-                    fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string()
-                }),
-                hs.audience.clone().unwrap_or_else(|| {
-                    fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string()
-                }),
-            ),
+        fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool.clone(), secret_bytes.clone())
+            .with_token_claims(token_issuer.clone(), token_audience.clone()),
     );
     let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool.clone()));
 
-    // The mail sender is built once and shared by OTP and password reset.
-    let needs_email = local.otp || local.password;
+    // The mail sender is built once and shared by OTP, password reset and email
+    // verification.
+    let needs_email = local.otp || local.password || local.email_verification;
     #[cfg(feature = "inbound-email")]
     let email_sender = if needs_email {
         let mailbox_name = local.email_from.as_deref().ok_or_else(|| {
             ServerError::ConfigError(
                 "[auth.local] enables a mail-sending method but sets no email_from. Name the \
-                 [mailbox.<name>] account whose SMTP half should deliver OTP codes and reset \
-                 links."
+                 [mailbox.<name>] account whose SMTP half should deliver OTP codes, reset \
+                 links and verification links."
                     .to_string(),
             )
         })?;
@@ -270,7 +314,13 @@ pub async fn build_local_auth_states(
     };
     #[cfg(not(feature = "inbound-email"))]
     if needs_email {
-        return Err(missing_email_feature(if local.otp { "otp" } else { "password" }));
+        return Err(missing_email_feature(if local.otp {
+            "otp"
+        } else if local.password {
+            "password"
+        } else {
+            "email_verification"
+        }));
     }
 
     // `needs_email` already returned above on a build without `inbound-email`,
@@ -310,8 +360,11 @@ pub async fn build_local_auth_states(
         None
     };
 
-    let password = if local.password {
-        // Reason: `mut` is only used by the inbound-email-gated sender attachment below
+    // One authenticator, shared by the password routes and the verification routes:
+    // they operate on the same credential and token stores, and two instances would
+    // be two configurations to keep in step.
+    let authenticator = if local.password {
+        // Reason: `mut` is only used by the inbound-email-gated sender attachments below
         #[cfg_attr(not(feature = "inbound-email"), allow(unused_mut))]
         let mut authenticator = fraiseql_auth::LocalPasswordAuthenticator::new(
             pool,
@@ -323,14 +376,68 @@ pub async fn build_local_auth_states(
             let sender = email_sender.ok_or_else(|| {
                 ServerError::ConfigError("[auth.local] password needs email".into())
             })?;
-            authenticator =
-                authenticator.with_email_sender(sender as Arc<dyn fraiseql_auth::ResetEmailSender>);
+            authenticator = authenticator
+                .with_email_sender(Arc::clone(&sender) as Arc<dyn fraiseql_auth::ResetEmailSender>);
+            if local.email_verification {
+                authenticator = authenticator.with_verification_email_sender(
+                    sender as Arc<dyn fraiseql_auth::VerificationEmailSender>,
+                );
+            }
         }
+        Some(Arc::new(authenticator))
+    } else {
+        None
+    };
+
+    let password = authenticator.as_ref().map(|authenticator| {
         info!("Local password sign-in enabled (POST /auth/v1/password/{{signup,login,reset}})");
-        Some(Arc::new(fraiseql_auth::LocalPasswordRouteState {
-            authenticator: Arc::new(authenticator),
+        Arc::new(fraiseql_auth::LocalPasswordRouteState {
+            authenticator: Arc::clone(authenticator),
             session_store: Arc::clone(&session_store),
             rate_limiters: Arc::new(fraiseql_auth::RateLimiters::default()),
+        })
+    });
+
+    // #945. Refuse rather than mount a flow that dead-ends: verification proves the
+    // address a *local* identity claims, and a link nobody can follow is not a
+    // verification method. The CLI refuses both shapes at compile time; this is the
+    // same check for a server booted from a hand-written or env-overridden config.
+    let email_verification = if local.email_verification {
+        let authenticator = authenticator.as_ref().ok_or_else(|| {
+            ServerError::ConfigError(
+                "[auth.local] email_verification = true requires password = true: \
+                 verification proves the address a local password identity claims, and there \
+                 is no such identity without it."
+                    .to_string(),
+            )
+        })?;
+        if local.verification_url_template.is_none() {
+            return Err(ServerError::ConfigError(
+                "[auth.local] email_verification = true requires verification_url_template — \
+                 the verification link points at your front end, which FraiseQL cannot guess. \
+                 Example: verification_url_template = \
+                 \"https://app.example.com/verify-email?token={token}\""
+                    .to_string(),
+            ));
+        }
+        let session_bearer = fraiseql_auth::SessionBearerAuthenticator::new(
+            secret_bytes,
+            &token_issuer,
+            &token_audience,
+        )
+        .map_err(|e| {
+            ServerError::ConfigError(format!(
+                "[auth.local] email_verification could not build its session validator: {e}"
+            ))
+        })?;
+        info!(
+            "Email verification enabled (POST /auth/v1/email/verify/{{start,confirm}}, \
+             authenticated)"
+        );
+        Some(Arc::new(fraiseql_auth::EmailVerificationRouteState {
+            authenticator:  Arc::clone(authenticator),
+            session_bearer: Arc::new(session_bearer),
+            rate_limiters:  Arc::new(fraiseql_auth::RateLimiters::default()),
         }))
     } else {
         None
@@ -352,5 +459,6 @@ pub async fn build_local_auth_states(
         mfa,
         password,
         anon,
+        email_verification,
     })
 }

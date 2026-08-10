@@ -91,6 +91,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Email verification (#945) — mounted when [auth.local] email_verification = true.
+        // Both routes require an authenticated caller and act only on that caller's own
+        // account; the bearer check lives in the handlers (they need the subject, not
+        // just a pass/refuse), so no route_layer here.
+        if let Some(ref verify) = self.email_verification_state {
+            app = app.merge(fraiseql_auth::email_verification_routes(Arc::clone(verify)));
+            info!(
+                "Email verification routes mounted: POST \
+                 /auth/v1/email/verify/{{start,confirm}}"
+            );
+        }
+
         // TOTP MFA endpoints — mounted when mfa_state is configured.
         if let Some(ref mfa) = self.mfa_state {
             let mfa_router = Router::new()

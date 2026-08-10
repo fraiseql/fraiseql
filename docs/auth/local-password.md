@@ -67,8 +67,9 @@ Signup links with `email_verified = false`. A local signup therefore keys its **
 `(local, email)` account and can never auto-merge into an existing verified-email account
 (e.g. a prior Google sign-in for the same address). This is the H26 protection: an
 attacker cannot sign up locally with a victim's email and reach the victim's account.
-`core.tb_user.email` stays `NULL` for a local account until a verification flow promotes
-it; cross-linking is deferred to that flow (#367).
+`core.tb_user.email` stays `NULL` for a local account until [email
+verification](#email-verification-945) promotes it on a proved mailbox — the one path that
+writes it, and one that refuses to move any row between accounts.
 
 ### Login is non-enumerable
 
@@ -158,6 +159,81 @@ SMTP path) when you wire routes. Without a sender, a token is still issued and p
 a warning is logged rather than delivering it; without a session store, the password changes
 but a warning notes that outstanding sessions were not revoked.
 
+## Email verification (#945)
+
+`start_email_verification` / `confirm_email_verification` let a local account *become*
+verified. Before this, FraiseQL could only **consume** a verification claim someone else
+asserted (a trusted provider's `email_verified`, or a completed email OTP); a local
+password account was verified by nobody and stayed that way forever, so the same person's
+password and Google sign-ins were two accounts with no way to join them.
+
+Enable it with `[auth.local] email_verification = true`. It requires `password = true`
+(verification proves the address a *local* identity claims — without one there is nothing
+to verify), `email_from`, and `verification_url_template`; a config missing any of them is
+refused at compile time by the CLI and again at boot.
+
+```toml
+[auth.local]
+password                  = true
+email_verification        = true
+email_from                = "support"
+reset_url_template        = "https://app.example.com/reset?token={token}"
+verification_url_template = "https://app.example.com/verify-email?token={token}"
+```
+
+Two routes mount, and both require an authenticated caller:
+
+| Route | Behaviour |
+|---|---|
+| `POST /auth/v1/email/verify/start` | Mails a link to the address the **caller's own** local identity claims. Always `202`. |
+| `POST /auth/v1/email/verify/confirm` | Body `{ "token": "…" }`. `200` on success, `409` on the refusal below, `422` for any unredeemable token. |
+
+The token uses the same selector + verifier discipline as password reset — single-use,
+one-hour TTL, constant-time verifier comparison, `sha256(verifier)` the only persisted
+form — in `core.tb_email_verification_token`, which additionally stores the address the
+link was mailed to, so confirmation promotes exactly the mailbox that was proved.
+
+### Both halves are required
+
+`confirm` needs the token **and** a session, and the token's subject must equal the
+caller's `user_id`. The token proves control of the mailbox; the session proves ownership
+of the account. This is what closes the confused-deputy shape:
+
+> Signup for an arbitrary address is open by design. An attacker signs up locally under
+> `victim@example.com` and starts verification — the mail lands in the **victim's** inbox.
+> If the token alone sufficed, a victim who clicked the link would complete the attacker's
+> verification.
+
+Because the victim is not authenticated as the attacker's account, the confirmation fails
+closed, and a token presented by any other account is rejected exactly like a forged one.
+
+### Promotion, not merging
+
+On success the proved address is written to the caller's own `core.tb_user.email`. That is
+what puts the account in the cross-provider `email:<normalized>` key space, so a later
+trusted social sign-in for the same address links into it through the ordinary
+`AccountStore::link_or_create_user` path — one account, no merge machinery.
+
+If **another** account already holds that verified address, confirmation refuses with
+`EmailClaimedByAnotherAccount` (`409`) and changes nothing. The refusal is deliberate and
+permanent, not a gap:
+
+- Merging the two would move this account's password credential — chosen by whoever ran
+  signup — onto an account it could not previously reach. Combined with the open signup
+  above, that completes an account-takeover chain that only needs the mailed code once.
+- Signup under an arbitrary address is harmless *precisely because* it can never merge.
+  The [`TrustedEmailProviders`](identity-store.md) invariant is re-proved for this new
+  path in both directions: a pre-seeded unverified local account cannot absorb a victim's
+  later trusted sign-in, and a later-verified local account cannot absorb a trusted
+  account that already holds the address.
+
+An account that already carries a *different* verified address is likewise not re-keyed —
+a verified address is the account's linking key, and this flow does not move an account
+out of the key space a previous trusted sign-in placed it in.
+
+The refused token is still consumed: the refusal is deterministic, so leaving it live
+would only offer a replay surface.
+
 ## Deferred
 
 Named here so they are tracked, not assumed handled:
@@ -169,11 +245,11 @@ Named here so they are tracked, not assumed handled:
 - **Non-enumerable signup.** `EmailAlreadyRegistered` (409) is a signup existence oracle.
   The standard "we emailed you" mitigation needs the email-action path (#349), not yet
   shipped, so v1 returns the distinct error and documents it.
-- **HTTP endpoints and a concrete `ResetEmailSender`** for the reset flow above — deferred
-  to the step that wires the local-auth routes (login/signup have none yet either). The
-  service primitive and the `ResetEmailSender` trait ship now.
-- **Email verification** — the remaining #367 sub-flow, reusing the same #349 email path;
-  it is what will promote `core.tb_user.email` from `NULL` for a local account.
+- **Adding a password to an account that already exists under another provider.** Signing
+  in with Google first and then wanting a password is the ordering email verification
+  deliberately does *not* serve (see below). The safe direction is a set-password call
+  from inside an authenticated session — proving control of the account being changed
+  rather than pulling it toward an outside credential — which is not yet shipped.
 - **Configurable password policy.** v1 enforces a fixed minimum (12 bytes) and maximum
   (4096 bytes, a DoS guard) length, shared by signup and password reset.
 - **Reset rate limiting.** `start_password_reset` is not yet rate-limited against

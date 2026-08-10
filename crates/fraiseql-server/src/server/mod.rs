@@ -152,6 +152,12 @@ pub struct Server<A: DatabaseAdapter> {
     /// When `Some`, mounts `/auth/v1/password/{signup,login,reset,reset/confirm}`.
     #[cfg(feature = "auth")]
     pub(super) local_password_state: Option<Arc<crate::auth::LocalPasswordRouteState>>,
+    /// Email-verification route state (`[auth.local] email_verification = true`, #945).
+    ///
+    /// When `Some`, mounts the authenticated `/auth/v1/email/verify/{start,confirm}`
+    /// pair.
+    #[cfg(feature = "auth")]
+    pub(super) email_verification_state: Option<Arc<crate::auth::EmailVerificationRouteState>>,
     /// Session-state subsystem (#389) — present when `[session_state]` is
     /// configured. The lifecycle spawns its periodic eviction sweep; the MCP
     /// session-continuity binding is its per-request consumer.

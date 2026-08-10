@@ -169,6 +169,13 @@ impl AuthError {
                 "email_already_registered",
                 "An account already exists for this email".to_string(),
             ),
+            // Safe to state plainly: reaching this requires having already proved
+            // control of the address, so it is not an existence oracle (#945).
+            Self::EmailClaimedByAnotherAccount => (
+                StatusCode::CONFLICT,
+                "email_claimed_by_another_account",
+                "That email address is already verified on another account".to_string(),
+            ),
             // The validation reason stays server-side; the client gets a generic message.
             Self::InvalidRegistration { .. } => (
                 StatusCode::BAD_REQUEST,
@@ -229,7 +236,8 @@ impl AuthError {
             | Self::RateLimited { .. }
             | Self::InvalidCredentials
             | Self::AccountDisabled
-            | Self::EmailAlreadyRegistered => {},
+            | Self::EmailAlreadyRegistered
+            | Self::EmailClaimedByAnotherAccount => {},
         }
     }
 }

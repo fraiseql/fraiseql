@@ -11,14 +11,11 @@
 //!
 //! # Token security model
 //!
-//! - **Selector + verifier.** The token is `b64url(16B selector) "." b64url(32B verifier)`. The
-//!   store keeps the `selector` (non-secret, indexed) and `verifier_hash = sha256(verifier)`.
-//!   Redemption fetches the row `WHERE selector = $1` — no secret in the `WHERE`, so the lookup is
-//!   not an existence oracle — then compares the SHA-256 of the presented verifier against the
-//!   stored hash in **constant time** ([`ConstantTimeOps::compare`]). A full database read cannot
-//!   forge a usable token: it would require a SHA-256 preimage of a 256-bit CSPRNG verifier.
-//!   SHA-256 (not Argon2) is sufficient precisely because the verifier is high-entropy — there is
-//!   no brute-force surface that Argon2's cost would defend.
+//! - **Selector + verifier** ([`super::opaque_token`]). The token is `b64url(16B selector) "."
+//!   b64url(32B verifier)`. The store keeps the `selector` (non-secret, indexed) and `verifier_hash
+//!   = sha256(verifier)`. Redemption fetches the row `WHERE selector = $1` — no secret in the
+//!   `WHERE`, so the lookup is not an existence oracle — then compares the SHA-256 of the presented
+//!   verifier against the stored hash in **constant time** ([`ConstantTimeOps::compare`]).
 //! - **Single-use.** A `used_at` column is stamped atomically on redemption (`UPDATE … WHERE
 //!   used_at IS NULL AND expires_at > now()`); a concurrent second redemption sees zero affected
 //!   rows and is rejected. On success the user's *other* outstanding tokens are invalidated too.
@@ -46,12 +43,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Duration, Utc};
-use sha2::{Digest, Sha256};
 use sqlx::Row;
 
-use super::{LOCAL_PROVIDER, LocalPasswordAuthenticator, db_error, validate_password};
+use super::{
+    LOCAL_PROVIDER, LocalPasswordAuthenticator, db_error, opaque_token::OpaqueToken,
+    validate_password,
+};
 use crate::{
     account_linking::normalize_email,
     audit::logger::{AuditEventType, SecretType, get_audit_logger},
@@ -63,10 +61,8 @@ use crate::{
 /// Reset-token lifetime in seconds (1 hour, per #367).
 pub const RESET_TOKEN_TTL_SECS: i64 = 3600;
 
-/// Selector length in bytes (the non-secret, indexed lookup key).
-const SELECTOR_LEN: usize = 16;
-/// Verifier length in bytes (the secret; only its SHA-256 is stored).
-const VERIFIER_LEN: usize = 32;
+/// Flow label carried into [`OpaqueToken::parse`]'s diagnostic reasons.
+const TOKEN_KIND: &str = "reset";
 
 /// Idempotent DDL for the password-reset token store.
 ///
@@ -127,81 +123,6 @@ pub trait ResetEmailSender: Send + Sync {
     /// spawned task and only logs failures, so an error never leaks account existence to
     /// the requester.
     async fn send_reset_link(&self, to: &str, token: &str) -> Result<()>;
-}
-
-/// A freshly generated reset token: a non-secret selector plus a secret verifier.
-struct ResetToken {
-    selector: [u8; SELECTOR_LEN],
-    verifier: [u8; VERIFIER_LEN],
-}
-
-/// The redemption-relevant parts of a presented token: the selector (for lookup) and the
-/// SHA-256 of the verifier (for constant-time comparison against the stored hash).
-struct ParsedToken {
-    selector:      String,
-    verifier_hash: Vec<u8>,
-}
-
-impl ResetToken {
-    /// Generate a token from the OS-seeded CSPRNG ([`rand::rng`], as used for refresh
-    /// tokens).
-    fn generate() -> Self {
-        use rand::RngCore as _;
-        let mut selector = [0u8; SELECTOR_LEN];
-        let mut verifier = [0u8; VERIFIER_LEN];
-        rand::rng().fill_bytes(&mut selector);
-        rand::rng().fill_bytes(&mut verifier);
-        Self { selector, verifier }
-    }
-
-    /// The base64url selector, stored as the indexed lookup key.
-    fn selector_b64(&self) -> String {
-        URL_SAFE_NO_PAD.encode(self.selector)
-    }
-
-    /// SHA-256 of the verifier, the only verifier-derived value persisted.
-    fn verifier_hash(&self) -> Vec<u8> {
-        Sha256::digest(self.verifier).to_vec()
-    }
-
-    /// The opaque token string handed to the user: `selector "." verifier`.
-    fn to_token_string(&self) -> String {
-        format!(
-            "{}.{}",
-            URL_SAFE_NO_PAD.encode(self.selector),
-            URL_SAFE_NO_PAD.encode(self.verifier)
-        )
-    }
-
-    /// Parse a presented token into its lookup selector and verifier hash.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`AuthError::InvalidToken`] if the token is not `selector.verifier`, either
-    /// half is not valid base64url, or either decodes to the wrong length.
-    fn parse(token: &str) -> Result<ParsedToken> {
-        let (selector_b64, verifier_b64) =
-            token.split_once('.').ok_or_else(|| AuthError::InvalidToken {
-                reason: "reset token is not in selector.verifier form".to_string(),
-            })?;
-        let selector =
-            URL_SAFE_NO_PAD.decode(selector_b64).map_err(|_| AuthError::InvalidToken {
-                reason: "reset token selector is not valid base64url".to_string(),
-            })?;
-        let verifier =
-            URL_SAFE_NO_PAD.decode(verifier_b64).map_err(|_| AuthError::InvalidToken {
-                reason: "reset token verifier is not valid base64url".to_string(),
-            })?;
-        if selector.len() != SELECTOR_LEN || verifier.len() != VERIFIER_LEN {
-            return Err(AuthError::InvalidToken {
-                reason: "reset token has an unexpected length".to_string(),
-            });
-        }
-        Ok(ParsedToken {
-            selector:      selector_b64.to_string(),
-            verifier_hash: Sha256::digest(&verifier).to_vec(),
-        })
-    }
 }
 
 /// The generic error returned to the caller for any unredeemable token. The precise
@@ -277,7 +198,7 @@ impl LocalPasswordAuthenticator {
         let fk_user: i64 = row.get("fk_user");
         let user_id: String = row.get("user_id");
 
-        let token = ResetToken::generate();
+        let token = OpaqueToken::generate();
         let expires_at = Utc::now() + Duration::seconds(RESET_TOKEN_TTL_SECS);
 
         sqlx::query(
@@ -338,7 +259,7 @@ impl LocalPasswordAuthenticator {
         validate_password(new_password)?;
         let logger = get_audit_logger();
 
-        let Ok(parsed) = ResetToken::parse(token) else {
+        let Ok(parsed) = OpaqueToken::parse(TOKEN_KIND, token) else {
             logger.log_failure(
                 AuditEventType::AuthFailure,
                 SecretType::SessionToken,
@@ -492,7 +413,3 @@ impl LocalPasswordAuthenticator {
         Ok(())
     }
 }
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests;

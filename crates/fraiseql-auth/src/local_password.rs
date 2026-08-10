@@ -16,7 +16,8 @@
 //! - **Signup is fail-closed.** It links with `email_verified = false`, so a local signup keys its
 //!   own `(local, email)` account and can never auto-merge into an existing verified-email account
 //!   (the H26 protection against takeover via an unverified signup). `core.tb_user.email` therefore
-//!   stays `NULL` until a future verification flow promotes it.
+//!   stays `NULL` until [`verification`] promotes it on a proved mailbox (#945) — the one path that
+//!   writes it, and one that never moves a row between accounts.
 //! - **Login is non-enumerable.** An unknown user and a wrong password are indistinguishable: both
 //!   return [`AuthError::InvalidCredentials`] with the same body, and both pay the full Argon2 cost
 //!   — an unknown user is verified against a pre-computed dummy hash built from the *same*
@@ -41,7 +42,10 @@
 //!   same disclosure trade-off as above).
 //! - **Non-enumerable signup.** [`AuthError::EmailAlreadyRegistered`] is a signup existence oracle;
 //!   the standard "we emailed you" mitigation needs the email-action path (#349), not yet shipped.
-//! - **Password reset / email verification** — #367, reusing the #349 email path.
+//! - **Adding a password to an account that already exists under another provider.** The safe
+//!   direction for that ordering is a set-password call from inside an authenticated session;
+//!   [`verification`] deliberately refuses to pull an existing account toward an outside credential
+//!   (#945).
 
 use std::sync::Arc;
 
@@ -58,10 +62,16 @@ use crate::{
     session::SessionStore,
 };
 
+mod opaque_token;
 mod reset;
 pub mod routes;
+pub mod verification;
 
 pub use reset::{PASSWORD_RESET_SCHEMA_SQL, RESET_TOKEN_TTL_SECS, ResetEmailSender};
+pub use verification::{
+    EMAIL_VERIFICATION_SCHEMA_SQL, EMAIL_VERIFICATION_TOKEN_TTL_SECS, EmailVerified,
+    PromotionDecision, VerificationEmailSender, decide_promotion,
+};
 
 /// Provider name recorded for local-password identities in `core.tb_auth_identity`.
 const LOCAL_PROVIDER: &str = "local";
@@ -127,24 +137,29 @@ REVOKE ALL ON core.tb_password_credential FROM PUBLIC;
 /// `PgPool` role must own (or `BYPASSRLS`) the `core` tables — calling `init` creates
 /// them, so the connecting role owns them by construction.
 pub struct LocalPasswordAuthenticator {
-    db:            PgPool,
+    db:                  PgPool,
     /// Resolves/creates users at signup (provider `"local"`). Any [`AccountStore`] that
     /// persists into `core.tb_auth_identity` works; in practice this is
     /// [`PostgresAccountStore`](crate::PostgresAccountStore), since login resolves
     /// email → `user_id` through that table.
-    accounts:      Arc<dyn AccountStore>,
-    argon2:        Argon2<'static>,
+    accounts:            Arc<dyn AccountStore>,
+    argon2:              Argon2<'static>,
     /// A real Argon2id hash, built from `argon2`'s parameters, used to equalize the
     /// verification cost of an unknown-user login with a real one.
-    dummy_hash:    String,
+    dummy_hash:          String,
     /// Delivers reset links for [`start_password_reset`](Self::start_password_reset).
     /// Wired via [`with_email_sender`](Self::with_email_sender); `None` issues tokens
     /// without delivering them (a warning is logged).
-    email_sender:  Option<Arc<dyn reset::ResetEmailSender>>,
+    email_sender:        Option<Arc<dyn reset::ResetEmailSender>>,
     /// Revoked on a successful [`confirm_password_reset`](Self::confirm_password_reset).
     /// Wired via [`with_session_store`](Self::with_session_store); `None` skips revocation
     /// (a warning is logged).
-    session_store: Option<Arc<dyn SessionStore>>,
+    session_store:       Option<Arc<dyn SessionStore>>,
+    /// Delivers verification links for
+    /// [`start_email_verification`](Self::start_email_verification). Wired via
+    /// [`with_verification_email_sender`](Self::with_verification_email_sender); `None`
+    /// issues tokens without delivering them (a warning is logged).
+    verification_sender: Option<Arc<dyn verification::VerificationEmailSender>>,
 }
 
 impl LocalPasswordAuthenticator {
@@ -191,6 +206,7 @@ impl LocalPasswordAuthenticator {
             dummy_hash,
             email_sender: None,
             session_store: None,
+            verification_sender: None,
         }
     }
 
@@ -217,6 +233,10 @@ impl LocalPasswordAuthenticator {
             .execute(&self.db)
             .await
             .map_err(|e| db_error("initialize password reset token store", &e))?;
+        sqlx::raw_sql(verification::EMAIL_VERIFICATION_SCHEMA_SQL)
+            .execute(&self.db)
+            .await
+            .map_err(|e| db_error("initialize email verification token store", &e))?;
         Ok(())
     }
 

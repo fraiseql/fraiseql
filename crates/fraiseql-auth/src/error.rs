@@ -256,6 +256,20 @@ pub enum AuthError {
     #[error("An account already exists for this email")]
     EmailAlreadyRegistered,
 
+    /// An email-verification confirmation proved a mailbox, but the address is already
+    /// the verified email of a **different** account (or this account already has a
+    /// different verified address), so writing it would collapse two accounts onto one
+    /// cross-provider linking key.
+    ///
+    /// The refusal is deliberate and permanent: resolving the collision would mean
+    /// merging, which would carry this account's password credential onto an account it
+    /// could not previously reach. See `local_password::verification`.
+    ///
+    /// Safe to report to the caller: reaching it requires having already proved control
+    /// of the address, so it discloses nothing the caller had not established.
+    #[error("That email address is already verified on another account")]
+    EmailClaimedByAnotherAccount,
+
     /// A local signup was rejected by input validation (malformed email or a password
     /// that violates the length policy).
     ///

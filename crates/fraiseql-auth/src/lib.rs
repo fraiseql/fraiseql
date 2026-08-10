@@ -35,6 +35,7 @@ pub mod saml;
 pub mod security_config;
 pub mod security_init;
 pub mod session;
+pub mod session_bearer;
 pub mod session_postgres;
 pub mod session_state;
 pub mod state_encryption;
@@ -49,6 +50,10 @@ mod error_sanitization_tests;
 
 #[cfg(test)]
 mod constant_time_tests;
+
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#[cfg(test)]
+mod session_bearer_tests;
 
 #[cfg(test)]
 mod state_encryption_tests;
@@ -86,9 +91,13 @@ pub use handlers::{
 pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use local_password::{
-    LocalPasswordAuthenticator, PASSWORD_RESET_SCHEMA_SQL, PASSWORD_SCHEMA_SQL,
-    RESET_TOKEN_TTL_SECS, ResetEmailSender,
-    routes::{LocalPasswordRouteState, local_password_routes},
+    EMAIL_VERIFICATION_SCHEMA_SQL, EMAIL_VERIFICATION_TOKEN_TTL_SECS, EmailVerified,
+    LocalPasswordAuthenticator, PASSWORD_RESET_SCHEMA_SQL, PASSWORD_SCHEMA_SQL, PromotionDecision,
+    RESET_TOKEN_TTL_SECS, ResetEmailSender, VerificationEmailSender, decide_promotion,
+    routes::{
+        EmailVerificationRouteState, LocalPasswordRouteState, email_verification_routes,
+        local_password_routes,
+    },
 };
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
@@ -138,6 +147,7 @@ pub use security_init::{
     validate_security_config,
 };
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
+pub use session_bearer::SessionBearerAuthenticator;
 pub use session_postgres::PostgresSessionStore;
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
