@@ -1378,6 +1378,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Email verification for local-password accounts (#945).** FraiseQL could only *consume*
+  a verification claim someone else asserted — a trusted provider's `email_verified`, or a
+  completed email OTP. A local password signup passes `email_verified = false` (deliberately
+  fail-closed, so it keys on `(local, email)` and can never auto-merge), which meant
+  `core.tb_user.email` stayed `NULL` forever: the account could never *become* verified, and
+  the same person's password and Google sign-ins were two accounts with no way to join them.
+
+  `[auth.local] email_verification = true` mounts `POST /auth/v1/email/verify/start` and
+  `.../confirm`, backed by `core.tb_email_verification_token` on the selector + verifier
+  discipline password reset already uses (plaintext selector indexed, `sha256(verifier)`
+  stored, single-use under an atomic guard, one-hour TTL) plus one column reset does not
+  have: the address the link was mailed to, so confirmation promotes exactly the mailbox
+  that was proved. Delivery goes through the `[auth.local] email_from` mailbox; the link is
+  built from a new required `verification_url_template` (`{token}`), and a config that
+  enables verification without `password = true`, without `email_from`, or without the
+  template is refused by the compiler and again at boot.
+
+  **Both halves are required to confirm.** The routes are the only ones in this group that
+  need an authenticated caller: the token proves control of the mailbox, the session proves
+  ownership of the account, and the token's subject must equal the caller's `user_id`. That
+  is what closes the confused-deputy shape — signup for an arbitrary address is open by
+  design, so an attacker can seed a local account under `victim@example.com` and cause a
+  verification mail to land in the victim's inbox; a victim who clicks it is not
+  authenticated as the attacker, so nothing happens. A token presented by any other account
+  is rejected exactly like a forged one.
+
+  **Confirmation promotes; it never merges.** The proved address is written to the caller's
+  own user row, which is what puts the account in the cross-provider `email:<normalized>`
+  key space — so a later trusted social sign-in for the same address links into it through
+  the ordinary `link_or_create_user` path, one account, no new merge machinery. If another
+  account already holds that verified address, confirmation refuses with the new
+  `AuthError::EmailClaimedByAnotherAccount` (`409`) and changes nothing. The issue asked for
+  a merge there; a merge would move this account's password credential onto an account it
+  could not previously reach, which combined with open signup completes an account-takeover
+  chain needing the mailed code only once. The `TrustedEmailProviders` pre-hijack invariant
+  is re-proved for the new path in **both** directions against real PostgreSQL, and each
+  guard was verified by reverting it alone and watching the matching assertion fail.
+
 - **Sign in with Apple (#943).** `[auth.social.apple]` completes the third provider the
   `[auth.social]` umbrella (#368) named, and it is the one that could not have been a copy
   of the Google client. Apple's client secret is an **ES256 assertion**, not a stored

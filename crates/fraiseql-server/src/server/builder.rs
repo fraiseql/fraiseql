@@ -527,10 +527,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .await?
             },
             None => crate::auth_local::LocalAuthStates {
-                otp:      None,
-                mfa:      None,
-                password: None,
-                anon:     None,
+                otp:                None,
+                mfa:                None,
+                password:           None,
+                anon:               None,
+                email_verification: None,
             },
         };
 
@@ -712,6 +713,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             otp_state: local_auth.otp,
             #[cfg(feature = "auth")]
             local_password_state: local_auth.password,
+            #[cfg(feature = "auth")]
+            email_verification_state: local_auth.email_verification,
             #[cfg(feature = "auth")]
             session_state,
             async_operations,

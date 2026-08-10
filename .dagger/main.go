@@ -779,6 +779,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-auth --test local_password -- --test-threads=1",
 		// #367 password reset (selector+verifier tokens, single-use, expiry, RLS).
 		"cargo test -p fraiseql-auth --test password_reset -- --test-threads=1",
+		// #945 email verification: the token discipline, the session binding that makes a
+		// token alone insufficient, and the BIDIRECTIONAL pre-hijack invariant — neither a
+		// pre-seeded unverified local account nor a later-verified one may absorb a trusted
+		// account holding the same address.
+		"cargo test -p fraiseql-auth --test email_verification -- --test-threads=1",
 		// #368 social auto-link trust policy ∘ PostgresAccountStore (trusted vs untrusted → merge vs distinct).
 		"cargo test -p fraiseql-auth --test social_linking -- --test-threads=1",
 		// #984 single-use consume of OTP codes / MFA challenge tokens: a BEFORE DELETE

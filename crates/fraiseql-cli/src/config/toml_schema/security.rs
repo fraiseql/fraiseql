@@ -368,12 +368,39 @@ impl OidcClientConfig {
                      password / otp / mfa / anonymous, or remove the block."
                 );
             }
-            if (local.otp || local.password) && local.email_from.is_none() {
+            // #945: verification proves the address a *local* identity claims. Without
+            // password auth there is no local identity, so the routes would mount over
+            // nothing — the accepted-and-unconsumed shape, refused at the file being
+            // edited rather than discovered at runtime.
+            if local.email_verification && !local.password {
                 anyhow::bail!(
-                    "[auth.local] enables {} but sets no email_from. Both flows deliver mail \
-                     (OTP codes, reset links); name the [mailbox.<name>] account whose SMTP \
-                     half should send them.",
-                    if local.otp { "otp" } else { "password" }
+                    "[auth.local] email_verification = true needs password = true: \
+                     verification proves the address a local password identity claims, and \
+                     there is no such identity without it."
+                );
+            }
+            if local.email_verification && local.verification_url_template.is_none() {
+                anyhow::bail!(
+                    "[auth.local] email_verification = true needs verification_url_template \
+                     — the verification link points at your front end, which FraiseQL cannot \
+                     guess. Example: verification_url_template = \
+                     \"https://app.example.com/verify-email?token={{token}}\""
+                );
+            }
+            if (local.otp || local.password || local.email_verification)
+                && local.email_from.is_none()
+            {
+                anyhow::bail!(
+                    "[auth.local] enables {} but sets no email_from. These flows deliver mail \
+                     (OTP codes, reset links, verification links); name the [mailbox.<name>] \
+                     account whose SMTP half should send them.",
+                    if local.otp {
+                        "otp"
+                    } else if local.password {
+                        "password"
+                    } else {
+                        "email_verification"
+                    }
                 );
             }
             if local.password && local.reset_url_template.is_none() {
@@ -386,6 +413,7 @@ impl OidcClientConfig {
             for (field, template, placeholder) in [
                 ("reset_url_template", local.reset_url_template.as_ref(), "{token}"),
                 ("magic_link_template", local.magic_link_template.as_ref(), "{code}"),
+                ("verification_url_template", local.verification_url_template.as_ref(), "{token}"),
             ] {
                 if let Some(t) = template {
                     if !t.contains(placeholder) {

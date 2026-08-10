@@ -13,6 +13,8 @@
 //! - `MFA`: enroll → confirm → challenge → verify against the **`Postgres`** store, and the
 //!   enrollment survives a full server restart (the whole reason that store exists)
 //! - anonymous: `POST /auth/v1/signup` mints a guest session only when enabled
+//! - email verification (#945): signup → authenticated start → the link this server actually mailed
+//!   → confirm → the account is promoted to verified, plus the 401/422 refusals
 //! - the mounted set matches the enabled set: a disabled method 404s
 //!
 //! Mail delivery is exercised through a capturing `EmailDelivery` in the `OTP` case
@@ -25,7 +27,11 @@
 //! **Parallelism:** creates and drops its own `fraiseql_p26_local_*` databases →
 //! run `--test-threads=1`.
 #![cfg(feature = "auth")]
-#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+// Reason: test code — panics and skip diagnostics are acceptable
+// Reason: `{token}` / `{code}` in the URL templates are FraiseQL's own placeholders, which
+// the server substitutes — not Rust format arguments.
+#![allow(clippy::literal_string_with_formatting_args)]
 
 use std::sync::Arc;
 
@@ -641,6 +647,8 @@ async fn only_enabled_methods_are_mounted() {
         "/auth/v1/verify",
         "/auth/v1/mfa/enroll",
         "/auth/v1/mfa/challenge",
+        "/auth/v1/email/verify/start",
+        "/auth/v1/email/verify/confirm",
     ] {
         let (status, _) = post_json(base, path, serde_json::json!({})).await;
         assert_eq!(
@@ -651,5 +659,451 @@ async fn only_enabled_methods_are_mounted() {
     }
 
     server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+// ── #945: email verification through the shipped mount ───────────────────────
+
+/// A minimal capturing SMTP server: enough of the protocol for `lettre`'s
+/// plaintext relay to complete a send, and nothing more.
+///
+/// The other tests here point the mailbox at a discard port and read what the
+/// server *stored*. Verification cannot work that way — only the token's SHA-256
+/// is persisted, so the sole place the usable token exists is the delivered
+/// message. Capturing it is what makes this an end-to-end proof rather than a
+/// re-assertion of the library test: the link the operator's user clicks is the
+/// link built from `verification_url_template` by the server's own sender.
+#[cfg(feature = "inbound-email")]
+struct CapturingSmtp {
+    port:     u16,
+    captured: Arc<std::sync::Mutex<Vec<String>>>,
+    shutdown: tokio::sync::oneshot::Sender<()>,
+}
+
+#[cfg(feature = "inbound-email")]
+impl CapturingSmtp {
+    async fn start() -> Self {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+        let listener =
+            tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind SMTP sink port");
+        let port = listener.local_addr().expect("sink addr").port();
+        let captured = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        let (tx, mut rx) = tokio::sync::oneshot::channel::<()>();
+
+        tokio::spawn(async move {
+            loop {
+                let stream = tokio::select! {
+                    accepted = listener.accept() => match accepted {
+                        Ok((stream, _)) => stream,
+                        Err(_) => break,
+                    },
+                    _ = &mut rx => break,
+                };
+                let sink = Arc::clone(&sink);
+                tokio::spawn(async move {
+                    let (read_half, mut write) = stream.into_split();
+                    let mut reader = BufReader::new(read_half);
+                    let mut line = String::new();
+                    if write.write_all(b"220 localhost ESMTP sink\r\n").await.is_err() {
+                        return;
+                    }
+                    loop {
+                        line.clear();
+                        match reader.read_line(&mut line).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(_) => {},
+                        }
+                        let command = line.trim_end().to_ascii_uppercase();
+                        let reply: &[u8] = if command.starts_with("EHLO")
+                            || command.starts_with("HELO")
+                        {
+                            // AUTH must be advertised: the transport is built with
+                            // credentials, and lettre refuses to send without a
+                            // mechanism it recognizes.
+                            b"250-localhost\r\n250-AUTH PLAIN LOGIN\r\n250 8BITMIME\r\n"
+                        } else if command.starts_with("AUTH") {
+                            b"235 2.7.0 accepted\r\n"
+                        } else if command.starts_with("MAIL FROM")
+                            || command.starts_with("RCPT TO")
+                            || command.starts_with("RSET")
+                        {
+                            b"250 2.1.0 ok\r\n"
+                        } else if command.starts_with("DATA") {
+                            if write.write_all(b"354 end with <CRLF>.<CRLF>\r\n").await.is_err() {
+                                return;
+                            }
+                            let mut body = String::new();
+                            loop {
+                                line.clear();
+                                match reader.read_line(&mut line).await {
+                                    Ok(0) | Err(_) => return,
+                                    Ok(_) => {},
+                                }
+                                if line.trim_end() == "." {
+                                    break;
+                                }
+                                body.push_str(&line);
+                            }
+                            sink.lock().unwrap().push(body);
+                            b"250 2.0.0 queued\r\n"
+                        } else if command.starts_with("QUIT") {
+                            let _ = write.write_all(b"221 2.0.0 bye\r\n").await;
+                            return;
+                        } else {
+                            b"250 2.0.0 ok\r\n"
+                        };
+                        if write.write_all(reply).await.is_err() {
+                            return;
+                        }
+                    }
+                });
+            }
+        });
+
+        Self {
+            port,
+            captured,
+            shutdown: tx,
+        }
+    }
+
+    /// Wait for one delivered message and return its body.
+    async fn next_message(&self) -> String {
+        for _ in 0..200 {
+            // Bound the guard to a statement: holding it across the match arm would
+            // keep the mutex locked while the sink thread wants it.
+            let delivered = self.captured.lock().unwrap().first().cloned();
+            if let Some(message) = delivered {
+                return message;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        panic!("no message was delivered to the SMTP sink within 5s");
+    }
+
+    fn stop(self) {
+        let _ = self.shutdown.send(());
+    }
+}
+
+/// A `[mailbox.support]` whose SMTP half points at the capturing sink.
+#[cfg(feature = "inbound-email")]
+fn capturing_mailbox(
+    port: u16,
+) -> std::collections::HashMap<String, fraiseql_server::inbound::email::MailboxConfig> {
+    let mut mailbox = unreachable_mailbox();
+    if let Some(entry) = mailbox.get_mut("support") {
+        if let Some(smtp) = entry.smtp.as_mut() {
+            smtp.port = port;
+        }
+    }
+    mailbox
+}
+
+/// Boot with a mailbox that actually delivers, so the mailed link can be read back.
+#[cfg(feature = "inbound-email")]
+async fn boot_with_smtp(
+    local: LocalAuthConfig,
+    pool: PgPool,
+    scratch_url: &str,
+    smtp_port: u16,
+) -> RunningServer {
+    let adapter = Arc::new(PostgresAdapter::new(scratch_url).await.expect("PostgresAdapter::new"));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
+    let port = listener.local_addr().expect("local addr").port();
+    let config = ServerConfig {
+        mailbox: capturing_mailbox(smtp_port),
+        ..local_config(scratch_url)
+    };
+    let server = Box::pin(Server::new(config, local_schema(local), adapter, Some(pool)))
+        .await
+        .expect("Server::new with [auth.local] email_verification must succeed");
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        let _ = server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await;
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    RunningServer {
+        base: format!("http://127.0.0.1:{port}"),
+        shutdown: tx,
+        handle,
+    }
+}
+
+/// POST with a bearer session token.
+#[cfg(feature = "inbound-email")]
+async fn post_authed(
+    base: &str,
+    path: &str,
+    token: &str,
+    body: serde_json::Value,
+) -> (reqwest::StatusCode, serde_json::Value) {
+    let resp = reqwest::Client::new()
+        .post(format!("{base}{path}"))
+        .bearer_auth(token)
+        .json(&body)
+        .send()
+        .await
+        .expect("request");
+    let status = resp.status();
+    let json = resp.json().await.unwrap_or(serde_json::Value::Null);
+    (status, json)
+}
+
+/// Decode the quoted-printable body lettre sends.
+///
+/// Not decorative: the link contains `?token=`, and quoted-printable renders that
+/// `=` as `=3D`, so a naive substring search finds the prefix and then reads a
+/// corrupted token. Soft line breaks (`=` at end of line) also split the token
+/// across lines.
+#[cfg(feature = "inbound-email")]
+fn decode_quoted_printable(body: &str) -> String {
+    let bytes = body.replace("=\r\n", "").replace("=\n", "").into_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'=' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("");
+            if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).expect("decoded body is UTF-8")
+}
+
+/// Pull the `{token}` value out of the verification link the server mailed.
+#[cfg(feature = "inbound-email")]
+fn token_from_message(message: &str, template_prefix: &str) -> String {
+    let decoded = decode_quoted_printable(message);
+    let start = decoded
+        .find(template_prefix)
+        .unwrap_or_else(|| panic!("verification link not found in message:\n{decoded}"))
+        + template_prefix.len();
+    let rest = &decoded[start..];
+    let end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
+    urlencoding::decode(&rest[..end])
+        .expect("token is percent-decodable")
+        .into_owned()
+}
+
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn email_verification_start_confirm_promotes_the_account() {
+    let Some(url) = database_url_or_skip("email_verification_start_confirm") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_verify";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let smtp = CapturingSmtp::start().await;
+    let server = boot_with_smtp(
+        LocalAuthConfig {
+            password: true,
+            email_verification: true,
+            email_from: Some("support".to_string()),
+            reset_url_template: Some("https://app.example.com/reset?token={token}".to_string()),
+            verification_url_template: Some(
+                "https://app.example.com/verify-email?token={token}".to_string(),
+            ),
+            ..LocalAuthConfig::default()
+        },
+        pool.clone(),
+        &scratch_url,
+        smtp.port,
+    )
+    .await;
+    let base = &server.base;
+
+    // Sign up: a local account starts unverified, by design.
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/password/signup",
+        serde_json::json!({ "email": "dave@example.com", "password": "correct horse battery" }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "signup must succeed: {body}");
+    let access = body["access_token"].as_str().expect("access_token").to_string();
+    let user_id = jwt_sub(&access);
+    let verified_email = |pool: PgPool, user_id: String| async move {
+        sqlx::query_scalar::<_, Option<String>>("SELECT email FROM core.tb_user WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("user row")
+    };
+    assert_eq!(
+        verified_email(pool.clone(), user_id.clone()).await,
+        None,
+        "a fresh local signup is unverified"
+    );
+
+    // Unauthenticated start is refused: these routes act on the caller's account,
+    // so there is no caller-less form of them.
+    let (status, _) = post_json(base, "/auth/v1/email/verify/start", serde_json::json!({})).await;
+    assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "start needs a session");
+    let (status, _) = post_json(
+        base,
+        "/auth/v1/email/verify/confirm",
+        serde_json::json!({ "token": "whatever" }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "confirm needs a session");
+
+    // Authenticated start mails the link.
+    let (status, body) =
+        post_authed(base, "/auth/v1/email/verify/start", &access, serde_json::json!({})).await;
+    assert_eq!(status, reqwest::StatusCode::ACCEPTED, "start must be accepted: {body}");
+
+    let message = smtp.next_message().await;
+    assert!(message.contains("dave@example.com"), "addressed to the account's own address");
+    let token = token_from_message(&message, "https://app.example.com/verify-email?token=");
+    assert!(token.contains('.'), "the mailed token is selector.verifier: {token}");
+
+    // A token issued to this account, presented by a *different* account, is
+    // rejected exactly like a forged one — the confused-deputy refusal, over HTTP.
+    let (status, body) = post_json(
+        base,
+        "/auth/v1/password/signup",
+        serde_json::json!({ "email": "erin@example.com", "password": "correct horse battery" }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "second signup: {body}");
+    let other_access = body["access_token"].as_str().expect("access_token").to_string();
+    let (status, body) = post_authed(
+        base,
+        "/auth/v1/email/verify/confirm",
+        &other_access,
+        serde_json::json!({ "token": token }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        reqwest::StatusCode::UNPROCESSABLE_ENTITY,
+        "another account must not spend this token: {body}"
+    );
+    assert_eq!(
+        verified_email(pool.clone(), user_id.clone()).await,
+        None,
+        "and nothing was promoted"
+    );
+
+    // The owner confirms: the account is promoted to verified.
+    let (status, body) = post_authed(
+        base,
+        "/auth/v1/email/verify/confirm",
+        &access,
+        serde_json::json!({ "token": token }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "confirm must succeed: {body}");
+    assert_eq!(body["verified"], serde_json::json!(true), "{body}");
+    assert_eq!(body["email"], serde_json::json!("dave@example.com"), "{body}");
+    assert_eq!(
+        verified_email(pool.clone(), user_id.clone()).await.as_deref(),
+        Some("dave@example.com"),
+        "the address is now on the account's row, where a later social sign-in finds it"
+    );
+
+    // Single-use, over HTTP.
+    let (status, _) = post_authed(
+        base,
+        "/auth/v1/email/verify/confirm",
+        &access,
+        serde_json::json!({ "token": token }),
+    )
+    .await;
+    assert_eq!(status, reqwest::StatusCode::UNPROCESSABLE_ENTITY, "a spent link is dead");
+
+    server.stop().await;
+    smtp.stop();
+    drop_scratch(&url, db).await;
+}
+
+/// `[auth.local] email_verification = true` without `password` refuses to boot:
+/// verification proves the address a *local* identity claims, and there is none.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn email_verification_without_password_refuses_to_boot() {
+    let Some(url) = database_url_or_skip("email_verification_without_password") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_verify_nopw";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+    let err = Box::pin(Server::new(
+        local_config(&scratch_url),
+        local_schema(LocalAuthConfig {
+            email_verification: true,
+            email_from: Some("support".to_string()),
+            verification_url_template: Some(
+                "https://app.example.com/verify-email?token={token}".to_string(),
+            ),
+            ..LocalAuthConfig::default()
+        }),
+        adapter,
+        Some(pool),
+    ))
+    .await
+    .err()
+    .unwrap_or_else(|| panic!("email_verification without password must refuse to boot"));
+    let message = err.to_string();
+    assert!(
+        message.contains("email_verification") && message.contains("password"),
+        "the refusal must name both keys: {message}"
+    );
+
+    drop_scratch(&url, db).await;
+}
+
+/// A verification-enabled config with no `verification_url_template` refuses to
+/// boot rather than mailing a bare token or a dead link.
+#[cfg(feature = "inbound-email")]
+#[tokio::test]
+async fn email_verification_without_a_link_template_refuses_to_boot() {
+    let Some(url) = database_url_or_skip("email_verification_without_template") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_local_verify_notpl";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+    let err = Box::pin(Server::new(
+        local_config(&scratch_url),
+        local_schema(LocalAuthConfig {
+            password: true,
+            email_verification: true,
+            email_from: Some("support".to_string()),
+            reset_url_template: Some("https://app.example.com/reset?token={token}".to_string()),
+            ..LocalAuthConfig::default()
+        }),
+        adapter,
+        Some(pool),
+    ))
+    .await
+    .err()
+    .unwrap_or_else(|| panic!("email_verification without a link template must refuse to boot"));
+    assert!(
+        err.to_string().contains("verification_url_template"),
+        "the refusal must name the missing key: {err}"
+    );
+
     drop_scratch(&url, db).await;
 }
