@@ -295,6 +295,7 @@ fn trusted_can_be_emptied_down_to_none_via_builder() {
     let trusted = TrustedEmailProviders::default()
         .distrust("google")
         .distrust("apple")
-        .distrust("github");
+        .distrust("github")
+        .distrust("discord");
     assert!(trusted.is_empty());
 }

@@ -214,6 +214,59 @@ fn the_apple_provider_compiles_with_its_assertion_key_material() {
     assert!(apple.base_url.is_none(), "no override configured");
 }
 
+/// #944: Discord and Facebook reach the compiled schema, Facebook carrying the
+/// Graph API version that Meta's deprecation schedule makes configuration
+/// rather than a constant.
+#[test]
+fn the_discord_and_facebook_providers_compile_with_their_overrides() {
+    let mut f = NamedTempFile::new().unwrap();
+    f.write_all(
+        br#"
+        [schema]
+        name = "app"
+
+        [types.User]
+        sql_source = "v_user"
+
+        [auth.social.discord]
+        client_id         = "discord-client-id"
+        client_secret_env = "DISCORD_CLIENT_SECRET"
+        redirect_uri      = "https://api.example.com/auth/v1/callback"
+
+        [auth.social.facebook]
+        client_id         = "facebook-client-id"
+        client_secret_env = "FACEBOOK_CLIENT_SECRET"
+        redirect_uri      = "https://api.example.com/auth/v1/callback"
+        api_version       = "v23.0"
+    "#,
+    )
+    .unwrap();
+    f.flush().unwrap();
+
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let social = compiled
+        .auth
+        .as_ref()
+        .and_then(|a| a.social.as_ref())
+        .expect("compiled auth must carry the social group");
+
+    let discord = social.discord.as_ref().expect("discord provider must be compiled");
+    assert_eq!(discord.client_id, "discord-client-id");
+    assert_eq!(discord.client_secret_env, "DISCORD_CLIENT_SECRET");
+    assert!(discord.base_url.is_none(), "no override configured");
+
+    let facebook = social.facebook.as_ref().expect("facebook provider must be compiled");
+    assert_eq!(facebook.client_id, "facebook-client-id");
+    assert_eq!(facebook.client_secret_env, "FACEBOOK_CLIENT_SECRET");
+    assert_eq!(
+        facebook.api_version.as_deref(),
+        Some("v23.0"),
+        "the Graph version must survive the seam — Meta deprecates versions on its own schedule"
+    );
+    assert!(facebook.base_url.is_none() && facebook.graph_base_url.is_none());
+}
+
 /// #943: the `.p8` key has exactly one source. Naming both is ambiguous and
 /// naming neither is unusable — each is refused where the operator is editing,
 /// not at server boot.

@@ -534,6 +534,8 @@ fn schema_with_github_social(secret_env: &str) -> CompiledSchema {
                 api_base_url:      None,
             }),
             apple:                  None,
+            discord:                None,
+            facebook:               None,
         }),
     });
     schema

@@ -23,8 +23,8 @@ pub use mutation::{InputStyle, MutationDefinition, MutationOperation};
 pub use query::{CursorType, QueryDefinition};
 pub use schema::{
     AppleSocialConfig, AuthClientConfig, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema,
-    GitHubSocialConfig, GoogleSocialConfig, LocalAuthConfig, PkceClientConfig, SocialAuthConfig,
-    SubscribableEntity,
+    DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig, GoogleSocialConfig,
+    LocalAuthConfig, PkceClientConfig, SocialAuthConfig, SubscribableEntity,
 };
 pub use schema_serde::{canonicalize_json, content_hash_of};
 pub use validation::is_safe_sql_identifier;

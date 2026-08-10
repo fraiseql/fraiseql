@@ -1416,6 +1416,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TrustedEmailProviders` set; Private Relay aliases are verified addresses Apple owns, so
   they key normally and simply never match another provider (correct, not a gap).
 
+- **Discord and Facebook social login (#944).** The last two providers the `[auth.social]`
+  umbrella (#368) named. Both are plain OAuth2 on the GitHub template — fixed well-known
+  endpoints, network-free construction, SSRF-guarded base-URL overrides — and each one's
+  interesting question is what it can honestly say about an email address.
+
+  **Discord** carries `email` and `verified` on the same user object, with no second hop.
+  The provider *reads* that flag rather than assuming it: an unverified address arrives at
+  the callback as unverified and keys on `(discord, id)`, so it cannot collapse into an
+  existing email-keyed account. Only because that check exists is **`discord` now in the
+  default `TrustedEmailProviders` set** — the trust and the check ship together, and a
+  deployment that wants neither can drop it with `.distrust("discord")`.
+
+  **Facebook** may return no `email` at all (a phone-number-only account, or a declined
+  permission) and publishes **no verification flag whatsoever**. There is nothing to gate on,
+  so the provider reports `email_verified = false` unconditionally and `facebook` is
+  deliberately absent from the default trusted set — two independent reasons its address can
+  never become a linking key. The Graph API version lives in the request path and Meta
+  deprecates versions on its own schedule, so `api_version` is configuration (default
+  `v21.0`) rather than a constant that would break on Meta's timetable; a value carrying a
+  path separator is refused, since it would re-point the request.
+
+  The two belts made a test-design point worth recording: setting Facebook's
+  `email_verified` to `true` leaves the *end-to-end* test green, because the trust gate
+  downgrades it anyway. Each half therefore has its own test — a stub-backed `user_info`
+  case for the provider's claim, and a trust-set case for the gate.
+
 - **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one
   or more `[[cdc_outbound.sinks]]` now makes the server drain
   `core.tb_entity_change_log` to a broker on its own task set, behind the new

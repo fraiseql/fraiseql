@@ -268,11 +268,15 @@ impl OidcClientConfig {
         // provider's fields must be non-empty — an empty block or blank
         // client_id would compile into a registry that can never serve a login.
         if let Some(social) = &self.social {
-            if social.google.is_none() && social.github.is_none() && social.apple.is_none() {
+            if social.google.is_none()
+                && social.github.is_none()
+                && social.apple.is_none()
+                && social.discord.is_none()
+                && social.facebook.is_none()
+            {
                 anyhow::bail!(
                     "[auth.social] is configured but names no provider. Add an \
-                     [auth.social.google], [auth.social.github] or [auth.social.apple] block \
-                     (Discord/Facebook are not implemented and are refused as unknown fields)."
+                     [auth.social.{{google,github,apple,discord,facebook}}] block."
                 );
             }
             // #943: Apple has no client_secret_env — the client secret is an
@@ -321,6 +325,26 @@ impl OidcClientConfig {
                         ("team_id", &a.team_id),
                         ("key_id", &a.key_id),
                         ("redirect_uri", &a.redirect_uri),
+                    ],
+                ));
+            }
+            if let Some(d) = social.discord.as_ref() {
+                providers.push((
+                    "discord",
+                    vec![
+                        ("client_id", &d.client_id),
+                        ("client_secret_env", &d.client_secret_env),
+                        ("redirect_uri", &d.redirect_uri),
+                    ],
+                ));
+            }
+            if let Some(f) = social.facebook.as_ref() {
+                providers.push((
+                    "facebook",
+                    vec![
+                        ("client_id", &f.client_id),
+                        ("client_secret_env", &f.client_secret_env),
+                        ("redirect_uri", &f.redirect_uri),
                     ],
                 ));
             }

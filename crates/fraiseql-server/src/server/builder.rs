@@ -1141,6 +1141,42 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             })?;
             providers.push(("apple", Arc::new(provider)));
         }
+        if let Some(d) = &social.discord {
+            let secret = read_secret("discord", &d.client_secret_env)?;
+            let provider = fraiseql_auth::DiscordOAuth::with_base_url(
+                d.client_id.clone(),
+                secret,
+                d.redirect_uri.clone(),
+                d.base_url.clone().unwrap_or_else(|| "https://discord.com".to_string()),
+            )
+            .map_err(|e| {
+                ServerError::ConfigError(format!(
+                    "[auth.social.discord] provider construction failed: {e}"
+                ))
+            })?;
+            providers.push(("discord", Arc::new(provider)));
+        }
+        if let Some(f) = &social.facebook {
+            let secret = read_secret("facebook", &f.client_secret_env)?;
+            let provider = fraiseql_auth::FacebookOAuth::with_endpoints(
+                f.client_id.clone(),
+                secret,
+                f.redirect_uri.clone(),
+                f.base_url.clone().unwrap_or_else(|| "https://www.facebook.com".to_string()),
+                f.graph_base_url
+                    .clone()
+                    .unwrap_or_else(|| "https://graph.facebook.com".to_string()),
+                f.api_version.clone().unwrap_or_else(|| {
+                    fraiseql_auth::providers::facebook::DEFAULT_API_VERSION.to_string()
+                }),
+            )
+            .map_err(|e| {
+                ServerError::ConfigError(format!(
+                    "[auth.social.facebook] provider construction failed: {e}"
+                ))
+            })?;
+            providers.push(("facebook", Arc::new(provider)));
+        }
         if providers.is_empty() {
             // The CLI refuses this at compile time; belt-and-braces for
             // programmatically constructed schemas.

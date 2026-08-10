@@ -318,11 +318,18 @@ fn identity_key(verified_email: Option<&str>, provider: &str, provider_id: &str)
 /// - `github` — the provider resolves the **primary verified** email via the `/user/emails` second
 ///   hop (#368) and reports `email_verified = true` only for an address GitHub itself has verified;
 ///   any failure of that hop fails closed to `false`.
+/// - `discord` — Discord verifies email ownership at signup and reports the outcome as `verified`
+///   on the user object, which [`crate::DiscordOAuth`] reads rather than assumes (#944); an absent
+///   flag is `false`. The trust is warranted only because that check exists, so the two must not be
+///   separated.
 ///
 /// Deliberately **excluded** from the default (opt in explicitly once vetted):
 ///
 /// - `azure_ad` / Microsoft — the `email` claim is **not** reliably verified and is tenant-mutable
 ///   (the *nOAuth* class, 2023), so it must not auto-link by default.
+/// - `facebook` — Facebook publishes **no** verification signal at all, and the address may be
+///   absent entirely (#944). There is nothing to trust, so the provider reports `email_verified =
+///   false` unconditionally and every Facebook identity keys on `(facebook, id)`.
 /// - any generic/custom OIDC provider — FraiseQL cannot vouch for an operator-run IdP.
 ///
 /// # Overriding (up *and* down)
@@ -352,12 +359,12 @@ pub struct TrustedEmailProviders {
 }
 
 impl TrustedEmailProviders {
-    /// The built-in default trusted set: `google`, `apple`, and `github` (see the
-    /// type docs for the per-provider rationale). Equivalent to
-    /// [`TrustedEmailProviders::default`].
+    /// The built-in default trusted set: `google`, `apple`, `github` and
+    /// `discord` (see the type docs for the per-provider rationale). Equivalent
+    /// to [`TrustedEmailProviders::default`].
     #[must_use]
     pub fn builtin_default() -> Self {
-        Self::only(["google", "apple", "github"])
+        Self::only(["google", "apple", "github", "discord"])
     }
 
     /// Trust **no** provider. Every social identity is keyed on `(provider, provider_id)`
