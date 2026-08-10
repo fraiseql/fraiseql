@@ -141,8 +141,43 @@ fn toml_auth_social_group_carries_through_to_compiled_schema() {
 
 #[test]
 fn an_unimplemented_social_provider_is_refused_at_compile_time() {
-    // #368: [auth.social.apple] has no provider implementation. The block must
-    // refuse to compile rather than be silently accepted and never served.
+    // #368: a provider key with no implementation must refuse to compile rather
+    // than be silently accepted and never served. (`apple` used to be the case
+    // in point; #943 implemented it, so the guarantee is pinned on a key that
+    // is not a provider at all.)
+    let mut f = NamedTempFile::new().unwrap();
+    f.write_all(
+        br#"
+        [schema]
+        name = "app"
+
+        [types.User]
+        sql_source = "v_user"
+
+        [auth.social.myspace]
+        client_id         = "myspace-client-id"
+        client_secret_env = "MYSPACE_CLIENT_SECRET"
+        redirect_uri      = "https://api.example.com/auth/v1/callback"
+    "#,
+    )
+    .unwrap();
+    f.flush().unwrap();
+
+    let err = SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
+        .err()
+        .map(|e| format!("{e:#}"))
+        .expect("[auth.social.myspace] must be refused, not silently dropped");
+    assert!(
+        err.contains("myspace"),
+        "the refusal must name the unsupported provider key: {err}"
+    );
+}
+
+/// #943: `[auth.social.apple]` reaches the compiled schema with the fields
+/// Apple actually needs — no `client_secret_env`, because Apple's client secret
+/// is an assertion the runtime signs rather than a string it reads.
+#[test]
+fn the_apple_provider_compiles_with_its_assertion_key_material() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
@@ -153,22 +188,74 @@ fn an_unimplemented_social_provider_is_refused_at_compile_time() {
         sql_source = "v_user"
 
         [auth.social.apple]
-        client_id         = "apple-client-id"
-        client_secret_env = "APPLE_CLIENT_SECRET"
-        redirect_uri      = "https://api.example.com/auth/v1/callback"
+        client_id       = "com.example.service"
+        team_id         = "TEAM123456"
+        key_id          = "KEY7890AB"
+        private_key_env = "APPLE_SIGNIN_P8"
+        redirect_uri    = "https://api.example.com/auth/v1/callback"
     "#,
     )
     .unwrap();
     f.flush().unwrap();
 
-    let err = SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
-        .err()
-        .map(|e| format!("{e:#}"))
-        .expect("[auth.social.apple] must be refused, not silently dropped");
-    assert!(
-        err.contains("apple"),
-        "the refusal must name the unsupported provider key: {err}"
-    );
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let apple = compiled
+        .auth
+        .as_ref()
+        .and_then(|a| a.social.as_ref())
+        .and_then(|s| s.apple.as_ref())
+        .expect("apple provider must be compiled");
+    assert_eq!(apple.client_id, "com.example.service");
+    assert_eq!(apple.team_id, "TEAM123456");
+    assert_eq!(apple.key_id, "KEY7890AB");
+    assert_eq!(apple.private_key_env.as_deref(), Some("APPLE_SIGNIN_P8"));
+    assert!(apple.private_key_path.is_none());
+    assert!(apple.base_url.is_none(), "no override configured");
+}
+
+/// #943: the `.p8` key has exactly one source. Naming both is ambiguous and
+/// naming neither is unusable — each is refused where the operator is editing,
+/// not at server boot.
+#[test]
+fn apple_needs_exactly_one_private_key_source() {
+    let cases = [
+        (
+            "private_key_env = \"A\"\n        private_key_path = \"/tmp/k.p8\"",
+            "names both",
+        ),
+        ("", "needs exactly one"),
+    ];
+    for (key_lines, expected) in cases {
+        let mut f = NamedTempFile::new().unwrap();
+        f.write_all(
+            format!(
+                r#"
+        [schema]
+        name = "app"
+
+        [types.User]
+        sql_source = "v_user"
+
+        [auth.social.apple]
+        client_id    = "com.example.service"
+        team_id      = "TEAM123456"
+        key_id       = "KEY7890AB"
+        redirect_uri = "https://api.example.com/auth/v1/callback"
+        {key_lines}
+    "#
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        f.flush().unwrap();
+
+        let err = SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
+            .err()
+            .map(|e| format!("{e:#}"))
+            .expect("an ambiguous or absent key source must be refused");
+        assert!(err.contains(expected), "expected {expected:?} in: {err}");
+    }
 }
 
 #[test]

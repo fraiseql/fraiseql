@@ -7,7 +7,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{
-    Json,
+    Form, Json,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
@@ -240,6 +240,35 @@ pub struct CallbackQuery {
     pub error:             Option<String>,
     /// Provider error description.
     pub error_description: Option<String>,
+}
+
+/// Form body for `POST /auth/v1/callback` — Apple's `response_mode=form_post`
+/// delivery (#943).
+///
+/// # What is deliberately absent
+///
+/// Apple's form POST also carries an `id_token` field, and its `user` field
+/// carries an `email`. Both arrive in a request **the user's browser makes**, so
+/// both are attacker-chosen: anyone holding a valid `code`/`state` pair from
+/// their own Apple account could post a victim's address and, if it were
+/// honoured, link straight into the victim's account. Neither is modelled here.
+/// The identity — subject, email, and its verified flag — comes only from the
+/// `id_token` the **token endpoint** returns to this server over TLS.
+///
+/// The `user` field's *name* is untrusted display data, and is surfaced as such.
+#[derive(Debug, Deserialize)]
+pub struct CallbackForm {
+    /// Authorization code from the provider.
+    pub code:              Option<String>,
+    /// CSRF state token.
+    pub state:             Option<String>,
+    /// Provider error code.
+    pub error:             Option<String>,
+    /// Provider error description.
+    pub error_description: Option<String>,
+    /// Apple's first-authorization `user` payload, a raw JSON string. Present
+    /// on the first authorization only, and never again.
+    pub user:              Option<String>,
 }
 
 /// Response for `GET /auth/v1/providers`.
@@ -486,10 +515,67 @@ pub async fn authorize(
 ///
 /// Returns `400` if the state is invalid/expired, code is missing, or the provider
 /// returned an error. Returns `502` if the token exchange or user info fetch fails.
-#[allow(clippy::cognitive_complexity)] // Reason: OAuth callback with state validation, token exchange, user info, and session creation
 pub async fn callback(
     State(state): State<Arc<MultiProviderAuthState>>,
     Query(q): Query<CallbackQuery>,
+) -> Response {
+    complete_callback(&state, q, None).await
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/v1/callback
+// ---------------------------------------------------------------------------
+
+/// Complete the OAuth flow when the provider delivers the callback as a form
+/// POST (#943).
+///
+/// Apple uses `response_mode=form_post` whenever the `name`/`email` scopes are
+/// requested, so the callback arrives as a `POST` with a form body rather than
+/// the `GET` every other provider makes. The route is mounted only when a
+/// provider that needs it is configured.
+///
+/// Everything after parsing is the same flow as [`callback`] — same CSRF-state
+/// consumption, same trust gate, same session mint. The only addition is the
+/// first-authorization display name, which is **not** trusted for anything that
+/// resolves an account; see [`CallbackForm`].
+///
+/// # Responses
+///
+/// - `200` JSON `{ access_token, refresh_token?, token_type, expires_in, provider }`, or a `302`
+///   fragment redirect when a `redirect_uri` allow-list is configured (#427).
+/// - `400` — invalid state, missing parameters, or provider error.
+/// - `502` — token exchange with the provider failed.
+pub async fn callback_form_post(
+    State(state): State<Arc<MultiProviderAuthState>>,
+    Form(form): Form<CallbackForm>,
+) -> Response {
+    let display_name = form
+        .user
+        .as_deref()
+        .and_then(crate::providers::apple::AppleFirstAuthUser::parse)
+        .and_then(|u| u.display_name());
+    complete_callback(
+        &state,
+        CallbackQuery {
+            code:              form.code,
+            state:             form.state,
+            error:             form.error,
+            error_description: form.error_description,
+        },
+        display_name,
+    )
+    .await
+}
+
+/// The shared body of both callback shapes.
+///
+/// `first_auth_name` is untrusted display data from a form-POST provider (see
+/// [`CallbackForm`]); it never participates in resolving an account.
+#[allow(clippy::cognitive_complexity)] // Reason: OAuth callback with state validation, token exchange, user info, and session creation
+async fn complete_callback(
+    state: &Arc<MultiProviderAuthState>,
+    q: CallbackQuery,
+    first_auth_name: Option<String>,
 ) -> Response {
     // Surface provider errors
     if let Some(err) = q.error {
@@ -544,14 +630,25 @@ pub async fn callback(
         },
     };
 
-    // Get user info from provider
-    let user_info = match provider.user_info(&token_response.access_token).await {
+    // Get user info from the whole token response, not just the access token:
+    // a provider with no userinfo endpoint (Apple) carries the identity in the
+    // `id_token` and nowhere else. Providers that do publish one are unaffected
+    // — the trait default forwards to `user_info(access_token)`.
+    let mut user_info = match provider.user_info_from_tokens(&token_response).await {
         Ok(u) => u,
         Err(e) => {
             tracing::error!(error = %e, "user info fetch failed");
             return json_error(StatusCode::BAD_GATEWAY, "failed to retrieve user information");
         },
     };
+
+    // A first-authorization display name, if the provider sent one and the
+    // provider itself did not supply a name. Display data only — the account is
+    // resolved from `user_info.id` and `user_info.email` below, neither of
+    // which this can touch.
+    if user_info.name.is_none() {
+        user_info.name = first_auth_name;
+    }
 
     // #368: gate the provider's email-verified claim on the trust policy. An untrusted
     // provider's `email_verified = true` is downgraded to unverified so it can never

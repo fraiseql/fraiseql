@@ -490,6 +490,11 @@ pub struct SocialAuthConfig {
     /// `GitHub` `OAuth2` social login (non-`OIDC`; fixed well-known endpoints).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub github: Option<GitHubSocialConfig>,
+
+    /// Sign in with `Apple`. Configuring it also mounts the `POST` variant of
+    /// `/auth/v1/callback` that `Apple`'s `response_mode=form_post` requires.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub apple: Option<AppleSocialConfig>,
 }
 
 /// `[auth.social.google]` — `Google` `OIDC` social-login client (#368).
@@ -531,4 +536,41 @@ pub struct GitHubSocialConfig {
     /// Enterprise Server (`https://HOSTNAME/api/v3`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_base_url:      Option<String>,
+}
+
+/// `[auth.social.apple]` — Sign in with `Apple` (#943).
+///
+/// `Apple` has no `client_secret_env`: its client secret is an ES256 assertion
+/// the runtime mints from the `.p8` key over
+/// ([`team_id`](Self::team_id), [`key_id`](Self::key_id),
+/// [`client_id`](Self::client_id)) and re-mints before expiry. Supply the key
+/// through exactly one of [`private_key_env`](Self::private_key_env) or
+/// [`private_key_path`](Self::private_key_path) — naming both, or neither, is a
+/// configuration error rather than a silent preference.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppleSocialConfig {
+    /// The services ID registered with `Apple` (its `OAuth2` `client_id`, and
+    /// the `aud` of every `id_token`).
+    pub client_id:        String,
+    /// `Apple` developer team ID — the client-secret assertion's `iss`.
+    pub team_id:          String,
+    /// Key ID of the `.p8` signing key — the assertion header's `kid`.
+    pub key_id:           String,
+    /// Name of the environment variable holding the `.p8` private key, PEM text
+    /// and all. Mutually exclusive with
+    /// [`private_key_path`](Self::private_key_path).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_key_env:  Option<String>,
+    /// Filesystem path to the `.p8` private key. Mutually exclusive with
+    /// [`private_key_env`](Self::private_key_env).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_key_path: Option<String>,
+    /// This server's `/auth/v1/callback` URL, registered with `Apple`.
+    pub redirect_uri:     String,
+    /// Base URL override (default `https://appleid.apple.com`). This is also
+    /// the issuer every `id_token` must name, so the two move together. The
+    /// runtime's SSRF guards still apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url:         Option<String>,
 }

@@ -268,37 +268,64 @@ impl OidcClientConfig {
         // provider's fields must be non-empty — an empty block or blank
         // client_id would compile into a registry that can never serve a login.
         if let Some(social) = &self.social {
-            if social.google.is_none() && social.github.is_none() {
+            if social.google.is_none() && social.github.is_none() && social.apple.is_none() {
                 anyhow::bail!(
                     "[auth.social] is configured but names no provider. Add an \
-                     [auth.social.google] or [auth.social.github] block (Apple/Discord/Facebook \
-                     are not implemented and are refused as unknown fields)."
+                     [auth.social.google], [auth.social.github] or [auth.social.apple] block \
+                     (Discord/Facebook are not implemented and are refused as unknown fields)."
                 );
             }
-            let providers = [
-                (
+            // #943: Apple has no client_secret_env — the client secret is an
+            // ES256 assertion the runtime signs with the `.p8` key. Exactly one
+            // key source, refused at compile time so the operator hears it at
+            // the file they are editing rather than at server boot.
+            if let Some(apple) = &social.apple {
+                match (&apple.private_key_env, &apple.private_key_path) {
+                    (Some(_), None) | (None, Some(_)) => {},
+                    (Some(_), Some(_)) => anyhow::bail!(
+                        "[auth.social.apple] names both private_key_env and private_key_path — \
+                         set exactly one."
+                    ),
+                    (None, None) => anyhow::bail!(
+                        "[auth.social.apple] needs exactly one of private_key_env / \
+                         private_key_path: the .p8 key is what signs the client-secret assertion."
+                    ),
+                }
+            }
+            let mut providers: Vec<(&str, Vec<(&str, &String)>)> = Vec::new();
+            if let Some(g) = social.google.as_ref() {
+                providers.push((
                     "google",
-                    social.google.as_ref().map(|g| {
-                        [
-                            ("client_id", &g.client_id),
-                            ("client_secret_env", &g.client_secret_env),
-                            ("redirect_uri", &g.redirect_uri),
-                        ]
-                    }),
-                ),
-                (
+                    vec![
+                        ("client_id", &g.client_id),
+                        ("client_secret_env", &g.client_secret_env),
+                        ("redirect_uri", &g.redirect_uri),
+                    ],
+                ));
+            }
+            if let Some(g) = social.github.as_ref() {
+                providers.push((
                     "github",
-                    social.github.as_ref().map(|g| {
-                        [
-                            ("client_id", &g.client_id),
-                            ("client_secret_env", &g.client_secret_env),
-                            ("redirect_uri", &g.redirect_uri),
-                        ]
-                    }),
-                ),
-            ];
+                    vec![
+                        ("client_id", &g.client_id),
+                        ("client_secret_env", &g.client_secret_env),
+                        ("redirect_uri", &g.redirect_uri),
+                    ],
+                ));
+            }
+            if let Some(a) = social.apple.as_ref() {
+                providers.push((
+                    "apple",
+                    vec![
+                        ("client_id", &a.client_id),
+                        ("team_id", &a.team_id),
+                        ("key_id", &a.key_id),
+                        ("redirect_uri", &a.redirect_uri),
+                    ],
+                ));
+            }
             for (provider, fields) in providers {
-                for (field, value) in fields.into_iter().flatten() {
+                for (field, value) in fields {
                     if value.trim().is_empty() {
                         anyhow::bail!("[auth.social.{provider}] {field} must not be empty.");
                     }

@@ -170,10 +170,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 /// construction test (the axum-bump checklist), not only when a database-backed
 /// e2e suite runs.
 fn social_router(social: Arc<fraiseql_auth::MultiProviderAuthState>) -> Router {
+    // #943: Apple requests the `name`/`email` scopes, which makes Apple deliver
+    // the callback as `response_mode=form_post` — a POST with a form body, not
+    // the GET every other provider makes. The POST variant is mounted only when
+    // a provider that needs it is registered, so no server grows a second
+    // callback shape it has no use for.
+    let callback = if social.get_provider("apple").is_some() {
+        get(fraiseql_auth::multi_provider::callback)
+            .post(fraiseql_auth::multi_provider::callback_form_post)
+    } else {
+        get(fraiseql_auth::multi_provider::callback)
+    };
     Router::new()
         .route("/auth/v1/providers", get(fraiseql_auth::multi_provider::list_providers))
         .route("/auth/v1/authorize", get(fraiseql_auth::multi_provider::authorize))
-        .route("/auth/v1/callback", get(fraiseql_auth::multi_provider::callback))
+        .route("/auth/v1/callback", callback)
         .with_state(social)
 }
 

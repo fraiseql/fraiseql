@@ -42,6 +42,13 @@ pub struct TokenResponse {
     pub expires_in:    u64,
     /// Token type (typically "Bearer")
     pub token_type:    String,
+    /// OIDC ID token, when the provider issued one.
+    ///
+    /// `None` for plain-OAuth2 providers. It is load-bearing for providers that
+    /// publish no userinfo endpoint — Apple returns the whole identity here and
+    /// nowhere else — which is why [`OAuthProvider::user_info_from_tokens`]
+    /// exists.
+    pub id_token:      Option<String>,
 }
 
 /// OAuth 2.0 / OIDC provider trait
@@ -78,6 +85,26 @@ pub trait OAuthProvider: Send + Sync + fmt::Debug {
     /// # Returns
     /// UserInfo with user details from provider
     async fn user_info(&self, access_token: &str) -> Result<UserInfo>;
+
+    /// Get user information from a whole token response.
+    ///
+    /// This is the method callers should use after
+    /// [`exchange_code`](Self::exchange_code): it defaults to
+    /// [`user_info`](Self::user_info) with the access token, which is right for
+    /// every provider that publishes a userinfo endpoint, and lets a provider
+    /// whose identity lives in the `id_token` — Apple has no userinfo endpoint
+    /// at all — override it.
+    ///
+    /// A provider that overrides this should make its `user_info` fail loudly
+    /// rather than return a degraded identity, so a caller on the wrong method
+    /// gets an error and not a silently wrong subject.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the provider's identity fetch returns.
+    async fn user_info_from_tokens(&self, tokens: &TokenResponse) -> Result<UserInfo> {
+        self.user_info(&tokens.access_token).await
+    }
 
     /// Refresh the access token (optional, default returns error)
     ///

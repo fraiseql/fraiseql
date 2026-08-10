@@ -64,11 +64,11 @@ mod subscription_types;
 
 pub use changelog::inject_changelog;
 pub use compiled::{
-    ArgumentDefinition, AuthClientConfig, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION,
-    CompiledSchema, CursorType, DirectiveDefinition, DirectiveLocationKind, GitHubSocialConfig,
-    GoogleSocialConfig, InputStyle, LocalAuthConfig, MutationDefinition, MutationOperation,
-    PkceClientConfig, QueryDefinition, SocialAuthConfig, SubscribableEntity, canonicalize_json,
-    content_hash_of, is_safe_sql_identifier,
+    AppleSocialConfig, ArgumentDefinition, AuthClientConfig, AutoParams,
+    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType, DirectiveDefinition,
+    DirectiveLocationKind, GitHubSocialConfig, GoogleSocialConfig, InputStyle, LocalAuthConfig,
+    MutationDefinition, MutationOperation, PkceClientConfig, QueryDefinition, SocialAuthConfig,
+    SubscribableEntity, canonicalize_json, content_hash_of, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,

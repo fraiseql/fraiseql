@@ -1093,6 +1093,54 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             })?;
             providers.push(("github", Arc::new(provider)));
         }
+        if let Some(a) = &social.apple {
+            // Apple's client secret is a signed assertion, not a stored string,
+            // so what the operator supplies is the `.p8` key itself — through
+            // exactly one of the two sources. Naming both is ambiguous and
+            // naming neither is unusable; both refuse rather than pick.
+            let private_key = match (&a.private_key_env, &a.private_key_path) {
+                (Some(env_name), None) => std::env::var(env_name).map_err(|_| {
+                    ServerError::ConfigError(format!(
+                        "[auth.social.apple] private_key_env {env_name} is not set. Apple's \
+                         client secret is an ES256 assertion signed with the .p8 key — without \
+                         it no authorization code can ever be exchanged."
+                    ))
+                })?,
+                (None, Some(path)) => std::fs::read_to_string(path).map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "[auth.social.apple] cannot read private_key_path {path}: {e}"
+                    ))
+                })?,
+                (Some(_), Some(_)) => {
+                    return Err(ServerError::ConfigError(
+                        "[auth.social.apple] names both private_key_env and private_key_path — \
+                         set exactly one."
+                            .to_string(),
+                    ));
+                },
+                (None, None) => {
+                    return Err(ServerError::ConfigError(
+                        "[auth.social.apple] needs exactly one of private_key_env / \
+                         private_key_path: the .p8 key is what signs the client-secret assertion."
+                            .to_string(),
+                    ));
+                },
+            };
+            let provider = fraiseql_auth::AppleOAuth::with_base_url(
+                a.client_id.clone(),
+                a.team_id.clone(),
+                a.key_id.clone(),
+                private_key,
+                a.redirect_uri.clone(),
+                a.base_url.clone().unwrap_or_else(|| "https://appleid.apple.com".to_string()),
+            )
+            .map_err(|e| {
+                ServerError::ConfigError(format!(
+                    "[auth.social.apple] provider construction failed: {e}"
+                ))
+            })?;
+            providers.push(("apple", Arc::new(provider)));
+        }
         if providers.is_empty() {
             // The CLI refuses this at compile time; belt-and-braces for
             // programmatically constructed schemas.

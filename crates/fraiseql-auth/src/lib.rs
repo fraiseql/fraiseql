@@ -116,7 +116,9 @@ pub use phone_otp::{
 };
 pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
-pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
+pub use providers::{
+    AppleOAuth, AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider,
+};
 pub use proxy::ProxyConfig;
 pub use rate_limiting::{AuthRateLimitConfig, Clock, KeyedRateLimiter, RateLimiters, SystemClock};
 #[cfg(feature = "auth-saml")]

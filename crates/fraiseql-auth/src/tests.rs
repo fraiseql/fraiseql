@@ -4531,6 +4531,7 @@ mod multi_provider_tests {
                 refresh_token: Some("mock_refresh_token".to_string()),
                 expires_in:    3600,
                 token_type:    "Bearer".to_string(),
+                id_token:      None,
             })
         }
 
