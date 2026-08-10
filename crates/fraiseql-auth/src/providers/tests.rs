@@ -1042,3 +1042,295 @@ mod github_tests {
         );
     }
 }
+
+/// Sign in with Apple (#943).
+mod apple_tests {
+    use base64::Engine as _;
+
+    use crate::{
+        provider::{OAuthProvider as _, TokenResponse},
+        providers::apple::{AppleFirstAuthUser, AppleOAuth, is_private_relay_email},
+    };
+
+    /// A throwaway P-256 key, generated for this test file and used nowhere
+    /// else. Apple issues a PKCS#8 PEM `.p8`, which is exactly this shape.
+    const TEST_P8: &str = "-----BEGIN PRIVATE KEY-----\n\
+        MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg6mOJdB87DG8anytc\n\
+        jGCaH3eI4OkrTGRc6sZGu1DqyiGhRANCAARKwlK3b7SIes76KDfwwP1Dxf3OgSsa\n\
+        dTtT/3rfS3QYTqqyzOH6LW51mUpy3vxAi/IKx1oEdLAJzOCm1Z1p5wFw\n\
+        -----END PRIVATE KEY-----\n";
+
+    const CLIENT_ID: &str = "com.example.service";
+    const ISSUER: &str = "https://appleid.apple.com";
+
+    fn provider() -> AppleOAuth {
+        AppleOAuth::new(
+            CLIENT_ID.to_string(),
+            "TEAM123456".to_string(),
+            "KEY7890AB".to_string(),
+            TEST_P8.to_string(),
+            "https://app.example.com/auth/v1/callback".to_string(),
+        )
+        .expect("a valid .p8 key constructs")
+    }
+
+    fn decode_part(part: &str) -> serde_json::Value {
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(part)
+            .expect("JWT part is base64url");
+        serde_json::from_slice(&bytes).expect("JWT part is JSON")
+    }
+
+    /// Build an unsigned `id_token` — the provider validates claims, not the
+    /// signature (see the module docs), so a claims-only token is exactly what
+    /// the parser sees.
+    fn id_token(claims: &serde_json::Value) -> String {
+        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(br#"{"alg":"ES256"}"#);
+        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(serde_json::to_vec(claims).unwrap());
+        format!("{header}.{payload}.sig")
+    }
+
+    fn far_future() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 3600
+    }
+
+    // ── Client-secret assertion ──────────────────────────────────────────
+
+    #[test]
+    fn client_secret_is_an_es256_assertion_over_the_apple_triple() {
+        let assertion = provider().client_secret().expect("assertion mints");
+        let parts: Vec<&str> = assertion.split('.').collect();
+        assert_eq!(parts.len(), 3, "the client secret is a signed JWT, not a static string");
+
+        let header = decode_part(parts[0]);
+        assert_eq!(header["alg"], "ES256", "Apple accepts only ES256");
+        assert_eq!(header["kid"], "KEY7890AB", "the header must name the .p8 key");
+
+        let claims = decode_part(parts[1]);
+        assert_eq!(claims["iss"], "TEAM123456", "iss is the developer team ID");
+        assert_eq!(claims["sub"], CLIENT_ID, "sub is the services ID");
+        assert_eq!(
+            claims["aud"], "https://appleid.apple.com",
+            "aud names Apple itself, not the endpoint host"
+        );
+        let iat = claims["iat"].as_u64().unwrap();
+        let exp = claims["exp"].as_u64().unwrap();
+        assert!(exp > iat, "the assertion must expire after it was issued");
+        assert!(
+            exp - iat <= 15_777_000,
+            "Apple refuses an assertion living longer than six months"
+        );
+    }
+
+    #[test]
+    fn client_secret_is_reused_until_it_nears_expiry() {
+        let provider = provider();
+        let first = provider.client_secret().unwrap();
+        let second = provider.client_secret().unwrap();
+        assert_eq!(first, second, "a still-valid assertion is reused, not re-signed per request");
+    }
+
+    #[test]
+    fn a_key_that_cannot_sign_is_refused_at_construction() {
+        let err = AppleOAuth::new(
+            CLIENT_ID.to_string(),
+            "TEAM123456".to_string(),
+            "KEY7890AB".to_string(),
+            "-----BEGIN PRIVATE KEY-----\nnot-a-key\n-----END PRIVATE KEY-----\n".to_string(),
+            "https://app.example.com/auth/v1/callback".to_string(),
+        )
+        .expect_err("an unusable .p8 must not construct a provider");
+        assert!(
+            err.to_string().contains("ES256"),
+            "the error must name what is wrong with the key: {err}"
+        );
+    }
+
+    // ── Authorization URL ────────────────────────────────────────────────
+
+    #[test]
+    fn authorization_url_requests_form_post_and_the_name_email_scopes() {
+        let url = provider().authorization_url("state-abc");
+        assert!(url.starts_with("https://appleid.apple.com/auth/authorize?"), "{url}");
+        assert!(
+            url.contains("response_mode=form_post"),
+            "the name/email scopes make Apple POST the callback: {url}"
+        );
+        assert!(url.contains("scope=name%20email"), "{url}");
+        assert!(url.contains("response_type=code"), "{url}");
+        assert!(url.contains("state=state-abc"), "{url}");
+    }
+
+    // ── id_token → UserInfo ──────────────────────────────────────────────
+
+    #[test]
+    fn id_token_yields_the_subject_and_verified_email() {
+        let info = provider()
+            .user_info_from_id_token(&id_token(&serde_json::json!({
+                "iss": ISSUER,
+                "aud": CLIENT_ID,
+                "sub": "001234.abcdef",
+                "exp": far_future(),
+                "email": "user@example.com",
+                "email_verified": true,
+            })))
+            .expect("a well-formed id_token identifies the user");
+        assert_eq!(info.id, "001234.abcdef");
+        assert_eq!(info.email.as_deref(), Some("user@example.com"));
+        assert!(info.email_verified);
+    }
+
+    #[test]
+    fn email_verified_is_honoured_in_apples_string_spelling() {
+        // Apple renders its booleans as `"true"` in some flows. A parser that
+        // accepts only the JSON bool drops the claim — and dropping it here
+        // fails *open* into the email-keyed linking space.
+        let info = provider()
+            .user_info_from_id_token(&id_token(&serde_json::json!({
+                "iss": ISSUER,
+                "aud": CLIENT_ID,
+                "sub": "001234.abcdef",
+                "exp": far_future(),
+                "email": "user@example.com",
+                "email_verified": "true",
+                "is_private_email": "false",
+            })))
+            .expect("the string spelling parses");
+        assert!(info.email_verified, "email_verified: \"true\" must be honoured");
+        assert_eq!(info.raw_claims["is_private_email"], serde_json::json!(false));
+    }
+
+    #[test]
+    fn an_email_with_no_verified_claim_is_unverified() {
+        let info = provider()
+            .user_info_from_id_token(&id_token(&serde_json::json!({
+                "iss": ISSUER,
+                "aud": CLIENT_ID,
+                "sub": "001234.abcdef",
+                "exp": far_future(),
+                "email": "user@example.com",
+            })))
+            .expect("the token parses");
+        assert!(
+            !info.email_verified,
+            "an address with no verification flag must not enter the email-keyed linking space"
+        );
+    }
+
+    #[test]
+    fn an_id_token_for_another_audience_is_refused() {
+        let err = provider()
+            .user_info_from_id_token(&id_token(&serde_json::json!({
+                "iss": ISSUER,
+                "aud": "com.someone.else",
+                "sub": "001234.abcdef",
+                "exp": far_future(),
+            })))
+            .expect_err("a token minted for a different client must not identify our user");
+        assert!(err.to_string().contains("audience"), "{err}");
+    }
+
+    #[test]
+    fn an_id_token_from_another_issuer_is_refused() {
+        let err = provider()
+            .user_info_from_id_token(&id_token(&serde_json::json!({
+                "iss": "https://evil.example.com",
+                "aud": CLIENT_ID,
+                "sub": "001234.abcdef",
+                "exp": far_future(),
+            })))
+            .expect_err("a token from another issuer must be refused");
+        assert!(err.to_string().contains("issuer"), "{err}");
+    }
+
+    #[test]
+    fn an_expired_id_token_is_refused() {
+        let err = provider()
+            .user_info_from_id_token(&id_token(&serde_json::json!({
+                "iss": ISSUER,
+                "aud": CLIENT_ID,
+                "sub": "001234.abcdef",
+                "exp": 1_000_000_u64,
+            })))
+            .expect_err("an expired token must be refused");
+        assert!(err.to_string().contains("expired"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn user_info_by_access_token_refuses_loudly() {
+        // Apple publishes no userinfo endpoint. A caller on this method has
+        // skipped `user_info_from_tokens`; failing beats returning nothing.
+        let err = provider()
+            .user_info("any-access-token")
+            .await
+            .expect_err("there is no userinfo endpoint to call");
+        assert!(err.to_string().contains("user_info_from_tokens"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_token_response_with_no_id_token_identifies_nobody() {
+        let err = provider()
+            .user_info_from_tokens(&TokenResponse {
+                access_token:  "at".to_string(),
+                refresh_token: None,
+                expires_in:    3600,
+                token_type:    "Bearer".to_string(),
+                id_token:      None,
+            })
+            .await
+            .expect_err("without an id_token there is no identity");
+        assert!(err.to_string().contains("id_token"), "{err}");
+    }
+
+    // ── Private Relay ────────────────────────────────────────────────────
+
+    #[test]
+    fn private_relay_addresses_are_recognised() {
+        assert!(is_private_relay_email("abc123@privaterelay.appleid.com"));
+        assert!(is_private_relay_email("  ABC123@PrivateRelay.AppleID.com  "));
+        assert!(!is_private_relay_email("user@example.com"));
+        assert!(
+            !is_private_relay_email("user@privaterelay.appleid.com.evil.example"),
+            "the domain must match at the end, not anywhere"
+        );
+    }
+
+    // ── First-authorization user payload ─────────────────────────────────
+
+    #[test]
+    fn the_first_auth_payload_yields_a_display_name() {
+        let user = AppleFirstAuthUser::parse(
+            r#"{"name":{"firstName":"Ada","lastName":"Lovelace"},"email":"ada@example.com"}"#,
+        )
+        .expect("Apple's documented shape parses");
+        assert_eq!(user.display_name().as_deref(), Some("Ada Lovelace"));
+    }
+
+    #[test]
+    fn the_first_auth_payloads_email_is_not_even_modelled() {
+        // The payload arrives in a POST the *browser* makes, so its email is
+        // attacker-chosen. Nothing in `AppleFirstAuthUser` can carry it into
+        // account resolution, and this test pins that: the struct that reaches
+        // the callback has a name and nothing else.
+        let user = AppleFirstAuthUser::parse(r#"{"email":"victim@example.com"}"#)
+            .expect("an email-only payload still parses");
+        assert!(user.name.is_none());
+        assert_eq!(user.display_name(), None, "there is no path from the payload to an address");
+        assert!(
+            !format!("{user:?}").contains("victim@example.com"),
+            "the parsed payload must not retain the browser-supplied address anywhere: {user:?}"
+        );
+    }
+
+    #[test]
+    fn a_malformed_first_auth_payload_is_ignored_not_fatal() {
+        assert!(AppleFirstAuthUser::parse("not json").is_none());
+        let partial = AppleFirstAuthUser::parse(r#"{"name":{"firstName":"  "}}"#).unwrap();
+        assert_eq!(partial.display_name(), None, "a blank name is no name");
+    }
+}

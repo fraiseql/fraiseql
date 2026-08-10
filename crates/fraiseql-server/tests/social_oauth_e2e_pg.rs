@@ -12,6 +12,11 @@
 //!   application/json` is sent, carries **no** `expires_in`, and `/user` hides the email — the
 //!   `/user/emails` second hop resolves the primary verified address and links by email (#368's
 //!   `GitHub` gap).
+//! - `Apple` (#943): the client secret is an ES256 assertion the runtime mints, there is no
+//!   userinfo endpoint (the identity is the token endpoint's `id_token`), and the callback arrives
+//!   as a form `POST`. The suite proves the POST mount, that a second sign-in carrying no name or
+//!   email still resolves to the same account, and — the security-load-bearing one — that the
+//!   browser-supplied `user` payload's email never reaches the email-keyed linking space.
 //! - The `/auth/v1/authorize` flood faces the `auth_start` path bucket (#788).
 //! - Bogus state and unknown providers are refused.
 //!
@@ -47,6 +52,26 @@ const HS256_SECRET: &str = "p26-social-hs256-secret-32bytes!";
 const HS256_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_HS256";
 const GOOGLE_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_GOOGLE";
 const GITHUB_SECRET_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_GITHUB";
+const APPLE_KEY_ENV: &str = "FRAISEQL_TEST_P26_SOCIAL_E2E_APPLE_P8";
+
+/// Apple's services ID in this suite — the `client_id`, and the `aud` every
+/// stub `id_token` must name.
+const APPLE_CLIENT_ID: &str = "com.example.fraiseql.service";
+/// Apple subject, stable across sign-ins the way a real `sub` is.
+const APPLE_SUB: &str = "001999.deadbeef.0000";
+/// The address Apple itself asserts, in the `id_token`.
+const APPLE_EMAIL: &str = "apple-user@example.com";
+/// The address a hostile client puts in the browser-posted `user` payload.
+/// Nothing may ever key on it.
+const APPLE_FORGED_EMAIL: &str = "victim@example.com";
+
+/// A throwaway P-256 key, generated for this suite and used nowhere else.
+/// Apple issues a PKCS#8 PEM `.p8`, which is exactly this shape.
+const TEST_P8: &str = "-----BEGIN PRIVATE KEY-----\n\
+    MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg6mOJdB87DG8anytc\n\
+    jGCaH3eI4OkrTGRc6sZGu1DqyiGhRANCAARKwlK3b7SIes76KDfwwP1Dxf3OgSsa\n\
+    dTtT/3rfS3QYTqqyzOH6LW51mUpy3vxAi/IKx1oEdLAJzOCm1Z1p5wFw\n\
+    -----END PRIVATE KEY-----\n";
 
 /// Process-wide test environment. Fixed valid values, set unconditionally:
 /// safe under the parallel runner because every reader wants exactly these.
@@ -56,6 +81,7 @@ fn set_test_env() {
     std::env::set_var(HS256_SECRET_ENV, HS256_SECRET);
     std::env::set_var(GOOGLE_SECRET_ENV, "google-client-secret");
     std::env::set_var(GITHUB_SECRET_ENV, "github-client-secret");
+    std::env::set_var(APPLE_KEY_ENV, TEST_P8);
 }
 
 fn with_database(url: &str, db: &str) -> String {
@@ -99,14 +125,68 @@ fn database_url_or_skip(test: &str) -> Option<String> {
 
 // ── Stub IdP ─────────────────────────────────────────────────────────────────
 
+/// Build an `id_token` with a placeholder signature.
+///
+/// The provider deliberately does not re-verify the signature of a token the
+/// token endpoint handed it over TLS (OIDC Core §3.1.3.7 rule 6), so a
+/// claims-only token is exactly what the production parser sees. What it *does*
+/// check — `iss`, `aud`, `exp` — is real here, and the refusal cases are
+/// covered by the provider's unit tests.
+fn unsigned_jwt(claims: &serde_json::Value) -> String {
+    use base64::Engine as _;
+    let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let header = engine.encode(br#"{"alg":"ES256","typ":"JWT"}"#);
+    let payload = engine.encode(serde_json::to_vec(claims).expect("claims serialize"));
+    format!("{header}.{payload}.stub-signature")
+}
+
 /// Boot a stub `IdP` serving both a `Google`-shaped `OIDC` surface and a
 /// `GitHub`-shaped plain-`OAuth2` surface. Returns its base URL.
 async fn stub_idp() -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind stub idp");
     let base = format!("http://127.0.0.1:{}", listener.local_addr().expect("addr").port());
 
+    // Apple hands out the identity in an id_token and nowhere else. The first
+    // exchange carries the email claims; every later one carries only `sub`,
+    // which is the shape a real second sign-in has — and the reason the account
+    // must already be resolvable from `(apple, sub)` alone.
+    let apple_issuer = base.clone();
+    let apple_exchanges = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
     let discovery_base = base.clone();
     let app = Router::new()
+        // Apple-shaped surface: token endpoint only — no userinfo exists.
+        .route(
+            "/auth/token",
+            post(move || {
+                let iss = apple_issuer.clone();
+                let seen = Arc::clone(&apple_exchanges);
+                async move {
+                    let first = seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0;
+                    let exp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .expect("clock")
+                        .as_secs()
+                        + 3600;
+                    let mut claims = serde_json::json!({
+                        "iss": iss,
+                        "aud": APPLE_CLIENT_ID,
+                        "sub": APPLE_SUB,
+                        "exp": exp,
+                    });
+                    if first {
+                        claims["email"] = serde_json::json!(APPLE_EMAIL);
+                        claims["email_verified"] = serde_json::json!("true");
+                    }
+                    Json(serde_json::json!({
+                        "access_token": "apple-at",
+                        "token_type": "Bearer",
+                        "expires_in": 3600,
+                        "id_token": unsigned_jwt(&claims),
+                    }))
+                }
+            }),
+        )
         // Google-shaped OIDC surface.
         .route(
             "/.well-known/openid-configuration",
@@ -238,6 +318,15 @@ fn social_schema(stub_base: &str) -> CompiledSchema {
                 redirect_uri:      "https://app.example.com/auth/v1/callback".to_string(),
                 base_url:          Some(stub_base.to_string()),
                 api_base_url:      Some(stub_base.to_string()),
+            }),
+            apple:                  Some(fraiseql_core::schema::AppleSocialConfig {
+                client_id:        APPLE_CLIENT_ID.to_string(),
+                team_id:          "TEAM123456".to_string(),
+                key_id:           "KEY7890AB".to_string(),
+                private_key_env:  Some(APPLE_KEY_ENV.to_string()),
+                private_key_path: None,
+                redirect_uri:     "https://app.example.com/auth/v1/callback".to_string(),
+                base_url:         Some(stub_base.to_string()),
             }),
         }),
     });
@@ -373,6 +462,49 @@ async fn login(base: &str, provider: &str) -> serde_json::Value {
     resp.json().await.expect("token response JSON")
 }
 
+/// Drive Apple through authorize → **form-POST** callback; returns the
+/// token-response JSON. `user_payload` is the browser-supplied first-auth field.
+async fn apple_login(base: &str, user_payload: Option<&str>) -> serde_json::Value {
+    let client = no_redirect_client();
+    let resp = client
+        .get(format!(
+            "{base}/auth/v1/authorize?provider=apple&redirect_uri=https://app.example.com/cb"
+        ))
+        .send()
+        .await
+        .expect("authorize request");
+    assert!(resp.status().is_redirection(), "authorize must redirect to Apple");
+    let location = resp
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(
+        location.contains("response_mode=form_post"),
+        "Apple's authorize URL must ask for the form-POST callback: {location}"
+    );
+    let state = state_from_location(&location);
+
+    let mut form = vec![("code", "apple-code".to_string()), ("state", state)];
+    if let Some(user) = user_payload {
+        form.push(("user", user.to_string()));
+    }
+    let resp = client
+        .post(format!("{base}/auth/v1/callback"))
+        .form(&form)
+        .send()
+        .await
+        .expect("form-POST callback request");
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::OK,
+        "the form-POST callback must complete the login: {}",
+        resp.text().await.unwrap_or_default()
+    );
+    resp.json().await.expect("token response JSON")
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -404,7 +536,11 @@ async fn google_and_github_full_loops_link_verified_emails() {
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
-    assert_eq!(names, vec!["github", "google"], "both configured providers are registered");
+    assert_eq!(
+        names,
+        vec!["apple", "github", "google"],
+        "every configured provider is registered"
+    );
 
     // Google (OIDC): full loop mints HS256 session tokens…
     let google_tokens = login(&base, "google").await;
@@ -535,6 +671,114 @@ async fn authorize_flood_faces_the_auth_start_bucket() {
         "the 4th authorize in the window must be rate limited (#788)"
     );
     assert!(resp.headers().contains_key("retry-after"), "a 429 must carry Retry-After");
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// #943: the whole Apple loop through the shipped mount — the form-POST
+/// callback, the second sign-in that carries no claims at all, and the one
+/// assertion that decides whether this provider is safe: the browser-supplied
+/// `user` payload must never reach the email-keyed linking space.
+#[tokio::test]
+async fn apple_form_post_loop_links_only_the_id_tokens_email() {
+    let Some(url) = database_url_or_skip("apple_form_post_loop") else {
+        return;
+    };
+    set_test_env();
+
+    let db = "fraiseql_p14_social_apple";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+
+    let (base, tx, handle) =
+        boot_server(social_config(&scratch_url), social_schema(&stub), pool.clone(), &scratch_url)
+            .await;
+
+    // First authorization: Apple's id_token asserts APPLE_EMAIL, while the
+    // browser posts a `user` payload naming someone else entirely. A client can
+    // put anything in that field — it is not signed and not from Apple.
+    let forged_user = format!(
+        r#"{{"name":{{"firstName":"Ada","lastName":"Lovelace"}},"email":"{APPLE_FORGED_EMAIL}"}}"#
+    );
+    let first = apple_login(&base, Some(&forged_user)).await;
+    assert_eq!(first["provider"], "apple");
+    let apple_user = jwt_sub(first["access_token"].as_str().expect("access_token"));
+
+    let store = fraiseql_auth::PostgresAccountStore::new(pool.clone());
+
+    // The account is keyed on the address APPLE asserted: another trusted
+    // provider presenting it lands on the same account.
+    let same = store
+        .link_or_create_user(Some(APPLE_EMAIL), true, "google", "g-sub-apple-twin")
+        .await
+        .expect("link the id_token email");
+    assert!(
+        !same.is_new,
+        "the callback must have created the account under the id_token email"
+    );
+    assert_eq!(same.user_id, apple_user, "the session subject is that account");
+
+    // …and the forged address owns nothing. If the form payload's email had
+    // been honoured, this would resolve to an existing account — the account
+    // takeover this provider must not permit.
+    let forged = store
+        .link_or_create_user(Some(APPLE_FORGED_EMAIL), true, "google", "g-sub-victim")
+        .await
+        .expect("link the forged email");
+    assert!(
+        forged.is_new,
+        "the browser-supplied `user` email must never key an account (it would let any Apple \
+         user link into an address they do not own)"
+    );
+    assert_ne!(forged.user_id, apple_user);
+
+    // Second sign-in: Apple sends `sub` and nothing else — no name, no email,
+    // exactly as it does on every authorization after the first. The identity
+    // persisted on first sight is what makes this resolve.
+    let second = apple_login(&base, None).await;
+    let second_user = jwt_sub(second["access_token"].as_str().expect("access_token"));
+    assert_eq!(
+        second_user, apple_user,
+        "a claimless second sign-in must resolve to the account the first one created — \
+         otherwise every login after the first forks a new user"
+    );
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// #943: the form-POST mount is Apple's, and it faces the same CSRF-state gate
+/// as the GET shape — a POST with a state this server never issued is refused.
+#[tokio::test]
+async fn apple_form_post_callback_refuses_a_forged_state() {
+    let Some(url) = database_url_or_skip("apple_form_post_forged_state") else {
+        return;
+    };
+    set_test_env();
+
+    let db = "fraiseql_p14_social_apple_csrf";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+
+    let (base, tx, handle) =
+        boot_server(social_config(&scratch_url), social_schema(&stub), pool, &scratch_url).await;
+
+    let resp = no_redirect_client()
+        .post(format!("{base}/auth/v1/callback"))
+        .form(&[("code", "apple-code"), ("state", "never-issued")])
+        .send()
+        .await
+        .expect("forged-state form POST");
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::BAD_REQUEST,
+        "the POST callback must consume the same CSRF state the GET one does"
+    );
 
     let _ = tx.send(());
     let _ = handle.await;

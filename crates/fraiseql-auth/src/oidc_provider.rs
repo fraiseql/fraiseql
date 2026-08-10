@@ -86,6 +86,10 @@ struct TokenResponseRaw {
     expires_in:    u64,
     #[serde(default)]
     token_type:    Option<String>,
+    /// Present on OIDC flows; carried through so a caller that needs the
+    /// signed identity does not have to re-fetch it.
+    #[serde(default)]
+    id_token:      Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -438,6 +442,7 @@ impl OAuthProvider for OidcProvider {
             refresh_token: response.refresh_token,
             expires_in:    response.expires_in,
             token_type:    response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            id_token:      response.id_token,
         })
     }
 
@@ -544,6 +549,7 @@ impl OAuthProvider for OidcProvider {
             refresh_token: response.refresh_token,
             expires_in:    response.expires_in,
             token_type:    response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            id_token:      response.id_token,
         })
     }
 

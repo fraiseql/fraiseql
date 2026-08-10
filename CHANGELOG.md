@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`fraiseql_auth::provider::TokenResponse` gained an `id_token` field (#943).** Any code
+  constructing one — a custom `OAuthProvider`, a test double — must add
+  `id_token: None` (or the provider's ID token, if it issues one; the built-in OIDC provider
+  now carries its through). The field exists because Apple returns the entire identity in
+  the ID token and publishes no userinfo endpoint, which is also why `OAuthProvider` gained
+  `user_info_from_tokens`. That method has a default forwarding to `user_info`, so existing
+  provider impls compile unchanged — but a provider whose identity lives in the ID token
+  must override it, and should make its own `user_info` fail rather than return a degraded
+  identity.
+
 - **Twilio senders must use the `bodySHA256` scheme for non-form bodies (#1069).** A JSON
   delivery signed the way this crate used to accept — `HMAC-SHA1(auth_token, public_url)`
   with no body material — now answers 401. Genuine Twilio traffic is unaffected: Twilio
@@ -1367,6 +1377,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against reintroduction. Use `--database <url>` (the long form always worked).
 
 ### Added
+
+- **Sign in with Apple (#943).** `[auth.social.apple]` completes the third provider the
+  `[auth.social]` umbrella (#368) named, and it is the one that could not have been a copy
+  of the Google client. Apple's client secret is an **ES256 assertion**, not a stored
+  string: the config takes `client_id` (the services ID), `team_id`, `key_id` and the `.p8`
+  key through exactly one of `private_key_env` / `private_key_path`, and the runtime signs
+  a short-lived assertion over that triple, caching it and re-minting before expiry. A key
+  that cannot sign is refused at boot, not at the first login.
+
+  Apple publishes **no userinfo endpoint** — the identity is the token endpoint's
+  `id_token` and nothing else — so `OAuthProvider` gained
+  `user_info_from_tokens(&TokenResponse)`, which defaults to today's
+  `user_info(access_token)` for every provider that does publish one. `AppleOAuth::user_info`
+  refuses loudly rather than returning a degraded identity. The `id_token`'s `iss`, `aud`
+  and `exp` are validated fail-closed; its signature is not re-verified, because it arrives
+  by direct TLS from the token endpoint (OIDC Core §3.1.3.7 rule 6) and an attacker who
+  could forge that response could forge the JWKS document too.
+
+  Requesting the `name`/`email` scopes makes Apple deliver the callback as
+  `response_mode=form_post`, so configuring Apple also mounts a **`POST` variant of
+  `/auth/v1/callback`** — same CSRF-state consumption, same trust gate, same session mint as
+  the `GET` shape. That POST's `user` field carries the display name Apple returns exactly
+  once, on the first authorization.
+
+  **The security-load-bearing decision, and a deliberate narrowing of the issue as filed:**
+  that `user` field arrives in a request the *browser* makes, so anyone holding a valid
+  `code`/`state` pair from their own Apple account can put any address in it. Honouring its
+  `email` would let them link straight into that address's account. It is therefore not even
+  modelled — `AppleFirstAuthUser` has a name and nothing else, the form body's `id_token` is
+  never read, and the linking email comes only from the token endpoint. A live e2e proves it:
+  a sign-in whose payload claims `victim@example.com` leaves that address owning nothing.
+
+  Persisting the first-authorization claims needs no new storage: `AccountStore` resolves a
+  known `(provider, provider_id)` before it looks at any email, so the second sign-in —
+  which Apple sends with `sub` and nothing else — lands on the account the first one created.
+  The e2e drives exactly that sequence. Apple was already in the default
+  `TrustedEmailProviders` set; Private Relay aliases are verified addresses Apple owns, so
+  they key normally and simply never match another provider (correct, not a gap).
 
 - **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one
   or more `[[cdc_outbound.sinks]]` now makes the server drain

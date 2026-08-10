@@ -400,6 +400,8 @@ impl OAuthProvider for GitHubOAuth {
             // expiring tokens; 0 = "no expiry reported by the provider".
             expires_in:    response.expires_in.unwrap_or(0),
             token_type:    response.token_type.unwrap_or_else(|| "bearer".to_string()),
+            // GitHub is plain OAuth2, not OIDC — there is no ID token.
+            id_token:      None,
         })
     }
 
@@ -502,6 +504,7 @@ impl OAuthProvider for GitHubOAuth {
             refresh_token: response.refresh_token,
             expires_in:    response.expires_in.unwrap_or(0),
             token_type:    response.token_type.unwrap_or_else(|| "bearer".to_string()),
+            id_token:      None,
         })
     }
 }

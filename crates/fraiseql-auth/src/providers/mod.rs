@@ -4,8 +4,9 @@
 //! provider and translates that provider's user-info format and role/group claims into
 //! FraiseQL's generic [`crate::provider::UserInfo`] and role strings.
 //!
-//! Supported providers: Auth0, GitHub, Google, Keycloak, Okta, Azure AD, Ory, and Logto.
+//! Supported providers: Apple, Auth0, GitHub, Google, Keycloak, Okta, Azure AD, Ory, and Logto.
 
+pub mod apple;
 pub mod auth0;
 pub mod azure_ad;
 pub mod github;
@@ -15,6 +16,7 @@ pub mod logto;
 pub mod okta;
 pub mod ory;
 
+pub use apple::AppleOAuth;
 pub use auth0::Auth0OAuth;
 pub use azure_ad::AzureADOAuth;
 pub use github::GitHubOAuth;
