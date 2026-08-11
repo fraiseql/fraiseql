@@ -185,12 +185,60 @@ impl PostgresSessionStore {
     }
 }
 
+/// Refuse to mint a session for an account SCIM has deactivated (#946).
+///
+/// # Why a missing table is allowed through
+///
+/// `core.tb_user` belongs to the account store, which a session-only embedder need not
+/// have. Treating its absence as a refusal would break those deployments closed for a
+/// reason unrelated to offboarding. So the *specific* Postgres `undefined_table` code is
+/// the one condition that passes; every other error — including a readable row that says
+/// `active = false` — refuses. A deployment running SCIM always has the table (SCIM
+/// provisions into it), so the tolerated branch is unreachable there.
+///
+/// A user with no row is allowed: anonymous sessions and JWT-only principals live in a
+/// different identity space and were never provisioned.
+async fn refuse_deactivated_account(db: &PgPool, user_id: &str) -> Result<()> {
+    let row = sqlx::query("SELECT active FROM core.tb_user WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_optional(db)
+        .await;
+
+    let active: Option<bool> = match row {
+        Ok(row) => row.map(|r| r.get("active")),
+        Err(sqlx::Error::Database(e)) if e.code().as_deref() == Some("42P01") => {
+            // No account store in this deployment; nothing was ever provisioned.
+            return Ok(());
+        },
+        Err(e) => {
+            return Err(AuthError::DatabaseError {
+                message: format!("Failed to check account activation: {e}"),
+            });
+        },
+    };
+
+    if active == Some(false) {
+        tracing::warn!(
+            user_id = %user_id,
+            "refused a session for a deactivated account (SCIM active = false)"
+        );
+        return Err(AuthError::AccountDeactivated);
+    }
+    Ok(())
+}
+
 // Reason: SessionStore is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl SessionStore for PostgresSessionStore {
     async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair> {
+        // Offboarding must block every credential, not just the one the IdP owns (#946).
+        // This is the single place every credential path converges on — password login,
+        // MFA's second factor, social callback, OTP, SAML ACS all end here — which is why
+        // the check lives here rather than in each of them.
+        refuse_deactivated_account(&self.db, user_id).await?;
+
         let refresh_token = generate_refresh_token();
         let refresh_token_hash = hash_token(&refresh_token);
 

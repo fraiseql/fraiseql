@@ -110,6 +110,62 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // SCIM 2.0 provisioning (#946). Two surfaces, two credentials, on purpose: the
+        // `/scim/v2/*` routes take a provisioning token that grants provisioning and
+        // nothing else, while `/api/scim/tokens` — which mints those credentials — sits
+        // behind the admin bearer.
+        #[cfg(feature = "auth")]
+        if let (Some(scim_cfg), Some(db_pool)) =
+            (self.config.scim.as_ref(), self.enrichment_pool.as_ref())
+        {
+            if scim_cfg.enabled {
+                if let Some(ref token) = self.config.admin_token {
+                    let tokens = std::sync::Arc::new(fraiseql_auth::scim::PgScimTokenStore::new(
+                        db_pool.clone(),
+                    ));
+                    let scim_state = crate::api::ScimState {
+                        pool:          db_pool.clone(),
+                        tokens:        tokens.clone(),
+                        session_store: std::sync::Arc::new(
+                            fraiseql_auth::PostgresSessionStore::new(db_pool.clone()),
+                        ),
+                        rbac:          std::sync::Arc::new(
+                            crate::api::rbac_management::db_backend::RbacDbBackend::new(
+                                db_pool.clone(),
+                            ),
+                        ),
+                        base_url:      scim_cfg.base_url.clone(),
+                    };
+                    app = app.merge(crate::api::scim_router(scim_state));
+
+                    let auth_state = BearerAuthState::with_max_failures(
+                        token.clone(),
+                        self.config.admin_auth_max_failures,
+                    );
+                    let token_router = crate::api::scim_token_management_router(
+                        crate::api::ScimTokenManagementState { tokens },
+                    )
+                    .route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        bearer_auth_middleware,
+                    ));
+                    app = app.merge(token_router);
+                    info!(
+                        "SCIM 2.0 provisioning mounted at /scim/v2 (provisioning bearer token); \
+                         credentials managed at /api/scim/tokens (admin bearer token)"
+                    );
+                } else {
+                    // validate() refuses this combination; an embedder that skips it lands
+                    // here and must not get a provisioning surface with no way to issue a
+                    // credential for it.
+                    tracing::error!(
+                        "SCIM disabled — [scim] enabled = true but admin_token is not set, so \
+                         no provisioning credential could ever be minted."
+                    );
+                }
+            }
+        }
+
         // Identity-cache admin API (flush) — same admin bearer gate as RBAC,
         // mounted only when an enrichment resolver exists (#539). Lets an operator
         // propagate a revoke/provision immediately instead of waiting out the TTL.
