@@ -95,12 +95,14 @@ pub async fn verify_saml_response(
     // XXE / entity-expansion defense — before the XML ever reaches a parser.
     reject_doctype(xml)?;
 
+    // An EncryptedAssertion is only ever as trustworthy as the signature over its
+    // ciphertext — see `check_encryption_algorithms`. Run the algorithm gate first, on
+    // verified bytes, so a weak cipher is refused before any decryption happens.
+    check_encryption_algorithms(idp, xml)?;
+
     // Signature + condition + audience + recipient + destination + issuer + InResponseTo,
     // via samael's reduce-to-signed path (XSW-safe). Detail is logged, never returned.
-    let assertion = idp
-        .service_provider()
-        .parse_xml_response(xml, Some(possible_request_ids))
-        .map_err(|e| SamlError::Verification(e.to_string()))?;
+    let assertion = parse_with_key_rotation(idp, xml, possible_request_ids)?;
 
     // Single-use replay protection, keyed on the assertion ID.
     if assertion.id.trim().is_empty() {
@@ -156,6 +158,108 @@ pub async fn verify_saml_response(
         attributes,
         not_on_or_after,
     })
+}
+
+/// Refuse an `EncryptedAssertion` encrypted with an algorithm outside the allow-list (#948).
+///
+/// # Why the check runs on *reduced* bytes
+///
+/// Reading algorithms off the raw document would mean trusting attacker-controlled XML — the
+/// very thing the reduce-to-signed discipline exists to avoid. So the document is reduced to
+/// the signature-verified bytes first, using the IdP's own signature-algorithm allow-list,
+/// and the encryption methods are read from *that*. The reduce is repeated work
+/// (`parse_xml_response` will do it again), but it happens only on the encrypted path, and
+/// this function can only ever *refuse* — never admit something the main path would reject.
+///
+/// A response with no `EncryptedAssertion`, or one whose signature does not verify, is
+/// passed through untouched for the main path to reject with its own error.
+///
+/// # Errors
+///
+/// [`SamlError::Verification`] when a key-transport or content-encryption algorithm is not
+/// on the allow-list.
+fn check_encryption_algorithms(idp: &SamlIdpConfig, xml: &str) -> Result<(), SamlError> {
+    use samael::crypto::{Crypto, CryptoProvider as _, ReduceMode};
+
+    // Cheap pre-filter: no ciphertext, nothing to gate.
+    if !xml.contains("EncryptedAssertion") {
+        return Ok(());
+    }
+    let sp = idp.service_provider();
+    let Ok(Some(certs)) = sp.idp_signing_certs() else {
+        return Ok(());
+    };
+    let Ok(reduced) = Crypto::reduce_xml_to_signed_with_allowed_algorithms(
+        xml,
+        &certs,
+        ReduceMode::default(),
+        sp.allowed_signature_algorithms.as_deref(),
+    ) else {
+        // Signature did not verify; the main path rejects it. Refusing here too would only
+        // change which error is reported.
+        return Ok(());
+    };
+    let Ok(response) = reduced.parse::<samael::schema::Response>() else {
+        return Ok(());
+    };
+    let Some(encrypted) = response.encrypted_assertion.as_ref() else {
+        return Ok(());
+    };
+
+    if let Some((_, method)) = encrypted.encrypted_key_info() {
+        if !super::config::key_transport_algorithm_allowed(method) {
+            return Err(SamlError::Verification(format!(
+                "encrypted assertion uses a refused key-transport algorithm: {method}"
+            )));
+        }
+    }
+    if let Some((_, method)) = encrypted.encrypted_value_info() {
+        if !super::config::content_encryption_algorithm_allowed(method) {
+            return Err(SamlError::Verification(format!(
+                "encrypted assertion uses a refused content-encryption algorithm: {method}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Parse and validate the response, retrying once with the previous SP key if decryption
+/// failed during a key-rotation window (#948).
+///
+/// The retry is deliberately narrow: only *decryption-class* failures are retried. A
+/// signature, audience, condition or `InResponseTo` failure is final and must never get a
+/// second evaluation against a different key — that would turn key rotation into a second,
+/// weaker path through the same gate.
+fn parse_with_key_rotation(
+    idp: &SamlIdpConfig,
+    xml: &str,
+    possible_request_ids: &[&str],
+) -> Result<samael::schema::Assertion, SamlError> {
+    let first = match idp.service_provider().parse_xml_response(xml, Some(possible_request_ids)) {
+        Ok(assertion) => return Ok(assertion),
+        Err(e) => e,
+    };
+    if !is_decryption_failure(&first) {
+        return Err(SamlError::Verification(first.to_string()));
+    }
+    let Some(previous_sp) = idp.service_provider_with_previous_key() else {
+        return Err(SamlError::Verification(first.to_string()));
+    };
+    previous_sp
+        .parse_xml_response(xml, Some(possible_request_ids))
+        .map_err(|e| SamlError::Verification(format!("{first}; previous SP key also failed: {e}")))
+}
+
+/// Whether a `samael` error means "this ciphertext did not open with the key we tried",
+/// as opposed to any failure of the security checks.
+const fn is_decryption_failure(e: &samael::service_provider::Error) -> bool {
+    use samael::service_provider::Error;
+    matches!(
+        e,
+        Error::FailedToDecryptAssertion
+            | Error::EncryptedAssertionInvalid
+            | Error::CryptoProviderError(_)
+    )
 }
 
 /// First non-empty value among `names`, probed in order, in the attribute map.

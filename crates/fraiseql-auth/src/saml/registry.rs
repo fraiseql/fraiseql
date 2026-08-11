@@ -65,6 +65,35 @@ pub struct CertExpiryWarning {
     pub expired:    bool,
 }
 
+/// This SP's own key material, applied to every IdP the registry serves (#948).
+///
+/// Deployment-level rather than per-IdP: the key pair is this deployment's identity, so
+/// stored IdPs get request signing and assertion decryption without private keys ever
+/// living in a database row.
+#[derive(Clone, Default)]
+pub struct SpKeyMaterial {
+    /// Current private key (PEM or DER).
+    pub private_key:          Vec<u8>,
+    /// Current certificate (PEM or DER), published in SP metadata.
+    pub certificate:          Vec<u8>,
+    /// Whether to sign outbound `AuthnRequest`s.
+    pub sign_authn_requests:  bool,
+    /// Previous key pair, accepted for decryption only during a rotation window.
+    pub previous_private_key: Option<Vec<u8>>,
+    /// Previous certificate, published for encryption during the same window.
+    pub previous_certificate: Option<Vec<u8>>,
+}
+
+impl std::fmt::Debug for SpKeyMaterial {
+    /// Hand-written: a derived `Debug` would print private key bytes into any log line.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SpKeyMaterial")
+            .field("sign_authn_requests", &self.sign_authn_requests)
+            .field("has_previous_key", &self.previous_private_key.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
 /// Registered IdPs from both sources, with tenant-scoped resolution.
 #[derive(Clone)]
 pub struct SamlIdpRegistry {
@@ -75,6 +104,8 @@ pub struct SamlIdpRegistry {
     /// Last successful projection of the store. Swapped wholesale, never partially updated,
     /// so a reader always sees one coherent generation.
     cached:      Arc<ArcSwap<HashMap<String, Arc<SamlIdpConfig>>>>,
+    /// SP key material applied to stored IdPs as they are built (#948).
+    sp_keys:     Option<Arc<SpKeyMaterial>>,
 }
 
 impl std::fmt::Debug for SamlIdpRegistry {
@@ -83,6 +114,7 @@ impl std::fmt::Debug for SamlIdpRegistry {
             .field("config_idps", &self.config_idps.keys().collect::<Vec<_>>())
             .field("has_store", &self.store.is_some())
             .field("stored", &self.cached.load().keys().cloned().collect::<Vec<_>>())
+            .field("sp_keys", &self.sp_keys)
             .finish()
     }
 }
@@ -111,7 +143,17 @@ impl SamlIdpRegistry {
             config_idps: Arc::new(HashMap::new()),
             store:       None,
             cached:      Arc::new(ArcSwap::from_pointee(HashMap::new())),
+            sp_keys:     None,
         }
+    }
+
+    /// Apply this SP's key material to every **stored** IdP the registry builds (#948).
+    ///
+    /// Config-file IdPs receive it at construction instead, where their own builder runs.
+    #[must_use]
+    pub fn with_sp_keys(mut self, sp_keys: SpKeyMaterial) -> Self {
+        self.sp_keys = Some(Arc::new(sp_keys));
+        self
     }
 
     /// Register a config-file IdP. Builder-style; last write wins, as configuration is
@@ -204,7 +246,7 @@ impl SamlIdpRegistry {
                 );
                 continue;
             }
-            match config_from_record(&record) {
+            match config_from_record(&record, self.sp_keys.as_deref()) {
                 Ok(config) => {
                     next.insert(record.idp_name.clone(), Arc::new(config));
                 },
@@ -361,14 +403,28 @@ impl SamlIdpRegistry {
 }
 
 /// Build a servable config from a stored row, through the same builder boot uses.
-fn config_from_record(record: &SamlIdpRecord) -> Result<SamlIdpConfig, SamlError> {
-    SamlIdpConfig::builder(
+fn config_from_record(
+    record: &SamlIdpRecord,
+    sp_keys: Option<&SpKeyMaterial>,
+) -> Result<SamlIdpConfig, SamlError> {
+    let mut builder = SamlIdpConfig::builder(
         record.idp_name.clone(),
         record.sp_entity_id.clone(),
         record.acs_url.clone(),
     )
     .idp_metadata_xml(&record.metadata_xml)?
     .tenant_id(record.tenant_id.map(|t| t.to_string()))
-    .trust_asserted_email(record.trust_asserted_email)
-    .build()
+    .trust_asserted_email(record.trust_asserted_email);
+
+    if let Some(keys) = sp_keys {
+        builder = builder
+            .sp_key_pair(&keys.private_key, &keys.certificate)?
+            .sign_authn_requests(keys.sign_authn_requests);
+        if let (Some(key), Some(cert)) =
+            (keys.previous_private_key.as_deref(), keys.previous_certificate.as_deref())
+        {
+            builder = builder.sp_previous_key_pair(key, cert)?;
+        }
+    }
+    builder.build()
 }

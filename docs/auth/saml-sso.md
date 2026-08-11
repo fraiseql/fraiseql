@@ -41,6 +41,7 @@ columns in sync if either changes.
 |-------|---------|
 | `GET /auth/saml/login?idp=<name>[&tenant=<id>]` | SP-initiated SSO — builds a signed-relay-state `AuthnRequest` and redirects to the IdP. |
 | `POST /auth/saml/acs` | Assertion Consumer Service — verifies the `SAMLResponse` and creates a session. |
+| `GET /auth/saml/metadata?idp=<name>[&tenant=<id>]` | Publish this SP's metadata for an IdP to consume (#948). |
 | `POST/GET/PUT/DELETE /api/saml/idps[/{name}]` | Per-tenant IdP management (#947). Admin bearer token; mounted only when `[saml] store_enabled = true`. |
 
 ### Security model
@@ -151,6 +152,57 @@ answer `404` — so the route cannot enumerate other tenants' IdPs.
 
 [#1088]: https://github.com/fraiseql/fraiseql/issues/1088
 [#1089]: https://github.com/fraiseql/fraiseql/issues/1089
+
+### SP request signing and encrypted assertions (#948)
+
+Some IdPs reject an unsigned `AuthnRequest` outright, and some mandate encrypted
+assertions. Both need an SP key pair. It is configured once for the deployment and applies
+to every IdP — config-file and stored alike, so no private key ever lives in a database row.
+
+```toml
+[saml.sp]
+private_key_env = "FRAISEQL_SAML_SP_KEY"   # or private_key_path = "/run/secrets/sp.key"
+certificate_path = "/etc/fraiseql/sp.crt"  # or certificate_pem = "-----BEGIN…"
+sign_authn_requests = true                 # default false — unsigned stays the default
+
+# Rotation window: the previous key stays accepted for DECRYPTION only.
+previous_private_key_env = "FRAISEQL_SAML_SP_KEY_PREVIOUS"
+previous_certificate_path = "/etc/fraiseql/sp-previous.crt"
+```
+
+Configuring a key pair enables assertion decryption immediately; signing additionally needs
+`sign_authn_requests`. `sign_authn_requests = true` with no key pair is refused at boot
+rather than silently sending unsigned requests, and a key that does not match its
+certificate is refused at configuration time rather than at the first login.
+
+`GET /auth/saml/metadata?idp=<name>[&tenant=<id>]` publishes the SP metadata for an IdP to
+consume — entity ID, ACS endpoint, `AuthnRequestsSigned`, and the certificate. During a
+rotation window the previous certificate stays published as an additional
+`use="encryption"` descriptor, so an IdP that has not yet picked up the new one keeps
+encrypting to a key we can still read. Only the current certificate is advertised for
+signing. The route is tenant-scoped exactly like login.
+
+**What makes an encrypted assertion trustworthy.** The decrypted assertion's own signature
+is *never* checked — verification operates on the bytes the IdP signed, and for an
+`EncryptedAssertion` those bytes are the **ciphertext**. So:
+
+- the `Response` envelope must be signed and that signature must cover the
+  `EncryptedAssertion`; an unsigned response carrying one is refused, not decrypted;
+- a tampered ciphertext fails the envelope signature before any decryption happens;
+- after decryption the assertion runs the **existing** verification path — audience,
+  `Recipient`/`Destination`, conditions, `InResponseTo`, replay — so decryption is not a
+  second, weaker door.
+
+An IdP configured to sign only the *inner* assertion and then encrypt it is therefore not
+supported: encrypting a signed assertion hides the signature from us, and accepting it
+would mean trusting unverified ciphertext. Configure the IdP to sign the response.
+
+Key transport is restricted to **RSA-OAEP** and content encryption to **AES-GCM**.
+`rsa-1_5` and the CBC modes are refused: they are the algorithms behind the
+Bleichenbacher and padding-oracle breaks of XML Encryption. The envelope-signature
+requirement already denies an attacker the chosen-ciphertext oracle those attacks need, so
+this is defence in depth — but an IdP configured for them is a misconfiguration worth
+refusing loudly.
 
 ## Identity proxy
 

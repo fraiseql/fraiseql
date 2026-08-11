@@ -6,3 +6,8 @@
 # ADR-0018 `[service_accounts.<name>] secret_env` example: the operator picks the variable
 # name; service_account.rs reads whatever `secret_env` names.
 FRAISEQL_SA_RECONCILER_SECRET
+
+# #948 `[saml.sp] private_key_env` / `previous_private_key_env` examples: the operator picks
+# the variable name; builder.rs::load_saml_sp_keys reads whatever the key names.
+FRAISEQL_SAML_SP_KEY
+FRAISEQL_SAML_SP_KEY_PREVIOUS
