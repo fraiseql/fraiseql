@@ -80,6 +80,7 @@ fn authenticated_router(state: StorageState) -> axum::Router {
     let user = StorageUser {
         user_id: Some("test-user".to_string()),
         roles:   vec!["user".to_string()],
+        claims:  crate::policy::ClaimValues::new(),
     };
     storage_router(state).layer(Extension(user))
 }
@@ -89,6 +90,7 @@ fn router_for(state: StorageState, user_id: &str, roles: &[&str]) -> axum::Route
     let user = StorageUser {
         user_id: Some(user_id.to_string()),
         roles:   roles.iter().map(|r| (*r).to_string()).collect(),
+        claims:  crate::policy::ClaimValues::new(),
     };
     storage_router(state).layer(Extension(user))
 }
@@ -993,6 +995,7 @@ async fn test_presign_download_other_users_object_is_forbidden_on_private_bucket
     let other_user = StorageUser {
         user_id: Some("other-user".to_string()),
         roles:   vec!["user".to_string()],
+        claims:  crate::policy::ClaimValues::new(),
     };
     let app = storage_router(state.clone()).layer(Extension(other_user));
     let body = serde_json::json!({
@@ -2134,27 +2137,39 @@ async fn policies_govern_reads_writes_and_deletes_end_to_end() {
         rules: vec![
             // Auditors may read reports/, nothing else, and may not delete.
             PolicyRule {
-                methods:    vec![PolicyMethod::Read],
-                principal:  PolicyPrincipal::Role("auditor".to_string()),
-                key_prefix: Some("reports/".to_string()),
+                methods:           vec![PolicyMethod::Read],
+                principal:         PolicyPrincipal::Role("auditor".to_string()),
+                key_prefix:        Some("reports/".to_string()),
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
             },
             // Owners have full control of their own objects.
             PolicyRule {
-                methods:    vec![
+                methods:           vec![
                     PolicyMethod::Read,
                     PolicyMethod::Write,
                     PolicyMethod::Overwrite,
                     PolicyMethod::Delete,
                     PolicyMethod::List,
                 ],
-                principal:  PolicyPrincipal::Owner,
-                key_prefix: None,
+                principal:         PolicyPrincipal::Owner,
+                key_prefix:        None,
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
             },
             // Anyone authenticated may create new objects.
             PolicyRule {
-                methods:    vec![PolicyMethod::Write],
-                principal:  PolicyPrincipal::Authenticated,
-                key_prefix: None,
+                methods:           vec![PolicyMethod::Write],
+                principal:         PolicyPrincipal::Authenticated,
+                key_prefix:        None,
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
             },
         ],
     };
@@ -2355,14 +2370,22 @@ async fn list_is_a_distinct_permission_under_policy() {
     let policy = BucketPolicy {
         rules: vec![
             PolicyRule {
-                methods:    vec![PolicyMethod::Write],
-                principal:  PolicyPrincipal::Authenticated,
-                key_prefix: None,
+                methods:           vec![PolicyMethod::Write],
+                principal:         PolicyPrincipal::Authenticated,
+                key_prefix:        None,
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
             },
             PolicyRule {
-                methods:    vec![PolicyMethod::List, PolicyMethod::Read],
-                principal:  PolicyPrincipal::Role("auditor".to_string()),
-                key_prefix: Some("reports/".to_string()),
+                methods:           vec![PolicyMethod::List, PolicyMethod::Read],
+                principal:         PolicyPrincipal::Role("auditor".to_string()),
+                key_prefix:        Some("reports/".to_string()),
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
             },
         ],
     };

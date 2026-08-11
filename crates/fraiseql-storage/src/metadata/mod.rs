@@ -51,6 +51,12 @@ pub struct StorageMetadataRow {
     pub created_at:        DateTime<Utc>,
     /// Last update time.
     pub updated_at:        DateTime<Utc>,
+    /// When this object stops being servable, if ever (#974).
+    ///
+    /// Read by the [`require_unexpired`](crate::PolicyRule::require_unexpired)
+    /// policy condition. `None` means no expiry was set, which that condition
+    /// treats as a denial rather than as "never expires".
+    pub expires_at:        Option<DateTime<Utc>>,
 }
 
 /// Data required to insert a new storage object record.
@@ -125,7 +131,7 @@ impl StorageMetadataRepo {
     ) -> Result<Option<StorageMetadataRow>, FraiseQLError> {
         let row = sqlx::query_as::<_, MetadataQueryRow>(
             "SELECT pk_storage_object, bucket, key, content_type, \
-                    size_bytes, etag, owner_id, pending, created_at, updated_at \
+                    size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at \
              FROM _fraiseql_storage_objects \
              WHERE bucket = $1 AND key = $2",
         )
@@ -189,7 +195,7 @@ impl StorageMetadataRepo {
                 // literally and cannot be used to widen the match.
                 sqlx::query_as::<_, MetadataQueryRow>(
                     "SELECT pk_storage_object, bucket, key, content_type, \
-                            size_bytes, etag, owner_id, pending, created_at, updated_at \
+                            size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at \
                      FROM _fraiseql_storage_objects \
                      WHERE bucket = $1 AND key LIKE $2 ESCAPE '\\' \
                      ORDER BY key ASC \
@@ -205,7 +211,7 @@ impl StorageMetadataRepo {
             None => {
                 sqlx::query_as::<_, MetadataQueryRow>(
                     "SELECT pk_storage_object, bucket, key, content_type, \
-                            size_bytes, etag, owner_id, pending, created_at, updated_at \
+                            size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at \
                      FROM _fraiseql_storage_objects \
                      WHERE bucket = $1 \
                      ORDER BY key ASC \
@@ -421,6 +427,7 @@ struct MetadataQueryRow {
     pending:           bool,
     created_at:        DateTime<Utc>,
     updated_at:        DateTime<Utc>,
+    expires_at:        Option<DateTime<Utc>>,
 }
 
 impl From<MetadataQueryRow> for StorageMetadataRow {
@@ -436,6 +443,7 @@ impl From<MetadataQueryRow> for StorageMetadataRow {
             pending:           row.pending,
             created_at:        row.created_at,
             updated_at:        row.updated_at,
+            expires_at:        row.expires_at,
         }
     }
 }

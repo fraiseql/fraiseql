@@ -112,6 +112,7 @@ async fn harness() -> Option<Harness> {
     let app = storage_router(state.clone()).layer(Extension(StorageUser {
         user_id: Some("interop-user".to_string()),
         roles:   vec!["user".to_string()],
+        claims:  fraiseql_storage::ClaimValues::new(),
     }));
     tokio::spawn(async move {
         let _ = axum::serve(listener, app).await;

@@ -163,6 +163,7 @@ mod minio_tests {
 
     fn router_for(state: StorageState, user_id: &str) -> Router {
         storage_router(state).layer(Extension(StorageUser {
+            claims:  fraiseql_storage::ClaimValues::new(),
             user_id: Some(user_id.to_string()),
             roles:   vec!["user".to_string()],
         }))

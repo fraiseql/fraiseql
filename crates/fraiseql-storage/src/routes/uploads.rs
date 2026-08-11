@@ -126,7 +126,7 @@ pub(super) async fn create_upload_handler(
     };
     if !state
         .rls
-        .can_write_object(user.user_id.as_deref(), &user.roles, bucket, existing.as_ref())
+        .can_write_object(&user.caller(chrono::Utc::now()), bucket, existing.as_ref())
     {
         tracing::warn!(
             bucket = %bucket_name,

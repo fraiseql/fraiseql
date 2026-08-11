@@ -538,6 +538,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                                         let storage_user = fraiseql_storage::StorageUser {
                                             user_id: Some(user.user_id.to_string()),
                                             roles:   user.scopes,
+                                            // #974: the OIDC path is the only
+                                            // one carrying claims, so it is the
+                                            // only one where a `require_claims`
+                                            // rule can match.
+                                            claims:  fraiseql_storage::normalise_claims(
+                                                &user.extra_claims,
+                                            ),
                                         };
                                         request.extensions_mut().insert(storage_user);
                                     },
@@ -595,6 +602,9 @@ fn storage_admin_user(
             // Grant the explicit storage-admin role, NOT the generic `"admin"`,
             // so it stays in lockstep with the storage RLS evaluator (M-storage-scope).
             roles:   vec![fraiseql_storage::STORAGE_ADMIN_ROLE.to_string()],
+            // The static token carries no claims. It does not need any: the
+            // storage-admin role bypasses policy evaluation entirely.
+            claims:  fraiseql_storage::ClaimValues::new(),
         })
     } else {
         None

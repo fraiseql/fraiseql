@@ -49,8 +49,11 @@ pub use backend::{
 pub use config::{BucketAccess, BucketConfig, StorageConfig};
 pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 pub use metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
-pub use policy::{BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRequest, PolicyRule};
-pub use rls::{STORAGE_ADMIN_ROLE, StorageRlsEvaluator};
+pub use policy::{
+    BucketPolicy, ClaimValues, PolicyMethod, PolicyPrincipal, PolicyRequest, PolicyRule,
+    normalise_claims,
+};
+pub use rls::{STORAGE_ADMIN_ROLE, StorageCaller, StorageRlsEvaluator};
 pub use routes::{StorageState, StorageUser, storage_router};
 pub use service::BucketService;
 #[cfg(feature = "transforms")]

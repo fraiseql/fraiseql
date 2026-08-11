@@ -178,10 +178,30 @@ fn resolve_from_map(
                 }
                 let principal = fraiseql_storage::PolicyPrincipal::parse(&rule.principal)
                     .map_err(|e| format!("[storage.{name}] policy rule {index}: {e}"))?;
+                // #974: a condition that fails to parse refuses the boot for the
+                // same reason a bad method spelling does — the alternative is a
+                // rule that quietly loses its narrowing condition and permits
+                // more than it reads as permitting.
+                let not_before =
+                    parse_rule_instant(rule.not_before.as_deref(), "not_before", name, index)?;
+                let not_after =
+                    parse_rule_instant(rule.not_after.as_deref(), "not_after", name, index)?;
+                if let (Some(start), Some(end)) = (not_before, not_after) {
+                    if start >= end {
+                        return Err(format!(
+                            "[storage.{name}] policy rule {index}: not_before ({start}) is not \
+                             before not_after ({end}), so the rule can never permit anything"
+                        ));
+                    }
+                }
                 parsed.push(fraiseql_storage::PolicyRule {
                     methods,
                     principal,
                     key_prefix: rule.key_prefix.clone(),
+                    not_before,
+                    not_after,
+                    require_unexpired: rule.require_unexpired,
+                    require_claims: rule.require_claims.clone(),
                 });
             }
             Some(fraiseql_storage::BucketPolicy { rules: parsed })
@@ -323,4 +343,27 @@ fn parse_transform_presets(
         });
     }
     Ok(Some(parsed))
+}
+
+/// Parse an optional RFC3339 instant from a policy rule's time bound (#974).
+///
+/// Refuses the boot on a malformed value rather than dropping the bound: a rule
+/// that silently loses its `not_after` permits forever.
+fn parse_rule_instant(
+    raw: Option<&str>,
+    field: &str,
+    bucket: &str,
+    index: usize,
+) -> Result<Option<chrono::DateTime<chrono::Utc>>, String> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .map(|parsed| Some(parsed.with_timezone(&chrono::Utc)))
+        .map_err(|e| {
+            format!(
+                "[storage.{bucket}] policy rule {index}: {field} = {raw:?} is not a valid RFC3339 \
+                 timestamp ({e}); expected e.g. \"2026-01-31T00:00:00Z\""
+            )
+        })
 }

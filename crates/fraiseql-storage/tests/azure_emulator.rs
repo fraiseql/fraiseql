@@ -382,5 +382,6 @@ fn router_for(state: StorageState, user_id: &str) -> Router {
     storage_router(state).layer(Extension(StorageUser {
         user_id: Some(user_id.to_string()),
         roles:   vec!["user".to_string()],
+        claims:  fraiseql_storage::ClaimValues::new(),
     }))
 }

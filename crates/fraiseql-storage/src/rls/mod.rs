@@ -6,10 +6,12 @@
 #[cfg(test)]
 mod tests;
 
+use chrono::{DateTime, Utc};
+
 use crate::{
     config::{BucketAccess, BucketConfig},
     metadata::StorageMetadataRow,
-    policy::{PolicyMethod, PolicyRequest},
+    policy::{ClaimValues, PolicyMethod, PolicyRequest},
 };
 
 /// The storage admin role that bypasses all object-level access checks.
@@ -22,6 +24,62 @@ use crate::{
 /// `fraiseql:storage:admin` role makes the storage-admin grant intentional, not an accidental
 /// collision with an unrelated application scope.
 pub const STORAGE_ADMIN_ROLE: &str = "fraiseql:storage:admin";
+
+/// Who is asking, and when.
+///
+/// Bundled rather than passed as loose arguments because #974 added three more
+/// facts a decision depends on (the caller's claims, the deciding instant, and
+/// whether the request came through a signed URL), and threading five
+/// parameters through every `can_*` method is how one call site ends up
+/// quietly passing the wrong one.
+///
+/// `now` is carried here rather than read from the clock inside the evaluator
+/// so that a time-bounded grant is testable without sleeping, and so a single
+/// request cannot straddle two different "now"s.
+#[derive(Debug, Clone, Copy)]
+pub struct StorageCaller<'a> {
+    /// The authenticated caller, if any.
+    pub user_id:        Option<&'a str>,
+    /// The caller's roles (an OIDC token's scopes, verbatim).
+    pub roles:          &'a [String],
+    /// The caller's normalised token claims; empty when the auth path has none.
+    pub claims:         &'a ClaimValues,
+    /// The instant this decision is made at.
+    pub now:            DateTime<Utc>,
+    /// Whether the request arrived through the signed-URL path.
+    pub via_signed_url: bool,
+}
+
+impl<'a> StorageCaller<'a> {
+    /// A caller arriving through an ordinary (not signed-URL) request.
+    #[must_use]
+    pub const fn new(
+        user_id: Option<&'a str>,
+        roles: &'a [String],
+        claims: &'a ClaimValues,
+        now: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            user_id,
+            roles,
+            claims,
+            now,
+            via_signed_url: false,
+        }
+    }
+
+    /// The same caller, arriving through the signed-URL path.
+    ///
+    /// Only the presign endpoint sets this: it is what distinguishes *"may this
+    /// caller be handed a signed URL"* from *"may this caller download
+    /// directly"*, which is the whole point of
+    /// [`PolicyPrincipal::SignedUrl`](crate::PolicyPrincipal::SignedUrl).
+    #[must_use]
+    pub const fn through_signed_url(mut self) -> Self {
+        self.via_signed_url = true;
+        self
+    }
+}
 
 /// Storage RLS evaluator.
 ///
@@ -48,24 +106,23 @@ impl StorageRlsEvaluator {
     #[must_use]
     pub fn can_read(
         &self,
-        user_id: Option<&str>,
-        roles: &[String],
+        caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
         object: &StorageMetadataRow,
     ) -> bool {
         if let Some(decision) = policy_decision(
             PolicyMethod::Read,
-            user_id,
-            roles,
+            caller,
             bucket,
             &object.key,
             object.owner_id.as_deref(),
+            object.expires_at,
         ) {
             return decision;
         }
         match bucket.access {
             BucketAccess::PublicRead => true,
-            BucketAccess::Private => is_admin(roles) || is_owner(user_id, object),
+            BucketAccess::Private => is_admin(caller.roles) || is_owner(caller.user_id, object),
         }
     }
 
@@ -75,13 +132,8 @@ impl StorageRlsEvaluator {
     /// - Must be authenticated (`user_id` present)
     /// - Admin role always allowed
     #[must_use]
-    pub fn can_write(
-        &self,
-        user_id: Option<&str>,
-        roles: &[String],
-        bucket: &BucketConfig,
-    ) -> bool {
-        self.can_write_key(user_id, roles, bucket, "")
+    pub fn can_write(&self, caller: &StorageCaller<'_>, bucket: &BucketConfig) -> bool {
+        self.can_write_key(caller, bucket, "")
     }
 
     /// [`can_write`](Self::can_write) for a known key, so a policy's
@@ -90,20 +142,19 @@ impl StorageRlsEvaluator {
     #[must_use]
     pub fn can_write_key(
         &self,
-        user_id: Option<&str>,
-        roles: &[String],
+        caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
         key: &str,
     ) -> bool {
         if let Some(decision) =
-            policy_decision(PolicyMethod::Write, user_id, roles, bucket, key, None)
+            policy_decision(PolicyMethod::Write, caller, bucket, key, None, None)
         {
             return decision;
         }
-        if is_admin(roles) {
+        if is_admin(caller.roles) {
             return true;
         }
-        user_id.is_some()
+        caller.user_id.is_some()
     }
 
     /// Check if the user can write (create or overwrite) the given object.
@@ -118,13 +169,12 @@ impl StorageRlsEvaluator {
     #[must_use]
     pub fn can_write_object(
         &self,
-        user_id: Option<&str>,
-        roles: &[String],
+        caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
         existing: Option<&StorageMetadataRow>,
     ) -> bool {
         match existing {
-            None => self.can_write(user_id, roles, bucket),
+            None => self.can_write(caller, bucket),
             Some(object) => {
                 // #371: overwriting an EXISTING object is `overwrite`, never
                 // `write`. Otherwise the natural rule "authenticated callers
@@ -132,15 +182,15 @@ impl StorageRlsEvaluator {
                 // any authenticated caller to clobber another user's object.
                 if let Some(decision) = policy_decision(
                     PolicyMethod::Overwrite,
-                    user_id,
-                    roles,
+                    caller,
                     bucket,
                     &object.key,
                     object.owner_id.as_deref(),
+                    object.expires_at,
                 ) {
                     return decision;
                 }
-                is_admin(roles) || is_owner(user_id, object)
+                is_admin(caller.roles) || is_owner(caller.user_id, object)
             },
         }
     }
@@ -152,22 +202,21 @@ impl StorageRlsEvaluator {
     #[must_use]
     pub fn can_delete(
         &self,
-        user_id: Option<&str>,
-        roles: &[String],
+        caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
         object: &StorageMetadataRow,
     ) -> bool {
         if let Some(decision) = policy_decision(
             PolicyMethod::Delete,
-            user_id,
-            roles,
+            caller,
             bucket,
             &object.key,
             object.owner_id.as_deref(),
+            object.expires_at,
         ) {
             return decision;
         }
-        is_admin(roles) || is_owner(user_id, object)
+        is_admin(caller.roles) || is_owner(caller.user_id, object)
     }
 
     /// Whether the caller may list the bucket at `prefix` at all.
@@ -180,17 +229,16 @@ impl StorageRlsEvaluator {
     #[must_use]
     pub fn can_list(
         &self,
-        user_id: Option<&str>,
-        roles: &[String],
+        caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
         prefix: &str,
     ) -> bool {
         if let Some(decision) =
-            policy_decision(PolicyMethod::List, user_id, roles, bucket, prefix, None)
+            policy_decision(PolicyMethod::List, caller, bucket, prefix, None, None)
         {
             return decision;
         }
-        if is_admin(roles) || user_id.is_some() {
+        if is_admin(caller.roles) || caller.user_id.is_some() {
             return true;
         }
         !matches!(bucket.access, BucketAccess::Private)
@@ -203,13 +251,12 @@ impl StorageRlsEvaluator {
     #[must_use]
     pub fn filter_visible(
         &self,
-        user_id: Option<&str>,
-        roles: &[String],
+        caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
         objects: Vec<StorageMetadataRow>,
     ) -> Vec<StorageMetadataRow> {
         if bucket.policies.is_some() {
-            if is_admin(roles) {
+            if is_admin(caller.roles) {
                 return objects;
             }
             // Per-object, because a `key_prefix` rule makes visibility a
@@ -219,11 +266,11 @@ impl StorageRlsEvaluator {
                 .filter(|object| {
                     policy_decision(
                         PolicyMethod::Read,
-                        user_id,
-                        roles,
+                        caller,
                         bucket,
                         &object.key,
                         object.owner_id.as_deref(),
+                        object.expires_at,
                     )
                     .unwrap_or(false)
                 })
@@ -232,10 +279,10 @@ impl StorageRlsEvaluator {
         match bucket.access {
             BucketAccess::PublicRead => objects,
             BucketAccess::Private => {
-                if is_admin(roles) {
+                if is_admin(caller.roles) {
                     return objects;
                 }
-                objects.into_iter().filter(|obj| is_owner(user_id, obj)).collect()
+                objects.into_iter().filter(|obj| is_owner(caller.user_id, obj)).collect()
             },
         }
     }
@@ -256,23 +303,27 @@ impl Default for StorageRlsEvaluator {
 /// no bypass must not grant that role.
 fn policy_decision(
     method: PolicyMethod,
-    user_id: Option<&str>,
-    roles: &[String],
+    caller: &StorageCaller<'_>,
     bucket: &BucketConfig,
     key: &str,
     owner_id: Option<&str>,
+    expires_at: Option<DateTime<Utc>>,
 ) -> Option<bool> {
     let policy = bucket.policies.as_ref()?;
-    if is_admin(roles) {
+    if is_admin(caller.roles) {
         return Some(true);
     }
     Some(policy.permits(
         method,
         &PolicyRequest {
-            user_id,
-            roles,
+            user_id: caller.user_id,
+            roles: caller.roles,
             key,
             owner_id,
+            now: caller.now,
+            expires_at,
+            claims: caller.claims,
+            via_signed_url: caller.via_signed_url,
         },
     ))
 }
