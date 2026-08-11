@@ -100,6 +100,10 @@ indexmap = {version = "2", features = ["serde"]}
 itertools = "0.14"
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 # Caching
+# Lockfile holds 0.18.2 or later: RUSTSEC-2026-0253 (use-after-free when a key's
+# Drop panics in LruCache::pop) affects 0.18.1. The requirement stays at "0.18" —
+# tightening it to "0.18.2" re-resolves the whole graph and drags in unrelated
+# socket2/itertools/windows-sys dedup drift, which a security fix should not carry.
 lru = "0.18"
 moka = {version = "0.12", default-features = false, features = ["sync"]}
 # Parking lot (faster mutexes)
