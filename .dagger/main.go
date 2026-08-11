@@ -1288,12 +1288,27 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		// #371: bucket policies reach BucketConfig parsed, and an unparseable
 		// policy refuses to boot rather than becoming a silently-denying rule.
 		"cargo test -p fraiseql-server --lib -- server_config::tests::resolve_storage_section_parses_bucket_policies server_config::tests::unparseable_policies --test-threads=1",
+		// #972: the resumable path for both emulator-backed backends — GCS
+		// resumable sessions and Azure block lists — at the seam and end to end
+		// through the Tus routes.
 		"cargo test -p fraiseql-storage --features azure-blob --test azure_emulator -- --test-threads=1",
 		"cargo test -p fraiseql-storage --features gcs --test gcs_emulator -- --test-threads=1",
+		// #972 (from #369's deferred acceptance): drive the Tus endpoints with
+		// tus-js-client, the reference client. Everything else in the repo
+		// speaks the protocol the way the server does, so a shared misreading
+		// reads as agreement. TUS_INTEROP is the provisioned-leg marker: with
+		// it set the suite fails loudly instead of skipping.
+		"bash tools/tus-interop/install.sh",
+		"export TUS_INTEROP=1",
+		"cargo test -p fraiseql-storage --test tus_interop -- --test-threads=1",
 		"echo 'test-integration OK: storage suite passed'",
 	}, "\n")
 
 	return m.integrationBase(source, rustMsrv).
+		// nodejs/npm for the tus-js-client interop suite. Installed here rather
+		// than in rustBase: only this leg needs it, and rustBase is shared by
+		// every heavy leg.
+		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "nodejs", "npm"}).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(azuriteBindHost, m.azuriteService()).
 		WithServiceBinding(fakeGcsBindHost, m.fakeGcsService()).

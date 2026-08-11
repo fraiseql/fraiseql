@@ -9,12 +9,64 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use fraiseql_error::{FileError, FraiseQLError, Result};
 use parking_lot::RwLock;
+use reqwest::StatusCode;
 
 use super::validate_key;
 
 const GCS_DEFAULT_API_BASE: &str = "https://storage.googleapis.com";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const SCOPE: &str = "https://www.googleapis.com/auth/devstorage.full_control";
+
+/// The status GCS answers a cancelled resumable session with. It is outside the
+/// IANA registry, so `reqwest` has no constant for it.
+const GCS_CLIENT_CLOSED_REQUEST: u16 = 499;
+
+/// Smallest chunk unit a GCS resumable session accepts: every chunk but the
+/// last must be a multiple of 256 `KiB`.
+pub(super) const GCS_RESUMABLE_CHUNK_UNIT: u64 = 256 * 1024;
+
+/// The continuation state a resumable session persists between chunks.
+struct GcsSession {
+    /// The session URI GCS returned from the `uploadType=resumable` POST.
+    uri:    String,
+    /// The object's declared size, fixed when the session was opened.
+    total:  u64,
+    /// Bytes GCS has accepted so far.
+    offset: u64,
+    /// The assembled object's etag, present once the final chunk landed.
+    etag:   Option<String>,
+}
+
+impl GcsSession {
+    /// Decode persisted continuation state. Corrupt state is a loud backend
+    /// error — an upload cannot continue against a session we cannot name.
+    fn parse(state: &serde_json::Value) -> Result<Self> {
+        let uri = state
+            .get("session_uri")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| gcs_err("resumable state", "no session_uri"))?
+            .to_owned();
+        let total = state
+            .get("total")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| gcs_err("resumable state", "no total"))?;
+        let offset = state
+            .get("offset")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| gcs_err("resumable state", "no offset"))?;
+        let etag = state
+            .get("etag")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+            .filter(|e| !e.is_empty());
+        Ok(Self {
+            uri,
+            total,
+            offset,
+            etag,
+        })
+    }
+}
 
 /// Stores files in a Google Cloud Storage bucket.
 pub struct GcsBackend {
@@ -401,6 +453,193 @@ impl GcsBackend {
                 Err(gcs_err("exists check response", body))
             },
         }
+    }
+
+    /// Open a GCS resumable-upload session for a resumable upload (#972).
+    ///
+    /// The returned continuation state carries the session URI GCS hands back,
+    /// the declared total size, and the byte offset accepted so far. Every
+    /// subsequent chunk is a `PUT` to that session URI.
+    ///
+    /// The total is declared up front because GCS finalises the object when it
+    /// receives the chunk whose `Content-Range` reaches it — which is the only
+    /// finalisation form GCS documents for chunked uploads, and it needs the
+    /// size before the first chunk is sent.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the session cannot be opened or GCS
+    /// answers without a `Location` header.
+    pub async fn multipart_begin(
+        &self,
+        key: &str,
+        content_type: &str,
+        total_bytes: u64,
+    ) -> Result<serde_json::Value> {
+        validate_key(key)?;
+        let token = self.get_token().await?;
+        let base = self.api_base();
+        let url = format!(
+            "{base}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
+            self.bucket,
+            urlencoding::encode(key)
+        );
+
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&token)
+            .header("X-Upload-Content-Type", content_type)
+            .header("X-Upload-Content-Length", total_bytes.to_string())
+            .header(reqwest::header::CONTENT_LENGTH, "0")
+            .send()
+            .await
+            .map_err(|e| gcs_err_src("resumable session start", e))?;
+
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(gcs_err("resumable session start response", body));
+        }
+
+        let session_uri = resp
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| {
+                gcs_err("resumable session start", "response carried no Location header")
+            })?
+            .to_owned();
+
+        Ok(serde_json::json!({
+            "session_uri": session_uri,
+            "total": total_bytes,
+            "offset": 0,
+        }))
+    }
+
+    /// Send one chunk to an open resumable session. Returns the updated
+    /// continuation state, carrying the assembled object's etag once the
+    /// session's final chunk has been accepted.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure, on corrupted
+    /// continuation state, or if the chunk would run past the declared total.
+    pub async fn multipart_append(
+        &self,
+        key: &str,
+        state: serde_json::Value,
+        data: &[u8],
+    ) -> Result<serde_json::Value> {
+        validate_key(key)?;
+        let session = GcsSession::parse(&state)?;
+        let len = data.len() as u64;
+        let end = session.offset.checked_add(len).ok_or_else(|| {
+            gcs_err("resumable append", "chunk offset overflowed the declared total")
+        })?;
+        if end > session.total {
+            return Err(gcs_err(
+                "resumable append",
+                format!(
+                    "chunk would carry the upload to {end} bytes, past the declared total of {}",
+                    session.total
+                ),
+            ));
+        }
+
+        let range = format!("bytes {}-{}/{}", session.offset, end - 1, session.total);
+        let resp = self
+            .client
+            .put(&session.uri)
+            .header(reqwest::header::CONTENT_RANGE, range)
+            .body(data.to_vec())
+            .send()
+            .await
+            .map_err(|e| gcs_err_src("resumable append", e))?;
+
+        // 308 "Resume Incomplete" is GCS's success status for a non-final
+        // chunk; 200/201 means that chunk completed the object.
+        let status = resp.status();
+        if status == StatusCode::PERMANENT_REDIRECT {
+            return Ok(serde_json::json!({
+                "session_uri": session.uri,
+                "total": session.total,
+                "offset": end,
+            }));
+        }
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(gcs_err("resumable append response", body));
+        }
+
+        let object: serde_json::Value =
+            resp.json().await.map_err(|e| gcs_err_src("resumable append body", e))?;
+        let etag = object
+            .get("etag")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        Ok(serde_json::json!({
+            "session_uri": session.uri,
+            "total": session.total,
+            "offset": end,
+            "etag": etag,
+        }))
+    }
+
+    /// Finalise a resumable upload.
+    ///
+    /// GCS finalises the object when the session's last chunk lands, so there
+    /// is no separate commit call: this reports the etag that append recorded.
+    /// A state without one describes an upload GCS never finalised, which is a
+    /// loud error rather than a silently missing object.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the continuation state is corrupt or
+    /// describes an upload that never reached its declared total.
+    pub fn multipart_complete(&self, key: &str, state: &serde_json::Value) -> Result<String> {
+        validate_key(key)?;
+        let session = GcsSession::parse(state)?;
+        session.etag.ok_or_else(|| {
+            gcs_err(
+                "resumable completion",
+                format!(
+                    "the session stopped at {} of {} bytes, so GCS never finalised the object",
+                    session.offset, session.total
+                ),
+            )
+        })
+    }
+
+    /// Cancel a resumable session and discard whatever it has staged.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or corrupted
+    /// continuation state.
+    pub async fn multipart_abort(&self, key: &str, state: &serde_json::Value) -> Result<()> {
+        validate_key(key)?;
+        let session = GcsSession::parse(state)?;
+        let resp = self
+            .client
+            .delete(&session.uri)
+            .header(reqwest::header::CONTENT_LENGTH, "0")
+            .send()
+            .await
+            .map_err(|e| gcs_err_src("resumable abort", e))?;
+
+        // 499 is the status GCS documents for a cancelled resumable session;
+        // 404 means it has already gone (an expired or twice-aborted session).
+        let status = resp.status();
+        if status.is_success()
+            || status == StatusCode::NOT_FOUND
+            || status.as_u16() == GCS_CLIENT_CLOSED_REQUEST
+        {
+            return Ok(());
+        }
+        let body = resp.text().await.unwrap_or_default();
+        Err(gcs_err("resumable abort response", body))
     }
 
     /// Generates a presigned URL for direct access to a GCS object.

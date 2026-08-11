@@ -354,10 +354,12 @@ impl StorageBackend {
     /// Smallest non-final chunk this backend accepts in a resumable upload.
     ///
     /// S3's multipart API refuses parts under `5 MiB` (except the last), and
-    /// every S3-compatible provider FraiseQL supports enforces the same. The
-    /// local backend appends to a staging file and has no minimum. The route
-    /// layer rejects an undersized non-final chunk up front, so the constraint
-    /// is a clean `400` instead of a backend error at completion time.
+    /// every S3-compatible provider FraiseQL supports enforces the same. GCS
+    /// resumable sessions refuse a non-final chunk under `256 KiB`. The local
+    /// backend appends to a staging file and Azure stages arbitrary blocks, so
+    /// neither has a minimum. The route layer rejects an undersized non-final
+    /// chunk up front, so the constraint is a clean `400` instead of a backend
+    /// error at completion time.
     #[must_use]
     pub const fn multipart_min_chunk_bytes(&self) -> u64 {
         match self {
@@ -371,7 +373,34 @@ impl StorageBackend {
             | Self::Backblaze(_)
             | Self::R2(_) => 5 * 1024 * 1024,
             #[cfg(feature = "gcs")]
-            Self::Gcs(_) => 1,
+            Self::Gcs(_) => gcs::GCS_RESUMABLE_CHUNK_UNIT,
+            #[cfg(feature = "azure-blob")]
+            Self::Azure(_) => 1,
+        }
+    }
+
+    /// Granularity this backend requires of a non-final resumable chunk.
+    ///
+    /// A minimum is not the whole constraint: GCS accepts a non-final chunk
+    /// only when its length is an exact multiple of `256 KiB`, so a `300 KiB`
+    /// chunk clears the minimum and is still refused — by GCS, mid-upload,
+    /// with a message that reads like a client bug. The route layer applies
+    /// this the same way it applies the minimum, up front. Every other backend
+    /// returns `1`, which accepts any length.
+    #[must_use]
+    pub const fn multipart_chunk_multiple_bytes(&self) -> u64 {
+        match self {
+            Self::Local(_) => 1,
+            #[cfg(feature = "aws-s3")]
+            Self::S3(_)
+            | Self::Hetzner(_)
+            | Self::Scaleway(_)
+            | Self::Ovh(_)
+            | Self::Exoscale(_)
+            | Self::Backblaze(_)
+            | Self::R2(_) => 1,
+            #[cfg(feature = "gcs")]
+            Self::Gcs(_) => gcs::GCS_RESUMABLE_CHUNK_UNIT,
             #[cfg(feature = "azure-blob")]
             Self::Azure(_) => 1,
         }
@@ -380,20 +409,23 @@ impl StorageBackend {
     /// Begin backend staging for a resumable upload (#369). Returns the opaque
     /// continuation state the session persists between chunks.
     ///
+    /// `total_bytes` is the size the client declared (`Upload-Length`). GCS
+    /// needs it before the first chunk, because a resumable session finalises
+    /// the object when a chunk's `Content-Range` reaches the declared total;
+    /// the other backends ignore it.
+    ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::File` on backend failure, and
-    /// `FileError::NotImplemented` for backends without a resumable path yet
-    /// (GCS resumable sessions and Azure block lists are tracked separately —
-    /// refused loudly, never silently buffered).
+    /// Returns `FraiseQLError::File` on backend failure.
     pub async fn multipart_begin(
         &self,
         key: &str,
         content_type: &str,
+        total_bytes: u64,
     ) -> Result<serde_json::Value> {
         match self {
             Self::Local(b) => {
-                let _ = content_type; // used by the S3 arm only
+                let _ = (content_type, total_bytes); // used by other arms
                 b.multipart_begin(key).await
             },
             #[cfg(feature = "aws-s3")]
@@ -403,11 +435,14 @@ impl StorageBackend {
             | Self::Ovh(b)
             | Self::Exoscale(b)
             | Self::Backblaze(b)
-            | Self::R2(b) => b.multipart_begin(key, content_type).await,
+            | Self::R2(b) => {
+                let _ = total_bytes; // S3 parts carry their own numbering
+                b.multipart_begin(key, content_type).await
+            },
             #[cfg(feature = "gcs")]
-            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            Self::Gcs(b) => b.multipart_begin(key, content_type, total_bytes).await,
             #[cfg(feature = "azure-blob")]
-            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+            Self::Azure(b) => b.multipart_begin(key, content_type, total_bytes).await,
         }
     }
 
@@ -438,9 +473,9 @@ impl StorageBackend {
             | Self::Backblaze(b)
             | Self::R2(b) => b.multipart_append(key, state, data).await,
             #[cfg(feature = "gcs")]
-            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            Self::Gcs(b) => b.multipart_append(key, state, data).await,
             #[cfg(feature = "azure-blob")]
-            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+            Self::Azure(b) => b.multipart_append(key, state, data).await,
         }
     }
 
@@ -466,9 +501,9 @@ impl StorageBackend {
             | Self::Backblaze(b)
             | Self::R2(b) => b.multipart_complete(key, state).await,
             #[cfg(feature = "gcs")]
-            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            Self::Gcs(b) => b.multipart_complete(key, state),
             #[cfg(feature = "azure-blob")]
-            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+            Self::Azure(b) => b.multipart_complete(key, state).await,
         }
     }
 
@@ -493,22 +528,11 @@ impl StorageBackend {
             | Self::Backblaze(b)
             | Self::R2(b) => b.multipart_abort(key, state).await,
             #[cfg(feature = "gcs")]
-            Self::Gcs(_) => Err(multipart_unsupported("gcs")),
+            Self::Gcs(b) => b.multipart_abort(key, state).await,
             #[cfg(feature = "azure-blob")]
-            Self::Azure(_) => Err(multipart_unsupported("azure-blob")),
+            Self::Azure(b) => b.multipart_abort(key, state),
         }
     }
-}
-
-/// The loud refusal for backends whose resumable-upload path is not built yet.
-#[cfg(any(feature = "gcs", feature = "azure-blob"))]
-fn multipart_unsupported(backend: &str) -> fraiseql_error::FraiseQLError {
-    fraiseql_error::FraiseQLError::File(FileError::NotImplemented {
-        message: format!(
-            "resumable uploads are not implemented for the {backend} backend \
-             (GCS resumable sessions / Azure block lists are tracked follow-ups)"
-        ),
-    })
 }
 
 /// Build a `FileError::InvalidKey` rejection.

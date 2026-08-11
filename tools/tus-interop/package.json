@@ -1,0 +1,13 @@
+{
+  "name": "fraiseql-tus-interop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Drives FraiseQL's Tus resumable-upload endpoints with the reference tus-js-client, so the protocol is proven against a real client rather than against our own reading of the spec.",
+  "scripts": {
+    "upload": "node tus-upload.mjs"
+  },
+  "dependencies": {
+    "tus-js-client": "^4.3.1"
+  }
+}

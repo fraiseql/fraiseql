@@ -1389,8 +1389,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--database` is now long-only on all three subcommands — the global `-d` (debug) is
   consistent across every subcommand — and a `Cli::command().debug_assert()` test guards
   against reintroduction. Use `--database <url>` (the long form always worked).
+- **`StorageBackend::multipart_begin` takes the declared upload size (#972).** The signature
+  is now `multipart_begin(key, content_type, total_bytes)`. GCS needs the total *before* the
+  first chunk — a resumable session finalises the object when a chunk's `Content-Range`
+  reaches the declared total, which is the only finalisation form Google documents for
+  chunked uploads — so the seam carries it and the local/S3 arms ignore it. The route layer
+  already knew the number (Tus `Upload-Length` is mandatory there), so nothing above the
+  seam changed. Embedders calling the backend directly pass the size they declared.
+
+  `StorageBackend::multipart_chunk_multiple_bytes()` joins `multipart_min_chunk_bytes()` for
+  the same reason: a minimum is not the whole constraint. GCS accepts a non-final chunk only
+  at 256 KiB granularity, so a 300 KiB chunk clears the minimum and is still refused — by
+  GCS, mid-upload. The Tus `PATCH` route now answers `400 chunk_not_aligned` up front, in
+  the same shape as the existing `chunk_too_small`.
 
 ### Added
+
+- **Resumable uploads on GCS and Azure Blob, and a Tus suite driven by a real client
+  (#972).** #369 shipped the resumable core with two working backends; GCS and Azure refused
+  loudly with `NotImplemented`. Both are now real. **GCS** opens a resumable session
+  (`uploadType=resumable`), keeps the session URI in the upload's continuation state and
+  `PUT`s each chunk with its own `Content-Range`; the session finalises when a chunk reaches
+  the declared total, and `multipart_abort` `DELETE`s the session so staged bytes are not
+  left accruing. **Azure** stages each chunk as an uncommitted block (`Put Block`, with
+  fixed-width block ids) and publishes the blob with `Put Block List`; `multipart_begin`
+  checks the container up front, because Azure has no session to open and a missing container
+  would otherwise surface only after the client had been handed an upload URL. Azure's abort
+  deliberately issues no request: uncommitted blocks belong to no blob and Azure reclaims
+  them, whereas deleting the blob would destroy an object a cancelled overwrite was supposed
+  to leave untouched.
+
+  Both are covered end to end against their emulators (Azurite, fake-gcs-server) in the
+  Dagger storage leg — at the backend seam and through the Tus routes an operator actually
+  calls, including the foreign-session refusal. GCS additionally gets a recording stand-in
+  for the wire contract the emulator is too permissive to check: fake-gcs-server accepts a
+  `Content-Range` that disagrees with the bytes sent and keeps serving a deleted session, so
+  an implementation that sent neither would round-trip against it perfectly.
+
+  The same issue closes #369's last deferred acceptance item: `tus-js-client`, the reference
+  Tus implementation, now drives the endpoints in CI (`tus_interop`). Everything else in the
+  repository speaks the protocol the way the server does, so a shared misreading of the spec
+  would have read as agreement. It uploads chunked and in one shot, and asserts that a
+  refusal — the bucket's size cap — reaches the client as a reported error rather than as a
+  hang.
 
 - **SCIM 2.0 provisioning, and an offboarding that is not cosmetic (#946).** `#381`'s SAML
   slice covered authentication; provisioning is the other half of an enterprise IdP

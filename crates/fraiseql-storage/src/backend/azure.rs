@@ -15,6 +15,47 @@ use super::validate_key;
 
 const AZURE_API_VERSION: &str = "2023-11-03";
 
+/// Azure's ceiling on the number of blocks a single block blob may commit.
+const AZURE_MAX_BLOCKS: usize = 50_000;
+
+/// The request content type for a `Put Block List` body.
+const AZURE_BLOCK_LIST_CONTENT_TYPE: &str = "application/xml";
+
+/// Build the block id for the `index`-th block of a blob.
+///
+/// Azure requires every block id in one blob to decode to the same byte
+/// length, so the index is zero-padded to a fixed nine digits before being
+/// base64-encoded — a width [`AZURE_MAX_BLOCKS`] puts permanently out of reach
+/// of overflowing, which is what keeps the ids uniform. Azurite enforces the
+/// uniform-length rule at `Put Block List`, so the emulator suite would fail
+/// were it broken.
+fn block_id_for(index: usize) -> String {
+    general_purpose::STANDARD.encode(format!("{index:09}"))
+}
+
+/// Decode the block-list continuation state a session persisted. Corrupt state
+/// is a loud backend error — a blob cannot be committed from blocks we cannot
+/// name.
+fn parse_block_state(state: &serde_json::Value) -> Result<(Vec<String>, String)> {
+    let blocks = state
+        .get("blocks")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| azure_err("block-list state", "no blocks array"))?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| azure_err("block-list state", "a non-string block id"))
+        })
+        .collect::<Result<Vec<String>>>()?;
+    let content_type = state
+        .get("content_type")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("application/octet-stream")
+        .to_owned();
+    Ok((blocks, content_type))
+}
+
 /// Stores files in an Azure Blob Storage container.
 pub struct AzureBackend {
     account:     String,
@@ -440,6 +481,203 @@ impl AzureBackend {
             reqwest::StatusCode::NOT_FOUND => Ok(false),
             _ => Err(azure_err("exists check response", resp.status().to_string())),
         }
+    }
+
+    /// Begin a block-list upload for a resumable upload (#972).
+    ///
+    /// Azure stages a block blob as uncommitted blocks and publishes nothing
+    /// until `Put Block List`, so there is no server-side session to open. The
+    /// container is checked here anyway: a missing container would otherwise
+    /// surface as a failure on the first chunk, after the route has already
+    /// told the client the upload exists.
+    ///
+    /// `total_bytes` is unused — Azure needs no declared size — and is accepted
+    /// so every backend shares one seam.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the container does not exist or cannot
+    /// be reached.
+    pub async fn multipart_begin(
+        &self,
+        key: &str,
+        content_type: &str,
+        total_bytes: u64,
+    ) -> Result<serde_json::Value> {
+        validate_key(key)?;
+        let _ = total_bytes;
+        self.require_container().await?;
+        Ok(serde_json::json!({ "blocks": [], "content_type": content_type }))
+    }
+
+    /// Stage one chunk as the next uncommitted block. Returns the updated
+    /// continuation state with the new block id appended.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure, on corrupted
+    /// continuation state, or once the blob's 50 000-block ceiling is reached.
+    pub async fn multipart_append(
+        &self,
+        key: &str,
+        state: serde_json::Value,
+        data: &[u8],
+    ) -> Result<serde_json::Value> {
+        validate_key(key)?;
+        let (mut blocks, content_type) = parse_block_state(&state)?;
+        if blocks.len() >= AZURE_MAX_BLOCKS {
+            return Err(azure_err(
+                "put block",
+                format!("a block blob holds at most {AZURE_MAX_BLOCKS} blocks"),
+            ));
+        }
+        let block_id = block_id_for(blocks.len());
+
+        let url =
+            format!("{}?comp=block&blockid={}", self.blob_url(key), urlencoding::encode(&block_id));
+        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let content_length = data.len().to_string();
+        // Query parameters join the canonicalized resource in lexicographic
+        // order, URL-*decoded* — `blockid` sorts before `comp`. The URL carries
+        // the percent-encoded form; the signature carries the raw one.
+        let auth = self.sign_request_with_resource(
+            "PUT",
+            key,
+            "",
+            &content_length,
+            &date,
+            "",
+            &format!("\nblockid:{block_id}\ncomp:block"),
+        );
+
+        let resp = self
+            .client
+            .put(&url)
+            .header("Authorization", &auth)
+            .header("x-ms-date", &date)
+            .header("x-ms-version", AZURE_API_VERSION)
+            .body(data.to_vec())
+            .send()
+            .await
+            .map_err(|e| azure_err_src("put block", e))?;
+
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(azure_err("put block response", body));
+        }
+
+        blocks.push(block_id);
+        Ok(serde_json::json!({ "blocks": blocks, "content_type": content_type }))
+    }
+
+    /// Commit the staged blocks in order, publishing the blob. Returns its etag.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` on backend failure or corrupted
+    /// continuation state.
+    pub async fn multipart_complete(&self, key: &str, state: &serde_json::Value) -> Result<String> {
+        validate_key(key)?;
+        let (blocks, content_type) = parse_block_state(state)?;
+
+        let mut body = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<BlockList>");
+        for id in &blocks {
+            // Block ids are base64 of a fixed-width decimal index, so they
+            // carry no XML-significant character; nothing here needs escaping.
+            body.push_str("<Latest>");
+            body.push_str(id);
+            body.push_str("</Latest>");
+        }
+        body.push_str("</BlockList>");
+
+        let url = format!("{}?comp=blocklist", self.blob_url(key));
+        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let content_length = body.len().to_string();
+        let auth = self.sign_request_with_resource(
+            "PUT",
+            key,
+            AZURE_BLOCK_LIST_CONTENT_TYPE,
+            &content_length,
+            &date,
+            // `x-ms-blob-content-type` sorts before `x-ms-date`, so it belongs
+            // at the head of the canonicalized headers block.
+            &format!("x-ms-blob-content-type:{content_type}\n"),
+            "\ncomp:blocklist",
+        );
+
+        let resp = self
+            .client
+            .put(&url)
+            .header("Authorization", &auth)
+            .header("x-ms-date", &date)
+            .header("x-ms-version", AZURE_API_VERSION)
+            .header("x-ms-blob-content-type", &content_type)
+            .header("Content-Type", AZURE_BLOCK_LIST_CONTENT_TYPE)
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| azure_err_src("put block list", e))?;
+
+        if !resp.status().is_success() {
+            let detail = resp.text().await.unwrap_or_default();
+            return Err(azure_err("put block list response", detail));
+        }
+
+        Ok(resp
+            .headers()
+            .get(reqwest::header::ETAG)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_owned())
+    }
+
+    /// Discard a block-list upload.
+    ///
+    /// There is deliberately no request here. Azure has no "abort" for
+    /// uncommitted blocks: they belong to no blob until `Put Block List`, and
+    /// Azure garbage-collects them a week after the last write. Deleting the
+    /// blob instead would be actively wrong — a resumable upload may be
+    /// overwriting an object that already exists, and cancelling it must leave
+    /// that object exactly as it was.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the continuation state is corrupt.
+    pub fn multipart_abort(&self, key: &str, state: &serde_json::Value) -> Result<()> {
+        validate_key(key)?;
+        let (blocks, _) = parse_block_state(state)?;
+        tracing::debug!(
+            key = %key,
+            blocks = blocks.len(),
+            "Abandoning uncommitted Azure blocks; Azure reclaims them after a week"
+        );
+        Ok(())
+    }
+
+    /// Fail unless the configured container exists.
+    async fn require_container(&self) -> Result<()> {
+        let url = format!("{}?restype=container", self.blob_url(""));
+        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let auth =
+            self.sign_request_with_resource("HEAD", "", "", "", &date, "", "\nrestype:container");
+
+        let resp = self
+            .client
+            .head(&url)
+            .header("Authorization", &auth)
+            .header("x-ms-date", &date)
+            .header("x-ms-version", AZURE_API_VERSION)
+            .send()
+            .await
+            .map_err(|e| azure_err_src("container check", e))?;
+
+        if resp.status().is_success() {
+            return Ok(());
+        }
+        Err(azure_err(
+            "container check",
+            format!("container '{}' is not available ({})", self.container, resp.status()),
+        ))
     }
 
     /// Generates a presigned URL for direct access to an Azure Blob.
