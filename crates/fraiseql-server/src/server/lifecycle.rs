@@ -103,6 +103,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Keep stored IdPs current (#947). Writes through this server's own admin API
+        // refresh synchronously, so the ticker exists to pick up another replica's changes
+        // and to keep the certificate-expiry warning honest. Spawned here rather than at
+        // construction so a built-but-never-served Server leaves no task behind.
+        #[cfg(feature = "auth-saml")]
+        if let (Some(saml), Some(cfg)) = (self.saml_state.as_ref(), self.config.saml.as_ref()) {
+            if cfg.store_enabled {
+                let registry = saml.registry().clone();
+                let interval = std::time::Duration::from_secs(cfg.refresh_interval_secs);
+                let warning_days = cfg.certificate_expiry_warning_days;
+                self.tasks.spawn(registry.refresh_loop(interval, warning_days));
+                info!(
+                    refresh_interval_secs = cfg.refresh_interval_secs,
+                    "SAML IdP store refresher started"
+                );
+            }
+        }
+
         // Ensure the [auth.local] tables exist before the router mounts their
         // endpoints (#367). Every one of these would otherwise 500 on the first
         // real request against a fresh database; failing the boot is the loud

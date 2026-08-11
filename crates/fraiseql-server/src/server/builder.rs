@@ -582,14 +582,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 // against a replica that has never seen its ID — the signature is valid
                 // and nothing else would stop it. Postgres because `[saml]` already
                 // requires this pool, so it adds no infrastructure.
-                let replay_store = Arc::new(fraiseql_auth::PgSamlReplayStore::new(pool));
+                let replay_store = Arc::new(fraiseql_auth::PgSamlReplayStore::new(pool.clone()));
                 replay_store
                     .init()
                     .await
                     .map_err(|e| ServerError::ConfigError(format!("[saml] replay store: {e}")))?;
-                let mut state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
+                let state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
                     .with_user_store(account_store)
                     .with_replay_store(replay_store);
+                let mut registry = fraiseql_auth::saml::SamlIdpRegistry::new();
                 for (name, entry) in &saml_cfg.idps {
                     let xml = match (&entry.metadata_xml, &entry.metadata_xml_path) {
                         (Some(xml), _) => xml.clone(),
@@ -628,13 +629,37 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                             "[saml.idps.{name}] configuration invalid: {e}"
                         ))
                     })?;
-                    state = state.with_idp(idp);
+                    registry = registry.with_config_idp(idp);
                 }
+
+                // The durable per-tenant store (#947). Attached before the first refresh so
+                // stored IdPs serve from the first request, not from the first tick.
+                if saml_cfg.store_enabled {
+                    let idp_store = Arc::new(fraiseql_auth::saml::PgSamlIdpStore::new(pool));
+                    idp_store
+                        .init()
+                        .await
+                        .map_err(|e| ServerError::ConfigError(format!("[saml] IdP store: {e}")))?;
+                    registry = registry.with_store(idp_store);
+                    registry.refresh().await.map_err(|e| {
+                        // Fail loud: booting with an unreadable IdP store would serve only
+                        // the config-file IdPs while reporting the store as enabled.
+                        ServerError::ConfigError(format!("[saml] initial IdP store load: {e}"))
+                    })?;
+                    registry.log_expiry_report(saml_cfg.certificate_expiry_warning_days);
+                    info!(
+                        stored_idps = registry.idp_names().len() - saml_cfg.idps.len(),
+                        refresh_interval_secs = saml_cfg.refresh_interval_secs,
+                        "SAML per-tenant IdP store enabled (core.tb_saml_idp, admin CRUD at \
+                         /api/saml/idps)"
+                    );
+                }
+
                 info!(
                     idps = saml_cfg.idps.len(),
                     "SAML SP-initiated SSO enabled (/auth/saml/login, /auth/saml/acs)"
                 );
-                Some(state)
+                Some(state.with_registry(registry))
             },
             None => None,
         };

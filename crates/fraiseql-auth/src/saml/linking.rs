@@ -37,9 +37,15 @@ pub fn saml_provider_key(idp_name: &str) -> String {
 /// honoring its email here could merge a verified assertion for `victim@x.com` into a
 /// *different* tenant's Google/Apple account that shares that address — cross-tenant
 /// account takeover (the nOAuth class) reintroduced behind an opt-in switch. We therefore
-/// fail closed for tenant-bound IdPs until per-tenant account scoping lands (the open #381
-/// umbrella). In a single-tenant deployment (`tenant_id = None`) the global store *is* the
-/// one tenant, so the opt-in merge is within-tenant and safe.
+/// fail closed for tenant-bound IdPs until per-tenant account scoping lands (#1088). In a
+/// single-tenant deployment (`tenant_id = None`) the global store *is* the one tenant, so
+/// the opt-in merge is within-tenant and safe.
+///
+/// The per-tenant IdP store (#947) does **not** change this. It makes tenant-bound IdPs
+/// storable and manageable, which is precisely the population this clause refuses; the flag
+/// is recorded, reported as `email_linking_effective: false` by `/api/saml/idps`, and inert.
+/// Relaxing the clause requires the tenant-scoped account store in #1088 first — on its own
+/// it is a one-boolean cross-tenant takeover.
 ///
 /// This function never registers the IdP into the global
 /// [`crate::account_linking::TrustedEmailProviders`] set; SAML trust is computed here and

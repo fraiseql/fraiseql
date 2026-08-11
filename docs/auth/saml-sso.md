@@ -13,9 +13,9 @@ FraiseQL supports SAML 2.0 SSO in two ways:
 
 ## Native SAML Service Provider (`auth-saml`)
 
-> **Status (#381):** this ships SP-initiated SSO + ACS for a single IdP. Multi-IdP
-> discovery, per-tenant SAML config storage, and SCIM provisioning remain on the #381
-> umbrella and are not yet implemented.
+> **Status (#381):** this ships SP-initiated SSO + ACS, and — since #947 — a durable
+> per-tenant IdP store with hot reload and tenant-scoped login. IdP discovery remains on
+> the #381 umbrella.
 
 Enabled by the non-default Cargo feature `auth-saml`, which pulls in
 [`samael`](https://crates.io/crates/samael) and its `xmlsec` backend. The default build
@@ -39,8 +39,9 @@ columns in sync if either changes.
 
 | Route | Purpose |
 |-------|---------|
-| `GET /auth/saml/login?idp=<name>` | SP-initiated SSO — builds a signed-relay-state `AuthnRequest` and 302-redirects to the IdP. |
+| `GET /auth/saml/login?idp=<name>[&tenant=<id>]` | SP-initiated SSO — builds a signed-relay-state `AuthnRequest` and redirects to the IdP. |
 | `POST /auth/saml/acs` | Assertion Consumer Service — verifies the `SAMLResponse` and creates a session. |
+| `POST/GET/PUT/DELETE /api/saml/idps[/{name}]` | Per-tenant IdP management (#947). Admin bearer token; mounted only when `[saml] store_enabled = true`. |
 
 ### Security model
 
@@ -71,6 +72,9 @@ the single-tenant account store cannot scope a global email merge to one tenant,
 it could merge a verified assertion into another tenant's account (the nOAuth class). SAML
 trust is never added to the global trusted-provider set; it is computed per IdP.
 
+This applies to stored IdPs exactly as it does to config-file ones: the per-tenant store
+(#947) changed where an IdP lives, not what its asserted email is trusted for.
+
 ### Minimal configuration
 
 ```rust
@@ -90,6 +94,63 @@ let saml_state = SamlAuthState::new(state_store, session_store)
     .with_user_store(account_store);
 // mount fraiseql_auth::saml::saml_routes(saml_state)
 ```
+
+### Per-tenant IdP store (#947)
+
+`[saml.idps.*]` is resolved once at boot, so adding or rotating an IdP needs a restart and
+every IdP is visible to every caller. Turning on the store adds a durable, hot-reloaded,
+per-tenant path alongside it — the config-file entries keep working unchanged.
+
+```toml
+[saml]
+store_enabled = true                     # mounts core.tb_saml_idp + /api/saml/idps
+refresh_interval_secs = 30               # how fast ANOTHER replica's change propagates
+certificate_expiry_warning_days = 30     # start warning this far before the cliff
+```
+
+`store_enabled` requires a database pool and an `admin_token` (the management routes sit
+behind the same admin bearer gate as `/api/roles`). Writes through this server's own API
+take effect on the next request — no restart.
+
+```bash
+# Create a tenant-bound IdP
+curl -X POST https://api.example.com/api/saml/idps \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"idp_name":"acme-okta","tenant_id":"…-uuid-…",
+       "sp_entity_id":"https://api.example.com/saml/metadata",
+       "acs_url":"https://api.example.com/auth/saml/acs",
+       "metadata_xml":"<EntityDescriptor …/>"}'
+
+# Rotate its certificate: replace the metadata, same name and tenant
+curl -X PUT https://api.example.com/api/saml/idps/acme-okta -H "Authorization: Bearer $ADMIN_TOKEN" …
+```
+
+**Tenant scoping is a match, not a filter.** The tenant named by the request must *equal*
+the tenant bound to the IdP, where "absent" is a value that equals only itself:
+
+| IdP binding | `?idp=x` | `?idp=x&tenant=A` | `?idp=x&tenant=B` |
+|---|---|---|---|
+| untenanted | 303 → IdP | 404 | 404 |
+| tenant `A` | 404 | 303 → IdP | 404 |
+
+Both directions matter: treating "untenanted" as "belongs to whoever asked" would hand every
+tenant the deployment-wide IdP. A refusal is indistinguishable from an unknown name — both
+answer `404` — so the route cannot enumerate other tenants' IdPs.
+
+**Two constraints worth knowing before you deploy it:**
+
+- **An IdP name is never reissued, not even after deletion.** The logical name *is* the
+  account namespace (`saml:<name>`), so reusing it would hand the new IdP every account the
+  old one created. Deletes are tombstones; a re-create answers `409`.
+- **`trust_asserted_email` is inert for tenant-bound IdPs.** It is stored and reported, but
+  `/api/saml/idps` also reports `email_linking_effective: false` for them, because the
+  account store still keys verified email globally. See [#1088] for what would lift it —
+  and do not relax the policy without it.
+- Admin credentials are **not** tenant-scoped: the admin token manages every tenant's IdPs.
+  See [#1089].
+
+[#1088]: https://github.com/fraiseql/fraiseql/issues/1088
+[#1089]: https://github.com/fraiseql/fraiseql/issues/1089
 
 ## Identity proxy
 

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`GET /auth/saml/login` now scopes by tenant, and refuses with `404` (#947).** Two
+  changes, both deliberate. A tenant-bound IdP (`tenant_id` set, in `[saml.idps.*]` or the
+  new store) no longer answers a request that does not carry a matching `?tenant=`, and an
+  untenanted IdP no longer answers a tenant-qualified one — the tenant named by the request
+  must *equal* the tenant bound to the IdP, where "absent" equals only itself. A
+  single-tenant deployment with untenanted IdPs is unaffected; a deployment that already set
+  `tenant_id` on a config-file IdP must start passing `?tenant=`. Separately, an unknown IdP
+  name now answers `404` rather than `400`, identically to a tenant mismatch: distinguishing
+  them let any caller enumerate other tenants' IdP names.
+
+  `SamlAuthState` correspondingly resolves through a `SamlIdpRegistry` rather than a private
+  map; `with_idp` is unchanged for embedders, and `with_registry` is the new multi-tenant
+  entry point.
+
 - **`fraiseql_auth::provider::TokenResponse` gained an `id_token` field (#943).** Any code
   constructing one — a custom `OAuthProvider`, a test double — must add
   `id_token: None` (or the provider's ID token, if it issues one; the built-in OIDC provider
@@ -1377,6 +1391,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against reintroduction. Use `--database <url>` (the long form always worked).
 
 ### Added
+
+- **Per-tenant SAML IdP store, with hot reload and a tenant-scoped login route (#947).**
+  `[saml.idps.*]` resolves once at boot, so adding or rotating an IdP meant a restart and a
+  config deploy, and — the security half — the tenant binding constrained only what an
+  assertion could *link* to, never who could start a login with it: any caller could name
+  any configured IdP. `[saml] store_enabled = true` adds `core.tb_saml_idp` (deny-by-default
+  RLS, like `core.tb_user`), a hot-reloading registry, and admin CRUD at `/api/saml/idps`
+  behind the existing admin bearer gate. Config-file IdPs keep working unchanged and win any
+  name collision; a stored IdP that would shadow one is refused at write time and not served
+  at read time, because the two would share one `saml:<name>` account namespace.
+
+  Certificate expiry is parsed out of the metadata on every write and reported by the API,
+  with `certificate_expiry_warning_days` (default 30) driving a periodic warning — a silently
+  expired IdP certificate is an outage whose cause is invisible from the login failure alone.
+  `refresh_interval_secs` (default 30) bounds only how fast *another replica's* change
+  propagates; writes through this server's own API serve on the next request.
+
+  Two properties keep the store from becoming a takeover primitive, and both are pinned by
+  live-PostgreSQL tests. **An IdP name is globally unique and is never reissued** — not even
+  after deletion, which is a tombstone: the logical name *is* the account-store provider
+  namespace, so a reissued name would hand the new IdP every account the old one created,
+  and a `NameID` collision across the two would resolve to a single user. **A stored,
+  tenant-bound IdP still cannot email-merge**: `trust_asserted_email` is recorded, but
+  `effective_saml_email_verified` is unchanged and the API reports
+  `email_linking_effective: false`, because `core.tb_user` keys verified email globally and
+  a merge therefore cannot be bounded to one tenant. Lifting that needs the tenant-scoped
+  account store in #1088 first; relaxing it alone is a one-boolean cross-tenant takeover.
+  Admin credentials are not tenant-scoped either — the admin token manages every tenant's
+  IdPs (#1089).
 
 - **Email verification for local-password accounts (#945).** FraiseQL could only *consume*
   a verification claim someone else asserted — a trusted provider's `email_verified`, or a

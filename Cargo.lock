@@ -3595,6 +3595,7 @@ version = "2.14.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
+ "arc-swap",
  "argon2",
  "async-trait",
  "axum",
@@ -3611,6 +3612,7 @@ dependencies = [
  "hmac 0.13.0",
  "http 1.4.2",
  "jsonwebtoken",
+ "openssl",
  "parking_lot",
  "proptest",
  "rand 0.9.4",

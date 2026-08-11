@@ -77,6 +77,39 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // SAML IdP management (#947) — mounted only when `[saml] store_enabled = true`,
+        // behind the same admin bearer gate as RBAC. Writes go through the live registry,
+        // so a created IdP serves and a deleted one stops without a restart.
+        #[cfg(feature = "auth-saml")]
+        if let Some(ref saml) = self.saml_state {
+            if saml.registry().has_store() {
+                if let Some(ref token) = self.config.admin_token {
+                    info!(
+                        "SAML IdP management endpoints enabled at /api/saml/idps (admin bearer \
+                         token required)"
+                    );
+                    let mgmt_state = crate::api::SamlIdpManagementState {
+                        registry: saml.registry().clone(),
+                    };
+                    let auth_state = BearerAuthState::with_max_failures(
+                        token.clone(),
+                        self.config.admin_auth_max_failures,
+                    );
+                    let mgmt_router =
+                        crate::api::saml_idp_management_router(mgmt_state).route_layer(
+                            middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
+                        );
+                    app = app.merge(mgmt_router);
+                } else {
+                    tracing::error!(
+                        "SAML IdP management disabled — [saml] store_enabled = true but \
+                         admin_token is not set. Stored IdPs are served but cannot be managed \
+                         over HTTP; set admin_token to enable the management endpoints."
+                    );
+                }
+            }
+        }
+
         // Identity-cache admin API (flush) — same admin bearer gate as RBAC,
         // mounted only when an enrichment resolver exists (#539). Lets an operator
         // propagate a revoke/provision immediately instead of waiting out the TTL.

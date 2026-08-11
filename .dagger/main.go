@@ -940,10 +940,22 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		// the `postgres` suite: the store is behind `auth-saml`, which only this leg
 		// enables, and this leg binds Postgres too.
 		"cargo test -p fraiseql-auth --features auth-saml --test postgres_saml_replay -- --test-threads=1",
+		// #947: the per-tenant IdP store and registry — durable IdPs, hot reload, and
+		// tenant-scoped resolution, plus the two properties that keep the store from
+		// becoming a takeover primitive (a name is never reissued; a stored tenant-bound
+		// IdP still cannot email-merge). Same leg for the same reason as the replay store.
+		"cargo test -p fraiseql-auth --features auth-saml --test postgres_saml_idp_store -- --test-threads=1",
 		// #381 P26: the SERVER mount — [saml] config → boot provisioning →
 		// /auth/saml/login redirect with SAMLRequest; configured-but-broken
 		// shapes (no pool, dud metadata) refuse to boot.
+		// #947 adds the operator's path on top: manage IdPs over /api/saml/idps on a
+		// running server and watch /auth/saml/login follow, scoped by tenant. The `--lib`
+		// line runs the management router's own DB-free tests (router construction, and
+		// that a tenant-bound IdP's inert email opt-in is reported as inert) — this leg is
+		// the only one that enables `auth-saml` on fraiseql-server, so without it that
+		// module is compiled out everywhere and reads as passing.
 		"echo '### cargo test -p fraiseql-server --test saml_mount_e2e_pg (#381 server mount)'",
+		"cargo test -p fraiseql-server --features auth-saml,auth --lib api::saml_idp_management -- --test-threads=1",
 		"cargo test -p fraiseql-server --features auth-saml,auth --test saml_mount_e2e_pg -- --test-threads=1",
 		"echo 'test-integration OK: saml suite passed'",
 	}, "\n")

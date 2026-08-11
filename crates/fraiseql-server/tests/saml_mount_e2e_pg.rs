@@ -36,6 +36,10 @@ const IDP_ENTITY: &str = "https://idp.example.com";
 /// 32 bytes, base64-safe — the HS256 secret handed over via env.
 const HS256_SECRET: &str = "p26-saml-hs256-secret-32-bytes!!";
 const SECRET_ENV: &str = "FRAISEQL_TEST_P26_SAML_HS256_SECRET";
+/// Admin bearer token gating `/api/saml/idps` in the #947 store tests.
+const ADMIN_TOKEN: &str = "p16-saml-idp-admin-token";
+const TENANT_A: &str = "11111111-1111-4111-8111-111111111111";
+const TENANT_B: &str = "22222222-2222-4222-8222-222222222222";
 
 fn with_database(url: &str, db: &str) -> String {
     let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
@@ -121,7 +125,12 @@ fn saml_config(metadata_xml: String) -> ServerConfig {
     ServerConfig {
         // #874: production validate() refuses cors_enabled=true + empty origins
         cors_enabled: false,
-        saml: Some(SamlServerConfig { idps }),
+        saml: Some(SamlServerConfig {
+            idps,
+            store_enabled: false,
+            refresh_interval_secs: 30,
+            certificate_expiry_warning_days: 30,
+        }),
         auth_hs256: Some(Hs256Config {
             secret_env: SECRET_ENV.to_string(),
             issuer:     Some("https://sp.example.com".to_string()),
@@ -219,6 +228,167 @@ async fn login_redirects_to_the_idp_and_unknown_idp_is_refused() {
         "an unknown idp must be a client error, got {}",
         resp.status()
     );
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// A `[saml]` deployment with the per-tenant store on, no config-file `IdPs`, and an admin
+/// token — the multi-tenant shape #947 adds.
+fn store_config() -> ServerConfig {
+    ServerConfig {
+        cors_enabled: false,
+        admin_token: Some(ADMIN_TOKEN.to_string()),
+        saml: Some(SamlServerConfig {
+            idps: std::collections::HashMap::new(),
+            store_enabled: true,
+            refresh_interval_secs: 30,
+            certificate_expiry_warning_days: 30,
+        }),
+        auth_hs256: Some(Hs256Config {
+            secret_env: SECRET_ENV.to_string(),
+            issuer:     Some("https://sp.example.com".to_string()),
+            audience:   Some("fraiseql".to_string()),
+        }),
+        ..ServerConfig::default()
+    }
+}
+
+/// #947, the operator's path: manage `IdPs` over the admin API on a running server and watch
+/// `/auth/saml/login` follow — no restart, and scoped by tenant in both directions.
+#[tokio::test]
+async fn stored_idps_are_managed_over_http_and_served_scoped_by_tenant() {
+    let Some(url) = database_url_or_skip("stored_idps_are_managed_over_http") else {
+        return;
+    };
+    std::env::set_var(SECRET_ENV, HS256_SECRET);
+
+    let db = "fraiseql_p16_saml_idp_store";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let mut config = store_config();
+    config.database_url.clone_from(&scratch_url);
+
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
+    let port = listener.local_addr().expect("local addr").port();
+
+    let server = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone())))
+        .await
+        .expect("[saml] store_enabled with a pool must boot");
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("client");
+    let base = format!("http://127.0.0.1:{port}");
+    let idps_url = format!("{base}/api/saml/idps");
+
+    // The management surface is admin-gated: no token, no access.
+    let resp = client.get(&idps_url).send().await.expect("unauthenticated list");
+    assert_eq!(resp.status(), 401, "IdP management must require the admin bearer token");
+
+    // Create a tenant-bound IdP on the running server.
+    let body = serde_json::json!({
+        "idp_name":     "acme-okta",
+        "tenant_id":    TENANT_A,
+        "sp_entity_id": "https://sp.example.com/metadata",
+        "acs_url":      "https://sp.example.com/auth/saml/acs",
+        "metadata_xml": idp_metadata_xml(),
+    });
+    let resp = client
+        .post(&idps_url)
+        .bearer_auth(ADMIN_TOKEN)
+        .json(&body)
+        .send()
+        .await
+        .expect("create idp");
+    assert_eq!(resp.status(), 201, "create must succeed: {:?}", resp.text().await);
+
+    // Hot reload: it serves immediately, for its own tenant only.
+    let login = |query: String| {
+        let client = client.clone();
+        let base = base.clone();
+        async move {
+            client
+                .get(format!("{base}/auth/saml/login?{query}"))
+                .send()
+                .await
+                .expect("login request")
+                .status()
+                .as_u16()
+        }
+    };
+    assert_eq!(
+        login(format!("idp=acme-okta&tenant={TENANT_A}")).await,
+        303,
+        "a stored IdP must serve its own tenant without a restart"
+    );
+    assert_eq!(
+        login(format!("idp=acme-okta&tenant={TENANT_B}")).await,
+        404,
+        "another tenant's IdP name must be a 404, not a login"
+    );
+    assert_eq!(
+        login("idp=acme-okta".to_string()).await,
+        404,
+        "an untenanted caller must not reach a tenant-bound IdP"
+    );
+
+    // The recorded opt-in is reported as inert while the account store keys email globally.
+    let listed: serde_json::Value = client
+        .get(&idps_url)
+        .bearer_auth(ADMIN_TOKEN)
+        .send()
+        .await
+        .expect("list")
+        .json()
+        .await
+        .expect("list json");
+    assert_eq!(listed["total"], 1, "list must report the stored IdP: {listed}");
+    assert_eq!(listed["idps"][0]["idp_entity_id"], IDP_ENTITY, "entity id is derived");
+    assert!(
+        listed["idps"][0]["certificate_expires_at"].is_string(),
+        "certificate expiry must be parsed and reported: {listed}"
+    );
+
+    // Deleting stops it serving, again with no restart …
+    let resp = client
+        .delete(format!("{idps_url}/acme-okta"))
+        .bearer_auth(ADMIN_TOKEN)
+        .send()
+        .await
+        .expect("delete idp");
+    assert_eq!(resp.status(), 204);
+    assert_eq!(
+        login(format!("idp=acme-okta&tenant={TENANT_A}")).await,
+        404,
+        "a deleted IdP must stop serving without a restart"
+    );
+
+    // … and the name stays reserved, so a second tenant cannot inherit the
+    // `saml:acme-okta` account namespace the first one left behind.
+    let mut recreate = body.clone();
+    recreate["tenant_id"] = serde_json::json!(TENANT_B);
+    let resp = client
+        .post(&idps_url)
+        .bearer_auth(ADMIN_TOKEN)
+        .json(&recreate)
+        .send()
+        .await
+        .expect("recreate idp");
+    assert_eq!(resp.status(), 409, "a retired IdP name must never be reissued");
 
     let _ = tx.send(());
     let _ = handle.await;

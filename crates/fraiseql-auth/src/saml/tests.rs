@@ -515,6 +515,89 @@ async fn saml_router_constructs() {
     let _router = saml_routes(state);
 }
 
+// ─── Tenant scoping of /auth/saml/login (#947) ───────────────────────────────
+
+/// Build a config for `idp_name` bound to `tenant`, trusting `cert`.
+fn tenant_config(cert: &CertificateDer, idp_name: &str, tenant: Option<&str>) -> SamlIdpConfig {
+    let mut config = SamlIdpConfig::builder(idp_name, SP_ENTITY, SP_ACS)
+        .idp_parts(IDP_ENTITY, IDP_SSO, cert.der_data())
+        .unwrap()
+        .tenant_id(tenant.map(str::to_string))
+        .build()
+        .unwrap();
+    config.sp.allowed_signature_algorithms = None;
+    config
+}
+
+/// `GET /auth/saml/login` through the real router, so query-string parsing is exercised.
+async fn login_status(state: SamlAuthState, query: &str) -> axum::http::StatusCode {
+    use tower::ServiceExt as _;
+    let router = saml_routes(state);
+    router
+        .oneshot(
+            axum::http::Request::builder()
+                .uri(format!("/auth/saml/login?{query}"))
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .status()
+}
+
+const TENANT_A: &str = "11111111-1111-4111-8111-111111111111";
+const TENANT_B: &str = "22222222-2222-4222-8222-222222222222";
+
+#[tokio::test]
+async fn login_refuses_tenant_bound_idp_without_a_matching_tenant() {
+    let test_idp = new_idp();
+    let (state, _) = auth_state_with(tenant_config(&test_idp.cert, "acme-okta", Some(TENANT_A)));
+
+    // No tenant named at all: the caller cannot prove it may use a tenant's IdP.
+    assert_eq!(
+        login_status(state.clone(), "idp=acme-okta").await,
+        axum::http::StatusCode::NOT_FOUND,
+        "a tenant-bound IdP must not start a login for an untenanted caller"
+    );
+    // A *different* tenant naming it is the cross-tenant case the issue reports.
+    assert_eq!(
+        login_status(state, &format!("idp=acme-okta&tenant={TENANT_B}")).await,
+        axum::http::StatusCode::NOT_FOUND,
+        "another tenant's IdP name must be a 404, not a login"
+    );
+}
+
+#[tokio::test]
+async fn login_serves_tenant_bound_idp_to_its_own_tenant() {
+    let test_idp = new_idp();
+    let (state, _) = auth_state_with(tenant_config(&test_idp.cert, "acme-okta", Some(TENANT_A)));
+
+    assert_eq!(
+        login_status(state, &format!("idp=acme-okta&tenant={TENANT_A}")).await,
+        axum::http::StatusCode::SEE_OTHER,
+        "the owning tenant must still be able to start SSO"
+    );
+}
+
+#[tokio::test]
+async fn login_refuses_a_tenant_qualified_request_for_an_untenanted_idp() {
+    let test_idp = new_idp();
+    let (state, _) = auth_state_with(tenant_config(&test_idp.cert, "global-idp", None));
+
+    // Single-tenant deployments keep working unqualified …
+    assert_eq!(
+        login_status(state.clone(), "idp=global-idp").await,
+        axum::http::StatusCode::SEE_OTHER,
+        "an untenanted IdP must keep serving the untenanted single-tenant path"
+    );
+    // … but "global" is not "belongs to whichever tenant asked".
+    assert_eq!(
+        login_status(state, &format!("idp=global-idp&tenant={TENANT_A}")).await,
+        axum::http::StatusCode::NOT_FOUND,
+        "an untenanted IdP must not answer a tenant-qualified request"
+    );
+}
+
 #[tokio::test]
 async fn login_redirects_to_idp_with_relay_state() {
     use axum::{extract::Query, response::IntoResponse};
@@ -524,7 +607,8 @@ async fn login_redirects_to_idp_with_relay_state() {
     let resp = saml_login(
         axum::extract::State(state),
         Query(LoginQuery {
-            idp: "test-idp".to_string(),
+            idp:    "test-idp".to_string(),
+            tenant: None,
         }),
     )
     .await
@@ -546,12 +630,15 @@ async fn login_unknown_idp_is_rejected() {
     let resp = saml_login(
         axum::extract::State(state),
         Query(LoginQuery {
-            idp: "nope".to_string(),
+            idp:    "nope".to_string(),
+            tenant: None,
         }),
     )
     .await
     .into_response();
-    assert_eq!(resp.status(), axum::http::StatusCode::BAD_REQUEST);
+    // 404, and identical to the tenant-mismatch refusal: an unknown name and another
+    // tenant's name must be indistinguishable, or the route enumerates IdPs (#947).
+    assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -563,8 +650,9 @@ async fn acs_happy_path_creates_session() {
     // Seed a RelayState binding as login would have, then present a matching response.
     let relay = "relay-token-1".to_string();
     let now = crate::session::unix_now().unwrap();
+    // Payload shape: idp_name \n tenant \n request_id (tenant empty = untenanted).
     state_store
-        .store(relay.clone(), format!("test-idp\n{REQ_ID}"), now + 600)
+        .store(relay.clone(), format!("test-idp\n\n{REQ_ID}"), now + 600)
         .await
         .unwrap();
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
