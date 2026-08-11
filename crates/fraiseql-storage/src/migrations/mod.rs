@@ -71,6 +71,12 @@ CREATE INDEX IF NOT EXISTS idx_storage_objects_owner
     ON _fraiseql_storage_objects (owner_id)
     WHERE owner_id IS NOT NULL;
 
+-- #974: the object's own expiry, read by the require_unexpired policy
+-- condition. Nullable, and a NULL is a denial for that condition rather than a
+-- never-expires — so adding the column cannot widen access on existing rows.
+ALTER TABLE _fraiseql_storage_objects
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS _fraiseql_storage_uploads (
     upload_id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     bucket              TEXT        NOT NULL,

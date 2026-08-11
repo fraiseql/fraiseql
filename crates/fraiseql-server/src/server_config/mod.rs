@@ -1061,14 +1061,26 @@ pub struct StorageSectionConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PolicyRuleConfig {
-    /// Operations permitted: `read` | `write` | `delete` | `list`.
-    pub methods:    Vec<String>,
+    /// Operations permitted: `read` | `write` | `overwrite` | `delete` | `list`.
+    pub methods:           Vec<String>,
     /// Who they are permitted to: `owner` | `authenticated` | `anonymous` |
-    /// `role:<name>`.
-    pub principal:  String,
+    /// `signed_url` | `role:<name>`.
+    pub principal:         String,
     /// Restrict the rule to keys starting with this prefix.
     #[serde(default)]
-    pub key_prefix: Option<String>,
+    pub key_prefix:        Option<String>,
+    /// RFC3339 instant before which this grant does not apply (#974).
+    #[serde(default)]
+    pub not_before:        Option<String>,
+    /// RFC3339 instant at and after which this grant no longer applies (#974).
+    #[serde(default)]
+    pub not_after:         Option<String>,
+    /// Require the object to carry an expiry still in the future (#974).
+    #[serde(default)]
+    pub require_unexpired: bool,
+    /// Token claims the caller must carry, compared for exact equality (#974).
+    #[serde(default)]
+    pub require_claims:    std::collections::BTreeMap<String, String>,
 }
 
 /// One named transform preset in a `[storage.<name>]` section (#370).

@@ -120,6 +120,24 @@ pub struct StorageUser {
     pub user_id: Option<String>,
     /// User roles.
     pub roles:   Vec<String>,
+    /// Normalised token claims, for the `require_claims` policy condition (#974).
+    ///
+    /// Populated only on the OIDC validation path. Static-token and API-key
+    /// auth leave it empty, so a rule requiring a claim denies under those
+    /// modes rather than silently ceasing to narrow.
+    pub claims:  crate::policy::ClaimValues,
+}
+
+impl StorageUser {
+    /// The access-decision context for this user at `now`.
+    ///
+    /// Built here rather than at each call site so that a route cannot forget
+    /// to pass the claims along, which would turn every `require_claims` rule
+    /// into a silent denial on that one path.
+    #[must_use]
+    pub fn caller(&self, now: chrono::DateTime<chrono::Utc>) -> crate::StorageCaller<'_> {
+        crate::StorageCaller::new(self.user_id.as_deref(), self.roles.as_slice(), &self.claims, now)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +241,7 @@ async fn put_handler(
     // RLS: create requires authentication; overwrite requires owner or admin.
     if !state
         .rls
-        .can_write_object(user.user_id.as_deref(), &user.roles, bucket, existing.as_ref())
+        .can_write_object(&user.caller(chrono::Utc::now()), bucket, existing.as_ref())
     {
         tracing::warn!(
             bucket = %bucket_name,
@@ -336,7 +354,7 @@ async fn get_handler(
         Err(e) => return storage_error_response(&e),
     };
 
-    if !state.rls.can_read(user.user_id.as_deref(), &user.roles, bucket, &row) {
+    if !state.rls.can_read(&user.caller(chrono::Utc::now()), bucket, &row) {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,
@@ -432,7 +450,7 @@ async fn delete_handler(
     };
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
-    if !state.rls.can_delete(user.user_id.as_deref(), &user.roles, bucket, &row) {
+    if !state.rls.can_delete(&user.caller(chrono::Utc::now()), bucket, &row) {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,
@@ -490,8 +508,7 @@ async fn list_handler(
     // `filter_visible`'s decision, applied below. Under a bucket policy `list`
     // is its own method (#371) — it is no longer implied by write access.
     if !state.rls.can_list(
-        user.user_id.as_deref(),
-        &user.roles,
+        &user.caller(chrono::Utc::now()),
         bucket,
         query.prefix.as_deref().unwrap_or(""),
     ) {
@@ -512,7 +529,7 @@ async fn list_handler(
     };
 
     // Apply RLS filtering
-    let visible = state.rls.filter_visible(user.user_id.as_deref(), &user.roles, bucket, rows);
+    let visible = state.rls.filter_visible(&user.caller(chrono::Utc::now()), bucket, rows);
 
     let items: Vec<ListItem> = visible.iter().map(ListItem::from).collect();
     axum::Json(items).into_response()
@@ -596,8 +613,7 @@ async fn presign_handler(
             Err(e) => return storage_error_response(&e),
         };
         if !state.rls.can_write_object(
-            user.user_id.as_deref(),
-            &user.roles,
+            &user.caller(chrono::Utc::now()).through_signed_url(),
             bucket,
             existing.as_ref(),
         ) {
@@ -624,7 +640,10 @@ async fn presign_handler(
             Ok(None) => return object_not_visible(bucket, &user),
             Err(e) => return storage_error_response(&e),
         };
-        if !state.rls.can_read(user.user_id.as_deref(), &user.roles, bucket, &row) {
+        if !state
+            .rls
+            .can_read(&user.caller(chrono::Utc::now()).through_signed_url(), bucket, &row)
+        {
             tracing::warn!(
                 bucket = %bucket_name,
                 key = %key,
