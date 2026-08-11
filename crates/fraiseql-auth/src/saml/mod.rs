@@ -44,13 +44,20 @@
 mod config;
 mod handler;
 mod linking;
+mod registry;
 mod replay;
+mod store;
 mod verify;
 
 pub use config::{SamlAttributeMapping, SamlIdpConfig, SamlIdpConfigBuilder};
 pub use handler::{SamlAuthState, saml_acs, saml_login, saml_routes};
 pub use linking::{effective_saml_email_verified, saml_provider_key};
+pub use registry::{
+    CertExpiryWarning, DEFAULT_EXPIRY_WARNING_DAYS, DEFAULT_REFRESH_INTERVAL, IdpSource,
+    SamlIdpRegistry,
+};
 pub use replay::{PG_SAML_REPLAY_SCHEMA_SQL, PgSamlReplayStore, SamlReplayCache, SamlReplayStore};
+pub use store::{PG_SAML_IDP_SCHEMA_SQL, PgSamlIdpStore, SamlIdpRecord, SamlIdpSpec, SamlIdpStore};
 pub use verify::{VerifiedAssertion, verify_saml_response};
 
 #[cfg(test)]
@@ -84,4 +91,20 @@ pub enum SamlError {
     /// A required field was absent from an otherwise-valid assertion.
     #[error("SAML assertion missing required field: {0}")]
     MissingField(&'static str),
+
+    /// The IdP store could not be read or written (#947).
+    #[error("SAML IdP store error: {0}")]
+    Store(String),
+
+    /// The logical IdP name is already in use — possibly by a *deleted* IdP, whose
+    /// `saml:<name>` identity namespace must never be reissued (#947).
+    #[error(
+        "SAML IdP name '{0}' is already in use (names are never reissued, including after \
+         deletion, because the name is the account-store provider namespace)"
+    )]
+    NameTaken(String),
+
+    /// No live IdP has that name (#947).
+    #[error("no such SAML IdP: {0}")]
+    NotFound(String),
 }

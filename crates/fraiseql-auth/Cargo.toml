@@ -2,6 +2,8 @@
 fraiseql-guard = {workspace = true}
 aes-gcm = "0.10"
 anyhow = "1.0"
+# Lock-free generation swap for the hot-reloaded SAML IdP registry (#947); `auth-saml` only.
+arc-swap = {workspace = true, optional = true}
 argon2 = "0.5"
 bcrypt = "0.15"
 async-trait = "0.1"
@@ -20,6 +22,9 @@ rand = "0.9"
 # Redis for distributed rate limiting (optional)
 redis = {workspace = true, optional = true}
 reqwest = {workspace = true}
+# X.509 `notAfter` for the SAML IdP certificate-expiry warning (#947). Adds nothing to the
+# tree: samael already pulls the same openssl under `auth-saml`.
+openssl = {version = "0.10", optional = true}
 # SAML 2.0 SP support (#381) — heavy XML/crypto C stack (libxml2 + openssl), kept
 # behind the opt-in `auth-saml` feature so the default build stays lean.
 samael = {version = "0.0.21", optional = true}
@@ -54,6 +59,11 @@ name = "auth_bench"
 name = "postgres_saml_replay"
 required-features = ["auth-saml"]
 
+# Same reasoning as above: the IdP store and registry (#947) live behind `auth-saml`.
+[[test]]
+name = "postgres_saml_idp_store"
+required-features = ["auth-saml"]
+
 [dev-dependencies]
 criterion = {version = "0.5", features = ["html_reports"]}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
@@ -70,7 +80,7 @@ default = []
 redis-pkce = ["redis"]
 redis-rate-limiting = ["redis"]
 # SAML 2.0 service-provider login + ACS (#381). Pulls samael (libxml2 + openssl).
-auth-saml = ["dep:samael"]
+auth-saml = ["dep:samael", "dep:arc-swap", "dep:openssl"]
 
 [lints]
 workspace = true

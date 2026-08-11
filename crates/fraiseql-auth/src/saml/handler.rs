@@ -6,7 +6,7 @@
 //!   (signature/conditions/replay), resolve a local user via the account store, and create a
 //!   session.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     Json, Router,
@@ -18,8 +18,8 @@ use axum::{
 use serde::Deserialize;
 
 use super::{
-    SamlIdpConfig, SamlReplayCache, effective_saml_email_verified, replay::SamlReplayStore,
-    verify::verify_saml_response,
+    SamlIdpConfig, SamlReplayCache, effective_saml_email_verified, registry::SamlIdpRegistry,
+    replay::SamlReplayStore, verify::verify_saml_response,
 };
 use crate::{
     account_linking::AccountStore,
@@ -29,9 +29,9 @@ use crate::{
     state_store::StateStore,
 };
 
-/// Separator between the IdP name and the in-flight `AuthnRequest` ID inside the stored
-/// `RelayState` payload. A newline cannot appear in either token, so it round-trips
-/// unambiguously.
+/// Field separator inside the stored `RelayState` payload
+/// (`idp_name \n tenant \n request_id`). A newline cannot appear in any of the three, so
+/// the payload round-trips unambiguously.
 const RELAY_PAYLOAD_SEPARATOR: char = '\n';
 
 /// `RelayState` / `AuthnRequest` time-to-live: 10 minutes.
@@ -51,8 +51,8 @@ const SESSION_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 /// them on the same per-IP `RateLimiters` middleware the transport already applies.
 #[derive(Clone)]
 pub struct SamlAuthState {
-    /// Configured IdPs keyed by logical name.
-    idps:          Arc<HashMap<String, Arc<SamlIdpConfig>>>,
+    /// Config-file and stored IdPs, and the tenant-scoped resolution between them (#947).
+    registry:      SamlIdpRegistry,
     /// CSRF/`RelayState` store (in-memory or Redis) — also binds the in-flight request ID.
     state_store:   Arc<dyn StateStore>,
     /// Session backend used to mint tokens after a verified assertion.
@@ -70,7 +70,7 @@ impl SamlAuthState {
     #[must_use]
     pub fn new(state_store: Arc<dyn StateStore>, session_store: Arc<dyn SessionStore>) -> Self {
         Self {
-            idps: Arc::new(HashMap::new()),
+            registry: SamlIdpRegistry::new(),
             state_store,
             session_store,
             user_store: None,
@@ -96,13 +96,26 @@ impl SamlAuthState {
         self.replay.is_distributed()
     }
 
-    /// Register an IdP under its [`SamlIdpConfig::idp_name`]. Builder-style; ignores a
-    /// duplicate-free invariant by last-write-wins (configuration is operator-controlled).
+    /// Register a config-file IdP under its [`SamlIdpConfig::idp_name`]. Builder-style;
+    /// last write wins (configuration is operator-controlled).
     #[must_use]
     pub fn with_idp(mut self, idp: SamlIdpConfig) -> Self {
-        let idps = Arc::make_mut(&mut self.idps);
-        idps.insert(idp.idp_name.clone(), Arc::new(idp));
+        self.registry = self.registry.with_config_idp(idp);
         self
+    }
+
+    /// Swap in the IdP registry — the multi-tenant path, where a durable store is attached
+    /// and hot-reloaded (#947).
+    #[must_use]
+    pub fn with_registry(mut self, registry: SamlIdpRegistry) -> Self {
+        self.registry = registry;
+        self
+    }
+
+    /// Borrow the registry (the admin API manages stored IdPs through it).
+    #[must_use]
+    pub const fn registry(&self) -> &SamlIdpRegistry {
+        &self.registry
     }
 
     /// Set the account store used for user resolution / linking.
@@ -115,9 +128,7 @@ impl SamlAuthState {
     /// Names of all registered IdPs (sorted; primarily for tests/introspection).
     #[must_use]
     pub fn idp_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self.idps.keys().cloned().collect();
-        names.sort();
-        names
+        self.registry.idp_names()
     }
 }
 
@@ -133,7 +144,13 @@ pub fn saml_routes(state: SamlAuthState) -> Router {
 #[derive(Debug, Deserialize)]
 pub struct LoginQuery {
     /// Logical IdP name to start SSO with.
-    pub idp: String,
+    pub idp:    String,
+    /// Tenant the caller is starting SSO for (#947).
+    ///
+    /// Must equal the tenant bound to the IdP — absent for an untenanted IdP, present and
+    /// matching for a tenant-bound one. See [`SamlIdpRegistry::resolve`].
+    #[serde(default)]
+    pub tenant: Option<String>,
 }
 
 /// Form body for `POST /auth/saml/acs` (HTTP-POST binding).
@@ -151,17 +168,57 @@ fn json_error(status: StatusCode, message: &str) -> Response {
     (status, Json(serde_json::json!({ "error": message }))).into_response()
 }
 
-/// `GET /auth/saml/login?idp=<name>` — start SP-initiated SSO.
+/// What the single-use `RelayState` token binds: which IdP, for which tenant, answering
+/// which in-flight `AuthnRequest`.
 ///
-/// Builds an `AuthnRequest`, stores a single-use `RelayState` carrying the IdP name and the
-/// request ID (so the ACS can require a matching `InResponseTo`), and 302-redirects the
-/// browser to the IdP's HTTP-Redirect SSO endpoint.
+/// The tenant travels with the request so the ACS re-resolves through the *same* scoped
+/// path the login took. Without it a login legitimately started for tenant A, whose IdP is
+/// then re-bound or removed mid-flight, would be consumed by whatever the bare name resolves
+/// to at ACS time.
+#[derive(Debug, PartialEq, Eq)]
+struct RelayPayload {
+    idp_name:   String,
+    tenant:     Option<String>,
+    request_id: String,
+}
+
+impl RelayPayload {
+    fn encode(&self) -> String {
+        format!(
+            "{}{RELAY_PAYLOAD_SEPARATOR}{}{RELAY_PAYLOAD_SEPARATOR}{}",
+            self.idp_name,
+            self.tenant.as_deref().unwrap_or_default(),
+            self.request_id
+        )
+    }
+
+    fn decode(payload: &str) -> Option<Self> {
+        let mut parts = payload.splitn(3, RELAY_PAYLOAD_SEPARATOR);
+        let idp_name = parts.next()?.to_string();
+        let tenant = parts.next()?;
+        let request_id = parts.next()?.to_string();
+        Some(Self {
+            idp_name,
+            tenant: (!tenant.is_empty()).then(|| tenant.to_string()),
+            request_id,
+        })
+    }
+}
+
+/// `GET /auth/saml/login?idp=<name>[&tenant=<id>]` — start SP-initiated SSO.
+///
+/// Builds an `AuthnRequest`, stores a single-use `RelayState` carrying the IdP name, the
+/// tenant and the request ID (so the ACS can require a matching `InResponseTo` and re-check
+/// the tenant), and redirects the browser to the IdP's HTTP-Redirect SSO endpoint.
+///
+/// An IdP the caller's tenant does not own answers `404`, identically to a name that does
+/// not exist — the route must not report which other tenants' IdPs are configured (#947).
 pub async fn saml_login(
     State(state): State<SamlAuthState>,
     Query(q): Query<LoginQuery>,
 ) -> Response {
-    let Some(idp) = state.idps.get(&q.idp) else {
-        return json_error(StatusCode::BAD_REQUEST, "unknown SAML IdP");
+    let Some(idp) = state.registry.resolve(&q.idp, q.tenant.as_deref()) else {
+        return json_error(StatusCode::NOT_FOUND, "unknown SAML IdP");
     };
 
     let Some(sso_url) = idp.sso_redirect_url() else {
@@ -178,7 +235,12 @@ pub async fn saml_login(
     };
 
     let relay_state = generate_secure_state();
-    let payload = format!("{}{RELAY_PAYLOAD_SEPARATOR}{}", idp.idp_name, authn_request.id);
+    let payload = RelayPayload {
+        idp_name:   idp.idp_name.clone(),
+        tenant:     idp.tenant_id.clone(),
+        request_id: authn_request.id.clone(),
+    }
+    .encode();
     let Ok(now) = unix_now() else {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "system clock error");
     };
@@ -215,13 +277,17 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
         return json_error(StatusCode::BAD_REQUEST, "missing RelayState");
     }
 
-    // Consume the single-use RelayState (atomic remove) → (idp_name, request_id).
+    // Consume the single-use RelayState (atomic remove) → (idp_name, tenant, request_id).
     let Ok((payload, expiry)) = state.state_store.retrieve(&form.relay_state).await else {
         return json_error(StatusCode::BAD_REQUEST, "invalid or expired RelayState");
     };
-    let (idp_name, request_id) = match payload.split_once(RELAY_PAYLOAD_SEPARATOR) {
-        Some((idp, rid)) => (idp.to_string(), rid.to_string()),
-        None => return json_error(StatusCode::BAD_REQUEST, "malformed RelayState"),
+    let Some(RelayPayload {
+        idp_name,
+        tenant,
+        request_id,
+    }) = RelayPayload::decode(&payload)
+    else {
+        return json_error(StatusCode::BAD_REQUEST, "malformed RelayState");
     };
 
     let Ok(now_secs) = unix_now() else {
@@ -231,10 +297,17 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
         return json_error(StatusCode::BAD_REQUEST, "RelayState expired");
     }
 
-    let Some(idp) = state.idps.get(&idp_name) else {
-        tracing::error!(idp = %idp_name, "RelayState referenced an unknown IdP");
-        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "IdP configuration error");
+    // Re-resolve through the same tenant-scoped path the login took. An IdP removed or
+    // re-bound between login and ACS must fail the flow, not silently answer under a
+    // different tenant's binding.
+    let Some(idp) = state.registry.resolve(&idp_name, tenant.as_deref()) else {
+        tracing::error!(
+            idp = %idp_name,
+            "RelayState referenced an IdP that no longer resolves for its tenant"
+        );
+        return json_error(StatusCode::BAD_REQUEST, "SAML authentication failed");
     };
+    let idp = idp.as_ref();
 
     // The security core. Bind the response to the request ID we issued (InResponseTo).
     let assertion = match verify_saml_response(

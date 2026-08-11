@@ -285,7 +285,11 @@ lint-expect:
 # `fraiseql-server/src/server/parity_tests.rs` implements `DatabaseAdapter`, which is
 # itself declared `#[async_trait]`, so the impl has no choice. It lives in `src/`
 # rather than `tests/` because it asserts on private `Server` fields.
-ASYNC_TRAIT_LIMIT := 190
+# 190 → 192: `SamlIdpStore` (#947) and its `PgSamlIdpStore` impl. The registry holds the
+# store as `Arc<dyn SamlIdpStore>` so a deployment can back it with something other than
+# Postgres and so the hot-reload path is testable without a database — dyn dispatch is the
+# point, which is exactly the case this baseline exempts.
+ASYNC_TRAIT_LIMIT := 192
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

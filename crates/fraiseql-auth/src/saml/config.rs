@@ -7,6 +7,7 @@
 //! `trust_asserted_email` flag (see [`super::effective_saml_email_verified`]).
 
 use base64::Engine as _;
+use chrono::{DateTime, Utc};
 use samael::{
     crypto::AllowedSignatureAlgorithm,
     metadata::EntityDescriptor,
@@ -132,10 +133,46 @@ impl SamlIdpConfig {
         self.sp.sso_binding_location(samael::metadata::HTTP_REDIRECT_BINDING)
     }
 
+    /// The IdP's entity ID, as declared by its metadata. Empty only for metadata that
+    /// [`SamlIdpConfigBuilder::build`] would already have refused.
+    #[must_use]
+    pub fn idp_entity_id(&self) -> &str {
+        self.sp.idp_metadata.entity_id.as_deref().unwrap_or_default()
+    }
+
+    /// Earliest `NotAfter` among the IdP's signing certificates.
+    ///
+    /// A silently expired IdP certificate is an outage whose cause is invisible from the
+    /// login failure alone (#947), so the expiry is read once here and surfaced — by the
+    /// registry's periodic warning and by the admin API — rather than discovered by an
+    /// operator when SSO stops. `None` when the metadata carries no parseable certificate;
+    /// the *earliest* is taken because the first to expire is the one that breaks SSO.
+    #[must_use]
+    pub fn signing_certificate_expiry(&self) -> Option<DateTime<Utc>> {
+        let certs = self.sp.idp_signing_certs().ok().flatten()?;
+        certs.iter().filter_map(|cert| certificate_not_after(cert.der_data())).min()
+    }
+
     /// Borrow the underlying `samael` service provider (used by the verifier and handlers).
     pub(crate) const fn service_provider(&self) -> &ServiceProvider {
         &self.sp
     }
+}
+
+/// Read a DER-encoded X.509 certificate's `NotAfter` as a UTC instant.
+///
+/// openssl exposes `notAfter` only as an ASN.1 time, whose textual forms (UTCTime vs
+/// GeneralizedTime, `Z` vs offset) are a parsing trap; `Asn1Time::diff` against "now" is the
+/// library's own comparison path, so the conversion inherits its handling of every form.
+fn certificate_not_after(der: &[u8]) -> Option<DateTime<Utc>> {
+    let cert = openssl::x509::X509::from_der(der).ok()?;
+    let now = openssl::asn1::Asn1Time::days_from_now(0).ok()?;
+    let diff = now.diff(cert.not_after()).ok()?;
+    Some(
+        Utc::now()
+            + chrono::Duration::days(i64::from(diff.days))
+            + chrono::Duration::seconds(i64::from(diff.secs)),
+    )
 }
 
 /// Builder for [`SamlIdpConfig`]. Obtain via [`SamlIdpConfig::builder`].
