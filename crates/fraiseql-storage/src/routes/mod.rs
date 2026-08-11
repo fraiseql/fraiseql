@@ -18,6 +18,7 @@ mod uploads;
 
 use std::{collections::HashMap, sync::Arc};
 
+use arc_swap::ArcSwap;
 use axum::{
     Extension, Router,
     body::Body,
@@ -36,6 +37,7 @@ use crate::{
     backend::StorageBackend,
     config::BucketConfig,
     metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow},
+    policy::{BucketPolicy, StoragePolicyStore},
     rls::StorageRlsEvaluator,
     uploads::UploadSessionRepo,
 };
@@ -48,15 +50,243 @@ use crate::{
 #[derive(Clone)]
 pub struct StorageState {
     /// Storage backend (shared across all buckets).
-    pub backend:  Arc<StorageBackend>,
+    pub backend:         Arc<StorageBackend>,
     /// Metadata repository for object tracking.
-    pub metadata: Arc<StorageMetadataRepo>,
+    pub metadata:        Arc<StorageMetadataRepo>,
     /// RLS evaluator for access control.
-    pub rls:      StorageRlsEvaluator,
+    pub rls:             StorageRlsEvaluator,
     /// Bucket configurations keyed by bucket name.
-    pub buckets:  Arc<HashMap<String, BucketConfig>>,
+    ///
+    /// Behind an [`ArcSwap`] because a bucket's
+    /// [`policies`](BucketConfig::policies) can be replaced at runtime over the
+    /// admin API (#974). A reader takes a snapshot with `.load()` and holds it
+    /// for the whole request, so a policy pushed mid-request cannot decide half
+    /// of it. Everything else about a bucket is fixed at boot — including
+    /// `max_object_bytes`, which the router's body limit is sized from once.
+    pub buckets:         Arc<ArcSwap<HashMap<String, BucketConfig>>>,
     /// Resumable-upload session repository (#369).
-    pub uploads:  Arc<UploadSessionRepo>,
+    pub uploads:         Arc<UploadSessionRepo>,
+    /// Durable per-bucket policies (#974).
+    pub policy_store:    Arc<StoragePolicyStore>,
+    /// The policy each bucket was **configured** with, captured before any
+    /// stored policy was applied.
+    ///
+    /// This is what a `DELETE` of a stored policy reverts a bucket to, so it
+    /// has to survive the overlay that replaced it. Set once by
+    /// [`StorageState::new`] and never mutated.
+    pub config_policies: Arc<HashMap<String, Option<BucketPolicy>>>,
+}
+
+impl StorageState {
+    /// Assemble the storage runtime state from its boot-time configuration.
+    ///
+    /// Snapshots each bucket's configured policy into
+    /// [`config_policies`](Self::config_policies), so callers cannot get that
+    /// invariant wrong: whatever a bucket's policy is at construction *is* its
+    /// configured policy.
+    #[must_use]
+    pub fn new(
+        backend: Arc<StorageBackend>,
+        metadata: Arc<StorageMetadataRepo>,
+        rls: StorageRlsEvaluator,
+        buckets: HashMap<String, BucketConfig>,
+        uploads: Arc<UploadSessionRepo>,
+        policy_store: Arc<StoragePolicyStore>,
+    ) -> Self {
+        let config_policies = buckets
+            .iter()
+            .map(|(name, bucket)| (name.clone(), bucket.policies.clone()))
+            .collect();
+        Self {
+            backend,
+            metadata,
+            rls,
+            buckets: Arc::new(ArcSwap::from_pointee(buckets)),
+            uploads,
+            policy_store,
+            config_policies: Arc::new(config_policies),
+        }
+    }
+
+    /// Replace one bucket's access policy, effective for every request that
+    /// starts after this returns.
+    ///
+    /// Only the [`policies`](BucketConfig::policies) field is touched — of that
+    /// bucket, and of no other. That is what makes #371's *"a stored policy
+    /// replaces the configured one wholesale, the two are never merged"* true
+    /// at the type level rather than by convention: there is no code path here
+    /// that could combine two rule lists, because the new list is moved into
+    /// the field and the old one is dropped.
+    ///
+    /// `None` restores the bucket to having no policy at all, which hands it
+    /// back to the coarse `access` mode.
+    ///
+    /// Returns `false` — changing nothing — when the bucket is not configured.
+    #[must_use]
+    pub fn set_bucket_policies(&self, bucket: &str, policy: &Option<BucketPolicy>) -> bool {
+        if !self.buckets.load().contains_key(bucket) {
+            return false;
+        }
+        // `rcu` re-runs its closure if another writer wins the race, so two
+        // concurrent pushes to different buckets cannot lose one another.
+        self.buckets.rcu(|current| {
+            let mut next = HashMap::clone(current);
+            if let Some(config) = next.get_mut(bucket) {
+                config.policies.clone_from(policy);
+            }
+            Arc::new(next)
+        });
+        true
+    }
+
+    /// The policy a bucket was configured with, ignoring anything pushed since.
+    #[must_use]
+    pub fn config_policy(&self, bucket: &str) -> Option<&BucketPolicy> {
+        self.config_policies.get(bucket).and_then(Option::as_ref)
+    }
+
+    /// Reconcile every configured bucket's policy against the store.
+    ///
+    /// This is the whole precedence rule executed: a bucket with a stored row
+    /// gets that policy, a bucket without one is returned to its configured
+    /// policy (which is how a `DELETE` on another replica propagates here), and
+    /// nothing is ever merged.
+    ///
+    /// A row that fails to parse leaves its bucket **exactly as it is** — the
+    /// last good generation keeps serving. That is deliberately different from
+    /// the boot path, which refuses to start on the same row: at boot there is
+    /// no running policy to preserve, and refusing is how #371 keeps a typo
+    /// from silently becoming a deny-all. Once serving, throwing away a working
+    /// policy because someone hand-edited a row is the worse of the two.
+    /// The offending rows come back in the report so the caller can decide.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::File` if the store cannot be read. Nothing is changed in
+    /// that case; a database blip must not drop every bucket back to its
+    /// configured policy.
+    pub async fn reload_policies(&self) -> Result<PolicyReloadReport, FraiseQLError> {
+        let rows = self.policy_store.list().await?;
+        let known = self.buckets.load();
+
+        let mut stored: HashMap<String, BucketPolicy> = HashMap::new();
+        let mut report = PolicyReloadReport::default();
+        for row in rows {
+            if !known.contains_key(&row.bucket) {
+                report.unknown_buckets.push(row.bucket);
+                continue;
+            }
+            match row.parse() {
+                Ok(policy) => {
+                    stored.insert(row.bucket, policy);
+                },
+                Err(e) => report.invalid.push((row.bucket, e)),
+            }
+        }
+
+        for name in known.keys() {
+            if report.invalid.iter().any(|(bucket, _)| bucket == name) {
+                continue;
+            }
+            let from_store = stored.remove(name);
+            let source = crate::policy::policy_source(
+                from_store.is_some(),
+                self.config_policy(name).is_some(),
+            );
+            let effective = from_store.or_else(|| self.config_policy(name).cloned());
+            // Every `name` came from the same snapshot, so the bucket is known
+            // by construction and the return value carries no new information.
+            let _applied = self.set_bucket_policies(name, &effective);
+            report.sources.insert(name.clone(), source);
+        }
+        Ok(report)
+    }
+
+    /// Reload from the store every `interval`, forever. The caller owns the
+    /// task.
+    ///
+    /// A write made *through this replica* takes effect immediately, so this
+    /// exists for the other direction: a policy pushed at another replica, and
+    /// the bound on how long that replica's operator has to wait before the
+    /// change is deployment-wide.
+    pub async fn policy_refresh_loop(self, interval: std::time::Duration) {
+        let mut ticker = tokio::time::interval(interval);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            match self.reload_policies().await {
+                Ok(report) => report.log_problems(),
+                Err(e) => tracing::error!(
+                    error = %e,
+                    "storage policy refresh failed; the policies now in force keep serving"
+                ),
+            }
+        }
+    }
+
+    /// The same backend, metadata and store, governing a different set of
+    /// buckets — which become the new configured baseline.
+    ///
+    /// This is a re-*configuration*, not a policy push: it re-snapshots
+    /// [`config_policies`](Self::config_policies) from the map it is handed.
+    /// Use [`set_bucket_policies`](Self::set_bucket_policies) to push a policy
+    /// over an existing configuration.
+    #[must_use]
+    pub fn with_buckets(&self, buckets: HashMap<String, BucketConfig>) -> Self {
+        Self::new(
+            self.backend.clone(),
+            self.metadata.clone(),
+            self.rls,
+            buckets,
+            self.uploads.clone(),
+            self.policy_store.clone(),
+        )
+    }
+}
+
+/// How long a policy pushed at one replica takes to reach the others.
+///
+/// The replica that served the write applies it before answering, so this
+/// bounds only cross-replica propagation.
+pub const DEFAULT_POLICY_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What one [`StorageState::reload_policies`] pass did, and what it refused.
+#[derive(Debug, Default)]
+pub struct PolicyReloadReport {
+    /// Which source governs each configured bucket after the pass.
+    pub sources:         std::collections::BTreeMap<String, crate::policy::PolicySource>,
+    /// Stored rows that could not be parsed. Their buckets are untouched.
+    pub invalid:         Vec<(String, crate::policy::PolicySpecError)>,
+    /// Stored rows naming a bucket this server does not configure. They govern
+    /// nothing.
+    pub unknown_buckets: Vec<String>,
+}
+
+impl PolicyReloadReport {
+    /// Whether every stored row was applicable and valid.
+    #[must_use]
+    pub const fn is_clean(&self) -> bool {
+        self.invalid.is_empty() && self.unknown_buckets.is_empty()
+    }
+
+    /// Log whatever the pass could not apply. Silence means everything applied.
+    pub fn log_problems(&self) {
+        for (bucket, error) in &self.invalid {
+            tracing::error!(
+                bucket = %bucket, error = %error,
+                "a stored storage policy is not valid and was NOT applied; the policy already in \
+                 force for this bucket keeps serving. Fix or delete the \
+                 _fraiseql_storage_policies row."
+            );
+        }
+        for bucket in &self.unknown_buckets {
+            tracing::warn!(
+                bucket = %bucket,
+                "a stored storage policy names a bucket this server does not configure, so it \
+                 governs nothing — delete the row or restore the [storage.<name>] section"
+            );
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +413,9 @@ pub fn storage_router(state: StorageState) -> Router {
     // largest configured bucket so those checks are reachable; being applied on
     // this router (inner) it overrides the server-wide `DefaultBodyLimit` (and
     // axum's 2 MiB default) for storage routes only.
-    let body_limit = storage_body_limit(&state.buckets);
+    // Sized once, from the boot configuration: `max_object_bytes` is not among
+    // the fields a policy push can change (#974).
+    let body_limit = storage_body_limit(&state.buckets.load());
     Router::new()
         .route(
             "/storage/v1/object/{bucket}/{*key}",
@@ -225,7 +457,10 @@ async fn put_handler(
         return rejection;
     }
 
-    let Some(bucket) = state.buckets.get(&bucket_name) else {
+    // Snapshot the bucket map for the whole request: a policy pushed over the
+    // admin API mid-request must not decide half of it (#974).
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
@@ -340,7 +575,10 @@ async fn get_handler(
         return rejection;
     }
 
-    let Some(bucket) = state.buckets.get(&bucket_name) else {
+    // Snapshot the bucket map for the whole request: a policy pushed over the
+    // admin API mid-request must not decide half of it (#974).
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
@@ -438,7 +676,10 @@ async fn delete_handler(
         return rejection;
     }
 
-    let Some(bucket) = state.buckets.get(&bucket_name) else {
+    // Snapshot the bucket map for the whole request: a policy pushed over the
+    // admin API mid-request must not decide half of it (#974).
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
@@ -499,7 +740,10 @@ async fn list_handler(
     Path(bucket_name): Path<String>,
     Query(query): Query<ListQuery>,
 ) -> Response {
-    let Some(bucket) = state.buckets.get(&bucket_name) else {
+    // Snapshot the bucket map for the whole request: a policy pushed over the
+    // admin API mid-request must not decide half of it (#974).
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
@@ -573,7 +817,10 @@ async fn presign_handler(
         return rejection;
     }
 
-    let Some(bucket) = state.buckets.get(&bucket_name) else {
+    // Snapshot the bucket map for the whole request: a policy pushed over the
+    // admin API mid-request must not decide half of it (#974).
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 

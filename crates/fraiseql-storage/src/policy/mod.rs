@@ -44,6 +44,8 @@
 //! user-defined metadata yet, so a field matching against it would have
 //! nothing to compare. Tracked separately.
 
+pub mod spec;
+pub mod store;
 #[cfg(test)]
 mod tests;
 
@@ -51,6 +53,8 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+pub use spec::{PolicyRuleSpec, PolicySpecError, parse_policy, policy_to_specs};
+pub use store::{PolicySource, StoragePolicyStore, StoredPolicyRow, policy_source};
 
 /// A caller's token claims, normalised to strings for exact matching.
 ///
@@ -133,6 +137,18 @@ impl PolicyMethod {
             )),
         }
     }
+
+    /// The canonical spelling, which [`parse`](Self::parse) accepts back.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Overwrite => "overwrite",
+            Self::Delete => "delete",
+            Self::List => "list",
+        }
+    }
 }
 
 /// Who a rule permits.
@@ -182,6 +198,18 @@ impl PolicyPrincipal {
                 "unknown policy principal {other:?}; expected \"owner\", \"authenticated\", \
                  \"anonymous\", \"signed_url\" or \"role:<name>\""
             )),
+        }
+    }
+
+    /// The canonical spelling, which [`parse`](Self::parse) accepts back.
+    #[must_use]
+    pub fn render(&self) -> String {
+        match *self {
+            Self::Owner => "owner".to_string(),
+            Self::Authenticated => "authenticated".to_string(),
+            Self::Anonymous => "anonymous".to_string(),
+            Self::SignedUrl => "signed_url".to_string(),
+            Self::Role(ref name) => format!("role:{name}"),
         }
     }
 }

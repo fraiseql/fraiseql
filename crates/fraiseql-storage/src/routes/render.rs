@@ -245,7 +245,10 @@ pub(super) async fn render_handler(
     if let Some(rejection) = reject_unsafe_key(&key) {
         return rejection;
     }
-    let Some(bucket) = state.buckets.get(&bucket_name) else {
+    // Snapshot the bucket map for the whole request: a policy pushed over the
+    // admin API mid-request must not decide half of it (#974).
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
     let user = user.map(|Extension(u)| u).unwrap_or_default();

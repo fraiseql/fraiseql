@@ -1058,30 +1058,13 @@ pub struct StorageSectionConfig {
 ///
 /// There is deliberately no `effect` field: rules permit, and denial is the
 /// fallthrough. See `fraiseql_storage::policy` for why.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PolicyRuleConfig {
-    /// Operations permitted: `read` | `write` | `overwrite` | `delete` | `list`.
-    pub methods:           Vec<String>,
-    /// Who they are permitted to: `owner` | `authenticated` | `anonymous` |
-    /// `signed_url` | `role:<name>`.
-    pub principal:         String,
-    /// Restrict the rule to keys starting with this prefix.
-    #[serde(default)]
-    pub key_prefix:        Option<String>,
-    /// RFC3339 instant before which this grant does not apply (#974).
-    #[serde(default)]
-    pub not_before:        Option<String>,
-    /// RFC3339 instant at and after which this grant no longer applies (#974).
-    #[serde(default)]
-    pub not_after:         Option<String>,
-    /// Require the object to carry an expiry still in the future (#974).
-    #[serde(default)]
-    pub require_unexpired: bool,
-    /// Token claims the caller must carry, compared for exact equality (#974).
-    #[serde(default)]
-    pub require_claims:    std::collections::BTreeMap<String, String>,
-}
+///
+/// This *is* `fraiseql_storage::PolicyRuleSpec`, not a config-side copy of its
+/// shape. A policy now reaches the runtime through two doors — this section at
+/// boot and `PUT /api/v1/admin/storage/{bucket}/policies` at runtime (#974) —
+/// and one type means one parse, so the two cannot come to disagree about which
+/// policies are valid.
+pub type PolicyRuleConfig = fraiseql_storage::PolicyRuleSpec;
 
 /// One named transform preset in a `[storage.<name>]` section (#370).
 #[derive(Debug, Clone, Serialize, Deserialize)]

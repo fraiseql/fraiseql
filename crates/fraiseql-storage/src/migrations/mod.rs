@@ -8,6 +8,10 @@
 //! completion, and opaque per-backend continuation state (the S3 multipart
 //! upload id and part etags, or the local temp-file marker). `UNIQUE (bucket,
 //! key)` allows at most one in-flight resumable upload per object key.
+//!
+//! `_fraiseql_storage_policies` (#974) holds per-bucket access policies pushed
+//! over the admin API — one row per bucket, replacing that bucket's configured
+//! policy wholesale. See [`crate::policy::store`] for the precedence rule.
 
 #[cfg(test)]
 mod tests;
@@ -95,5 +99,16 @@ CREATE TABLE IF NOT EXISTS _fraiseql_storage_uploads (
 
 CREATE INDEX IF NOT EXISTS idx_storage_uploads_expires
     ON _fraiseql_storage_uploads (expires_at);
+
+-- #974: per-bucket policies written over the admin API. The rules are held as
+-- the operator wrote them (a JSON list of policy rule specs) rather than in
+-- parsed form, so a boot-time load re-validates through the same door the
+-- write came through. A row here REPLACES the bucket config policy wholesale;
+-- the two are never merged.
+CREATE TABLE IF NOT EXISTS _fraiseql_storage_policies (
+    bucket     TEXT        PRIMARY KEY,
+    rules      JSONB       NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 "
 }

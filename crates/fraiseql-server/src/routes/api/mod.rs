@@ -17,6 +17,7 @@ pub mod openapi;
 pub mod query;
 pub mod query_stats;
 pub mod schema;
+pub mod storage_policies;
 pub mod tenant_admin;
 pub mod types;
 pub mod usage;

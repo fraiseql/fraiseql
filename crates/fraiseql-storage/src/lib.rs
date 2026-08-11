@@ -51,10 +51,13 @@ pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 pub use metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
 pub use policy::{
     BucketPolicy, ClaimValues, PolicyMethod, PolicyPrincipal, PolicyRequest, PolicyRule,
-    normalise_claims,
+    PolicyRuleSpec, PolicySource, PolicySpecError, StoragePolicyStore, StoredPolicyRow,
+    normalise_claims, parse_policy, policy_source, policy_to_specs,
 };
 pub use rls::{STORAGE_ADMIN_ROLE, StorageCaller, StorageRlsEvaluator};
-pub use routes::{StorageState, StorageUser, storage_router};
+pub use routes::{
+    DEFAULT_POLICY_REFRESH_INTERVAL, PolicyReloadReport, StorageState, StorageUser, storage_router,
+};
 pub use service::BucketService;
 #[cfg(feature = "transforms")]
 pub use transforms::{

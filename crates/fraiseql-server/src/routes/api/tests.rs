@@ -802,14 +802,20 @@ mod openapi_tests {
     }
 
     #[test]
-    fn test_openapi_spec_documents_10_endpoints() {
+    fn test_openapi_spec_documents_every_endpoint_path() {
         let spec = get_openapi_spec();
         let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
 
         let paths = &parsed["paths"];
         let count = paths.as_object().map_or(0, |m| m.len());
 
-        assert_eq!(count, 10, "Should document all 10 API endpoint paths");
+        // Bump deliberately when a path is added, so the addition is visible in
+        // the diff rather than absorbed by a `>=`.
+        assert_eq!(count, 11, "Should document all 11 API endpoint paths");
+        assert!(
+            paths.get("/api/v1/admin/storage/{bucket}/policies").is_some(),
+            "the storage bucket-policy admin path must be documented (#974)"
+        );
     }
 
     #[test]

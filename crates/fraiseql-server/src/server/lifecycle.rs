@@ -158,6 +158,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Keep stored bucket policies current (#974), for the same reason the
+        // IdP refresher above exists: a policy pushed at one replica applies
+        // there immediately, and an access control that reached one replica out
+        // of three is not an access control. This bounds how long the rest of
+        // the deployment lags.
+        if let Some(ref storage_state) = self.storage_state {
+            let state = storage_state.clone();
+            self.tasks.spawn(
+                state.policy_refresh_loop(fraiseql_storage::DEFAULT_POLICY_REFRESH_INTERVAL),
+            );
+            info!(
+                refresh_interval_secs = fraiseql_storage::DEFAULT_POLICY_REFRESH_INTERVAL.as_secs(),
+                "Storage bucket policy refresher started"
+            );
+        }
+
         // Ensure the [auth.local] tables exist before the router mounts their
         // endpoints (#367). Every one of these would otherwise 500 on the first
         // real request against a fresh database; failing the boot is the loud

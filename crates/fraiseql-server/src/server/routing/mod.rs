@@ -26,6 +26,8 @@ mod persisted_only_transport_tests;
 #[cfg(test)]
 mod realtime_removal_survival_tests;
 mod state;
+#[cfg(test)]
+mod storage_policy_admin_tests;
 
 use std::sync::Arc;
 

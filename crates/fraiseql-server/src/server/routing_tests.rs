@@ -54,13 +54,14 @@ async fn storage_state(bucket: &str) -> StorageState {
             ..BucketConfig::default()
         },
     );
-    StorageState {
-        backend:  Arc::new(backend),
-        metadata: Arc::new(StorageMetadataRepo::new(lazy_pool())),
-        rls:      StorageRlsEvaluator::new(),
-        buckets:  Arc::new(buckets),
-        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(lazy_pool())),
-    }
+    StorageState::new(
+        Arc::new(backend),
+        Arc::new(StorageMetadataRepo::new(lazy_pool())),
+        StorageRlsEvaluator::new(),
+        buckets,
+        Arc::new(fraiseql_storage::UploadSessionRepo::new(lazy_pool())),
+        Arc::new(fraiseql_storage::StoragePolicyStore::new(lazy_pool())),
+    )
 }
 
 fn lazy_pool() -> PgPool {

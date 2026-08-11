@@ -626,3 +626,142 @@ fn signed_url_principal_parses_and_unknown_still_errors() {
     let err = PolicyPrincipal::parse("signedurl").unwrap_err();
     assert!(err.contains("signed_url"), "the error must list the accepted spelling: {err}");
 }
+
+// ---------------------------------------------------------------------------
+// #974: the wire form, and the single parse both doors go through
+// ---------------------------------------------------------------------------
+
+mod spec {
+    use std::collections::BTreeMap;
+
+    use super::super::{
+        BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRule, PolicyRuleSpec, parse_policy,
+        policy_to_specs,
+    };
+
+    fn spec(methods: &[&str], principal: &str) -> PolicyRuleSpec {
+        PolicyRuleSpec {
+            methods:           methods.iter().map(|m| (*m).to_string()).collect(),
+            principal:         principal.to_string(),
+            key_prefix:        None,
+            not_before:        None,
+            not_after:         None,
+            require_unexpired: false,
+            require_claims:    BTreeMap::new(),
+        }
+    }
+
+    /// Every condition survives a render/parse round trip.
+    ///
+    /// This is what lets an operator `GET` the policy governing a bucket, edit
+    /// one rule, and `PUT` it back without a condition silently changing
+    /// meaning — and it is why the admin API can report a config-file policy in
+    /// the same vocabulary the config file uses.
+    #[test]
+    fn policy_round_trips_through_the_spec_form() {
+        let mut claims = BTreeMap::new();
+        claims.insert("tier".to_string(), "gold".to_string());
+        let original = BucketPolicy {
+            rules: vec![
+                PolicyRule {
+                    methods:           vec![PolicyMethod::Read, PolicyMethod::List],
+                    principal:         PolicyPrincipal::Role("auditor".to_string()),
+                    key_prefix:        Some("reports/".to_string()),
+                    not_before:        Some("2026-01-01T00:00:00Z".parse().unwrap()),
+                    not_after:         Some("2027-01-01T00:00:00Z".parse().unwrap()),
+                    require_unexpired: true,
+                    require_claims:    claims,
+                },
+                PolicyRule {
+                    methods:           vec![PolicyMethod::Read],
+                    principal:         PolicyPrincipal::SignedUrl,
+                    key_prefix:        None,
+                    not_before:        None,
+                    not_after:         None,
+                    require_unexpired: false,
+                    require_claims:    BTreeMap::new(),
+                },
+            ],
+        };
+
+        let reparsed = parse_policy(&policy_to_specs(&original)).unwrap();
+        assert_eq!(reparsed, original, "rendering and re-parsing must not change a policy");
+    }
+
+    /// A rule carrying a field this build does not know is REFUSED, not
+    /// silently stripped of it.
+    ///
+    /// A dropped `require_unexpired` is a rule that stops narrowing while still
+    /// reading as if it does — the exact failure the closed vocabulary exists
+    /// to prevent. `deny_unknown_fields` is what makes a typo loud.
+    #[test]
+    fn an_unknown_rule_field_is_refused() {
+        let json = serde_json::json!({
+            "methods": ["read"],
+            "principal": "owner",
+            "require_unexpird": true,
+        });
+        let err = serde_json::from_value::<PolicyRuleSpec>(json).unwrap_err();
+        assert!(
+            err.to_string().contains("require_unexpird"),
+            "the refusal must name the offending field: {err}"
+        );
+    }
+
+    /// A refusal says which rule is at fault — an operator pushing ten rules
+    /// needs to know which one, and so does the boot error.
+    #[test]
+    fn a_refusal_names_the_offending_rule() {
+        let rules = [
+            spec(&["read"], "owner"),
+            spec(&["read"], "role:ok"),
+            spec(&["reed"], "owner"),
+        ];
+        let err = parse_policy(&rules).unwrap_err();
+        assert_eq!(err.rule_index, Some(2));
+        assert!(err.message.contains("reed"), "the message must quote the bad spelling: {err}");
+        assert!(
+            err.to_string().starts_with("policy rule 2:"),
+            "the rendered form leads with the index: {err}"
+        );
+    }
+
+    /// A malformed time bound is refused rather than dropped: a rule that
+    /// silently loses its `not_after` permits forever.
+    #[test]
+    fn a_malformed_time_bound_is_refused() {
+        let mut rule = spec(&["read"], "owner");
+        rule.not_after = Some("next tuesday".to_string());
+        let err = parse_policy(std::slice::from_ref(&rule)).unwrap_err();
+        assert_eq!(err.rule_index, Some(0));
+        assert!(err.message.contains("not_after"), "{err}");
+    }
+
+    /// A window that can never be open is a configuration mistake, not a rule
+    /// that permits nothing.
+    #[test]
+    fn an_inverted_window_is_refused() {
+        let mut rule = spec(&["read"], "owner");
+        rule.not_before = Some("2027-01-01T00:00:00Z".to_string());
+        rule.not_after = Some("2026-01-01T00:00:00Z".to_string());
+        let err = parse_policy(std::slice::from_ref(&rule)).unwrap_err();
+        assert!(err.message.contains("never permit"), "{err}");
+    }
+
+    /// A rule listing no methods is refused for the same reason.
+    #[test]
+    fn a_rule_with_no_methods_is_refused() {
+        let err = parse_policy(&[spec(&[], "owner")]).unwrap_err();
+        assert_eq!(err.rule_index, Some(0));
+        assert!(err.message.contains("no methods"), "{err}");
+    }
+
+    /// An empty rule LIST, by contrast, is a valid lock-down: it parses, and it
+    /// permits nothing. Distinct from having no policy at all, which leaves the
+    /// coarse access mode governing.
+    #[test]
+    fn an_empty_rule_list_is_a_valid_lockdown() {
+        let policy = parse_policy(&[]).unwrap();
+        assert!(policy.rules.is_empty());
+    }
+}

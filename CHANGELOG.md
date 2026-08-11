@@ -1741,6 +1741,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or a misspelled field is a startup error, never a rule that silently denies.
   `list` also becomes a distinct permission (no longer implied by write
   access), with row filtering still applied on top.
+- **Policy conditions, signed-URL grants, and runtime policy management
+  (#974).** #371 shipped policies as `methods` × `principal` × `key_prefix`,
+  parsed at boot. #974 asked for a CEL-style expression language on top
+  (`object.expires_at`, `jwt.<claim>`) plus an admin API to push policies
+  without a deploy.
+
+  What lands is the same expressive power as **more closed rule fields**, so
+  there is still nothing parsed or evaluated at request time — only comparisons
+  between values already in hand. `not_before` / `not_after` bound a grant's own
+  validity, with `not_after` exclusive so two adjacent grants neither overlap
+  nor gap. `require_unexpired` reads an object's own expiry through a new
+  nullable `expires_at` column. `require_claims` is exact string equality
+  against the caller's token claims. A new `signed_url` principal expresses
+  *"a public bucket whose objects are served only through signed URLs"*: it
+  matches on the presign path and nowhere else.
+
+  Two readings are fail-closed on purpose. **A missing `expires_at` denies**
+  under `require_unexpired` — the condition mirrors `now < object.expires_at`,
+  which is not true against `NULL`, so adding the column cannot widen access on
+  any existing row. **`require_claims` denies under non-OIDC auth**, where the
+  claim set is empty, rather than silently ceasing to narrow when the auth mode
+  changes. Every condition only ever narrows, and a rule skipped for a failed
+  condition does not suppress a later permitting rule.
+
+  Policies can now also be pushed at runtime:
+  `GET`/`PUT`/`DELETE /api/v1/admin/storage/{bucket}/policies`, stored in
+  `_fraiseql_storage_policies` and loaded at boot. **A stored policy replaces
+  the configured one wholesale** — never merged, so "what can this caller do"
+  stays answerable from one list — and `GET` plus the boot log name the
+  governing `source` (`store` / `config_file` / `access_mode`) so which list is
+  never a guess. `DELETE` reverts to the configured policy, which can widen
+  access and therefore takes the write token. Since **a pushed policy has no
+  boot to refuse**, #371's parse guarantee is enforced at the request instead:
+  the rules are validated — through the same parser the config file goes
+  through — before anything is written or applied, and a rejection answers `400`
+  naming the offending `rule_index` while the policy already in force keeps
+  serving untouched. `GET` needs only `admin_readonly_token`; `PUT`/`DELETE`
+  need `admin_token`, so inspecting what governs a bucket can be delegated
+  without delegating the ability to change it. A push applies immediately on the
+  replica that served it and reaches the others within 30 seconds.
+
+  `require_metadata` from the original issue is deliberately absent: objects
+  carry no user-defined metadata, so the condition would have had nothing to
+  match. Tracked separately as #1099.
 - **Image renders are served, and hostile images are bounded (#370, closing
   #901).** `GET /storage/v1/render/{bucket}/{*key}?w=&h=&format=&quality=&preset=`
   mounts behind the server's new `storage-transforms` feature and reads through

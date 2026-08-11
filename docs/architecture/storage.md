@@ -221,6 +221,55 @@ only the keys the policy permits reading.
 The storage-admin role (`fraiseql:storage:admin`) bypasses policies exactly as
 it bypasses the access mode.
 
+### Managing policies at runtime
+
+A policy can also be pushed over the Admin API, without a config deploy:
+
+```
+GET    /api/v1/admin/storage/{bucket}/policies    # read token
+PUT    /api/v1/admin/storage/{bucket}/policies    # write token
+DELETE /api/v1/admin/storage/{bucket}/policies    # write token
+```
+
+```bash
+curl -X PUT https://api.example.com/api/v1/admin/storage/docs/policies \
+  -H "Authorization: Bearer $FRAISEQL_ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"rules":[{"methods":["read"],"principal":"role:auditor","key_prefix":"reports/"}]}'
+```
+
+Pushed policies live in `_fraiseql_storage_policies`, one row per bucket, and
+are loaded at boot. Four rules govern the two sources:
+
+**A stored policy replaces the configured one, wholesale.** They are never
+merged. "What can this caller do" stays answerable by reading one list, and
+which list is never a guess: `GET` reports a `source` of `store`,
+`config_file`, or `access_mode`, and the boot log states it per bucket.
+
+**`DELETE` reverts to the configured policy** — or, for a bucket that declares
+none, to the coarse `access` mode. That can *widen* access, which is why it
+takes the write token and why the response says which source now governs.
+
+**A pushed policy cannot refuse to boot, so it refuses at the request.** The
+rules are validated before anything is written or applied, through the same
+parser the config file goes through. A rejection answers `400` naming the
+offending `rule_index`, and the policy already in force keeps serving,
+untouched. An empty `rules` list is *not* a rejection: it is a valid lock-down
+that permits nothing, distinct from having no policy at all.
+
+**Reads and writes are separately tokenable.** `GET` takes
+`admin_readonly_token`, `PUT`/`DELETE` take `admin_token`. An operator can hand
+out the ability to inspect what governs a bucket without handing out the
+ability to change it. (This is why the endpoint lives on `/api/v1/admin/*` and
+not beside the Studio storage browser at `/admin/v1/storage/*`, which is a
+single-token surface.)
+
+A push applies immediately on the replica that served it; other replicas pick
+it up within 30 seconds. A stored row that this server cannot parse — one
+hand-edited in SQL, or written by a different version — refuses the boot, and
+on a running server is logged and skipped, leaving the policy in force
+untouched rather than silently reverting the bucket.
+
 ## Key validation
 
 `validate_key` rejects — rather than rewrites — any key that could alias onto

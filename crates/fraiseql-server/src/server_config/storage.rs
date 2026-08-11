@@ -157,55 +157,18 @@ fn resolve_from_map(
         },
     };
 
-    // #371: parse policies at BOOT. An unknown method or principal spelling
-    // refuses to start rather than becoming a rule that silently denies (or,
-    // in a multi-rule policy, silently drops the narrowing rule).
+    // #371: parse policies at BOOT. An unknown method or principal spelling —
+    // or, since #974, a malformed time bound — refuses to start rather than
+    // becoming a rule that silently denies, or that quietly loses its narrowing
+    // condition and permits more than it reads as permitting.
+    //
+    // The parse itself lives in fraiseql-storage so that the admin endpoint
+    // pushing a policy at runtime accepts exactly this set of policies.
     let policies = match section.policies {
         None => None,
-        Some(ref rules) => {
-            let mut parsed = Vec::with_capacity(rules.len());
-            for (index, rule) in rules.iter().enumerate() {
-                let methods = rule
-                    .methods
-                    .iter()
-                    .map(|m| fraiseql_storage::PolicyMethod::parse(m))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| format!("[storage.{name}] policy rule {index}: {e}"))?;
-                if methods.is_empty() {
-                    return Err(format!(
-                        "[storage.{name}] policy rule {index} lists no methods; a rule that                          permits nothing is a configuration mistake, not a denial"
-                    ));
-                }
-                let principal = fraiseql_storage::PolicyPrincipal::parse(&rule.principal)
-                    .map_err(|e| format!("[storage.{name}] policy rule {index}: {e}"))?;
-                // #974: a condition that fails to parse refuses the boot for the
-                // same reason a bad method spelling does — the alternative is a
-                // rule that quietly loses its narrowing condition and permits
-                // more than it reads as permitting.
-                let not_before =
-                    parse_rule_instant(rule.not_before.as_deref(), "not_before", name, index)?;
-                let not_after =
-                    parse_rule_instant(rule.not_after.as_deref(), "not_after", name, index)?;
-                if let (Some(start), Some(end)) = (not_before, not_after) {
-                    if start >= end {
-                        return Err(format!(
-                            "[storage.{name}] policy rule {index}: not_before ({start}) is not \
-                             before not_after ({end}), so the rule can never permit anything"
-                        ));
-                    }
-                }
-                parsed.push(fraiseql_storage::PolicyRule {
-                    methods,
-                    principal,
-                    key_prefix: rule.key_prefix.clone(),
-                    not_before,
-                    not_after,
-                    require_unexpired: rule.require_unexpired,
-                    require_claims: rule.require_claims.clone(),
-                });
-            }
-            Some(fraiseql_storage::BucketPolicy { rules: parsed })
-        },
+        Some(ref rules) => Some(
+            fraiseql_storage::parse_policy(rules).map_err(|e| format!("[storage.{name}] {e}"))?,
+        ),
     };
 
     let bucket = BucketConfig {
@@ -264,13 +227,69 @@ pub async fn build_storage_state(config: &ServerConfig) -> Result<Option<Storage
     let mut buckets = HashMap::new();
     buckets.insert(bucket_name, resolved.bucket);
 
-    Ok(Some(StorageState {
-        backend:  Arc::new(backend),
-        metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
-        rls:      StorageRlsEvaluator::new(),
-        buckets:  Arc::new(buckets),
-        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(pool)),
-    }))
+    let state = StorageState::new(
+        Arc::new(backend),
+        Arc::new(StorageMetadataRepo::new(pool.clone())),
+        StorageRlsEvaluator::new(),
+        buckets,
+        Arc::new(fraiseql_storage::UploadSessionRepo::new(pool.clone())),
+        Arc::new(fraiseql_storage::StoragePolicyStore::new(pool)),
+    );
+
+    apply_stored_policies(&state).await?;
+
+    Ok(Some(state))
+}
+
+/// Overlay the durable policies onto the freshly-configured buckets, and say in
+/// the log which source ends up governing each one (#974).
+///
+/// Three readings are load-bearing here:
+///
+/// - **A stored policy replaces the configured one wholesale.** Never merged — see
+///   `fraiseql_storage::policy::store` for why.
+/// - **An unparseable stored row refuses the boot**, exactly as a bad `[[storage.*.policies]]`
+///   entry does. The alternative — skip the row and fall back to the configured policy — reverts a
+///   deliberate narrowing without anyone asking, and the other alternative — deny everything for
+///   that bucket — is the silent 3am denial #371 exists to prevent. A row can only get here by
+///   being hand-edited in SQL or written by a different version, since the admin endpoint parses
+///   before it persists.
+/// - **A row for a bucket that is not configured is a warning, not an error.** It governs nothing,
+///   but an operator who renamed a bucket needs to know their policy stopped applying.
+///
+/// # Errors
+///
+/// Returns an error message when the store cannot be read, or when a stored
+/// policy fails to parse.
+async fn apply_stored_policies(state: &StorageState) -> Result<(), String> {
+    let report = state
+        .reload_policies()
+        .await
+        .map_err(|e| format!("storage: failed to read stored bucket policies: {e}"))?;
+
+    // A row this server cannot parse is a row written outside the admin API or
+    // by a different version. `reload_policies` left the bucket alone — correct
+    // once serving, but at boot "alone" means the configured policy, which
+    // would silently undo whatever narrowing the stored one expressed. Refuse
+    // to start instead, exactly as a malformed [[storage.*.policies]] entry
+    // does.
+    if let Some((bucket, error)) = report.invalid.first() {
+        return Err(format!(
+            "storage: the stored policy for bucket '{bucket}' is not valid ({error}). It was \
+             written outside the admin API or by a different version; fix or delete the \
+             _fraiseql_storage_policies row before starting."
+        ));
+    }
+    report.log_problems();
+
+    for (bucket, source) in &report.sources {
+        tracing::info!(
+            bucket = %bucket,
+            policy_source = source.as_str(),
+            "storage bucket access is governed by this policy source"
+        );
+    }
+    Ok(())
 }
 
 /// Parse the optional per-bucket `access` policy. Defaults to the secure
@@ -343,27 +362,4 @@ fn parse_transform_presets(
         });
     }
     Ok(Some(parsed))
-}
-
-/// Parse an optional RFC3339 instant from a policy rule's time bound (#974).
-///
-/// Refuses the boot on a malformed value rather than dropping the bound: a rule
-/// that silently loses its `not_after` permits forever.
-fn parse_rule_instant(
-    raw: Option<&str>,
-    field: &str,
-    bucket: &str,
-    index: usize,
-) -> Result<Option<chrono::DateTime<chrono::Utc>>, String> {
-    let Some(raw) = raw else {
-        return Ok(None);
-    };
-    chrono::DateTime::parse_from_rfc3339(raw)
-        .map(|parsed| Some(parsed.with_timezone(&chrono::Utc)))
-        .map_err(|e| {
-            format!(
-                "[storage.{bucket}] policy rule {index}: {field} = {raw:?} is not a valid RFC3339 \
-                 timestamp ({e}); expected e.g. \"2026-01-31T00:00:00Z\""
-            )
-        })
 }

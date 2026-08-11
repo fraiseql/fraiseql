@@ -99,13 +99,14 @@ async fn harness() -> Option<Harness> {
         },
     );
 
-    let state = StorageState {
-        backend:  Arc::new(backend),
-        metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
-        rls:      StorageRlsEvaluator::new(),
-        buckets:  Arc::new(buckets),
-        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(pool)),
-    };
+    let state = StorageState::new(
+        Arc::new(backend),
+        Arc::new(StorageMetadataRepo::new(pool.clone())),
+        StorageRlsEvaluator::new(),
+        buckets,
+        Arc::new(fraiseql_storage::UploadSessionRepo::new(pool.clone())),
+        Arc::new(fraiseql_storage::StoragePolicyStore::new(pool)),
+    );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let base = format!("http://{}", listener.local_addr().expect("addr"));

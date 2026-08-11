@@ -45,19 +45,22 @@ async fn server_with(config: ServerConfig) -> Server<CachedDatabaseAdapter<Faili
 /// touched: the refuse-to-mount decision happens before any request reaches a
 /// handler, so no DB connection is opened.
 fn minimal_storage_state() -> fraiseql_storage::StorageState {
-    fraiseql_storage::StorageState {
-        backend:  Arc::new(fraiseql_storage::StorageBackend::Local(
-            fraiseql_storage::LocalBackend::new("/tmp/fraiseql-c6-test-unused"),
-        )),
-        metadata: Arc::new(fraiseql_storage::StorageMetadataRepo::new(
+    fraiseql_storage::StorageState::new(
+        Arc::new(fraiseql_storage::StorageBackend::Local(fraiseql_storage::LocalBackend::new(
+            "/tmp/fraiseql-c6-test-unused",
+        ))),
+        Arc::new(fraiseql_storage::StorageMetadataRepo::new(
             sqlx::PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap(),
         )),
-        rls:      fraiseql_storage::StorageRlsEvaluator::new(),
-        buckets:  Arc::new(HashMap::new()),
-        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(
+        fraiseql_storage::StorageRlsEvaluator::new(),
+        HashMap::new(),
+        Arc::new(fraiseql_storage::UploadSessionRepo::new(
             sqlx::PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap(),
         )),
-    }
+        Arc::new(fraiseql_storage::StoragePolicyStore::new(
+            sqlx::PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap(),
+        )),
+    )
 }
 
 #[tokio::test]

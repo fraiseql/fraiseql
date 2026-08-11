@@ -4085,6 +4085,7 @@ name = "fraiseql-storage"
 version = "2.14.1"
 dependencies = [
  "ab_glyph",
+ "arc-swap",
  "async-trait",
  "aws-config",
  "aws-sdk-s3",

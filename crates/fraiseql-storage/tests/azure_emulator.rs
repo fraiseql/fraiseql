@@ -369,13 +369,14 @@ async fn storage_state(endpoint: &str, container: &str, db_url: &str) -> Storage
         },
     );
 
-    StorageState {
-        backend:  Arc::new(backend),
-        metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
-        rls:      StorageRlsEvaluator::new(),
-        buckets:  Arc::new(buckets),
-        uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(pool)),
-    }
+    StorageState::new(
+        Arc::new(backend),
+        Arc::new(StorageMetadataRepo::new(pool.clone())),
+        StorageRlsEvaluator::new(),
+        buckets,
+        Arc::new(fraiseql_storage::UploadSessionRepo::new(pool.clone())),
+        Arc::new(fraiseql_storage::StoragePolicyStore::new(pool)),
+    )
 }
 
 fn router_for(state: StorageState, user_id: &str) -> Router {

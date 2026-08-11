@@ -585,12 +585,67 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_state(state.clone());
             app = app.merge(admin_read_router);
 
+            app = self.mount_storage_policy_admin(app, write_token);
+
             info!("Admin API endpoints enabled (bearer token required)");
         } else {
             warn!(
                 "admin_api_enabled is true but admin_token is not set - admin endpoints disabled"
             );
         }
+        app
+    }
+
+    /// Per-bucket storage policies over the Admin API (#974).
+    ///
+    /// Mounted on its own router because these handlers are stateful in
+    /// `StorageState`, not `AppState` — but on the *same* token split as the
+    /// rest of `/api/v1/admin`: reading which policy governs a bucket is a
+    /// read-token operation, replacing or deleting it is a write-token one.
+    /// That separation is the reason this lives here rather than beside the
+    /// storage browser on Studio's single-token `/admin/v1/storage/*`.
+    ///
+    /// Absent entirely when the deployment configures no storage, rather than
+    /// answering 404 from a route that exists.
+    fn mount_storage_policy_admin(&self, mut app: Router, write_token: &str) -> Router {
+        use api::storage_policies::{
+            delete_bucket_policy_handler, get_bucket_policy_handler, put_bucket_policy_handler,
+        };
+
+        const POLICIES_PATH: &str = "/api/v1/admin/storage/{bucket}/policies";
+
+        let Some(ref storage_state) = self.storage_state else {
+            return app;
+        };
+
+        let write_auth = BearerAuthState::with_max_failures(
+            write_token.to_string(),
+            self.config.admin_auth_max_failures,
+        );
+        let write_router = Router::new()
+            .route(
+                POLICIES_PATH,
+                put(put_bucket_policy_handler).delete(delete_bucket_policy_handler),
+            )
+            .route_layer(middleware::from_fn_with_state(write_auth, bearer_auth_middleware))
+            .with_state(storage_state.clone());
+
+        let read_token = self.config.admin_readonly_token.as_deref().unwrap_or(write_token);
+        let read_auth = BearerAuthState::with_max_failures(
+            read_token.to_string(),
+            self.config.admin_auth_max_failures,
+        );
+        let read_router = Router::new()
+            .route(POLICIES_PATH, get(get_bucket_policy_handler))
+            .route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))
+            .with_state(storage_state.clone());
+
+        app = app.merge(write_router).merge(read_router);
+        info!(
+            path = POLICIES_PATH,
+            "Storage bucket policy admin endpoints enabled (GET under the read token, \
+             PUT/DELETE under the write token)"
+        );
         app
     }
 

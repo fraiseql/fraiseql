@@ -64,13 +64,14 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
         },
     );
 
-    let state = StorageState {
-        backend:  Arc::new(crate::backend::StorageBackend::Local(backend)),
-        metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
-        rls:      StorageRlsEvaluator::new(),
-        buckets:  Arc::new(buckets),
-        uploads:  Arc::new(crate::uploads::UploadSessionRepo::new(pool)),
-    };
+    let state = StorageState::new(
+        Arc::new(crate::backend::StorageBackend::Local(backend)),
+        Arc::new(StorageMetadataRepo::new(pool.clone())),
+        StorageRlsEvaluator::new(),
+        buckets,
+        Arc::new(crate::uploads::UploadSessionRepo::new(pool.clone())),
+        Arc::new(crate::policy::StoragePolicyStore::new(pool)),
+    );
 
     (state, (svc, tmp))
 }
@@ -227,10 +228,7 @@ async fn test_put_object_exceeding_size_limit_returns_413() {
             ..BucketConfig::default()
         },
     );
-    let state = StorageState {
-        buckets: Arc::new(buckets),
-        ..state
-    };
+    let state = state.with_buckets(buckets);
     let app = authenticated_router(state);
 
     let req = Request::builder()
@@ -395,7 +393,7 @@ async fn test_serve_inline_bucket_renders_safe_types_but_attaches_dangerous_ones
             ..BucketConfig::default()
         },
     );
-    state.buckets = Arc::new(buckets);
+    state = state.with_buckets(buckets);
 
     // A safe type (PNG) renders inline.
     let app = authenticated_router(state.clone());
@@ -549,7 +547,7 @@ async fn test_unknown_bucket_returns_404() {
 
 /// Add a second `PublicRead` bucket sharing the same backend + metadata.
 fn add_second_bucket(state: &mut StorageState, name: &str) {
-    let mut buckets: HashMap<String, BucketConfig> = (*state.buckets).clone();
+    let mut buckets: HashMap<String, BucketConfig> = HashMap::clone(&state.buckets.load());
     buckets.insert(
         name.to_string(),
         BucketConfig {
@@ -564,7 +562,7 @@ fn add_second_bucket(state: &mut StorageState, name: &str) {
             ..BucketConfig::default()
         },
     );
-    state.buckets = Arc::new(buckets);
+    *state = state.with_buckets(buckets);
 }
 
 #[tokio::test]
@@ -709,7 +707,7 @@ async fn test_upload_above_axum_default_but_within_bucket_limit_succeeds() {
             ..BucketConfig::default()
         },
     );
-    state.buckets = Arc::new(buckets);
+    state = state.with_buckets(buckets);
     let app = authenticated_router(state);
 
     // 3 MiB exceeds axum's built-in 2 MiB default body limit but is within the
@@ -749,10 +747,7 @@ async fn test_mime_type_rejection_returns_415() {
             ..BucketConfig::default()
         },
     );
-    let state = StorageState {
-        buckets: Arc::new(buckets),
-        ..state
-    };
+    let state = state.with_buckets(buckets);
     let app = authenticated_router(state);
 
     let req = Request::builder()
@@ -1695,13 +1690,10 @@ async fn resumable_create_validates_up_front() {
     // filetype, base64("text/plain") = dGV4dC9wbGFpbg==).
     let (state, _keep2) = test_state("images", BucketAccess::Private).await;
     let mut buckets = HashMap::new();
-    let mut bucket = state.buckets.get("images").unwrap().clone();
+    let mut bucket = state.buckets.load().get("images").unwrap().clone();
     bucket.allowed_mime_types = Some(vec!["image/*".to_string()]);
     buckets.insert("images".to_string(), bucket);
-    let state = StorageState {
-        buckets: Arc::new(buckets),
-        ..state
-    };
+    let state = state.with_buckets(buckets);
     let a = router_for(state, "user-a", &["user"]);
     let req = Request::builder()
         .method("POST")
@@ -1810,10 +1802,10 @@ mod render_tests {
     #[tokio::test]
     async fn render_applies_the_bucket_default_resize_mode() {
         let (mut state, _keep) = test_state("docs", BucketAccess::Private).await;
-        let mut buckets = (*state.buckets).clone();
+        let mut buckets = HashMap::clone(&state.buckets.load());
         let bucket = buckets.get_mut("docs").unwrap();
         bucket.default_resize_mode = Some("fill".to_string());
-        state.buckets = Arc::new(buckets);
+        state = state.with_buckets(buckets);
 
         let a = router_for(state.clone(), "user-a", &["user"]);
         a.clone().oneshot(png_put_req("docs", "pic.png", &small_png())).await.unwrap();
@@ -2051,7 +2043,7 @@ mod render_tests {
     #[tokio::test]
     async fn render_presets_resolve_by_name() {
         let (state, _keep) = test_state("docs", BucketAccess::Private).await;
-        let mut bucket = state.buckets.get("docs").unwrap().clone();
+        let mut bucket = state.buckets.load().get("docs").unwrap().clone();
         bucket.transform_presets = Some(vec![crate::config::TransformPreset {
             name: "thumb".to_string(),
             width: Some(16),
@@ -2062,10 +2054,7 @@ mod render_tests {
         }]);
         let mut buckets = HashMap::new();
         buckets.insert("docs".to_string(), bucket);
-        let state = StorageState {
-            buckets: Arc::new(buckets),
-            ..state
-        };
+        let state = state.with_buckets(buckets);
         let a = router_for(state.clone(), "user-a", &["user"]);
         assert_eq!(
             a.clone()
@@ -2096,17 +2085,11 @@ async fn policy_state(
     policy: crate::policy::BucketPolicy,
 ) -> (StorageState, impl std::any::Any) {
     let (state, keep) = test_state(bucket_name, access).await;
-    let mut bucket = state.buckets.get(bucket_name).unwrap().clone();
+    let mut bucket = state.buckets.load().get(bucket_name).unwrap().clone();
     bucket.policies = Some(policy);
     let mut buckets = HashMap::new();
     buckets.insert(bucket_name.to_string(), bucket);
-    (
-        StorageState {
-            buckets: Arc::new(buckets),
-            ..state
-        },
-        keep,
-    )
+    (state.with_buckets(buckets), keep)
 }
 
 fn get_req(bucket: &str, key: &str) -> Request<Body> {
@@ -2318,14 +2301,11 @@ async fn an_empty_policy_denies_every_request() {
     );
 
     // Same database, same object — now under a policy that permits nothing.
-    let mut bucket = seed_state.buckets.get("docs").unwrap().clone();
+    let mut bucket = seed_state.buckets.load().get("docs").unwrap().clone();
     bucket.policies = Some(BucketPolicy { rules: vec![] });
     let mut buckets = HashMap::new();
     buckets.insert("docs".to_string(), bucket);
-    let state = StorageState {
-        buckets: Arc::new(buckets),
-        ..seed_state
-    };
+    let state = seed_state.with_buckets(buckets);
 
     // Even the object's own owner is denied: nothing permits, so nothing passes.
     let owner = router_for(state.clone(), "user-a", &["user"]);
@@ -2435,4 +2415,397 @@ async fn list_is_a_distinct_permission_under_policy() {
         items.first().and_then(|i| i.get("key")).and_then(|k| k.as_str()),
         Some("reports/a.txt")
     );
+}
+
+// ── #974: a pushed policy governs the live surface, wholesale ────────────────
+
+mod hot_reload {
+    use tower::ServiceExt;
+
+    use super::{
+        BucketAccess, HashMap, StatusCode, StorageState, get_req, policy_state, put_req,
+        router_for, test_state,
+    };
+    use crate::policy::{
+        BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRule, PolicyRuleSpec, PolicySource,
+    };
+
+    /// A rule permitting `methods` to `principal` under `prefix`, with no
+    /// conditions.
+    fn rule(
+        methods: Vec<PolicyMethod>,
+        principal: PolicyPrincipal,
+        prefix: Option<&str>,
+    ) -> PolicyRule {
+        PolicyRule {
+            methods,
+            principal,
+            key_prefix: prefix.map(str::to_string),
+            not_before: None,
+            not_after: None,
+            require_unexpired: false,
+            require_claims: crate::policy::ClaimValues::new(),
+        }
+    }
+
+    /// Reads under `prefix` for any authenticated caller, plus an unprefixed
+    /// create grant.
+    ///
+    /// The create grant is deliberately unprefixed: `can_write_object` decides
+    /// a *create* against an empty key, so a `write` rule carrying a
+    /// `key_prefix` permits no create anywhere. That is #371 behaviour, filed
+    /// separately — these tests discriminate on the READ prefix, which is not
+    /// affected.
+    fn read_under(prefix: &str) -> BucketPolicy {
+        BucketPolicy {
+            rules: vec![
+                rule(vec![PolicyMethod::Read], PolicyPrincipal::Authenticated, Some(prefix)),
+                rule(vec![PolicyMethod::Write], PolicyPrincipal::Authenticated, None),
+            ],
+        }
+    }
+
+    fn spec_read_under(prefix: &str) -> Vec<PolicyRuleSpec> {
+        crate::policy::policy_to_specs(&read_under(prefix))
+    }
+
+    /// Clear any policy rows a previous test in this (single-threaded) suite
+    /// left behind — the storage suite shares one database.
+    async fn clear_policies(state: &StorageState) {
+        sqlx::query("DELETE FROM _fraiseql_storage_policies")
+            .execute(state.policy_store.pool())
+            .await
+            .unwrap();
+    }
+
+    /// The point of the whole exercise: a policy replaced at runtime decides the
+    /// NEXT request on the data path, not just what an admin read-back reports.
+    ///
+    /// A hot reload that updates a map nobody enforces from is the shape of
+    /// #762 and #743 — an evaluator that looked like it decided something.
+    #[tokio::test]
+    async fn a_pushed_policy_governs_the_next_request() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, read_under("a/")).await;
+        clear_policies(&state).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        assert_eq!(
+            app.clone().oneshot(put_req("docs", "a/f.txt", b"A")).await.unwrap().status(),
+            StatusCode::OK,
+            "the configured policy permits writes under a/"
+        );
+
+        // Push a policy that permits nothing at all.
+        assert!(state.set_bucket_policies("docs", &Some(BucketPolicy { rules: vec![] })));
+
+        assert_eq!(
+            app.clone().oneshot(get_req("docs", "a/f.txt")).await.unwrap().status(),
+            StatusCode::NOT_FOUND,
+            "the pushed lock-down must govern the very next request, not a restart"
+        );
+    }
+
+    /// The replacement is WHOLESALE. The pushed rules do not join the
+    /// configured ones — the bucket is governed by one list, which is what
+    /// makes "what can this caller do" answerable by reading one list.
+    #[tokio::test]
+    async fn a_pushed_policy_replaces_rather_than_merges() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, read_under("a/")).await;
+        clear_policies(&state).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        // Seed one object under each prefix while both are writable.
+        assert!(state.set_bucket_policies(
+            "docs",
+            &Some(BucketPolicy {
+                rules: vec![rule(
+                    vec![PolicyMethod::Read, PolicyMethod::Write],
+                    PolicyPrincipal::Authenticated,
+                    None,
+                )],
+            })
+        ));
+        for key in ["a/f.txt", "b/f.txt"] {
+            assert_eq!(
+                app.clone().oneshot(put_req("docs", key, b"X")).await.unwrap().status(),
+                StatusCode::OK
+            );
+        }
+
+        // Now narrow to b/ only. If the push MERGED with the a/ rule the
+        // configuration carries, a/ would still be readable.
+        assert!(state.set_bucket_policies("docs", &Some(read_under("b/"))));
+
+        assert_eq!(
+            app.clone().oneshot(get_req("docs", "b/f.txt")).await.unwrap().status(),
+            StatusCode::OK,
+            "the pushed rule permits b/"
+        );
+        assert_eq!(
+            app.clone().oneshot(get_req("docs", "a/f.txt")).await.unwrap().status(),
+            StatusCode::NOT_FOUND,
+            "the CONFIGURED a/ rule must be gone — a push replaces, it does not add"
+        );
+    }
+
+    /// Only the named bucket's policy moves. A push must not disturb another
+    /// bucket, nor any other field of its own.
+    #[tokio::test]
+    async fn a_push_touches_one_bucket_and_one_field() {
+        let (mut state, _keep) = test_state("docs", BucketAccess::Private).await;
+        clear_policies(&state).await;
+        let mut buckets = HashMap::clone(&state.buckets.load());
+        let mut other = buckets.get("docs").unwrap().clone();
+        other.name = "other".to_string();
+        other.max_object_bytes = Some(7);
+        buckets.insert("other".to_string(), other);
+        state = state.with_buckets(buckets);
+
+        assert!(state.set_bucket_policies("docs", &Some(read_under("a/"))));
+
+        let after = state.buckets.load();
+        assert!(after.get("other").unwrap().policies.is_none(), "the other bucket is untouched");
+        assert_eq!(
+            after.get("other").unwrap().max_object_bytes,
+            Some(7),
+            "and keeps every field it had"
+        );
+        assert_eq!(
+            after.get("docs").unwrap().max_object_bytes,
+            Some(1024 * 1024),
+            "the target bucket keeps every field except its policy"
+        );
+    }
+
+    /// A push naming a bucket this server does not configure changes nothing
+    /// and says so, rather than inventing a bucket.
+    #[tokio::test]
+    async fn a_push_to_an_unknown_bucket_changes_nothing() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let before = state.buckets.load().len();
+        assert!(!state.set_bucket_policies("nope", &Some(read_under("a/"))));
+        assert_eq!(state.buckets.load().len(), before);
+        assert!(state.buckets.load().get("docs").unwrap().policies.is_none());
+    }
+
+    /// The precedence rule, executed: a stored policy wins wholesale over the
+    /// configured one, and deleting the row hands the bucket back.
+    #[tokio::test]
+    async fn stored_policy_wins_and_delete_reverts_to_the_configured_one() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, read_under("a/")).await;
+        clear_policies(&state).await;
+
+        // Nothing stored: the configured policy governs.
+        let report = state.reload_policies().await.unwrap();
+        assert!(report.is_clean());
+        assert_eq!(report.sources.get("docs"), Some(&PolicySource::ConfigFile));
+        assert_eq!(
+            state.buckets.load().get("docs").unwrap().policies,
+            Some(read_under("a/")),
+            "with no stored row the configured policy is what governs"
+        );
+
+        // Store one: it replaces the configured policy wholesale.
+        state.policy_store.put("docs", &spec_read_under("b/")).await.unwrap();
+        let report = state.reload_policies().await.unwrap();
+        assert_eq!(report.sources.get("docs"), Some(&PolicySource::Store));
+        assert_eq!(
+            state.buckets.load().get("docs").unwrap().policies,
+            Some(read_under("b/")),
+            "the stored policy replaces the configured one, and does not join it"
+        );
+
+        // Delete it: the bucket goes back to its configured policy, not to
+        // "no policy" — which would hand it to the coarse access mode and
+        // widen it further than the operator asked.
+        assert!(state.policy_store.delete("docs").await.unwrap());
+        let report = state.reload_policies().await.unwrap();
+        assert_eq!(report.sources.get("docs"), Some(&PolicySource::ConfigFile));
+        assert_eq!(
+            state.buckets.load().get("docs").unwrap().policies,
+            Some(read_under("a/")),
+            "deleting a stored policy reverts to the CONFIGURED one"
+        );
+    }
+
+    /// A bucket with no configured policy reports the coarse access mode as its
+    /// source, and a delete returns it there.
+    #[tokio::test]
+    async fn a_bucket_with_no_configured_policy_falls_back_to_the_access_mode() {
+        let (state, _keep) = test_state("docs", BucketAccess::PublicRead).await;
+        clear_policies(&state).await;
+
+        state.policy_store.put("docs", &spec_read_under("b/")).await.unwrap();
+        assert_eq!(
+            state.reload_policies().await.unwrap().sources.get("docs"),
+            Some(&PolicySource::Store)
+        );
+
+        assert!(state.policy_store.delete("docs").await.unwrap());
+        let report = state.reload_policies().await.unwrap();
+        assert_eq!(report.sources.get("docs"), Some(&PolicySource::AccessMode));
+        assert!(
+            state.buckets.load().get("docs").unwrap().policies.is_none(),
+            "with nothing configured, the bucket returns to its access mode"
+        );
+    }
+
+    /// A stored row that cannot be parsed does NOT drop the bucket back to its
+    /// configured policy: the policy already in force keeps serving, and the
+    /// row is reported.
+    ///
+    /// The boot path turns the same report into a refusal to start — there is
+    /// no running policy to preserve there, and #371's guarantee is that a
+    /// broken policy is loud.
+    #[tokio::test]
+    async fn an_unparseable_stored_row_leaves_the_running_policy_alone() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, read_under("a/")).await;
+        clear_policies(&state).await;
+
+        state.policy_store.put("docs", &spec_read_under("b/")).await.unwrap();
+        state.reload_policies().await.unwrap();
+
+        // Corrupt the row the way a hand-edit would: a method spelling this
+        // build does not know.
+        sqlx::query(
+            "UPDATE _fraiseql_storage_policies \
+             SET rules = '[{\"methods\":[\"reed\"],\"principal\":\"owner\"}]'::jsonb \
+             WHERE bucket = 'docs'",
+        )
+        .execute(state.policy_store.pool())
+        .await
+        .unwrap();
+
+        let report = state.reload_policies().await.unwrap();
+        assert!(!report.is_clean());
+        assert_eq!(report.invalid.len(), 1);
+        assert_eq!(report.invalid[0].0, "docs");
+        assert!(
+            !report.sources.contains_key("docs"),
+            "a bucket whose row was refused is not re-sourced"
+        );
+        assert_eq!(
+            state.buckets.load().get("docs").unwrap().policies,
+            Some(read_under("b/")),
+            "the last good policy keeps serving; a hand-edited row must not silently widen \
+             the bucket back to its configured policy"
+        );
+    }
+
+    /// A stored row for a bucket this server does not configure governs
+    /// nothing, and is reported so a rename does not silently drop a policy.
+    #[tokio::test]
+    async fn a_stored_row_for_an_unknown_bucket_is_reported() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        clear_policies(&state).await;
+
+        state.policy_store.put("renamed-away", &spec_read_under("b/")).await.unwrap();
+        let report = state.reload_policies().await.unwrap();
+
+        assert_eq!(report.unknown_buckets, vec!["renamed-away".to_string()]);
+        assert!(!report.is_clean());
+        assert!(state.buckets.load().get("docs").unwrap().policies.is_none());
+    }
+
+    /// The store round-trips what was written, and reports whether a delete
+    /// removed anything.
+    #[tokio::test]
+    async fn the_store_round_trips_and_reports_deletes() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        clear_policies(&state).await;
+
+        assert!(state.policy_store.get("docs").await.unwrap().is_none());
+
+        let written = state.policy_store.put("docs", &spec_read_under("b/")).await.unwrap();
+        assert_eq!(written.bucket, "docs");
+        assert_eq!(written.parse().unwrap(), read_under("b/"));
+
+        let read_back = state.policy_store.get("docs").await.unwrap().unwrap();
+        assert_eq!(read_back.parse().unwrap(), read_under("b/"));
+
+        // A second write replaces rather than accumulating.
+        state.policy_store.put("docs", &spec_read_under("c/")).await.unwrap();
+        assert_eq!(
+            state.policy_store.get("docs").await.unwrap().unwrap().parse().unwrap(),
+            read_under("c/")
+        );
+        assert_eq!(state.policy_store.list().await.unwrap().len(), 1);
+
+        assert!(state.policy_store.delete("docs").await.unwrap());
+        assert!(
+            !state.policy_store.delete("docs").await.unwrap(),
+            "a second delete removes nothing"
+        );
+    }
+
+    /// Deleting a stored policy can WIDEN access, and does so as far as the
+    /// configured policy allows — no further. Proven on the data path.
+    #[tokio::test]
+    async fn reverting_widens_only_as_far_as_the_configured_policy() {
+        let (state, _keep) = policy_state("docs", BucketAccess::PublicRead, read_under("a/")).await;
+        clear_policies(&state).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        assert_eq!(
+            app.clone().oneshot(put_req("docs", "a/f.txt", b"A")).await.unwrap().status(),
+            StatusCode::OK
+        );
+
+        state.policy_store.put("docs", &spec_read_under("z/")).await.unwrap();
+        state.reload_policies().await.unwrap();
+        assert_eq!(
+            app.clone().oneshot(get_req("docs", "a/f.txt")).await.unwrap().status(),
+            StatusCode::NOT_FOUND,
+            "the stored policy narrows to z/"
+        );
+
+        state.policy_store.delete("docs").await.unwrap();
+        state.reload_policies().await.unwrap();
+        assert_eq!(
+            app.clone().oneshot(get_req("docs", "a/f.txt")).await.unwrap().status(),
+            StatusCode::OK,
+            "the revert restores the configured a/ grant"
+        );
+        // ...and to the configured POLICY, not to the bucket's PublicRead access
+        // mode, which a policy replaces entirely. An anonymous read is what
+        // tells the two apart.
+        assert_eq!(
+            crate::storage_router(state.clone())
+                .oneshot(get_req("docs", "a/f.txt"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::UNAUTHORIZED,
+            "the revert restores the configured policy, not the PublicRead access mode"
+        );
+    }
+
+    /// A `None` push returns a bucket to its coarse access mode. This is the
+    /// widening a DELETE performs on a bucket with no configured policy, so it
+    /// is asserted on the data path rather than on the map.
+    #[tokio::test]
+    async fn clearing_a_policy_returns_the_bucket_to_its_access_mode() {
+        let (state, _keep) = policy_state("docs", BucketAccess::PublicRead, read_under("a/")).await;
+        clear_policies(&state).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+        assert_eq!(
+            app.clone().oneshot(put_req("docs", "a/f.txt", b"A")).await.unwrap().status(),
+            StatusCode::OK
+        );
+
+        let anonymous = crate::storage_router(state.clone());
+        assert_eq!(
+            anonymous.clone().oneshot(get_req("docs", "a/f.txt")).await.unwrap().status(),
+            StatusCode::UNAUTHORIZED,
+            "under a policy, PublicRead does not apply — and a bucket where no rule permits an \
+             anonymous read answers 401 rather than leaking existence (#876)"
+        );
+
+        assert!(state.set_bucket_policies("docs", &None));
+        assert_eq!(
+            anonymous.oneshot(get_req("docs", "a/f.txt")).await.unwrap().status(),
+            StatusCode::OK,
+            "clearing the policy hands the bucket back to PublicRead"
+        );
+    }
 }
