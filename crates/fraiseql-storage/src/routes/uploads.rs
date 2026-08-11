@@ -168,13 +168,17 @@ pub(super) async fn create_upload_handler(
 
     // Begin backend staging. On failure, release a claim this request created.
     let object_key = backend_object_key(&bucket_name, &key);
-    let backend_state = match state.backend.multipart_begin(&object_key, &content_type).await {
-        Ok(s) => s,
-        Err(e) => {
-            release_if_created(&state, pk, created_reservation).await;
-            return with_tus(storage_error_response(&e));
-        },
-    };
+    // Reason: `declared` is a positive i64 (checked above); the cast cannot wrap.
+    #[allow(clippy::cast_sign_loss)]
+    let declared_total = declared as u64;
+    let backend_state =
+        match state.backend.multipart_begin(&object_key, &content_type, declared_total).await {
+            Ok(s) => s,
+            Err(e) => {
+                release_if_created(&state, pk, created_reservation).await;
+                return with_tus(storage_error_response(&e));
+            },
+        };
 
     let ttl = bucket.upload_ttl_secs.unwrap_or(DEFAULT_UPLOAD_TTL_SECS);
     let expires_at = Utc::now() + chrono::Duration::seconds(i64::try_from(ttl).unwrap_or(86_400));
@@ -301,11 +305,25 @@ pub(super) async fn patch_upload_handler(
     let min_chunk = state.backend.multipart_min_chunk_bytes();
     // Reason: `body.len()` fits u64 on every supported target.
     #[allow(clippy::cast_sign_loss)]
-    if (chunk_len as u64) < min_chunk && new_offset != session.declared_bytes {
+    let chunk_bytes = chunk_len as u64;
+    let is_final = new_offset == session.declared_bytes;
+    if chunk_bytes < min_chunk && !is_final {
         return with_tus(error_response(
             StatusCode::BAD_REQUEST,
             "chunk_too_small",
             "Each non-final chunk must be at least the backend's minimum part size",
+        ));
+    }
+    // A minimum is not the whole constraint: a GCS resumable session accepts a
+    // non-final chunk only at 256 KiB granularity, so a 300 KiB chunk clears
+    // the minimum and is still refused — by GCS, mid-upload. Refuse it here,
+    // for the same reason and in the same shape as the minimum.
+    let chunk_multiple = state.backend.multipart_chunk_multiple_bytes();
+    if chunk_multiple > 1 && !chunk_bytes.is_multiple_of(chunk_multiple) && !is_final {
+        return with_tus(error_response(
+            StatusCode::BAD_REQUEST,
+            "chunk_not_aligned",
+            "Each non-final chunk must be a whole multiple of the backend's chunk unit",
         ));
     }
 
