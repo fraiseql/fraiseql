@@ -957,6 +957,21 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		"echo '### cargo test -p fraiseql-server --test saml_mount_e2e_pg (#381 server mount)'",
 		"cargo test -p fraiseql-server --features auth-saml,auth --lib api::saml_idp_management -- --test-threads=1",
 		"cargo test -p fraiseql-server --features auth-saml,auth --test saml_mount_e2e_pg -- --test-threads=1",
+		// #946 SCIM provisioning. The store suite carries the property the feature exists
+		// for — `active = false` blocks a local-password login, a credential SCIM never
+		// touches — and the e2e drives the mounted surface over HTTP.
+		"cargo test -p fraiseql-auth --test postgres_scim_provisioning -- --test-threads=1",
+		"cargo test -p fraiseql-server --features auth,observers --test scim_provisioning_e2e_pg -- --test-threads=1",
+		// #946's verification gate: a THIRD-PARTY SCIM client, because a suite we wrote
+		// ourselves passes on the shapes we thought of. Okta's validator and the Entra
+		// agent are hosted services needing a public URL and a vendor tenant, so neither
+		// can run here; scim2-tester can, and it found real defects the hand-written tests
+		// missed. Vendor validation stays a manual pre-release step.
+		"apt-get install -y --no-install-recommends python3-venv >/dev/null",
+		"python3 -m venv /tmp/scim-tester",
+		"/tmp/scim-tester/bin/pip install --quiet scim2-tester httpx",
+		"export FRAISEQL_SCIM_TESTER_PYTHON=/tmp/scim-tester/bin/python",
+		"cargo test -p fraiseql-server --features auth,observers --test scim_conformance_e2e_pg -- --test-threads=1 --nocapture",
 		"echo 'test-integration OK: saml suite passed'",
 	}, "\n")
 

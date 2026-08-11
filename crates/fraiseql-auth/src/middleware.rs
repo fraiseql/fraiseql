@@ -164,6 +164,15 @@ impl AuthError {
             Self::AccountDisabled => {
                 (StatusCode::FORBIDDEN, "account_disabled", "This account is disabled".to_string())
             },
+            // Account-wide deactivation (#946), as opposed to `AccountDisabled`, which
+            // suspends only the local password credential. Reached at session creation —
+            // i.e. after some credential already succeeded — so naming the state discloses
+            // nothing to a party that does not already hold a working credential.
+            Self::AccountDeactivated => (
+                StatusCode::FORBIDDEN,
+                "account_deactivated",
+                "This account has been deactivated".to_string(),
+            ),
             Self::EmailAlreadyRegistered => (
                 StatusCode::CONFLICT,
                 "email_already_registered",
@@ -236,6 +245,7 @@ impl AuthError {
             | Self::RateLimited { .. }
             | Self::InvalidCredentials
             | Self::AccountDisabled
+            | Self::AccountDeactivated
             | Self::EmailAlreadyRegistered
             | Self::EmailClaimedByAnotherAccount => {},
         }

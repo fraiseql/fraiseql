@@ -16,6 +16,7 @@ mod methods;
 pub mod observers;
 #[cfg(feature = "auth-saml")]
 pub mod saml;
+pub mod scim;
 pub mod session_state;
 pub mod storage;
 pub mod tls;
@@ -43,6 +44,7 @@ pub use observers::AdmissionConfig;
 pub use observers::{ObserverConfig, ObserverPoolConfig, ObserverRuntimeSettings};
 #[cfg(feature = "auth-saml")]
 pub use saml::{SamlIdpEntry, SamlServerConfig};
+pub use scim::ScimServerConfig;
 use serde::{Deserialize, Serialize};
 pub use session_state::SessionStateServerConfig;
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
@@ -464,6 +466,14 @@ pub struct ServerConfig {
     #[cfg(feature = "auth-saml")]
     #[serde(default)]
     pub saml: Option<SamlServerConfig>,
+
+    /// SCIM 2.0 provisioning (#946).
+    ///
+    /// Mounts `/scim/v2/*` behind a provisioning bearer token, and
+    /// `/api/scim/tokens` behind the admin token. Requires a database pool and
+    /// `admin_token`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scim: Option<ScimServerConfig>,
 
     /// Name of the environment variable holding the server HMAC secret.
     ///
@@ -1163,6 +1173,7 @@ impl Default for ServerConfig {
             auth_hs256: None,
             #[cfg(feature = "auth-saml")]
             saml: None, // No HS256 auth by default
+            scim: None,            // Provisioning is opt-in
             hmac_secret_env: None, // No HMAC secret → unsigned idempotency token
             tls: None,             // TLS disabled by default
             database_tls: None,    /* Database TLS disabled

@@ -1392,6 +1392,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SCIM 2.0 provisioning, and an offboarding that is not cosmetic (#946).** `#381`'s SAML
+  slice covered authentication; provisioning is the other half of an enterprise IdP
+  integration, and its security-load-bearing part is the end of the lifecycle. Without it an
+  offboarded employee's account stayed active: SAML stopped them signing in *through the
+  IdP*, and a local password or social link on the same account kept working. `[scim]
+  enabled = true` mounts `/scim/v2/Users`, `/scim/v2/Groups`, the `.search` forms and the
+  discovery trio, with `userName`/`displayName` filtering, `startIndex`/`count` pagination,
+  `attributes`/`excludedAttributes` projection, and `ETag`/`If-Match` concurrency.
+
+  **`active = false` revokes every existing session and blocks new ones.** The block sits at
+  session creation — the single point password login, the MFA second factor, social
+  callbacks, email and phone OTP and the SAML ACS all converge on — so no credential path
+  stays quietly open. SCIM users are `core.tb_user` rows rather than a parallel directory,
+  precisely so the account an IdP deactivates is the account a password would authenticate;
+  a live-PostgreSQL test proves it by signing up with a password, offboarding over SCIM, and
+  showing the still-correct password no longer buys a session. A principal with no account
+  row — anonymous, or JWT-only — is a different identity space and is unaffected.
+
+  **A provisioning credential is not an admin credential.** `/scim/v2/*` takes a bearer
+  token minted through `/api/scim/tokens` (admin-gated, stored only as `sha256`, tenant
+  scoped by the credential rather than by any request field); the e2e asserts the separation
+  in both directions. SCIM groups mirror onto RBAC roles and members onto assignments, and a
+  group creates a role with **no permissions** — an IdP decides who is in a role, an admin
+  decides what it may do.
+
+  Filtering is deliberately strict: only `attribute eq "value"`, and anything else is
+  refused with `400 invalidFilter` rather than ignored, because answering a "does this user
+  exist?" probe with the whole directory is how a client provisions onto the wrong account.
+
+  Conformance runs against **`scim2-tester`**, a third-party SCIM client, in the Dagger
+  `saml` leg — the issue asked for a real provisioning client rather than a hand-written
+  request set, and it earned its keep immediately by finding several defects the hand-written
+  tests had missed (`$ref`/`type` sub-attributes strict clients reject, a PATCH surface too
+  narrow to provision with, an empty `members` array read as "not removed", and untyped
+  404/405 bodies). Okta and Entra validators need a public URL and a vendor tenant, so those
+  stay a manual pre-release step. Two deviations are documented with reasons and one defect
+  is filed (#1090).
+
 - **SAML SP request signing, encrypted assertions, and SP metadata publishing (#948).**
   FraiseQL's SP verified inbound assertions but could not sign its outbound
   `AuthnRequest`s or read an `EncryptedAssertion` — both are hard requirements at some IdPs,

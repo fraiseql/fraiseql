@@ -114,6 +114,12 @@ pub enum AuthError {
     #[error("Session revoked")]
     SessionRevoked,
 
+    /// The account has been deactivated — by SCIM offboarding (`active = false`) or by an
+    /// administrator (#946). Distinct from a bad credential: the credential may well be
+    /// correct, and the account is what is refused. Never surfaced verbatim to a client.
+    #[error("Account deactivated")]
+    AccountDeactivated,
+
     /// The authenticated user lacks the required permission for the requested operation.
     /// The `message` field contains the specific permission check detail and must not
     /// be forwarded to API clients in full (it reveals internal role/permission names).

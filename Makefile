@@ -289,7 +289,10 @@ lint-expect:
 # store as `Arc<dyn SamlIdpStore>` so a deployment can back it with something other than
 # Postgres and so the hot-reload path is testable without a database — dyn dispatch is the
 # point, which is exactly the case this baseline exempts.
-ASYNC_TRAIT_LIMIT := 192
+# 192 → 195: `ScimStore` (#946), its `PgScimStore` impl, and the `AccountStore` impl the
+# SCIM tests exercise. Same reason: the SCIM router holds the store dyn-dispatched so the
+# provisioning surface is backend-agnostic and testable.
+ASYNC_TRAIT_LIMIT := 195
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

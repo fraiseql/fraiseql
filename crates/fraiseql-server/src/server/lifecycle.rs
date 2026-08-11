@@ -103,6 +103,43 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // SCIM provisioning schema (#946). Fail loud: a mounted provisioning surface whose
+        // tables do not exist would 500 on the IdP's first call, which reads to an operator
+        // as "FraiseQL's SCIM is broken" rather than "the boot skipped a migration".
+        #[cfg(feature = "auth")]
+        if let (Some(scim), Some(pool)) = (self.config.scim.as_ref(), self.enrichment_pool.as_ref())
+        {
+            if scim.enabled {
+                fraiseql_auth::PostgresAccountStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize the SCIM identity schema: {e}"
+                        ))
+                    },
+                )?;
+                // Deactivation revokes through the session store, so `_system.sessions`
+                // has to exist even on a deployment that mounts SCIM and no login route:
+                // otherwise the revoke half of offboarding fails on a missing relation and
+                // only the "block new sessions" half works.
+                fraiseql_auth::PostgresSessionStore::new(pool.clone()).init().await.map_err(
+                    |e| {
+                        ServerError::ConfigError(format!(
+                            "Failed to initialize the session schema SCIM revokes through: {e}"
+                        ))
+                    },
+                )?;
+                fraiseql_auth::scim::ScimStore::init(&fraiseql_auth::scim::PgScimStore::new(
+                    pool.clone(),
+                    None,
+                ))
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!("Failed to initialize the SCIM schema: {e}"))
+                })?;
+                info!("SCIM schema ready (core.tb_scim_group, core.tb_scim_token)");
+            }
+        }
+
         // Keep stored IdPs current (#947). Writes through this server's own admin API
         // refresh synchronously, so the ticker exists to pick up another replica's changes
         // and to keep the certificate-expiry warning honest. Spawned here rather than at

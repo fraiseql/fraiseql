@@ -396,6 +396,17 @@ impl ServerConfig {
             }
         }
 
+        if let Some(ref scim) = self.scim {
+            scim.validate()?;
+            if scim.enabled && self.admin_token.is_none() {
+                return Err("[scim] enabled = true requires admin_token: provisioning \
+                            credentials are minted through /api/scim/tokens, which sits \
+                            behind the admin bearer. Without it the SCIM surface would be \
+                            mounted with no way to issue a credential for it."
+                    .to_string());
+            }
+        }
+
         if Self::is_production_mode() {
             // Playground should be disabled in production
             if self.playground_enabled {

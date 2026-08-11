@@ -32,6 +32,8 @@ pub mod proxy;
 pub mod rate_limiting;
 #[cfg(feature = "auth-saml")]
 pub mod saml;
+/// SCIM 2.0 provisioning storage and credentials (#946).
+pub mod scim;
 pub mod security_config;
 pub mod security_init;
 pub mod session;

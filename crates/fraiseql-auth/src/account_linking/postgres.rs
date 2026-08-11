@@ -46,6 +46,28 @@ CREATE TABLE IF NOT EXISTS core.tb_user (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email ON core.tb_user (email) WHERE email IS NOT NULL;
 
+-- SCIM 2.0 provisioning (#946). ADD COLUMN IF NOT EXISTS so a database that predates
+-- provisioning upgrades in place.
+--
+-- `active` is the load-bearing one: it is what an IdP flips when it offboards someone, and
+-- it must block *every* credential on the account, not merely SAML. It defaults TRUE so
+-- every pre-existing row stays exactly as active as it was.
+ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS active      BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS user_name   TEXT;
+ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS external_id TEXT;
+ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS given_name  TEXT;
+ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS family_name TEXT;
+ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS display_name TEXT;
+-- Monotonic per-row counter behind the SCIM `meta.version` / `ETag`, so a provisioning
+-- client's If-Match can detect a lost update. A timestamp would not: two writes inside one
+-- clock tick would share a version.
+ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS version     BIGINT NOT NULL DEFAULT 1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name
+    ON core.tb_user (user_name) WHERE user_name IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_user_external_id
+    ON core.tb_user (external_id) WHERE external_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS core.tb_auth_identity (
     pk_auth_identity BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id          UUID NOT NULL DEFAULT gen_random_uuid(),
