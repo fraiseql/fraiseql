@@ -53,6 +53,7 @@ impl StorageSchemaTypes {
     ///     serve_inline: false,
     ///     policies: None,
     ///     upload_ttl_secs: None,
+    ///     ..BucketConfig::default()
     /// }];
     ///
     /// let entries = StorageSchemaTypes::generate(&buckets);
@@ -91,6 +92,7 @@ impl StorageSchemaTypes {
     ///     serve_inline: false,
     ///     policies: None,
     ///     upload_ttl_secs: None,
+    ///     ..BucketConfig::default()
     /// };
     ///
     /// let type_def = StorageSchemaTypes::storage_object_type(&bucket);

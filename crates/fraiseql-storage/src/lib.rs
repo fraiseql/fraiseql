@@ -55,6 +55,7 @@ pub use routes::{StorageState, StorageUser, storage_router};
 pub use service::BucketService;
 #[cfg(feature = "transforms")]
 pub use transforms::{
-    ImageTransformer, OutputFormat, TransformCache, TransformOutput, TransformParams,
+    CropSpec, Gravity, ImageTransformer, OutputFormat, ResizeMode, TransformCache, TransformOutput,
+    TransformParams, Watermark,
 };
 pub use uploads::{NewUploadSession, UploadSession, UploadSessionRepo};

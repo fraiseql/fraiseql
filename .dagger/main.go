@@ -1278,7 +1278,11 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		// the `transforms` feature, so the line above (default features) compiles
 		// them out entirely — without this second run the render route and the
 		// decompression-bomb refusals execute in NO leg.
-		"cargo test -p fraiseql-storage --features transforms --lib -- routes::tests::render_tests transforms::tests --test-threads=1",
+		// #973 widens this to `transforms-retarget` (which implies `transforms`)
+		// so the seam-carving mode compiles and its fall-back threshold runs;
+		// FRAISEQL_TEST_FONT points the text-watermark rasteriser at a real
+		// typeface, because the font is the operator's, never vendored.
+		"cargo test -p fraiseql-storage --features transforms-retarget --lib -- routes::tests::render_tests transforms::tests --test-threads=1",
 		// #370: the server-side half — presets reaching BucketConfig (feature ON)
 		// and the boot refusal when they are configured into a binary that cannot
 		// serve them (feature OFF; a cfg(not(...)) test can never run in the
@@ -1288,6 +1292,13 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		// #371: bucket policies reach BucketConfig parsed, and an unparseable
 		// policy refuses to boot rather than becoming a silently-denying rule.
 		"cargo test -p fraiseql-server --lib -- server_config::tests::resolve_storage_section_parses_bucket_policies server_config::tests::unparseable_policies --test-threads=1",
+		// #973: the render keys are validated at BOOT — a misspelt mode or
+		// gravity, a quality on a losslessly-encoded format, an unreadable
+		// watermark font, a bucket named after a reserved namespace. The
+		// feature-OFF half runs in the line below it, because a
+		// `cfg(not(feature))` test can never execute in a feature-ON build.
+		"cargo test -p fraiseql-server --features storage-transforms --lib -- server_config::tests::misconfigured_render_keys server_config::tests::a_reserved_bucket_name --test-threads=1",
+		"cargo test -p fraiseql-server --lib -- server_config::tests::render_keys_without_the_feature server_config::tests::a_reserved_bucket_name --test-threads=1",
 		// #972: the resumable path for both emulator-backed backends — GCS
 		// resumable sessions and Azure block lists — at the seam and end to end
 		// through the Tus routes.
@@ -1305,16 +1316,22 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 	}, "\n")
 
 	return m.integrationBase(source, rustMsrv).
-		// nodejs/npm for the tus-js-client interop suite. Installed here rather
-		// than in rustBase: only this leg needs it, and rustBase is shared by
+		// nodejs/npm for the tus-js-client interop suite, fonts-dejavu-core for
+		// #973's text watermark (whose typeface is the operator's and is
+		// therefore never vendored into the crate). Installed here rather than
+		// in rustBase: only this leg needs them, and rustBase is shared by
 		// every heavy leg.
-		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "nodejs", "npm"}).
+		WithExec([]string{
+			"apt-get", "install", "-y", "--no-install-recommends",
+			"nodejs", "npm", "fonts-dejavu-core",
+		}).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(azuriteBindHost, m.azuriteService()).
 		WithServiceBinding(fakeGcsBindHost, m.fakeGcsService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("AZURE_BLOB_ENDPOINT", azureEndpoint).
 		WithEnvVariable("GCS_ENDPOINT", gcsEndpoint).
+		WithEnvVariable("FRAISEQL_TEST_FONT", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }

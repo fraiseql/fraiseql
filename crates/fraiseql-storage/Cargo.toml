@@ -49,6 +49,9 @@ hmac = { workspace = true, optional = true }
 # Image transforms (feature-gated)
 image = { version = "0.25", optional = true }
 kamadak-exif = { version = "0.6", optional = true }
+# Glyph rasterisation for text watermarks (#973). The typeface itself is the
+# operator's — named by the bucket's `watermark_font` — so no font is vendored.
+ab_glyph = { version = "0.2", optional = true }
 # google-cloud-storage = { version = "...", optional = true }
 # azure_storage_blobs = { version = "0.20", optional = true }
 
@@ -73,7 +76,10 @@ workspace = true
 default = ["postgres"]
 postgres = []
 aws-s3 = ["aws-sdk-s3", "aws-config"]
-transforms = ["image", "kamadak-exif"]
+transforms = ["image", "kamadak-exif", "ab_glyph"]
+# Seam-carving retarget: opt-in because its cost is O(pixels x seams) rather
+# than O(output), and it is bounded by a wall-clock budget rather than by size.
+transforms-retarget = ["transforms"]
 gcs = ["jsonwebtoken", "parking_lot", "reqwest", "urlencoding"]
 azure-blob = ["hmac", "reqwest", "urlencoding"]
 # gcs = ["google-cloud-storage"]

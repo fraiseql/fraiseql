@@ -8,27 +8,29 @@ use crate::{
 
 fn private_bucket() -> BucketConfig {
     BucketConfig {
-        name:               "private-bucket".to_string(),
-        max_object_bytes:   None,
+        name: "private-bucket".to_string(),
+        max_object_bytes: None,
         allowed_mime_types: None,
-        access:             BucketAccess::Private,
-        transform_presets:  None,
-        serve_inline:       false,
-        policies:           None,
-        upload_ttl_secs:    None,
+        access: BucketAccess::Private,
+        transform_presets: None,
+        serve_inline: false,
+        policies: None,
+        upload_ttl_secs: None,
+        ..BucketConfig::default()
     }
 }
 
 fn public_bucket() -> BucketConfig {
     BucketConfig {
-        name:               "public-bucket".to_string(),
-        max_object_bytes:   None,
+        name: "public-bucket".to_string(),
+        max_object_bytes: None,
         allowed_mime_types: None,
-        access:             BucketAccess::PublicRead,
-        transform_presets:  None,
-        serve_inline:       false,
-        policies:           None,
-        upload_ttl_secs:    None,
+        access: BucketAccess::PublicRead,
+        transform_presets: None,
+        serve_inline: false,
+        policies: None,
+        upload_ttl_secs: None,
+        ..BucketConfig::default()
     }
 }
 
