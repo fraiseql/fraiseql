@@ -49,12 +49,15 @@ mod replay;
 mod store;
 mod verify;
 
-pub use config::{SamlAttributeMapping, SamlIdpConfig, SamlIdpConfigBuilder};
-pub use handler::{SamlAuthState, saml_acs, saml_login, saml_routes};
+pub use config::{
+    SamlAttributeMapping, SamlIdpConfig, SamlIdpConfigBuilder,
+    content_encryption_algorithm_allowed, key_transport_algorithm_allowed,
+};
+pub use handler::{SamlAuthState, saml_acs, saml_login, saml_metadata, saml_routes};
 pub use linking::{effective_saml_email_verified, saml_provider_key};
 pub use registry::{
     CertExpiryWarning, DEFAULT_EXPIRY_WARNING_DAYS, DEFAULT_REFRESH_INTERVAL, IdpSource,
-    SamlIdpRegistry,
+    SamlIdpRegistry, SpKeyMaterial,
 };
 pub use replay::{PG_SAML_REPLAY_SCHEMA_SQL, PgSamlReplayStore, SamlReplayCache, SamlReplayStore};
 pub use store::{PG_SAML_IDP_SCHEMA_SQL, PgSamlIdpStore, SamlIdpRecord, SamlIdpSpec, SamlIdpStore};

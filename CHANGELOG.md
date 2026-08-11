@@ -1392,6 +1392,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SAML SP request signing, encrypted assertions, and SP metadata publishing (#948).**
+  FraiseQL's SP verified inbound assertions but could not sign its outbound
+  `AuthnRequest`s or read an `EncryptedAssertion` — both are hard requirements at some IdPs,
+  so the effect was "we cannot integrate with your IdP", which for those customers is the
+  same as not supporting SAML. `[saml.sp]` configures one key pair for the whole deployment,
+  applied to every IdP, config-file and stored alike, so no private key lives in a database
+  row. `GET /auth/saml/metadata` publishes the entity ID, ACS endpoint, signing posture and
+  certificate, tenant-scoped exactly like login. Two SP keys are accepted during a rotation
+  window — the previous one for decryption only, and published as an extra `use="encryption"`
+  descriptor so an IdP that has not yet picked up the new certificate keeps working.
+
+  Unsigned stays the default. `sign_authn_requests = true` with no key pair is refused at
+  boot rather than silently sending unsigned requests, an unreadable key refuses to boot
+  rather than starting with signing quietly off, and a key that does not match its
+  certificate is refused at configuration time rather than at the first login.
+
+  **Decryption is not a second door.** The decrypted assertion's own signature is never
+  checked — verification operates on the bytes the IdP signed, and for an
+  `EncryptedAssertion` those are the *ciphertext*. So the envelope signature must cover it:
+  an unsigned response carrying an encrypted assertion is refused rather than decrypted, a
+  tampered ciphertext fails before any decryption happens, and what comes out of the
+  decryption runs the **existing** path — audience, recipient, conditions, `InResponseTo`,
+  replay. Each of those is pinned by its own test. An IdP that signs only the inner
+  assertion and then encrypts it is consequently unsupported: that configuration hides the
+  signature from us, and accepting it would mean trusting unverified ciphertext.
+
+  Key transport is restricted to RSA-OAEP and content encryption to AES-GCM. `rsa-1_5` and
+  the CBC modes — the algorithms behind the Bleichenbacher and padding-oracle breaks of XML
+  Encryption — are refused by name, on signature-verified bytes so the check never reads
+  attacker-controlled XML. The envelope-signature requirement already denies the
+  chosen-ciphertext oracle those attacks need, so this is defence in depth.
+
 - **Per-tenant SAML IdP store, with hot reload and a tenant-scoped login route (#947).**
   `[saml.idps.*]` resolves once at boot, so adding or rotating an IdP meant a restart and a
   config deploy, and — the security half — the tenant binding constrained only what an

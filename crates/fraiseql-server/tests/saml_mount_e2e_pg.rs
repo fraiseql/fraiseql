@@ -25,7 +25,7 @@ use fraiseql_server::{
     server_config::{
         ServerConfig,
         hs256::Hs256Config,
-        saml::{SamlIdpEntry, SamlServerConfig},
+        saml::{SamlIdpEntry, SamlServerConfig, SamlSpKeyConfig},
     },
 };
 use fraiseql_test_support::try_database_url;
@@ -40,6 +40,8 @@ const SECRET_ENV: &str = "FRAISEQL_TEST_P26_SAML_HS256_SECRET";
 const ADMIN_TOKEN: &str = "p16-saml-idp-admin-token";
 const TENANT_A: &str = "11111111-1111-4111-8111-111111111111";
 const TENANT_B: &str = "22222222-2222-4222-8222-222222222222";
+/// Env var carrying the SP private key in the #948 signing test.
+const SP_KEY_ENV: &str = "FRAISEQL_TEST_P16_SAML_SP_KEY";
 
 fn with_database(url: &str, db: &str) -> String {
     let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
@@ -130,6 +132,7 @@ fn saml_config(metadata_xml: String) -> ServerConfig {
             store_enabled: false,
             refresh_interval_secs: 30,
             certificate_expiry_warning_days: 30,
+            sp: None,
         }),
         auth_hs256: Some(Hs256Config {
             secret_env: SECRET_ENV.to_string(),
@@ -245,6 +248,7 @@ fn store_config() -> ServerConfig {
             store_enabled: true,
             refresh_interval_secs: 30,
             certificate_expiry_warning_days: 30,
+            sp: None,
         }),
         auth_hs256: Some(Hs256Config {
             secret_env: SECRET_ENV.to_string(),
@@ -434,4 +438,173 @@ async fn configured_but_broken_shapes_refuse_to_boot() {
     );
 
     drop_scratch(&url, db).await;
+}
+
+/// #948, the operator's path: a deployment with an `SP` key pair signs its `AuthnRequest`s
+/// and publishes metadata an `IdP` can consume.
+#[tokio::test]
+async fn sp_key_pair_signs_requests_and_publishes_metadata() {
+    let Some(url) = database_url_or_skip("sp_key_pair_signs_requests") else {
+        return;
+    };
+    std::env::set_var(SECRET_ENV, HS256_SECRET);
+
+    // A real SP key pair, handed over the way an operator would: key via env, cert inline.
+    let (key_pem, cert_pem, cert_der) = sp_key_pair();
+    std::env::set_var(SP_KEY_ENV, String::from_utf8(key_pem).unwrap());
+
+    let db = "fraiseql_p16_saml_sp_signing";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+
+    let mut config = saml_config(idp_metadata_xml());
+    config.database_url.clone_from(&scratch_url);
+    if let Some(saml) = config.saml.as_mut() {
+        saml.sp = Some(SamlSpKeyConfig {
+            private_key_env:           Some(SP_KEY_ENV.to_string()),
+            private_key_path:          None,
+            certificate_path:          None,
+            certificate_pem:           Some(String::from_utf8(cert_pem).unwrap()),
+            sign_authn_requests:       true,
+            previous_private_key_env:  None,
+            previous_private_key_path: None,
+            previous_certificate_path: None,
+            previous_certificate_pem:  None,
+        });
+    }
+
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
+    let port = listener.local_addr().expect("local addr").port();
+
+    let server = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone())))
+        .await
+        .expect("[saml.sp] with a readable key pair must boot");
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("client");
+    let base = format!("http://127.0.0.1:{port}");
+
+    // The AuthnRequest is signed: the HTTP-Redirect binding carries its signature in the
+    // query string, which is what an IdP requiring signed requests checks.
+    let resp = client
+        .get(format!("{base}/auth/saml/login?idp=test-idp"))
+        .send()
+        .await
+        .expect("login request");
+    let location = resp
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(location.contains("SigAlg="), "a signed AuthnRequest carries SigAlg: {location}");
+    assert!(
+        location.contains("Signature="),
+        "a signed AuthnRequest carries Signature: {location}"
+    );
+
+    // SP metadata is published, carries our certificate, and declares the signing posture.
+    let resp = client
+        .get(format!("{base}/auth/saml/metadata?idp=test-idp"))
+        .send()
+        .await
+        .expect("metadata request");
+    assert_eq!(resp.status(), 200);
+    let xml = resp.text().await.expect("metadata body");
+    let cert_b64 = {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD.encode(&cert_der)
+    };
+    assert!(xml.contains("SPSSODescriptor"), "{xml}");
+    assert!(xml.contains(r#"AuthnRequestsSigned="true""#), "{xml}");
+    assert!(xml.contains(&cert_b64), "metadata must publish the SP certificate");
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// #948: a configured-but-unloadable `SP` key refuses to boot rather than starting with
+/// signing silently off.
+#[tokio::test]
+async fn an_unreadable_sp_key_refuses_to_boot() {
+    let Some(url) = database_url_or_skip("an_unreadable_sp_key") else {
+        return;
+    };
+    std::env::set_var(SECRET_ENV, HS256_SECRET);
+
+    let db = "fraiseql_p16_saml_sp_refuse";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+
+    let (_key_pem, cert_pem, _cert_der) = sp_key_pair();
+    let mut config = saml_config(idp_metadata_xml());
+    config.database_url.clone_from(&scratch_url);
+    if let Some(saml) = config.saml.as_mut() {
+        saml.sp = Some(SamlSpKeyConfig {
+            private_key_env:           Some("FRAISEQL_TEST_SP_KEY_THAT_IS_NOT_SET".to_string()),
+            private_key_path:          None,
+            certificate_path:          None,
+            certificate_pem:           Some(String::from_utf8(cert_pem).unwrap()),
+            sign_authn_requests:       true,
+            previous_private_key_env:  None,
+            previous_private_key_path: None,
+            previous_certificate_path: None,
+            previous_certificate_pem:  None,
+        });
+    }
+
+    let result = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone()))).await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("[saml.sp]") && msg.contains("not set"),
+        "an unset SP key env var must refuse to boot, naming the field: {msg}"
+    );
+
+    drop_scratch(&url, db).await;
+}
+
+/// A fresh RSA key and matching self-signed certificate: `(key_pem, cert_pem, cert_der)`.
+fn sp_key_pair() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    use openssl::{
+        asn1::Asn1Time, bn::BigNum, hash::MessageDigest, pkey::PKey, rsa::Rsa as OpenSslRsa,
+        x509::X509Builder,
+    };
+
+    let key = PKey::from_rsa(OpenSslRsa::generate(2048).unwrap()).unwrap();
+    let mut name = openssl::x509::X509Name::builder().unwrap();
+    name.append_entry_by_text("CN", "sp.example.com").unwrap();
+    let name = name.build();
+
+    let mut builder = X509Builder::new().unwrap();
+    builder.set_version(2).unwrap();
+    builder
+        .set_serial_number(&BigNum::from_u32(1).unwrap().to_asn1_integer().unwrap())
+        .unwrap();
+    builder.set_subject_name(&name).unwrap();
+    builder.set_issuer_name(&name).unwrap();
+    builder.set_pubkey(&key).unwrap();
+    builder.set_not_before(&Asn1Time::days_from_now(0).unwrap()).unwrap();
+    builder.set_not_after(&Asn1Time::days_from_now(3650).unwrap()).unwrap();
+    builder.sign(&key, MessageDigest::sha256()).unwrap();
+    let cert = builder.build();
+
+    (
+        key.private_key_to_pem_pkcs8().unwrap(),
+        cert.to_pem().unwrap(),
+        cert.to_der().unwrap(),
+    )
 }

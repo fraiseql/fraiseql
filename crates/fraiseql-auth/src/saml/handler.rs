@@ -132,11 +132,13 @@ impl SamlAuthState {
     }
 }
 
-/// Build the SAML router: `GET /auth/saml/login` and `POST /auth/saml/acs`.
+/// Build the SAML router: `GET /auth/saml/login`, `POST /auth/saml/acs`, and
+/// `GET /auth/saml/metadata`.
 pub fn saml_routes(state: SamlAuthState) -> Router {
     Router::new()
         .route("/auth/saml/login", get(saml_login))
         .route("/auth/saml/acs", post(saml_acs))
+        .route("/auth/saml/metadata", get(saml_metadata))
         .with_state(state)
 }
 
@@ -253,7 +255,14 @@ pub async fn saml_login(
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "could not start SAML login");
     }
 
-    match authn_request.redirect(&relay_state) {
+    // Sign the request when an SP key is configured and signing is on (#948). Some IdPs
+    // reject an unsigned AuthnRequest outright; unsigned stays the default.
+    let redirect = match idp.signing_key() {
+        Some(key) => authn_request.signed_redirect(&relay_state, key),
+        None => authn_request.redirect(&relay_state),
+    };
+
+    match redirect {
         Ok(Some(url)) => Redirect::to(url.as_str()).into_response(),
         Ok(None) => {
             json_error(StatusCode::INTERNAL_SERVER_ERROR, "IdP has no redirect destination")
@@ -263,6 +272,26 @@ pub async fn saml_login(
             json_error(StatusCode::INTERNAL_SERVER_ERROR, "could not start SAML login")
         },
     }
+}
+
+/// `GET /auth/saml/metadata?idp=<name>[&tenant=<id>]` — publish this SP's metadata (#948).
+///
+/// An IdP consumes this to learn our entity ID, ACS endpoint, and — when a key pair is
+/// configured — the certificate to verify our signed `AuthnRequest`s against and encrypt
+/// assertions to. Resolution is the same tenant-scoped path as login, so the document is
+/// not a way around it.
+pub async fn saml_metadata(
+    State(state): State<SamlAuthState>,
+    Query(q): Query<LoginQuery>,
+) -> Response {
+    let Some(idp) = state.registry.resolve(&q.idp, q.tenant.as_deref()) else {
+        return json_error(StatusCode::NOT_FOUND, "unknown SAML IdP");
+    };
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/samlmetadata+xml")],
+        idp.sp_metadata_xml(),
+    )
+        .into_response()
 }
 
 /// `POST /auth/saml/acs` — Assertion Consumer Service.

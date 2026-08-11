@@ -69,6 +69,76 @@ impl Default for SamlAttributeMapping {
     }
 }
 
+/// XML-Encryption key-transport algorithms FraiseQL accepts on an `EncryptedAssertion`
+/// (#948).
+///
+/// RSA-OAEP only. `rsa-1_5` (PKCS#1 v1.5) is deliberately excluded: it is the algorithm
+/// behind the Bleichenbacher-style adaptive chosen-ciphertext break of XML Encryption, and
+/// XML Encryption 1.1 removed it. Our outer-signature requirement already denies an
+/// attacker the chosen-ciphertext oracle those attacks need, so this is defence in depth —
+/// but an IdP configured for `rsa-1_5` is a misconfiguration worth refusing loudly rather
+/// than accepting quietly.
+const ALLOWED_KEY_TRANSPORT_ALGORITHMS: &[&str] = &[
+    "http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p",
+    "http://www.w3.org/2009/xmlenc11#rsa-oaep",
+];
+
+/// XML-Encryption content-encryption algorithms FraiseQL accepts (#948).
+///
+/// AES-GCM only — an authenticated cipher. The CBC modes are excluded for the same reason:
+/// unauthenticated CBC is what makes the XML-Encryption padding-oracle attack possible.
+const ALLOWED_CONTENT_ENCRYPTION_ALGORITHMS: &[&str] = &[
+    "http://www.w3.org/2009/xmlenc11#aes128-gcm",
+    "http://www.w3.org/2009/xmlenc11#aes192-gcm",
+    "http://www.w3.org/2009/xmlenc11#aes256-gcm",
+];
+
+/// Whether `algorithm` is an accepted key-transport algorithm.
+#[must_use]
+pub fn key_transport_algorithm_allowed(algorithm: &str) -> bool {
+    ALLOWED_KEY_TRANSPORT_ALGORITHMS.contains(&algorithm)
+}
+
+/// Whether `algorithm` is an accepted content-encryption algorithm.
+#[must_use]
+pub fn content_encryption_algorithm_allowed(algorithm: &str) -> bool {
+    ALLOWED_CONTENT_ENCRYPTION_ALGORITHMS.contains(&algorithm)
+}
+
+/// An SP key pair: the private key plus the certificate published in SP metadata.
+struct SpKeyPair {
+    key:      openssl::pkey::PKey<openssl::pkey::Private>,
+    cert_der: Vec<u8>,
+}
+
+impl std::fmt::Debug for SpKeyPair {
+    /// Hand-written: a derived `Debug` on a struct holding a private key would print key
+    /// material into any log line that formats the value.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SpKeyPair").finish_non_exhaustive()
+    }
+}
+
+/// Parse a private key in either PEM or DER form.
+fn parse_private_key(
+    bytes: &[u8],
+) -> Result<openssl::pkey::PKey<openssl::pkey::Private>, SamlError> {
+    openssl::pkey::PKey::private_key_from_pem(bytes)
+        .or_else(|_| openssl::pkey::PKey::private_key_from_der(bytes))
+        .map_err(|e| SamlError::Config(format!("SP private key is neither valid PEM nor DER: {e}")))
+}
+
+/// Parse a certificate in either PEM or DER form and return its DER encoding.
+fn parse_certificate_der(bytes: &[u8]) -> Result<Vec<u8>, SamlError> {
+    let cert = openssl::x509::X509::from_pem(bytes)
+        .or_else(|_| openssl::x509::X509::from_der(bytes))
+        .map_err(|e| {
+            SamlError::Config(format!("SP certificate is neither valid PEM nor DER: {e}"))
+        })?;
+    cert.to_der()
+        .map_err(|e| SamlError::Config(format!("SP certificate could not be re-encoded: {e}")))
+}
+
 /// Per-IdP SAML configuration: the `samael` service provider plus FraiseQL policy.
 pub struct SamlIdpConfig {
     /// Logical IdP name. Used as the account-store provider key `"saml:<idp_name>"` and in
@@ -85,8 +155,17 @@ pub struct SamlIdpConfig {
     pub trust_asserted_email: bool,
     /// Attribute → identity-field mapping.
     pub attribute_mapping:    SamlAttributeMapping,
+    /// Whether to sign outbound `AuthnRequest`s. Requires an SP key pair; unsigned is the
+    /// default, so existing deployments are unaffected (#948).
+    pub sign_authn_requests:  bool,
     /// The underlying `samael` service provider (SP identity, IdP metadata, allowed algos).
+    /// Carries the primary SP key pair in `sp.key` / `sp.certificate`.
     pub(crate) sp:            ServiceProvider,
+    /// The SP certificate in DER, mirrored here for metadata publishing (#948).
+    sp_certificate_der:       Option<Vec<u8>>,
+    /// The previous SP key pair, accepted for **decryption only** during a rotation window
+    /// (#948). Never used to sign: an SP signs with exactly one current key.
+    sp_previous:              Option<SpKeyPair>,
 }
 
 impl std::fmt::Debug for SamlIdpConfig {
@@ -96,6 +175,9 @@ impl std::fmt::Debug for SamlIdpConfig {
             .field("tenant_id", &self.tenant_id)
             .field("trust_asserted_email", &self.trust_asserted_email)
             .field("attribute_mapping", &self.attribute_mapping)
+            .field("sign_authn_requests", &self.sign_authn_requests)
+            .field("has_sp_key", &self.sp.key.is_some())
+            .field("has_previous_sp_key", &self.sp_previous.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -117,6 +199,9 @@ impl SamlIdpConfig {
             tenant_id:            None,
             trust_asserted_email: false,
             attribute_mapping:    SamlAttributeMapping::default(),
+            sp_key_pair:          None,
+            sp_previous_key_pair: None,
+            sign_authn_requests:  false,
         }
     }
 
@@ -153,10 +238,104 @@ impl SamlIdpConfig {
         certs.iter().filter_map(|cert| certificate_not_after(cert.der_data())).min()
     }
 
+    /// Whether an SP key pair is configured (enabling request signing and assertion
+    /// decryption).
+    #[must_use]
+    pub const fn has_sp_key(&self) -> bool {
+        self.sp.key.is_some()
+    }
+
+    /// Whether outbound `AuthnRequest`s are signed. Requires [`has_sp_key`](Self::has_sp_key).
+    #[must_use]
+    pub const fn signs_authn_requests(&self) -> bool {
+        self.sign_authn_requests && self.sp.key.is_some()
+    }
+
+    /// The SP's own metadata document, for an IdP to consume (#948).
+    ///
+    /// Hand-built rather than taken from `samael`'s `ServiceProvider::metadata`, which
+    /// labels its encryption `KeyDescriptor` `use="signing"`, hard-codes
+    /// `AuthnRequestsSigned="false"`, requires an SLO endpoint this SP does not offer, and
+    /// has no way to publish a second certificate — all four matter here, and the document
+    /// is small enough to own.
+    ///
+    /// During a rotation window the previous certificate is published as an additional
+    /// `use="encryption"` descriptor, so an IdP that has not yet picked up the new one keeps
+    /// encrypting to a key we can still read. Only the *current* certificate is advertised
+    /// for signing: an SP signs with exactly one key.
+    #[must_use]
+    pub fn sp_metadata_xml(&self) -> String {
+        use std::fmt::Write as _;
+
+        let entity_id = xml_escape(self.sp.entity_id.as_deref().unwrap_or_default());
+        let acs_url = xml_escape(self.sp.acs_url.as_deref().unwrap_or_default());
+        let signed = if self.signs_authn_requests() {
+            "true"
+        } else {
+            "false"
+        };
+
+        let mut descriptors = String::new();
+        if let Some(der) = self.sp_certificate_der.as_deref() {
+            let _ = write!(descriptors, "{}", key_descriptor("signing", der));
+            let _ = write!(descriptors, "{}", key_descriptor("encryption", der));
+        }
+        if let Some(previous) = &self.sp_previous {
+            let _ = write!(descriptors, "{}", key_descriptor("encryption", &previous.cert_der));
+        }
+
+        format!(
+            r#"<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="{entity_id}">
+  <SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="{signed}" WantAssertionsSigned="true">
+{descriptors}    <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="{acs_url}" index="0" isDefault="true"/>
+  </SPSSODescriptor>
+</EntityDescriptor>"#
+        )
+    }
+
+    /// The SP private key used to sign an `AuthnRequest`, if signing is enabled.
+    pub(crate) const fn signing_key(&self) -> Option<&openssl::pkey::PKey<openssl::pkey::Private>> {
+        if self.sign_authn_requests {
+            self.sp.key.as_ref()
+        } else {
+            None
+        }
+    }
+
+    /// A service provider carrying the *previous* SP key, for one retry of a failed
+    /// decryption during a rotation window. `None` when no previous key is configured.
+    pub(crate) fn service_provider_with_previous_key(&self) -> Option<ServiceProvider> {
+        let previous = self.sp_previous.as_ref()?;
+        let mut sp = self.sp.clone();
+        sp.key = Some(previous.key.clone());
+        Some(sp)
+    }
+
     /// Borrow the underlying `samael` service provider (used by the verifier and handlers).
     pub(crate) const fn service_provider(&self) -> &ServiceProvider {
         &self.sp
     }
+}
+
+/// One `<KeyDescriptor use="…">` carrying a DER certificate.
+fn key_descriptor(key_use: &str, cert_der: &[u8]) -> String {
+    let cert_b64 = base64::engine::general_purpose::STANDARD.encode(cert_der);
+    format!(
+        "    <KeyDescriptor use=\"{key_use}\">\n      \
+         <KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n        \
+         <X509Data><X509Certificate>{cert_b64}</X509Certificate></X509Data>\n      \
+         </KeyInfo>\n    </KeyDescriptor>\n"
+    )
+}
+
+/// Escape the five XML predefined entities. Applied to the operator-supplied entity ID and
+/// ACS URL so a stray `&` cannot produce a malformed metadata document.
+fn xml_escape(raw: &str) -> String {
+    raw.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 /// Read a DER-encoded X.509 certificate's `NotAfter` as a UTC instant.
@@ -185,6 +364,9 @@ pub struct SamlIdpConfigBuilder {
     tenant_id:            Option<String>,
     trust_asserted_email: bool,
     attribute_mapping:    SamlAttributeMapping,
+    sp_key_pair:          Option<SpKeyPair>,
+    sp_previous_key_pair: Option<SpKeyPair>,
+    sign_authn_requests:  bool,
 }
 
 impl SamlIdpConfigBuilder {
@@ -242,6 +424,59 @@ impl SamlIdpConfigBuilder {
         self
     }
 
+    /// Configure the SP key pair used to sign `AuthnRequest`s and decrypt
+    /// `EncryptedAssertion`s (#948). Both inputs accept PEM or DER.
+    ///
+    /// Configuring a key does **not** by itself start signing — call
+    /// [`sign_authn_requests`](Self::sign_authn_requests) for that. It does enable
+    /// decryption, because an `EncryptedAssertion` is otherwise simply unreadable.
+    ///
+    /// # Errors
+    ///
+    /// [`SamlError::Config`] if either input parses as neither PEM nor DER, or if the key
+    /// and certificate do not belong together — a mismatched pair publishes a certificate
+    /// no IdP can encrypt to and produces signatures no IdP can verify, and it fails at the
+    /// first login rather than at configuration time.
+    pub fn sp_key_pair(
+        mut self,
+        private_key: &[u8],
+        certificate: &[u8],
+    ) -> Result<Self, SamlError> {
+        self.sp_key_pair = Some(build_key_pair(private_key, certificate, "sp_key_pair")?);
+        Ok(self)
+    }
+
+    /// Configure the *previous* SP key pair, accepted for decryption only, during a
+    /// rotation window (#948).
+    ///
+    /// An IdP picks up new SP metadata on its own schedule, so between publishing a new
+    /// certificate and the IdP adopting it, assertions keep arriving encrypted to the old
+    /// key. Retiring the old key immediately turns that window into an outage.
+    ///
+    /// # Errors
+    ///
+    /// As [`sp_key_pair`](Self::sp_key_pair).
+    pub fn sp_previous_key_pair(
+        mut self,
+        private_key: &[u8],
+        certificate: &[u8],
+    ) -> Result<Self, SamlError> {
+        self.sp_previous_key_pair =
+            Some(build_key_pair(private_key, certificate, "sp_previous_key_pair")?);
+        Ok(self)
+    }
+
+    /// Sign outbound `AuthnRequest`s (default `false`).
+    ///
+    /// Some IdPs reject an unsigned `AuthnRequest` outright. Unsigned stays the default so
+    /// existing deployments are unaffected; [`build`](Self::build) refuses the combination
+    /// of signing with no key rather than silently sending unsigned requests.
+    #[must_use]
+    pub const fn sign_authn_requests(mut self, sign: bool) -> Self {
+        self.sign_authn_requests = sign;
+        self
+    }
+
     /// Finalize the configuration.
     ///
     /// # Errors
@@ -253,12 +488,27 @@ impl SamlIdpConfigBuilder {
             .idp_metadata
             .ok_or_else(|| SamlError::Config("IdP metadata not supplied".to_string()))?;
 
-        let sp = ServiceProviderBuilder::default()
+        if self.sign_authn_requests && self.sp_key_pair.is_none() {
+            return Err(SamlError::Config(
+                "sign_authn_requests is on but no SP key pair is configured — an IdP that \
+                 requires signed AuthnRequests would reject every login, and sending them \
+                 unsigned instead would be a silent downgrade"
+                    .to_string(),
+            ));
+        }
+
+        let sp_certificate_der = self.sp_key_pair.as_ref().map(|kp| kp.cert_der.clone());
+        let mut builder = ServiceProviderBuilder::default();
+        builder
             .entity_id(Some(self.sp_entity_id))
             .acs_url(Some(self.acs_url))
             .idp_metadata(idp_metadata)
             .allowed_signature_algorithms(Some(default_allowed_algorithms()))
-            .allow_idp_initiated(false)
+            .allow_idp_initiated(false);
+        if let Some(key_pair) = self.sp_key_pair {
+            builder.key(Some(key_pair.key));
+        }
+        let sp = builder
             .build()
             .map_err(|e| SamlError::Config(format!("service provider build failed: {e}")))?;
 
@@ -267,7 +517,10 @@ impl SamlIdpConfigBuilder {
             tenant_id: self.tenant_id,
             trust_asserted_email: self.trust_asserted_email,
             attribute_mapping: self.attribute_mapping,
+            sign_authn_requests: self.sign_authn_requests,
             sp,
+            sp_certificate_der,
+            sp_previous: self.sp_previous_key_pair,
         };
         // Refuse metadata that can never start a login: samael's metadata parse
         // is lenient (an arbitrary XML document deserializes to an empty
@@ -283,6 +536,26 @@ impl SamlIdpConfigBuilder {
         }
         Ok(config)
     }
+}
+
+/// Parse and pair an SP private key with its certificate, refusing a mismatched pair.
+fn build_key_pair(
+    private_key: &[u8],
+    certificate: &[u8],
+    field: &str,
+) -> Result<SpKeyPair, SamlError> {
+    let key = parse_private_key(private_key)?;
+    let cert_der = parse_certificate_der(certificate)?;
+    let cert = openssl::x509::X509::from_der(&cert_der)
+        .map_err(|e| SamlError::Config(format!("SP certificate could not be re-read: {e}")))?;
+    // A pair that does not match is a configuration error that would otherwise surface as
+    // "the IdP rejects our signature" or "we cannot decrypt", long after deployment.
+    if !cert.public_key().is_ok_and(|public| public.public_eq(&key)) {
+        return Err(SamlError::Config(format!(
+            "{field}: the SP certificate does not match the SP private key"
+        )));
+    }
+    Ok(SpKeyPair { key, cert_der })
 }
 
 /// Synthesize a minimal IdP `EntityDescriptor` XML from explicit parts, used by

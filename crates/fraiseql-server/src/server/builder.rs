@@ -15,6 +15,79 @@ use tracing::info;
 
 use super::{RateLimiter, Result, Server, ServerConfig, ServerError};
 
+/// Load `[saml.sp]` key material off disk / out of the environment (#948).
+///
+/// Every failure here is a boot refusal rather than a degraded start: a configured-but-
+/// unreadable SP key means signed `AuthnRequest`s the `IdP` would reject and encrypted
+/// assertions we cannot open, both of which surface as "SSO is broken" long after deploy.
+#[cfg(feature = "auth-saml")]
+fn load_saml_sp_keys(
+    sp: &crate::server_config::saml::SamlSpKeyConfig,
+) -> Result<fraiseql_auth::saml::SpKeyMaterial> {
+    fn read_env(var: &str, field: &str) -> Result<Vec<u8>> {
+        std::env::var(var).map(String::into_bytes).map_err(|_| {
+            ServerError::ConfigError(format!(
+                "[saml.sp] {field} names environment variable {var}, which is not set"
+            ))
+        })
+    }
+    fn read_file(path: &std::path::Path, field: &str) -> Result<Vec<u8>> {
+        std::fs::read(path).map_err(|e| {
+            ServerError::ConfigError(format!(
+                "[saml.sp] {field} cannot read {}: {e}",
+                path.display()
+            ))
+        })
+    }
+
+    let private_key = match (&sp.private_key_env, &sp.private_key_path) {
+        (Some(var), _) => read_env(var, "private_key_env")?,
+        (None, Some(path)) => read_file(path, "private_key_path")?,
+        // validate() enforces exactly one; belt-and-braces for programmatic configs.
+        (None, None) => {
+            return Err(ServerError::ConfigError(
+                "[saml.sp] needs exactly one of private_key_env / private_key_path".to_string(),
+            ));
+        },
+    };
+    let certificate = match (&sp.certificate_path, &sp.certificate_pem) {
+        (Some(path), _) => read_file(path, "certificate_path")?,
+        (None, Some(pem)) => pem.clone().into_bytes(),
+        (None, None) => {
+            return Err(ServerError::ConfigError(
+                "[saml.sp] needs exactly one of certificate_path / certificate_pem".to_string(),
+            ));
+        },
+    };
+
+    let previous_private_key = match (&sp.previous_private_key_env, &sp.previous_private_key_path) {
+        (Some(var), _) => Some(read_env(var, "previous_private_key_env")?),
+        (None, Some(path)) => Some(read_file(path, "previous_private_key_path")?),
+        (None, None) => None,
+    };
+    let previous_certificate = match (&sp.previous_certificate_path, &sp.previous_certificate_pem) {
+        (Some(path), _) => Some(read_file(path, "previous_certificate_path")?),
+        (None, Some(pem)) => Some(pem.clone().into_bytes()),
+        (None, None) => None,
+    };
+    if previous_private_key.is_some() != previous_certificate.is_some() {
+        return Err(ServerError::ConfigError(
+            "[saml.sp] a rotation window needs both a previous key and a previous certificate \
+             — half of one publishes a certificate we cannot decrypt to, or holds a key no IdP \
+             is told about"
+                .to_string(),
+        ));
+    }
+
+    Ok(fraiseql_auth::saml::SpKeyMaterial {
+        private_key,
+        certificate,
+        sign_authn_requests: sp.sign_authn_requests,
+        previous_private_key,
+        previous_certificate,
+    })
+}
+
 /// Build an HS256 validator from the server config, if configured.
 pub(super) fn build_hs256_auth(config: &ServerConfig) -> Result<Option<Arc<AuthMiddleware>>> {
     let Some(ref hs) = config.auth_hs256 else {
@@ -590,7 +663,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
                     .with_user_store(account_store)
                     .with_replay_store(replay_store);
+                // This SP's own key material (#948) — one pair for the whole deployment, so
+                // stored IdPs get signing and decryption without private keys ever living
+                // in a database row.
+                let sp_keys = match saml_cfg.sp.as_ref() {
+                    Some(sp) => Some(load_saml_sp_keys(sp)?),
+                    None => None,
+                };
                 let mut registry = fraiseql_auth::saml::SamlIdpRegistry::new();
+                if let Some(keys) = sp_keys.clone() {
+                    info!(
+                        sign_authn_requests = keys.sign_authn_requests,
+                        rotation_key = keys.previous_private_key.is_some(),
+                        "SAML SP key pair loaded (metadata at /auth/saml/metadata)"
+                    );
+                    registry = registry.with_sp_keys(keys);
+                }
                 for (name, entry) in &saml_cfg.idps {
                     let xml = match (&entry.metadata_xml, &entry.metadata_xml_path) {
                         (Some(xml), _) => xml.clone(),
@@ -610,7 +698,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                             )));
                         },
                     };
-                    let idp = fraiseql_auth::saml::SamlIdpConfig::builder(
+                    let mut idp_builder = fraiseql_auth::saml::SamlIdpConfig::builder(
                         name.clone(),
                         entry.sp_entity_id.clone(),
                         entry.acs_url.clone(),
@@ -622,9 +710,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         ))
                     })?
                     .tenant_id(entry.tenant_id.clone())
-                    .trust_asserted_email(entry.trust_asserted_email)
-                    .build()
-                    .map_err(|e| {
+                    .trust_asserted_email(entry.trust_asserted_email);
+                    // The SP key pair is deployment-level, so a config-file IdP gets the
+                    // same signing/decryption posture as a stored one (#948).
+                    if let Some(keys) = sp_keys.as_ref() {
+                        idp_builder = idp_builder
+                            .sp_key_pair(&keys.private_key, &keys.certificate)
+                            .and_then(|b| {
+                                match (
+                                    keys.previous_private_key.as_deref(),
+                                    keys.previous_certificate.as_deref(),
+                                ) {
+                                    (Some(key), Some(cert)) => b.sp_previous_key_pair(key, cert),
+                                    _ => Ok(b),
+                                }
+                            })
+                            .map_err(|e| {
+                                ServerError::ConfigError(format!("[saml.sp] invalid: {e}"))
+                            })?
+                            .sign_authn_requests(keys.sign_authn_requests);
+                    }
+                    let idp = idp_builder.build().map_err(|e| {
                         ServerError::ConfigError(format!(
                             "[saml.idps.{name}] configuration invalid: {e}"
                         ))

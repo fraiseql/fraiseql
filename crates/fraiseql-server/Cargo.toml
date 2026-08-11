@@ -144,6 +144,9 @@ zeroize = "1.8"
 [dev-dependencies]
 # The #382 outbound-CDC mount e2e reads back from a real NATS JetStream.
 async-nats = "0.47"
+# Test-only: mint a real SP key pair for the #948 request-signing e2e. Adds nothing to the
+# tree — samael already pulls the same openssl.
+openssl = "0.10"
 samael = {version = "0.0.21"}
 # Test-only: derive a live TOTP code for the #367 [auth.local] MFA e2e.
 totp-rs = {version = "5", features = ["gen_secret", "otpauth"]}
