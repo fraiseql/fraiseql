@@ -139,14 +139,15 @@ mod minio_tests {
         buckets.insert(
             LOGICAL_BUCKET.to_string(),
             BucketConfig {
-                name:               LOGICAL_BUCKET.to_string(),
-                max_object_bytes:   Some(8 * 1024 * 1024),
+                name: LOGICAL_BUCKET.to_string(),
+                max_object_bytes: Some(8 * 1024 * 1024),
                 allowed_mime_types: None,
-                access:             BucketAccess::Private,
-                transform_presets:  None,
-                serve_inline:       false,
-                policies:           None,
-                upload_ttl_secs:    None,
+                access: BucketAccess::Private,
+                transform_presets: None,
+                serve_inline: false,
+                policies: None,
+                upload_ttl_secs: None,
+                ..BucketConfig::default()
             },
         );
 

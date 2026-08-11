@@ -1,173 +1,98 @@
-//! Transform result caching.
+//! Transform result caching (#973).
 //!
-//! Caches transformed images to avoid re-computing the same transforms.
-//! Cache entries are invalidated when the source object is re-uploaded.
+//! A render is a pure function of the source bytes and the resolved transform,
+//! so the cache is **content-addressed**: the entry's key contains a digest of
+//! both. That is the whole invalidation story — a re-uploaded source hashes
+//! differently and therefore reads a different key, so a stale entry can never
+//! be served and there is nothing to invalidate.
+//!
+//! The shape this replaces had an `invalidate()` that wrote a marker no reader
+//! ever consulted: an invalidation that looked like one and was not. Content
+//! addressing removes the need for the method rather than fixing it.
+//!
+//! Entries live under the reserved `.fraiseql-transforms/` prefix. A caller's
+//! object always lands at `{logical-bucket}/{key}` and every key is validated
+//! to be a relative path with no `.`/`..` segment, so the only way a caller
+//! could name a cache entry is if a bucket were *configured* with the reserved
+//! name — which the server refuses at boot
+//! ([`RESERVED_BUCKET_NAMES`](crate::config::RESERVED_BUCKET_NAMES)). A cache a
+//! caller can write into is a cache a caller can poison.
 
 use std::sync::Arc;
 
 use fraiseql_error::Result;
+use sha2::{Digest, Sha256};
 
-use super::TransformParams;
-#[cfg(test)]
-use super::{ImageTransformer, TransformOutput};
-use crate::backend::LocalBackend;
+use super::{TransformOutput, TransformParams};
+use crate::backend::StorageBackend;
 
-/// Transform cache for storing and retrieving cached transformed images.
-///
-/// Caches transformed images using the storage backend itself, storing them
-/// under a special `_transforms/` prefix. When the source object is re-uploaded,
-/// all cached transforms for that key are invalidated.
-///
-/// # Implementation Details
-///
-/// - Cache keys: `_transforms/{key}/{width}x{height}_{format}_{quality}`
-/// - Invalidation: All transforms with matching source key are deleted on re-upload
-/// - Source data: The cache does NOT store the source image, only transformed results
+/// The reserved namespace cache entries live in. Client keys carrying it are
+/// refused by `validate_key`, so nothing a caller uploads can land here.
+pub const CACHE_PREFIX: &str = ".fraiseql-transforms";
+
+/// Cache of rendered images, stored in the configured storage backend.
 pub struct TransformCache {
-    /// Storage backend used for caching transformed images
-    backend: Arc<LocalBackend>,
+    backend: Arc<StorageBackend>,
 }
 
 impl TransformCache {
-    /// Creates a new transform cache backed by the given storage backend.
-    ///
-    /// # Arguments
-    ///
-    /// * `backend` - Storage backend for persisting cached transforms
+    /// Creates a transform cache over the configured storage backend.
     #[must_use]
-    pub const fn new(backend: Arc<LocalBackend>) -> Self {
+    pub const fn new(backend: Arc<StorageBackend>) -> Self {
         Self { backend }
     }
 
-    /// Builds a cache key for a specific transform.
+    /// The content-addressed key for one rendering.
     ///
-    /// Cache key format: `_transforms/{key}/{width}x{height}_{format}_{quality}`
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - Original object key
-    /// * `params` - Transform parameters
-    ///
-    /// # Returns
-    ///
-    /// A predictable cache key string.
+    /// The digest covers the source bytes and the canonical description of the
+    /// resolved transform, so two renders share a key exactly when they would
+    /// produce the same bytes. `bucket` and `key` are carried in the path only
+    /// to keep the namespace browsable — they are inside the digest too.
     #[must_use]
-    pub fn build_cache_key(key: &str, params: &TransformParams) -> String {
-        let width = params.width.map_or_else(|| "auto".to_string(), |w| w.to_string());
-        let height = params.height.map_or_else(|| "auto".to_string(), |h| h.to_string());
-        let format = params
-            .format
-            .as_ref()
-            .map_or_else(|| "original".to_string(), |f| format!("{f:?}").to_lowercase());
-        let quality = params.quality.map_or_else(|| "default".to_string(), |q| q.to_string());
-
-        format!("_transforms/{key}/{width}_{height}_{format}_{quality}")
-    }
-
-    /// Gets or transforms an image, using cache when possible.
-    ///
-    /// If the transformed image exists in cache, returns it immediately.
-    /// Otherwise, transforms the image and stores the result in cache.
-    ///
-    /// Cache is invalidated if the source data changes (detected via SHA256 hash).
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - Original object key
-    /// * `source_data` - Original image data
-    /// * `params` - Transform parameters
-    ///
-    /// # Errors
-    ///
-    /// Returns error if transformation fails or backend operation fails.
-    ///
-    /// # Returns
-    ///
-    /// `Ok(Some(output))` if cache hit or successful transform, `Ok(None)` if source doesn't exist.
-    #[cfg(test)]
-    pub async fn get_or_transform(
-        &self,
+    pub fn build_cache_key(
+        bucket: &str,
         key: &str,
-        source_data: &[u8],
+        source: &[u8],
         params: &TransformParams,
-    ) -> Result<Option<TransformOutput>> {
-        use sha2::{Digest, Sha256};
-
-        let cache_key = Self::build_cache_key(key, params);
-
-        // Compute source data hash for cache validation
+    ) -> String {
         let mut hasher = Sha256::new();
-        hasher.update(source_data);
-        let source_hash = hex::encode(hasher.finalize());
+        hasher.update(bucket.as_bytes());
+        hasher.update([0]);
+        hasher.update(key.as_bytes());
+        hasher.update([0]);
+        hasher.update(source);
+        hasher.update([0]);
+        hasher.update(params.describe().as_bytes());
+        let digest = hex::encode(hasher.finalize());
+        // Two levels of fan-out keep any one directory small on the local
+        // backend, which is a real filesystem.
+        format!("{CACHE_PREFIX}/{}/{}/{digest}", &digest[0..2], &digest[2..4])
+    }
 
-        // Try to get from cache
-        if let Ok(cached_data) = self.backend.download(&cache_key).await {
-            // Check if we stored metadata with the cache
-            let metadata_key = format!("{}_meta", cache_key);
-            if let Ok(metadata) = self.backend.download(&metadata_key).await {
-                if let Ok(metadata_str) = String::from_utf8(metadata) {
-                    // If source hash matches, use cached result
-                    if metadata_str == source_hash {
-                        if let Ok(cached) = serde_json::from_slice::<TransformOutput>(&cached_data)
-                        {
-                            return Ok(Some(cached));
-                        }
-                    }
-                }
-            }
+    /// Read a cached rendering, if one is stored.
+    ///
+    /// A miss and an unreadable entry are the same thing to the caller: render
+    /// it again. A cache is never the reason a request fails.
+    pub async fn get(&self, cache_key: &str) -> Option<TransformOutput> {
+        let raw = self.backend.download(cache_key).await.ok()?;
+        match serde_json::from_slice(&raw) {
+            Ok(output) => Some(output),
+            Err(e) => {
+                tracing::warn!(cache_key, error = %e, "Discarding an unreadable transform-cache entry");
+                None
+            },
         }
-
-        // Cache miss or invalidated - transform and store
-        let output = ImageTransformer::transform(source_data, params)?;
-
-        // Store in cache with metadata
-        let serialized = serde_json::to_vec(&output)?;
-        self.backend.upload(&cache_key, &serialized, "application/octet-stream").await?;
-
-        // Store metadata (source hash)
-        let metadata_key = format!("{}_meta", cache_key);
-        self.backend.upload(&metadata_key, source_hash.as_bytes(), "text/plain").await?;
-
-        Ok(Some(output))
     }
 
-    /// Fetches the source image from the backend.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - Original object key
+    /// Store a rendering.
     ///
     /// # Errors
     ///
-    /// Returns error if the object doesn't exist or backend operation fails.
-    #[cfg(test)]
-    pub async fn get_source(&self, key: &str) -> Result<Vec<u8>> {
-        self.backend.download(key).await
-    }
-
-    /// Invalidates all cached transforms for a given source key.
-    ///
-    /// Called when the source object is re-uploaded to prevent stale cached results.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - Original object key
-    ///
-    /// # Errors
-    ///
-    /// Returns error if backend operation fails.
-    pub async fn invalidate(&self, key: &str) -> Result<()> {
-        // Delete all cache entries that match this key
-        // Since we can't list with a pattern, we'll use a marker to track invalidation
-        // In production, this would iterate through all cache entries with this key prefix
-
-        // For now, mark cache as invalid by storing a timestamp
-        let invalidation_key = format!("_transforms/{}/_invalidated", key);
-        let timestamp = chrono::Utc::now().to_rfc3339();
-        self.backend
-            .upload(&invalidation_key, timestamp.as_bytes(), "text/plain")
-            .await?;
-
+    /// Returns `FraiseQLError::File` if the backend write fails. Callers treat
+    /// that as non-fatal — the render already succeeded.
+    pub async fn put(&self, cache_key: &str, output: &TransformOutput) -> Result<()> {
+        let serialized = serde_json::to_vec(output)?;
+        self.backend.upload(cache_key, &serialized, "application/json").await?;
         Ok(())
     }
 }

@@ -3,10 +3,12 @@
 use serde::{Deserialize, Serialize};
 
 /// Access control policy for a bucket.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
 pub enum BucketAccess {
-    /// All operations require authentication.
+    /// All operations require authentication. The default: an unspecified
+    /// access mode must never widen a bucket.
+    #[default]
     Private,
     /// Read operations are public; write operations require authentication.
     PublicRead,
@@ -16,7 +18,7 @@ pub enum BucketAccess {
 ///
 /// Allows defining common image transformations (e.g., thumbnails, previews)
 /// that can be applied by name via the render endpoint.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TransformPreset {
     /// Name of the preset (e.g., "thumbnail", "medium", "preview")
     pub name: String,
@@ -32,12 +34,29 @@ pub struct TransformPreset {
 
     /// Quality for lossy formats (1-100)
     pub quality: Option<u8>,
+
+    /// How the resize fills the box: `contain` (the default), `stretch`,
+    /// `fit`, `fill`, `cover-blur`, `cover-mirror` (#973).
+    pub resize_mode: Option<String>,
+
+    /// Where a `fill` keeps its content, or a crop is taken from.
+    pub gravity: Option<String>,
 }
+
+/// Bucket names FraiseQL reserves for its own namespaces.
+///
+/// A logical bucket becomes the first path segment of every object key
+/// (`{bucket}/{key}`), so a bucket carrying one of these names would put caller
+/// objects inside the resumable-upload staging area (#369) or the render cache
+/// (#973) — where they would be read back as staged chunks or served as
+/// somebody else's rendering. The server refuses such a bucket at boot; there
+/// is no runtime path that could produce one.
+pub const RESERVED_BUCKET_NAMES: [&str; 2] = [".fraiseql-uploads", ".fraiseql-transforms"];
 
 /// Bucket configuration.
 ///
 /// Defines size limits, allowed MIME types, access policies, and transform presets for a bucket.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BucketConfig {
     /// Name of the bucket.
     pub name: String,
@@ -57,6 +76,15 @@ pub struct BucketConfig {
 
     /// Predefined image transform presets
     pub transform_presets: Option<Vec<TransformPreset>>,
+
+    /// Resize mode applied when a render names none (#973). `None` means
+    /// `contain`, the behaviour that shipped with the render endpoint.
+    pub default_resize_mode: Option<String>,
+
+    /// Font file backing text watermarks, read at boot. `None` means text
+    /// watermarks are refused by name on this bucket rather than rendered in
+    /// some fallback typeface.
+    pub watermark_font: Option<std::sync::Arc<Vec<u8>>>,
 
     /// Serve downloads from this bucket with `Content-Disposition: inline`
     /// (rendered in-browser) instead of the default `attachment`

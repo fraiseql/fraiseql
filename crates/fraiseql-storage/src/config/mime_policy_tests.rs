@@ -6,14 +6,15 @@ use super::{BucketAccess, BucketConfig};
 
 fn bucket(allowed: Option<&[&str]>) -> BucketConfig {
     BucketConfig {
-        name:               "docs".to_string(),
-        max_object_bytes:   None,
+        name: "docs".to_string(),
+        max_object_bytes: None,
         allowed_mime_types: allowed.map(|list| list.iter().map(|s| (*s).to_string()).collect()),
-        access:             BucketAccess::Private,
-        transform_presets:  None,
-        serve_inline:       false,
-        policies:           None,
-        upload_ttl_secs:    None,
+        access: BucketAccess::Private,
+        transform_presets: None,
+        serve_inline: false,
+        policies: None,
+        upload_ttl_secs: None,
+        ..BucketConfig::default()
     }
 }
 

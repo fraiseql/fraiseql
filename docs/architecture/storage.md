@@ -265,37 +265,112 @@ wildcard (`image/*`), or `*/*`. Omitting the key means no restriction; an
 Build the server with `--features storage-transforms` to mount
 
 ```
-GET /storage/v1/render/{bucket}/{key}?w=&h=&format=&quality=&preset=
+GET /storage/v1/render/{bucket}/{key}?w=&h=&mode=&gravity=&background=&crop=
+                                     &blur=&sharpen=&watermark=&format=&quality=&preset=
 ```
 
 which reads the stored object through exactly the gates the download route
-uses and returns a resized / re-encoded image. `format` is one of `webp`,
-`jpeg`, `png`, `avif`; with no explicit format the client's `Accept` header
-picks the encoding (highest `q` among supported image types). Named presets
-come from the bucket's configuration:
+uses and returns a transformed image. The pipeline is **crop → resize →
+blur/sharpen → watermark → encode**.
+
+### Resize modes
+
+`mode` chooses how the `w`×`h` box is filled. Only `contain` returns something
+other than exactly that box.
+
+| `mode` | Output | Behaviour |
+|---|---|---|
+| `contain` (default) | scaled size | Fit inside the box, aspect preserved, no padding or cropping. |
+| `stretch` | exactly `w`×`h` | Scale to the box, ignoring the source's aspect ratio. |
+| `fit` | exactly `w`×`h` | Fit inside, then letterbox with `background` (`#rrggbb` or `#rrggbbaa`). |
+| `fill` | exactly `w`×`h` | Scale to cover, then crop the overflow at `gravity`. |
+| `cover-blur` | exactly `w`×`h` | Letterbox, bars filled with a blurred, box-covering copy of the image. |
+| `cover-mirror` | exactly `w`×`h` | Letterbox, bars filled by mirroring the image's own edges. |
+| `retarget` | exactly `w`×`h` | Seam carving (`transforms-retarget` feature); see below. |
+
+Every mode but `contain` needs **both** `w` and `h` — they are defined by the
+box they fill, and inventing the missing side would render something the caller
+did not ask for. A bucket may set `default_resize_mode`; an explicit `mode=`
+still wins. An unknown mode is a `400`, never a fallback to the default.
+
+`gravity` is a compass point (`north`, `south-east`, …), `center`, or `smart`.
+`smart` is resolved from the pixels: the window carrying the most edge energy,
+searched on a fixed 128 px grid so it costs the same for any source size.
+
+### Crop, effects and watermarks
+
+- `crop=x,y,w,h` takes an exact rectangle; `crop=w:h` takes the largest rectangle of that aspect
+  ratio, positioned by `gravity`. A rectangle outside the source is refused, never clamped.
+- `blur=` and `sharpen=` are Gaussian radii.
+- `watermark=<key>` composites another object **from the same bucket**, through the same read gate
+  — a watermark the caller cannot read answers exactly like a missing object.
+- `watermark_text=` rasterises text using the bucket's `watermark_font`. FraiseQL vendors no
+  typeface: point `watermark_font` at a font file and it is read and parsed at boot, so a missing
+  or unreadable font refuses to start. A bucket without one refuses `watermark_text` by name.
+- `watermark_scale` (fraction of canvas width, default `0.25`), `watermark_color`,
+  `watermark_size`, `watermark_inset` tune the mark.
+
+### Quality
+
+`quality` (1–100) reaches the encoder for **`jpeg` and `avif`**. PNG is lossless
+by definition and this server's WebP encoder writes lossless WebP, so a quality
+on either could never take effect: it is refused by name at request time, and a
+preset that pairs them refuses at boot. Ask for `jpeg` or `avif`, or drop the
+parameter.
+
+### Presets
 
 ```toml
 [storage.media]
 backend = "s3"
+default_resize_mode = "fill"
 transform_presets = [
-    { name = "thumb", width = 200, format = "webp", quality = 80 },
+    { name = "thumb", width = 200, height = 200, resize_mode = "fill", gravity = "smart", format = "jpeg", quality = 80 },
 ]
 ```
 
-Explicit query parameters override a named preset's fields. Declaring
-`transform_presets` in a binary built *without* `storage-transforms` is a
-startup error, not a silently absent endpoint.
+Explicit query parameters override a named preset's fields. Every preset
+spelling — mode, gravity, the quality/format pairing — is validated at boot.
+Declaring `transform_presets`, `default_resize_mode` or `watermark_font` in a
+binary built *without* `storage-transforms` is a startup error, not a silently
+absent endpoint.
 
 **Resource bounds.** Source and requested dimensions are both capped at 12 000
 pixels per side, and the decoder runs under matching hard limits. A
 decompression bomb — a small file whose header declares an enormous image — is
 refused by the dimension guard before any allocation, and returns `400`, as do
-non-image objects, malformed bytes, and absurd target sizes. A hostile upload
-cannot exhaust the server through this endpoint.
+non-image objects, malformed bytes, and absurd target sizes.
 
-Rendered output is generated per request and served with an `ETag` and a
-bucket-appropriate `Cache-Control` (`private, no-store` for private buckets),
-so HTTP caches do the caching.
+Each operation carries its own bound, because a size cap does not bound them
+all:
+
+- **Blur and sharpen** cost `pixels × radius`, so the budget is on that product, not on the radius
+  alone. A 500×500 render may ask for a large radius; a 4000×4000 one may not ask for the same
+  one, and is told the maximum for its size.
+- **Watermarks** cannot be scaled past the canvas they are drawn on.
+- **Text** is capped in both type size and character count, since the raster is allocated from
+  them.
+- **`retarget`** is the one operation whose cost is not bounded by its output — seam carving is
+  `O(pixels × seams)`. It is bounded three ways: an aspect-delta threshold past which the request
+  renders as `fill` instead, a working-resolution cap so the seam count is a constant, and a
+  wall-clock budget. Falling back is a different but valid rendering, never an error and never a
+  half-carved image.
+
+A hostile upload, or a hostile query string, cannot exhaust the server through
+this endpoint.
+
+**Caching.** A render is a pure function of the source bytes and the resolved
+transform, so results are cached under a content-addressed key covering both.
+Invalidation is therefore structural: a re-uploaded source hashes differently
+and reads a different key, so a stale entry is unreachable rather than merely
+marked. Entries live under the reserved `.fraiseql-transforms/` prefix, a name
+no bucket may take. Responses still carry an `ETag` and a bucket-appropriate
+`Cache-Control` (`private, no-store` for private buckets) so HTTP caches do
+their share.
+
+Every render logs the resolved transform and whether it was a cache hit —
+the same canonical string the cache key is derived from, so the audit trail and
+the cache cannot disagree about what was served.
 
 Note that **stored objects are still served as uploaded**: rendering
 re-encodes through the `image` crate and so drops EXIF (including GPS) as a

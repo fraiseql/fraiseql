@@ -1,11 +1,16 @@
-//! Image transformation engine for resizing and format conversion.
+//! Image transformation engine: crop, resize, effects, watermark, encode.
 
 use std::io::Cursor;
 
 use fraiseql_error::{FraiseQLError, Result};
-use image::ImageReader;
+use image::{DynamicImage, ImageEncoder, ImageReader, Rgba};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
+use super::ops::{
+    CropSpec, Gravity, ResizeMode, Watermark, apply_blur, apply_crop, apply_sharpen,
+    apply_watermark, contain_size, resize_into,
+};
 
 /// Output format for transformed images
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,19 +50,117 @@ impl OutputFormat {
             Self::Bmp => None, // Unsupported
         }
     }
+
+    /// Whether this format's encoder has a quality dial at all.
+    ///
+    /// PNG is lossless by definition, and the `image` crate's `WebP` encoder
+    /// writes lossless `WebP` only. A `quality` accepted for either would be a
+    /// parameter that does nothing — the shape #973 was filed to remove, not to
+    /// add more of — so the render route refuses the combination by name.
+    #[must_use]
+    pub const fn honours_quality(self) -> bool {
+        matches!(self, Self::Jpeg | Self::Avif)
+    }
+
+    /// The format's canonical name, as it appears in a URL and in the render
+    /// audit record.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Webp => "webp",
+            Self::Jpeg => "jpeg",
+            Self::Png => "png",
+            Self::Avif => "avif",
+            Self::Bmp => "bmp",
+        }
+    }
 }
 
 /// Parameters for image transformation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TransformParams {
     /// Target width in pixels (optional)
-    pub width:   Option<u32>,
+    pub width:       Option<u32>,
     /// Target height in pixels (optional)
-    pub height:  Option<u32>,
+    pub height:      Option<u32>,
     /// Output format (optional, defaults to input format)
-    pub format:  Option<OutputFormat>,
+    pub format:      Option<OutputFormat>,
     /// Quality for lossy formats (1-100, default 80)
-    pub quality: Option<u8>,
+    pub quality:     Option<u8>,
+    /// How the resize fills the requested box (defaults to
+    /// [`ResizeMode::Contain`], or the bucket's `default_resize_mode`)
+    pub resize_mode: Option<ResizeMode>,
+    /// Where a crop or a `fill` keeps its content
+    pub gravity:     Option<Gravity>,
+    /// Letterbox colour for [`ResizeMode::Fit`]
+    pub background:  Option<Rgba<u8>>,
+    /// An explicit crop, applied before the resize
+    pub crop:        Option<CropSpec>,
+    /// Gaussian blur sigma
+    pub blur:        Option<f32>,
+    /// Unsharp-mask sigma
+    pub sharpen:     Option<f32>,
+    /// A watermark composited over the result
+    pub watermark:   Option<Watermark>,
+}
+
+impl TransformParams {
+    /// Whether any operation at all was requested.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.width.is_none()
+            && self.height.is_none()
+            && self.format.is_none()
+            && self.quality.is_none()
+            && self.crop.is_none()
+            && self.blur.is_none()
+            && self.sharpen.is_none()
+            && self.watermark.is_none()
+    }
+
+    /// A canonical, stable description of the resolved transform.
+    ///
+    /// It is the render audit record's `transform` field and the material the
+    /// cache key is derived from, so the two can never disagree about what was
+    /// rendered: anything that changes the output changes this string.
+    #[must_use]
+    pub fn describe(&self) -> String {
+        let mut parts = Vec::new();
+        if let Some(w) = self.width {
+            parts.push(format!("w={w}"));
+        }
+        if let Some(h) = self.height {
+            parts.push(format!("h={h}"));
+        }
+        parts.push(format!("mode={}", self.resize_mode.unwrap_or_default().as_str()));
+        if let Some(g) = self.gravity {
+            parts.push(format!("gravity={}", g.as_str()));
+        }
+        if let Some(bg) = self.background {
+            parts.push(format!("bg={:02x}{:02x}{:02x}{:02x}", bg.0[0], bg.0[1], bg.0[2], bg.0[3]));
+        }
+        match self.crop {
+            Some(CropSpec::BBox { x, y, w, h }) => parts.push(format!("crop={x},{y},{w},{h}")),
+            Some(CropSpec::Aspect { w, h }) => parts.push(format!("crop={w}:{h}")),
+            None => {},
+        }
+        if let Some(b) = self.blur {
+            parts.push(format!("blur={b}"));
+        }
+        if let Some(s) = self.sharpen {
+            parts.push(format!("sharpen={s}"));
+        }
+        if let Some(ref mark) = self.watermark {
+            parts.push(mark.describe());
+        }
+        if let Some(f) = self.format {
+            parts.push(format!("format={}", f.as_str()));
+        }
+        if let Some(q) = self.quality {
+            parts.push(format!("quality={q}"));
+        }
+        parts.join(";")
+    }
 }
 
 /// Output from image transformation
@@ -87,282 +190,289 @@ pub struct TransformOutput {
 /// validation error before any allocation (#370).
 const MAX_DIMENSION: u32 = 12_000;
 
+/// Encoder quality used when a lossy format is chosen and none was requested.
+const DEFAULT_QUALITY: u8 = 80;
+
+/// AVIF encoder speed (0 slowest/best, 10 fastest). 6 keeps a render inside a
+/// request's latency budget; the quality dial is the one operators asked for.
+const AVIF_SPEED: u8 = 6;
+
+fn invalid(message: impl Into<String>, path: &str) -> FraiseQLError {
+    FraiseQLError::Validation {
+        message: message.into(),
+        path:    Some(path.to_string()),
+    }
+}
+
 /// Image transformation engine
 pub struct ImageTransformer;
 
 impl ImageTransformer {
-    /// Transform an image according to the provided parameters
+    /// Transform an image according to the provided parameters.
     ///
-    /// # Arguments
-    /// - `input`: Raw image bytes
-    /// - `params`: Transform parameters (resize, format, quality)
-    ///
-    /// # Returns
-    /// - `Ok(TransformOutput)` on success
-    /// - `Err(FraiseQLError)` if the input is not a valid image, format is unsupported, etc.
+    /// The pipeline is crop → resize → blur/sharpen → watermark → encode. Every
+    /// stage is bounded before it allocates (#370, extended by #973): the
+    /// source and requested dimensions are capped, a crop must lie inside the
+    /// source, blur and sharpen radii are capped, and a watermark cannot be
+    /// scaled past the canvas it is drawn on.
     ///
     /// # Errors
     /// - `FraiseQLError::Validation` if dimensions are invalid or format is unsupported
     /// - `FraiseQLError::Validation` if input is not a valid image
+    /// - `FraiseQLError::Validation` if a parameter exceeds its bound
     pub fn transform(input: &[u8], params: &TransformParams) -> Result<TransformOutput> {
-        // Validate dimensions
-        if let Some(w) = params.width {
-            if w == 0 {
-                return Err(FraiseQLError::Validation {
-                    message: "Width must be greater than 0".to_string(),
-                    path:    Some("width".to_string()),
-                });
-            }
-        }
+        Self::validate(params)?;
+        let img = Self::decode(input)?;
 
-        if let Some(h) = params.height {
-            if h == 0 {
-                return Err(FraiseQLError::Validation {
-                    message: "Height must be greater than 0".to_string(),
-                    path:    Some("height".to_string()),
-                });
-            }
-        }
-
-        // #370: a hostile *request* is as dangerous as a hostile image — an
-        // absurd target size allocates on resize regardless of the source.
-        if params.width.unwrap_or(0) > MAX_DIMENSION || params.height.unwrap_or(0) > MAX_DIMENSION {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Requested dimensions exceed the maximum of {MAX_DIMENSION} pixels per side"
-                ),
-                path:    Some("width".to_string()),
-            });
-        }
-
-        // Check if output format is supported
-        if let Some(fmt) = params.format {
-            if fmt == OutputFormat::Bmp {
-                return Err(FraiseQLError::Validation {
-                    message: "BMP format is not supported for transforms".to_string(),
-                    path:    Some("format".to_string()),
-                });
-            }
-            if fmt.as_image_format().is_none() {
-                return Err(FraiseQLError::Validation {
-                    message: format!("Format {:?} is not supported", fmt),
-                    path:    Some("format".to_string()),
-                });
-            }
-        }
-
-        // Decode the input image
-        let cursor = Cursor::new(input);
-        let mut reader = ImageReader::new(cursor);
-
-        // Try to infer format if not explicitly set
-        if reader.format().is_none() {
-            reader = reader.with_guessed_format().map_err(|_| FraiseQLError::Validation {
-                message: "Could not determine image format".to_string(),
-                path:    Some("input".to_string()),
-            })?;
-        }
-
-        let format = reader.format();
-
-        // #370: refuse decompression bombs BEFORE decoding. The header's
-        // declared dimensions are read without touching pixel data, so a
-        // 100000×100000 declaration (a ~40 GB decode if believed) costs a
-        // header parse and a named refusal, never an allocation.
-        let mut probe = ImageReader::new(Cursor::new(input));
-        if probe.format().is_none() {
-            probe = probe.with_guessed_format().map_err(|_| FraiseQLError::Validation {
-                message: "Could not determine image format".to_string(),
-                path:    Some("input".to_string()),
-            })?;
-        }
-        let (src_w, src_h) = probe.into_dimensions().map_err(|_| FraiseQLError::Validation {
-            message: "Failed to decode image".to_string(),
-            path:    Some("input".to_string()),
-        })?;
-        if src_w > MAX_DIMENSION || src_h > MAX_DIMENSION {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Image dimensions ({src_w}x{src_h}) exceed the maximum of {MAX_DIMENSION} \
-                     pixels per side"
-                ),
-                path:    Some("input".to_string()),
-            });
-        }
-
-        // Belt and braces for headers that lie about their dimensions: the
-        // decoder itself runs under hard limits, so even a format whose header
-        // parse and pixel stream disagree cannot exhaust the process.
-        let mut limits = image::Limits::default();
-        limits.max_image_width = Some(MAX_DIMENSION);
-        limits.max_image_height = Some(MAX_DIMENSION);
-        reader.limits(limits);
-
-        let img = reader.decode().map_err(|e| match e {
-            image::ImageError::Limits(_) => FraiseQLError::Validation {
-                message: format!(
-                    "Image dimensions exceed the maximum of {MAX_DIMENSION} pixels per side"
-                ),
-                path:    Some("input".to_string()),
-            },
-            _ => FraiseQLError::Validation {
-                message: "Failed to decode image".to_string(),
-                path:    Some("input".to_string()),
-            },
-        })?;
-
-        // Calculate output dimensions
-        let (output_width, output_height) =
-            Self::calculate_dimensions(img.width(), img.height(), params.width, params.height)?;
-
-        // Resize if needed
-        let resized = if params.width.is_some() || params.height.is_some() {
-            img.resize_exact(output_width, output_height, image::imageops::FilterType::Lanczos3)
-        } else {
-            img
+        let cropped = match params.crop {
+            Some(spec) => apply_crop(&img, spec, params.gravity.unwrap_or_default())?,
+            None => img,
         };
 
-        // Determine output format
-        let output_format = if let Some(fmt) = params.format {
-            fmt
-        } else {
-            // Infer from input
-            Self::infer_format_from_image_format(format).unwrap_or(OutputFormat::Jpeg)
+        let mode = params.resize_mode.unwrap_or_default();
+        let resized = match (params.width, params.height) {
+            (None, None) => cropped,
+            (Some(w), Some(h)) => resize_into(
+                &cropped,
+                w,
+                h,
+                mode,
+                params.gravity.unwrap_or_default(),
+                params.background.unwrap_or(Rgba([0, 0, 0, 255])),
+            )?,
+            (w, h) => {
+                // One axis given. Only `contain` has a meaning here: every
+                // other mode is defined by the box it fills, and inventing the
+                // missing side would silently render something the caller did
+                // not ask for.
+                if mode.fills_the_box() {
+                    return Err(invalid(
+                        format!(
+                            "resize mode '{}' needs both w and h; only 'contain' can derive the \
+                             missing side",
+                            mode.as_str()
+                        ),
+                        "mode",
+                    ));
+                }
+                let (cw, ch) = Self::single_axis_size(&cropped, w, h)?;
+                cropped.resize_exact(cw, ch, super::ops::FILTER)
+            },
         };
 
-        // Encode to output format
-        let mut output_bytes = Vec::new();
+        let blurred = match params.blur {
+            Some(sigma) => apply_blur(&resized, sigma)?,
+            None => resized,
+        };
+        let sharpened = match params.sharpen {
+            Some(sigma) => apply_sharpen(&blurred, sigma)?,
+            None => blurred,
+        };
+        let marked = match params.watermark {
+            Some(ref mark) => apply_watermark(&sharpened, mark)?,
+            None => sharpened,
+        };
 
-        match output_format {
-            OutputFormat::Webp => {
-                resized
-                    .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::WebP)
-                    .map_err(|_| FraiseQLError::Validation {
-                        message: "Failed to encode WebP".to_string(),
-                        path:    Some("format".to_string()),
-                    })?;
-            },
-            OutputFormat::Jpeg => {
-                resized
-                    .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::Jpeg)
-                    .map_err(|_| FraiseQLError::Validation {
-                        message: "Failed to encode JPEG".to_string(),
-                        path:    Some("format".to_string()),
-                    })?;
-            },
-            OutputFormat::Png => {
-                resized
-                    .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::Png)
-                    .map_err(|_| FraiseQLError::Validation {
-                        message: "Failed to encode PNG".to_string(),
-                        path:    Some("format".to_string()),
-                    })?;
-            },
-            OutputFormat::Avif => {
-                resized
-                    .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::Avif)
-                    .map_err(|_| FraiseQLError::Validation {
-                        message: "Failed to encode AVIF".to_string(),
-                        path:    Some("format".to_string()),
-                    })?;
-            },
-            OutputFormat::Bmp => {
-                // Defense in depth: BMP is rejected by the validation block
-                // above. If we somehow reach here, return an error rather than
-                // panic so production cannot be crashed by a missed validation
-                // path.
-                return Err(FraiseQLError::Validation {
-                    message: "BMP format is not supported for transforms".to_string(),
-                    path:    Some("format".to_string()),
-                });
-            },
+        let output_format = params
+            .format
+            .unwrap_or_else(|| Self::infer_format(input).unwrap_or(OutputFormat::Jpeg));
+        if params.quality.is_some() && !output_format.honours_quality() {
+            return Err(invalid(
+                format!(
+                    "quality does not apply to {}: it is encoded losslessly. Ask for jpeg or \
+                     avif, or drop the quality parameter",
+                    output_format.as_str()
+                ),
+                "quality",
+            ));
         }
 
-        // Compute ETag from output bytes (SHA256 hash)
+        let (width, height) = (marked.width(), marked.height());
+        let body = Self::encode(&marked, output_format, params.quality)?;
         let etag = {
             let mut hasher = Sha256::new();
-            hasher.update(&output_bytes);
+            hasher.update(&body);
             format!("\"{}\"", hex::encode(hasher.finalize()))
         };
 
         Ok(TransformOutput {
-            body:          output_bytes,
-            content_type:  output_format.mime_type().to_string(),
-            width:         output_width,
-            height:        output_height,
-            etag:          Some(etag),
+            body,
+            content_type: output_format.mime_type().to_string(),
+            width,
+            height,
+            etag: Some(etag),
             // Cache transformed images for 30 days (they're deterministic based on source +
             // params)
             cache_control: Some("public, max-age=2592000, immutable".to_string()),
         })
     }
 
-    /// Calculate output dimensions preserving aspect ratio.
-    // Reason: image dimensions are u32 but always ≤ ~32k in practice (max texture size),
-    // so u32→f32 precision loss and f32→u32 truncation/sign loss are bounded; zero-result
-    // is checked and rejected at the end of the function.
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss
-    )]
-    fn calculate_dimensions(
-        orig_width: u32,
-        orig_height: u32,
-        target_width: Option<u32>,
-        target_height: Option<u32>,
-    ) -> Result<(u32, u32)> {
-        let (width, height) = match (target_width, target_height) {
-            (Some(w), Some(h)) => {
-                // Both specified: fit within bounds preserving aspect ratio
-                let aspect = orig_width as f32 / orig_height as f32;
-                let target_aspect = w as f32 / h as f32;
-
-                if aspect > target_aspect {
-                    // Original is wider, scale by width
-                    (w, (w as f32 / aspect) as u32)
-                } else {
-                    // Original is taller, scale by height
-                    ((h as f32 * aspect) as u32, h)
+    /// Refuse a request whose numbers are out of bounds, before any decode.
+    fn validate(params: &TransformParams) -> Result<()> {
+        for (value, name) in [(params.width, "width"), (params.height, "height")] {
+            if let Some(v) = value {
+                if v == 0 {
+                    return Err(invalid(format!("{name} must be greater than 0"), name));
                 }
-            },
-            (Some(w), None) => {
-                // Only width specified, calculate height
-                let h = (w as f32 * orig_height as f32 / orig_width as f32) as u32;
-                (w, h)
-            },
-            (None, Some(h)) => {
-                // Only height specified, calculate width
-                let w = (h as f32 * orig_width as f32 / orig_height as f32) as u32;
-                (w, h)
-            },
-            (None, None) => {
-                // No dimensions specified, use original
-                (orig_width, orig_height)
-            },
-        };
-
-        if width == 0 || height == 0 {
-            return Err(FraiseQLError::Validation {
-                message: "Calculated dimensions would be zero".to_string(),
-                path:    Some("dimensions".to_string()),
-            });
+                // #370: a hostile *request* is as dangerous as a hostile image
+                // — an absurd target size allocates on resize regardless of the
+                // source.
+                if v > MAX_DIMENSION {
+                    return Err(invalid(
+                        format!(
+                            "Requested dimensions exceed the maximum of {MAX_DIMENSION} pixels \
+                             per side"
+                        ),
+                        "width",
+                    ));
+                }
+            }
         }
-
-        Ok((width, height))
+        if let Some(q) = params.quality {
+            if q == 0 || q > 100 {
+                return Err(invalid("quality must be between 1 and 100", "quality"));
+            }
+        }
+        if let Some(fmt) = params.format {
+            if fmt == OutputFormat::Bmp || fmt.as_image_format().is_none() {
+                return Err(invalid(
+                    "BMP format is not supported for transforms".to_string(),
+                    "format",
+                ));
+            }
+        }
+        Ok(())
     }
 
-    /// Infer output format from the decoded image format
-    const fn infer_format_from_image_format(
-        format: Option<image::ImageFormat>,
-    ) -> Option<OutputFormat> {
-        match format {
-            Some(image::ImageFormat::WebP) => Some(OutputFormat::Webp),
-            Some(image::ImageFormat::Jpeg) => Some(OutputFormat::Jpeg),
-            Some(image::ImageFormat::Png) => Some(OutputFormat::Png),
-            Some(image::ImageFormat::Avif) => Some(OutputFormat::Avif),
+    /// Decode under hard limits, refusing decompression bombs from the header.
+    fn decode(input: &[u8]) -> Result<DynamicImage> {
+        // #370: refuse decompression bombs BEFORE decoding. The header's
+        // declared dimensions are read without touching pixel data, so a
+        // 100000×100000 declaration (a ~40 GB decode if believed) costs a
+        // header parse and a named refusal, never an allocation.
+        let (src_w, src_h) = Self::reader(input)?
+            .into_dimensions()
+            .map_err(|_| invalid("Failed to decode image".to_string(), "input"))?;
+        if src_w > MAX_DIMENSION || src_h > MAX_DIMENSION {
+            return Err(invalid(
+                format!(
+                    "Image dimensions ({src_w}x{src_h}) exceed the maximum of {MAX_DIMENSION} \
+                     pixels per side"
+                ),
+                "input",
+            ));
+        }
+
+        // Belt and braces for headers that lie about their dimensions: the
+        // decoder itself runs under hard limits, so even a format whose header
+        // parse and pixel stream disagree cannot exhaust the process.
+        let mut reader = Self::reader(input)?;
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(MAX_DIMENSION);
+        limits.max_image_height = Some(MAX_DIMENSION);
+        reader.limits(limits);
+
+        reader.decode().map_err(|e| match e {
+            image::ImageError::Limits(_) => invalid(
+                format!("Image dimensions exceed the maximum of {MAX_DIMENSION} pixels per side"),
+                "input",
+            ),
+            _ => invalid("Failed to decode image".to_string(), "input"),
+        })
+    }
+
+    /// A format-resolved reader over `input`.
+    fn reader(input: &[u8]) -> Result<ImageReader<Cursor<&[u8]>>> {
+        let mut reader = ImageReader::new(Cursor::new(input));
+        if reader.format().is_none() {
+            reader = reader
+                .with_guessed_format()
+                .map_err(|_| invalid("Could not determine image format".to_string(), "input"))?;
+        }
+        Ok(reader)
+    }
+
+    /// Decode just enough of `input` to name its format.
+    fn infer_format(input: &[u8]) -> Option<OutputFormat> {
+        match Self::reader(input).ok()?.format()? {
+            image::ImageFormat::WebP => Some(OutputFormat::Webp),
+            image::ImageFormat::Jpeg => Some(OutputFormat::Jpeg),
+            image::ImageFormat::Png => Some(OutputFormat::Png),
+            image::ImageFormat::Avif => Some(OutputFormat::Avif),
             _ => None,
         }
+    }
+
+    /// Derive the missing side of a `contain` resize from the one that was given.
+    fn single_axis_size(
+        img: &DynamicImage,
+        width: Option<u32>,
+        height: Option<u32>,
+    ) -> Result<(u32, u32)> {
+        let (sw, sh) = (img.width(), img.height());
+        match (width, height) {
+            (Some(w), None) => contain_size(sw, sh, w, MAX_DIMENSION),
+            (None, Some(h)) => contain_size(sw, sh, MAX_DIMENSION, h),
+            _ => Ok((sw, sh)),
+        }
+    }
+
+    /// Encode to `format`, honouring `quality` where the encoder has the dial.
+    fn encode(img: &DynamicImage, format: OutputFormat, quality: Option<u8>) -> Result<Vec<u8>> {
+        let mut out = Vec::new();
+        let fail = |what: &str| invalid(format!("Failed to encode {what}"), "format");
+        match format {
+            OutputFormat::Jpeg => {
+                // JPEG has no alpha channel; a padded or watermarked canvas is
+                // RGBA, so flatten before handing it to the encoder rather than
+                // letting it refuse the colour type.
+                let rgb = img.to_rgb8();
+                image::codecs::jpeg::JpegEncoder::new_with_quality(
+                    &mut Cursor::new(&mut out),
+                    quality.unwrap_or(DEFAULT_QUALITY),
+                )
+                .write_image(
+                    rgb.as_raw(),
+                    rgb.width(),
+                    rgb.height(),
+                    image::ExtendedColorType::Rgb8,
+                )
+                .map_err(|_| fail("JPEG"))?;
+            },
+            OutputFormat::Avif => {
+                let rgba = img.to_rgba8();
+                image::codecs::avif::AvifEncoder::new_with_speed_quality(
+                    &mut out,
+                    AVIF_SPEED,
+                    quality.unwrap_or(DEFAULT_QUALITY),
+                )
+                .write_image(
+                    rgba.as_raw(),
+                    rgba.width(),
+                    rgba.height(),
+                    image::ExtendedColorType::Rgba8,
+                )
+                .map_err(|_| fail("AVIF"))?;
+            },
+            OutputFormat::Webp => {
+                img.write_to(&mut Cursor::new(&mut out), image::ImageFormat::WebP)
+                    .map_err(|_| fail("WebP"))?;
+            },
+            OutputFormat::Png => {
+                img.write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png)
+                    .map_err(|_| fail("PNG"))?;
+            },
+            OutputFormat::Bmp => {
+                // Defense in depth: BMP is rejected by `validate`. If we somehow
+                // reach here, return an error rather than panic so production
+                // cannot be crashed by a missed validation path.
+                return Err(invalid(
+                    "BMP format is not supported for transforms".to_string(),
+                    "format",
+                ));
+            },
+        }
+        Ok(out)
     }
 }
 
@@ -406,6 +516,9 @@ impl ImageTransformer {
             height: preset.height,
             format,
             quality: preset.quality,
+            resize_mode: preset.resize_mode.as_deref().and_then(ResizeMode::parse),
+            gravity: preset.gravity.as_deref().and_then(Gravity::parse),
+            ..TransformParams::default()
         })
     }
 }

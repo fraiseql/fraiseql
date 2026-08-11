@@ -12,6 +12,8 @@
 //! re-encoding through the `image` crate drops source metadata (EXIF, GPS) by
 //! construction.
 
+use std::sync::Arc;
+
 use axum::{
     Extension,
     extract::{Path, Query, State},
@@ -24,21 +26,48 @@ use super::{
     StorageState, StorageUser, backend_object_key, error_response, object_not_visible,
     reject_unsafe_key, storage_error_response,
 };
-use crate::transforms::{ImageTransformer, OutputFormat, TransformParams};
+use crate::transforms::{
+    CropSpec, Gravity, ImageTransformer, OutputFormat, ResizeMode, TransformCache, TransformParams,
+    Watermark, parse_colour,
+};
 
 /// Query parameters for the render endpoint.
 #[derive(Debug, Deserialize)]
 pub(super) struct RenderQuery {
     /// Target width in pixels.
-    pub w:       Option<u32>,
+    pub w:               Option<u32>,
     /// Target height in pixels.
-    pub h:       Option<u32>,
+    pub h:               Option<u32>,
     /// Output format: `webp` | `jpeg` | `png` | `avif`.
-    pub format:  Option<String>,
+    pub format:          Option<String>,
     /// Encoder quality (1–100) for lossy formats.
-    pub quality: Option<u8>,
+    pub quality:         Option<u8>,
     /// A named preset from the bucket's `transform_presets`.
-    pub preset:  Option<String>,
+    pub preset:          Option<String>,
+    /// How the resize fills the `w`×`h` box (#973).
+    pub mode:            Option<String>,
+    /// Where a `fill` keeps its content, or a crop is taken from.
+    pub gravity:         Option<String>,
+    /// Letterbox colour for `mode=fit`, as `#rrggbb` or `#rrggbbaa`.
+    pub background:      Option<String>,
+    /// An explicit crop: `x,y,w,h` or an aspect ratio `w:h`.
+    pub crop:            Option<String>,
+    /// Gaussian blur sigma.
+    pub blur:            Option<f32>,
+    /// Unsharp-mask sigma.
+    pub sharpen:         Option<f32>,
+    /// Key of a stored object in the same bucket to composite as a watermark.
+    pub watermark:       Option<String>,
+    /// Text to rasterise as a watermark, using the bucket's `watermark_font`.
+    pub watermark_text:  Option<String>,
+    /// Type size for `watermark_text`, in pixels.
+    pub watermark_size:  Option<f32>,
+    /// Watermark colour, as `#rrggbb` or `#rrggbbaa`.
+    pub watermark_color: Option<String>,
+    /// Watermark width as a fraction of the canvas, `0` < s ≤ `1`.
+    pub watermark_scale: Option<f32>,
+    /// Watermark inset from the canvas edge, in pixels.
+    pub watermark_inset: Option<u32>,
 }
 
 /// Parse a client-supplied format name. Unknown names are a 400, not a
@@ -105,6 +134,105 @@ pub(super) fn negotiate_format(accept: Option<&str>) -> Option<OutputFormat> {
     best.map(|(_, _, format)| format)
 }
 
+/// Turn a transform-validation error into the render route's `400`.
+fn validation_response(error: &fraiseql_error::FraiseQLError) -> Response {
+    match error {
+        fraiseql_error::FraiseQLError::Validation { message, .. } => {
+            error_response(StatusCode::BAD_REQUEST, "transform_rejected", message)
+        },
+        other => storage_error_response(other),
+    }
+}
+
+/// Resolve the requested watermark into pixels.
+///
+/// A watermark asset is a stored object, so it goes through **the same read
+/// gate as any other object in this bucket** — metadata lookup, `can_read`, and
+/// the missing/not-yours collapse. #336's property is that a bucket boundary is
+/// a boundary for every path that reads bytes, and a watermark parameter would
+/// otherwise be a way to read one object through another object's permissions.
+///
+/// Text watermarks need the bucket's `watermark_font`; a bucket without one
+/// refuses by name rather than rendering in some substitute typeface.
+async fn resolve_watermark(
+    state: &StorageState,
+    bucket: &crate::config::BucketConfig,
+    bucket_name: &str,
+    user: &StorageUser,
+    query: &RenderQuery,
+) -> Result<Watermark, Response> {
+    let gravity = query.gravity.as_deref().and_then(Gravity::parse).unwrap_or(Gravity::SouthEast);
+    let opacity = query
+        .watermark_color
+        .as_deref()
+        .map(parse_colour)
+        .transpose()
+        .map_err(|e| validation_response(&e))?
+        .map_or(u8::MAX, |c| c.0[3]);
+
+    let (image, source) = if let Some(ref mark_key) = query.watermark {
+        if let Some(rejection) = reject_unsafe_key(mark_key) {
+            return Err(rejection);
+        }
+        let row = match state.metadata.get(bucket_name, mark_key).await {
+            Ok(Some(row)) => row,
+            Ok(None) => return Err(object_not_visible(bucket, user)),
+            Err(e) => return Err(storage_error_response(&e)),
+        };
+        if !state.rls.can_read(user.user_id.as_deref(), &user.roles, bucket, &row) {
+            tracing::warn!(
+                bucket = %bucket_name,
+                key = %mark_key,
+                user_id = ?user.user_id,
+                "Watermark asset denied: access forbidden"
+            );
+            return Err(object_not_visible(bucket, user));
+        }
+        let bytes = match state.backend.download(&backend_object_key(bucket_name, mark_key)).await {
+            Ok(bytes) => bytes,
+            Err(e) => return Err(storage_error_response(&e)),
+        };
+        let decoded = image::load_from_memory(&bytes).map_err(|_| {
+            error_response(
+                StatusCode::BAD_REQUEST,
+                "transform_rejected",
+                "The watermark object is not a readable image",
+            )
+        })?;
+        (decoded, format!("object:{mark_key}"))
+    } else {
+        let text = query.watermark_text.as_deref().unwrap_or_default();
+        let Some(ref font_bytes) = bucket.watermark_font else {
+            return Err(error_response(
+                StatusCode::BAD_REQUEST,
+                "watermark_font_unset",
+                "This bucket has no watermark_font configured, so text watermarks are not \
+                 available on it",
+            ));
+        };
+        let font = crate::transforms::text::parse_font(font_bytes.as_ref().clone())
+            .map_err(|e| validation_response(&e))?;
+        let colour = query
+            .watermark_color
+            .as_deref()
+            .map_or(Ok(image::Rgba([255, 255, 255, 255])), parse_colour)
+            .map_err(|e| validation_response(&e))?;
+        let size = query.watermark_size.unwrap_or(48.0);
+        let rendered = crate::transforms::text::render_text(&font, text, size, colour)
+            .map_err(|e| validation_response(&e))?;
+        (rendered, format!("text:{text}"))
+    };
+
+    Ok(Watermark {
+        image,
+        gravity,
+        opacity,
+        scale: query.watermark_scale.unwrap_or(0.25),
+        margin: query.watermark_inset.unwrap_or(0),
+        source,
+    })
+}
+
 /// Render an object through the image transform pipeline.
 #[tracing::instrument(skip(state, user, headers, query), fields(bucket = %bucket_name, key = %key))]
 pub(super) async fn render_handler(
@@ -122,13 +250,15 @@ pub(super) async fn render_handler(
     };
     let user = user.map(|Extension(u)| u).unwrap_or_default();
 
-    // Resolve the transform: preset first (when named), explicit params on top.
-    let mut params = TransformParams {
-        width:   None,
-        height:  None,
-        format:  None,
-        quality: None,
-    };
+    // Resolve the transform: bucket default, preset when named, explicit
+    // params on top.
+    let mut params = TransformParams::default();
+    if let Some(ref name) = bucket.default_resize_mode {
+        // Parsed at boot, so an unknown name here is impossible; treating it as
+        // absent rather than panicking keeps a config path from crashing a
+        // render.
+        params.resize_mode = ResizeMode::parse(name);
+    }
     if let Some(ref preset_name) = query.preset {
         let Some(preset) = bucket
             .transform_presets
@@ -144,6 +274,12 @@ pub(super) async fn render_handler(
         params.width = preset.width;
         params.height = preset.height;
         params.quality = preset.quality;
+        if let Some(ref mode) = preset.resize_mode {
+            params.resize_mode = ResizeMode::parse(mode);
+        }
+        if let Some(ref gravity) = preset.gravity {
+            params.gravity = Gravity::parse(gravity);
+        }
         if let Some(ref format) = preset.format {
             let Some(parsed) = parse_format(format) else {
                 return error_response(
@@ -174,20 +310,62 @@ pub(super) async fn render_handler(
         };
         params.format = Some(parsed);
     }
+    // #973's geometry and effect parameters, each refused by name rather than
+    // ignored: a misspelt mode that silently renders something else is exactly
+    // the surprise this vocabulary exists to prevent.
+    if let Some(ref mode) = query.mode {
+        let Some(parsed) = ResizeMode::parse(mode) else {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_mode",
+                "mode must be one of contain, stretch, fit, fill, cover-blur, cover-mirror",
+            );
+        };
+        params.resize_mode = Some(parsed);
+    }
+    if let Some(ref gravity) = query.gravity {
+        let Some(parsed) = Gravity::parse(gravity) else {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_gravity",
+                "gravity must be a compass point, center, or smart",
+            );
+        };
+        params.gravity = Some(parsed);
+    }
+    if let Some(ref background) = query.background {
+        match parse_colour(background) {
+            Ok(colour) => params.background = Some(colour),
+            Err(e) => return validation_response(&e),
+        }
+    }
+    if let Some(ref crop) = query.crop {
+        match CropSpec::parse(crop) {
+            Ok(spec) => params.crop = Some(spec),
+            Err(e) => return validation_response(&e),
+        }
+    }
+    params.blur = query.blur;
+    params.sharpen = query.sharpen;
+
     // No explicit format: honour the client's Accept preference, if any.
     if params.format.is_none() {
         params.format = negotiate_format(headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()));
     }
-    if params.width.is_none()
-        && params.height.is_none()
-        && params.format.is_none()
-        && params.quality.is_none()
-    {
+    let wants_watermark = query.watermark.is_some() || query.watermark_text.is_some();
+    if params.is_empty() && !wants_watermark {
         return error_response(
             StatusCode::BAD_REQUEST,
             "no_transform",
-            "Specify at least one of w, h, format, quality, or preset (or an image Accept \
-             preference)",
+            "Specify at least one of w, h, format, quality, crop, blur, sharpen, watermark, or \
+             preset (or an image Accept preference)",
+        );
+    }
+    if query.watermark.is_some() && query.watermark_text.is_some() {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "ambiguous_watermark",
+            "Specify watermark (a stored object) or watermark_text, not both",
         );
     }
 
@@ -213,15 +391,57 @@ pub(super) async fn render_handler(
         Err(e) => return storage_error_response(&e),
     };
 
-    // A hostile or non-image object is a clean, named 400 (#370): the
-    // transformer's dimension/allocation ceilings did the bounding.
-    let output = match ImageTransformer::transform(&source, &params) {
-        Ok(output) => output,
-        Err(fraiseql_error::FraiseQLError::Validation { message, .. }) => {
-            return error_response(StatusCode::BAD_REQUEST, "transform_rejected", &message);
-        },
-        Err(e) => return storage_error_response(&e),
+    if wants_watermark {
+        match resolve_watermark(&state, bucket, &bucket_name, &user, &query).await {
+            Ok(mark) => params.watermark = Some(mark),
+            Err(response) => return response,
+        }
+    }
+
+    // A render is a pure function of the source bytes and the resolved
+    // transform, so the cache is keyed on a digest of both (#973): a
+    // re-uploaded source hashes differently and reads a different key, which is
+    // the whole invalidation story.
+    let cache_key = TransformCache::build_cache_key(&bucket_name, &key, &source, &params);
+    let cache = TransformCache::new(Arc::clone(&state.backend));
+    let cached = cache.get(&cache_key).await;
+    let hit = cached.is_some();
+
+    let output = if let Some(output) = cached {
+        output
+    } else {
+        // A hostile or non-image object is a clean, named 400 (#370): the
+        // transformer's dimension/allocation ceilings did the bounding.
+        let output = match ImageTransformer::transform(&source, &params) {
+            Ok(output) => output,
+            Err(fraiseql_error::FraiseQLError::Validation { message, .. }) => {
+                return error_response(StatusCode::BAD_REQUEST, "transform_rejected", &message);
+            },
+            Err(e) => return storage_error_response(&e),
+        };
+        if let Err(e) = cache.put(&cache_key, &output).await {
+            // The render succeeded; a cache that cannot be written is a
+            // slower service, not a failed request.
+            tracing::warn!(bucket = %bucket_name, key = %key, error = %e,
+                    "Could not store a rendered image in the transform cache");
+        }
+        output
     };
+
+    // #973: the resolved transform is auditable per request. `params.describe()`
+    // is the same string the cache key is derived from, so the log and the
+    // cache can never disagree about what was rendered.
+    tracing::info!(
+        bucket = %bucket_name,
+        key = %key,
+        user_id = ?user.user_id,
+        transform = %params.describe(),
+        cache = if hit { "hit" } else { "miss" },
+        width = output.width,
+        height = output.height,
+        bytes = output.body.len(),
+        "Storage render served"
+    );
 
     let mut response_headers = HeaderMap::new();
     if let Ok(ct) = output.content_type.parse() {

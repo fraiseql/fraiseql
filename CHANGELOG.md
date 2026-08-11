@@ -1402,8 +1402,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at 256 KiB granularity, so a 300 KiB chunk clears the minimum and is still refused — by
   GCS, mid-upload. The Tus `PATCH` route now answers `400 chunk_not_aligned` up front, in
   the same shape as the existing `chunk_too_small`.
+- **`quality` on a losslessly-encoded render format is now refused (#973).** `quality` was
+  accepted by the render route, threaded into `TransformParams`, and never handed to an
+  encoder — every render used the encoder's default. It now reaches the encoder for `jpeg`
+  and `avif`. PNG is lossless by definition and this server's WebP encoder writes lossless
+  WebP, so a quality on either could never take effect: `?quality=` with those formats
+  answers `400`, and a **preset** that pairs them refuses to boot. A configuration like
+  `{ format = "webp", quality = 80 }` — which did nothing before — must drop the quality or
+  move to `jpeg`/`avif`.
+
+  `TransformParams` gained fields (`resize_mode`, `gravity`, `background`, `crop`, `blur`,
+  `sharpen`, `watermark`) and now derives `Default`, so construct it with
+  `..TransformParams::default()`. `BucketConfig` and `TransformPreset` likewise.
+  `TransformCache` is now built over the configured `StorageBackend` rather than a
+  `LocalBackend`, and its `get_or_transform`/`invalidate` pair is replaced by `get`/`put`
+  over a content-addressed key — see the Added entry for why there is nothing left to
+  invalidate.
+- **A bucket may not be named `.fraiseql-uploads` or `.fraiseql-transforms` (#973).** A
+  bucket name becomes the first segment of every object key, so a bucket carrying one of
+  FraiseQL's own namespaces would put caller objects inside the resumable-upload staging area
+  or the render cache. The server refuses such a section at boot.
 
 ### Added
+
+- **Render transforms: resize modes, crop, effects and watermarks (#973).** #370 shipped the
+  render endpoint with resize, format conversion and the resource bounds that make exposing
+  image transforms safe. The operations themselves were resize-and-re-encode only, with one
+  fixed geometry and no way to ask for another.
+
+  `?mode=` now chooses how the `w`×`h` box is filled — `contain` (the shipped behaviour, and
+  still the default), `stretch`, `fit` (letterbox with `background`), `fill` (cover and crop
+  at `gravity`), `cover-blur` and `cover-mirror` — with a per-bucket `default_resize_mode`.
+  `?gravity=` takes a compass point, `center`, or `smart`, which is resolved from the pixels
+  by picking the window carrying the most edge energy. `?crop=` takes a bounding box or an
+  aspect ratio. `?blur=` and `?sharpen=` are Gaussian radii. `?watermark=` composites another
+  stored object and `?watermark_text=` rasterises text; both are bounded by the canvas.
+  Behind the opt-in `transforms-retarget` feature, `?mode=retarget` seam-carves.
+
+  Every operation is **bounded before it allocates**, which for these meant more than
+  inheriting #370's dimension ceiling. Blur and sharpen cost `pixels × radius`, so the budget
+  is on that product: a flat radius cap left a sigma of 100 over a 12 000 px render costing
+  roughly ninety seconds of CPU, which is the resource-exhaustion shape #370 exists to
+  refuse. A watermark cannot be scaled past its canvas; text is capped in both type size and
+  length; `retarget` — the one operation whose cost is not bounded by its output — is held by
+  an aspect-delta threshold, a working-resolution cap and a wall-clock budget, past any of
+  which it renders as `fill` instead. A crop outside the source is refused rather than
+  clamped, because quietly returning a different rectangle is the wrong answer with a `200`.
+
+  A watermark asset is a stored object, so it goes through **the same read gate as any
+  object in its bucket** (#336): a watermark the caller cannot read answers exactly like a
+  missing one. Text watermarks use the bucket's `watermark_font`, read and parsed at boot —
+  FraiseQL vendors no typeface, so a published crate carries no font licence, and a bucket
+  without one refuses `watermark_text` by name rather than substituting something.
+
+  Every render spelling is validated where it is written: an unknown mode or gravity is a
+  `400` at request time and a startup error in a preset, never a silent fallback.
+
+  Face-aware gravity is **not** part of this: the only pure-Rust detector ships a ~10 MB model
+  binary, and vendoring an ML model and its licence is not something a thumbnail-cropping
+  heuristic earns when entropy-based `smart` gravity covers the same need. Recorded on #973
+  with a follow-up rather than left implicit.
+
+- **Rendered images are cached, and invalidation is structural (#973).** `TransformCache`
+  existed but only its key builder was ever called outside tests: every render recomputed the
+  image, and its `invalidate()` wrote a marker no reader consulted — an invalidation that
+  looked like one and was not. The cache is now wired to the render route and
+  **content-addressed**: the key covers the source bytes and the canonical description of the
+  resolved transform, so a re-uploaded source hashes differently, reads a different key, and a
+  stale entry becomes unreachable rather than merely marked. There is nothing left to
+  invalidate, so `invalidate()` is gone rather than fixed. Entries live under the reserved
+  `.fraiseql-transforms/` prefix.
+
+  Each render also logs the resolved transform and whether it was a cache hit, using the same
+  canonical string the cache key derives from — so the audit record and the cache cannot
+  disagree about what was served.
 
 - **Resumable uploads on GCS and Azure Blob, and a Tus suite driven by a real client
   (#972).** #369 shipped the resumable core with two working backends; GCS and Azure refused

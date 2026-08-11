@@ -68,6 +68,19 @@ fn resolve_from_map(
         ));
     }
 
+    // #973: a bucket name becomes the first segment of every object key, so a
+    // bucket named after one of FraiseQL's own namespaces would place caller
+    // objects inside the upload staging area or the render cache. Refuse it
+    // here, where the name is chosen, rather than guarding every write.
+    if fraiseql_storage::config::RESERVED_BUCKET_NAMES.contains(&name.as_str()) {
+        return Err(format!(
+            "[storage.{name}] uses a bucket name FraiseQL reserves for its own namespaces \
+             ({}); objects would land inside the upload staging area or the render cache. \
+             Rename the bucket.",
+            fraiseql_storage::config::RESERVED_BUCKET_NAMES.join(", ")
+        ));
+    }
+
     let access = parse_access(section.access.as_deref())?;
 
     let backend = StorageConfig {
@@ -89,19 +102,60 @@ fn resolve_from_map(
             "[storage.{name}] declares transform_presets, but this server binary was built              without the `storage-transforms` feature — the render endpoint does not exist, so              the presets could never be served. Rebuild with the feature or remove the key.",
         ));
     }
+    // #973's render keys are the same class: accepted here, servable only by a
+    // binary that carries the render endpoint.
+    #[cfg(not(feature = "storage-transforms"))]
+    for (key, present) in [
+        ("default_resize_mode", section.default_resize_mode.is_some()),
+        ("watermark_font", section.watermark_font.is_some()),
+    ] {
+        if present {
+            return Err(format!(
+                "[storage.{name}] declares {key}, but this server binary was built without the \
+                 `storage-transforms` feature — the render endpoint does not exist, so it could \
+                 never take effect. Rebuild with the feature or remove the key."
+            ));
+        }
+    }
 
-    let transform_presets = section.transform_presets.as_ref().map(|presets| {
-        presets
-            .iter()
-            .map(|p| fraiseql_storage::config::TransformPreset {
-                name:    p.name.clone(),
-                width:   p.width,
-                height:  p.height,
-                format:  p.format.clone(),
-                quality: p.quality,
-            })
-            .collect()
-    });
+    #[cfg(not(feature = "storage-transforms"))]
+    let (transform_presets, watermark_font) = (
+        section.transform_presets.as_ref().map(|_| Vec::new()),
+        Option::<std::sync::Arc<Vec<u8>>>::None,
+    );
+
+    // #973: every preset spelling is validated HERE, at boot. A misspelt mode
+    // or gravity would otherwise render something the operator did not ask for
+    // on every request, and a quality paired with a losslessly-encoded format
+    // is a parameter that can never take effect — the accepted-and-unconsumed
+    // shape rule 2 forbids.
+    #[cfg(feature = "storage-transforms")]
+    let transform_presets = parse_transform_presets(name, section)?;
+
+    #[cfg(feature = "storage-transforms")]
+    if let Some(ref mode) = section.default_resize_mode {
+        if fraiseql_storage::ResizeMode::parse(mode).is_none() {
+            return Err(format!(
+                "[storage.{name}] default_resize_mode = '{mode}' is not one of contain, stretch, \
+                 fit, fill, cover-blur, cover-mirror"
+            ));
+        }
+    }
+
+    // The font is read and parsed at boot for the same reason the policies are:
+    // a watermark that fails at render time fails once per request, forever.
+    #[cfg(feature = "storage-transforms")]
+    let watermark_font = match section.watermark_font {
+        None => None,
+        Some(ref path) => {
+            let bytes = std::fs::read(path).map_err(|e| {
+                format!("[storage.{name}] watermark_font '{path}' could not be read: {e}")
+            })?;
+            fraiseql_storage::transforms::text::parse_font(bytes.clone())
+                .map_err(|e| format!("[storage.{name}] watermark_font '{path}': {e}"))?;
+            Some(std::sync::Arc::new(bytes))
+        },
+    };
 
     // #371: parse policies at BOOT. An unknown method or principal spelling
     // refuses to start rather than becoming a rule that silently denies (or,
@@ -143,6 +197,8 @@ fn resolve_from_map(
         policies,
         serve_inline: section.serve_inline.unwrap_or(false),
         upload_ttl_secs: section.upload_ttl_secs,
+        default_resize_mode: section.default_resize_mode.clone(),
+        watermark_font,
     };
 
     Ok(Some(ResolvedStorage { backend, bucket }))
@@ -210,4 +266,61 @@ fn parse_access(access: Option<&str>) -> Result<BucketAccess, String> {
             "invalid storage access policy {other:?}; expected \"private\" or \"public_read\""
         )),
     }
+}
+
+/// Validate and map a section's `transform_presets` (#973).
+///
+/// Every spelling is checked HERE, at boot: a misspelt mode or gravity would
+/// otherwise render something the operator did not ask for on every request,
+/// and a quality paired with a losslessly-encoded format is a parameter that
+/// can never take effect — the accepted-and-unconsumed shape rule 2 forbids.
+#[cfg(feature = "storage-transforms")]
+fn parse_transform_presets(
+    name: &str,
+    section: &StorageSectionConfig,
+) -> Result<Option<Vec<fraiseql_storage::config::TransformPreset>>, String> {
+    let Some(ref presets) = section.transform_presets else {
+        return Ok(None);
+    };
+    let mut parsed = Vec::with_capacity(presets.len());
+    for preset in presets {
+        if let Some(ref mode) = preset.resize_mode {
+            if fraiseql_storage::ResizeMode::parse(mode).is_none() {
+                return Err(format!(
+                    "[storage.{name}] preset '{}' declares resize_mode = '{mode}', which is not \
+                     one of contain, stretch, fit, fill, cover-blur, cover-mirror",
+                    preset.name
+                ));
+            }
+        }
+        if let Some(ref gravity) = preset.gravity {
+            if fraiseql_storage::Gravity::parse(gravity).is_none() {
+                return Err(format!(
+                    "[storage.{name}] preset '{}' declares gravity = '{gravity}', which is not a \
+                     compass point, center, or smart",
+                    preset.name
+                ));
+            }
+        }
+        if let (Some(quality), Some(format)) = (preset.quality, preset.format.as_deref()) {
+            if matches!(format.to_ascii_lowercase().as_str(), "png" | "webp") {
+                return Err(format!(
+                    "[storage.{name}] preset '{}' declares quality = {quality} with format = \
+                     '{format}', which this server encodes losslessly — the quality could never \
+                     take effect. Use jpeg or avif, or drop the quality.",
+                    preset.name
+                ));
+            }
+        }
+        parsed.push(fraiseql_storage::config::TransformPreset {
+            name:        preset.name.clone(),
+            width:       preset.width,
+            height:      preset.height,
+            format:      preset.format.clone(),
+            quality:     preset.quality,
+            resize_mode: preset.resize_mode.clone(),
+            gravity:     preset.gravity.clone(),
+        });
+    }
+    Ok(Some(parsed))
 }

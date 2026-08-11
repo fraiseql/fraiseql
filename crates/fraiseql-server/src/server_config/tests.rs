@@ -720,18 +720,93 @@ fn resolve_storage_section_maps_upload_ttl_and_transform_presets() {
         backend = "local"
         path = "/tmp/media"
         upload_ttl_secs = 3600
-        transform_presets = [{ name = "thumb", width = 200, format = "webp", quality = 80 }]
+        default_resize_mode = "fill"
+        transform_presets = [{ name = "thumb", width = 200, format = "jpeg", quality = 80, resize_mode = "fit", gravity = "smart" }]
     "#;
     let config: ServerConfig = toml::from_str(toml_str).unwrap();
     let resolved = resolve_storage_section(&config).unwrap().unwrap();
 
     assert_eq!(resolved.bucket.upload_ttl_secs, Some(3600));
+    assert_eq!(resolved.bucket.default_resize_mode.as_deref(), Some("fill"));
     let presets = resolved.bucket.transform_presets.expect("presets reach the bucket config");
     assert_eq!(presets.len(), 1);
     assert_eq!(presets[0].name, "thumb");
     assert_eq!(presets[0].width, Some(200));
-    assert_eq!(presets[0].format.as_deref(), Some("webp"));
+    assert_eq!(presets[0].format.as_deref(), Some("jpeg"));
     assert_eq!(presets[0].quality, Some(80));
+    // #973: the two new preset keys reach the bucket too.
+    assert_eq!(presets[0].resize_mode.as_deref(), Some("fit"));
+    assert_eq!(presets[0].gravity.as_deref(), Some("smart"));
+}
+
+/// #973: every render spelling is validated at BOOT. A misspelt mode or
+/// gravity would otherwise render something the operator did not ask for on
+/// every request, and a quality paired with a losslessly-encoded format is a
+/// parameter that can never take effect.
+#[test]
+#[cfg(feature = "storage-transforms")]
+fn misconfigured_render_keys_refuse_to_boot() {
+    let cases = [
+        (
+            r#"transform_presets = [{ name = "t", width = 8, resize_mode = "fil" }]"#,
+            "resize_mode",
+        ),
+        (
+            r#"transform_presets = [{ name = "t", width = 8, gravity = "northwest" }]"#,
+            "gravity",
+        ),
+        (
+            r#"transform_presets = [{ name = "t", width = 8, format = "webp", quality = 80 }]"#,
+            "losslessly",
+        ),
+        (
+            r#"transform_presets = [{ name = "t", width = 8, format = "png", quality = 80 }]"#,
+            "losslessly",
+        ),
+        (r#"default_resize_mode = "cover""#, "default_resize_mode"),
+        (r#"watermark_font = "/nonexistent/font.ttf""#, "watermark_font"),
+    ];
+    for (line, expected) in cases {
+        let toml_str =
+            format!("[storage.media]\nbackend = \"local\"\npath = \"/tmp/media\"\n{line}\n");
+        let config: ServerConfig = toml::from_str(&toml_str).unwrap();
+        let err =
+            resolve_storage_section(&config).expect_err(&format!("{line} must be a startup error"));
+        assert!(err.contains(expected), "{line}: refusal must name {expected}, got {err}");
+    }
+}
+
+/// #973: a bucket name becomes the first segment of every object key, so a
+/// bucket named after one of FraiseQL's own namespaces would put caller objects
+/// inside the upload staging area or the render cache.
+#[test]
+fn a_reserved_bucket_name_refuses_to_boot() {
+    for reserved in fraiseql_storage::config::RESERVED_BUCKET_NAMES {
+        let toml_str =
+            format!("[storage.\"{reserved}\"]\nbackend = \"local\"\npath = \"/tmp/media\"\n");
+        let config: ServerConfig = toml::from_str(&toml_str).unwrap();
+        let err = resolve_storage_section(&config)
+            .expect_err("a reserved bucket name must be a startup error");
+        assert!(err.contains("reserves"), "{reserved}: {err}");
+    }
+}
+
+/// #973's render keys are the #370 class: accepted by the parser, servable
+/// only by a binary carrying the render endpoint.
+#[test]
+#[cfg(not(feature = "storage-transforms"))]
+fn render_keys_without_the_feature_refuse_to_boot() {
+    for line in [
+        "default_resize_mode = \"fill\"",
+        "watermark_font = \"/tmp/f.ttf\"",
+    ] {
+        let toml_str =
+            format!("[storage.media]\nbackend = \"local\"\npath = \"/tmp/media\"\n{line}\n");
+        let config: ServerConfig = toml::from_str(&toml_str).unwrap();
+        let err = resolve_storage_section(&config)
+            .expect_err(&format!("{line} without the serving feature must be a startup error"));
+        assert!(err.contains("storage-transforms"), "{line}: {err}");
+    }
 }
 
 /// #370: presets configured into a binary that cannot serve them must REFUSE

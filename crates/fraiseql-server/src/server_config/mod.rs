@@ -1039,6 +1039,19 @@ pub struct StorageSectionConfig {
     /// silently absent endpoint.
     #[serde(default)]
     pub transform_presets: Option<Vec<TransformPresetConfig>>,
+
+    /// Resize mode applied to a render that names none (#973). Defaults to
+    /// `contain`, the behaviour the render endpoint shipped with. An unknown
+    /// name is a startup error, not a silently different rendering.
+    #[serde(default)]
+    pub default_resize_mode: Option<String>,
+
+    /// Path to the font file backing text watermarks (#973). Read and parsed
+    /// at boot: a missing or unreadable font refuses to start rather than
+    /// failing on the first render. Buckets without one refuse
+    /// `?watermark_text=` by name.
+    #[serde(default)]
+    pub watermark_font: Option<String>,
 }
 
 /// One permit rule in a `[[storage.<name>.policies]]` list (#371).
@@ -1063,19 +1076,28 @@ pub struct PolicyRuleConfig {
 #[serde(deny_unknown_fields)]
 pub struct TransformPresetConfig {
     /// The preset name used as `?preset=<name>`.
-    pub name:    String,
+    pub name:        String,
     /// Target width in pixels.
     #[serde(default)]
-    pub width:   Option<u32>,
+    pub width:       Option<u32>,
     /// Target height in pixels.
     #[serde(default)]
-    pub height:  Option<u32>,
+    pub height:      Option<u32>,
     /// Output format: `webp` | `jpeg` | `png` | `avif`.
     #[serde(default)]
-    pub format:  Option<String>,
-    /// Encoder quality (1-100) for lossy formats.
+    pub format:      Option<String>,
+    /// Encoder quality (1-100) for lossy formats. Refused at boot for `png`
+    /// and `webp`, which this server encodes losslessly (#973).
     #[serde(default)]
-    pub quality: Option<u8>,
+    pub quality:     Option<u8>,
+    /// How the resize fills the box: `contain` (default) | `stretch` | `fit` |
+    /// `fill` | `cover-blur` | `cover-mirror` (#973).
+    #[serde(default)]
+    pub resize_mode: Option<String>,
+    /// Where a `fill` keeps its content, or a crop is taken from: a compass
+    /// point, `center`, or `smart` (#973).
+    #[serde(default)]
+    pub gravity:     Option<String>,
 }
 
 /// A single `[files.<name>]` configuration section.

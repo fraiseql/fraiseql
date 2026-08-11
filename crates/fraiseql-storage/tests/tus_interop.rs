@@ -87,14 +87,15 @@ async fn harness() -> Option<Harness> {
     buckets.insert(
         LOGICAL_BUCKET.to_string(),
         BucketConfig {
-            name:               LOGICAL_BUCKET.to_string(),
-            max_object_bytes:   Some(MAX_OBJECT_BYTES),
+            name: LOGICAL_BUCKET.to_string(),
+            max_object_bytes: Some(MAX_OBJECT_BYTES),
             allowed_mime_types: None,
-            access:             BucketAccess::Private,
-            transform_presets:  None,
-            serve_inline:       false,
-            policies:           None,
-            upload_ttl_secs:    None,
+            access: BucketAccess::Private,
+            transform_presets: None,
+            serve_inline: false,
+            policies: None,
+            upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
 
@@ -157,7 +158,7 @@ async fn run_tus_client(
     stdout
 }
 
-/// The reference client uploads a file in several PATCHes, and the bytes that
+/// The reference client uploads a file in several `PATCH`es, and the bytes that
 /// land are the bytes it sent.
 #[tokio::test]
 async fn tus_js_client_uploads_in_chunks() {

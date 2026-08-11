@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 #![allow(missing_docs)] // Reason: test functions are self-describing
+#![allow(clippy::indexing_slicing)] // Reason: serde_json Value indexing in assertions; a wrong path fails the test
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -59,6 +60,7 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
             serve_inline: false,
             policies: None,
             upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
 
@@ -212,14 +214,15 @@ async fn test_put_object_exceeding_size_limit_returns_413() {
     buckets.insert(
         "small-bucket".to_string(),
         BucketConfig {
-            name:               "small-bucket".to_string(),
-            max_object_bytes:   Some(64),
+            name: "small-bucket".to_string(),
+            max_object_bytes: Some(64),
             allowed_mime_types: None,
-            access:             BucketAccess::PublicRead,
-            transform_presets:  None,
-            serve_inline:       false,
-            policies:           None,
-            upload_ttl_secs:    None,
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
+            serve_inline: false,
+            policies: None,
+            upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
     let state = StorageState {
@@ -379,14 +382,15 @@ async fn test_serve_inline_bucket_renders_safe_types_but_attaches_dangerous_ones
     buckets.insert(
         "media".to_string(),
         BucketConfig {
-            name:               "media".to_string(),
-            max_object_bytes:   None,
+            name: "media".to_string(),
+            max_object_bytes: None,
             allowed_mime_types: None,
-            access:             BucketAccess::PublicRead,
-            transform_presets:  None,
-            serve_inline:       true,
-            policies:           None,
-            upload_ttl_secs:    None,
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
+            serve_inline: true,
+            policies: None,
+            upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
     state.buckets = Arc::new(buckets);
@@ -547,14 +551,15 @@ fn add_second_bucket(state: &mut StorageState, name: &str) {
     buckets.insert(
         name.to_string(),
         BucketConfig {
-            name:               name.to_string(),
-            max_object_bytes:   Some(1024 * 1024),
+            name: name.to_string(),
+            max_object_bytes: Some(1024 * 1024),
             allowed_mime_types: None,
-            access:             BucketAccess::PublicRead,
-            transform_presets:  None,
-            serve_inline:       false,
-            policies:           None,
-            upload_ttl_secs:    None,
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
+            serve_inline: false,
+            policies: None,
+            upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
     state.buckets = Arc::new(buckets);
@@ -662,6 +667,7 @@ fn bucket_with_limit(name: &str, max_object_bytes: Option<u64>) -> BucketConfig 
         serve_inline: false,
         policies: None,
         upload_ttl_secs: None,
+        ..BucketConfig::default()
     }
 }
 
@@ -690,14 +696,15 @@ async fn test_upload_above_axum_default_but_within_bucket_limit_succeeds() {
     buckets.insert(
         "big".to_string(),
         BucketConfig {
-            name:               "big".to_string(),
-            max_object_bytes:   Some(5 * 1024 * 1024),
+            name: "big".to_string(),
+            max_object_bytes: Some(5 * 1024 * 1024),
             allowed_mime_types: None,
-            access:             BucketAccess::PublicRead,
-            transform_presets:  None,
-            serve_inline:       false,
-            policies:           None,
-            upload_ttl_secs:    None,
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
+            serve_inline: false,
+            policies: None,
+            upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
     state.buckets = Arc::new(buckets);
@@ -729,14 +736,15 @@ async fn test_mime_type_rejection_returns_415() {
     buckets.insert(
         "images-only".to_string(),
         BucketConfig {
-            name:               "images-only".to_string(),
-            max_object_bytes:   None,
+            name: "images-only".to_string(),
+            max_object_bytes: None,
             allowed_mime_types: Some(vec!["image/*".to_string()]),
-            access:             BucketAccess::PublicRead,
-            transform_presets:  None,
-            serve_inline:       false,
-            policies:           None,
-            upload_ttl_secs:    None,
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
+            serve_inline: false,
+            policies: None,
+            upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
     let state = StorageState {
@@ -1770,6 +1778,167 @@ mod render_tests {
         assert_eq!(rendered.width(), 32, "the requested width was applied");
     }
 
+    /// #973: an unknown mode or gravity is a named refusal, never a silent
+    /// fallback to the default — a typo that renders something else is the
+    /// defect this vocabulary exists to prevent.
+    #[tokio::test]
+    async fn render_refuses_an_unknown_mode_or_gravity() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        a.clone().oneshot(png_put_req("docs", "pic.png", &small_png())).await.unwrap();
+
+        for (query, code) in [
+            ("?w=16&h=16&mode=fil", "invalid_mode"),
+            ("?w=16&h=16&mode=", "invalid_mode"),
+            ("?w=16&h=16&gravity=northwest", "invalid_gravity"),
+            ("?w=16&h=16&background=red", "transform_rejected"),
+            ("?crop=1,2,3", "transform_rejected"),
+        ] {
+            let resp = a.clone().oneshot(render_req("docs", "pic.png", query)).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{query} must be refused");
+            let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(json["error"]["code"], code, "{query}");
+        }
+    }
+
+    /// #973: a bucket's `default_resize_mode` applies to a render that names
+    /// none, and an explicit `mode=` still wins.
+    #[tokio::test]
+    async fn render_applies_the_bucket_default_resize_mode() {
+        let (mut state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let mut buckets = (*state.buckets).clone();
+        let bucket = buckets.get_mut("docs").unwrap();
+        bucket.default_resize_mode = Some("fill".to_string());
+        state.buckets = Arc::new(buckets);
+
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        a.clone().oneshot(png_put_req("docs", "pic.png", &small_png())).await.unwrap();
+
+        // The source is 64×48; `contain` into a 32×32 box gives 32×24.
+        let dims = |resp: axum::response::Response| async move {
+            let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+            let img = image::load_from_memory(&body).unwrap();
+            (img.width(), img.height())
+        };
+
+        let resp = a.clone().oneshot(render_req("docs", "pic.png", "?w=32&h=32")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(dims(resp).await, (32, 32), "the bucket default (fill) must apply");
+
+        let resp = a
+            .clone()
+            .oneshot(render_req("docs", "pic.png", "?w=32&h=32&mode=contain"))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(dims(resp).await, (32, 24), "an explicit mode must override the default");
+    }
+
+    /// #336's property extended to #973's watermarks: a watermark asset is a
+    /// stored object, so it goes through the same read gate. Without this, the
+    /// watermark parameter would be a way to read one object through another
+    /// object's permissions.
+    #[tokio::test]
+    async fn render_watermark_asset_goes_through_the_read_gate() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        let b = router_for(state.clone(), "user-b", &["user"]);
+
+        // user-a owns the mark; user-b owns the picture.
+        a.clone().oneshot(png_put_req("docs", "mark.png", &small_png())).await.unwrap();
+        b.clone().oneshot(png_put_req("docs", "pic.png", &small_png())).await.unwrap();
+
+        let resp = b
+            .clone()
+            .oneshot(render_req("docs", "pic.png", "?w=32&watermark=mark.png"))
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "a watermark the caller cannot read must answer like a missing object"
+        );
+
+        // The owner can use their own mark.
+        a.clone().oneshot(png_put_req("docs", "own.png", &small_png())).await.unwrap();
+        let resp = a
+            .clone()
+            .oneshot(render_req("docs", "own.png", "?w=32&watermark=mark.png"))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    /// #973: text watermarks need the bucket's font. A bucket without one
+    /// refuses by name rather than rendering in some substitute typeface.
+    #[tokio::test]
+    async fn render_text_watermark_without_a_font_is_refused() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        a.clone().oneshot(png_put_req("docs", "pic.png", &small_png())).await.unwrap();
+
+        let resp = a
+            .clone()
+            .oneshot(render_req("docs", "pic.png", "?w=32&watermark_text=draft"))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"]["code"], "watermark_font_unset");
+    }
+
+    /// #973: the render cache is wired to the route. The `TransformCache` type
+    /// existed before this and only its key builder was ever called, so every
+    /// render recomputed the image.
+    #[tokio::test]
+    async fn render_stores_and_reuses_a_cached_rendering() {
+        use crate::transforms::{TransformCache, TransformParams};
+
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let a = router_for(state.clone(), "user-a", &["user"]);
+        let source = small_png();
+        a.clone().oneshot(png_put_req("docs", "pic.png", &source)).await.unwrap();
+
+        let params = TransformParams {
+            width: Some(32),
+            format: Some(crate::transforms::OutputFormat::Webp),
+            ..TransformParams::default()
+        };
+        let cache_key = TransformCache::build_cache_key("docs", "pic.png", &source, &params);
+        assert!(
+            state.backend.download(&cache_key).await.is_err(),
+            "nothing is cached before the first render"
+        );
+
+        let resp = a
+            .clone()
+            .oneshot(render_req("docs", "pic.png", "?w=32&format=webp"))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let first = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+
+        let entry = state
+            .backend
+            .download(&cache_key)
+            .await
+            .expect("the render must have been cached under its content-addressed key");
+        let cached: crate::transforms::TransformOutput = serde_json::from_slice(&entry).unwrap();
+        assert_eq!(cached.body, first.to_vec(), "the cached entry is what was served");
+
+        // A second request serves the cached bytes.
+        let resp = a
+            .clone()
+            .oneshot(render_req("docs", "pic.png", "?w=32&format=webp"))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let second = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(first, second);
+    }
+
     /// #876 applies to renders: a foreign private object answers exactly like
     /// a missing one; anonymous callers get 401.
     #[tokio::test]
@@ -1881,11 +2050,12 @@ mod render_tests {
         let (state, _keep) = test_state("docs", BucketAccess::Private).await;
         let mut bucket = state.buckets.get("docs").unwrap().clone();
         bucket.transform_presets = Some(vec![crate::config::TransformPreset {
-            name:    "thumb".to_string(),
-            width:   Some(16),
-            height:  None,
-            format:  Some("jpeg".to_string()),
+            name: "thumb".to_string(),
+            width: Some(16),
+            height: None,
+            format: Some("jpeg".to_string()),
             quality: Some(70),
+            ..crate::config::TransformPreset::default()
         }]);
         let mut buckets = HashMap::new();
         buckets.insert("docs".to_string(), bucket);

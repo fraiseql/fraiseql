@@ -43,14 +43,15 @@ async fn storage_state(bucket: &str) -> StorageState {
     buckets.insert(
         bucket.to_string(),
         BucketConfig {
-            name:               bucket.to_string(),
-            max_object_bytes:   None,
+            name: bucket.to_string(),
+            max_object_bytes: None,
             allowed_mime_types: None,
-            access:             BucketAccess::PublicRead,
-            transform_presets:  None,
-            serve_inline:       false,
-            policies:           None,
-            upload_ttl_secs:    None,
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
+            serve_inline: false,
+            policies: None,
+            upload_ttl_secs: None,
+            ..BucketConfig::default()
         },
     );
     StorageState {
