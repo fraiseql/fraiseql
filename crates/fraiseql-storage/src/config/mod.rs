@@ -14,6 +14,17 @@ pub enum BucketAccess {
     PublicRead,
 }
 
+impl BucketAccess {
+    /// The configured spelling, as `resolve_storage_section` accepts it.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Private => "private",
+            Self::PublicRead => "public_read",
+        }
+    }
+}
+
 /// Image transform preset for predefined transformations.
 ///
 /// Allows defining common image transformations (e.g., thumbnails, previews)

@@ -151,13 +151,14 @@ mod minio_tests {
             },
         );
 
-        let state = StorageState {
-            backend:  Arc::new(backend),
-            metadata: Arc::new(StorageMetadataRepo::new(pool.clone())),
-            rls:      StorageRlsEvaluator::new(),
-            buckets:  Arc::new(buckets),
-            uploads:  Arc::new(fraiseql_storage::UploadSessionRepo::new(pool)),
-        };
+        let state = StorageState::new(
+            Arc::new(backend),
+            Arc::new(StorageMetadataRepo::new(pool.clone())),
+            StorageRlsEvaluator::new(),
+            buckets,
+            Arc::new(fraiseql_storage::UploadSessionRepo::new(pool.clone())),
+            Arc::new(fraiseql_storage::StoragePolicyStore::new(pool)),
+        );
         Some((state, (minio, pg, s3)))
     }
 

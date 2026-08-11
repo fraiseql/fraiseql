@@ -451,8 +451,14 @@ func (m *FraiseqlCi) Test(
 		"cargo test -p fraiseql-core --lib --features '" + coreTestFeatures + "'",
 		"echo '### cargo test -p fraiseql-db --lib (SYNC:DB_FEATURES; tests/* = testcontainer integration → Phase 04)'",
 		"cargo test -p fraiseql-db --lib --features '" + dbTestFeatures + "'",
-		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES)'",
-		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "'",
+		// #974: server::routing::storage_policy_admin_tests drives the bucket
+		// policy admin API against a REAL policy store, so it is skipped BY NAME
+		// here (this leg binds no Postgres) and named explicitly in the
+		// integration leg below. Skipping by name rather than letting the suite
+		// self-skip keeps the split visible in the log instead of turning into a
+		// green that asserted nothing.
+		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES; storage_policy_admin_tests → integration leg)'",
+		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "' -- --skip server::routing::storage_policy_admin_tests",
 		// The MCP transport's Docker-free test binaries. They ran in
 		// feature-flags.yml's `feature-integration-tests` job, which has been
 		// dispatch-only since the Dagger migration (2026-05-31) — so no CI leg
@@ -815,6 +821,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// the tracking suite's fixture-clock time bomb sat unobserved until it
 		// crossed its 30-day TTL.
 		"cargo test -p fraiseql-server --features inbound,inbound-email --lib inbound:: -- --test-threads=1",
+		// #974: the storage bucket-policy admin API (PUT/GET/DELETE) against a
+		// real policy store — the split-token separation, the request-time
+		// refusal that leaves the running policy in place, and the wholesale
+		// store-over-config precedence. The DB-less test leg skips it by name.
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib server::routing::storage_policy_admin_tests -- --test-threads=1",
 		// #775: per-mailbox spine scoping + content-digest dedup key. Drives
 		// EmailIngestSink against real PG (no IMAP, no real mailbox): the same
 		// Message-ID to two mailboxes lands twice; a pre-claimed Message-ID cannot
@@ -1273,6 +1284,8 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: storage (Dagger-bound postgres + azurite + fake-gcs)'",
 		"bash tools/ci-target-canary.sh -- test -p fraiseql-storage --lib", // #880 canary
+		// routes::tests carries the #974 policy hot-reload module and policy::tests
+		// its parse/round-trip module; both are covered by the filters already here.
 		"cargo test -p fraiseql-storage --lib -- metadata::tests migrations::tests routes::tests uploads::tests policy::tests --test-threads=1",
 		// #370: the render endpoint + transform hostile-input guards live behind
 		// the `transforms` feature, so the line above (default features) compiles

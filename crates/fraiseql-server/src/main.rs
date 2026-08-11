@@ -711,7 +711,7 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     if let Some(state) = &storage_state {
         tracing::info!(
-            buckets = state.buckets.len(),
+            buckets = state.buckets.load().len(),
             "Object storage configured; mounting /storage/v1/*"
         );
     }

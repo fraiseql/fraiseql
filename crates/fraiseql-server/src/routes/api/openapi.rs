@@ -737,8 +737,134 @@ pub fn get_openapi_spec() -> String {
                         }
                     }
                 }
-            }
+            },
+            "/api/v1/admin/storage/{bucket}/policies": storage_policies_path()
         },
         "components": components_schema()
     }).to_string()
+}
+
+/// The `/api/v1/admin/storage/{bucket}/policies` path item (#974).
+///
+/// Split out of `openapi_spec` because the whole spec is one `json!` literal
+/// and the nested request-body schema here pushes it past the macro recursion
+/// limit — the same reason `components_schema` is its own function.
+fn storage_policies_path() -> serde_json::Value {
+    serde_json::json!({
+        "parameters": [
+            {
+                "name": "bucket",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "string" },
+                "description": "The configured logical bucket name."
+            }
+        ],
+        "get": {
+            "summary": "Read the access policy governing a bucket",
+            "description": "Reports the rules in force and which source they came from: \
+                             `store` (pushed over this API), `config_file` \
+                             (`[[storage.<name>.policies]]`), or `access_mode` (no policy; \
+                             the coarse private/public_read mode governs). Requires the \
+                             read-only admin token when one is configured.",
+            "tags": ["Admin"],
+            "security": [{ "BearerAuth": [] }],
+            "responses": {
+                "200": { "description": "The policy in force, and its source" },
+                "401": { "description": "Unauthorized - no admin token presented" },
+                "403": { "description": "Forbidden - the presented token is not valid" },
+                "404": { "description": "No such bucket is configured" }
+            }
+        },
+        "put": {
+            "summary": "Replace a bucket's access policy",
+            "description": "Stores the rule list durably and applies it to the next \
+                            request. The replacement is WHOLESALE: the rules given here \
+                            replace whatever governs the bucket, and are never merged with \
+                            the configured policy. A policy this server would not accept \
+                            at boot is refused with 400 naming the offending rule, and the \
+                            policy already in force keeps serving unchanged. An empty \
+                            `rules` list is a valid lock-down that permits nothing; to \
+                            hand the bucket back to its configured policy, DELETE. \
+                            Requires the write admin token.",
+            "tags": ["Admin"],
+            "security": [{ "BearerAuth": [] }],
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": ["rules"],
+                            "additionalProperties": false,
+                            "properties": {
+                                "rules": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "required": ["methods", "principal"],
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "methods": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": ["read", "write", "overwrite",
+                                                             "delete", "list"]
+                                                }
+                                            },
+                                            "principal": {
+                                                "type": "string",
+                                                "description": "owner | authenticated | \
+                                                                anonymous | signed_url | \
+                                                                role:<name>"
+                                            },
+                                            "key_prefix": { "type": "string" },
+                                            "not_before": {
+                                                "type": "string", "format": "date-time"
+                                            },
+                                            "not_after": {
+                                                "type": "string", "format": "date-time"
+                                            },
+                                            "require_unexpired": { "type": "boolean" },
+                                            "require_claims": {
+                                                "type": "object",
+                                                "additionalProperties": { "type": "string" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": { "description": "The policy now in force, and its source" },
+                "400": {
+                    "description": "Invalid policy - nothing was stored and nothing was \
+                                    applied; the response carries `rule_index` and \
+                                    `policy_in_force: unchanged`"
+                },
+                "401": { "description": "Unauthorized - no admin token presented" },
+                "403": { "description": "Forbidden - the read-only token cannot write" },
+                "404": { "description": "No such bucket is configured" }
+            }
+        },
+        "delete": {
+            "summary": "Drop a bucket's stored policy",
+            "description": "Hands the bucket back to its configured policy, or — with none \
+                            configured — to its coarse access mode. This can WIDEN access, \
+                            which is why it needs the write admin token; the response \
+                            states the source that now governs.",
+            "tags": ["Admin"],
+            "security": [{ "BearerAuth": [] }],
+            "responses": {
+                "200": { "description": "The policy now in force, and its source" },
+                "401": { "description": "Unauthorized - no admin token presented" },
+                "403": { "description": "Forbidden - the read-only token cannot delete" },
+                "404": { "description": "No such bucket is configured" }
+            }
+        }
+    })
 }

@@ -80,7 +80,10 @@ pub(super) async fn create_upload_handler(
     if let Some(rejection) = reject_unsafe_key(&key) {
         return with_tus(rejection);
     }
-    let Some(bucket) = state.buckets.get(&bucket_name) else {
+    // Snapshot the bucket map for the whole request: a policy pushed over the
+    // admin API mid-request must not decide half of it (#974).
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
         return with_tus(error_response(
             StatusCode::NOT_FOUND,
             "bucket_not_found",

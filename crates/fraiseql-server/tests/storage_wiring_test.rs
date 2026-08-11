@@ -71,11 +71,9 @@ async fn build_storage_state_wires_local_backend_from_config() {
         .expect("build_storage_state should succeed against PostgreSQL")
         .expect("a configured [storage.assets] section should yield a StorageState");
 
-    assert!(
-        state.buckets.contains_key("assets"),
-        "logical bucket 'assets' should be present"
-    );
-    let bucket = state.buckets.get("assets").expect("bucket present");
+    let buckets = state.buckets.load();
+    assert!(buckets.contains_key("assets"), "logical bucket 'assets' should be present");
+    let bucket = buckets.get("assets").expect("bucket present");
     assert_eq!(bucket.name, "assets");
     assert_eq!(bucket.max_object_bytes, Some(1024));
 }
