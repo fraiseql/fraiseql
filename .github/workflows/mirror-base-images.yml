@@ -7,8 +7,9 @@ name: Mirror base images to ghcr.io
 # `dagger call` leg fails resolving `rust:1.94` / `postgres:16` / etc.
 #
 # This job mirrors each of those images into ghcr.io/fraiseql/*, which the Dagger
-# engine then pulls anonymously (public packages) with NO Docker Hub involvement —
-# exactly how it already pulls the public ghcr.io/apollographql/router image. crane
+# engine then pulls with the workflow GITHUB_TOKEN (`permissions: packages: read`) and
+# NO Docker Hub involvement. All ten mirrors are PRIVATE packages; the legs authenticate
+# rather than pulling anonymously, unlike the public ghcr.io/apollographql/router. crane
 # copies registry-to-registry (all platforms, no local `docker pull`), so it does not
 # itself touch the self-hosted runner: it runs on a GitHub-hosted runner with a fresh
 # IP and its own Docker Hub budget, pulling each image once.
@@ -56,8 +57,19 @@ jobs:
         run: |
           set -euo pipefail
           # src (Docker Hub) | dst (ghcr.io/fraiseql, org/name flattened to fraiseql/<name>)
+          #
+          # DATA ONLY between the quotes: every non-blank line is split on '|' and fed to
+          # crane, so a comment line inside the string is copied as an image name and fails
+          # the job. The string is double-quoted, so a backtick in there would also run as
+          # command substitution. Keep prose out here.
+          #
+          # Both the floating rust:1.94 and the patch-pinned rust:1.94.1 are mirrored.
+          # Docker's rust:1.94 tracks the newest 1.94.x, so a leg pinned to it silently
+          # stops testing the rust-version we declare the day 1.94.2 ships; .dagger pins
+          # the exact patch, and the floating tag stays so an older checkout still resolves.
           IMAGES="
           docker.io/library/rust:1.94|ghcr.io/fraiseql/rust:1.94
+          docker.io/library/rust:1.94.1|ghcr.io/fraiseql/rust:1.94.1
           docker.io/library/ubuntu:24.04|ghcr.io/fraiseql/ubuntu:24.04
           docker.io/library/postgres:16|ghcr.io/fraiseql/postgres:16
           docker.io/pgvector/pgvector:pg16|ghcr.io/fraiseql/pgvector:pg16
@@ -84,9 +96,15 @@ jobs:
           done <<< "$IMAGES"
           exit $rc
 
-      - name: Reminder — packages must be public
+      - name: Reminder — a NEW package name needs repository access, a new tag does not
         run: |
-          echo "Mirror complete. On FIRST publish each package is private; the Dagger"
-          echo "engine pulls anonymously, so set these public once at:"
-          echo "  https://github.com/orgs/fraiseql/packages?tab=packages&q=<name>"
-          echo "Packages: rust ubuntu postgres redis nats vault mailhog fake-gcs-server minio"
+          echo "Mirror complete. All ten mirrored packages are PRIVATE, and every Dagger leg"
+          echo "pulls them fine: the legs authenticate with the workflow GITHUB_TOKEN under"
+          echo "'permissions: packages: read'. Nothing here needs to be made public."
+          echo
+          echo "A ghcr package is the IMAGE NAME; tags live inside it. So adding a tag to an"
+          echo "existing name (rust:1.94 -> rust:1.94.1) inherits that package's access and"
+          echo "needs no action. Only a brand-new package NAME does, and then the fix is to"
+          echo "grant the fraiseql/fraiseql repo access — not to publish it publicly:"
+          echo "  https://github.com/orgs/fraiseql/packages/container/<name>/settings"
+          echo "Packages: rust ubuntu postgres pgvector redis nats vault mailhog fake-gcs-server minio"
