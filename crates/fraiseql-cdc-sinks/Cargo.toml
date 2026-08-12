@@ -1,6 +1,8 @@
 [dependencies]
 fraiseql-guard = {workspace = true}
 async-nats = {version = "0.49", optional = true}
+aws-config = {version = "1", optional = true}
+aws-sdk-kinesis = {version = "1", optional = true}
 chrono = {workspace = true}
 rdkafka = {workspace = true, optional = true}
 serde = {version = "1.0", features = ["derive"]}
@@ -26,6 +28,10 @@ default = []
 # Apache Kafka. Unlike async-nats this pulls a C library (librdkafka, built from
 # source by rdkafka-sys) and links system libssl/libcrypto/libz.
 cdc-kafka = ["dep:rdkafka"]
+# AWS Kinesis Data Streams. Pulls the AWS SDK and, with it, a second optional
+# aws-* dependency tree — see the RUSTSEC-2026-0098/0099/0104 entries in deny.toml,
+# whose justification names this feature as well as aws-s3.
+cdc-kinesis = ["dep:aws-sdk-kinesis", "dep:aws-config"]
 cdc-nats-jetstream = ["dep:async-nats"]
 
 [lints]

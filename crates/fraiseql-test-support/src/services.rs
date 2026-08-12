@@ -33,6 +33,8 @@ const VAULT_ADDR_ENV: &str = "VAULT_ADDR";
 const VAULT_TOKEN_ENV: &str = "VAULT_TOKEN";
 /// `kafka()` bootstrap-servers env var.
 const KAFKA_BOOTSTRAP_ENV: &str = "KAFKA_BOOTSTRAP";
+/// `kinesis()` endpoint env var.
+const KINESIS_ENDPOINT_ENV: &str = "KINESIS_ENDPOINT";
 
 /// A provisioned service: a connection URL plus an optional liveness guard.
 ///
@@ -144,6 +146,16 @@ pub async fn kafka() -> Option<Service> {
             None
         },
     }
+}
+
+/// AWS Kinesis, via a `LocalStack` endpoint. Env: `KINESIS_ENDPOINT` (the endpoint
+/// URL, e.g. `http://localstack:4566`).
+///
+/// Returns the endpoint URL, which the caller passes to the sink through
+/// `FRAISEQL_KINESIS_ENDPOINT_URL`; the sink's own configured endpoint carries the
+/// region (`kinesis://<region>`), which `LocalStack` does not care about.
+pub async fn kinesis() -> Option<Service> {
+    resolve_env(KINESIS_ENDPOINT_ENV).await
 }
 
 /// `HashiCorp` Vault. Env: `VAULT_ADDR` + `VAULT_TOKEN` (both required).

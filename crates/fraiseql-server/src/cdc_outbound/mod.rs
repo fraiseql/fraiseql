@@ -43,6 +43,9 @@ pub enum ConfiguredSink {
     /// Apache Kafka (feature `cdc-kafka`).
     #[cfg(feature = "cdc-kafka")]
     Kafka(fraiseql_cdc_sinks::KafkaSink),
+    /// AWS Kinesis Data Streams (feature `cdc-kinesis`).
+    #[cfg(feature = "cdc-kinesis")]
+    Kinesis(fraiseql_cdc_sinks::KinesisSink),
 }
 
 impl CdcSink for ConfiguredSink {
@@ -51,6 +54,8 @@ impl CdcSink for ConfiguredSink {
             Self::NatsJetStream(sink) => sink.name(),
             #[cfg(feature = "cdc-kafka")]
             Self::Kafka(sink) => sink.name(),
+            #[cfg(feature = "cdc-kinesis")]
+            Self::Kinesis(sink) => sink.name(),
         }
     }
 
@@ -59,6 +64,8 @@ impl CdcSink for ConfiguredSink {
             Self::NatsJetStream(sink) => sink.kind(),
             #[cfg(feature = "cdc-kafka")]
             Self::Kafka(sink) => sink.kind(),
+            #[cfg(feature = "cdc-kinesis")]
+            Self::Kinesis(sink) => sink.kind(),
         }
     }
 
@@ -67,6 +74,8 @@ impl CdcSink for ConfiguredSink {
             Self::NatsJetStream(sink) => sink.matches(ev),
             #[cfg(feature = "cdc-kafka")]
             Self::Kafka(sink) => sink.matches(ev),
+            #[cfg(feature = "cdc-kinesis")]
+            Self::Kinesis(sink) => sink.matches(ev),
         }
     }
 
@@ -75,6 +84,8 @@ impl CdcSink for ConfiguredSink {
             Self::NatsJetStream(sink) => sink.publish(ev).await,
             #[cfg(feature = "cdc-kafka")]
             Self::Kafka(sink) => sink.publish(ev).await,
+            #[cfg(feature = "cdc-kinesis")]
+            Self::Kinesis(sink) => sink.publish(ev).await,
         }
     }
 }
@@ -204,6 +215,12 @@ async fn build_one(
         #[cfg(feature = "cdc-kafka")]
         "kafka" => ConfiguredSink::Kafka(
             fraiseql_cdc_sinks::KafkaSink::connect(&section.endpoint, sink_config.clone())
+                .map_err(connect_failed)?,
+        ),
+        #[cfg(feature = "cdc-kinesis")]
+        "kinesis" => ConfiguredSink::Kinesis(
+            fraiseql_cdc_sinks::KinesisSink::connect(&section.endpoint, sink_config.clone())
+                .await
                 .map_err(connect_failed)?,
         ),
         _ => {

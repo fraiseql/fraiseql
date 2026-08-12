@@ -7,13 +7,8 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use uuid::Uuid;
-
 use super::{KafkaSink, classify};
-use crate::{
-    event::{ChangeEvent, ChangeOp},
-    sink::{CdcSinkConfig, PublishOutcome},
-};
+use crate::sink::{CdcSinkConfig, PublishOutcome};
 
 #[test]
 fn tls_endpoints_are_accepted_because_openssl_is_compiled_in() {
@@ -81,37 +76,9 @@ fn sasl_ssl_builds_a_producer_once_credentials_are_present() {
     );
 }
 
-#[test]
-fn partition_key_is_the_entity_identity_not_the_sequence() {
-    // The property that matters: two changes to the *same* entity must share a
-    // key (same partition, ordered), and the sequence must not enter the key.
-    let id = Uuid::from_u128(0xfeed);
-    let first = ChangeEvent::new(1, "tb_post", ChangeOp::Insert).with_object_id(id);
-    let second = ChangeEvent::new(9_999, "tb_post", ChangeOp::Update).with_object_id(id);
-
-    assert_eq!(KafkaSink::partition_key(&first), KafkaSink::partition_key(&second));
-    assert_eq!(KafkaSink::partition_key(&first), format!("tb_post:{id}"));
-    assert!(
-        !KafkaSink::partition_key(&first).contains('1'),
-        "the seq must not appear in the key — it would scatter an entity across partitions"
-    );
-}
-
-#[test]
-fn partition_key_separates_distinct_entities() {
-    let a = ChangeEvent::new(1, "tb_post", ChangeOp::Insert).with_object_id(Uuid::from_u128(1));
-    let b = ChangeEvent::new(1, "tb_post", ChangeOp::Insert).with_object_id(Uuid::from_u128(2));
-    assert_ne!(KafkaSink::partition_key(&a), KafkaSink::partition_key(&b));
-}
-
-#[test]
-fn partition_key_is_deterministic_without_an_object_id() {
-    // Never null (librdkafka would then pick a partition at random, losing even
-    // per-table ordering) and never varying between two calls.
-    let ev = ChangeEvent::new(7, "tb_post", ChangeOp::Custom);
-    assert_eq!(KafkaSink::partition_key(&ev), "tb_post");
-    assert_eq!(KafkaSink::partition_key(&ev), KafkaSink::partition_key(&ev));
-}
+// The partition-key properties moved to `sink::tests` with the key itself: it is
+// shared with the Kinesis sink and pure, so it belongs in the always-compiled leg
+// rather than only where `cdc-kafka` is on.
 
 #[test]
 fn oversized_messages_are_permanent_and_everything_else_retries() {

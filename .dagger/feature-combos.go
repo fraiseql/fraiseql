@@ -157,6 +157,11 @@ var featureCombos = []featureCombo{
 	// the feature-on half of validate_kind only compile here — and the
 	// feature-OFF half only compiles in the combo above. Neither covers both.
 	{name: "server-cdc-kafka", crate: "fraiseql-server", features: []string{"cdc-kafka"}},
+	// #975: the Kinesis sink's server mount, and the same argument as the kafka
+	// combo above — the Kinesis arm of ConfiguredSink/build_one and the
+	// feature-ON half of validate_kind compile only here, while the feature-OFF
+	// half compiles only where cdc-kinesis is absent.
+	{name: "server-cdc-kinesis", crate: "fraiseql-server", features: []string{"cdc-kinesis"}},
 	{name: "storage-gcs", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"gcs"}},
 	{name: "storage-azure-blob", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"azure-blob"}},
 
@@ -182,6 +187,12 @@ var featureCombos = []featureCombo{
 	// what compiles KafkaSink itself, its produce-error classification and its
 	// rdkafka-bound tests under -D warnings on MSRV.
 	{name: "cdc-kafka", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-kafka"}},
+	// #975 the gated Kinesis outbound sink. Its endpoint/region guard, the
+	// endpoint-URL override guard and the stream charset are pure and always
+	// compiled (covered by the default test leg); this combo is what compiles
+	// KinesisSink itself, its PutRecord-error classification and its aws-sdk-bound
+	// tests under -D warnings on MSRV.
+	{name: "cdc-kinesis", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-kinesis"}},
 }
 
 // cargoArgs builds the `cargo check|clippy` invocation for this combo, mirroring the

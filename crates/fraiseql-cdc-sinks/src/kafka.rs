@@ -20,7 +20,7 @@ use crate::{
     event::ChangeEvent,
     sink::{
         CdcSink, CdcSinkConfig, KafkaSecurityProtocol, PublishOutcome, SinkKind,
-        guard_kafka_endpoint, render_kafka_topic, resolve_kafka_sasl,
+        entity_partition_key, guard_kafka_endpoint, render_kafka_topic, resolve_kafka_sasl,
     },
 };
 
@@ -90,24 +90,6 @@ impl KafkaSink {
 
         Ok(Self { config, producer })
     }
-
-    /// The partition key for an event.
-    ///
-    /// This is the entity's identity, **not** the per-message dedup key. Kafka
-    /// hashes the key to choose a partition, and ordering is only guaranteed
-    /// within a partition — so keying by anything unique per message (a `seq`,
-    /// say) would scatter an entity's changes across every partition and destroy
-    /// the ordering the idempotent producer is there to provide. Consumer dedup
-    /// is served separately by the `(object_type, seq)` pair, which travels in
-    /// the payload and in the `fraiseql-msg-id` header.
-    ///
-    /// Falls back to the object type alone when a row carries no `object_id`,
-    /// which keeps the key deterministic (never null, never random) and degrades
-    /// to per-table rather than per-entity ordering.
-    fn partition_key(ev: &ChangeEvent) -> String {
-        ev.object_id
-            .map_or_else(|| ev.object_type.clone(), |id| format!("{}:{}", ev.object_type, id))
-    }
 }
 
 impl CdcSink for KafkaSink {
@@ -133,7 +115,7 @@ impl CdcSink for KafkaSink {
             Err(error) => return PublishOutcome::Permanent(format!("encode: {error}")),
         };
 
-        let key = Self::partition_key(ev);
+        let key = entity_partition_key(ev);
         let msg_id = format!("{}:{}", ev.object_type, ev.seq);
         let headers = OwnedHeaders::new()
             .insert(Header {
