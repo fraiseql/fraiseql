@@ -196,6 +196,12 @@ cdc-outbound = ["dep:fraiseql-cdc-sinks"]
 # which the NATS sink does not — a deployment that only drains to NATS should not
 # pay for it. With this off, `kind = "kafka"` stays refused by name at boot.
 cdc-kafka = ["cdc-outbound", "fraiseql-cdc-sinks/cdc-kafka"]
+# Adds the AWS Kinesis sink to the outbound drain. Separate from `cdc-outbound`
+# for the same reason as `cdc-kafka`: it pulls the whole aws-sdk/aws-smithy tree,
+# which a NATS-only deployment should not pay for, and which carries the opt-in
+# rustls-0.21 advisory ignores recorded in deny.toml. With this off,
+# `kind = "kinesis"` stays refused by name at boot.
+cdc-kinesis = ["cdc-outbound", "fraiseql-cdc-sinks/cdc-kinesis"]
 # CLI argument parsing (clap-derived Cli/ServerArgs structs)
 cli = ["dep:clap"]
 gcs = ["fraiseql-storage/gcs"]

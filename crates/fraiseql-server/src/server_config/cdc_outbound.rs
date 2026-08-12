@@ -152,9 +152,10 @@ impl CdcOutboundConfig {
 /// is refused as unknown: either way the server does not boot believing it is
 /// replicating changes it would in fact drop on the floor.
 ///
-/// `kafka` is accepted only when the `cdc-kafka` feature compiled the sink in.
-/// A binary built without it keeps refusing the kind **by name** — never
-/// accept-then-drop, which is the failure mode this function exists to prevent.
+/// `kafka` and `kinesis` are each accepted only when the matching feature
+/// compiled the sink in. A binary built without one keeps refusing that kind **by
+/// name** — never accept-then-drop, which is the failure mode this function exists
+/// to prevent.
 fn validate_kind(sink: &str, kind: &str) -> Result<(), String> {
     match kind.to_ascii_lowercase().as_str() {
         "nats-jetstream" => Ok(()),
@@ -166,16 +167,30 @@ fn validate_kind(sink: &str, kind: &str) -> Result<(), String> {
              this binary. Rebuild with the `cdc-kafka` feature. Refusing to boot rather than \
              silently draining nothing."
         )),
-        known @ ("kinesis" | "pulsar") => Err(format!(
-            "[cdc_outbound] sink {sink:?}: kind {known:?} is not implemented yet (#382 tracks \
+        #[cfg(feature = "cdc-kinesis")]
+        "kinesis" => Ok(()),
+        #[cfg(not(feature = "cdc-kinesis"))]
+        "kinesis" => Err(format!(
+            "[cdc_outbound] sink {sink:?}: kind \"kinesis\" is implemented but not compiled \
+             into this binary. Rebuild with the `cdc-kinesis` feature. Refusing to boot rather \
+             than silently draining nothing."
+        )),
+        // Pulsar keeps a *named* refusal rather than falling through to "unknown
+        // kind". #975 recommended dropping the name; that was declined
+        // deliberately. The cost is one match arm, and the benefit is that an
+        // operator who configures it is told what is actually happening instead of
+        // being told they made a typo.
+        "pulsar" => Err(format!(
+            "[cdc_outbound] sink {sink:?}: kind \"pulsar\" is not implemented yet (#382 tracks \
              it). Refusing to boot rather than silently draining nothing."
         )),
         other => Err(format!(
             "[cdc_outbound] sink {sink:?}: unknown kind {other:?}; expected \"nats-jetstream\"{}",
-            if cfg!(feature = "cdc-kafka") {
-                " or \"kafka\""
-            } else {
-                ""
+            match (cfg!(feature = "cdc-kafka"), cfg!(feature = "cdc-kinesis")) {
+                (true, true) => ", \"kafka\" or \"kinesis\"",
+                (true, false) => " or \"kafka\"",
+                (false, true) => " or \"kinesis\"",
+                (false, false) => "",
             }
         )),
     }

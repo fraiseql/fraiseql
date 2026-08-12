@@ -81,21 +81,24 @@ costs latency, never events.
 |---|---|
 | `nats-jetstream` | Supported |
 | `kafka` | Supported — requires the `cdc-kafka` build feature |
-| `kinesis` | Recognised; refuses to boot (tracked in #382) |
+| `kinesis` | Supported — requires the `cdc-kinesis` build feature |
 | `pulsar` | Recognised; refuses to boot (tracked in #382) |
 
 Payloads are JSON. Avro/Protobuf with a schema registry is planned.
 
-A binary built without `cdc-kafka` refuses `kind = "kafka"` **by name**, telling
-you which feature to rebuild with — it never accepts the sink and then drops its
-events.
+A binary built without `cdc-kafka` or `cdc-kinesis` refuses the matching `kind`
+**by name**, telling you which feature to rebuild with — it never accepts the
+sink and then drops its events. `pulsar` is likewise refused *by name* rather
+than as an unknown kind, so configuring it tells you it is unimplemented instead
+of implying a typo.
 
 Plaintext endpoints are refused unless the broker's opt-in
-(`FRAISEQL_NATS_ALLOW_PLAINTEXT=true` or `FRAISEQL_KAFKA_ALLOW_PLAINTEXT=true`)
-is set **and** `FRAISEQL_ENV=development` — change events carry business data and
-must not cross the wire in the clear. On the plaintext path every host is
-screened, so the development escape hatch reaches loopback brokers only and
-cannot be used to reach an instance-metadata address.
+(`FRAISEQL_NATS_ALLOW_PLAINTEXT`, `FRAISEQL_KAFKA_ALLOW_PLAINTEXT` or
+`FRAISEQL_KINESIS_ALLOW_PLAINTEXT`, each `=true`) is set **and**
+`FRAISEQL_ENV=development` — change events carry business data and must not cross
+the wire in the clear. On the plaintext path every host is screened, so the
+development escape hatch cannot be used to reach an instance-metadata address or
+an internal network.
 
 ### Kafka endpoints
 
@@ -127,6 +130,46 @@ broker (Confluent Cloud uses `PLAIN`, MSK `SCRAM-SHA-512`, Redpanda
 `SCRAM-SHA-256`). Kerberos/GSSAPI is deliberately not supported — it is the only
 mechanism that would require linking Cyrus libsasl2, and every managed Kafka
 offers one of the three above.
+
+### Kinesis endpoints
+
+Kinesis is not addressed by a broker list: the AWS SDK resolves a regional HTTPS
+endpoint from a region name. The configured endpoint therefore carries only the
+region, and — as for Kafka — a scheme-less value is refused rather than guessed:
+
+```toml
+[[cdc_outbound.sinks]]
+name = "warehouse"
+kind = "kinesis"
+endpoint = "kinesis://eu-west-3"
+subject_template = "fraiseql.{table}"
+```
+
+The region is constrained to `[a-z0-9-]` starting with a letter, because it is
+interpolated into the endpoint the SDK resolves. Credentials come from the
+standard AWS provider chain (environment, profile, IMDS, IRSA), never from the
+TOML.
+
+Stream names are validated against Kinesis's own rules — `[a-zA-Z0-9_.-]`, capped
+at **128** characters, which is narrower than Kafka's 249 — so a template that
+renders legally for the Kafka sink can still be rejected here. A rendered name
+Kinesis cannot accept is dead-lettered, never silently re-routed.
+
+Each record's partition key is the changed entity's identity
+(`{object_type}:{object_id}`). Kinesis hashes it to choose a shard and orders
+records only *within* a shard, so this is what keeps one entity's changes
+ordered; consumer dedup is served separately by the `(object_type, seq)` pair in
+the payload.
+
+| Variable | Meaning |
+|---|---|
+| `FRAISEQL_KINESIS_ENDPOINT_URL` | Endpoint override — a VPC interface endpoint, or LocalStack in development. Absent means the SDK resolves the real regional endpoint. |
+| `FRAISEQL_KINESIS_ALLOW_PLAINTEXT` | Permits an `http://` override, in a development environment only |
+
+An `https://` override is accepted as given, including into RFC 1918 space — a
+VPC interface endpoint resolves there and vetoing it would be wrong. Screening
+applies to the `http://` escape hatch, which exists to reach a development
+emulator and not the instance-metadata service.
 
 Kafka topic names are narrower than NATS subjects (`[a-zA-Z0-9._-]`, at most 249
 characters, and never `.` or `..`). A `subject_template` that renders outside

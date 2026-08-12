@@ -1459,6 +1459,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   topic charset is narrower than a NATS subject's, so a template that renders outside
   `[a-zA-Z0-9._-]` dead-letters rather than being re-routed.
 
+- **Outbound CDC: the AWS Kinesis sink (#975).** `kind = "kinesis"` behind the `cdc-kinesis`
+  feature, reusing the drain worker, backoff and dead-lettering unchanged. As for Kafka, a
+  binary built without the feature refuses the kind *by name* and says which feature to
+  rebuild with. `pulsar` keeps a named refusal too, rather than falling through to
+  "unknown kind" — configuring it should say it is unimplemented, not imply a typo.
+
+  Kinesis is not addressed by a broker list: the SDK resolves a regional HTTPS endpoint from
+  a region name, so the configured endpoint carries only the region — `kinesis://eu-west-3`
+  — and a scheme-less value is refused rather than guessed. The region is constrained to
+  `[a-z0-9-]` starting with a letter, since it is interpolated into the endpoint the SDK
+  resolves. Credentials come from the standard AWS provider chain, never from the TOML.
+
+  The one route to an unencrypted endpoint is `FRAISEQL_KINESIS_ENDPOINT_URL`. An `https://`
+  override is taken as given — a VPC interface endpoint resolves into RFC 1918 space and
+  vetoing it would be wrong — while an `http://` override additionally requires
+  `FRAISEQL_KINESIS_ALLOW_PLAINTEXT`, `FRAISEQL_ENV=development`, and a host that survives
+  the same screening the Kafka sink applies, so the development hatch cannot reach an
+  instance-metadata address.
+
+  Records carry the same entity-identity partition key as the Kafka sink
+  (`{object_type}:{object_id}`), which pins one entity's changes to one shard — Kinesis
+  orders only within a shard — with `(object_type, seq)` in the payload for consumer dedup.
+  `SequenceNumberForOrdering` is deliberately not used: the drain publishes serially and
+  head-of-line-blocks, so arrival order already is `seq` order, and threading it would mean
+  unbounded per-key state. Stream names are validated against Kinesis's own rules
+  (`[a-zA-Z0-9_.-]`, capped at 128 — narrower than Kafka's 249), and a name it cannot accept
+  dead-letters rather than being re-routed. `InvalidArgumentException` is the only permanent
+  `PutRecord` failure; a missing stream and throttling both retry, because dead-lettering
+  them would discard events no retry needed to lose.
+
 - **Render transforms: resize modes, crop, effects and watermarks (#973).** #370 shipped the
   render endpoint with resize, format conversion and the resource bounds that make exposing
   image transforms safe. The operations themselves were resize-and-re-encode only, with one

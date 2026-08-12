@@ -53,7 +53,9 @@ fn invalid_sections_are_refused_by_name() {
             "duplicate sink name",
         ),
         (config(vec![sink("", "nats-jetstream")]), "empty name"),
-        (config(vec![sink("a", "kinesis")]), "not implemented yet"),
+        // `kinesis` is no longer here: it is implemented as of #975 and its
+        // accept/refuse pair is cfg-gated, so it is covered by the dedicated tests
+        // below rather than by a blanket "not implemented" expectation.
         (config(vec![sink("a", "pulsar")]), "not implemented yet"),
         (config(vec![sink("a", "rabbitmq")]), "unknown kind"),
     ];
@@ -115,6 +117,57 @@ fn kafka_is_refused_by_name_when_the_sink_is_not_compiled_in() {
         !err.contains("unknown kind"),
         "must be refused by name, not as an unknown kind: {err}"
     );
+}
+
+/// `kind = "kinesis"` is accepted only by a binary that compiled the sink in —
+/// the same cfg-gated pair as kafka, and needing the same two legs to cover.
+#[cfg(feature = "cdc-kinesis")]
+#[test]
+fn kinesis_is_accepted_when_the_sink_is_compiled_in() {
+    assert!(config(vec![sink("warehouse", "kinesis")]).validate().is_ok());
+    assert!(
+        config(vec![sink("warehouse", "KINESIS")]).validate().is_ok(),
+        "kind is case-folded"
+    );
+}
+
+#[cfg(not(feature = "cdc-kinesis"))]
+#[test]
+fn kinesis_is_refused_by_name_when_the_sink_is_not_compiled_in() {
+    let err = config(vec![sink("warehouse", "kinesis")])
+        .validate()
+        .expect_err("must be refused");
+    assert!(err.contains("cdc-kinesis"), "should name the missing feature: {err}");
+    assert!(
+        !err.contains("unknown kind"),
+        "must be refused by name, not as an unknown kind: {err}"
+    );
+}
+
+/// Pulsar keeps its **named** refusal, in every feature configuration.
+///
+/// #975 recommended dropping the name so `pulsar` would fall through to the
+/// generic "unknown kind" error. That was declined: an operator who configures it
+/// should be told the kind exists and is not implemented, not that they made a
+/// typo. This test pins the arm so it cannot be dropped by accident.
+#[test]
+fn pulsar_is_refused_by_name_not_as_an_unknown_kind() {
+    let err = config(vec![sink("warehouse", "pulsar")])
+        .validate()
+        .expect_err("must be refused");
+    assert!(err.contains("pulsar"), "should name the kind: {err}");
+    assert!(
+        !err.contains("unknown kind"),
+        "the named refusal is deliberate — see #975's declined recommendation: {err}"
+    );
+
+    // Positive control: a genuinely unknown kind *does* get the unknown-kind
+    // error, so the assertion above is about pulsar's arm and not about the
+    // message being unreachable.
+    let unknown = config(vec![sink("warehouse", "rabbitmq")])
+        .validate()
+        .expect_err("must be refused");
+    assert!(unknown.contains("unknown kind"), "control: {unknown}");
 }
 
 /// A configured section with no database pool refuses to boot: the outbox and

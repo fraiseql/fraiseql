@@ -635,6 +635,14 @@ const (
 	kafkaImage    = "ghcr.io/fraiseql/kafka:4.3.1"
 	kafkaBindHost = "kafka"
 
+	// localstackImage / localstackBindHost — the AWS emulator backing the #975
+	// Kinesis outbound CDC sink. Only the `kinesis` service is enabled; the image
+	// starts every service in SERVICES and nothing else here needs the rest.
+	// Pinned like every other broker image — only `minio` and `fake-gcs-server`
+	// ride `:latest`, and those are weekly-refreshed by design.
+	localstackImage    = "ghcr.io/fraiseql/localstack:3.8"
+	localstackBindHost = "localstack"
+
 	// mailhogImage / mailhogBindHost — the MailHog SMTP sink for the #349 email
 	// happy-path test. Speaks real SMTP on 1025 (plaintext) and exposes an HTTP
 	// API on 8025 to inspect captured messages; the test sends through lettre and
@@ -1933,10 +1941,12 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// Asserted THROUGH the drain, and the entity-keyed partition affinity is
 		// only meaningful because the suite creates its topic with 6 partitions.
 		"cargo test -p fraiseql-cdc-sinks --features cdc-kafka --test cdc_kafka_e2e -- --ignored --test-threads=1",
-		// #975: the same drain-through assertions against the bound Kafka broker
-		// (DATABASE_URL + KAFKA_BOOTSTRAP + FRAISEQL_KAFKA_ALLOW_PLAINTEXT below).
-		// Asserted THROUGH the drain, and the entity-keyed partition affinity is
-		// only meaningful because the suite creates its topic with 6 partitions.
+		// #975: the same drain-through assertions against the bound LocalStack
+		// Kinesis (DATABASE_URL + KINESIS_ENDPOINT + FRAISEQL_KINESIS_ALLOW_PLAINTEXT
+		// below). The entity-keyed shard affinity is only meaningful because the
+		// suite creates its stream with 4 shards — on a single-shard stream the
+		// assertion passes with any partition key at all, including a per-message one.
+		"cargo test -p fraiseql-cdc-sinks --features cdc-kinesis --test cdc_kinesis_e2e -- --ignored --test-threads=1",
 		// #382: the SERVER's outbound-CDC mount — [cdc_outbound] built through
 		// the real path drains the outbox to the bound JetStream, and an
 		// unreachable broker refuses to boot. Before this the drain engine was
@@ -1980,6 +1990,7 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithServiceBinding(redisBindHost, m.redisService()).
 		WithServiceBinding(natsBindHost, m.natsService()).
 		WithServiceBinding(kafkaBindHost, m.kafkaService()).
+		WithServiceBinding(localstackBindHost, m.localstackService()).
 		WithServiceBinding(mailhogBindHost, m.mailhogService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("TEST_DATABASE_URL", dbURL).
@@ -1988,12 +1999,11 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
 		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
 		WithEnvVariable("KAFKA_BOOTSTRAP", kafkaBindHost+":9092").
-		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
-		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
-		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
-		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
-		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
-		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
+		// Scheme-ful on purpose, and the opposite of KAFKA_BOOTSTRAP above: this
+		// is the AWS SDK's endpoint-URL override, which the Kinesis sink screens
+		// through `resolve_kinesis_endpoint_url`. It is http://, so the leg must
+		// also declare the plaintext opt-in and a development environment below.
+		WithEnvVariable("KINESIS_ENDPOINT", fmt.Sprintf("http://%s:4566", localstackBindHost)).
 		WithEnvVariable("MAILHOG_SMTP_HOST", mailhogBindHost).
 		WithEnvVariable("MAILHOG_SMTP_PORT", "1025").
 		WithEnvVariable("MAILHOG_API", fmt.Sprintf("http://%s:8025", mailhogBindHost)).
@@ -2011,6 +2021,15 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// Likewise the bound Kafka broker: PLAINTEXT listener, so the sink's
 		// transport guard needs the same explicit dev opt-in (#975).
 		WithEnvVariable("FRAISEQL_KAFKA_ALLOW_PLAINTEXT", "true").
+		// And the bound LocalStack endpoint, which is http://. The Kinesis guard
+		// permits an unencrypted override only under this opt-in, a development
+		// environment, and a loopback-or-bound host (#975).
+		WithEnvVariable("FRAISEQL_KINESIS_ALLOW_PLAINTEXT", "true").
+		// Dummy static credentials: without them the AWS provider chain walks out
+		// to IMDS and the suite waits on a network timeout instead of failing fast.
+		WithEnvVariable("AWS_ACCESS_KEY_ID", "test").
+		WithEnvVariable("AWS_SECRET_ACCESS_KEY", "test").
+		WithEnvVariable("AWS_EC2_METADATA_DISABLED", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -2080,6 +2099,20 @@ func (m *FraiseqlCi) kafkaService() *dagger.Service {
 		WithEnvVariable("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").
 		WithEnvVariable("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0").
 		WithExposedPort(9092).
+		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
+}
+
+// localstackService returns a started LocalStack with only the Kinesis service
+// enabled, backing the #975 outbound CDC sink. `SERVICES=kinesis` keeps boot to
+// the one API the suite uses; the image otherwise starts every emulator it ships.
+func (m *FraiseqlCi) localstackService() *dagger.Service {
+	return dag.Container().
+		From(localstackImage).
+		WithEnvVariable("SERVICES", "kinesis").
+		// LocalStack signs nothing, but the AWS SDK still requires credentials to
+		// be resolvable; these match the dummy pair the leg exports to the tests.
+		WithEnvVariable("AWS_DEFAULT_REGION", "us-east-1").
+		WithExposedPort(4566).
 		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
 }
 
