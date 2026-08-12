@@ -75,6 +75,7 @@ jobs:
           docker.io/pgvector/pgvector:pg16|ghcr.io/fraiseql/pgvector:pg16
           docker.io/library/redis:7-alpine|ghcr.io/fraiseql/redis:7-alpine
           docker.io/library/nats:2.10-alpine|ghcr.io/fraiseql/nats:2.10-alpine
+          docker.io/apache/kafka:4.3.1|ghcr.io/fraiseql/kafka:4.3.1
           docker.io/hashicorp/vault:1.17|ghcr.io/fraiseql/vault:1.17
           docker.io/mailhog/mailhog:v1.0.1|ghcr.io/fraiseql/mailhog:v1.0.1
           docker.io/fsouza/fake-gcs-server:latest|ghcr.io/fraiseql/fake-gcs-server:latest

@@ -191,6 +191,11 @@ azure-blob = ["fraiseql-storage/azure-blob"]
 storage-transforms = ["fraiseql-storage/transforms"]
 # Outbound CDC (#382): drains the change-log outbox to external brokers.
 cdc-outbound = ["dep:fraiseql-cdc-sinks"]
+# Adds the Kafka sink to the outbound drain. Separate from `cdc-outbound` because
+# it pulls librdkafka (a C library built from source) and links system OpenSSL,
+# which the NATS sink does not — a deployment that only drains to NATS should not
+# pay for it. With this off, `kind = "kafka"` stays refused by name at boot.
+cdc-kafka = ["cdc-outbound", "fraiseql-cdc-sinks/cdc-kafka"]
 # CLI argument parsing (clap-derived Cli/ServerArgs structs)
 cli = ["dep:clap"]
 gcs = ["fraiseql-storage/gcs"]

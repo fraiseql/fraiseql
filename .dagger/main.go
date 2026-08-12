@@ -499,6 +499,16 @@ func (m *FraiseqlCi) Test(
 		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib routes::rest::streaming::",
 		"cargo test -p fraiseql-server --features functions --lib routes::functions::",
 		"cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::",
+		// #975: the same module again with the Kafka sink compiled in. Both runs
+		// are needed and neither substitutes for the other — validate_kind's
+		// accept-kafka and refuse-kafka-by-name halves are `cfg`-gated against
+		// each other, so each is invisible in the other's leg.
+		"cargo test -p fraiseql-server --features cdc-kafka --lib cdc_outbound::",
+		// #975: the cdc-sinks crate's own rdkafka-bound unit tests (partition-key
+		// contract, produce-error classification, and the broker-free proof that
+		// TLS is compiled in). The always-compiled endpoint guard runs in the
+		// default leg above; this is the half that needs the feature.
+		"cargo test -p fraiseql-cdc-sinks --features cdc-kafka --lib kafka::",
 		// The #612-M config-coverage manifest gate ('every ServerConfig leaf has a
 		// named consumer'). Another test binary no leg had ever run — it caught
 		// P18's new `subscription_auth_recheck_secs` key only in a LOCAL full test
@@ -617,6 +627,13 @@ const (
 	// started with `-js -m 8222`.
 	natsImage    = "ghcr.io/fraiseql/nats:2.10-alpine"
 	natsBindHost = "nats"
+
+	// kafkaImage / kafkaBindHost — the Apache Kafka broker for the #975 outbound
+	// CDC sink. Kafka 4.x is KRaft-only, so this is one container with no
+	// ZooKeeper sidecar. The JVM image is preferred over `apache/kafka-native`
+	// (~1 s boot vs ~10 s) for fidelity on a durability-critical path.
+	kafkaImage    = "ghcr.io/fraiseql/kafka:4.3.1"
+	kafkaBindHost = "kafka"
 
 	// mailhogImage / mailhogBindHost — the MailHog SMTP sink for the #349 email
 	// happy-path test. Speaks real SMTP on 1025 (plaintext) and exposes an HTTP
@@ -1911,6 +1928,15 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).
 		"cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-cdc-sinks --features cdc-nats-jetstream --test cdc_nats_e2e -- --ignored --test-threads=1",
+		// #975: the same drain-through assertions against the bound Kafka broker
+		// (DATABASE_URL + KAFKA_BOOTSTRAP + FRAISEQL_KAFKA_ALLOW_PLAINTEXT below).
+		// Asserted THROUGH the drain, and the entity-keyed partition affinity is
+		// only meaningful because the suite creates its topic with 6 partitions.
+		"cargo test -p fraiseql-cdc-sinks --features cdc-kafka --test cdc_kafka_e2e -- --ignored --test-threads=1",
+		// #975: the same drain-through assertions against the bound Kafka broker
+		// (DATABASE_URL + KAFKA_BOOTSTRAP + FRAISEQL_KAFKA_ALLOW_PLAINTEXT below).
+		// Asserted THROUGH the drain, and the entity-keyed partition affinity is
+		// only meaningful because the suite creates its topic with 6 partitions.
 		// #382: the SERVER's outbound-CDC mount — [cdc_outbound] built through
 		// the real path drains the outbox to the bound JetStream, and an
 		// unreachable broker refuses to boot. Before this the drain engine was
@@ -1953,11 +1979,21 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(redisBindHost, m.redisService()).
 		WithServiceBinding(natsBindHost, m.natsService()).
+		WithServiceBinding(kafkaBindHost, m.kafkaService()).
 		WithServiceBinding(mailhogBindHost, m.mailhogService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("TEST_DATABASE_URL", dbURL).
 		WithEnvVariable("REDIS_URL", redisURL).
 		WithEnvVariable("NATS_URL", natsURL).
+		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
+		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
+		WithEnvVariable("KAFKA_BOOTSTRAP", kafkaBindHost+":9092").
+		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
+		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
+		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
+		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
+		// Scheme-less on purpose: this is librdkafka's `bootstrap.servers` shape,
+		// which the sink's own kafka:// / kafka+ssl:// scheme is prefixed onto.
 		WithEnvVariable("MAILHOG_SMTP_HOST", mailhogBindHost).
 		WithEnvVariable("MAILHOG_SMTP_PORT", "1025").
 		WithEnvVariable("MAILHOG_API", fmt.Sprintf("http://%s:8025", mailhogBindHost)).
@@ -1972,6 +2008,9 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// The bound JetStream service speaks plaintext nats:// (bridge_integration);
 		// opt into plaintext for the test broker (L-nats-plaintext).
 		WithEnvVariable("FRAISEQL_NATS_ALLOW_PLAINTEXT", "true").
+		// Likewise the bound Kafka broker: PLAINTEXT listener, so the sink's
+		// transport guard needs the same explicit dev opt-in (#975).
+		WithEnvVariable("FRAISEQL_KAFKA_ALLOW_PLAINTEXT", "true").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -2016,6 +2055,32 @@ func (m *FraiseqlCi) natsService() *dagger.Service {
 		From(natsImage).
 		WithExposedPort(4222).
 		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true, Args: []string{"-js", "-m", "8222"}})
+}
+
+// kafkaService returns a started single-node Kafka broker in KRaft mode (no
+// ZooKeeper). `advertised.listeners` must name the Dagger bind host, not
+// localhost: librdkafka connects to the bootstrap server, is handed the
+// advertised address, and then connects to *that* — an advertised `localhost`
+// would send every produce back into the test container.
+func (m *FraiseqlCi) kafkaService() *dagger.Service {
+	return dag.Container().
+		From(kafkaImage).
+		WithEnvVariable("KAFKA_NODE_ID", "1").
+		WithEnvVariable("KAFKA_PROCESS_ROLES", "broker,controller").
+		WithEnvVariable("KAFKA_LISTENERS", "PLAINTEXT://:9092,CONTROLLER://:9093").
+		WithEnvVariable("KAFKA_ADVERTISED_LISTENERS", "PLAINTEXT://"+kafkaBindHost+":9092").
+		WithEnvVariable("KAFKA_CONTROLLER_LISTENER_NAMES", "CONTROLLER").
+		WithEnvVariable(
+			"KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",
+			"CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT",
+		).
+		WithEnvVariable("KAFKA_CONTROLLER_QUORUM_VOTERS", "1@localhost:9093").
+		WithEnvVariable("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1").
+		WithEnvVariable("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1").
+		WithEnvVariable("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").
+		WithEnvVariable("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0").
+		WithExposedPort(9092).
+		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
 }
 
 // mailhogService is the MailHog SMTP sink: SMTP on 1025 (plaintext) and an HTTP

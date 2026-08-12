@@ -165,13 +165,19 @@ hatch_files=$(
 # Comments are stripped before looking for the production check: a doc comment
 # that merely *names* `insecure_bypass` is prose, not a gate. (The async-trait
 # ratchet was fooled exactly this way.)
+#
+# `grep -E … >/dev/null` rather than `grep -qE`: under `set -o pipefail`, a `-q`
+# grep exits at the FIRST match, the upstream awk is then killed by SIGPIPE (141),
+# and the pipeline reports failure even though the match succeeded. That made this
+# check report a *correctly* gated file as ungated whenever the file was long
+# enough for awk still to be writing — a false positive that grows with file size.
 ungated_hatch_files=""
 for file in $hatch_files; do
   if ! awk '
         /#\[cfg\(test\)\]/ { exit }
         /^[[:space:]]*(\/\/|\*)/ { next }
         { print }
-      ' "$file" | grep -qE 'insecure_bypass|is_production'; then
+      ' "$file" | grep -E 'insecure_bypass|is_production' >/dev/null; then
     ungated_hatch_files="${ungated_hatch_files}${file}"$'\n'
   fi
 done
@@ -214,7 +220,9 @@ for file in $writers; do
   # Match the CALL, not the mention: a `use super::upload_guard::authorize_upload;`
   # left behind after the call was deleted satisfied a bare grep, and this check went
   # green through its own red-capability proof. Imports and comments are stripped first.
-  if ! grep -vE '^[[:space:]]*(//|\*|use )' "$file" | grep -qE 'authorize_upload[[:space:]]*\('; then
+  # `>/dev/null` rather than `-q` for the same pipefail/SIGPIPE reason as above.
+  if ! grep -vE '^[[:space:]]*(//|\*|use )' "$file" \
+    | grep -E 'authorize_upload[[:space:]]*\(' >/dev/null; then
     ungated_writers="${ungated_writers}${file}"$'\n'
   fi
 done

@@ -53,7 +53,6 @@ fn invalid_sections_are_refused_by_name() {
             "duplicate sink name",
         ),
         (config(vec![sink("", "nats-jetstream")]), "empty name"),
-        (config(vec![sink("a", "kafka")]), "not implemented yet"),
         (config(vec![sink("a", "kinesis")]), "not implemented yet"),
         (config(vec![sink("a", "pulsar")]), "not implemented yet"),
         (config(vec![sink("a", "rabbitmq")]), "unknown kind"),
@@ -86,6 +85,36 @@ fn invalid_sections_are_refused_by_name() {
 #[test]
 fn a_valid_section_validates() {
     assert!(config(vec![sink("warehouse", "nats-jetstream")]).validate().is_ok());
+}
+
+/// `kind = "kafka"` is accepted only by a binary that compiled the sink in.
+///
+/// The two halves run in different legs by construction — a `cfg(not(feature))`
+/// test never runs where the feature is on — so both a default-feature leg and a
+/// `cdc-kafka` leg are needed to cover this pair. That is the point: the failure
+/// this guards against is a feature-off binary accepting the kind and then
+/// dropping every event.
+#[cfg(feature = "cdc-kafka")]
+#[test]
+fn kafka_is_accepted_when_the_sink_is_compiled_in() {
+    assert!(config(vec![sink("warehouse", "kafka")]).validate().is_ok());
+    assert!(
+        config(vec![sink("warehouse", "KAFKA")]).validate().is_ok(),
+        "kind is case-folded"
+    );
+}
+
+#[cfg(not(feature = "cdc-kafka"))]
+#[test]
+fn kafka_is_refused_by_name_when_the_sink_is_not_compiled_in() {
+    let err = config(vec![sink("warehouse", "kafka")])
+        .validate()
+        .expect_err("must be refused");
+    assert!(err.contains("cdc-kafka"), "should name the missing feature: {err}");
+    assert!(
+        !err.contains("unknown kind"),
+        "must be refused by name, not as an unknown kind: {err}"
+    );
 }
 
 /// A configured section with no database pool refuses to boot: the outbox and

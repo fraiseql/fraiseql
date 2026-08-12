@@ -3664,6 +3664,7 @@ dependencies = [
  "fraiseql-guard",
  "fraiseql-test-support",
  "futures",
+ "rdkafka",
  "serde",
  "serde_json",
  "sqlx",
@@ -7491,6 +7492,7 @@ dependencies = [
  "libc",
  "libz-sys",
  "num_enum",
+ "openssl-sys",
  "pkg-config",
 ]
 

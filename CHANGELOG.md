@@ -1434,6 +1434,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Outbound CDC: the Apache Kafka sink (#975).** `kind = "kafka"` behind the `cdc-kafka`
+  feature, reusing the existing drain worker, backoff and dead-lettering unchanged. A binary
+  built without the feature refuses the kind *by name* and says which feature to rebuild
+  with, rather than accepting the sink and dropping its events.
+
+  Kafka's `bootstrap.servers` is a scheme-less `host:port` list, so transport security is not
+  expressible in the endpoint the way `tls://` is for NATS. The sink defines its own schemes
+  — `kafka+ssl://`, `kafka+sasl-ssl://`, and plaintext `kafka://` behind
+  `FRAISEQL_KAFKA_ALLOW_PLAINTEXT` plus `FRAISEQL_ENV=development` — and maps each to an
+  explicit `security.protocol`. A **scheme-less endpoint is refused rather than defaulted**,
+  because librdkafka would read it as `PLAINTEXT`, and **every** broker in the list is
+  screened, so one metadata address cannot ride along behind a legitimate one.
+
+  SASL credentials come from `FRAISEQL_KAFKA_SASL_{MECHANISM,USERNAME,PASSWORD}`. The
+  mechanism is required rather than defaulted (librdkafka's default is `GSSAPI`, which these
+  builds cannot perform, and no default suits every broker). `PLAIN`, `SCRAM-SHA-256` and
+  `SCRAM-SHA-512` are supported; Kerberos is refused by name, as supporting it is the sole
+  reason to link Cyrus libsasl2.
+
+  Records are keyed by entity identity (`{object_type}:{object_id}`) so an entity's changes
+  share a partition — Kafka orders only within one — with `enable.idempotence` on and the
+  `(object_type, seq)` dedup key in both the payload and a `fraiseql-msg-id` header. Kafka's
+  topic charset is narrower than a NATS subject's, so a template that renders outside
+  `[a-zA-Z0-9._-]` dead-letters rather than being re-routed.
+
 - **Render transforms: resize modes, crop, effects and watermarks (#973).** #370 shipped the
   render endpoint with resize, format conversion and the resource bounds that make exposing
   image transforms safe. The operations themselves were resize-and-re-encode only, with one

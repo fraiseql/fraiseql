@@ -2,6 +2,7 @@
 fraiseql-guard = {workspace = true}
 async-nats = {version = "0.49", optional = true}
 chrono = {workspace = true}
+rdkafka = {workspace = true, optional = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = {workspace = true}
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"]}
@@ -17,10 +18,14 @@ futures = "0.3"
 tokio = {workspace = true, features = ["test-util"]}
 
 [features]
-# Off by default: the broker client (async-nats, pure-Rust) is pulled only when a
-# deployment enables the NATS JetStream sink. The default build stays broker-free;
-# the drain worker + all pure encoding/sanitisation logic compile unconditionally.
+# Off by default: each broker client is pulled only when a deployment enables its
+# sink. The default build stays broker-free; the drain worker, the endpoint
+# guards and all pure encoding/sanitisation logic compile unconditionally, so the
+# refusing half of every transport guard runs in the cheap unit-test leg.
 default = []
+# Apache Kafka. Unlike async-nats this pulls a C library (librdkafka, built from
+# source by rdkafka-sys) and links system libssl/libcrypto/libz.
+cdc-kafka = ["dep:rdkafka"]
 cdc-nats-jetstream = ["dep:async-nats"]
 
 [lints]

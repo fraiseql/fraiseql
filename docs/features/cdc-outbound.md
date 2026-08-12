@@ -54,7 +54,8 @@ configured to go nowhere is a mistake worth surfacing.
 ## Delivery guarantees
 
 - **At-least-once.** Consumers deduplicate on `(object_type, seq)`, carried in the record (for NATS,
-  as the `Nats-Msg-Id` header, which JetStream also uses for its own dedup window).
+  as the `Nats-Msg-Id` header, which JetStream also uses for its own dedup window; for Kafka, as the
+  `fraiseql-msg-id` header).
 - **Ordered per sink.** The drain claims a contiguous prefix and publishes in `seq` order; a
   transient failure blocks its successors rather than letting them overtake it.
 - **No silent loss.** A transient failure retries with exponential backoff; exhausting
@@ -79,13 +80,60 @@ costs latency, never events.
 | `kind` | Status |
 |---|---|
 | `nats-jetstream` | Supported |
-| `kafka` | Recognised; refuses to boot (tracked in #382) |
+| `kafka` | Supported — requires the `cdc-kafka` build feature |
 | `kinesis` | Recognised; refuses to boot (tracked in #382) |
 | `pulsar` | Recognised; refuses to boot (tracked in #382) |
 
 Payloads are JSON. Avro/Protobuf with a schema registry is planned.
 
-Plaintext `nats://` endpoints are refused unless
-`FRAISEQL_NATS_ALLOW_PLAINTEXT=true` **and** `FRAISEQL_ENV=development` are both
-set — change events carry business data and must not cross the wire in the
-clear.
+A binary built without `cdc-kafka` refuses `kind = "kafka"` **by name**, telling
+you which feature to rebuild with — it never accepts the sink and then drops its
+events.
+
+Plaintext endpoints are refused unless the broker's opt-in
+(`FRAISEQL_NATS_ALLOW_PLAINTEXT=true` or `FRAISEQL_KAFKA_ALLOW_PLAINTEXT=true`)
+is set **and** `FRAISEQL_ENV=development` — change events carry business data and
+must not cross the wire in the clear. On the plaintext path every host is
+screened, so the development escape hatch reaches loopback brokers only and
+cannot be used to reach an instance-metadata address.
+
+### Kafka endpoints
+
+`bootstrap.servers` is a comma-separated `host:port` list with no URL scheme, so
+transport security is not expressible in it. FraiseQL requires a scheme of its
+own and maps it to an explicit `security.protocol`:
+
+| Endpoint | `security.protocol` |
+|---|---|
+| `kafka+ssl://b1:9092,b2:9092` | `SSL` |
+| `kafka+sasl-ssl://b1:9096` | `SASL_SSL` |
+| `kafka://localhost:9092` | `PLAINTEXT` (development opt-in only) |
+
+A **scheme-less endpoint is refused, not defaulted** — librdkafka would read it
+as `PLAINTEXT`. Every broker in the list is validated, so one bad entry refuses
+the whole endpoint rather than being silently skipped.
+
+`kafka+sasl-ssl://` reads its credentials from the environment, not the TOML:
+
+| Variable | Meaning |
+|---|---|
+| `FRAISEQL_KAFKA_SASL_MECHANISM` | `PLAIN`, `SCRAM-SHA-256` or `SCRAM-SHA-512` — required |
+| `FRAISEQL_KAFKA_SASL_USERNAME` | SASL username |
+| `FRAISEQL_KAFKA_SASL_PASSWORD` | SASL password |
+
+The mechanism is required rather than defaulted: librdkafka's own default is
+`GSSAPI`, which these builds cannot perform, and no single default fits every
+broker (Confluent Cloud uses `PLAIN`, MSK `SCRAM-SHA-512`, Redpanda
+`SCRAM-SHA-256`). Kerberos/GSSAPI is deliberately not supported — it is the only
+mechanism that would require linking Cyrus libsasl2, and every managed Kafka
+offers one of the three above.
+
+Kafka topic names are narrower than NATS subjects (`[a-zA-Z0-9._-]`, at most 249
+characters, and never `.` or `..`). A `subject_template` that renders outside
+that charset dead-letters the event rather than being re-routed to another topic.
+
+Records are keyed by entity identity (`{object_type}:{object_id}`), which pins
+all of one entity's changes to a single partition — Kafka only orders within a
+partition. The `(object_type, seq)` consumer dedup key travels in the payload and
+in the `fraiseql-msg-id` header. The producer runs with `enable.idempotence`, so
+producer-side retries neither duplicate nor reorder.
