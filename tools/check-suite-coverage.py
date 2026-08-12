@@ -48,36 +48,63 @@ ENV_READ = r'(?:var|var_os|env!)\(\s*"{name}"'
 SERVICES = {
     "postgres": {
         "detect": re.compile(
-            r"test_support::postgres\(|try_database_url\(|\bdatabase_url\(\)|"
+            r"(?:test_support|services)::postgres\(|try_database_url\(|\bdatabase_url\(\)|"
             + ENV_READ.format(name="(?:TLS_)?DATABASE_URL")
         ),
         "satisfied_by": {"DATABASE_URL", "TLS_DATABASE_URL"},
     },
     "redis": {
-        "detect": re.compile(r"test_support::redis\(|" + ENV_READ.format(name="REDIS_URL")),
+        "detect": re.compile(
+            r"(?:test_support|services)::redis\(|" + ENV_READ.format(name="REDIS_URL")
+        ),
         "satisfied_by": {"REDIS_URL"},
     },
     "nats": {
-        "detect": re.compile(r"test_support::nats\(|" + ENV_READ.format(name="NATS_URL")),
+        "detect": re.compile(
+            r"(?:test_support|services)::nats\(|" + ENV_READ.format(name="NATS_URL")
+        ),
         "satisfied_by": {"NATS_URL"},
     },
     "minio": {
-        "detect": re.compile(r"test_support::minio\(|" + ENV_READ.format(name="MINIO_ENDPOINT")),
+        "detect": re.compile(
+            r"(?:test_support|services)::minio\(|" + ENV_READ.format(name="MINIO_ENDPOINT")
+        ),
         "satisfied_by": {"MINIO_ENDPOINT"},
     },
     "azure_blob": {
         "detect": re.compile(
-            r"test_support::azure_blob\(|" + ENV_READ.format(name="AZURE_BLOB_ENDPOINT")
+            r"(?:test_support|services)::azure_blob\(|"
+            + ENV_READ.format(name="AZURE_BLOB_ENDPOINT")
         ),
         "satisfied_by": {"AZURE_BLOB_ENDPOINT"},
     },
     "gcs": {
-        "detect": re.compile(r"test_support::gcs\(|" + ENV_READ.format(name="GCS_ENDPOINT")),
+        "detect": re.compile(
+            r"(?:test_support|services)::gcs\(|" + ENV_READ.format(name="GCS_ENDPOINT")
+        ),
         "satisfied_by": {"GCS_ENDPOINT"},
     },
     "vault": {
-        "detect": re.compile(r"test_support::vault\(|" + ENV_READ.format(name="VAULT_ADDR")),
+        "detect": re.compile(
+            r"(?:test_support|services)::vault\(|" + ENV_READ.format(name="VAULT_ADDR")
+        ),
         "satisfied_by": {"VAULT_ADDR"},
+    },
+    # #975 outbound CDC sinks. Added *before* the suites that need them: without a
+    # group here a suite reading KAFKA_BOOTSTRAP satisfies this gate merely by
+    # being named in some leg — including one that binds no broker, which is
+    # precisely the #960 shape the gate exists to catch.
+    "kafka": {
+        "detect": re.compile(
+            r"(?:test_support|services)::kafka\(|" + ENV_READ.format(name="KAFKA_BOOTSTRAP")
+        ),
+        "satisfied_by": {"KAFKA_BOOTSTRAP"},
+    },
+    "kinesis": {
+        "detect": re.compile(
+            r"(?:test_support|services)::kinesis\(|" + ENV_READ.format(name="KINESIS_ENDPOINT")
+        ),
+        "satisfied_by": {"KINESIS_ENDPOINT"},
     },
 }
 

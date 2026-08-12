@@ -17,16 +17,72 @@ mod tests;
 
 use std::time::Duration;
 
-use fraiseql_cdc_sinks::{CdcSinkConfig, DrainWorker, NatsJetStreamSink};
+use fraiseql_cdc_sinks::{
+    CdcSink, CdcSinkConfig, ChangeEvent, DrainWorker, NatsJetStreamSink, PublishOutcome, SinkKind,
+};
 use sqlx::PgPool;
 use tracing::{error, info, warn};
 
 use crate::server_config::cdc_outbound::{CdcOutboundConfig, CdcSinkSectionConfig};
 
+/// Every sink kind this binary can drain to, as one concrete type.
+///
+/// `CdcSink::publish` is an RPITIT (`-> impl Future + Send`), which makes the
+/// trait **not** dyn-safe — `Box<dyn CdcSink>` will not compile. So the drain
+/// worker is made generic over this enum and each method delegates, rather than
+/// over a trait object. Variants are feature-gated, so a build without
+/// `cdc-kafka` carries no rdkafka and no dead arm.
+// Reason: exactly one value per configured sink, built at boot and held by its
+// DrainWorker for the process lifetime — it is never moved in a hot path or
+// stored in a collection, so boxing would buy an allocation and a deref per
+// publish and save nothing.
+#[allow(clippy::large_enum_variant)]
+pub enum ConfiguredSink {
+    /// NATS `JetStream` (always available with `cdc-outbound`).
+    NatsJetStream(NatsJetStreamSink),
+    /// Apache Kafka (feature `cdc-kafka`).
+    #[cfg(feature = "cdc-kafka")]
+    Kafka(fraiseql_cdc_sinks::KafkaSink),
+}
+
+impl CdcSink for ConfiguredSink {
+    fn name(&self) -> &str {
+        match self {
+            Self::NatsJetStream(sink) => sink.name(),
+            #[cfg(feature = "cdc-kafka")]
+            Self::Kafka(sink) => sink.name(),
+        }
+    }
+
+    fn kind(&self) -> SinkKind {
+        match self {
+            Self::NatsJetStream(sink) => sink.kind(),
+            #[cfg(feature = "cdc-kafka")]
+            Self::Kafka(sink) => sink.kind(),
+        }
+    }
+
+    fn matches(&self, ev: &ChangeEvent) -> bool {
+        match self {
+            Self::NatsJetStream(sink) => sink.matches(ev),
+            #[cfg(feature = "cdc-kafka")]
+            Self::Kafka(sink) => sink.matches(ev),
+        }
+    }
+
+    async fn publish(&self, ev: &ChangeEvent) -> PublishOutcome {
+        match self {
+            Self::NatsJetStream(sink) => sink.publish(ev).await,
+            #[cfg(feature = "cdc-kafka")]
+            Self::Kafka(sink) => sink.publish(ev).await,
+        }
+    }
+}
+
 /// One configured sink's drain worker, ready to be ticked.
 pub struct SinkDrain {
     name:   String,
-    worker: DrainWorker<NatsJetStreamSink>,
+    worker: DrainWorker<ConfiguredSink>,
     tick:   Duration,
 }
 
@@ -134,28 +190,40 @@ async fn build_one(
         sink_config.max_attempts = max_attempts;
     }
 
-    // Only `nats-jetstream` reaches here: `validate()` refused every other
-    // kind by name before any connection was attempted.
-    let sink = NatsJetStreamSink::connect(&section.endpoint, sink_config.clone())
-        .await
-        .map_err(|e| {
-            format!(
-                "[cdc_outbound] sink {:?} could not connect to {}: {e}. Refusing to boot \
-                 rather than starting a drain that publishes nowhere.",
-                section.name, section.endpoint
-            )
-        })?;
+    // Only kinds this build compiled in reach here: `validate()` refused every
+    // other one by name before any connection was attempted.
+    let connect_failed = |e: fraiseql_cdc_sinks::CdcError| {
+        format!(
+            "[cdc_outbound] sink {:?} could not connect to {}: {e}. Refusing to boot \
+             rather than starting a drain that publishes nowhere.",
+            section.name, section.endpoint
+        )
+    };
 
-    if let Some(ref stream) = section.ensure_stream {
-        sink.ensure_stream(stream, vec![subject_wildcard(&section.subject_template)])
-            .await
-            .map_err(|e| {
-                format!(
-                    "[cdc_outbound] sink {:?}: could not ensure JetStream stream {stream:?}: {e}",
-                    section.name
-                )
-            })?;
-    }
+    let sink = match section.kind.to_ascii_lowercase().as_str() {
+        #[cfg(feature = "cdc-kafka")]
+        "kafka" => ConfiguredSink::Kafka(
+            fraiseql_cdc_sinks::KafkaSink::connect(&section.endpoint, sink_config.clone())
+                .map_err(connect_failed)?,
+        ),
+        _ => {
+            let sink = NatsJetStreamSink::connect(&section.endpoint, sink_config.clone())
+                .await
+                .map_err(connect_failed)?;
+            if let Some(ref stream) = section.ensure_stream {
+                sink.ensure_stream(stream, vec![subject_wildcard(&section.subject_template)])
+                    .await
+                    .map_err(|e| {
+                        format!(
+                            "[cdc_outbound] sink {:?}: could not ensure JetStream stream \
+                             {stream:?}: {e}",
+                            section.name
+                        )
+                    })?;
+            }
+            ConfiguredSink::NatsJetStream(sink)
+        },
+    };
 
     Ok(SinkDrain {
         name: section.name.clone(),

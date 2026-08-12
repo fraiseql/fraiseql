@@ -38,15 +38,21 @@ mod event;
 mod migrations;
 mod sink;
 
+#[cfg(feature = "cdc-kafka")]
+mod kafka;
 #[cfg(feature = "cdc-nats-jetstream")]
 mod nats;
 
 pub use drain::{DrainStats, DrainWorker};
 pub use error::{CdcError, Result};
 pub use event::{ChangeEvent, ChangeOp};
+#[cfg(feature = "cdc-kafka")]
+pub use kafka::KafkaSink;
 pub use migrations::outbox_sink_state_migration_sql;
 #[cfg(feature = "cdc-nats-jetstream")]
 pub use nats::NatsJetStreamSink;
 pub use sink::{
-    CdcSink, CdcSinkConfig, PublishOutcome, SinkKind, next_attempt_delay, render_subject,
+    CdcSink, CdcSinkConfig, KafkaEndpoint, KafkaSaslCredentials, KafkaSaslMechanism,
+    KafkaSecurityProtocol, PublishOutcome, SinkKind, guard_kafka_endpoint, next_attempt_delay,
+    render_kafka_topic, render_subject, resolve_kafka_sasl, validate_kafka_topic,
 };

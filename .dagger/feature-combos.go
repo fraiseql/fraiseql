@@ -152,6 +152,11 @@ var featureCombos = []featureCombo{
 	// #382: the server-side outbound-CDC mount (its own feature, pulling
 	// fraiseql-cdc-sinks with the NATS sink).
 	{name: "server-cdc-outbound", crate: "fraiseql-server", features: []string{"cdc-outbound"}},
+	// #975: the Kafka sink's server mount. Distinct from server-cdc-outbound
+	// because the delegating ConfiguredSink enum, the kafka arm of build_one and
+	// the feature-on half of validate_kind only compile here — and the
+	// feature-OFF half only compiles in the combo above. Neither covers both.
+	{name: "server-cdc-kafka", crate: "fraiseql-server", features: []string{"cdc-kafka"}},
 	{name: "storage-gcs", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"gcs"}},
 	{name: "storage-azure-blob", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"azure-blob"}},
 
@@ -172,6 +177,11 @@ var featureCombos = []featureCombo{
 	// e2e test under -D warnings on MSRV; the default (broker-free) drain path is
 	// covered by preflight `--all-features` and the workspace test leg.
 	{name: "cdc-nats-jetstream", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-nats-jetstream"}},
+	// #975 the gated Kafka outbound sink. Its endpoint guard and topic charset are
+	// pure and always compiled (covered by the default test leg); this combo is
+	// what compiles KafkaSink itself, its produce-error classification and its
+	// rdkafka-bound tests under -D warnings on MSRV.
+	{name: "cdc-kafka", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-kafka"}},
 }
 
 // cargoArgs builds the `cargo check|clippy` invocation for this combo, mirroring the

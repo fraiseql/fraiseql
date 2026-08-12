@@ -114,8 +114,21 @@ insta = {version = "1.38", features = ["yaml"]}
 proptest = "1.4"
 # Random
 rand = "0.9"
-# Kafka
-rdkafka = {version = "0.39", features = ["tokio"]}
+# Kafka. `ssl` is NOT in rdkafka's defaults (`libz` + `tokio` only), and without it the
+# bundled librdkafka is built with no OpenSSL at all — `security.protocol=SSL` then fails
+# at runtime rather than connecting, which would leave the accepting half of the CDC
+# sink's transport guard untestable (#975). It links system libssl/libcrypto, which the
+# Dagger rustBase already installs (libssl-dev).
+#
+# `sasl` is deliberately NOT enabled. It is not additive to `ssl`: rdkafka maps
+# `sasl -> gssapi -> ["ssl", "sasl2-sys"]`, so it only adds Cyrus/GSSAPI (Kerberos) while
+# making system libsasl2 a hard build-time requirement (sasl2-sys panics without
+# libsasl2-dev) and a runtime `.so` dependency. `ssl` alone already compiles the PLAIN,
+# SCRAM and OAUTHBEARER mechanisms — verified in the built librdkafka: `WITH_SASL_SCRAM`
+# and `WITH_SASL_OAUTHBEARER` are set, `WITH_SASL_CYRUS` is not, and the link line is
+# `-lssl -lcrypto -lz` with no `-lsasl2`. That covers every managed-Kafka auth mode
+# `kafka+sasl-ssl://` needs; only Kerberos is out of reach.
+rdkafka = {version = "0.39", features = ["tokio", "ssl"]}
 regex = "1.10"
 # Redis client (consolidated across auth/core/observers/server — F015)
 redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"]}

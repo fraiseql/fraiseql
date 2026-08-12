@@ -31,6 +31,8 @@ const GCS_ENDPOINT_ENV: &str = "GCS_ENDPOINT";
 const VAULT_ADDR_ENV: &str = "VAULT_ADDR";
 /// `vault()` token env var.
 const VAULT_TOKEN_ENV: &str = "VAULT_TOKEN";
+/// `kafka()` bootstrap-servers env var.
+const KAFKA_BOOTSTRAP_ENV: &str = "KAFKA_BOOTSTRAP";
 
 /// A provisioned service: a connection URL plus an optional liveness guard.
 ///
@@ -122,6 +124,28 @@ pub async fn gcs() -> Option<Service> {
     resolve_env(GCS_ENDPOINT_ENV).await
 }
 
+/// Apache Kafka. Env: `KAFKA_BOOTSTRAP`.
+///
+/// Unlike every other service here the value is **scheme-less** — it is
+/// librdkafka's `bootstrap.servers` shape, a comma-separated `host:port` list.
+/// The first entry is probed for reachability, and the value returned by
+/// [`Service::url`] is the list verbatim, ready to be prefixed with the sink's
+/// own `kafka+ssl://` / `kafka://` scheme by the caller.
+#[allow(clippy::unused_async)] // Reason: uniform async getter family; a local spawn path would land here
+pub async fn kafka() -> Option<Service> {
+    let bootstrap = env_url(KAFKA_BOOTSTRAP_ENV)?;
+    // Probe through the shared, unit-tested `host_port` parser by giving it the
+    // scheme it requires, rather than re-implementing host splitting here.
+    let first = bootstrap.split(',').next().unwrap_or("").trim();
+    match probe(&format!("kafka://{first}")) {
+        Ok(()) => Some(Service::from_url(bootstrap)),
+        Err(reason) => {
+            announce_skip(KAFKA_BOOTSTRAP_ENV, &reason);
+            None
+        },
+    }
+}
+
 /// `HashiCorp` Vault. Env: `VAULT_ADDR` + `VAULT_TOKEN` (both required).
 #[must_use]
 pub fn vault() -> Option<Vault> {
@@ -148,18 +172,23 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 /// Wrap an env-provided URL as a [`Service`] only if its host:port accepts TCP
 /// connections; otherwise announce the skip and return `None`. This is what makes
 /// "available" mean *reachable* rather than *configured* (#879).
-#[allow(clippy::print_stderr)] // Reason: a silent skip is the failure mode this crate exists to prevent; stderr is the test log
 fn reachable_service(name: &str, url: String) -> Option<Service> {
     match probe(&url) {
         Ok(()) => Some(Service::from_url(url)),
         Err(reason) => {
-            eprintln!(
-                "SKIP: {name} is set but the service is unreachable ({reason}); \
-                 treating it as unavailable"
-            );
+            announce_skip(name, &reason);
             None
         },
     }
+}
+
+/// Announce an unreachable-service skip on stderr.
+#[allow(clippy::print_stderr)] // Reason: a silent skip is the failure mode this crate exists to prevent; stderr is the test log
+fn announce_skip(name: &str, reason: &str) {
+    eprintln!(
+        "SKIP: {name} is set but the service is unreachable ({reason}); \
+         treating it as unavailable"
+    );
 }
 
 /// Attempt one short-timeout TCP connect to the URL's host:port.
@@ -215,6 +244,7 @@ fn default_port(scheme: &str) -> Option<u16> {
         "postgres" | "postgresql" => Some(5432),
         "redis" | "rediss" => Some(6379),
         "nats" => Some(4222),
+        "kafka" => Some(9092),
         "http" => Some(80),
         "https" => Some(443),
         _ => None,

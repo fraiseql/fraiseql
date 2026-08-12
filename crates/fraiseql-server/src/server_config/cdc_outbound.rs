@@ -151,15 +151,32 @@ impl CdcOutboundConfig {
 /// A recognised-but-unimplemented kind is refused by name, and an unknown one
 /// is refused as unknown: either way the server does not boot believing it is
 /// replicating changes it would in fact drop on the floor.
+///
+/// `kafka` is accepted only when the `cdc-kafka` feature compiled the sink in.
+/// A binary built without it keeps refusing the kind **by name** — never
+/// accept-then-drop, which is the failure mode this function exists to prevent.
 fn validate_kind(sink: &str, kind: &str) -> Result<(), String> {
     match kind.to_ascii_lowercase().as_str() {
         "nats-jetstream" => Ok(()),
-        known @ ("kafka" | "kinesis" | "pulsar") => Err(format!(
+        #[cfg(feature = "cdc-kafka")]
+        "kafka" => Ok(()),
+        #[cfg(not(feature = "cdc-kafka"))]
+        "kafka" => Err(format!(
+            "[cdc_outbound] sink {sink:?}: kind \"kafka\" is implemented but not compiled into \
+             this binary. Rebuild with the `cdc-kafka` feature. Refusing to boot rather than \
+             silently draining nothing."
+        )),
+        known @ ("kinesis" | "pulsar") => Err(format!(
             "[cdc_outbound] sink {sink:?}: kind {known:?} is not implemented yet (#382 tracks \
              it). Refusing to boot rather than silently draining nothing."
         )),
         other => Err(format!(
-            "[cdc_outbound] sink {sink:?}: unknown kind {other:?}; expected \"nats-jetstream\""
+            "[cdc_outbound] sink {sink:?}: unknown kind {other:?}; expected \"nats-jetstream\"{}",
+            if cfg!(feature = "cdc-kafka") {
+                " or \"kafka\""
+            } else {
+                ""
+            }
         )),
     }
 }
