@@ -1,7 +1,7 @@
 name: Dagger — test
 
 # Phase 03 workspace test suite (Track 0). Runs the workspace test suite
-# on the self-hosted runner (fraiseql-8core) at ~$0/min, for both the MSRV (1.94)
+# on the self-hosted runner (fraiseql-8core) at ~$0/min, for both the MSRV (1.94.1)
 # and latest-stable toolchains. `dagger call test --rust=<tc>` does the full
 # cargo build --all-features + the feature-scoped cargo test invocations + doctests,
 # reusing the box's cargo/target/sccache cache volumes (warm = fast).

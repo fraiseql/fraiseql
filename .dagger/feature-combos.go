@@ -12,7 +12,7 @@ package main
 // These are `cargo check` (and, for the functions combos, `cargo clippy`) only —
 // no test binaries run, so no backing services are needed. That makes this matrix
 // immune to the Docker Hub anonymous pull rate-limit that gates the integration
-// suites (it only ever pulls the already-cached rust:1.94 base). See parity-notes.md.
+// suites (it only ever pulls the already-cached rust:1.94.1 base). See parity-notes.md.
 
 import (
 	"context"
@@ -285,10 +285,12 @@ func (m *FraiseqlCi) runCombo(
 	cmd := strings.Join(c.cargoArgs(), " ")
 	var setup string
 	if c.clippy {
-		// rustBaseFor pins RUSTUP_TOOLCHAIN=1.94, but rustBase installs clippy on the
-		// base image's *default* toolchain — not the instance RUSTUP_TOOLCHAIN selects
-		// (`1.94-x86_64-unknown-linux-gnu`), which ships only rustc. So ensure clippy
-		// for the active toolchain before running it (idempotent: a no-op once present).
+		// rustBaseFor pins RUSTUP_TOOLCHAIN=1.94.1, which since the patch pin IS the
+		// base image's own default toolchain (`1.94.1-x86_64-unknown-linux-gnu`), so
+		// rustBase's `rustup component add clippy` now lands on it. Kept anyway, and
+		// idempotent: it costs a no-op, and it is the only thing between a future image
+		// whose default diverges from RUSTUP_TOOLCHAIN and a clippy-less combo run. Under
+		// the old floating `1.94` pin the two genuinely differed and this was load-bearing.
 		// Scoped here, not in rustBase: the Phase-02 clippy/fmt gates use rustBase()
 		// directly (no RUSTUP_TOOLCHAIN) and are unaffected; only these clippy combos hit
 		// the gap. Promote to rustBase if a future phase runs clippy under rustBaseFor.
