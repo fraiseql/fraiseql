@@ -14,10 +14,18 @@ FraiseQL's change spine into a durable event stream for downstream systems.
   transaction held across broker calls**.
 - **Ordered from the head** — a transiently failing row blocks its successors
   (head-of-line blocking) instead of being overtaken; a dead-lettered row releases them.
-- **NATS JetStream sink** (enable the `cdc-nats-jetstream` feature). The broker client
-  (`async-nats`, pure Rust) is pulled in only when this feature is on; the default build is
-  broker-free and the drain worker plus all encoding/sanitisation logic compile
-  unconditionally.
+- **Three broker sinks**, each behind its own feature — `cdc-nats-jetstream` (NATS
+  `JetStream`, via pure-Rust `async-nats`), `cdc-kafka` (Apache Kafka, via `rdkafka`, which
+  builds librdkafka from source and links system OpenSSL), and `cdc-kinesis` (AWS Kinesis
+  Data Streams, via the AWS SDK). A broker client is pulled in only when its feature is on;
+  the default build is broker-free, and the drain worker plus **all** endpoint guards,
+  encoding and sanitisation logic compile unconditionally.
+- **Transport guards that refuse rather than default.** Every sink screens its endpoint
+  before a client is constructed, and each guard is *pure* — no broker type appears in its
+  signature — so the refusing half is exercised by the default, broker-free test build
+  rather than only where that broker's feature is on. Plaintext is refused unless the
+  broker's own opt-in is set **and** `FRAISEQL_ENV` declares development, and on that path
+  the host is screened so the escape hatch cannot reach an instance-metadata address.
 - **At-least-once delivery** — a broker outage accumulates backlog and retries with capped
   exponential backoff rather than losing events; a permanent failure (e.g. an un-renderable
   subject) is dead-lettered. Consumers dedup on `(object_type, seq)`, carried as the NATS
