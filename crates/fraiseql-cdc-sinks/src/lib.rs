@@ -18,9 +18,14 @@
 //!
 //! # Layered optionality
 //!
-//! The drain worker and all pure encoding/sanitisation logic compile
-//! unconditionally; each broker sink is gated behind its own feature. The first
-//! shipped sink is NATS `JetStream` (`cdc-nats-jetstream`).
+//! The drain worker, every endpoint guard and all pure encoding/sanitisation
+//! logic compile unconditionally; each broker sink is gated behind its own
+//! feature — NATS `JetStream` (`cdc-nats-jetstream`), Apache Kafka
+//! (`cdc-kafka`) and AWS Kinesis (`cdc-kinesis`).
+//!
+//! Guards live alongside the sink trait rather than beside their clients because
+//! they are pure: that keeps the *refusing* half of each one in the cheap,
+//! broker-free test build instead of only where its feature is enabled.
 //!
 //! ```
 //! use fraiseql_cdc_sinks::{ChangeEvent, ChangeOp, CdcSinkConfig, render_subject};
