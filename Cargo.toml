@@ -376,5 +376,8 @@ homepage = "https://fraiseql.dev"
 keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
-rust-version = "1.94"  # MSRV — wasmtime 46's cranelift 0.133 requires 1.94 (#933)
+rust-version = "1.94.1"  # MSRV — wasmtime 46's cranelift 0.133 needs 1.94 (#933); the
+# patch is pinned because aws-sdk-kinesis 1.112 floors at 1.94.1 (#975) and because CI
+# has always run 1.94.1 — Docker's rust:1.94 tracks the newest patch, so a 1.94.0 floor
+# was a claim no leg ever tested.
 version = "2.14.1"

@@ -4,7 +4,7 @@ name: Dagger — feature matrix
 # `cargo check --features …` combos (feature-matrix / database-matrix /
 # storage-matrix / functions-matrix) onto one parameterized Dagger fn, with the
 # combo list as typed Go data (.dagger/feature-combos.go). cargo check / clippy only
-# — no test binaries, so NO backing services: it only pulls the rust:1.94 base (from
+# — no test binaries, so NO backing services: it only pulls the rust:1.94.1 base (from
 # the private ghcr.io/fraiseql mirror, see mirror-base-images.yml). Runs on the
 # self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's cargo/sccache
 # cache volumes (warm = fast). See parity-notes.md.
