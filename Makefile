@@ -437,6 +437,14 @@ test-release-tooling:
 	@bash tools/tests/release_helpers_test.sh
 	@bash tools/tests/dry_run_tolerance_test.sh
 
+# Unit tests for the advisory-deadline gate. Its boundary behaviour is worth
+# pinning: an off-by-one is a day on which every open branch is blocked by a
+# required check, and a file it forgets to scan is a risk acceptance that
+# expires invisibly — both of which had already happened (#1103).
+.PHONY: test-deadline-gate
+test-deadline-gate:
+	@bash tools/tests/check_deadlines_test.sh
+
 # Gate: ensure no axum 0.7-style `:param` captures slip back into `.route()` calls.
 # Issue #316 prevention — see `tools/check-route-syntax.sh` for the load-bearing multi-line awk.
 .PHONY: lint-routes
