@@ -4,28 +4,46 @@
 # Kept in lockstep with deny.toml's [advisories].ignore — enforced by
 # tools/check-audit-lockstep.sh (run from `make audit` and the Dagger
 # ShellGates). Update both files together; see docs/dependency-risk-policy.md.
+#
+# Deadlines use the `# deadline: YYYY-MM-DD` form and MUST match deny.toml's for
+# the same advisory. That spelling is load-bearing: tools/check-deadlines.sh
+# greps for exactly it, and the free-prose "Deadline 2026-06-15." form this file
+# used before matched nothing — three acceptances here lapsed by two months
+# without any gate noticing, while deny.toml's copies of the same three were
+# still in date (#1103). The date is the first day the acceptance is invalid.
 
 [advisories]
 ignore = [
-  # rsa: Marvin Attack timing sidechannel; transitive via sqlx-mysql (mysql feature only).
-  # No upstream fix. Deadline 2026-10-01 (re-evaluate sqlx 0.9 release).
+  # rsa: Marvin Attack timing sidechannel. No upstream fix; sqlx 0.9 was the tracked
+  # resolution path.
+  # ⚠ JUSTIFICATION UNDER REVIEW (#1110): the "transitive via sqlx-mysql, optional feature
+  # only" grounds recorded here and in deny.toml are false as of 2026-08-13 — sqlx-mysql left
+  # the tree with #374, and rsa is reached via jsonwebtoken 10.4 in the DEFAULT build, where
+  # generate_rs256_token() signs with an RSA private key. The acceptance is left standing (no
+  # upstream fix exists either way) but must be re-argued on the real path.
+  # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status and resolve #1110.
   "RUSTSEC-2023-0071",
   # rustls-pemfile: unmaintained; blocked on upstream bollard migration to rustls-pem.
-  # Deadline 2026-07-01.
+  # DEV-dependency only (fraiseql-wire test deps / bollard) — no production runtime exposure.
+  # deadline: 2026-10-01 — matches deny.toml; re-check bollard release cadence at the next sweep.
   "RUSTSEC-2025-0134",
   # rustls-webpki name-constraint bugs; transitive via aws-smithy-http-client (rustls 0.21);
-  # optional aws-s3 feature only. Deadline 2026-06-15.
+  # opt-in aws-s3 and cdc-kinesis features only, absent from the default build.
+  # Re-assessed 2026-08-13 (#1103); the real fix is tracked as #1111.
+  # deadline: 2026-12-01 — matches deny.toml.
   "RUSTSEC-2026-0098",
   "RUSTSEC-2026-0099",
-  # rustls-webpki 0.101.7 CRL parsing panic; same root cause as 0098/0099. Deadline 2026-06-15.
+  # rustls-webpki 0.101.7 CRL parsing panic; same root cause as 0098/0099.
+  # deadline: 2026-12-01 — matches deny.toml.
   "RUSTSEC-2026-0104",
   # quick-xml DoS pair (published 2026-07-02); transitive via samael 0.0.21 (auth-saml opt-in
-  # only, NOT default build); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-01.
+  # only, NOT default build); samael pins quick-xml 0.37.5, no fix in range.
+  # deadline: 2026-10-01 — matches deny.toml.
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
   # crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer deref; only on Debug-formatting an
   # invalid Atomic/Shared pointer (never done). Transitive via rayon (criterion dev-deps).
-  # Deadline 2026-10-01.
+  # deadline: 2026-10-01 — matches deny.toml.
   "RUSTSEC-2026-0204"
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible

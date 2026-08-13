@@ -3,11 +3,13 @@
 # Skip entries last reviewed: 2026-05-19
 #
 # Pending resolution (tracked with deadlines in the [advisories] section):
-# - rustls 0.21  — aws-sdk-s3 (optional feature) transitively requires; EOL dependency.
-# Blocked on aws-sdk-s3 migrating to hyper-rustls 0.27 (rustls 0.23).
-# Re-evaluate by: 2026-10-01
+# - rustls 0.21  — aws-sdk-s3 and aws-sdk-kinesis (both optional features) transitively
+# require it; EOL dependency. Blocked on a custom hyper-rustls 0.27 HttpClient — tracked
+# as #1111, since no aws-* version bump or feature selection resolves it.
+# Re-evaluate by: 2026-12-01
 # - sqlx 0.8     — sqlx 0.9.0 is alpha as of 2026-04-25; upgrade when stable.
-# Will resolve RUSTSEC-2023-0071 (rsa Marvin Attack via mysql_async).
+# Was recorded as resolving RUSTSEC-2023-0071 (rsa Marvin Attack "via mysql_async"), but that
+# path no longer exists — rsa now arrives via jsonwebtoken in the default build (#1110).
 # Re-evaluate by: 2026-10-01
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
 # Re-evaluate by: 2026-12-01 — migrate off graphql-parser if still blocked.
@@ -17,11 +19,17 @@
 [advisories]
 db-path = "~/.cargo/advisory-db"
 ignore = [
-  # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only).
-  # Resolution path: upgrade sqlx to 0.9+ when released (sqlx tracks rsa fix upstream).
-  # Mitigation: mysql feature is non-default; TLS termination at load balancer layer.
-  # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status; escalate if still blocked.
-  {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path; deadline 2026-10-01"},
+  # rsa: Marvin Attack — no upstream fix. Resolution path: upgrade sqlx to 0.9+ when released.
+  # ⚠ JUSTIFICATION UNDER REVIEW (#1110). The recorded grounds — "transitive via sqlx-mysql,
+  # optional feature only; mysql feature is non-default" — are false as of 2026-08-13:
+  # `cargo tree -i sqlx-mysql --all-features` prints nothing (MySQL left with #374), and rsa
+  # is reached via jsonwebtoken 10.4 in the DEFAULT build, where
+  # fraiseql-auth's generate_rs256_token() signs access tokens with an RSA PRIVATE key
+  # (session_postgres.rs:175) — an attacker-triggerable private-key operation, which is the
+  # shape Marvin targets. Acceptance left standing (there is no fixed rsa release either way),
+  # but it must be re-argued on the real path rather than re-approved on this text.
+  # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status and resolve #1110.
+  {id = "RUSTSEC-2023-0071", reason = "No fixed rsa release. Recorded mysql-feature justification is stale — real path is jsonwebtoken in the default build; under review in #1110. Deadline 2026-10-01."},
   # rustls-pemfile: blocked on upstream bollard migration from pem 0.x to rustls-pem.
   # Re-evaluated 2026-07-02: rustls-pemfile 2.2.0 is a DEV-dependency only (fraiseql-wire
   # test deps / bollard test infra) — no production runtime exposure; low-severity
@@ -44,14 +52,36 @@ ignore = [
   # (aws-sdk-kinesis 1.112, aws-config 1.10.1, aws-smithy-http-client 1.3.0). rustls 0.21.12 is
   # STILL what aws-smithy-http-client pulls, so the bump does not resolve these and the ignores
   # remain load-bearing.
-  # deadline: 2026-09-01 — re-evaluate when the standalone aws-* bump lands. NOTE: an expiring
-  # ignore turns the REQUIRED `security` check red on a date rather than on a push (#1108).
-  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); opt-in aws-s3 and cdc-kinesis features only. Deadline 2026-09-01."},
-  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Deadline 2026-09-01."},
+  # 2026-08-13 re-assessment (#1103), against this tree, extending the deadline deliberately:
+  #   * Path re-verified: rustls 0.21.12 ← aws-smithy-http-client 1.3.0 ← aws-smithy-runtime
+  #     1.13.1 ← aws-config 1.10.1 ← fraiseql-cdc-sinks / fraiseql-storage.
+  #   * Non-default re-verified by construction, not by assertion: `cargo tree -i rustls@0.21.12`
+  #     on the DEFAULT feature set reports "did not match any packages"; the crate appears only
+  #     under --all-features. `aws-s3` and `cdc-kinesis` are both opt-in
+  #     (crates/fraiseql-server/Cargo.toml), so a default deployment cannot reach these bugs.
+  #   * Severity in context: all three are certificate-VALIDATION defects in rustls-webpki,
+  #     reachable only on a TLS handshake an aws-* client makes against a hostile or misissued
+  #     chain — i.e. an operator who opted into S3 or Kinesis and whose AWS endpoint is already
+  #     being impersonated. Not remotely triggerable by a FraiseQL client.
+  #   * Ruled out, do not retry: the aws-* version bump. The #975 coordinated sweep moved
+  #     aws-sdk-kinesis to 1.112, aws-config to 1.10.1, aws-sdk-s3 to 1.141 and
+  #     aws-smithy-http-client to 1.3.0 — rustls 0.21.12 survived all of it. The 2026-06-11
+  #     spike still holds: every aws-config HTTP-client feature (default-https-client /
+  #     client-hyper / rustls) routes to aws-smithy-runtime's legacy-rustls-ring connector, and
+  #     no clean feature selects rustls 0.23. The fix is a code-level custom hyper-rustls 0.27
+  #     HttpClient, tracked separately as real engineering.
+  # deadline: 2026-12-01 — deliberately STAGGERED off the 2026-10-01 cluster below. Five other
+  # acceptances expire on 2026-10-01; sharing a sixth would make one day on which every open
+  # branch blocks at once, which is the failure mode this deadline exists to surface, not cause.
+  # Enforcement is tools/check-deadlines.sh (preflight ShellGates) — cargo-deny has NO native
+  # expiry field, so nothing else in the toolchain will ever notice these dates.
+  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); opt-in aws-s3 and cdc-kinesis features only, absent from the default build. Re-assessed 2026-08-13, deadline 2026-12-01."},
+  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Re-assessed 2026-08-13, deadline 2026-12-01."},
   # rustls-webpki 0.101.7: CRL parsing panic; transitive via aws-smithy-http-client (rustls 0.21).
-  # Affects the opt-in aws-s3 and cdc-kinesis features only; same root cause as 0098/0099.
-  # deadline: 2026-09-01 — resolved when aws-sdk migrates to rustls 0.23.
-  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); opt-in aws-s3 and cdc-kinesis features only. Deadline 2026-09-01."},
+  # Affects the opt-in aws-s3 and cdc-kinesis features only; same root cause as 0098/0099, and
+  # covered by the same 2026-08-13 re-assessment recorded above.
+  # deadline: 2026-12-01 — resolved when the aws-* stack reaches rustls 0.23.
+  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); opt-in aws-s3 and cdc-kinesis features only, absent from the default build. Re-assessed 2026-08-13, deadline 2026-12-01."},
   # quick-xml DoS pair (published 2026-07-02): RUSTSEC-2026-0194 (quadratic run time when checking
   # a start tag for duplicate attribute names) + RUSTSEC-2026-0195 (unbounded namespace-declaration
   # allocation in NsReader → memory-exhaustion DoS). Transitive ONLY via samael 0.0.21 (SAML SP,
