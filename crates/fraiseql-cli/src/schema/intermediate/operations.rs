@@ -1,7 +1,7 @@
 //! Query/mutation structs: `IntermediateQuery`, `IntermediateMutation`,
 //! `IntermediateArgument`, `IntermediateAutoParams`, `IntermediateQueryDefaults`.
 
-use fraiseql_core::schema::InputStyle;
+use fraiseql_core::{db::types::ReadRouting, schema::InputStyle};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -344,6 +344,18 @@ pub struct IntermediateQuery {
         skip_serializing_if = "IndexMap::is_empty"
     )]
     pub inject: IndexMap<String, String>,
+
+    /// Where this query's reads may be served from (#957).
+    ///
+    /// `any` (the default) follows server policy; `primary` refuses replicas —
+    /// and the result cache — for reads where staleness is a correctness problem;
+    /// `replica` opts out of the read-your-writes pin and may carry its own
+    /// `max_lag_ms`.
+    ///
+    /// FraiseQL defines the shape and enforces it; an authoring language emits
+    /// it. `SpecQL`'s `@reads_from(...)` (evoludigit/specql#13) is one spelling.
+    #[serde(default, skip_serializing_if = "ReadRouting::is_default")]
+    pub read_routing: ReadRouting,
 
     /// Per-query result cache TTL in seconds. Overrides the global cache TTL for this query.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -421,6 +421,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     offset,
                 },
                 &session_pairs,
+                query_match.query_def.read_routing,
             )
             .await?;
 
@@ -1083,6 +1084,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     offset,
                 },
                 &session_pairs,
+                query_match.query_def.read_routing,
             )
             .await?;
 
@@ -1259,7 +1261,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         self.ctx
             .adapter
-            .count_where_query(sql_source, combined_where.as_ref(), &session_pairs)
+            .count_where_query(
+                sql_source,
+                combined_where.as_ref(),
+                &session_pairs,
+                query_match.query_def.read_routing,
+            )
             .await
     }
 }

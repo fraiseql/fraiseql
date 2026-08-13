@@ -109,6 +109,7 @@ async fn where_query_with_session_applies_rls_setting() {
             None,
             None,
             &[("app.tenant_id_where", "tenant-a")],
+            fraiseql_core::db::types::ReadRouting::Any,
         )
         .await
         .unwrap();
@@ -139,6 +140,7 @@ async fn relay_page_with_session_applies_rls_setting() {
             None,
             true, // include_total_count
             &[("app.tenant_id_relay", "tenant-a")],
+            fraiseql_core::db::types::ReadRouting::Any,
         )
         .await
         .unwrap();
@@ -163,6 +165,7 @@ async fn relay_page_with_session_applies_rls_setting() {
             None,
             false,
             &[],
+            fraiseql_core::db::types::ReadRouting::Any,
         )
         .await
         .unwrap();

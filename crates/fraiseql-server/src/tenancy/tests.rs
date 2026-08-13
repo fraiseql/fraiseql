@@ -156,7 +156,7 @@ mod pool_factory_tests {
     use fraiseql_core::{
         db::{
             WhereClause,
-            postgres::PostgresTlsConfig,
+            postgres::{PostgresTlsConfig, ReadReplicaPolicy},
             traits::DatabaseAdapter,
             types::{DatabaseType, JsonbValue, PoolMetrics},
         },
@@ -239,6 +239,8 @@ mod pool_factory_tests {
             idle_timeout_secs:    300,
             search_path:          None,
             tls:                  PostgresTlsConfig::default(),
+            read_replica_urls:    Vec::new(),
+            read_replica_policy:  ReadReplicaPolicy::default(),
         }
     }
 

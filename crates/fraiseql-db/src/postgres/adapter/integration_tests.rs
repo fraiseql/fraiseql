@@ -850,7 +850,7 @@ async fn acquire_does_not_retry_on_timeout_error() {
 #[tokio::test]
 async fn execute_raw_null_data_column_errors_instead_of_panicking() {
     let adapter = create_test_adapter().await;
-    let result = adapter.execute_raw("SELECT NULL::jsonb AS data", &[]).await;
+    let result = adapter.execute_raw("SELECT NULL::jsonb AS data", &[], ReadRouting::Any).await;
     match result {
         Err(FraiseQLError::Database { message, .. }) => {
             assert!(
@@ -867,7 +867,7 @@ async fn execute_raw_null_data_column_errors_instead_of_panicking() {
 #[tokio::test]
 async fn execute_raw_non_jsonb_data_column_errors_instead_of_panicking() {
     let adapter = create_test_adapter().await;
-    let result = adapter.execute_raw("SELECT 42 AS data", &[]).await;
+    let result = adapter.execute_raw("SELECT 42 AS data", &[], ReadRouting::Any).await;
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
         "expected FraiseQLError::Database for a non-JSONB data column, got: {result:?}"
@@ -1355,6 +1355,10 @@ async fn rr_adapter(
             read_replicas: Some(crate::postgres::ReadReplicaConfig {
                 urls: vec![replica_url.to_string()],
                 pin_after_write,
+                // No staleness budget: these tests assert *where* a read is
+                // served, and the stand-in replica reports no lag at all.
+                max_lag: None,
+                health_probe_interval: std::time::Duration::from_secs(1),
             }),
         },
     )
@@ -1529,8 +1533,10 @@ async fn replica_pool_carries_the_tenant_search_path() {
             search_path:   Some(SearchPath::new(["tenant_rr", "public"]).unwrap()),
             tls:           PostgresTlsConfig::default(),
             read_replicas: Some(crate::postgres::ReadReplicaConfig {
-                urls:            vec![replica_url.clone()],
-                pin_after_write: std::time::Duration::from_secs(30),
+                urls:                  vec![replica_url.clone()],
+                pin_after_write:       std::time::Duration::from_secs(30),
+                max_lag:               None,
+                health_probe_interval: std::time::Duration::from_secs(1),
             }),
         },
     )
@@ -1566,8 +1572,12 @@ async fn unreachable_replica_refuses_to_boot() {
             tls:           PostgresTlsConfig::default(),
             read_replicas: Some(crate::postgres::ReadReplicaConfig {
                 // Port 9 (discard) on loopback: reliably connection-refused.
-                urls:            vec!["postgres://nobody:nothing@127.0.0.1:9/nowhere".to_string()],
-                pin_after_write: std::time::Duration::from_secs(5),
+                urls:                  vec![
+                    "postgres://nobody:nothing@127.0.0.1:9/nowhere".to_string(),
+                ],
+                pin_after_write:       std::time::Duration::from_secs(5),
+                max_lag:               None,
+                health_probe_interval: std::time::Duration::from_secs(1),
             }),
         },
     )
@@ -1601,8 +1611,10 @@ async fn empty_replica_url_list_is_refused() {
             search_path:   None,
             tls:           PostgresTlsConfig::default(),
             read_replicas: Some(crate::postgres::ReadReplicaConfig {
-                urls:            vec![],
-                pin_after_write: std::time::Duration::from_secs(5),
+                urls:                  vec![],
+                pin_after_write:       std::time::Duration::from_secs(5),
+                max_lag:               None,
+                health_probe_interval: std::time::Duration::from_secs(1),
             }),
         },
     )
@@ -1612,4 +1624,580 @@ async fn empty_replica_url_list_is_refused() {
         matches!(result, Err(FraiseQLError::Validation { .. })),
         "an empty replica URL list is an inert configuration and must be refused loudly"
     );
+}
+
+// ========================================================================
+// Bounded staleness against a REAL streaming standby (#957)
+// ========================================================================
+//
+// Everything above stands a second independent database in for a replica. That
+// shape is enough to observe *which* server answered, but it reports no
+// replication lag at all — `pg_is_in_recovery()` is false there, so
+// `pg_last_wal_replay_lsn()` is NULL — and a staleness budget proven against it
+// would be proven against a server that can never be stale.
+//
+// These tests run against `STANDBY_DATABASE_URL`: a real streaming standby of
+// the rig's primary (`postgres-standby-test` locally, `pgStandbyService` in
+// Dagger). Lag is induced deterministically with `pg_wal_replay_pause()`, which
+// stops replay while the walreceiver keeps streaming — exactly the shape of a
+// standby that has fallen behind.
+//
+// The discriminator is `pg_is_in_recovery()` evaluated *inside the view*: a
+// physical standby is byte-identical to its primary once caught up, so a marker
+// row cannot say which server answered, but the recovery flag always can.
+
+/// URL of the real streaming standby. Panics when unset — see
+/// [`fraiseql_test_support::standby_database_url`] for why this must not skip.
+fn standby_db_url() -> String {
+    fraiseql_test_support::standby_database_url()
+}
+
+/// Create this test's probe view on the primary and wait for the standby to
+/// replay it. Returns an admin client on the standby.
+async fn bs_fixture(tag: &str) -> tokio_postgres::Client {
+    let primary = rr_admin_connect(&test_db_url()).await;
+    let standby = rr_admin_connect(&standby_db_url()).await;
+
+    // A previous run that panicked between pause and resume would leave replay
+    // stopped, and every later assertion would then read a standby frozen for
+    // reasons of its own. Resuming is a no-op when nothing is paused.
+    standby
+        .simple_query("SELECT pg_wal_replay_resume()")
+        .await
+        .expect("resume replay");
+
+    primary
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS v_rr957_{tag};
+             DROP TABLE IF EXISTS tb_rr957_{tag};
+             CREATE TABLE tb_rr957_{tag} (id int PRIMARY KEY, label text NOT NULL);
+             INSERT INTO tb_rr957_{tag} VALUES (1, 'seed');
+             CREATE VIEW v_rr957_{tag} AS
+               SELECT jsonb_build_object(
+                 'id', 1,
+                 -- Evaluated by whichever server runs the query: this is the
+                 -- only reliable way to tell a physical standby from its
+                 -- primary, since their contents are identical when caught up.
+                 'origin', CASE WHEN pg_is_in_recovery() THEN 'replica' ELSE 'primary' END,
+                 'rows', (SELECT count(*) FROM tb_rr957_{tag})
+               ) AS data;"
+        ))
+        .await
+        .expect("primary fixture DDL");
+
+    bs_wait_caught_up(&standby).await;
+    standby
+}
+
+/// Drop this test's fixture from the primary and make sure replay is running.
+async fn bs_cleanup(tag: &str, standby: &tokio_postgres::Client) {
+    standby
+        .simple_query("SELECT pg_wal_replay_resume()")
+        .await
+        .expect("resume replay");
+    rr_admin_connect(&test_db_url())
+        .await
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS v_rr957_{tag}; DROP TABLE IF EXISTS tb_rr957_{tag};"
+        ))
+        .await
+        .expect("fixture cleanup");
+}
+
+/// Block until the standby has replayed everything it has received.
+async fn bs_wait_caught_up(standby: &tokio_postgres::Client) {
+    for _ in 0..200 {
+        let row = standby
+            .query_one(
+                "SELECT pg_last_wal_replay_lsn() IS NOT NULL \
+                   AND pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn()",
+                &[],
+            )
+            .await
+            .expect("standby lsn read");
+        if row.get::<_, bool>(0) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    panic!("standby never caught up with the primary");
+}
+
+/// Adapter over primary + the real standby, with the given staleness budget.
+async fn bs_adapter(
+    max_lag: Option<std::time::Duration>,
+    probe_interval: std::time::Duration,
+) -> PostgresAdapter {
+    PostgresAdapter::with_pool_config(
+        &test_db_url(),
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(10),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                urls: vec![standby_db_url()],
+                // The fixtures are written through admin connections rather than
+                // the mutation pipeline, so no pin is ever armed; zero states
+                // that read-your-writes is not what these tests exercise.
+                pin_after_write: std::time::Duration::ZERO,
+                max_lag,
+                health_probe_interval: probe_interval,
+            }),
+        },
+    )
+    .await
+    .expect("adapter over the real standby should boot")
+}
+
+/// Which server answered a read through `adapter`: `"primary"` or `"replica"`.
+///
+/// Only valid while the replica is genuinely in recovery — see
+/// [`bs_read_label`], which the failover test uses instead.
+async fn bs_read_origin(adapter: &PostgresAdapter, tag: &str) -> String {
+    bs_probe_field(adapter, tag, "origin").await
+}
+
+/// The stored `label` a read through `adapter` came back with — the discriminator
+/// that still works once a replica has been promoted and the two databases can
+/// hold different values.
+async fn bs_read_label(adapter: &PostgresAdapter, tag: &str) -> String {
+    bs_probe_field(adapter, tag, "label").await
+}
+
+async fn bs_probe_field(adapter: &PostgresAdapter, tag: &str, field: &str) -> String {
+    let rows = adapter
+        .execute_where_query(&format!("v_rr957_{tag}"), None, None, None, None)
+        .await
+        .expect("probe read");
+    assert_eq!(rows.len(), 1, "the probe view yields exactly one row");
+    rows[0].as_value()[field].as_str().expect("probe marker").to_string()
+}
+
+#[tokio::test]
+async fn a_caught_up_standby_serves_reads_inside_the_lag_budget() {
+    let tag = "inside";
+    let standby = bs_fixture(tag).await;
+    let adapter =
+        bs_adapter(Some(std::time::Duration::from_secs(5)), std::time::Duration::from_millis(100))
+            .await;
+
+    // Nothing is eligible until a probe has produced a reading — "not measured
+    // yet" is not "zero lag" — so the first reads legitimately land on the
+    // primary. Wait for the gate to open rather than assuming a cadence.
+    let mut origin = String::new();
+    for _ in 0..100 {
+        origin = bs_read_origin(&adapter, tag).await;
+        if origin == "replica" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    assert_eq!(
+        origin, "replica",
+        "a standby that has replayed everything it received reports zero lag, and must \
+         therefore serve reads while a staleness budget is configured"
+    );
+    bs_cleanup(tag, &standby).await;
+}
+
+#[tokio::test]
+async fn a_standby_past_the_lag_budget_stops_serving_reads() {
+    let tag = "past";
+    let standby = bs_fixture(tag).await;
+    let budget = std::time::Duration::from_millis(600);
+    let adapter = bs_adapter(Some(budget), std::time::Duration::from_millis(100)).await;
+
+    // Sanity, and the half that makes the assertion below mean something: while
+    // the standby is caught up it serves the read. Without this, an adapter that
+    // had simply stopped using replicas would pass the over-budget assertion for
+    // entirely the wrong reason.
+    let mut caught_up_origin = String::new();
+    for _ in 0..100 {
+        caught_up_origin = bs_read_origin(&adapter, tag).await;
+        if caught_up_origin == "replica" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    assert_eq!(caught_up_origin, "replica", "the caught-up standby must serve reads first");
+
+    // Stop replay and keep the primary writing: the walreceiver goes on
+    // streaming, so the standby holds a consistent — and steadily older —
+    // snapshot. This is a real lagging standby, not a mocked LSN.
+    standby
+        .simple_query("SELECT pg_wal_replay_pause()")
+        .await
+        .expect("pause replay");
+    let primary = rr_admin_connect(&test_db_url()).await;
+    primary
+        .batch_execute(&format!("INSERT INTO tb_rr957_{tag} VALUES (2, 'after-pause');"))
+        .await
+        .expect("write past the pause");
+
+    // Wait for the standby to fall outside the budget, then assert the routing.
+    // Polling for the condition rather than sleeping a guessed interval keeps
+    // this deterministic: lag grows with wall-clock while replay is stopped.
+    let mut origin = String::new();
+    for _ in 0..100 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        origin = bs_read_origin(&adapter, tag).await;
+        if origin == "primary" {
+            break;
+        }
+    }
+
+    assert_eq!(
+        origin, "primary",
+        "a standby whose measured replay lag exceeds max_lag must stop serving reads; \
+         serving them anyway is the bounded-staleness guarantee being reported and not kept"
+    );
+
+    // And the point of it all: the read that moved to the primary sees the row
+    // the standby has not replayed.
+    let rows = adapter
+        .execute_where_query(&format!("v_rr957_{tag}"), None, None, None, None)
+        .await
+        .expect("probe read");
+    assert_eq!(
+        rows[0].as_value()["rows"],
+        json!(2),
+        "the primary-served read must see the write the lagging standby is missing"
+    );
+
+    bs_cleanup(tag, &standby).await;
+}
+
+#[tokio::test]
+async fn a_replica_whose_lag_cannot_be_measured_is_never_eligible() {
+    // The plain-database stand-in is exactly the state a promoted replica is in:
+    // reachable, queryable, and outside recovery, so `pg_last_wal_replay_lsn()`
+    // is NULL and there is no lag to compare against a budget. Unknown staleness
+    // must route to the primary — reading it as zero is the fail-open.
+    let (primary_url, replica_url) = rr_fixture("unmeasurable").await;
+    let adapter = PostgresAdapter::with_pool_config(
+        &primary_url,
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(10),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                urls:                  vec![replica_url.clone()],
+                pin_after_write:       std::time::Duration::ZERO,
+                max_lag:               Some(std::time::Duration::from_secs(60)),
+                health_probe_interval: std::time::Duration::from_millis(100),
+            }),
+        },
+    )
+    .await
+    .expect("adapter with an unmeasurable replica still boots");
+
+    // Generous: a budget of 60 s against a replica that would report zero lag if
+    // it could is the most favourable case an implementation reading "unknown"
+    // as "fine" could hope for.
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    assert_eq!(
+        rr_read_marker(&adapter).await,
+        "from-primary",
+        "a replica that cannot report replication lag must never satisfy a staleness \
+         budget, however generous the budget is"
+    );
+}
+
+/// Read `v_rr957_<tag>` through `adapter` with an explicit per-query routing.
+async fn bs_read_origin_routed(
+    adapter: &PostgresAdapter,
+    tag: &str,
+    routing: crate::types::ReadRouting,
+) -> String {
+    let rows = adapter
+        .execute_where_query_arc_with_session(
+            &format!("v_rr957_{tag}"),
+            None,
+            None,
+            None,
+            None,
+            &[],
+            routing,
+        )
+        .await
+        .expect("routed probe read");
+    assert_eq!(rows.len(), 1, "the probe view yields exactly one row");
+    rows[0].as_value()["origin"].as_str().expect("origin marker").to_string()
+}
+
+#[tokio::test]
+async fn a_query_routed_to_the_primary_never_reads_a_replica() {
+    let tag = "routing";
+    let standby = bs_fixture(tag).await;
+    // No server-wide budget and no pin: everything about this test comes from the
+    // per-query annotation, so a passing assertion cannot be some other rule's doing.
+    let adapter = bs_adapter(None, std::time::Duration::from_millis(100)).await;
+
+    // The control: with `any`, the standby serves the read. Without this half, an
+    // adapter that had simply stopped using replicas would satisfy the assertion
+    // below for entirely the wrong reason.
+    assert_eq!(
+        bs_read_origin_routed(&adapter, tag, crate::types::ReadRouting::Any).await,
+        "replica",
+        "with no routing override, an unpinned read is replica-served"
+    );
+
+    // Same adapter, same view, same instant — only the annotation differs.
+    assert_eq!(
+        bs_read_origin_routed(&adapter, tag, crate::types::ReadRouting::Primary).await,
+        "primary",
+        "read_routing = primary must keep the query off replicas entirely; a replica \
+         cannot promise freshness, which is the only reason to ask for the primary"
+    );
+
+    bs_cleanup(tag, &standby).await;
+}
+
+#[tokio::test]
+async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
+    let tag = "pin";
+    let standby = bs_fixture(tag).await;
+    let adapter = PostgresAdapter::with_pool_config(
+        &test_db_url(),
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(10),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                urls:                  vec![standby_db_url()],
+                // Long enough that nothing expires during the test.
+                pin_after_write:       std::time::Duration::from_secs(300),
+                max_lag:               None,
+                health_probe_interval: std::time::Duration::from_millis(100),
+            }),
+        },
+    )
+    .await
+    .expect("pinning adapter should boot");
+
+    // Arm the pin the way the mutation pipeline does.
+    adapter.mark_write();
+
+    assert_eq!(
+        bs_read_origin_routed(&adapter, tag, crate::types::ReadRouting::Any).await,
+        "primary",
+        "inside the pin window an unannotated read is primary-served — read-your-writes"
+    );
+    assert_eq!(
+        bs_read_origin_routed(
+            &adapter,
+            tag,
+            crate::types::ReadRouting::Replica { max_lag_ms: None }
+        )
+        .await,
+        "replica",
+        "read_routing = replica opts out of the pin: the pin exists so a client reads \
+         its own writes, and this query has declared that is not what it is for"
+    );
+
+    bs_cleanup(tag, &standby).await;
+}
+
+#[tokio::test]
+async fn a_per_query_lag_budget_overrides_the_servers() {
+    let tag = "budget";
+    let standby = bs_fixture(tag).await;
+    // Server-wide budget generous enough that it alone would keep the standby in
+    // rotation; the per-query budget is what has to exclude it.
+    let adapter = bs_adapter(
+        Some(std::time::Duration::from_secs(300)),
+        std::time::Duration::from_millis(100),
+    )
+    .await;
+
+    let mut origin = String::new();
+    for _ in 0..100 {
+        origin = bs_read_origin(&adapter, tag).await;
+        if origin == "replica" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    assert_eq!(origin, "replica", "under the server's budget, the standby serves reads");
+
+    // Stop replay and write, so the standby holds a measurably older snapshot —
+    // still far inside the server's 300 s budget.
+    standby
+        .simple_query("SELECT pg_wal_replay_pause()")
+        .await
+        .expect("pause replay");
+    rr_admin_connect(&test_db_url())
+        .await
+        .batch_execute(&format!("INSERT INTO tb_rr957_{tag} VALUES (2, 'after-pause');"))
+        .await
+        .expect("write past the pause");
+
+    // A query that declares it tolerates only 300 ms must fall to the primary long
+    // before the server's budget would have excluded anything.
+    let tight = crate::types::ReadRouting::Replica {
+        max_lag_ms: Some(300),
+    };
+    let mut routed = String::new();
+    for _ in 0..100 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        routed = bs_read_origin_routed(&adapter, tag, tight).await;
+        if routed == "primary" {
+            break;
+        }
+    }
+    assert_eq!(
+        routed, "primary",
+        "a per-query max_lag_ms must be enforced against the measured lag; ignoring it \
+         in favour of the server's looser budget is the override being accepted and \
+         dropped"
+    );
+
+    // And the server's own budget still holds for everyone else — proving the
+    // tighter number came from the annotation and not from a global change.
+    assert_eq!(
+        bs_read_origin(&adapter, tag).await,
+        "replica",
+        "an unannotated query keeps the server's budget, which this lag is well inside"
+    );
+
+    bs_cleanup(tag, &standby).await;
+}
+
+#[tokio::test]
+async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
+    // Runs against its own standby — `FAILOVER_STANDBY_DATABASE_URL` — because
+    // `pg_promote()` is one-way. Sharing the bounded-staleness standby would make
+    // those tests' meaning depend on which one libtest ran first.
+    let failover_url = fraiseql_test_support::db::failover_standby_database_url();
+    let tag = "failover";
+
+    let primary = rr_admin_connect(&test_db_url()).await;
+    // `pg_is_in_recovery()` cannot be the discriminator here, the way it is for
+    // the bounded-staleness tests: after promotion it is false on the *replica*
+    // too, so a read served by the promoted server would report "primary" and
+    // the assertion would pass while doing exactly the wrong thing. The label is
+    // a stored value, and once promoted the replica is writable — so the test
+    // can give the two servers genuinely different contents, which is the
+    // divergence the promotion causes in the first place.
+    primary
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS v_rr957_{tag};
+             DROP TABLE IF EXISTS tb_rr957_{tag};
+             CREATE TABLE tb_rr957_{tag} (id int PRIMARY KEY, label text NOT NULL);
+             INSERT INTO tb_rr957_{tag} VALUES (1, 'shared');
+             CREATE VIEW v_rr957_{tag} AS
+               SELECT jsonb_build_object(
+                 'id', 1,
+                 'origin', CASE WHEN pg_is_in_recovery() THEN 'replica' ELSE 'primary' END,
+                 'label', (SELECT label FROM tb_rr957_{tag} WHERE id = 1)
+               ) AS data;"
+        ))
+        .await
+        .expect("primary fixture DDL");
+
+    let standby = rr_admin_connect(&failover_url).await;
+    // `pg_promote()` is one-way, so a second run in the same rig finds a plain
+    // writable server and would otherwise fail somewhere far from the cause.
+    let in_recovery: bool = standby
+        .query_one("SELECT pg_is_in_recovery()", &[])
+        .await
+        .expect("failover standby recovery state")
+        .get(0);
+    assert!(
+        in_recovery,
+        "the failover standby is not in recovery — a previous run of this test already \
+         promoted it, and promotion is one-way. Re-clone it with `make db-failover-reset` \
+         (CI legs start from a fresh container and never hit this)."
+    );
+    bs_wait_caught_up(&standby).await;
+
+    // No staleness budget: the point is that a promoted replica stops serving
+    // whether or not one is configured. With `max_lag` set, "no measurable lag"
+    // would exclude it anyway and the test would prove nothing about promotion.
+    let adapter = PostgresAdapter::with_pool_config(
+        &test_db_url(),
+        PoolPrewarmConfig {
+            min_size:      0,
+            max_size:      5,
+            timeout_secs:  Some(10),
+            search_path:   None,
+            tls:           PostgresTlsConfig::default(),
+            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+                urls:                  vec![failover_url.clone()],
+                pin_after_write:       std::time::Duration::ZERO,
+                max_lag:               None,
+                health_probe_interval: std::time::Duration::from_millis(100),
+            }),
+        },
+    )
+    .await
+    .expect("adapter over the failover standby should boot");
+
+    assert_eq!(
+        bs_read_origin(&adapter, tag).await,
+        "replica",
+        "while it is still a standby, the replica serves reads"
+    );
+
+    // A real failover, not a simulated one.
+    standby
+        .simple_query("SELECT pg_promote(wait => true)")
+        .await
+        .expect("promote the standby");
+    for _ in 0..100 {
+        let row = standby.query_one("SELECT pg_is_in_recovery()", &[]).await.expect("recovery");
+        if !row.get::<_, bool>(0) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    // Diverge the two databases, which is now possible precisely because the
+    // promoted server accepts writes. Reading `promoted-replica` back can only
+    // mean the read was served by it.
+    standby
+        .batch_execute(&format!(
+            "UPDATE tb_rr957_{tag} SET label = 'promoted-replica' WHERE id = 1;"
+        ))
+        .await
+        .expect("write to the promoted replica");
+
+    // The boot health check ran once, before any of this. Only a periodic probe
+    // can notice, and noticing has to change the routing: reads from a promoted
+    // server diverge from the primary in *both* directions, which is not a
+    // staleness a budget could bound.
+    let mut label = String::new();
+    for _ in 0..100 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        label = bs_read_label(&adapter, tag).await;
+        if label == "shared" {
+            break;
+        }
+    }
+    assert_eq!(
+        label, "shared",
+        "a replica promoted out of recovery by a failover must stop serving reads; reading \
+         `promoted-replica` back means the server answering is a now-independent database, \
+         which is the failure a boot-time health check structurally cannot catch"
+    );
+
+    // The promoted standby's slot is now inactive and would retain WAL on the
+    // primary for the rest of the run.
+    primary
+        .simple_query("SELECT pg_drop_replication_slot('fraiseql_failover')")
+        .await
+        .expect("drop the orphaned replication slot");
+    primary
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS v_rr957_{tag}; DROP TABLE IF EXISTS tb_rr957_{tag};"
+        ))
+        .await
+        .expect("fixture cleanup");
 }

@@ -71,6 +71,7 @@ impl SchemaExtractor for KotlinExtractor {
                 jsonb_column: None,
                 relay: false,
                 inject: IndexMap::default(),
+                read_routing: fraiseql_core::db::types::ReadRouting::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,

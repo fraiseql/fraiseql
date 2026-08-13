@@ -50,6 +50,7 @@ mod sourceless {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
+            read_routing:        crate::db::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -102,6 +103,7 @@ mod routing {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
+            read_routing:        crate::db::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -144,6 +146,7 @@ mod auto_params {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params: IndexMap::default(),
+            read_routing: crate::db::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
@@ -321,6 +324,7 @@ mod rls_composition {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
+            read_routing: crate::db::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
@@ -480,6 +484,7 @@ mod rls_composition {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       inject,
+            read_routing:        crate::db::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -586,6 +591,7 @@ mod session_variables {
             &self,
             _request: &crate::db::ProjectionRequest<'_>,
             session_vars: &[(&str, &str)],
+            _routing: crate::db::types::ReadRouting,
         ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
             let mut guard = self.captured.lock().unwrap();
             for (k, v) in session_vars {
@@ -602,6 +608,7 @@ mod session_variables {
             _offset: Option<u32>,
             _order_by: Option<&[OrderByClause]>,
             session_vars: &[(&str, &str)],
+            _routing: crate::db::types::ReadRouting,
         ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
             let mut guard = self.captured.lock().unwrap();
             for (k, v) in session_vars {
@@ -1133,6 +1140,7 @@ mod node_authz {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
+            read_routing: crate::db::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: requires_role.map(str::to_string),
@@ -1311,6 +1319,7 @@ mod explicit_arg_recasing {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
+            read_routing:        crate::db::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,

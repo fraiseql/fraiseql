@@ -8,7 +8,7 @@ use crate::{
     identifier::quote_postgres_identifier,
     postgres::{pg_detail, where_generator::PostgresWhereGenerator},
     traits::{CursorValue, RelayDatabaseAdapter, RelayPageResult},
-    types::{DatabaseType, QueryParam, sql_hints::OrderByClause},
+    types::{DatabaseType, QueryParam, ReadRouting, sql_hints::OrderByClause},
     where_clause::WhereClause,
 };
 
@@ -55,7 +55,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         include_total_count: bool,
     ) -> Result<RelayPageResult> {
         // Relay pagination is a compiled SELECT pair: replica-eligible (#407).
-        let client = self.acquire_read_connection_with_retry().await?;
+        let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
         self.run_relay_page(
             &**client,
             view,
@@ -84,6 +84,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         order_by: Option<&[OrderByClause]>,
         include_total_count: bool,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<RelayPageResult> {
         // Fast path: no session vars => identical to execute_relay_page.
         if session_vars.is_empty() {
@@ -105,7 +106,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         // Apply set_config and run BOTH the page and count queries inside one
         // transaction on one connection so RLS sees the session variables.
         // Read-only and standby-safe: replica-eligible (#407).
-        let mut client = self.acquire_read_connection_with_retry().await?;
+        let mut client = self.acquire_read_connection_with_retry(routing).await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                 message:   format!(

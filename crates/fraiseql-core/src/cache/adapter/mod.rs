@@ -79,7 +79,7 @@ use crate::{
     db::{
         ChangeLogWrite, DatabaseAdapter, DatabaseType, DirectMutationContext, MutationStrategy,
         PoolMetrics, SupportsMutations, WhereClause, quote_postgres_identifier,
-        types::{JsonbValue, OrderByClause},
+        types::{JsonbValue, OrderByClause, ReadRouting},
     },
     error::{FraiseQLError, Result},
     schema::{CompiledSchema, SourceKind, SourceProbe, sql_source_probes},
@@ -874,11 +874,13 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         sql: &str,
         params: &[serde_json::Value],
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Not cached (see execute_parameterized_aggregate); forward with session
-        // affinity so current_setting()-backed aggregate RLS sees the values (#329).
+        // affinity so current_setting()-backed aggregate RLS sees the values (#329),
+        // and with the query's routing so #957's per-query overrides reach the pool.
         self.adapter
-            .execute_parameterized_aggregate_with_session(sql, params, session_vars)
+            .execute_parameterized_aggregate_with_session(sql, params, session_vars, routing)
             .await
     }
 
@@ -941,6 +943,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         view: &str,
         where_clause: Option<&WhereClause>,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<u64> {
         // Straight through to the inner adapter, so the count reaches PostgreSQL's
         // `SELECT COUNT(*)` rather than the trait default's fetch-and-len.
@@ -950,7 +953,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         // space and its own invalidation, and a *stale* count is worse than a
         // slightly expensive one (it is read to size a pager, so a stale total
         // renders pages that do not exist).
-        self.adapter.count_where_query(view, where_clause, session_vars).await
+        self.adapter.count_where_query(view, where_clause, session_vars, routing).await
     }
 
     async fn execute_where_query_arc_with_session(
@@ -961,9 +964,14 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        // No session variables => preserve the cached read path unchanged.
-        if session_vars.is_empty() {
+        // No session variables => preserve the cached read path unchanged, unless
+        // the query refused staleness (#957). `read_routing = primary` is asked for
+        // when stale data is a correctness problem, and a cache hit is stale data by
+        // construction — serving one would give that query the opposite of what it
+        // asked for, through a different door.
+        if session_vars.is_empty() && routing.allows_cached_result() {
             return self
                 .execute_where_query_impl(view, where_clause, limit, offset, order_by)
                 .await;
@@ -981,6 +989,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
                 offset,
                 order_by,
                 session_vars,
+                routing,
             )
             .await
     }
@@ -989,9 +998,11 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         &self,
         request: &crate::db::ProjectionRequest<'_>,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        // No session variables => preserve the cached read path unchanged.
-        if session_vars.is_empty() {
+        // No session variables => preserve the cached read path unchanged, unless
+        // the query refused staleness — see execute_where_query_arc_with_session.
+        if session_vars.is_empty() && routing.allows_cached_result() {
             return self
                 .execute_with_projection_impl(
                     request.view,
@@ -1006,7 +1017,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         // Security: see execute_where_query_arc_with_session — bypass the
         // non-tenant-aware cache for session-scoped reads.
         self.adapter
-            .execute_with_projection_arc_with_session(request, session_vars)
+            .execute_with_projection_arc_with_session(request, session_vars, routing)
             .await
     }
 

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`DatabaseAdapter`'s read-path methods gained a `ReadRouting` argument (#957).**
+  `execute_where_query_arc_with_session`, `execute_with_projection_arc_with_session`,
+  `execute_parameterized_aggregate_with_session`, `count_where_query` and
+  `RelayDatabaseAdapter::execute_relay_page_with_session` each take one more parameter,
+  carrying the compiled query's `read_routing`. Every method keeps a default implementation,
+  so an adapter that overrides none compiles unchanged; an adapter that *does* override one
+  must add the parameter — deliberately, because a wrapper that quietly dropped it would
+  serve a query annotated `primary` from a replica, and that is exactly the class of silent
+  fail-open the parameter exists to prevent.
+
+  Also new, and mandatory at every construction site for the same reason `tls` and
+  `read_replicas` already are: `ReadReplicaConfig` gained `max_lag` and
+  `health_probe_interval`, and `TenantPoolConfig` gained `read_replica_urls` and
+  `read_replica_policy`. `make_executor_factory` takes the policy as a second argument.
+
 - **`GET /auth/saml/login` now scopes by tenant, and refuses with `404` (#947).** Two
   changes, both deliberate. A tenant-bound IdP (`tenant_id` set, in `[saml.idps.*]` or the
   new store) no longer answers a request that does not carry a matching `?tenant=`, and an
@@ -1433,6 +1448,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or the render cache. The server refuses such a section at boot.
 
 ### Added
+
+- **Read replicas: bounded staleness, per-query routing, failover detection, per-tenant
+  replicas (#957).** The four parts #407 deferred.
+
+  `read_replica_max_lag_ms` turns the read-your-writes pin's *assertion* about lag into a
+  *measurement*, and covers everyone else's writes rather than the client's own. A background
+  probe (`read_replica_health_probe_interval_ms`, 1 s by default) reads each replica's replay
+  lag; a replica is eligible while `lag_at_last_probe + age_of_that_probe <= max_lag`. That
+  sum is a true upper bound rather than an estimate — replay lag grows at most one millisecond
+  per millisecond of wall clock — and it makes the gate self-closing: nothing has to notice
+  that probing stopped, because an unrefreshed probe ages past any budget on its own. A
+  replica whose lag cannot be *measured* is never eligible; unknown staleness is not zero
+  staleness.
+
+  `read_routing` on a compiled query says what the structural read/write partition cannot.
+  `primary` keeps a query off replicas **and out of the result cache** — it is asked for when
+  staleness is a correctness problem, and a cache hit is stale data by construction, so
+  serving one would give the query the opposite of what it asked for through a different door.
+  `replica` opts out of the read-your-writes pin, for reads that have declared they are not
+  what the pin exists to protect. FraiseQL defines and enforces the shape; an authoring
+  language emits it (`SpecQL`'s `@reads_from(...)`, evoludigit/specql#13). Replica *topology*
+  stays out of the compiled artifact — URLs are server configuration and secrets.
+
+  Probing also closes the gap the one-shot boot health check structurally cannot see: a
+  replica that booted as a standby and is later found outside recovery has been promoted, and
+  stops taking reads whether or not a staleness budget is set. A promoted server accepts
+  writes of its own, so reads from it diverge from the primary in *both* directions, which is
+  not a staleness any budget could bound.
+
+  Tenant pools are no longer primary-only: a registration may carry `read_replica_urls` of its
+  own — topology, like its connection string — while the pin window, staleness budget and
+  probe cadence are stamped from the server's configuration, exactly as `[database_tls]` is.
+  Replica pools are built from the same `PoolPrewarmConfig` as the primary, so a
+  schema-isolated tenant's `search_path` reaches them too.
+
+  Proven against a **real streaming standby** added to both rigs, with lag induced by
+  `pg_wal_replay_pause()` and failover by a real `pg_promote()`. The pre-existing replica
+  stand-in is a second independent database, where `pg_is_in_recovery()` is false and lag is
+  unmeasurable — a bounded-staleness guarantee proven against it would have been proven
+  against a server that can never be stale.
 
 - **Outbound CDC: the Apache Kafka sink (#975).** `kind = "kafka"` behind the `cdc-kafka`
   feature, reusing the existing drain worker, backoff and dead-lettering unchanged. A binary

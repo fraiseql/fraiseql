@@ -28,7 +28,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
-    db::postgres::{PostgresAdapter, PostgresTlsConfig},
+    db::postgres::{PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy},
     prelude::DatabaseAdapter as _,
     runtime::Executor,
 };
@@ -43,6 +43,11 @@ const TENANT_B: &str = "p04isob";
 /// Unqualified relation every case reads. It exists in both tenant schemas **and**
 /// in `public`, so a connection on the default search path silently reads the decoy.
 const PROBE_RELATION: &str = "v_iso_probe";
+
+/// Companion view for the per-tenant replica case (#957): reports which *server*
+/// answered alongside the marker saying which *schema* resolved it. Exists in
+/// `public` and in the tenant schema, like [`PROBE_RELATION`].
+const REPLICA_PROBE_RELATION: &str = "v_iso_replica_probe";
 
 /// Marker stored in the `public` decoy. Seeing this in a tenant's result set is the
 /// #809 leak: the query resolved against `public` instead of `tenant_{key}`.
@@ -82,6 +87,17 @@ fn pool_config(url: &str) -> TenantPoolConfig {
         // Likewise stamped by `make_executor_factory` in the binary; the harness
         // Postgres speaks no TLS, so the default (`prefer`) is what applies.
         tls:                  PostgresTlsConfig::default(),
+        // Primary-only by default; `pool_config_with_replica` opts in.
+        read_replica_urls:    Vec::new(),
+        read_replica_policy:  ReadReplicaPolicy::default(),
+    }
+}
+
+/// The same tenant, registered with a read replica of its own (#957).
+fn pool_config_with_replica(url: &str, replica_url: &str) -> TenantPoolConfig {
+    TenantPoolConfig {
+        read_replica_urls: vec![replica_url.to_string()],
+        ..pool_config(url)
     }
 }
 
@@ -257,6 +273,115 @@ async fn every_pooled_connection_carries_the_tenant_search_path() {
         "the pool served all {CONCURRENCY} probes from one backend ({backends:?}); \
          this test proves nothing unless several connections are in play"
     );
+}
+
+/// A tenant registered with replica URLs of its own reads from them — and the
+/// replica pool carries the tenant's search path, exactly like the primary (#957).
+///
+/// Tenant pools were primary-only: `from_pool_config` hardcoded
+/// `read_replicas: None`, so a `read_replica_urls` a registration supplied would
+/// have described the server's primary database, not the tenant's.
+///
+/// The two halves are one assertion on purpose. `origin` says which server
+/// answered; `marker` says which schema resolved the relation there. A replica
+/// pool built without the tenant's `search_path` would answer `origin=replica`
+/// with `marker=PUBLIC-DECOY` — the #809 defect, reintroduced on the one pool
+/// nobody had extended isolation to.
+#[tokio::test]
+async fn a_tenants_own_replicas_serve_its_reads_under_its_search_path() {
+    let Some((url, admin)) = setup().await else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let standby_url = fraiseql_test_support::standby_database_url();
+
+    // A view per schema, each bound at creation to its own schema's probe table
+    // (PostgreSQL resolves a view's relations once, when the view is created), so
+    // the marker still says which *view* the search path selected.
+    for schema in ["public", &format!("tenant_{TENANT_A}")] {
+        exec(
+            &admin,
+            &format!(
+                "CREATE VIEW {schema}.{REPLICA_PROBE_RELATION} AS
+                 SELECT jsonb_build_object(
+                   'id', 1,
+                   'origin', CASE WHEN pg_is_in_recovery() THEN 'replica' ELSE 'primary' END,
+                   'marker', (SELECT data->>'marker' FROM {schema}.{PROBE_RELATION} LIMIT 1)
+                 ) AS data"
+            ),
+        )
+        .await;
+    }
+
+    let executor = create_tenant_executor::<PostgresAdapter>(
+        TENANT_A,
+        &schema_json_for("schema"),
+        &pool_config_with_replica(&url, &standby_url),
+    )
+    .await
+    .expect("tenant registration with its own replica");
+
+    // The fixture is DDL on the primary; the standby has to replay it before a
+    // replica-routed read can resolve anything.
+    wait_for_standby_catch_up(&standby_url).await;
+
+    // A structurally read-only path — `execute_raw_query`, which the other cases
+    // here use, is mixed-use and always runs on the primary by design.
+    let mut observed = None;
+    for _ in 0..100 {
+        let rows = executor
+            .adapter()
+            .execute_where_query(REPLICA_PROBE_RELATION, None, None, None, None)
+            .await
+            .expect("tenant replica read");
+        assert_eq!(rows.len(), 1, "the probe view yields exactly one row");
+        let value = rows[0].as_value().clone();
+        let origin = value["origin"].as_str().unwrap_or_default().to_string();
+        let marker = value["marker"].as_str().unwrap_or_default().to_string();
+        observed = Some((origin.clone(), marker));
+        if origin == "replica" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    for schema in ["public", &format!("tenant_{TENANT_A}")] {
+        exec(&admin, &format!("DROP VIEW IF EXISTS {schema}.{REPLICA_PROBE_RELATION}")).await;
+    }
+    teardown(&admin).await;
+
+    let (origin, marker) = observed.expect("at least one read");
+    assert_eq!(
+        origin, "replica",
+        "a tenant that registered its own replica URLs must have its reads served from \
+         them; `primary` means the registration's replica topology was accepted and \
+         dropped"
+    );
+    assert_eq!(
+        marker, TENANT_A,
+        "the tenant's REPLICA pool must carry its search path too — reading \
+         `{PUBLIC_DECOY_MARKER}` is #809 on the one pool isolation had never been \
+         extended to"
+    );
+}
+
+/// Block until the standby has replayed everything the primary has sent it.
+async fn wait_for_standby_catch_up(standby_url: &str) {
+    let standby = PostgresAdapter::new(standby_url).await.expect("connect to the standby");
+    for _ in 0..200 {
+        let rows: Vec<HashMap<String, Value>> = standby
+            .execute_raw_query(
+                "SELECT (pg_last_wal_replay_lsn() IS NOT NULL
+                         AND pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn())::text AS caught",
+            )
+            .await
+            .expect("standby lsn probe");
+        if rows.first().and_then(|r| r.get("caught")).and_then(Value::as_str) == Some("true") {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    panic!("the standby never caught up with the primary");
 }
 
 /// Two tenants driven concurrently against the same database must never observe each

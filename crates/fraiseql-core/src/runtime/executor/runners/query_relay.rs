@@ -331,6 +331,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 order_by.as_deref(),
                 include_total_count,
                 session_vars,
+                query_def.read_routing,
             )
             .await?;
 
@@ -629,6 +630,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     offset:       None,
                 },
                 &session_pairs,
+                node_qdef.read_routing,
             )
             .await?;
 

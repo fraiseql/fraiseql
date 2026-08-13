@@ -19,7 +19,7 @@ use crate::{
     postgres::pg_detail,
     traits::{DatabaseAdapter, ProjectionRequest, SupportsMutations},
     types::{
-        DatabaseType, JsonbValue, PoolMetrics, QueryParam,
+        DatabaseType, JsonbValue, PoolMetrics, QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -491,7 +491,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
-        self.execute_raw(&sql, &param_refs)
+        self.execute_raw(&sql, &param_refs, ReadRouting::Any)
             .await
             .map_err(|e| enrich_undefined_column_error(e, view, where_clause))
     }
@@ -518,7 +518,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
         // EXPLAIN ANALYZE of a compiled SELECT: read-only, and most truthful when
         // it runs where the reads it describes run — the replica route (#407).
-        let client = self.acquire_read_connection_with_retry().await?;
+        let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
         let rows = client.query(explain_sql.as_str(), &param_refs).await.map_err(|e| {
             FraiseQLError::Database {
                 message:   format!("EXPLAIN ANALYZE failed: {}", pg_detail(&e)),
@@ -600,7 +600,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let param_refs = crate::types::as_sql_param_refs(&typed);
 
         // Compiled aggregate SELECT: read-only, replica-eligible (#407).
-        let client = self.acquire_read_connection_with_retry().await?;
+        let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
         let rows: Vec<Row> =
             client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Parameterized aggregate query failed: {}", pg_detail(&e)),
@@ -618,6 +618,7 @@ impl DatabaseAdapter for PostgresAdapter {
         sql: &str,
         params: &[serde_json::Value],
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         if session_vars.is_empty() {
             return self.execute_parameterized_aggregate(sql, params).await;
@@ -627,7 +628,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let param_refs = crate::types::as_sql_param_refs(&typed);
 
         // Read-only aggregate with session vars; standby-safe → replica-eligible.
-        let mut client = self.acquire_read_connection_with_retry().await?;
+        let mut client = self.acquire_read_connection_with_retry(routing).await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
@@ -1055,16 +1056,26 @@ impl DatabaseAdapter for PostgresAdapter {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        if session_vars.is_empty() {
-            return self.execute_where_query_arc(view, where_clause, limit, offset, order_by).await;
-        }
-
         let (sql, typed_params) =
             build_where_select_sql_ordered(view, where_clause, limit, offset, order_by)?;
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
-        self.execute_raw_with_session(&sql, &param_refs, session_vars)
+        // No session variables => no transaction wrapper, but still this query's
+        // routing. The fast path used to delegate to `execute_where_query_arc`,
+        // which has no routing parameter, so every read that happened not to carry
+        // session variables silently reverted to server policy — `read_routing`
+        // accepted and dropped on the most common shape there is.
+        if session_vars.is_empty() {
+            return self
+                .execute_raw(&sql, &param_refs, routing)
+                .await
+                .map(Arc::new)
+                .map_err(|e| enrich_undefined_column_error(e, view, where_clause));
+        }
+
+        self.execute_raw_with_session(&sql, &param_refs, session_vars, routing)
             .await
             .map(Arc::new)
             .map_err(|e| enrich_undefined_column_error(e, view, where_clause))
@@ -1080,6 +1091,7 @@ impl DatabaseAdapter for PostgresAdapter {
         view: &str,
         where_clause: Option<&WhereClause>,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<u64> {
         let (sql, typed_params) = super::build_count_sql(view, where_clause)?;
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
@@ -1087,7 +1099,7 @@ impl DatabaseAdapter for PostgresAdapter {
         // Structurally read-only: replica-eligible, and `set_config` + SELECT are
         // both fine inside a hot-standby read-only transaction (#407).
         let row = if session_vars.is_empty() {
-            let client = self.acquire_read_connection_with_retry().await?;
+            let client = self.acquire_read_connection_with_retry(routing).await?;
             client.query_one(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Count query failed: {}", pg_detail(&e)),
                 sql_state: e.code().map(|c| c.code().to_string()),
@@ -1095,7 +1107,7 @@ impl DatabaseAdapter for PostgresAdapter {
         } else {
             // Session variables must land on the *same* connection as the count,
             // or an RLS-filtered page gets an unfiltered total beside it (#329).
-            let mut client = self.acquire_read_connection_with_retry().await?;
+            let mut client = self.acquire_read_connection_with_retry(routing).await?;
             let txn =
                 client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                     message:   format!(
@@ -1130,11 +1142,8 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         request: &ProjectionRequest<'_>,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        if session_vars.is_empty() {
-            return self.execute_with_projection_arc(request).await;
-        }
-
         // No projection => behave like a plain WHERE query, matching
         // execute_with_projection_impl's fallback.
         let Some(projection) = request.projection else {
@@ -1146,6 +1155,7 @@ impl DatabaseAdapter for PostgresAdapter {
                     request.offset,
                     request.order_by,
                     session_vars,
+                    routing,
                 )
                 .await;
         };
@@ -1160,7 +1170,13 @@ impl DatabaseAdapter for PostgresAdapter {
         )?;
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
-        self.execute_raw_with_session(&sql, &param_refs, session_vars)
+        // See `execute_where_query_arc_with_session`: the session-free path has to
+        // carry the routing too.
+        if session_vars.is_empty() {
+            return self.execute_raw(&sql, &param_refs, routing).await.map(Arc::new);
+        }
+
+        self.execute_raw_with_session(&sql, &param_refs, session_vars, routing)
             .await
             .map(Arc::new)
     }
@@ -1181,7 +1197,7 @@ impl DatabaseAdapter for PostgresAdapter {
         }
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
         // Read-only (plan only, ANALYZE false): replica-eligible (#407).
-        let client = self.acquire_read_connection_with_retry().await?;
+        let client = self.acquire_read_connection_with_retry(ReadRouting::Any).await?;
         let rows: Vec<Row> =
             client
                 .query(explain_sql.as_str(), &[])

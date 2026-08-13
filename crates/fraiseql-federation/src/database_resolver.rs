@@ -228,7 +228,14 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
         // variables to the read's connection so `current_setting()` RLS is effective.
         let rows = self
             .adapter
-            .execute_parameterized_aggregate_with_session(&sql, &params, session_vars)
+            // Federation `_entities` resolution has no compiled QueryDefinition to
+            // carry routing, so it takes the server's policy (#957).
+            .execute_parameterized_aggregate_with_session(
+                &sql,
+                &params,
+                session_vars,
+                fraiseql_db::types::ReadRouting::Any,
+            )
             .await?;
 
         // Project results maintaining order

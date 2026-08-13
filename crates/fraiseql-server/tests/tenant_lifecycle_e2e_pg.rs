@@ -27,7 +27,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::extract::{Path, Query, State};
 use fraiseql_core::{
-    db::postgres::{PostgresAdapter, PostgresTlsConfig},
+    db::postgres::{PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy},
     prelude::DatabaseAdapter as _,
     runtime::Executor,
     schema::CompiledSchema,
@@ -71,6 +71,11 @@ fn registration(url: &str) -> TenantRegistrationRequest {
             idle_timeout_secs:    300,
             search_path:          None,
             tls:                  PostgresTlsConfig::default(),
+            // #957: a registration MAY name replica URLs; this one is
+            // primary-only. The policy is stamped by the factory below, which is
+            // what `read_replica_policy` being `#[serde(skip)]` enforces.
+            read_replica_urls:    Vec::new(),
+            read_replica_policy:  ReadReplicaPolicy::default(),
         },
         max_requests_per_sec:       None,
         max_concurrent:             None,
@@ -97,6 +102,7 @@ async fn setup() -> Option<(String, PostgresAdapter, AppState<PostgresAdapter>)>
             .with_tenant_registry(registry)
             .with_tenant_executor_factory(make_executor_factory::<PostgresAdapter>(
                 PostgresTlsConfig::default(),
+                ReadReplicaPolicy::default(),
             ));
 
     Some((url, admin, state))

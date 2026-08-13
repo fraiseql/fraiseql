@@ -535,6 +535,7 @@ mod entities_authz {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
+            read_routing: crate::db::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: requires_role.map(str::to_string),
@@ -751,7 +752,7 @@ mod entities_authz {
         });
         if with_query {
             schema.queries.push(QueryDefinition {
-                returns_count: false,
+                returns_count:       false,
                 name:                "employees".to_string(),
                 return_type:         "Employee".to_string(),
                 returns_list:        true,
@@ -766,6 +767,7 @@ mod entities_authz {
                 relay_cursor_column: None,
                 relay_cursor_type:   CursorType::default(),
                 inject_params:       IndexMap::new(),
+                read_routing:        crate::db::types::ReadRouting::default(),
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
@@ -1292,6 +1294,7 @@ mod inject {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
+            read_routing: crate::db::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
@@ -1672,6 +1675,7 @@ mod field_rbac {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
+            read_routing:        crate::db::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -2291,6 +2295,7 @@ mod field_authz {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
+            read_routing:        crate::db::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,

@@ -204,6 +204,7 @@ async fn tenant_reads_never_cross_under_rls() {
                     None,
                     None,
                     &[("app.tenant_id", tenant)],
+                    fraiseql_core::db::types::ReadRouting::Any,
                 )
                 .await
                 .expect("tenant read")

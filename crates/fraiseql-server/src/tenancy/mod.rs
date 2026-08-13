@@ -44,12 +44,20 @@ pub type TenantExecutorFactory<A> = Arc<
 /// a tenant's connections must be decided by the operator who configured the server,
 /// not by the payload that registers the tenant (#801). This mirrors the way
 /// `search_path` is recomputed rather than trusted.
+///
+/// `read_replica_policy` is stamped for the same reason (#957). A tenant names its
+/// own replica URLs — topology, like its connection string — but not the pin
+/// window, staleness budget or probe cadence those replicas are routed under: a
+/// registration that could send its own `max_lag` would be choosing how stale its
+/// reads may be, against a server whose operator already decided.
 #[must_use]
 pub fn make_executor_factory<A: FromPoolConfig + 'static>(
     database_tls: fraiseql_core::db::postgres::PostgresTlsConfig,
+    read_replica_policy: fraiseql_core::db::postgres::ReadReplicaPolicy,
 ) -> TenantExecutorFactory<A> {
     Arc::new(move |tenant_key, schema_json, mut pool_config| {
         pool_config.tls = database_tls.clone();
+        pool_config.read_replica_policy = read_replica_policy.clone();
         Box::pin(async move {
             create_tenant_executor::<A>(&tenant_key, &schema_json, &pool_config).await
         })
