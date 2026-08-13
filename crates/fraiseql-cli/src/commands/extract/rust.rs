@@ -87,6 +87,7 @@ impl SchemaExtractor for RustExtractor {
             );
 
             queries.push(IntermediateQuery {
+                count: false,
                 name,
                 return_type,
                 returns_list,

@@ -77,6 +77,36 @@ impl SchemaConverter {
             }
         }
 
+        // Validate count-sibling constraints (#938). Refusing at compile time keeps
+        // the failure where the author can see it: a `count = true` that produced
+        // nothing would look exactly like a working schema until a client asked
+        // for the field and got "not found in schema".
+        if intermediate.count {
+            if !intermediate.returns_list {
+                anyhow::bail!(
+                    "Query '{}': count=true requires returns_list=true; a single-item \
+                     query has nothing to count",
+                    intermediate.name
+                );
+            }
+            if intermediate.sql_source.is_none() {
+                anyhow::bail!(
+                    "Query '{}': count=true requires sql_source to be set; the count \
+                     is issued as SELECT COUNT(*) against that view",
+                    intermediate.name
+                );
+            }
+            if intermediate.relay {
+                anyhow::bail!(
+                    "Query '{}': count=true is redundant with relay=true — a Relay \
+                     connection already exposes `totalCount`, over the same rows. \
+                     Drop count=true, or drop relay=true if you need offset paging \
+                     with a total",
+                    intermediate.name
+                );
+            }
+        }
+
         let arguments = intermediate
             .arguments
             .into_iter()
@@ -145,6 +175,9 @@ impl SchemaConverter {
             name: intermediate.name,
             return_type: intermediate.return_type,
             returns_list: intermediate.returns_list,
+            // The count sibling is derived from this definition by
+            // `count_sibling()`, never authored directly.
+            returns_count: false,
             nullable: intermediate.nullable,
             arguments,
             sql_source: intermediate.sql_source,

@@ -235,7 +235,11 @@ impl QueryMatcher {
         //     type, while the selection set is scoped to the generated
         //     `XxxConnection` (`edges`/`pageInfo`/`totalCount`). Validating the
         //     one against the other would reject every relay query.
-        if !query_def.relay {
+        //     Count siblings (#938) are exempt for the same reason in the other
+        //     direction: `return_type` is the entity type, but the field is a
+        //     scalar `Int!` with no sub-selection at all, so there is nothing to
+        //     validate against it.
+        if !query_def.relay && !query_def.returns_count {
             if let Some(root) = final_selections.first() {
                 crate::graphql::validate_selection_set(
                     &self.schema,

@@ -63,6 +63,7 @@ impl SchemaExtractor for GoExtractor {
             let arguments = extract_go_query_args(body);
 
             queries.push(IntermediateQuery {
+                count: false,
                 name,
                 return_type,
                 returns_list,

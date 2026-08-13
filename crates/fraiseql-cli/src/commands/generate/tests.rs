@@ -80,6 +80,7 @@ fn test_wrap_nullable() {
 #[test]
 fn test_derive_class_name() {
     let list_query = IntermediateQuery {
+        count:             false,
         name:              "authors".to_string(),
         return_type:       "Author".to_string(),
         returns_list:      true,
@@ -101,6 +102,7 @@ fn test_derive_class_name() {
     assert_eq!(derive_class_name(&list_query), "Authors");
 
     let single_query = IntermediateQuery {
+        count:             false,
         name:              "author".to_string(),
         return_type:       "Author".to_string(),
         returns_list:      false,
@@ -204,6 +206,7 @@ fn sample_schema() -> IntermediateSchema {
         }],
         queries: vec![
             IntermediateQuery {
+                count:             false,
                 name:              "authors".to_string(),
                 return_type:       "Author".to_string(),
                 returns_list:      true,
@@ -223,6 +226,7 @@ fn sample_schema() -> IntermediateSchema {
                 rest:              None,
             },
             IntermediateQuery {
+                count:             false,
                 name:              "author".to_string(),
                 return_type:       "Author".to_string(),
                 returns_list:      false,

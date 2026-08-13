@@ -1637,6 +1637,7 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
+            returns_count:       false,
             name:                "users".to_string(),
             return_type:         "User".to_string(),
             returns_list:        true,
@@ -1673,6 +1674,7 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
+            returns_count:       false,
             name:                "customQuery".to_string(),
             return_type:         "Custom".to_string(),
             returns_list:        false,
@@ -1709,6 +1711,7 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
+            returns_count:       false,
             name:                "usersWithPosts".to_string(),
             return_type:         "UserWithPosts".to_string(),
             returns_list:        true,

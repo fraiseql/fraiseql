@@ -105,6 +105,7 @@ impl SchemaExtractor for PythonExtractor {
             let arguments = extract_python_query_args(source, fn_end);
 
             queries.push(IntermediateQuery {
+                count: false,
                 name,
                 return_type,
                 returns_list,

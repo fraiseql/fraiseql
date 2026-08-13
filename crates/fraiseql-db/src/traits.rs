@@ -1173,6 +1173,48 @@ pub trait DatabaseAdapter: Send + Sync {
         self.execute_where_query_arc(view, where_clause, limit, offset, order_by).await
     }
 
+    /// Count the rows of `view` matching `where_clause`, without materialising them.
+    ///
+    /// Backs both the GraphQL `<name>Count` sibling (#938) and the REST
+    /// `Prefer: count=exact` header, so the two cannot answer the same question
+    /// differently.
+    ///
+    /// `session_vars` are applied transaction-locally on the connection that
+    /// runs the count, exactly as for the read it describes (#329). This is
+    /// load-bearing rather than symmetric-for-neatness: under RLS, a count that
+    /// ran without the session variables would report the *unfiltered* total
+    /// beside a filtered page — a row-count oracle over rows the caller cannot
+    /// read.
+    ///
+    /// # Default implementation
+    ///
+    /// The default fetches the matching rows and counts them. That is *correct*
+    /// — same view, same predicate, same session — but it is O(rows) in memory,
+    /// so an adapter that can push the count into the database should override
+    /// it. `PostgresAdapter` does, with `SELECT COUNT(*)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the query fails.
+    async fn count_where_query(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<u64> {
+        let rows = self
+            .execute_where_query_arc_with_session(
+                view,
+                where_clause,
+                None,
+                None,
+                None,
+                session_vars,
+            )
+            .await?;
+        Ok(rows.len() as u64)
+    }
+
     /// Connection-affine variant of
     /// [`execute_with_projection_arc`](Self::execute_with_projection_arc).
     ///

@@ -55,6 +55,28 @@ pub struct QueryDefinition {
     #[serde(default)]
     pub returns_list: bool,
 
+    /// Does this query return `COUNT(*)` over [`sql_source`](Self::sql_source)
+    /// instead of rows?
+    ///
+    /// Compiled as the sibling of a list query that opted in (`count = true`),
+    /// named `<query>Count` and exposed as `Int!`. It exists because a bare
+    /// `[T]` list has nowhere to hang a total, so an offset-paginated client had
+    /// no way to learn how many rows match its filter — `totalCount` was
+    /// reachable only through a Relay connection, and a Relay connection is
+    /// keyset-only, so obtaining the count cost random access (#938).
+    ///
+    /// [`return_type`](Self::return_type) stays the **entity** type rather than
+    /// `Int`: the filter machinery is keyed on it (`where` input types, native
+    /// column casts, RLS policy lookup), and re-pointing it at a scalar would
+    /// silently detach the count from the filters whose rows it is counting.
+    /// Only the *rendered* GraphQL return type differs.
+    ///
+    /// The count reflects the full filtered set, independent of `limit`/`offset`
+    /// — which is the entire point — so the sibling carries `where` alone and
+    /// no pagination arguments.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub returns_count: bool,
+
     /// Is the return value nullable?
     #[serde(default)]
     pub nullable: bool,
@@ -201,6 +223,7 @@ impl QueryDefinition {
             name:                name.into(),
             return_type:         return_type.into(),
             returns_list:        false,
+            returns_count:       false,
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          None,
@@ -233,6 +256,55 @@ impl QueryDefinition {
     pub fn with_sql_source(mut self, source: impl Into<String>) -> Self {
         self.sql_source = Some(source.into());
         self
+    }
+
+    /// Derive the `<name>Count` sibling of this list query (#938).
+    ///
+    /// This is the **only** way a count query is built. A sibling query that
+    /// answers "how many rows match?" against the same view is a second door
+    /// onto the same rows, and a second door that forgets one of the first's
+    /// restrictions is an oracle: a count that ignores `inject_params` reports
+    /// other tenants' row totals, and one that ignores `requires_role` answers
+    /// callers who cannot see the list at all. Neither leaks a row, which is
+    /// exactly why it would survive review — so the inheritance is centralised
+    /// here rather than spelled out at each construction site (the `_entities`
+    /// lesson, #1030).
+    ///
+    /// Inherited, deliberately: the entity `return_type` and `sql_source` (same
+    /// rows), `inject_params` (same tenant scoping), `requires_role` (same
+    /// visibility), explicitly declared `arguments` (they lower into the same
+    /// `WHERE`), `native_columns` (same casts, so the count uses the same
+    /// indexes), `additional_views` (same cache invalidation) and `deprecation`.
+    ///
+    /// Dropped, deliberately: `limit`/`offset`/`orderBy` — a total that moved
+    /// with the page would answer a question nobody asked; `relay`, which has
+    /// its own `totalCount`; and the REST overrides, since the REST surface
+    /// already counts through `Prefer: count=exact`.
+    #[must_use]
+    pub fn count_sibling(&self) -> Self {
+        Self {
+            name: format!("{}Count", self.name),
+            returns_list: false,
+            returns_count: true,
+            nullable: false,
+            auto_params: AutoParams {
+                has_where:    self.auto_params.has_where,
+                has_order_by: false,
+                has_limit:    false,
+                has_offset:   false,
+            },
+            relay: false,
+            relay_cursor_column: None,
+            relay_cursor_type: CursorType::Int64,
+            rest_path: None,
+            rest_method: None,
+            description: Some(format!(
+                "Total number of `{}` rows matching `where`, independent of any \
+                 limit/offset applied to `{}`.",
+                self.return_type, self.name
+            )),
+            ..self.clone()
+        }
     }
 
     /// Mark this query as deprecated.

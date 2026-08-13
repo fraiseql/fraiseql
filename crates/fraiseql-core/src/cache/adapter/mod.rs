@@ -936,6 +936,23 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.execute_direct_mutation(ctx).await
     }
 
+    async fn count_where_query(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<u64> {
+        // Straight through to the inner adapter, so the count reaches PostgreSQL's
+        // `SELECT COUNT(*)` rather than the trait default's fetch-and-len.
+        //
+        // Deliberately uncached: the result cache stores row sets keyed by view +
+        // predicate, and a count is neither — caching it would need its own key
+        // space and its own invalidation, and a *stale* count is worse than a
+        // slightly expensive one (it is read to size a pager, so a stale total
+        // renders pages that do not exist).
+        self.adapter.count_where_query(view, where_clause, session_vars).await
+    }
+
     async fn execute_where_query_arc_with_session(
         &self,
         view: &str,

@@ -1070,6 +1070,62 @@ impl DatabaseAdapter for PostgresAdapter {
             .map_err(|e| enrich_undefined_column_error(e, view, where_clause))
     }
 
+    /// `SELECT COUNT(*)`, pushed into the database rather than counted in Rust.
+    ///
+    /// The trait's default fetches every matching row and takes `.len()`, which
+    /// is correct but materialises the whole filtered set — on an unfiltered
+    /// list that is the entire table in memory to answer a single integer.
+    async fn count_where_query(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<u64> {
+        let (sql, typed_params) = super::build_count_sql(view, where_clause)?;
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
+
+        // Structurally read-only: replica-eligible, and `set_config` + SELECT are
+        // both fine inside a hot-standby read-only transaction (#407).
+        let row = if session_vars.is_empty() {
+            let client = self.acquire_read_connection_with_retry().await?;
+            client.query_one(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Count query failed: {}", pg_detail(&e)),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?
+        } else {
+            // Session variables must land on the *same* connection as the count,
+            // or an RLS-filtered page gets an unfiltered total beside it (#329).
+            let mut client = self.acquire_read_connection_with_retry().await?;
+            let txn =
+                client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                    message:   format!(
+                        "Failed to start count session-var transaction: {}",
+                        pg_detail(&e)
+                    ),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            super::database::apply_session_vars(&txn, session_vars).await?;
+            let row =
+                txn.query_one(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                    message:   format!("Count query failed: {}", pg_detail(&e)),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            txn.commit().await.map_err(|e| FraiseQLError::Database {
+                message:   format!(
+                    "Failed to commit count session-var transaction: {}",
+                    pg_detail(&e)
+                ),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            row
+        };
+
+        let total: i64 = row.get(0);
+        // COUNT(*) is never negative, so the bit pattern is the value; `cast_unsigned`
+        // states that intent where `as u64` would only imply it.
+        Ok(total.cast_unsigned())
+    }
+
     async fn execute_with_projection_arc_with_session(
         &self,
         request: &ProjectionRequest<'_>,
