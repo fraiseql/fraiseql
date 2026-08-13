@@ -73,6 +73,7 @@ fn base_schema_with_query(
 
 fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> IntermediateQuery {
     IntermediateQuery {
+        count: false,
         name: name.to_string(),
         return_type: "Item".to_string(),
         returns_list: true,
@@ -95,6 +96,7 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
 
 fn single_query(name: &str) -> IntermediateQuery {
     IntermediateQuery {
+        count:             false,
         name:              name.to_string(),
         return_type:       "Item".to_string(),
         returns_list:      false,
@@ -117,6 +119,7 @@ fn single_query(name: &str) -> IntermediateQuery {
 
 fn relay_query(name: &str) -> IntermediateQuery {
     IntermediateQuery {
+        count:             false,
         name:              name.to_string(),
         return_type:       "Item".to_string(),
         returns_list:      true,

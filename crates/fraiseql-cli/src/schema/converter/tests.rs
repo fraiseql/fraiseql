@@ -463,6 +463,7 @@ fn test_validate_unknown_type_reference() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            count:             false,
             name:              "users".to_string(),
             return_type:       "UnknownType".to_string(),
             returns_list:      true,
@@ -537,6 +538,7 @@ fn test_convert_query_with_arguments() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            count:             false,
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -625,6 +627,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            count:             false,
             name:              "items".to_string(),
             return_type:       "Item".to_string(),
             returns_list:      true,
@@ -702,6 +705,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            count:             false,
             name:              "item".to_string(),
             return_type:       "Item".to_string(),
             returns_list:      false,
@@ -3288,4 +3292,120 @@ fn custom_scalar_without_rules_still_compiles() {
         .expect("a scalar without rules must still convert");
     assert_eq!(converted.name, "EmailAddress");
     assert_eq!(converted.base_type.as_deref(), Some("String"));
+}
+
+// ── #938 count sibling ───────────────────────────────────────────────────────
+
+/// A list query carrying `count = true`, with everything else at its default.
+fn count_query(name: &str, tweak: impl FnOnce(&mut IntermediateQuery)) -> IntermediateQuery {
+    let mut q = IntermediateQuery {
+        count:             true,
+        name:              name.to_string(),
+        return_type:       "User".to_string(),
+        returns_list:      true,
+        nullable:          false,
+        arguments:         vec![],
+        description:       None,
+        sql_source:        Some("v_user".to_string()),
+        auto_params:       None,
+        deprecated:        None,
+        jsonb_column:      None,
+        relay:             false,
+        inject:            IndexMap::default(),
+        cache_ttl_seconds: None,
+        additional_views:  vec![],
+        requires_role:     None,
+        relay_cursor_type: None,
+        rest:              None,
+    };
+    tweak(&mut q);
+    q
+}
+
+fn convert_one(
+    q: IntermediateQuery,
+) -> Result<fraiseql_core::schema::QueryDefinition, anyhow::Error> {
+    SchemaConverter::convert_query(
+        q,
+        &crate::schema::intermediate::IntermediateQueryDefaults::default(),
+        &DeclaredTypeNames::default(),
+    )
+}
+
+#[test]
+fn count_on_a_single_item_query_is_refused() {
+    let err = convert_one(count_query("user", |q| q.returns_list = false))
+        .expect_err("a single-item query has nothing to count");
+    assert!(
+        err.to_string().contains("requires returns_list=true"),
+        "the refusal must name the constraint: {err}"
+    );
+}
+
+#[test]
+fn count_without_a_sql_source_is_refused() {
+    let err = convert_one(count_query("users", |q| q.sql_source = None))
+        .expect_err("SELECT COUNT(*) needs a view to count");
+    assert!(
+        err.to_string().contains("requires sql_source"),
+        "the refusal must name the constraint: {err}"
+    );
+}
+
+/// Relay connections already carry `totalCount` over the same rows. Accepting
+/// both would compile two different totals for one query and leave the author to
+/// discover which one their client got.
+#[test]
+fn count_with_relay_is_refused_as_redundant() {
+    let err = convert_one(count_query("users", |q| q.relay = true))
+        .expect_err("relay already exposes totalCount");
+    assert!(
+        err.to_string().contains("redundant with relay=true"),
+        "the refusal must explain the overlap: {err}"
+    );
+}
+
+/// The derived sibling inherits every restriction of the list it counts. This is
+/// the anti-drift property the whole design rests on: a count that kept the rows
+/// but dropped the tenant filter returns no row and still discloses how many
+/// exist (#1030's shape).
+#[test]
+fn count_sibling_inherits_the_lists_restrictions() {
+    let mut list = fraiseql_core::schema::QueryDefinition::new("users", "User")
+        .returning_list()
+        .with_sql_source("v_user");
+    list.auto_params = fraiseql_core::schema::AutoParams::all();
+    list.requires_role = Some("auditor".to_string());
+    list.inject_params.insert(
+        "tenant_id".to_string(),
+        fraiseql_core::schema::security_config::InjectedParamSource::Jwt("org_id".to_string()),
+    );
+    list.additional_views = vec!["v_org".to_string()];
+    list.native_columns.insert("tenant_id".to_string(), "uuid".to_string());
+
+    let count = list.count_sibling();
+
+    assert_eq!(count.name, "usersCount");
+    assert!(count.returns_count, "the sibling is a count");
+    assert!(!count.returns_list, "a count is a scalar, not a list");
+    assert!(!count.nullable, "Int!, so 'no rows' and 'no answer' stay distinct");
+
+    // Same rows, same restrictions.
+    assert_eq!(count.return_type, "User", "the entity type keys the filter machinery");
+    assert_eq!(count.sql_source.as_deref(), Some("v_user"));
+    assert_eq!(count.requires_role.as_deref(), Some("auditor"));
+    assert_eq!(count.inject_params, list.inject_params, "tenant scoping must be inherited");
+    assert_eq!(count.native_columns, list.native_columns, "same casts, so the same indexes");
+    assert_eq!(count.additional_views, list.additional_views, "same cache invalidation");
+
+    // The filter survives; the pagination does not.
+    assert!(count.auto_params.has_where, "the count composes with the same filter");
+    assert!(!count.auto_params.has_limit, "a total that moved with the page is not a total");
+    assert!(!count.auto_params.has_offset);
+    assert!(!count.auto_params.has_order_by, "ordering cannot change a count");
+    assert!(!count.relay);
+
+    let args = count.graphql_arguments();
+    let arg_names: Vec<&str> = args.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(arg_names, vec!["where"], "the exposed surface is `where` alone");
 }

@@ -58,6 +58,7 @@ impl SchemaExtractor for ScalaExtractor {
             );
 
             queries.push(IntermediateQuery {
+                count: false,
                 name,
                 return_type,
                 returns_list,

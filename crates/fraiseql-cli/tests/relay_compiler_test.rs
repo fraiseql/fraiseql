@@ -68,6 +68,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            count:             false,
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,

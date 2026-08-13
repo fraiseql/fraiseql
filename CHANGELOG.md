@@ -4023,6 +4023,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   multi-file merger — because guarding only one would have left every `--schema-dir` user
   with the original silent drop.
 
+### Added
+
+- **`count = true` emits a `<name>Count(where): Int!` sibling for a list query (#938).**
+  A non-Relay list compiles to `where`/`orderBy`/`limit`/`offset` returning a bare `[T]`,
+  which has nowhere to hang a total — so an offset-paginated client could not compute a
+  page count. `totalCount` existed, but only on a Relay connection, and a Relay connection
+  is keyset-only: obtaining the count cost random access, which is the reason offset paging
+  was chosen. The sibling closes that gap without either compromise:
+
+  ```graphql
+  users(where: UserWhere, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+  usersCount(where: UserWhere): Int!
+  ```
+
+  Opt-in per query, because the extra `SELECT COUNT(*)` scans the whole filtered set and is
+  wasted on any list not rendered with page numbers. Refused at compile time on a
+  single-item query, on a query with no `sql_source`, and on `relay = true` (redundant with
+  its `totalCount`); a generated name that collides with an authored query is also refused
+  rather than silently displacing it.
+
+  The sibling is **derived** from the list definition, not authored separately, so it
+  inherits the same `sql_source`, `inject_params`, `requires_role`, declared arguments,
+  `native_columns` and `additional_views`. That inheritance is the point: a count answers
+  "how many rows match?" without returning one, so a count that kept the rows but dropped
+  the tenant filter would leak another tenant's row total while leaking no row — and would
+  pass any test that only inspects returned data.
+
+### Fixed
+
+- **`Prefer: count=exact` no longer materialises the whole filtered set (#938).** The REST
+  count path fetched every matching row and returned `rows.len()`, so
+  `GET /rest/users?limit=10` with the header pulled the entire table into memory to produce
+  one integer. Both surfaces now go through a new `DatabaseAdapter::count_where_query`,
+  which PostgreSQL implements as `SELECT COUNT(*)` with the same `WhereClause` generator and
+  the same session variables as the read it describes. The trait default still counts rows
+  in memory — correct, and the only option for an adapter that cannot push the count down —
+  so this is a performance fix on PostgreSQL, not a behaviour change.
+
 ## [2.14.1] - 2026-07-24
 
 ### Added

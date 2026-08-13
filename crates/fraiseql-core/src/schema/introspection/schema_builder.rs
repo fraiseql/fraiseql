@@ -203,6 +203,9 @@ fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> Intros
     if query.relay {
         return build_relay_query_field(query, schema);
     }
+    if query.returns_count {
+        return build_count_query_field(query, schema);
+    }
 
     let return_type = type_ref(&query.return_type);
     let return_type = if query.returns_list {
@@ -242,6 +245,42 @@ fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> Intros
     // Build arguments, including the auto-wired `where`/`orderBy`/`limit`/`offset`
     // arguments derived from `auto_params` so introspection matches the `_service`
     // SDL and generated clients.
+    let args: Vec<IntrospectionInputValue> =
+        query.graphql_arguments().iter().map(build_arg_input_value).collect();
+
+    IntrospectionField {
+        name: schema.display_name(&query.name),
+        description: query.description.clone(),
+        args,
+        field_type: return_type,
+        is_deprecated: query.is_deprecated(),
+        deprecation_reason: query.deprecation_reason().map(ToString::to_string),
+    }
+}
+
+/// Build introspection for a count sibling query (#938).
+///
+/// `query.return_type` is the **entity** type — the filter machinery is keyed on
+/// it — so the rendered type is built from `Int` rather than from it. Always
+/// `Int!`: a nullable count would put "matched no rows" and "could not answer"
+/// in the same branch for every client that reads it.
+fn build_count_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> IntrospectionField {
+    let return_type = IntrospectionType {
+        kind:               TypeKind::NonNull,
+        name:               None,
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            Some(Box::new(type_ref("Int"))),
+        specified_by_u_r_l: None,
+    };
+
+    // `graphql_arguments()` yields `where` alone here: `count_sibling` clears the
+    // pagination auto-params, because a total that shrank with the page would not
+    // be the total.
     let args: Vec<IntrospectionInputValue> =
         query.graphql_arguments().iter().map(build_arg_input_value).collect();
 

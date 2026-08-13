@@ -18,6 +18,7 @@ fn test_validate_empty_schema() {
 fn test_detect_unknown_return_type() {
     let schema = IntermediateSchema {
         queries: vec![IntermediateQuery {
+            count:             false,
             name:              "users".to_string(),
             return_type:       "UnknownType".to_string(),
             returns_list:      true,
@@ -64,6 +65,7 @@ fn test_detect_duplicate_query_names() {
         }],
         queries: vec![
             IntermediateQuery {
+                count:             false,
                 name:              "users".to_string(),
                 return_type:       "User".to_string(),
                 returns_list:      true,
@@ -83,6 +85,7 @@ fn test_detect_duplicate_query_names() {
                 rest:              None,
             },
             IntermediateQuery {
+                count:             false,
                 name:              "users".to_string(), // Duplicate!
                 return_type:       "User".to_string(),
                 returns_list:      true,
@@ -128,6 +131,7 @@ fn test_warning_for_query_without_sql_source() {
             subscribable_pre_image: false,
         }],
         queries: vec![IntermediateQuery {
+            count:             false,
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -372,6 +376,7 @@ fn test_query_injection_in_sql_source_rejected() {
             subscribable_pre_image: false,
         }],
         queries: vec![IntermediateQuery {
+            count:             false,
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,
@@ -416,6 +421,7 @@ fn test_query_schema_qualified_sql_source_passes() {
             subscribable_pre_image: false,
         }],
         queries: vec![IntermediateQuery {
+            count:             false,
             name:              "users".to_string(),
             return_type:       "User".to_string(),
             returns_list:      true,

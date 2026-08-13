@@ -90,6 +90,7 @@ impl SchemaExtractor for SwiftExtractor {
             );
 
             queries.push(IntermediateQuery {
+                count: false,
                 name,
                 return_type,
                 returns_list,

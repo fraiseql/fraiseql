@@ -169,6 +169,37 @@ The smallest schema that compiles successfully:
 }
 ```
 
+## List Query with a Total Count
+
+A bare `[T]` list has nowhere to hang a total, so an offset-paginated client cannot compute
+a page count. `"count": true` emits a sibling query — `<name>Count(where): Int!` — that
+answers it (#938):
+
+```json
+{
+  "name": "users",
+  "return_type": "User",
+  "returns_list": true,
+  "sql_source": "v_users",
+  "count": true
+}
+```
+
+compiles to both `users(where, orderBy, limit, offset): [User!]!` and
+`usersCount(where): Int!`.
+
+The count reflects the **whole filtered set**, independent of `limit`/`offset` — that is
+the point of it — so the sibling takes `where` and no pagination arguments. It is otherwise
+derived from the list definition, inheriting the same `sql_source`, `inject`,
+`requires_role` and declared arguments: a count answers "how many rows match?" without
+returning a row, so one that dropped the tenant filter would disclose another tenant's row
+total while appearing to leak nothing.
+
+Opt-in per query, because the extra `SELECT COUNT(*)` scans the full filtered set and is
+wasted on any list not rendered with page numbers. Refused at compile time when
+`returns_list` is false, when `sql_source` is absent, and when `relay` is true — a Relay
+connection already exposes `totalCount` over the same rows.
+
 ## Mutation with Cache Invalidation
 
 ```json

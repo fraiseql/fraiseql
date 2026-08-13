@@ -1096,6 +1096,19 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// re-checked per batch, the delivery survives request_timeout_secs, and
 		// the compression predicate exempts text/event-stream.
 		"cargo test -p fraiseql-server --test graphql_sse_e2e_pg -- --test-threads=1",
+		// #938 — the `<name>Count` sibling, through the real mount. A count is a
+		// second door onto the rows the list query guards, so most of what this
+		// pins is refusals: the total ignores limit/offset but not `where`, and
+		// it inherits inject-param tenant scoping, `requires_role` and the
+		// anonymous refusal. A count that dropped the tenant filter returns no
+		// row and leaks another tenant's row total.
+		"cargo test -p fraiseql-server --test graphql_count_e2e_pg -- --test-threads=1",
+		// #938 — the `<name>Count` sibling, through the real mount. A count is a
+		// second door onto the rows the list query guards, so most of what this
+		// pins is refusals: the total ignores limit/offset but not `where`, and
+		// it inherits inject-param tenant scoping, `requires_role` and the
+		// anonymous refusal. A count that dropped the tenant filter returns no
+		// row and leaks another tenant's row total.
 		// #812/#739/#810: the REST read surface carried no authentication, discarded the
 		// resolved tenant filter, and honoured `require_auth` on one route out of six.
 		// None of it was visible to the existing REST suite, which builds its router with

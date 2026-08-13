@@ -256,16 +256,34 @@ impl SchemaConverter {
         let query_defaults_inject = inject_defaults.for_queries();
         let mutation_defaults_inject = inject_defaults.for_mutations();
 
-        // Convert queries
-        let queries = intermediate
-            .queries
-            .into_iter()
-            .map(|mut q| {
-                IntermediateInjectDefaults::apply_to(&query_defaults_inject, &mut q.inject);
-                Self::convert_query(q, &defaults, &declared)
-            })
-            .collect::<Result<Vec<_>>>()
-            .context("Failed to convert queries")?;
+        // Convert queries. A query that opted into `count` emits a second,
+        // derived `<name>Count` definition (#938) — built by `count_sibling` so
+        // its tenancy, role and filter inheritance has exactly one definition.
+        let mut queries: Vec<fraiseql_core::schema::QueryDefinition> =
+            Vec::with_capacity(intermediate.queries.len());
+        for mut q in intermediate.queries {
+            IntermediateInjectDefaults::apply_to(&query_defaults_inject, &mut q.inject);
+            let wants_count = q.count;
+            let converted = Self::convert_query(q, &defaults, &declared)
+                .context("Failed to convert queries")?;
+            let sibling = wants_count.then(|| converted.count_sibling());
+            queries.push(converted);
+            queries.extend(sibling);
+        }
+
+        // A generated sibling must not silently displace an author's own query of
+        // the same name — whichever won, the other would vanish from the schema
+        // with no diagnostic.
+        let mut seen: HashSet<&str> = HashSet::new();
+        for q in &queries {
+            if !seen.insert(q.name.as_str()) {
+                anyhow::bail!(
+                    "Query name '{}' is declared twice. A `count = true` query generates \
+                     '<name>Count'; rename the conflicting query or drop count=true.",
+                    q.name
+                );
+            }
+        }
 
         // Convert mutations
         let mutations = intermediate

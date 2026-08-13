@@ -1088,6 +1088,31 @@ pub(super) fn build_where_select_sql(
 /// # Errors
 ///
 /// Returns `FraiseQLError` if WHERE clause generation or field name validation fails.
+/// `SELECT COUNT(*) FROM {view} [WHERE …]` and its parameters (#938).
+///
+/// Deliberately shares [`PostgresWhereGenerator`] with the row query rather than
+/// formatting its own predicate: the count and the page it describes have to
+/// agree, and two independent renderings of the same `WhereClause` is how they
+/// would stop agreeing. No `ORDER BY` (it cannot change a count, and sorting the
+/// rows first is pure cost) and no `LIMIT`/`OFFSET` (the total is the whole
+/// point).
+pub(super) fn build_count_sql(
+    view: &str,
+    where_clause: Option<&WhereClause>,
+) -> Result<(String, Vec<QueryParam>)> {
+    let mut sql = format!("SELECT COUNT(*) FROM {}", quote_postgres_identifier(view));
+    let typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
+        let generator = PostgresWhereGenerator::new(PostgresDialect);
+        let (where_sql, where_params) = generator.generate(clause)?;
+        sql.push_str(" WHERE ");
+        sql.push_str(&where_sql);
+        where_params.into_iter().map(QueryParam::from).collect()
+    } else {
+        Vec::new()
+    };
+    Ok((sql, typed_params))
+}
+
 pub(super) fn build_where_select_sql_ordered(
     view: &str,
     where_clause: Option<&WhereClause>,

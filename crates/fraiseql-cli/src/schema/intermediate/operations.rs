@@ -320,6 +320,17 @@ pub struct IntermediateQuery {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
 
+    /// Emit a `<name>Count(where): Int!` sibling for this list query (#938).
+    ///
+    /// Opt-in rather than automatic: the count is a second `SELECT COUNT(*)` that
+    /// scans the whole filtered set, which is a real cost on a hot list endpoint
+    /// and is wasted on every list that is not rendered with page numbers.
+    ///
+    /// Requires `returns_list = true` and `sql_source`. Refused on `relay = true`
+    /// — a connection already carries `totalCount`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub count: bool,
+
     /// Server-injected parameters: SQL column name → source expression (e.g. `"jwt:org_id"`).
     /// Not exposed as GraphQL arguments.
     ///

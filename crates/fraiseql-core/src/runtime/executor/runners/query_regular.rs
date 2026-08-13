@@ -52,6 +52,30 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         }
     }
 
+    /// Execute a `<name>Count` sibling query (#938).
+    ///
+    /// Delegates the whole decision to [`count_rows`](Self::count_rows) — the
+    /// same method the REST `Prefer: count=exact` header uses — so the two
+    /// surfaces cannot drift on what a filtered total means, and so the count
+    /// inherits one implementation of operation authorization, RLS fail-closed,
+    /// inject-param scoping and session variables rather than a second copy.
+    ///
+    /// The caller is responsible for the `requires_role` / anonymous guards; both
+    /// entry points below apply them before routing here, exactly as they do for
+    /// the list query this counts.
+    async fn execute_count_query(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        let total = self.count_rows(query_match, variables, security_context).await?;
+        Ok(ResultProjector::wrap_in_data_envelope(
+            serde_json::json!(total),
+            query_match.response_key(),
+        ))
+    }
+
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
     /// This method:
@@ -110,6 +134,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             return self
                 .execute_relay_query(&query_match, Some(security_context), &session_pairs)
                 .await;
+        }
+
+        // Count siblings (#938) return a scalar, so none of the projection,
+        // response-cache or field-RBAC machinery below applies — there is no row
+        // to strip a field from. Routed after the `requires_role` guard above, so
+        // a count is exactly as visible as the list it counts.
+        if query_match.query_def.returns_count {
+            return self.execute_count_query(&query_match, variables, Some(security_context)).await;
         }
 
         // 0a. Detect whether a policy-gated field (#423) is selected (top-level or
@@ -609,6 +641,13 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // No session vars: unauthenticated entrypoint (no SecurityContext). See #329.
         if query_match.query_def.relay {
             return self.execute_relay_query(&query_match, None, &[]).await;
+        }
+
+        // Count siblings (#938), after the three guards above — a count of rows an
+        // anonymous caller may not read is still a disclosure about those rows,
+        // so it is refused on exactly the conditions the list is.
+        if query_match.query_def.returns_count {
+            return self.execute_count_query(&query_match, variables, None).await;
         }
 
         // #423: the unauthenticated path has no principal, so a selected policy-gated
@@ -1207,24 +1246,20 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 4. Execute COUNT query via adapter, pinning session variables to the read's connection so
         //    RLS counts match the filtered rows (#329).
+        //
+        //    This used to fetch every matching row and take `.len()`: correct, but
+        //    it materialised the whole filtered set to produce one integer, so
+        //    `GET /rest/users?limit=10` with `Prefer: count=exact` pulled the
+        //    entire table into memory. `count_where_query` pushes it into
+        //    `SELECT COUNT(*)`, and is the same method the GraphQL `<name>Count`
+        //    sibling uses — one count path, so the two surfaces cannot disagree
+        //    about what a filtered total means (#938).
         let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let rows = self
-            .ctx
+        self.ctx
             .adapter
-            .execute_where_query_arc_with_session(
-                sql_source,
-                combined_where.as_ref(),
-                None,
-                None,
-                None,
-                &session_pairs,
-            )
-            .await?;
-
-        // Return the row count
-        #[allow(clippy::cast_possible_truncation)] // Reason: row count fits u64
-        Ok(rows.len() as u64)
+            .count_where_query(sql_source, combined_where.as_ref(), &session_pairs)
+            .await
     }
 }

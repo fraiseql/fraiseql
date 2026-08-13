@@ -25,6 +25,7 @@ fn test_schema() -> crate::schema::CompiledSchema {
 
     // Add a users query
     schema.queries.push(QueryDefinition {
+        returns_count:       false,
         name:                "users".to_string(),
         return_type:         "User".to_string(),
         returns_list:        true,
@@ -49,6 +50,7 @@ fn test_schema() -> crate::schema::CompiledSchema {
 
     // Add a user query with argument
     schema.queries.push(QueryDefinition {
+        returns_count:       false,
         name:                "user".to_string(),
         return_type:         "User".to_string(),
         returns_list:        false,
@@ -775,6 +777,7 @@ fn test_deprecated_query_introspection() {
 
     // Add a deprecated query
     schema.queries.push(QueryDefinition {
+        returns_count:       false,
         name:                "oldUsers".to_string(),
         return_type:         "User".to_string(),
         returns_list:        true,
@@ -801,6 +804,7 @@ fn test_deprecated_query_introspection() {
 
     // Add a non-deprecated query with a deprecated argument
     schema.queries.push(QueryDefinition {
+        returns_count:       false,
         name:                "users".to_string(),
         return_type:         "User".to_string(),
         returns_list:        true,

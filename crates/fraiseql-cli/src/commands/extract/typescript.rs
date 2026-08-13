@@ -55,6 +55,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                 let arguments = extract_ts_query_args(&body);
 
                 queries.push(IntermediateQuery {
+                    count: false,
                     name,
                     return_type,
                     returns_list,

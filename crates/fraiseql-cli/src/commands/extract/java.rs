@@ -57,6 +57,7 @@ impl SchemaExtractor for JavaExtractor {
             let arguments = extract_java_query_args(&cap[1]);
 
             queries.push(IntermediateQuery {
+                count: false,
                 name: query_name,
                 return_type,
                 returns_list,
