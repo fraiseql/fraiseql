@@ -4,10 +4,13 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use super::argument::{ArgumentDefinition, AutoParams};
-use crate::schema::{
-    field_type::{DeprecationInfo, FieldType},
-    graphql_type_defs::default_jsonb_column,
-    security_config::InjectedParamSource,
+use crate::{
+    db::types::ReadRouting,
+    schema::{
+        field_type::{DeprecationInfo, FieldType},
+        graphql_type_defs::default_jsonb_column,
+        security_config::InjectedParamSource,
+    },
 };
 
 /// The type of column used as the keyset cursor for relay pagination.
@@ -148,6 +151,23 @@ pub struct QueryDefinition {
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub inject_params: IndexMap<String, InjectedParamSource>,
 
+    /// Where this query's reads may be served from (#957).
+    ///
+    /// Read-replica routing is otherwise a whole-server decision: the pin window
+    /// and the staleness budget apply to every query alike, so an operator sizing
+    /// them for the strictest query gives up the offload on all the others, and
+    /// sizing them for the common case silently serves the strict one stale.
+    ///
+    /// FraiseQL defines and enforces this shape; an authoring language emits it —
+    /// `SpecQL`'s `@reads_from(...)` (evoludigit/specql#13) is one spelling of it.
+    /// Replica **topology** deliberately stays out of the compiled artifact: URLs
+    /// are server configuration and secrets.
+    ///
+    /// See [`ReadRouting`] for what each answer guarantees, including why
+    /// `primary` also bypasses the result cache.
+    #[serde(default, skip_serializing_if = "ReadRouting::is_default")]
+    pub read_routing: ReadRouting,
+
     /// Per-query result cache TTL in seconds.
     ///
     /// Overrides the global `CacheConfig::ttl_seconds` for this query's view.
@@ -235,6 +255,7 @@ impl QueryDefinition {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::Int64,
             inject_params:       IndexMap::new(),
+            read_routing:        ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    Vec::new(),
             requires_role:       None,

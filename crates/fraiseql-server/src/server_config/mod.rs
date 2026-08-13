@@ -423,6 +423,39 @@ pub struct ServerConfig {
     #[serde(default)]
     pub read_replica_pin_after_write_ms: Option<u64>,
 
+    /// Bounded staleness for replica-served reads, in milliseconds (#957).
+    ///
+    /// Where [`read_replica_pin_after_write_ms`](Self::read_replica_pin_after_write_ms)
+    /// is an *assertion* about worst-case lag that covers a client's own writes,
+    /// this is a *measurement* that covers everyone else's: a replica whose
+    /// probed replay lag — aged by how long ago it was probed — exceeds this
+    /// budget is skipped, and the read is served by the primary.
+    ///
+    /// Unset means no lag-based routing: replicas serve reads however far behind
+    /// they are. A replica whose lag cannot be measured (never probed, probe
+    /// failing, promoted out of recovery by a failover) is never eligible while
+    /// this is set.
+    ///
+    /// Must exceed
+    /// [`read_replica_health_probe_interval_ms`](Self::read_replica_health_probe_interval_ms);
+    /// setting it **without** [`read_replica_urls`](Self::read_replica_urls) is a
+    /// configuration error.
+    #[serde(default)]
+    pub read_replica_max_lag_ms: Option<u64>,
+
+    /// How often each replica is probed for recovery state and replay lag, in
+    /// milliseconds (#957).
+    ///
+    /// Probing runs whenever replicas are configured, with or without a
+    /// staleness budget: the boot health check happens once, so a replica that a
+    /// failover promotes afterwards would otherwise keep taking reads as a
+    /// writable server with no one ever noticing.
+    ///
+    /// Defaults to 1000 ms when replicas are configured; setting it **without**
+    /// [`read_replica_urls`](Self::read_replica_urls) is a configuration error.
+    #[serde(default)]
+    pub read_replica_health_probe_interval_ms: Option<u64>,
+
     /// OIDC authentication configuration (optional).
     ///
     /// When set, enables JWT authentication using OIDC discovery.
@@ -1185,6 +1218,8 @@ impl Default for ServerConfig {
             graphql_sse_stream_batch_size: None, // 100 when SSE is enabled
             read_replica_urls: Vec::new(), // Primary-only by default
             read_replica_pin_after_write_ms: None, // 5000 ms when replicas are set
+            read_replica_max_lag_ms: None, // No lag-based routing by default (#957)
+            read_replica_health_probe_interval_ms: None, // 1000 ms when replicas are set
 
             auth: None, // No auth by default
             auth_hs256: None,

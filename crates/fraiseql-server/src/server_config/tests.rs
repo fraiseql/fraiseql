@@ -1278,6 +1278,155 @@ mod read_replicas_407 {
     }
 }
 
+mod bounded_staleness_957 {
+    use super::*;
+
+    #[test]
+    fn probing_is_on_by_default_and_lag_gating_is_not() {
+        let config = ServerConfig {
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            ..ServerConfig::default()
+        };
+        let rc = config.read_replicas().expect("configured replicas must lower to Some");
+        assert_eq!(
+            rc.max_lag, None,
+            "lag-based routing is opt-in: without a budget, replicas serve reads however \
+             far behind they are, exactly as before this option existed"
+        );
+        assert_eq!(
+            rc.health_probe_interval,
+            std::time::Duration::from_millis(1000),
+            "probing is NOT opt-in — a failover that promotes a replica after boot is \
+             invisible to the one-shot boot health check"
+        );
+    }
+
+    #[test]
+    fn lowers_an_explicit_budget_and_cadence() {
+        let config = ServerConfig {
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            read_replica_max_lag_ms: Some(2000),
+            read_replica_health_probe_interval_ms: Some(250),
+            ..ServerConfig::default()
+        };
+        let rc = config.read_replicas().expect("configured replicas must lower to Some");
+        assert_eq!(rc.max_lag, Some(std::time::Duration::from_millis(2000)));
+        assert_eq!(rc.health_probe_interval, std::time::Duration::from_millis(250));
+    }
+
+    #[test]
+    fn a_budget_without_urls_is_refused_as_inert() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_max_lag_ms: Some(2000),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("an inert staleness budget must be refused");
+        assert!(
+            err.contains("read_replica_max_lag_ms"),
+            "the refusal must name the inert key; got: {err}"
+        );
+    }
+
+    #[test]
+    fn a_probe_interval_without_urls_is_refused_as_inert() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_health_probe_interval_ms: Some(500),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("an inert probe interval must be refused");
+        assert!(
+            err.contains("read_replica_health_probe_interval_ms"),
+            "the refusal must name the inert key; got: {err}"
+        );
+    }
+
+    #[test]
+    fn a_budget_no_larger_than_the_probe_interval_is_refused() {
+        // Eligibility ages the last probe, so a budget of one probe period would
+        // drop a fully caught-up replica out of rotation for part of every cycle
+        // — replica routing that silently mostly does not happen.
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            read_replica_max_lag_ms: Some(1000),
+            read_replica_health_probe_interval_ms: Some(1000),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("budget <= probe interval must be refused");
+        assert!(
+            err.contains("read_replica_max_lag_ms")
+                && err.contains("read_replica_health_probe_interval_ms"),
+            "the refusal must name both keys so the operator can see the relation; got: {err}"
+        );
+    }
+
+    #[test]
+    fn a_budget_against_the_default_probe_interval_is_checked_too() {
+        // The interval is defaulted, not written down, so the comparison has to
+        // use the same default `read_replicas()` lowers — otherwise the check
+        // passes here and the adapter refuses at boot instead.
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            read_replica_max_lag_ms: Some(500),
+            ..ServerConfig::default()
+        };
+        let err = config
+            .validate()
+            .expect_err("a budget below the DEFAULT probe interval must be refused");
+        assert!(
+            err.contains("1000"),
+            "the refusal must state the effective interval; got: {err}"
+        );
+    }
+
+    #[test]
+    fn a_zero_probe_interval_is_refused() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            read_replica_health_probe_interval_ms: Some(0),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().expect_err("a zero probe interval must be refused");
+        assert!(err.contains("read_replica_health_probe_interval_ms"), "got: {err}");
+    }
+
+    #[test]
+    fn a_well_formed_bounded_staleness_config_validates() {
+        let config = ServerConfig {
+            cors_enabled: false,
+            read_replica_urls: vec!["postgres://replica1/db".to_string()],
+            read_replica_max_lag_ms: Some(2000),
+            read_replica_health_probe_interval_ms: Some(500),
+            ..ServerConfig::default()
+        };
+        assert!(
+            config.validate().is_ok(),
+            "a well-formed bounded-staleness config must validate"
+        );
+    }
+
+    #[test]
+    fn toml_round_trip() {
+        let toml = r#"
+            database_url = "postgres://primary/db"
+            read_replica_urls = ["postgres://replica1/db"]
+            read_replica_max_lag_ms = 1500
+            read_replica_health_probe_interval_ms = 250
+        "#;
+        let config: ServerConfig =
+            toml::from_str(toml).expect("bounded-staleness keys must deserialize");
+        assert_eq!(config.read_replica_max_lag_ms, Some(1500));
+        assert_eq!(config.read_replica_health_probe_interval_ms, Some(250));
+        let rc = config.read_replicas().unwrap();
+        assert_eq!(rc.max_lag, Some(std::time::Duration::from_millis(1500)));
+        assert_eq!(rc.health_probe_interval, std::time::Duration::from_millis(250));
+    }
+}
+
 mod graphql_sse_387 {
     use super::*;
 

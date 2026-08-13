@@ -33,11 +33,79 @@ services:
       # owner, mounted by both, is the fix; ordering matches CI's numeric prefixes.
       - ../tests/sql/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
       - ../tests/sql/postgres/init-analytics.sql:/docker-entrypoint-initdb.d/01-init-analytics.sql:ro
+      # Physical streaming replication for postgres-standby-test (#957). Same
+      # file the Dagger `pgService` mounts.
+      - ./init/postgres-replication-init.sh:/docker-entrypoint-initdb.d/02-replication.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
       interval: 5s
       timeout: 3s
       retries: 5
+
+  # A REAL streaming standby of postgres-test, for the read-replica bounded-
+  # staleness suite (#957). Distinct from the pre-existing replica stand-in,
+  # which is a second independent database on postgres-test: that shape shows
+  # *which* server answered a read but reports no replication lag at all
+  # (`pg_is_in_recovery()` is false there), so `max_lag_ms` could only ever be
+  # proven against a server incapable of being stale.
+  #
+  # The suite induces lag deterministically with `pg_wal_replay_pause()`, which
+  # is why the standby streams through a replication slot — see the entrypoint.
+  postgres-standby-test:
+    image: pgvector/pgvector:pg16
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    user: postgres
+    environment:
+      PGPASSWORD: fraiseql_repl_password
+      PRIMARY_HOST: postgres-test
+      PRIMARY_USER: fraiseql_test
+      PRIMARY_PASSWORD: fraiseql_test_password
+      PRIMARY_DB: test_fraiseql
+    entrypoint: ["/bin/bash", "/standby-entrypoint.sh"]
+    volumes:
+      - ./init/postgres-standby-entrypoint.sh:/standby-entrypoint.sh:ro
+    ports:
+      # 5434 is VelocityBench's postgres and 5435 is postgres-tls-test.
+      - "127.0.0.1:5436:5432"
+    healthcheck:
+      # `-d test_fraiseql` deliberately: a standby accepts connections a moment
+      # before it finishes reaching a consistent recovery state, and until then
+      # connecting to a database fails with "the database system is starting up".
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # A SECOND standby, which exists to be destroyed: the #957 failover test calls
+  # `pg_promote()` on it, and a promoted standby never goes back. Sharing
+  # postgres-standby-test would leave the bounded-staleness tests running against
+  # a writable server or not, depending on which test libtest happened to run
+  # first — a rig whose meaning depends on test ordering is not a rig.
+  postgres-failover-test:
+    image: pgvector/pgvector:pg16
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    user: postgres
+    environment:
+      PGPASSWORD: fraiseql_repl_password
+      PRIMARY_HOST: postgres-test
+      PRIMARY_USER: fraiseql_test
+      PRIMARY_PASSWORD: fraiseql_test_password
+      PRIMARY_DB: test_fraiseql
+      REPLICATION_SLOT: fraiseql_failover
+    entrypoint: ["/bin/bash", "/standby-entrypoint.sh"]
+    volumes:
+      - ./init/postgres-standby-entrypoint.sh:/standby-entrypoint.sh:ro
+    ports:
+      - "127.0.0.1:5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   # TLS-enabled PostgreSQL for the database-TLS suites (#801/#824). Deliberately a
   # separate service from postgres-test: the tests need one server that speaks TLS

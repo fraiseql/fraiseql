@@ -10,7 +10,9 @@ use std::sync::Arc;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::{
-        postgres::{PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, SearchPath},
+        postgres::{
+            PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy, SearchPath,
+        },
         traits::DatabaseAdapter,
     },
     runtime::Executor,
@@ -61,6 +63,34 @@ pub struct TenantPoolConfig {
     /// server configuration before the adapter is built.
     #[serde(skip)]
     pub tls:                  PostgresTlsConfig,
+
+    /// Read-replica URLs for this tenant, or empty for a primary-only tenant
+    /// (#957).
+    ///
+    /// Caller-supplied, unlike [`search_path`](Self::search_path) and
+    /// [`tls`](Self::tls): a replica URL is topology, of exactly the same kind as
+    /// [`connection_string`](Self::connection_string), and a registration that
+    /// names its own primary is already naming its own database. What a
+    /// registration may **not** choose is how routing behaves — see
+    /// [`read_replica_policy`](Self::read_replica_policy).
+    ///
+    /// Every replica pool is built from this same struct, so a schema-isolated
+    /// tenant's `search_path` and the server's `[database_tls]` apply to its
+    /// replicas too (#809 generalised).
+    #[serde(default)]
+    pub read_replica_urls: Vec<String>,
+
+    /// How replica routing behaves for this tenant — pin window, staleness
+    /// budget, probe cadence (#957).
+    ///
+    /// `#[serde(skip)]` for the same reason as [`tls`](Self::tls): this is the
+    /// operator's policy, and a registration body that could send its own
+    /// `max_lag` would be deciding how stale its own reads may be against a
+    /// server whose operator already decided. `make_executor_factory` populates
+    /// it from `ServerConfig::read_replica_policy()`, the same seam the server's
+    /// own pool uses.
+    #[serde(skip)]
+    pub read_replica_policy: ReadReplicaPolicy,
 }
 
 const fn default_max_connections() -> u32 {
@@ -105,11 +135,15 @@ impl FromPoolConfig for PostgresAdapter {
                 timeout_secs: Some(config.connect_timeout_secs),
                 search_path: config.search_path.clone(),
                 tls: config.tls.clone(),
-                // Tenant pools are primary-only: a tenant registration supplies one
-                // connection string, and `[read_replicas]` describes the server's
-                // primary database, not a tenant's. Extending replicas to tenant
-                // pools needs per-tenant replica URLs on the registration API.
-                read_replicas: None,
+                // The tenant names its replicas; the operator's policy decides how
+                // they are routed to (#957). Both halves land in the SAME
+                // PoolPrewarmConfig as the primary, so a schema-isolated tenant's
+                // search path and the server's TLS settings reach its replica pools
+                // too — isolation is a property of how every pool's connections are
+                // made, not of which pool a statement happens to use.
+                read_replicas: config
+                    .read_replica_policy
+                    .with_urls(config.read_replica_urls.clone()),
             },
         )
         .await

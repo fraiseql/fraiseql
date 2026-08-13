@@ -114,6 +114,20 @@ const MANIFEST: &[(&str, &str)] = &[
         "read-your-writes pin window (#407; Option, defaults to 5000 ms in \
          ServerConfig::read_replicas(); inert without read_replica_urls → validate() error)",
     ),
+    (
+        "read_replica_max_lag_ms",
+        "bounded staleness for replica-served reads (#957; Option, no lag gating when unset; \
+         lowered by ServerConfig::read_replicas() into ReadReplicaConfig.max_lag and enforced \
+         per acquisition in PostgresAdapter::acquire_read_connection_with_retry; inert without \
+         read_replica_urls, and must exceed the probe interval → validate() errors)",
+    ),
+    (
+        "read_replica_health_probe_interval_ms",
+        "replica lag/recovery probe cadence (#957; Option, defaults to 1000 ms in \
+         ServerConfig::read_replicas(); drives probe_read_replicas, which is what detects a \
+         replica promoted out of recovery after boot; inert without read_replica_urls → \
+         validate() error)",
+    ),
     ("pool_tuning", "pool-pressure monitor config (Option)"),
     // ── Request limits / admission ───────────────────────────────────────────
     ("max_request_body_bytes", "request body size cap"),

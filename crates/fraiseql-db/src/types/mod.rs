@@ -2,6 +2,7 @@
 
 pub mod db_types;
 pub mod query_stats;
+pub mod read_routing;
 pub mod sql_hints;
 
 // Re-export db types so `crate::types::DatabaseType` etc. still work
@@ -12,6 +13,8 @@ pub use db_types::as_sql_param_refs;
 pub use db_types::{DatabaseType, JsonbValue, PoolMetrics};
 // Re-export query stats types
 pub use query_stats::QueryStatEntry;
+// Re-export per-query read routing (#957)
+pub use read_routing::ReadRouting;
 // Re-export sql hint types
 pub use sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint};
 

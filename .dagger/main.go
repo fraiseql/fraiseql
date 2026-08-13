@@ -18,8 +18,8 @@ type FraiseqlCi struct{}
 
 const (
 	// rustImage pins the toolchain to the workspace MSRV (rust-toolchain.toml channel = 1.94.1).
-// The PATCH is pinned deliberately: docker.io/library/rust:1.94 tracks the newest 1.94.x, so a
-// floating tag silently stops testing the rust-version we declare the day 1.94.2 ships.
+	// The PATCH is pinned deliberately: docker.io/library/rust:1.94 tracks the newest 1.94.x, so a
+	// floating tag silently stops testing the rust-version we declare the day 1.94.2 ships.
 	// The default (non-slim) variant is buildpack-deps-based, so gcc/perl/curl/git are present.
 	// (Later: pin by digest — see parity-notes.md Phase 02.)
 	//
@@ -614,6 +614,24 @@ const (
 	// its internal 5432 (not the legacy host-mapped 5433).
 	pgBindHost = "postgres"
 
+	// pgStandbyBindHost — a REAL streaming standby of pgService, for the #957
+	// bounded-staleness suite. The pre-existing read-replica tests stand a second
+	// independent database in for a replica, which shows which server answered but
+	// reports no replication lag at all (`pg_is_in_recovery()` is false there), so
+	// `max_lag_ms` proven against it would be proven against a server that cannot
+	// be stale. Credentials are the replication role `postgres-replication-init.sh`
+	// creates on the primary.
+	pgStandbyBindHost     = "postgres-standby"
+	pgReplicationUser     = "fraiseql_repl"
+	pgReplicationPassword = "fraiseql_repl_password"
+
+	// pgFailoverBindHost — a SECOND standby, which exists to be destroyed: the
+	// #957 failover test calls pg_promote() on it, and a promoted standby never
+	// goes back. Sharing the bounded-staleness standby would make those tests'
+	// meaning depend on which one libtest happened to run first.
+	pgFailoverBindHost = "postgres-failover"
+	pgFailoverSlot     = "fraiseql_failover"
+
 	// redisImage / redisBindHost — the Redis service.
 	redisImage    = "ghcr.io/fraiseql/redis:7-alpine"
 	redisBindHost = "redis"
@@ -783,11 +801,15 @@ func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.D
 		Stdout(ctx)
 }
 
-// integrationPostgres binds a seeded postgres:16 service and runs the PostgreSQL
-// integration tests that already route through the harness. The harness reads
-// DATABASE_URL (injected below) and connects to the bound service.
+// integrationPostgres binds a seeded postgres:16 service — plus a real streaming
+// standby of it (#957) — and runs the PostgreSQL integration tests that already
+// route through the harness. The harness reads DATABASE_URL (injected below) and
+// connects to the bound service; the read-replica lag suite additionally reads
+// STANDBY_DATABASE_URL.
 func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
+	failoverURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgFailoverBindHost, pgDatabase)
 
 	script := strings.Join([]string{
 		"set -e",
@@ -943,9 +965,19 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 
+	// One pgService instance, bound to both the test container and the standby:
+	// the suite writes on the primary and reads through the standby, so a second
+	// pgService(source) call would leave the standby streaming from a database
+	// nobody writes to and its measured lag permanently zero.
+	primary := m.pgService(source)
+
 	return m.integrationBase(source, rustMsrv).
-		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithServiceBinding(pgBindHost, primary).
+		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
+		WithServiceBinding(pgFailoverBindHost, m.pgStandbyService(source, primary, pgFailoverSlot)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
+		WithEnvVariable("FAILOVER_STANDBY_DATABASE_URL", failoverURL).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -2169,7 +2201,12 @@ func (m *FraiseqlCi) vaultService() *dagger.Service {
 func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
 	initDir := dag.Directory().
 		WithFile("00-init.sql", source.File("tests/sql/postgres/init.sql")).
-		WithFile("01-init-analytics.sql", source.File("tests/sql/postgres/init-analytics.sql"))
+		WithFile("01-init-analytics.sql", source.File("tests/sql/postgres/init-analytics.sql")).
+		// #957: creates the replication role and opens `pg_hba.conf` to replication
+		// connections, so pgStandbyService can base-backup and then stream. The SAME
+		// file docker-compose.test.yml mounts — a replication setup that existed on
+		// only one rig would make the lag suite green on one and red on the other.
+		WithFile("02-replication.sh", source.File("docker/init/postgres-replication-init.sh"))
 
 	return dag.Container().
 		From(pgImage).
@@ -2179,6 +2216,38 @@ func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
 		WithDirectory("/docker-entrypoint-initdb.d", initDir).
 		WithExposedPort(5432).
 		AsService()
+}
+
+// pgStandbyService returns a REAL PostgreSQL streaming standby of `primary`,
+// cloned with pg_basebackup through a replication slot (#957).
+//
+// `primary` must be the same *dagger.Service instance the test container binds,
+// not a second pgService(source) call: two calls produce two independent
+// databases, and a standby of the one nobody queries reports lag against writes
+// nobody made.
+// Each standby needs its own replication slot: two standbys sharing one slot
+// fight over the same WAL retention point on the primary.
+func (m *FraiseqlCi) pgStandbyService(
+	source *dagger.Directory,
+	primary *dagger.Service,
+	slot string,
+) *dagger.Service {
+	return dag.Container().
+		From(pgImage).
+		WithServiceBinding(pgBindHost, primary).
+		WithFile("/standby-entrypoint.sh", source.File("docker/init/postgres-standby-entrypoint.sh")).
+		WithEnvVariable("PGPASSWORD", pgReplicationPassword).
+		WithEnvVariable("PRIMARY_HOST", pgBindHost).
+		WithEnvVariable("PRIMARY_USER", pgUser).
+		WithEnvVariable("PRIMARY_PASSWORD", pgPassword).
+		WithEnvVariable("PRIMARY_DB", pgDatabase).
+		WithEnvVariable("REPLICATION_USER", pgReplicationUser).
+		WithEnvVariable("REPLICATION_SLOT", slot).
+		WithUser("postgres").
+		WithExposedPort(5432).
+		AsService(dagger.ContainerAsServiceOpts{
+			Args: []string{"/bin/bash", "/standby-entrypoint.sh"},
+		})
 }
 
 // integrationBase mounts the source on rustBaseFor(toolchain), ready to bind

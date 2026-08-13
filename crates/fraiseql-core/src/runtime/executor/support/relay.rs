@@ -18,7 +18,9 @@ use futures::future::BoxFuture;
 
 use crate::{
     compiler::aggregation::OrderByClause,
-    db::{CursorValue, RelayDatabaseAdapter, WhereClause, traits::RelayPageResult},
+    db::{
+        CursorValue, RelayDatabaseAdapter, WhereClause, traits::RelayPageResult, types::ReadRouting,
+    },
     error::Result,
 };
 
@@ -38,6 +40,7 @@ pub(in crate::runtime::executor) trait RelayDispatch:
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
         session_vars: &'a [(&'a str, &'a str)],
+        routing: ReadRouting,
     ) -> BoxFuture<'a, Result<RelayPageResult>>;
 }
 
@@ -59,6 +62,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
         session_vars: &'a [(&'a str, &'a str)],
+        routing: ReadRouting,
     ) -> BoxFuture<'a, Result<RelayPageResult>> {
         Box::pin(self.0.execute_relay_page_with_session(
             view,
@@ -71,6 +75,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
             order_by,
             include_total_count,
             session_vars,
+            routing,
         ))
     }
 }

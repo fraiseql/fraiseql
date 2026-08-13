@@ -168,6 +168,22 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
     /// });
     /// // let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
     /// ```
+    /// This aggregate's compiled read routing (#957), or the server's policy when
+    /// no compiled query carries the name.
+    ///
+    /// Aggregates dispatch by *name* against fact-table metadata rather than
+    /// through a `QueryDefinition`, so the annotation has to be looked back up.
+    /// Falling back to `Any` is the same answer every query gave before the field
+    /// existed — an aggregate nobody annotated keeps following server policy.
+    fn aggregate_read_routing(&self, query_name: &str) -> crate::db::types::ReadRouting {
+        self.ctx
+            .schema
+            .queries
+            .iter()
+            .find(|q| q.name == query_name)
+            .map_or(crate::db::types::ReadRouting::Any, |q| q.read_routing)
+    }
+
     pub(in super::super) async fn execute_aggregate_query(
         &self,
         query_json: &serde_json::Value,
@@ -245,6 +261,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let routing = self.aggregate_read_routing(query_name);
         let rows = self
             .ctx
             .adapter
@@ -252,6 +269,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
                 &parameterized.sql,
                 &parameterized.params,
                 &session_pairs,
+                routing,
             )
             .await?;
 
@@ -322,6 +340,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let routing = self.aggregate_read_routing(query_name);
         let rows = self
             .ctx
             .adapter
@@ -329,6 +348,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
                 &union_sql.sql,
                 &union_sql.params,
                 &session_pairs,
+                routing,
             )
             .await?;
 
@@ -432,6 +452,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let routing = self.aggregate_read_routing(query_name);
         let rows = self
             .ctx
             .adapter
@@ -439,6 +460,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
                 &sql.raw_sql,
                 &sql.parameters,
                 &session_pairs,
+                routing,
             )
             .await?;
 

@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-failover-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -674,7 +674,7 @@ db-up:
 	@bash docker/tls/gen-certs.sh
 	@docker compose -f docker/docker-compose.test.yml up -d
 	@echo "Waiting for all services to be healthy..."
-	@for svc in postgres-test postgres-tls-test redis-test nats-test vault-test; do \
+	@for svc in postgres-test postgres-standby-test postgres-failover-test postgres-tls-test redis-test nats-test vault-test; do \
 		printf "  Waiting for %-20s" "$$svc..."; \
 		for i in $$(seq 1 60); do \
 			status=$$(docker inspect --format='{{.State.Health.Status}}' \
@@ -686,6 +686,22 @@ db-up:
 	done
 	@echo "All services ready."
 	@docker compose -f docker/docker-compose.test.yml ps
+
+# Re-clone the failover standby (#957). `pg_promote()` is one-way, so the test
+# that exercises a real failover leaves postgres-failover-test a plain writable
+# server; restarting it re-runs the entrypoint's pg_basebackup. CI legs start
+# from fresh containers and never need this.
+db-failover-reset:
+	@echo "Re-cloning the failover standby..."
+	@docker compose -f docker/docker-compose.test.yml restart postgres-failover-test
+	@printf "  Waiting for postgres-failover-test..."
+	@for i in $$(seq 1 60); do \
+		status=$$(docker inspect --format='{{.State.Health.Status}}' \
+			$$(docker compose -f docker/docker-compose.test.yml ps -q postgres-failover-test 2>/dev/null) 2>/dev/null); \
+		if [ "$$status" = "healthy" ]; then echo " ready"; break; fi; \
+		if [ $$i -eq 60 ]; then echo " TIMEOUT"; exit 1; fi; \
+		sleep 2; \
+	done
 
 # Stop test databases
 db-down:

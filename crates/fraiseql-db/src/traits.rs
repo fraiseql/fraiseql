@@ -18,7 +18,7 @@ pub use relay::RelayDatabaseAdapter;
 
 use crate::{
     types::{
-        DatabaseType, JsonbValue, PoolMetrics,
+        DatabaseType, JsonbValue, PoolMetrics, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -812,6 +812,7 @@ pub trait DatabaseAdapter: Send + Sync {
         sql: &str,
         params: &[serde_json::Value],
         _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         self.execute_parameterized_aggregate(sql, params).await
     }
@@ -1169,6 +1170,7 @@ pub trait DatabaseAdapter: Send + Sync {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
         _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         self.execute_where_query_arc(view, where_clause, limit, offset, order_by).await
     }
@@ -1201,6 +1203,7 @@ pub trait DatabaseAdapter: Send + Sync {
         view: &str,
         where_clause: Option<&WhereClause>,
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<u64> {
         let rows = self
             .execute_where_query_arc_with_session(
@@ -1210,6 +1213,7 @@ pub trait DatabaseAdapter: Send + Sync {
                 None,
                 None,
                 session_vars,
+                routing,
             )
             .await?;
         Ok(rows.len() as u64)
@@ -1229,6 +1233,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         request: &ProjectionRequest<'_>,
         _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         self.execute_with_projection_arc(request).await
     }

@@ -27,7 +27,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::http::HeaderMap;
 use fraiseql_core::{
-    db::postgres::{PostgresAdapter, PostgresTlsConfig},
+    db::postgres::{PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy},
     prelude::DatabaseAdapter as _,
     runtime::Executor,
     schema::{CompiledSchema, McpConfig},
@@ -100,6 +100,9 @@ fn pool_config(url: &str) -> TenantPoolConfig {
         // binary uses.
         search_path:          None,
         tls:                  PostgresTlsConfig::default(),
+        // Stamped by `make_executor_factory` in the binary; primary-only here.
+        read_replica_urls:    Vec::new(),
+        read_replica_policy:  ReadReplicaPolicy::default(),
     }
 }
 

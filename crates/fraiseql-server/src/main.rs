@@ -737,6 +737,8 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
     // Captured before `config` is moved into the constructor, for the same reason.
     // Validated already by `build_postgres_adapter`, so this cannot be a new failure.
     let database_tls = config.postgres_tls().map_err(|e| anyhow::anyhow!(e))?;
+    // Likewise: the read-replica routing policy every tenant pool inherits (#957).
+    let tenant_read_replica_policy = config.read_replica_policy();
 
     // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
@@ -768,12 +770,13 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
         // Every constructor wraps the adapter in `CachedDatabaseAdapter` (#889), so the
         // tenant factory must produce cached executors to match the server's adapter
         // type — the same expression the non-arrow branch uses.
-        // Tenant pools inherit the server's `[database_tls]`; the registration request
-        // body cannot influence it (see `make_executor_factory`).
+        // Tenant pools inherit the server's `[database_tls]` and its read-replica
+        // routing policy; the registration request body cannot influence either
+        // (see `make_executor_factory`). It does supply its own replica URLs.
         let tenant_factory = tenancy_runtime_enabled.then(|| {
             fraiseql_server::tenancy::make_executor_factory::<
                 fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
-            >(database_tls.clone())
+            >(database_tls.clone(), tenant_read_replica_policy.clone())
         });
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
@@ -808,12 +811,13 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
         // Non-arrow path: `Server::new`/`with_relay_pagination` wrap the adapter in
         // `CachedDatabaseAdapter`, so the tenant factory must produce cached executors
         // to match the server's adapter type.
-        // Tenant pools inherit the server's `[database_tls]`; the registration request
-        // body cannot influence it (see `make_executor_factory`).
+        // Tenant pools inherit the server's `[database_tls]` and its read-replica
+        // routing policy; the registration request body cannot influence either
+        // (see `make_executor_factory`). It does supply its own replica URLs.
         let tenant_factory = tenancy_runtime_enabled.then(|| {
             fraiseql_server::tenancy::make_executor_factory::<
                 fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
-            >(database_tls.clone())
+            >(database_tls.clone(), tenant_read_replica_policy.clone())
         });
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),

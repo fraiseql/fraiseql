@@ -192,6 +192,7 @@ impl SchemaConverter {
                 _ => CursorType::Int64,
             },
             inject_params,
+            read_routing: intermediate.read_routing,
             cache_ttl_seconds: intermediate.cache_ttl_seconds,
             additional_views: intermediate.additional_views,
             requires_role: intermediate.requires_role,

@@ -14,8 +14,8 @@ mod integration_tests;
 use std::{
     fmt::Write,
     sync::{
-        Arc,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Weak,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -35,7 +35,7 @@ use crate::{
     postgres::pg_detail,
     traits::DatabaseAdapter,
     types::{
-        DatabaseType, JsonbValue, QueryParam,
+        DatabaseType, JsonbValue, QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -190,6 +190,18 @@ pub struct PoolPrewarmConfig {
 /// unusable pool must not downgrade silently). A replica that fails at runtime is
 /// skipped for that acquisition — the next replica is tried, then the primary —
 /// so replica loss degrades read capacity, never read availability.
+/// # Bounded staleness
+///
+/// [`max_lag`](Self::max_lag) turns the pin window's *assertion* into a
+/// *measurement*: a replica is only eligible while its last probed replay lag,
+/// aged by how long ago that probe ran, is still inside the budget.
+///
+/// That sum is a true upper bound rather than an estimate — replay lag grows at
+/// most one millisecond per millisecond of wall clock, so however stale the probe
+/// is, the lag cannot have grown by more than its age — and it makes the gate
+/// self-closing: an unrefreshed probe ages past any budget on its own. A replica
+/// whose lag cannot be *measured* at all is never eligible; unknown staleness is
+/// not zero staleness.
 #[derive(Debug, Clone)]
 pub struct ReadReplicaConfig {
     /// Connection URLs of the read replicas, tried round-robin. Must be non-empty.
@@ -200,6 +212,84 @@ pub struct ReadReplicaConfig {
     /// Must be at least the worst replication lag the operator is prepared to
     /// tolerate; within it, a client is guaranteed to read its own writes.
     pub pin_after_write: Duration,
+
+    /// Bounded staleness: the most replication lag a replica-served read may
+    /// carry. `None` disables lag-based routing entirely — replicas are then
+    /// selected round-robin regardless of how far behind they are, which is the
+    /// behaviour before this option existed.
+    ///
+    /// A replica whose lag cannot be measured — never probed, last probe failed,
+    /// no transaction replayed yet, or promoted out of recovery by a failover —
+    /// is **not** eligible while this is set. Unknown staleness is not "zero
+    /// staleness", and the primary is always a correct answer.
+    ///
+    /// Must be strictly greater than [`health_probe_interval`](Self::health_probe_interval):
+    /// eligibility ages the last probe, so a budget no larger than the probe
+    /// period would make even a perfectly caught-up replica ineligible for part
+    /// of every cycle.
+    pub max_lag: Option<Duration>,
+
+    /// How often each replica is probed for recovery state and replay lag.
+    ///
+    /// Probing is unconditional when replicas are configured: the boot health
+    /// check runs once, and a replica promoted by a failover after boot is a
+    /// writable server that a `pg_is_in_recovery()` reading taken at startup can
+    /// never notice.
+    pub health_probe_interval: Duration,
+}
+
+/// [`ReadReplicaConfig`] without the URLs: how replica routing *behaves*,
+/// separated from *where* the replicas are (#957).
+///
+/// The split exists because the two halves have different owners once tenant
+/// pools carry replicas. A tenant registration names its own replica URLs, the
+/// same way it names its own primary connection string — but the pin window, the
+/// staleness budget and the probe cadence are the operator's policy, stamped
+/// onto every tenant pool by `make_executor_factory`, exactly as `[database_tls]`
+/// is (#801). A tenant that could send its own `max_lag` in a registration body
+/// would be choosing how stale *its* reads may be, against a server whose
+/// operator already decided.
+///
+/// [`Default`] carries the shipped defaults — a 5 s pin, no staleness budget, a
+/// 1 s probe cadence — so they live in one place rather than once per binary.
+#[derive(Debug, Clone)]
+pub struct ReadReplicaPolicy {
+    /// See [`ReadReplicaConfig::pin_after_write`].
+    pub pin_after_write:       Duration,
+    /// See [`ReadReplicaConfig::max_lag`].
+    pub max_lag:               Option<Duration>,
+    /// See [`ReadReplicaConfig::health_probe_interval`].
+    pub health_probe_interval: Duration,
+}
+
+impl Default for ReadReplicaPolicy {
+    fn default() -> Self {
+        Self {
+            pin_after_write:       Duration::from_millis(5000),
+            max_lag:               None,
+            health_probe_interval: Duration::from_millis(1000),
+        }
+    }
+}
+
+impl ReadReplicaPolicy {
+    /// Apply this policy to `urls`, or `None` when there are no replicas.
+    ///
+    /// Returning `None` for an empty list is what keeps a pool site that has no
+    /// replicas from constructing the one shape
+    /// [`ReadReplicaConfig`](ReadReplicaConfig) refuses to build.
+    #[must_use]
+    pub fn with_urls(&self, urls: Vec<String>) -> Option<ReadReplicaConfig> {
+        if urls.is_empty() {
+            return None;
+        }
+        Some(ReadReplicaConfig {
+            urls,
+            pin_after_write: self.pin_after_write,
+            max_lag: self.max_lag,
+            health_probe_interval: self.health_probe_interval,
+        })
+    }
 }
 
 /// A validated PostgreSQL `search_path`, applied at connection establishment.
@@ -399,8 +489,25 @@ async fn build_read_replica_set(
              or list at least one replica",
         ));
     }
+    if rc.health_probe_interval.is_zero() {
+        return Err(FraiseQLError::validation(
+            "read replica health_probe_interval is zero; probing every replica in a tight \
+             loop is never intended. Set an interval, or remove the replica configuration.",
+        ));
+    }
+    if rc.max_lag.is_some_and(|max_lag| max_lag <= rc.health_probe_interval) {
+        return Err(FraiseQLError::validation(format!(
+            "read replica max_lag ({} ms) must be greater than health_probe_interval ({} ms): \
+             a replica's eligibility ages its last probe, so a staleness budget no larger than \
+             the probe period would drop even a fully caught-up replica out of rotation for \
+             part of every cycle. Lower the probe interval or raise the budget.",
+            rc.max_lag.unwrap_or_default().as_millis(),
+            rc.health_probe_interval.as_millis(),
+        )));
+    }
 
     let mut pools = Vec::with_capacity(rc.urls.len());
+    let mut health = Vec::with_capacity(rc.urls.len());
     for (index, url) in rc.urls.iter().enumerate() {
         let pool =
             build_pool(url, cfg.max_size, cfg.timeout_secs, cfg.search_path.as_ref(), &cfg.tls)?;
@@ -434,17 +541,25 @@ async fn build_read_replica_set(
         drop(client);
 
         pools.push(pool);
+        health.push(ReplicaHealth::booted(in_recovery));
     }
 
     // Reason (fallible u64::try_from + saturation): a pin window beyond u64::MAX
     // milliseconds (~585 million years) saturates to "pin forever", which is the
     // conservative, primary-only side.
     let pin_after_write_ms = u64::try_from(rc.pin_after_write.as_millis()).unwrap_or(u64::MAX);
+    // Reason (saturation, opposite direction): a budget that overflows is
+    // effectively unbounded, and an unbounded budget is what `None` already
+    // means, so saturating to u64::MAX changes nothing an operator could observe.
+    let max_lag_ms = rc.max_lag.map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
 
     Ok(ReadReplicaSet {
         pools,
+        health,
         next: AtomicUsize::new(0),
         pin_after_write_ms,
+        max_lag_ms,
+        probe_interval: rc.health_probe_interval,
         last_write_unix_ms: AtomicU64::new(0),
     })
 }
@@ -497,13 +612,209 @@ pub struct PostgresAdapter {
 /// write through one clone go unseen by reads through another.
 struct ReadReplicaSet {
     pools:              Vec<Pool>,
+    /// Per-replica probe results, parallel to [`pools`](Self::pools).
+    health:             Vec<ReplicaHealth>,
     /// Round-robin cursor over `pools`.
     next:               AtomicUsize,
     /// [`ReadReplicaConfig::pin_after_write`], in milliseconds.
     pin_after_write_ms: u64,
+    /// [`ReadReplicaConfig::max_lag`], in milliseconds; `None` = no lag gating.
+    max_lag_ms:         Option<u64>,
+    /// [`ReadReplicaConfig::health_probe_interval`].
+    probe_interval:     Duration,
     /// Unix-epoch milliseconds of the most recent mutation-pipeline write;
     /// `0` = never written.
     last_write_unix_ms: AtomicU64,
+}
+
+/// What the last health probe observed about one replica (#957).
+///
+/// # Why a probe and not a measurement on the read path
+///
+/// Measuring lag inline would add a round trip to every replica-served read —
+/// the cost of the routing would exceed the cost of the read. The probe runs on
+/// its own cadence and the read path consults its last result, which means the
+/// result is *old*, and eligibility has to account for that.
+///
+/// # The staleness bound
+///
+/// A replica is eligible while `lag_at_probe + probe_age <= max_lag`.
+///
+/// That sum is a true upper bound on the replica's staleness right now, not an
+/// approximation: replay lag measured as "how long ago was the newest applied
+/// transaction committed" grows at most one millisecond per millisecond of wall
+/// clock (it grows exactly 1:1 while replay is stalled and shrinks whenever
+/// replay advances), so however far the probe has aged, the lag cannot have
+/// grown by more than that age.
+///
+/// It also makes the gate self-closing. Nothing has to notice that probing
+/// stopped — a probe that stops being refreshed ages past any budget on its own,
+/// and the replica falls out of rotation.
+struct ReplicaHealth {
+    /// Replay lag in milliseconds at [`probed_at_unix_ms`](Self::probed_at_unix_ms),
+    /// or [`LAG_UNMEASURABLE`] when the last probe could not produce one.
+    lag_ms:             AtomicU64,
+    /// Unix-epoch milliseconds of the last *successful* probe; `0` = never
+    /// probed, which reads as infinitely aged and therefore ineligible.
+    probed_at_unix_ms:  AtomicU64,
+    /// `pg_is_in_recovery()` as of the last successful probe. Seeded from the
+    /// boot health check so the first probe can report a *transition* — a
+    /// replica that left recovery between boot and now was promoted by a
+    /// failover, and is a writable server whose contents may diverge from the
+    /// primary in both directions.
+    in_recovery:        AtomicBool,
+    /// `pg_is_in_recovery()` at the boot health check, which is what makes the
+    /// transition legible.
+    ///
+    /// Booting outside recovery is *accepted* with a warning, because a dev rig
+    /// legitimately stands a plain database in for a replica; a server that
+    /// booted as a standby and later is not one has been promoted, and no dev
+    /// rig does that by accident. Only the second case stops taking reads —
+    /// which is why the boot reading has to be kept, not just the latest one.
+    booted_in_recovery: bool,
+}
+
+/// Sentinel [`ReplicaHealth::lag_ms`]: the last probe produced no lag reading.
+///
+/// A promoted replica (`pg_last_wal_replay_lsn()` is NULL outside recovery), a
+/// standby that has replayed no transaction yet, or a probe that failed
+/// outright. Saturating arithmetic keeps it above every budget, so "unknown"
+/// routes to the primary rather than being read as "zero".
+const LAG_UNMEASURABLE: u64 = u64::MAX;
+
+/// One round trip returning a replica's recovery state and replay lag.
+///
+/// `pg_last_xact_replay_timestamp()` alone over-reports on an idle primary — it
+/// answers "how old is the newest transaction I applied", which keeps growing
+/// when there is nothing left to apply. The first branch is the standard
+/// correction: a standby whose received WAL position equals its replayed one has
+/// applied everything it has been sent, and is by definition not behind.
+const REPLICA_PROBE_SQL: &str = "SELECT pg_is_in_recovery(), \
+     CASE \
+       WHEN NOT pg_is_in_recovery() THEN NULL::bigint \
+       WHEN pg_last_wal_replay_lsn() IS NOT NULL \
+            AND pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0::bigint \
+       WHEN pg_last_xact_replay_timestamp() IS NULL THEN NULL::bigint \
+       ELSE GREATEST(0, EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())) * 1000)::bigint \
+     END";
+
+impl ReplicaHealth {
+    /// Seed from the boot health check, before any probe has run.
+    const fn booted(in_recovery: bool) -> Self {
+        Self {
+            lag_ms:             AtomicU64::new(LAG_UNMEASURABLE),
+            probed_at_unix_ms:  AtomicU64::new(0),
+            in_recovery:        AtomicBool::new(in_recovery),
+            booted_in_recovery: in_recovery,
+        }
+    }
+
+    /// Whether this replica is still the kind of server it booted as.
+    ///
+    /// `false` only for the failover case: it was a standby at boot and the last
+    /// probe found it outside recovery, so something promoted it. That server is
+    /// now accepting writes of its own, and reads served from it can diverge
+    /// from the primary in *both* directions — unlike ordinary lag, which only
+    /// ever shows the past. It stops taking reads whether or not a staleness
+    /// budget is configured, because there is no budget under which "a different
+    /// database" is acceptable.
+    ///
+    /// A replica that booted outside recovery keeps the acceptance the boot check
+    /// gave it (dev rigs stand a plain database in for a standby, and the boot
+    /// warning already says so).
+    fn is_still_a_standby(&self) -> bool {
+        !self.booted_in_recovery || self.in_recovery.load(Ordering::Relaxed)
+    }
+
+    /// Whether this replica may serve a read with at most `max_lag_ms` of
+    /// staleness, as of `now_ms`. See the type docs for why the sum is a bound.
+    fn within_lag_budget(&self, now_ms: u64, max_lag_ms: u64) -> bool {
+        let probed_at = self.probed_at_unix_ms.load(Ordering::Relaxed);
+        if probed_at == 0 {
+            return false;
+        }
+        let lag = self.lag_ms.load(Ordering::Relaxed);
+        if lag == LAG_UNMEASURABLE {
+            return false;
+        }
+        lag.saturating_add(now_ms.saturating_sub(probed_at)) <= max_lag_ms
+    }
+
+    /// Record a probe result, logging a promotion the moment it is first seen.
+    fn record(&self, index: usize, in_recovery: bool, lag_ms: Option<u64>) {
+        if self.in_recovery.swap(in_recovery, Ordering::Relaxed) && !in_recovery {
+            tracing::warn!(
+                replica = index,
+                "Read replica left recovery (pg_is_in_recovery() = false); a failover has \
+                 promoted it to a writable server. Reads routed to it may diverge from the \
+                 primary, and its replication lag is no longer measurable."
+            );
+        }
+        self.lag_ms.store(lag_ms.unwrap_or(LAG_UNMEASURABLE), Ordering::Relaxed);
+        // Only a probe that produced a reading counts as a probe: leaving the
+        // timestamp behind is what ages an unreadable replica out of rotation.
+        if lag_ms.is_some() {
+            self.probed_at_unix_ms.store(now_unix_ms(), Ordering::Relaxed);
+        }
+    }
+
+    /// Mark the last probe as failed, without disturbing the recovery state a
+    /// successful probe established.
+    fn record_failure(&self) {
+        self.lag_ms.store(LAG_UNMEASURABLE, Ordering::Relaxed);
+    }
+}
+
+/// Probe every replica in `set` forever, on its configured cadence.
+///
+/// Holds a [`Weak`] so the loop is not itself a reason for the replica set to
+/// stay alive: when the last adapter clone drops, the upgrade fails and the task
+/// ends. Probe failures are logged and retried on the next tick — a replica that
+/// cannot be probed ages out of the lag budget on its own, and one configured
+/// without a budget keeps serving, exactly as it did before probes existed.
+async fn probe_read_replicas(set: Weak<ReadReplicaSet>) {
+    loop {
+        let Some(set) = set.upgrade() else { return };
+        let interval = set.probe_interval;
+
+        for (index, pool) in set.pools.iter().enumerate() {
+            let health = &set.health[index];
+            let client = match pool.get().await {
+                Ok(client) => client,
+                Err(e) => {
+                    tracing::debug!(replica = index, error = %e, "Read replica health probe \
+                         could not acquire a connection");
+                    health.record_failure();
+                    continue;
+                },
+            };
+            match client.query_one(REPLICA_PROBE_SQL, &[]).await {
+                Ok(row) => {
+                    let in_recovery: bool = row.get(0);
+                    let lag_ms: Option<i64> = row.get(1);
+                    // Reason (try_from): a negative lag would mean the standby
+                    // replayed a transaction the future has not committed yet;
+                    // GREATEST(0, …) already excludes it, and treating any such
+                    // reading as unmeasurable keeps the fail-closed side.
+                    health.record(index, in_recovery, lag_ms.and_then(|ms| u64::try_from(ms).ok()));
+                },
+                Err(e) => {
+                    tracing::debug!(
+                        replica = index,
+                        error = %pg_detail(&e),
+                        "Read replica health probe failed"
+                    );
+                    health.record_failure();
+                },
+            }
+        }
+
+        // Drop the strong reference before sleeping: holding it across the sleep
+        // would keep every replica pool open for one interval after the adapter
+        // is gone.
+        drop(set);
+        tokio::time::sleep(interval).await;
+    }
 }
 
 /// Whether a read at `now_ms` falls inside the post-write primary pin.
@@ -618,7 +929,13 @@ impl PostgresAdapter {
         // adapter ever reads through, not just the one it writes through (#407).
         let read_replicas = match &cfg.read_replicas {
             None => None,
-            Some(rc) => Some(Arc::new(build_read_replica_set(rc, &cfg).await?)),
+            Some(rc) => {
+                let set = Arc::new(build_read_replica_set(rc, &cfg).await?);
+                // Weak, so the probe loop ends when the last adapter clone drops
+                // rather than keeping the pools alive for the process's lifetime.
+                tokio::spawn(probe_read_replicas(Arc::downgrade(&set)));
+                Some(set)
+            },
         };
 
         let adapter = Self {
@@ -754,9 +1071,10 @@ impl PostgresAdapter {
         &self,
         sql: &str,
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
+        routing: ReadRouting,
     ) -> Result<Vec<JsonbValue>> {
         // Read-only by construction (`SELECT data FROM <view>`): replica-eligible.
-        let client = self.acquire_read_connection_with_retry().await?;
+        let client = self.acquire_read_connection_with_retry(routing).await?;
 
         let rows: Vec<Row> =
             client.query(sql, params).await.map_err(|e| FraiseQLError::Database {
@@ -789,10 +1107,11 @@ impl PostgresAdapter {
         sql: &str,
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
         session_vars: &[(&str, &str)],
+        routing: ReadRouting,
     ) -> Result<Vec<JsonbValue>> {
         // Read-only by construction; `set_config` + SELECT run fine inside a
         // hot-standby read-only transaction, so this stays replica-eligible.
-        let mut client = self.acquire_read_connection_with_retry().await?;
+        let mut client = self.acquire_read_connection_with_retry(routing).await?;
         let txn =
             client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
@@ -830,8 +1149,8 @@ impl PostgresAdapter {
     /// Routing, in order:
     /// 1. no replicas configured → primary;
     /// 2. inside the post-write pin window → primary (read-your-writes);
-    /// 3. otherwise round-robin over the replicas, skipping any whose acquisition fails, falling
-    ///    back to the primary when all do.
+    /// 3. otherwise round-robin over the replicas, skipping any outside the bounded-staleness
+    ///    budget and any whose acquisition fails, falling back to the primary when none is left.
     ///
     /// Only methods that can never write may call this; anything mixed-use
     /// (`execute_raw_query`, stats, health, DDL) stays on
@@ -843,23 +1162,48 @@ impl PostgresAdapter {
     /// primary fallback fail to yield a connection.
     pub(super) async fn acquire_read_connection_with_retry(
         &self,
+        routing: ReadRouting,
     ) -> Result<deadpool_postgres::Client> {
         let Some(replicas) = &self.read_replicas else {
             return self.acquire_connection_with_retry().await;
         };
 
-        if pin_active(
-            now_unix_ms(),
-            replicas.last_write_unix_ms.load(Ordering::Relaxed),
-            replicas.pin_after_write_ms,
-        ) {
+        // A query annotated `primary` is asking not to be served stale, which no
+        // replica can promise (#957).
+        if !routing.allows_replica() {
             return self.acquire_connection_with_retry().await;
         }
 
+        let now_ms = now_unix_ms();
+        // `replica` opts out of the pin: the pin exists so a client reads its own
+        // writes, and this query has said that is not what it is for.
+        if routing.honours_write_pin()
+            && pin_active(
+                now_ms,
+                replicas.last_write_unix_ms.load(Ordering::Relaxed),
+                replicas.pin_after_write_ms,
+            )
+        {
+            return self.acquire_connection_with_retry().await;
+        }
+
+        let max_lag_ms = routing.effective_max_lag_ms(replicas.max_lag_ms);
+
         let count = replicas.pools.len();
         let start = replicas.next.fetch_add(1, Ordering::Relaxed);
+        let mut ineligible = 0_usize;
         for offset in 0..count {
             let index = (start.wrapping_add(offset)) % count;
+            // The lag gate comes before acquisition, not after: a replica outside
+            // the budget must not be *reached*, and checking afterwards would
+            // burn a connection to learn what the last probe already knew.
+            let health = &replicas.health[index];
+            let eligible = health.is_still_a_standby()
+                && max_lag_ms.is_none_or(|budget| health.within_lag_budget(now_ms, budget));
+            if !eligible {
+                ineligible += 1;
+                continue;
+            }
             match replicas.pools[index].get().await {
                 Ok(client) => return Ok(client),
                 Err(e) => {
@@ -872,7 +1216,16 @@ impl PostgresAdapter {
             }
         }
 
-        tracing::warn!("All read replicas unavailable; serving the read from the primary");
+        if ineligible > 0 {
+            tracing::debug!(
+                ineligible,
+                replicas = count,
+                "Read replicas outside the bounded-staleness budget, or promoted out of \
+                 recovery; serving the read from the primary"
+            );
+        } else {
+            tracing::warn!("All read replicas unavailable; serving the read from the primary");
+        }
         self.acquire_connection_with_retry().await
     }
 
@@ -1031,7 +1384,7 @@ impl PostgresAdapter {
 
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
-        self.execute_raw(&sql, &param_refs).await
+        self.execute_raw(&sql, &param_refs, ReadRouting::Any).await
     }
 
     /// Execute query with SQL field projection optimization.

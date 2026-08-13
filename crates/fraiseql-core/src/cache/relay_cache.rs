@@ -51,6 +51,7 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
         order_by: Option<&[crate::compiler::aggregation::OrderByClause]>,
         include_total_count: bool,
         session_vars: &[(&str, &str)],
+        routing: crate::db::types::ReadRouting,
     ) -> Result<crate::db::traits::RelayPageResult> {
         // Relay results are not cached; forward with session affinity so RLS
         // pagination sees the configured session variables (#329).
@@ -66,6 +67,7 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
                 order_by,
                 include_total_count,
                 session_vars,
+                routing,
             )
             .await
     }

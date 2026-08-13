@@ -81,6 +81,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             jsonb_column:      None,
             relay:             true,
             inject:            Default::default(),
+            read_routing:      fraiseql_core::db::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views:  vec![],
             requires_role:     None,
