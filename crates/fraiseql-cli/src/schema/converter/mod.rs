@@ -754,6 +754,8 @@ impl SchemaConverter {
             FieldType::Decimal => "Decimal".to_string(),
             FieldType::Vector => "Vector".to_string(),
             FieldType::BitVector => "BitVector".to_string(),
+            FieldType::HalfVector => "HalfVector".to_string(),
+            FieldType::SparseVector => "SparseVector".to_string(),
             FieldType::Scalar(name) => name.clone(),
             FieldType::Object(name) => name.clone(),
             FieldType::Enum(name) => name.clone(),

@@ -1499,6 +1499,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Half-precision and sparse vectors: `HalfVector` and `SparseVector` (#959).**
+  `halfvec(N)` halves the storage and the HNSW index memory at `f16` precision, with an
+  unchanged query surface. `sparsevec(N)` takes pgvector's own text form,
+  `{1:0.5,7:0.25}/1000` — a dense `[Float!]` operand is refused, because a sparse vector
+  exists so that a 30-thousand-dimension bag of terms is never written out in full.
+
+  The operator class is now resolved from the field type *and* the metric —
+  `halfvec_cosine_ops`, `sparsevec_l2_ops`, `bit_hamming_ops` — against the table
+  pgvector actually ships: `ivfflat` has no `sparsevec_*` class at all, which is a
+  compile error rather than DDL `CREATE INDEX` rejects.
+
+  There is deliberately **no half-precision operand kind**. A `halfvec` column compared
+  against `'[…]'::vector` resolves the literal to `halfvec` and uses the same index —
+  identical query plans on the rig — so the mutation that removed the distinction stayed
+  green, and the distinction went with it. A sparse literal is the opposite case:
+  `'{1:1}/5'::vector` is `Vector contents must start with "["`.
+
 - **The distance a `nearest` search ordered by, in the response (#959).** A `Float` field
   declaring `vector_distance = "embedding"` carries it:
   `docs(nearest: {vector: $q, k: 10}) { id similarity }`.

@@ -35,17 +35,18 @@ pub(super) fn field_type_to_introspection(
     let inner = match field_type {
         FieldType::Int => type_ref("Int"),
         FieldType::Float => type_ref("Float"),
-        // A bit vector's value IS its text form (`0`/`1` characters), so it
-        // introspects as the scalar a client actually receives (#959).
-        FieldType::String | FieldType::BitVector => type_ref("String"),
+        // A bit vector's value IS its text form (`0`/`1` characters), and a
+        // sparse vector's is `{1:0.5}/1000`, so both introspect as the scalar a
+        // client actually receives (#959).
+        FieldType::String | FieldType::BitVector | FieldType::SparseVector => type_ref("String"),
         FieldType::Boolean => type_ref("Boolean"),
         FieldType::Id => type_ref("ID"),
         FieldType::DateTime => type_ref("DateTime"),
         FieldType::Date => type_ref("Date"),
         FieldType::Time => type_ref("Time"),
         FieldType::Uuid => type_ref("UUID"),
-        // JSON and Vector are both exposed as JSON in introspection
-        FieldType::Json | FieldType::Vector => type_ref("JSON"),
+        // JSON and the dense float vectors are both exposed as JSON
+        FieldType::Json | FieldType::Vector | FieldType::HalfVector => type_ref("JSON"),
         FieldType::Decimal => type_ref("Decimal"),
         FieldType::Scalar(name) => type_ref(name), // Rich/custom scalars
         FieldType::Object(name) => type_ref_with_kind(name, TypeKind::Object),

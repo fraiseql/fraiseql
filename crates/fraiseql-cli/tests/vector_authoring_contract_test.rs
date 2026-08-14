@@ -434,3 +434,83 @@ fn a_non_float_vector_distance_field_is_a_compile_error() {
     assert!(!ok, "pgvector's distance operators return double precision");
     assert!(log.contains("a pgvector distance is a Float"), "got: {log}");
 }
+
+// ── half-precision and sparse vectors (#959) ─────────────────────────────────
+
+fn typed_vector_json(type_name: &str, config: &str) -> String {
+    format!(
+        r#"{{
+  "types": [
+    {{
+      "name": "Doc",
+      "sql_source": "v_doc",
+      "fields": [
+        {{"name": "id", "type": "ID", "nullable": false}},
+        {{"name": "embedding", "type": "{type_name}", "nullable": false,
+          "vector_config": {config}}}
+      ]
+    }}
+  ]
+}}"#
+    )
+}
+
+/// The DDL type and the operator class are both named after the field type, not
+/// only after the metric.
+#[test]
+fn half_and_sparse_vectors_emit_their_own_column_type_and_ops_class() {
+    for (type_name, column, ops) in [
+        ("HalfVector", "embedding halfvec(3)", "halfvec_cosine_ops"),
+        ("SparseVector", "embedding sparsevec(3)", "sparsevec_cosine_ops"),
+    ] {
+        let types = typed_vector_json(
+            type_name,
+            r#"{"dimensions": 3, "index_type": "hnsw", "distance_metric": "cosine"}"#,
+        );
+        let (ok, log, dir) = run_compile(&types, BASE_TOML, true);
+        assert!(ok, "{type_name} must compile: {log}");
+
+        let ddl = fs::read_to_string(dir.path().join("ddl").join("doc.sql")).expect("DDL");
+        assert!(ddl.contains(column), "{type_name} column type: {ddl}");
+        assert!(ddl.contains(ops), "{type_name} operator class: {ddl}");
+
+        let compiled = fs::read_to_string(dir.path().join("schema.compiled.json")).unwrap();
+        let schema = CompiledSchema::from_json(&compiled, false).expect("compiled schema parses");
+        let field = schema
+            .find_type("Doc")
+            .expect("Doc")
+            .fields
+            .iter()
+            .find(|f| f.name.as_str() == "embedding")
+            .expect("field")
+            .clone();
+        assert!(field.field_type.is_vector(), "{type_name} stays a float vector kind");
+    }
+}
+
+/// pgvector 0.8 ships no `sparsevec_*` operator class for `ivfflat` at all —
+/// checked in `pg_opclass` on the rig, not assumed.
+#[test]
+fn ivfflat_over_a_sparse_vector_is_a_compile_error() {
+    let types = typed_vector_json(
+        "SparseVector",
+        r#"{"dimensions": 3, "index_type": "ivf_flat", "distance_metric": "l2"}"#,
+    );
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "ivfflat has no sparsevec operator class");
+    assert!(
+        log.contains("no ivfflat operator class") && log.contains("hnsw"),
+        "the error names the index type that does support it: {log}"
+    );
+}
+
+/// A binary metric on a half-precision or sparse vector is refused the same way
+/// it is on a dense one — the field type decides which metrics exist.
+#[test]
+fn a_binary_metric_on_a_half_vector_is_a_compile_error() {
+    let types =
+        typed_vector_json("HalfVector", r#"{"dimensions": 3, "distance_metric": "jaccard"}"#);
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "jaccard is a bit-vector metric");
+    assert!(log.contains("binary (bit) vectors"), "got: {log}");
+}

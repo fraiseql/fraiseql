@@ -456,6 +456,8 @@ impl SchemaConverter {
             "Decimal" => FieldType::Decimal,
             "Vector" => FieldType::Vector,
             "BitVector" => FieldType::BitVector,
+            "HalfVector" => FieldType::HalfVector,
+            "SparseVector" => FieldType::SparseVector,
             // Author-declared enum / interface / union references keep their kind; anything
             // else is an object reference (#923).
             custom => declared.resolve(custom),

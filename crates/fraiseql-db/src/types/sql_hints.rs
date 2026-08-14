@@ -113,6 +113,34 @@ pub enum VectorOperandKind {
     Float,
     /// Binary vector: `'1011'::varbit`, ordered by `<~>` / `<%>`.
     Bit,
+    /// Sparse float vector: `'{1:0.5,7:0.25}/1000'::sparsevec`, same operators
+    /// as [`Self::Float`] (#959).
+    ///
+    /// A sparse literal has no other reading: `'{1:1}/5'::vector` is
+    /// `Vector contents must start with "["`, so this kind is the difference
+    /// between a query and an error.
+    Sparse,
+}
+
+impl VectorOperandKind {
+    /// The pgvector type a literal of this kind is cast to.
+    ///
+    /// `varbit` and not `bit` for the binary kind — see the type's own note.
+    ///
+    /// There is deliberately **no half-precision kind**: a `halfvec` column
+    /// compared against `'[…]'::vector` resolves the literal to `halfvec` and
+    /// uses the same `halfvec_*_ops` index — verified on the rig, where both
+    /// spellings produce the identical plan. A kind that changes nothing the
+    /// server can see would be a distinction the code carries and the database
+    /// ignores.
+    #[must_use]
+    pub const fn cast(self) -> &'static str {
+        match self {
+            Self::Bit => "varbit",
+            Self::Sparse => "sparsevec",
+            _ => "vector",
+        }
+    }
 }
 
 /// Sort direction

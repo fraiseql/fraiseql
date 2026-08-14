@@ -183,6 +183,22 @@ fn query_vector_literal(
         return Ok((bits.to_string(), crate::db::VectorOperandKind::Bit));
     }
 
+    if matches!(field.field_type, crate::schema::FieldType::SparseVector) {
+        let sparse = operand.as_str().ok_or_else(|| {
+            FraiseQLError::validation(format!(
+                "'{type_name}.{}' is a SparseVector field, so `nearest.vector` is a string in \
+                 pgvector's sparse form — {{1:0.5,7:0.25}}/1000 — not an array. A dense array \
+                 would defeat the reason the field is sparse",
+                field.name
+            ))
+        })?;
+        let dimensions = parse_sparse_literal(sparse)?;
+        if dimensions != declared {
+            return Err(dimension_err(dimensions, "dimensions"));
+        }
+        return Ok((sparse.to_string(), crate::db::VectorOperandKind::Sparse));
+    }
+
     let vector = operand.as_array().ok_or_else(nearest_shape_err)?;
     if vector.len() != declared {
         return Err(dimension_err(vector.len(), "components"));
@@ -201,7 +217,53 @@ fn query_vector_literal(
             .expect("write to String is infallible");
     }
     literal.push(']');
+    // A `HalfVector` field lowers to the same `::vector` literal: PostgreSQL
+    // resolves it to the column's type and uses the `halfvec_*_ops` index either
+    // way. Half precision is a property of the column, not of the query.
     Ok((literal, crate::db::VectorOperandKind::Float))
+}
+
+/// Check a pgvector sparse literal and return the dimension count it declares.
+///
+/// The shape is `{index:value,…}/dimensions`, 1-based indices. Validated here
+/// rather than left to the server for the same reason the dense path validates
+/// dimensions: the message names the field and both numbers, where PostgreSQL's
+/// names neither.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when the literal is not that shape,
+/// when a component is not a finite number, or when an index is out of range for
+/// the declared dimensions.
+fn parse_sparse_literal(literal: &str) -> Result<usize> {
+    let shape_err = || {
+        FraiseQLError::validation(
+            "a sparse `nearest.vector` is pgvector's `{index:value,...}/dimensions` form, \
+             with 1-based indices — e.g. \"{1:0.5,7:0.25}/1000\"",
+        )
+    };
+    let body = literal.strip_prefix('{').ok_or_else(shape_err)?;
+    let (entries, dimensions) = body.split_once("}/").ok_or_else(shape_err)?;
+    let dimensions: usize = dimensions.parse().map_err(|_| shape_err())?;
+    if dimensions == 0 {
+        return Err(shape_err());
+    }
+    for entry in entries.split(',').filter(|e| !e.is_empty()) {
+        let (index, value) = entry.split_once(':').ok_or_else(shape_err)?;
+        let index: usize = index.trim().parse().map_err(|_| shape_err())?;
+        if index == 0 || index > dimensions {
+            return Err(FraiseQLError::validation(format!(
+                "sparse vector index {index} is outside 1..={dimensions}"
+            )));
+        }
+        let value: f64 = value.trim().parse().map_err(|_| shape_err())?;
+        if !value.is_finite() {
+            return Err(FraiseQLError::validation(
+                "sparse vector values must all be finite numbers",
+            ));
+        }
+    }
+    Ok(dimensions)
 }
 
 /// Resolve the distance metric for a `nearest` request (#386, #959).

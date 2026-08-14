@@ -885,7 +885,12 @@ fn build_create_table_ddl(
             let col_name = to_snake_case(field.name.as_str());
             let index_ddl = config
                 .index_type
-                .index_sql(&format!("tb_{table_name}"), &col_name, config.distance_metric)
+                .index_sql(
+                    &format!("tb_{table_name}"),
+                    &col_name,
+                    &field.field_type,
+                    config.distance_metric,
+                )
                 .with_context(|| format!("field '{}.{}'", type_def.name, field.name.as_str()))?;
             if let Some(index_ddl) = index_ddl {
                 lines.push(format!("{index_ddl};"));
@@ -916,6 +921,11 @@ pub(crate) fn field_type_to_pg(ft: &FieldType) -> String {
         // emitter uses; this branch is the shape a config-less one would take,
         // and `varbit` is the only bit type that does not silently truncate.
         FieldType::BitVector => "VARBIT".to_string(),
+        // Width-less for the same reason as `BitVector`: a vector field always
+        // carries a `vector_config`, so the dimensioned form is what the DDL
+        // emitter uses.
+        FieldType::HalfVector => "HALFVEC".to_string(),
+        FieldType::SparseVector => "SPARSEVEC".to_string(),
         // Use the actual Postgres enum type name so DDL matches the schema.
         FieldType::Enum(name) => name.clone(),
         FieldType::Input(_) | FieldType::Interface(_) | FieldType::Union(_) => "JSONB".to_string(),

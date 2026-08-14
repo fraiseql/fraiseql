@@ -131,6 +131,35 @@ vector_distance = "embedding"
 - The declaration is checked at compile time: the named field must exist on the
   same type and be a vector field, and the declaring field must be a `Float`.
 
+## Half-precision and sparse vectors
+
+pgvector stores a float vector three ways, and FraiseQL declares each (#959):
+
+| `type` | Column | GraphQL | `nearest.vector` |
+|--------|--------|---------|------------------|
+| `"Vector"` | `vector(N)` | `[Float!]!` | `[0.1, 0.2, …]` |
+| `"HalfVector"` | `halfvec(N)` | `[Float!]!` | `[0.1, 0.2, …]` |
+| `"SparseVector"` | `sparsevec(N)` | `String` | `"{1:0.5,7:0.25}/1000"` |
+
+All three take `cosine` / `l2` / `inner_product`, and the operator class follows
+the column type — `halfvec_cosine_ops`, `sparsevec_l2_ops` — so `--emit-ddl`
+emits the right one without being told.
+
+- **`HalfVector`** halves the storage and the HNSW index memory, at `f16`
+  precision (about three decimal digits per component). The query surface is
+  unchanged: the same `[Float!]` operand, and PostgreSQL resolves the literal to
+  the column's type.
+- **`SparseVector`** takes pgvector's own text form, 1-based
+  `{index:value,…}/dimensions`. A dense `[Float!]` operand is refused: a sparse
+  vector exists so that a 30-thousand-dimension bag of terms is never written out
+  in full, and accepting the dense form would give that back. Indices outside
+  `1..=dimensions`, and a dimension count that disagrees with the declaration,
+  are named errors.
+- `index_type = "ivf_flat"` on a `SparseVector` is a compile error: pgvector 0.8
+  ships no `sparsevec_*` class for ivfflat.
+- The threshold WHERE operators take the same operand shapes — a string operand
+  filters as a sparse vector, an array as a dense one.
+
 ## Binary (bit) vectors
 
 pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined

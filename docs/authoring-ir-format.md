@@ -36,6 +36,8 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 | `"Decimal"`  | `Decimal`      | Arbitrary-precision numeric    |
 | `"Vector"`   | `[Float!]!`    | pgvector embedding — requires `vector_config` |
 | `"BitVector"`| `String`       | pgvector binary vector — requires `vector_config` |
+| `"HalfVector"` | `[Float!]!`  | pgvector `halfvec` — requires `vector_config` |
+| `"SparseVector"` | `String`   | pgvector `sparsevec` — requires `vector_config` |
 
 Any unrecognized type name (e.g. `"User"`, `"Post"`) is treated as a reference
 to a GraphQL **object type** defined elsewhere in the schema.
