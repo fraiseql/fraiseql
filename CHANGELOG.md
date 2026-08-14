@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **`fraiseql_core::utils::vector` is removed (#959).** `VectorQueryBuilder`,
-  `VectorSearchQuery`, `VectorInsertQuery`, `VectorParam` and `PlaceholderStyle` are
-  gone. The module was a complete pgvector SQL builder that predated the executed
-  vector work (#386) and had **zero callers** — nothing in the workspace referenced it,
-  which is why deleting it compiles the workspace unchanged.
+- **The unused `fraiseql_core::utils::vector` module is removed — vector *search* is
+  unaffected (#959).** To be unambiguous, because the two are easy to confuse: `nearest`
+  top-K queries, the threshold WHERE operators, dimensioned `vector(N)` DDL and index
+  emission all continue to work exactly as before, and `graphql_vector_e2e_pg` passes
+  against real pgvector without a line changed.
+
+  What is gone is a **second, parallel** SQL builder — `VectorQueryBuilder`,
+  `VectorSearchQuery`, `VectorInsertQuery`, `VectorParam`, `PlaceholderStyle` — that
+  predated the executed vector work (#386) and was wired to nothing. It had **zero
+  callers**: nothing in the workspace referenced it, which is why deleting it compiles
+  the workspace unchanged. Breaking only for code that imported those symbols directly.
 
   It is removed rather than kept because of how it built SQL: the table name, the
   embedding column, every `select_columns` entry and an entire raw `where_clause` were
