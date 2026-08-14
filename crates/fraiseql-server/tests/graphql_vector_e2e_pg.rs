@@ -46,6 +46,22 @@ const SCHEMA: &str = "p27_vec";
 /// | 4  | [0, 1, 0]     | 1           | ~1.41   | 0                 |
 ///
 /// cosine order: 1,2,3,4 · L2 order: 1,3,4,2 · inner-product order: 2,1,3,4.
+///
+/// The same rows carry an 8-bit `fingerprint` for the binary metrics (#959),
+/// against the query bits `11110000`:
+///
+/// | id | fingerprint | hamming | jaccard |
+/// |----|-------------|---------|---------|
+/// | 1  | 11111111    | 4       | 0.5     |
+/// | 2  | 11110000    | 0       | 0       |
+/// | 3  | 00000011    | 6       | 1.0     |
+/// | 4  | 10000000    | 3       | 0.75    |
+///
+/// hamming order: 2,4,1,3 · jaccard order: 2,1,4,3. Jaccard normalises by the
+/// union of set bits, so id4 — three of the query's bits missing but none
+/// spurious — is *closer* than id1 under hamming and *further* under jaccard.
+/// Neither order is the insertion order, which is what a `::bit` (i.e.
+/// `bit(1)`) cast would collapse the comparison to.
 async fn seed(adapter: &PostgresAdapter) {
     let stmts = vec![
         "CREATE EXTENSION IF NOT EXISTS vector".to_string(),
@@ -58,23 +74,25 @@ async fn seed(adapter: &PostgresAdapter) {
         // that can tell the two apart.
         format!(
             "CREATE TABLE {SCHEMA}.tb_doc (id bigint PRIMARY KEY, title text NOT NULL, \
-             embedding vector(3) NOT NULL, thumbnail vector(2) NOT NULL)"
+             embedding vector(3) NOT NULL, thumbnail vector(2) NOT NULL, \
+             fingerprint bit(8) NOT NULL)"
         ),
         format!(
             "INSERT INTO {SCHEMA}.tb_doc VALUES \
-             (1, 'exact',      '[1,0,0]',      '[4,0]'), \
-             (2, 'longer',     '[5,0.01,0]',   '[3,0]'), \
-             (3, 'shorter',    '[0.1,0.02,0]', '[2,0]'), \
-             (4, 'orthogonal', '[0,1,0]',      '[1,0]')"
+             (1, 'exact',      '[1,0,0]',      '[4,0]', '11111111'), \
+             (2, 'longer',     '[5,0.01,0]',   '[3,0]', '11110000'), \
+             (3, 'shorter',    '[0.1,0.02,0]', '[2,0]', '00000011'), \
+             (4, 'orthogonal', '[0,1,0]',      '[1,0]', '10000000')"
         ),
         // The view exposes the vector BOTH ways deliberately: as a native
         // `embedding` column (the `nearest` storage contract — index-eligible)
         // and as its text form inside `data` (what the threshold WHERE
-        // operators resolve via `data->>'embedding'`).
+        // operators resolve via `data->>'embedding'`). `fingerprint`, the
+        // binary vector (#959), follows the same contract.
         format!(
             "CREATE VIEW {SCHEMA}.v_doc AS SELECT id, jsonb_build_object('id', id, 'title', \
-             title, 'embedding', embedding::text) AS data, embedding, thumbnail \
-             FROM {SCHEMA}.tb_doc"
+             title, 'embedding', embedding::text, 'fingerprint', fingerprint::text) AS data, \
+             embedding, thumbnail, fingerprint FROM {SCHEMA}.tb_doc"
         ),
     ];
     for stmt in stmts {
@@ -127,6 +145,39 @@ fn schema() -> CompiledSchema {
     docs.auto_params.has_limit = true;
     docs.auto_params.has_offset = true;
     schema.queries.push(docs);
+
+    // Two types over the same `fingerprint` column, differing only in the
+    // metric they DECLARE (#959). One type could not tell "the declared metric
+    // is applied" from "hamming is hardcoded": the jaccard type is what makes
+    // the default path falsifiable, and the `metric:` override on the hamming
+    // one is the second, independent route to the same order.
+    for (type_name, query_name, metric) in [
+        ("BitDoc", "bitDocs", fraiseql_core::schema::DistanceMetric::Hamming),
+        ("JacDoc", "jacDocs", fraiseql_core::schema::DistanceMetric::Jaccard),
+    ] {
+        let mut bit_doc = TypeDefinition::new(type_name, format!("{SCHEMA}.v_doc"));
+        bit_doc.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::new("title", FieldType::String),
+            FieldDefinition::bit_vector(
+                "fingerprint",
+                VectorConfig {
+                    distance_metric: metric,
+                    ..VectorConfig::binary(8)
+                },
+            ),
+        ];
+        schema.types.push(bit_doc);
+
+        let mut query = QueryDefinition::new(query_name, type_name)
+            .returning_list()
+            .with_sql_source(format!("{SCHEMA}.v_doc"));
+        query.auto_params.has_where = true;
+        query.auto_params.has_limit = true;
+        query.auto_params.has_offset = true;
+        schema.queries.push(query);
+    }
+
     schema.build_indexes();
     schema
 }
@@ -296,18 +347,153 @@ async fn inner_product_threshold_keeps_rows_at_least_that_similar() {
     assert_eq!(got, vec![1, 2], "minimum-inner-product semantics: {resp}");
 }
 
+// ── binary (bit) vectors: hamming and jaccard, executed (#959) ───────────────
+
+/// `nearest` on a `BitVector` field orders by the declared binary metric.
+///
+/// The expected order is neither the insertion order nor the float embedding's
+/// order, so an implementation that ignored the bit column — or that cast it
+/// with a length-less `::bit`, which is `bit(1)` and makes every row that
+/// starts with a `1` equidistant — returns something else.
 #[tokio::test]
-async fn hamming_distance_is_loudly_unsupported() {
-    if skip("hamming_refusal") {
+async fn nearest_on_a_bit_vector_orders_by_hamming_distance() {
+    if skip("nearest_hamming") {
         return;
     }
     let router = setup().await.unwrap();
-    let query = r"{ docs(where: {embedding: {hamming_distance: {vector: [1, 0, 0], threshold: 1}}}) { id } }";
-    let (_status, resp) = post_graphql(router, &json!({"query": query})).await;
+    let q = r#"{ bitDocs(nearest: {vector: "11110000", k: 4}) { id fingerprint } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "bitDocs"),
+        vec![2, 4, 1, 3],
+        "hamming counts differing bits: 0, 3, 4, 6 — {resp}"
+    );
+    assert_eq!(
+        resp["data"]["bitDocs"][0]["fingerprint"].as_str(),
+        Some("11110000"),
+        "a BitVector field is delivered as its bit string: {resp}"
+    );
+}
+
+/// Jaccard orders the same four rows differently, from two independent
+/// directions: the `metric:` override on the hamming-declared type, and the
+/// declared metric of the jaccard type with no override at all.
+#[tokio::test]
+async fn jaccard_orders_the_same_bits_differently_than_hamming() {
+    if skip("nearest_jaccard") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let overridden =
+        r#"{ bitDocs(nearest: {vector: "11110000", k: 4, metric: "jaccard"}) { id } }"#;
+    let (status, resp) = post_graphql(router.clone(), &json!({"query": overridden})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "bitDocs"),
+        vec![2, 1, 4, 3],
+        "jaccard normalises by the union of set bits: 0, 0.5, 0.75, 1 — {resp}"
+    );
+
+    let declared = r#"{ jacDocs(nearest: {vector: "11110000", k: 4}) { id } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": declared})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "jacDocs"),
+        vec![2, 1, 4, 3],
+        "the field's declared metric applies when `metric:` is omitted: {resp}"
+    );
+}
+
+/// The binary threshold WHERE operators, resolved through `data->>'fingerprint'`
+/// rather than the native column — the JSONB path, where the cast is the whole
+/// question.
+#[tokio::test]
+async fn binary_distance_threshold_filters_return_the_rows_within_them() {
+    if skip("bit_thresholds") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    // Hamming distances to 11110000: id1 = 4, id2 = 0, id3 = 6, id4 = 3.
+    let hamming = r#"{ bitDocs(where: {fingerprint: {hamming_distance: {vector: "11110000", threshold: 3}}}) { id } }"#;
+    let (status, resp) = post_graphql(router.clone(), &json!({"query": hamming})).await;
+    assert_eq!(status, 200, "{resp}");
+    let mut got = ids_under(&resp, "bitDocs");
+    got.sort_unstable();
+    assert_eq!(got, vec![2, 4], "within 3 differing bits, inclusive: {resp}");
+
+    // Jaccard distances to 11110000: id1 = 0.5, id2 = 0, id3 = 1, id4 = 0.75.
+    let jaccard = r#"{ bitDocs(where: {fingerprint: {jaccard_distance: {vector: "11110000", threshold: 0.5}}}) { id } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": jaccard})).await;
+    assert_eq!(status, 200, "{resp}");
+    let mut got = ids_under(&resp, "bitDocs");
+    got.sort_unstable();
+    assert_eq!(got, vec![1, 2], "the same threshold selects a different pair: {resp}");
+}
+
+/// A wrong-width query vector is refused before it reaches PostgreSQL.
+///
+/// This check is the only thing standing between the request and a wrong
+/// answer: casting text to `bit(8)` pads a short value on the right and
+/// truncates a long one, both silently, so an unvalidated 4-bit operand would
+/// search `10100000` and report it as a match for `1010`.
+#[tokio::test]
+async fn nearest_bit_dimension_mismatch_is_refused() {
+    if skip("nearest_bit_dims") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r#"{ bitDocs(nearest: {vector: "1010", k: 2}) { id } }"#;
+    let (_status, resp) = post_graphql(router, &json!({"query": q})).await;
     let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
     assert!(
-        msg.contains("binary"),
-        "the refusal explains the bit-vector gap instead of emitting broken SQL: {resp}"
+        msg.contains("4 bits") && msg.contains("8 dimensions"),
+        "the refusal names both sides of the mismatch: {resp}"
+    );
+}
+
+/// A float metric on a binary field (and the reverse) is refused by name.
+///
+/// pgvector has no `<=>` over `bit` and no `<~>` over `vector`, so the
+/// alternative is a raw SQL error from the driver naming neither the field nor
+/// the way out.
+#[tokio::test]
+async fn a_metric_of_the_other_vector_kind_is_refused() {
+    if skip("metric_kind_mismatch") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let float_on_bits =
+        r#"{ bitDocs(nearest: {vector: "11110000", k: 2, metric: "cosine"}) { id } }"#;
+    let (_status, resp) = post_graphql(router.clone(), &json!({"query": float_on_bits})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("float") && msg.contains("BitVector") && msg.contains("hamming"),
+        "the refusal names the field's kind and its metrics: {resp}"
+    );
+
+    let bits_on_float = r#"{ docs(nearest: {vector: [1, 0, 0], k: 2, metric: "hamming"}) { id } }"#;
+    let (_status, resp) = post_graphql(router, &json!({"query": bits_on_float})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("binary") && msg.contains("cosine"),
+        "and the same in reverse on a float Vector field: {resp}"
+    );
+}
+
+/// A bit-vector operand is a string; an array is refused, naming the shape.
+#[tokio::test]
+async fn nearest_on_a_bit_vector_refuses_a_float_array_operand() {
+    if skip("bit_operand_shape") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r"{ bitDocs(nearest: {vector: [1, 0, 1, 0, 0, 0, 0, 0], k: 2}) { id } }";
+    let (_status, resp) = post_graphql(router, &json!({"query": q})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("BitVector") && msg.contains("string"),
+        "the refusal names the operand shape a BitVector field takes: {resp}"
     );
 }
 

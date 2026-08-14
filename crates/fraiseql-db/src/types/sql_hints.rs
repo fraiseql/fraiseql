@@ -80,16 +80,39 @@ pub struct OrderByClause {
 /// The vector-distance operand of an ORDER BY clause (#386).
 ///
 /// `query_vector` is carried as the *body* of a pgvector text literal
-/// (`[0.1,0.2,…]`) rather than a bind parameter: it is constructed exclusively
-/// by formatting `f64` values parsed from the request, so it can only contain
-/// digits, `.`, `-`, `e`, commas and brackets — and the SQL builder re-validates
-/// that character set before interpolating (defence in depth).
+/// (`[0.1,0.2,…]` for floats, `1011…` for bits) rather than a bind parameter:
+/// it is constructed exclusively by formatting values parsed from the request,
+/// so it can only contain digits, `.`, `-`, `e`, commas and brackets — and the
+/// SQL builder re-validates that character set before interpolating (defence in
+/// depth).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VectorDistanceOrder {
-    /// pgvector distance operator: `<=>` (cosine), `<->` (L2), `<#>` (inner product).
+    /// pgvector distance operator: `<=>` (cosine), `<->` (L2), `<#>` (inner
+    /// product), `<~>` (hamming), `<%>` (jaccard).
     pub operator:     String,
-    /// The query vector literal body, e.g. `[0.1,0.2,0.3]`.
+    /// The query vector literal body, e.g. `[0.1,0.2,0.3]` or `1011`.
     pub query_vector: String,
+    /// Which pgvector operand type the literal is cast to (#959).
+    #[serde(default)]
+    pub kind:         VectorOperandKind,
+}
+
+/// The operand type a vector-distance comparison is made in (#959).
+///
+/// The cast is load-bearing on the binary side: `'1011'::bit` is `bit(1)`, so a
+/// length-less cast silently keeps the first bit and reports the distance
+/// between two one-bit values. `varbit` carries whatever width the value has,
+/// which makes a width disagreement `different bit lengths 8 and 4` from the
+/// server rather than a plausible wrong answer.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum VectorOperandKind {
+    /// Float vector: `'[…]'::vector`, ordered by `<=>` / `<->` / `<#>`.
+    #[default]
+    Float,
+    /// Binary vector: `'1011'::varbit`, ordered by `<~>` / `<%>`.
+    Bit,
 }
 
 /// Sort direction

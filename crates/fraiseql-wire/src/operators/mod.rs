@@ -23,7 +23,8 @@
 //! - **Array Length**: `LenEq`, `LenGt`, `LenGte`, `LenLt`, `LenLte`
 //! - **String**: Contains, Icontains, Startswith, Endswith, Like, Ilike
 //! - **Null**: `IsNull`
-//! - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `JaccardDistance`
+//! - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `L1Distance`
+//! - **Binary Vector Distance**: `HammingDistance`, `JaccardDistance` (over `bit` vectors)
 //! - **Full-Text Search**: Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`
 //! - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsLoopback`, `IsMulticast`, `IsLinkLocal`, `IsDocumentation`, `IsCarrierGrade`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
 

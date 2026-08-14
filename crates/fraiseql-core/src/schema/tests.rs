@@ -605,20 +605,21 @@ fn test_distance_metric_ops_classes() {
 
 #[test]
 fn test_vector_index_sql() {
-    let hnsw_sql =
-        VectorIndexType::Hnsw.index_sql("documents", "embedding", DistanceMetric::Cosine);
+    let hnsw_sql = VectorIndexType::Hnsw
+        .index_sql("documents", "embedding", DistanceMetric::Cosine)
+        .unwrap();
     assert_eq!(
         hnsw_sql,
         Some("CREATE INDEX ON documents USING hnsw (embedding vector_cosine_ops)".to_string())
     );
 
-    let ivf_sql = VectorIndexType::IvfFlat.index_sql("docs", "vec", DistanceMetric::L2);
+    let ivf_sql = VectorIndexType::IvfFlat.index_sql("docs", "vec", DistanceMetric::L2).unwrap();
     assert_eq!(
         ivf_sql,
         Some("CREATE INDEX ON docs USING ivfflat (vec vector_l2_ops)".to_string())
     );
 
-    let none_sql = VectorIndexType::None.index_sql("t", "c", DistanceMetric::Cosine);
+    let none_sql = VectorIndexType::None.index_sql("t", "c", DistanceMetric::Cosine).unwrap();
     assert_eq!(none_sql, None);
 }
 
@@ -652,6 +653,95 @@ fn test_field_type_vector_sql_type() {
     let config = VectorConfig::new(1536);
     assert_eq!(FieldType::Vector.to_sql_type(Some(&config)), "vector(1536)");
     assert_eq!(FieldType::Vector.to_sql_type(None), "vector");
+}
+
+// ── binary (bit) vectors (#959) ────────────────────────────────────────────
+
+/// A width-less `bit` column is `bit(1)`, so the config-less fallback is
+/// `varbit` — the only bit type that carries whatever width the value has.
+#[test]
+fn bit_vector_sql_type_is_always_width_bearing() {
+    assert_eq!(FieldType::BitVector.to_sql_type(Some(&VectorConfig::binary(768))), "bit(768)");
+    assert_eq!(FieldType::BitVector.to_sql_type(None), "varbit");
+}
+
+#[test]
+fn bit_vector_is_a_scalar_string_in_graphql() {
+    assert!(FieldType::BitVector.is_scalar());
+    assert!(FieldType::BitVector.is_bit_vector());
+    assert!(!FieldType::BitVector.is_vector());
+    assert!(FieldType::BitVector.is_searchable_vector());
+    assert_eq!(FieldType::BitVector.to_graphql_string(), "String");
+    assert_eq!(FieldType::parse("BitVector"), FieldType::BitVector);
+}
+
+#[test]
+fn binary_metrics_carry_the_bit_operators_and_ops_classes() {
+    assert_eq!(DistanceMetric::Hamming.operator(), "<~>");
+    assert_eq!(DistanceMetric::Jaccard.operator(), "<%>");
+    assert_eq!(DistanceMetric::Hamming.hnsw_ops_class(), "bit_hamming_ops");
+    assert_eq!(DistanceMetric::Jaccard.hnsw_ops_class(), "bit_jaccard_ops");
+    assert!(DistanceMetric::Hamming.is_binary() && DistanceMetric::Jaccard.is_binary());
+    assert!(!DistanceMetric::Cosine.is_binary());
+}
+
+/// pgvector 0.8 ships `bit_jaccard_ops` for `hnsw` only — verified against
+/// `pg_opclass` on the pgvector/pgvector:pg16 rig.
+#[test]
+fn ivfflat_has_no_jaccard_operator_class() {
+    assert_eq!(DistanceMetric::Hamming.ivfflat_ops_class(), Some("bit_hamming_ops"));
+    assert_eq!(DistanceMetric::Jaccard.ivfflat_ops_class(), None);
+
+    let err = VectorIndexType::IvfFlat
+        .index_sql("tb_doc", "fingerprint", DistanceMetric::Jaccard)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("no ivfflat operator class") && err.contains("hnsw"), "got: {err}");
+
+    let hnsw = VectorIndexType::Hnsw
+        .index_sql("tb_doc", "fingerprint", DistanceMetric::Jaccard)
+        .unwrap();
+    assert_eq!(
+        hnsw,
+        Some("CREATE INDEX ON tb_doc USING hnsw (fingerprint bit_jaccard_ops)".to_string())
+    );
+}
+
+#[test]
+fn vector_config_validates_against_the_field_type_carrying_it() {
+    let float_metric = VectorConfig::new(3);
+    let bit_metric = VectorConfig::binary(8);
+
+    assert!(float_metric.validate_for(&FieldType::Vector).is_ok());
+    assert!(bit_metric.validate_for(&FieldType::BitVector).is_ok());
+
+    let err = bit_metric.validate_for(&FieldType::Vector).unwrap_err().to_string();
+    assert!(err.contains("binary (bit) vectors") && err.contains("BitVector"), "got: {err}");
+
+    let err = float_metric.validate_for(&FieldType::BitVector).unwrap_err().to_string();
+    assert!(
+        err.contains("float vectors") && err.contains("hamming or jaccard"),
+        "got: {err}"
+    );
+
+    let err = float_metric.validate_for(&FieldType::String).unwrap_err().to_string();
+    assert!(err.contains("meaningless"), "got: {err}");
+
+    let zero = VectorConfig {
+        dimensions: 0,
+        ..VectorConfig::new(3)
+    };
+    let err = zero.validate_for(&FieldType::Vector).unwrap_err().to_string();
+    assert!(err.contains("at least 1"), "got: {err}");
+}
+
+#[test]
+fn field_definition_bit_vector_constructor() {
+    let fingerprint = FieldDefinition::bit_vector("fingerprint", VectorConfig::binary(768));
+    assert!(fingerprint.is_bit_vector());
+    assert!(!fingerprint.is_vector());
+    assert!(!fingerprint.nullable);
+    assert_eq!(fingerprint.vector_config.expect("config").dimensions, 768);
 }
 
 #[test]

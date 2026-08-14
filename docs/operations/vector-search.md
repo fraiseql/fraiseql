@@ -96,9 +96,53 @@ check is against the field being searched.
   `threshold`.
 - `inner_product`: rows with raw inner product ≥ `threshold` (pgvector's `<#>`
   returns the negated inner product; the negation is handled internally).
-- `hamming_distance` / `jaccard_distance` are **refused**: pgvector defines them
-  over binary (`bit`) vectors, which FraiseQL's float `Vector` type cannot
-  declare.
+- `hamming_distance` / `jaccard_distance` take a **bit string** operand and
+  apply to `BitVector` fields — see below.
 - Performance: ANN indexes accelerate `ORDER BY … LIMIT` (the `nearest` shape),
   not bare threshold predicates — expect a scan on large tables, or combine
   with `nearest`.
+
+## Binary (bit) vectors
+
+pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined
+over `bit` values, not `vector` ones. Declare the field as `BitVector` (#959):
+
+```toml
+[types.Doc.fields.fingerprint]
+type = "BitVector"
+vector = { dimensions = 768, index_type = "hnsw", distance_metric = "hamming" }
+```
+
+- `dimensions` counts **bits**. `--emit-ddl` produces a `bit(768)` column, the
+  `vector` extension (the type is PostgreSQL's, the operators are pgvector's) and
+  an index with the `bit_hamming_ops` / `bit_jaccard_ops` operator class.
+- The metric must match the field type: `hamming` / `jaccard` on `BitVector`,
+  `cosine` / `l2` / `inner_product` on `Vector`. The cross pairing is a compile
+  error — pgvector has no such operator.
+- `index_type = "ivf_flat"` with `jaccard` is a compile error too: pgvector 0.8
+  ships `bit_jaccard_ops` for `hnsw` only.
+- In GraphQL the field is a `String` — a run of `0`/`1` characters, which is what
+  `bit(N)`'s text form and `binary_quantize(embedding)::bit(768)` produce.
+
+Storage follows the same contract as float vectors: a native `bit(N)` column for
+`nearest`, and `fingerprint::text` inside `data` for threshold filtering.
+
+Searching:
+
+```graphql
+{
+  docs(nearest: { vector: "11110000", k: 10, metric: "jaccard" }) { id }
+  hits: docs(where: { fingerprint: { hamming_distance: { vector: "11110000", threshold: 3 } } }) { id }
+}
+```
+
+- `nearest.vector` is a string here, not an array; the wrong shape is refused by
+  name.
+- Its length must equal the declared `dimensions`. This check is load-bearing:
+  casting text to `bit(N)` pads a short value on the right and truncates a long
+  one, both silently, so an unchecked operand searches a different fingerprint
+  and answers confidently.
+- Both distances are "smaller is closer": hamming counts differing bits, jaccard
+  is `1 - |intersection| / |union|` over set bits, so a sparse near-match beats a
+  dense one under jaccard and loses to it under hamming.
+- Every emitted cast is `varbit`, never `bit`: `'1011'::bit` is `bit(1)`.

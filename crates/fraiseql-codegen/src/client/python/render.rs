@@ -34,7 +34,9 @@ pub(super) fn field_type_py(ft: &FieldType) -> String {
         | FieldType::DateTime
         | FieldType::Date
         | FieldType::Time
-        | FieldType::Scalar(_) => "str".to_string(),
+        | FieldType::Scalar(_)
+        // A bit vector arrives as its text form, a run of '0'/'1' (#959).
+        | FieldType::BitVector => "str".to_string(),
         FieldType::Int => "int".to_string(),
         FieldType::Float => "float".to_string(),
         FieldType::Boolean => "bool".to_string(),

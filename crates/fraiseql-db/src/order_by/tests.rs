@@ -183,3 +183,75 @@ fn test_render_order_by_columns_invalid_field_name() {
     )];
     assert!(render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL).is_err());
 }
+
+// ── vector-distance ORDER BY (#386, #959) ────────────────────────────────
+
+fn vector_order(operator: &str, literal: &str, kind: VectorOperandKind) -> OrderByClause {
+    let mut clause = OrderByClause::new("embedding".to_string(), OrderDirection::Asc);
+    clause.native_column = Some("\"embedding\"".to_string());
+    clause.vector = Some(crate::types::sql_hints::VectorDistanceOrder {
+        operator: operator.to_string(),
+        query_vector: literal.to_string(),
+        kind,
+    });
+    clause
+}
+
+#[test]
+fn float_vector_order_casts_to_vector() {
+    let cols = render_order_by_columns(
+        Some(&[vector_order("<=>", "[1,0,0.5]", VectorOperandKind::Float)]),
+        DatabaseType::PostgreSQL,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(cols, "\"embedding\" <=> '[1,0,0.5]'::vector ASC");
+}
+
+/// `varbit`, never `bit`: `'1011'::bit` is `bit(1)`, which silently reduces
+/// every comparison to the first bit — an ordering that looks plausible and is
+/// wrong.
+#[test]
+fn bit_vector_order_casts_to_varbit() {
+    for (op, expected) in [("<~>", "<~>"), ("<%>", "<%>")] {
+        let cols = render_order_by_columns(
+            Some(&[vector_order(op, "1011", VectorOperandKind::Bit)]),
+            DatabaseType::PostgreSQL,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(cols, format!("\"embedding\" {expected} '1011'::varbit ASC"));
+    }
+}
+
+/// The operator is validated against the operand kind, not just against a list
+/// of known operators: `<~>` over a `::vector` cast is an operator PostgreSQL
+/// has no candidate for.
+#[test]
+fn a_vector_operator_of_the_other_kind_is_refused() {
+    for (op, literal, kind) in [
+        ("<~>", "[1,0]", VectorOperandKind::Float),
+        ("<=>", "1011", VectorOperandKind::Bit),
+    ] {
+        let err = render_order_by_columns(
+            Some(&[vector_order(op, literal, kind)]),
+            DatabaseType::PostgreSQL,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("unsupported vector distance operator"), "got: {err}");
+    }
+}
+
+#[test]
+fn a_malformed_bit_literal_is_refused() {
+    for literal in ["10x1", "", "[1,0]"] {
+        let err = render_order_by_columns(
+            Some(&[vector_order("<~>", literal, VectorOperandKind::Bit)]),
+            DatabaseType::PostgreSQL,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("malformed vector literal"), "got for {literal:?}: {err}");
+    }
+}

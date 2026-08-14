@@ -328,19 +328,43 @@ Inner product similarity (note: uses `>` not `<`).
 
 ---
 
-### JaccardDistance
+### HammingDistance
 
-**PostgreSQL SQL**: `jaccard_distance(field::text[], set::text[]) < threshold`
+**PostgreSQL SQL**: `(field::varbit <~> bits::varbit) < threshold`
 
-Set similarity using Jaccard index.
+Number of differing bits between two **binary** (`bit`) vectors.
 
-**Use Case**: Find similar sets of tags or categories.
+**Use Case**: Search binary-quantized embeddings
+(`binary_quantize(embedding)::bit(768)`), image fingerprints, feature flags.
 
 ```rust
-.where_sql("jaccard_distance((data->'tags')::text[], ARRAY['a', 'b', 'c']) < 0.4")
+.where_sql("((data->>'fingerprint')::varbit <~> '11110000'::varbit) < 3")
 ```
 
-**Thresholds**: 0 = identical, 1 = completely different
+**Thresholds**: a count of bits; 0 = identical.
+
+Cast to `varbit`, never to `bit`: `'1011'::bit` is `bit(1)`, so a length-less
+cast compares the first bit of each side and reports 0 for every row that
+starts the same way.
+
+---
+
+### JaccardDistance
+
+**PostgreSQL SQL**: `(field::varbit <%> bits::varbit) < threshold`
+
+`1 - |intersection| / |union|` over the set bits of two **binary** (`bit`)
+vectors — pgvector's `<%>` is a bit-vector operator, not a set-overlap operator
+over text arrays.
+
+**Use Case**: Sparse binary fingerprints, where a near-match with few bits set
+should beat a dense one that differs in the same number of positions.
+
+```rust
+.where_sql("((data->>'fingerprint')::varbit <%> '11110000'::varbit) < 0.4")
+```
+
+**Thresholds**: 0 = identical, 1 = no shared set bits
 
 ---
 

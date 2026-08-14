@@ -482,33 +482,37 @@ pub fn generate_where_operator_sql(
             ))
         }
 
+        // Both binary-vector operators cast to `varbit`, never to `bit`:
+        // `'1011'::bit` is `bit(1)`, so a length-less cast compares the first
+        // bit of each side and answers 0 for every row that starts the same
+        // way. `varbit` keeps each operand's own width, and pgvector then
+        // refuses a disagreement with `different bit lengths`.
         WhereOperator::HammingDistance {
             field,
-            vector,
+            bits,
             threshold,
         } => {
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            params.insert(param_num, Value::FloatArray(vector.clone()));
+            params.insert(param_num, Value::String(bits.clone()));
             Ok(format!(
-                "hamming_distance({}::bit, ${}::bit) < {}",
+                "({}::varbit <~> ${}::varbit) < {}",
                 field_sql, param_num, threshold
             ))
         }
 
         WhereOperator::JaccardDistance {
             field,
-            set,
+            bits,
             threshold,
         } => {
             let field_sql = field.to_sql();
             let param_num = *param_index + 1;
             *param_index += 1;
-            let value_array: Vec<Value> = set.iter().map(|s| Value::String(s.clone())).collect();
-            params.insert(param_num, Value::Array(value_array));
+            params.insert(param_num, Value::String(bits.clone()));
             Ok(format!(
-                "jaccard_distance({}::text[], ${}::text[]) < {}",
+                "({}::varbit <%> ${}::varbit) < {}",
                 field_sql, param_num, threshold
             ))
         }

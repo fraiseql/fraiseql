@@ -110,7 +110,9 @@ pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnTy
         FieldType::Json => Some(RowViewColumnType::Json),
         // Enums map to text (their string representation).
         FieldType::Enum(_) => Some(RowViewColumnType::Text),
-        // Non-scalar types: List, Object, Interface, Union, Vector
+        // Types with no columnar representation: List, Object, Interface,
+        // Union, Vector, BitVector — the vector kinds are searched, not
+        // projected into the columnar view.
         _ => None,
     }
 }

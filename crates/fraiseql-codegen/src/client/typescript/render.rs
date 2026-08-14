@@ -35,7 +35,9 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
         | FieldType::DateTime
         | FieldType::Date
         | FieldType::Time
-        | FieldType::Scalar(_) => "string".to_string(),
+        | FieldType::Scalar(_)
+        // A bit vector arrives as its text form, a run of '0'/'1' (#959).
+        | FieldType::BitVector => "string".to_string(),
         FieldType::Int | FieldType::Float => "number".to_string(),
         FieldType::Boolean => "boolean".to_string(),
         FieldType::Vector => "number[]".to_string(),

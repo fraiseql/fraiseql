@@ -31,6 +31,8 @@ pub(super) fn field_type_to_json_schema(ft: &FieldType) -> Value {
         FieldType::Json => json!({ "type": "object" }),
         FieldType::Decimal => json!({ "type": "string", "format": "decimal" }),
         FieldType::Vector => json!({ "type": "array", "items": { "type": "number" } }),
+        // A bit vector is the text form of a `bit(N)` value (#959).
+        FieldType::BitVector => json!({ "type": "string", "pattern": "^[01]+$" }),
         FieldType::Scalar(name) => scalar_to_json_schema(name),
         FieldType::List(inner) => {
             json!({ "type": "array", "items": field_type_to_json_schema(inner) })

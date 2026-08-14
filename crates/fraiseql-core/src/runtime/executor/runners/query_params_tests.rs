@@ -481,3 +481,143 @@ fn nearest_field_naming_a_non_vector_field_is_refused() {
         "the refusal must name the real candidates; got: {err}"
     );
 }
+
+// ── binary (bit) vector `nearest` (#959) ────────────────────────────────────
+
+/// A type carrying one float and one binary vector — the shape a row takes once
+/// it stores both an embedding and its binary quantization.
+fn bit_vector_schema() -> crate::schema::CompiledSchema {
+    use crate::schema::{
+        CompiledSchema, DistanceMetric, FieldDefinition, FieldType, TypeDefinition, VectorConfig,
+    };
+    let mut schema = CompiledSchema::new();
+    let mut doc = TypeDefinition::new("Doc", "v_doc");
+    doc.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("embedding", FieldType::Vector)
+            .with_vector_config(VectorConfig::new(3)),
+        FieldDefinition::bit_vector(
+            "fingerprint",
+            VectorConfig {
+                distance_metric: DistanceMetric::Hamming,
+                ..VectorConfig::binary(4)
+            },
+        ),
+    ];
+    schema.types.push(doc);
+    schema.build_indexes();
+    schema
+}
+
+#[test]
+fn nearest_on_a_bit_vector_lowers_to_a_bit_literal_and_operator() {
+    let (clause, k) = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": "1011", "k": 5, "field": "fingerprint"}
+        })),
+        &bit_vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap()
+    .expect("plan");
+
+    assert_eq!(k, 5);
+    assert_eq!(clause.native_column.as_deref(), Some("\"fingerprint\""));
+    let vector = clause.vector.expect("vector operand");
+    assert_eq!(vector.operator, "<~>", "defaults to the field's declared hamming metric");
+    assert_eq!(vector.query_vector, "1011", "the literal is the bit string, with no brackets");
+    assert_eq!(
+        vector.kind,
+        crate::db::VectorOperandKind::Bit,
+        "the kind is what makes the ORDER BY cast `::varbit` rather than `::vector`"
+    );
+}
+
+#[test]
+fn nearest_metric_override_selects_jaccard_on_a_bit_vector() {
+    let (clause, _) = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": "1011", "k": 2, "field": "fingerprint", "metric": "jaccard"}
+        })),
+        &bit_vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap()
+    .expect("plan");
+    assert_eq!(clause.vector.expect("vector operand").operator, "<%>");
+}
+
+/// A `bit(N)` cast pads a short operand and truncates a long one, both without
+/// complaint, so this check is the only thing that stops a 2-bit query from
+/// searching `1000` and reporting it as a match for `10`.
+#[test]
+fn nearest_bit_width_mismatch_is_refused() {
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": "10", "k": 2, "field": "fingerprint"}
+        })),
+        &bit_vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("2 bits") && err.contains("4 dimensions"), "got: {err}");
+}
+
+#[test]
+fn nearest_bit_operand_must_be_a_string_of_zeroes_and_ones() {
+    let schema = bit_vector_schema();
+    let q = list_query_def();
+    for (operand, needle) in [
+        (serde_json::json!([1, 0, 1, 1]), "not an array"),
+        (serde_json::json!("1021"), "only '0' and '1'"),
+    ] {
+        let err = nearest_order_and_limit(
+            &args(&serde_json::json!({
+                "nearest": {"vector": operand, "k": 2, "field": "fingerprint"}
+            })),
+            &schema,
+            &q,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains(needle), "expected '{needle}' in: {err}");
+    }
+}
+
+/// Neither metric family may be applied to the other kind of vector: pgvector
+/// defines `<~>` over `bit` and `<=>` over `vector`, and nothing over the cross
+/// pairing.
+#[test]
+fn a_metric_of_the_other_vector_kind_is_refused() {
+    let schema = bit_vector_schema();
+    let q = list_query_def();
+
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": "1011", "k": 2, "field": "fingerprint", "metric": "cosine"}
+        })),
+        &schema,
+        &q,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("float vectors") && err.contains("hamming or jaccard"),
+        "got: {err}"
+    );
+
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": [1, 2, 3], "k": 2, "field": "embedding", "metric": "hamming"}
+        })),
+        &schema,
+        &q,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("binary (bit) vectors") && err.contains("cosine, l2 or inner_product"),
+        "got: {err}"
+    );
+}

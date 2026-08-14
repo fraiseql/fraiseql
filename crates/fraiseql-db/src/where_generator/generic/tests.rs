@@ -206,17 +206,42 @@ fn generic_pg_vector_operator_refuses_the_old_bare_array_shape() {
 }
 
 #[test]
-fn generic_pg_hamming_and_jaccard_are_loudly_unsupported() {
+fn generic_pg_binary_vector_threshold_predicates_exact_sql() {
+    // #959: `varbit`, not `bit`. `'1011'::bit` is `bit(1)`, so the length-less
+    // cast would compare one bit per side and answer 0 for every row starting
+    // the same way — a wrong answer, not an error.
     let gen = GenericWhereGenerator::new(PostgresDialect);
-    for op in [
-        WhereOperator::HammingDistance,
-        WhereOperator::JaccardDistance,
+    for (op, sql_op) in [
+        (WhereOperator::HammingDistance, "<~>"),
+        (WhereOperator::JaccardDistance, "<%>"),
     ] {
-        let clause = field("embedding", op, json!({"vector": [1.0], "threshold": 1.0}));
+        let clause = field("fingerprint", op, json!({"vector": "1011", "threshold": 2.0}));
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            format!(
+                "((data->>'fingerprint')::varbit {sql_op} $1::text::varbit) <= \
+                 $2::text::float8"
+            )
+        );
+        assert_eq!(params[0], json!("1011"), "the query bits bind as a text literal");
+        assert_eq!(params[1], json!(2.0));
+    }
+}
+
+#[test]
+fn generic_pg_binary_vector_operand_rejects_non_bit_characters() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for operand in [
+        json!({"vector": "10x1", "threshold": 1.0}),
+        json!({"vector": "", "threshold": 1.0}),
+        json!({"vector": [1, 0, 1], "threshold": 1.0}),
+    ] {
+        let clause = field("fingerprint", WhereOperator::HammingDistance, operand.clone());
         let err = gen.generate(&clause).unwrap_err().to_string();
         assert!(
-            err.contains("binary") && err.contains("nearest"),
-            "the refusal names the reason and the alternatives: {err}"
+            err.contains("'0' and '1'") || err.contains("binary vector operators take"),
+            "expected a shape refusal for {operand}: {err}"
         );
     }
 }
