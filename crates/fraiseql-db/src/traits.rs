@@ -1404,8 +1404,9 @@ pub fn build_row_query_sql(
 
 /// Decode one JSON-shaped row into the declared column order.
 ///
-/// A column the row does not carry decodes to [`ColumnValue::Null`] rather than
-/// shortening the row: the transport encodes positionally against `columns`.
+/// A column the row does not carry decodes to [`crate::types::ColumnValue::Null`]
+/// rather than shortening the row: the transport encodes positionally against
+/// `columns`.
 #[must_use]
 pub fn row_to_column_values<S: std::hash::BuildHasher>(
     row: &std::collections::HashMap<String, serde_json::Value, S>,

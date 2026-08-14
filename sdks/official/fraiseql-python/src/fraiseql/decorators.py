@@ -86,6 +86,40 @@ def _validate_inject(
             raise ValueError(msg)
 
 
+def _validate_rest_stream(
+    cfg: dict,
+    signature: dict,
+    context: str,
+) -> None:
+    """Validate ``rest_stream`` in *cfg* against the query's return shape (#958).
+
+    The streaming REST representations (NDJSON, CSV, XLSX) deliver a sequence of
+    rows; a single-item query has no sequence. The compiler refuses this too, but
+    the decorator is where the author is standing.
+
+    Args:
+        cfg: Config dict that may contain ``rest_stream``.
+        signature: The extracted function signature, for the return shape.
+        context: Prefix for error messages, e.g. ``"@fraiseql.query on 'users'"``.
+
+    Raises:
+        TypeError: If ``rest_stream`` is not a bool.
+        ValueError: If ``rest_stream`` is True on a query that does not return a list.
+    """
+    rest_stream = cfg.get("rest_stream")
+    if rest_stream is None:
+        return
+    if not isinstance(rest_stream, bool):
+        msg = f"{context}: rest_stream must be a bool (got {rest_stream.__class__.__name__!r})."
+        raise TypeError(msg)
+    if rest_stream and not signature["return_type"]["is_list"]:
+        msg = (
+            f"{context}: rest_stream=True requires a list-returning query — the "
+            "streaming representations deliver a sequence of rows."
+        )
+        raise ValueError(msg)
+
+
 def _validate_rest_annotations(
     cfg: dict[str, Any],
     context: str,
@@ -726,24 +760,7 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                     )
                     raise ValueError(msg)
 
-        # rest_stream validation — fail fast at authoring time (#958).
-        # The streaming representations (NDJSON, CSV, XLSX) deliver a sequence of
-        # rows; a single-item query has no sequence. The compiler refuses this too,
-        # but the decorator is where the author is standing.
-        if (rest_stream := cfg.get("rest_stream")) is not None:
-            if not isinstance(rest_stream, bool):
-                msg = (
-                    f"@fraiseql.query rest_stream= on {f.__name__!r} must be a bool "
-                    f"(got {rest_stream.__class__.__name__!r})."
-                )
-                raise TypeError(msg)
-            if rest_stream and not signature["return_type"]["is_list"]:
-                msg = (
-                    f"@fraiseql.query rest_stream=True on {f.__name__!r} requires a "
-                    "list-returning query: the streaming representations deliver a "
-                    "sequence of rows."
-                )
-                raise ValueError(msg)
+        _validate_rest_stream(cfg, signature, f"@fraiseql.query on {f.__name__!r}")
 
         # deprecated= → deprecation={reason: ...}
         if "deprecated" in cfg:
