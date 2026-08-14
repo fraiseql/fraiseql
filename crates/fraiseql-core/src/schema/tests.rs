@@ -598,28 +598,83 @@ fn test_distance_metric_operators() {
 
 #[test]
 fn test_distance_metric_ops_classes() {
-    assert_eq!(DistanceMetric::Cosine.hnsw_ops_class(), "vector_cosine_ops");
-    assert_eq!(DistanceMetric::L2.hnsw_ops_class(), "vector_l2_ops");
-    assert_eq!(DistanceMetric::InnerProduct.hnsw_ops_class(), "vector_ip_ops");
+    for (metric, ops) in [
+        (DistanceMetric::Cosine, "vector_cosine_ops"),
+        (DistanceMetric::L2, "vector_l2_ops"),
+        (DistanceMetric::InnerProduct, "vector_ip_ops"),
+    ] {
+        assert_eq!(VectorIndexType::Hnsw.ops_class(&FieldType::Vector, metric).unwrap(), Some(ops));
+    }
+}
+
+/// The operator class is named after the field type as well as the metric, and
+/// the combinations that exist are the ones in `pg_opclass` on the rig — not
+/// every product of the two.
+#[test]
+fn ops_classes_are_named_after_the_field_type() {
+    for (field_type, metric, index, expected) in [
+        (
+            FieldType::HalfVector,
+            DistanceMetric::Cosine,
+            VectorIndexType::Hnsw,
+            Some("halfvec_cosine_ops"),
+        ),
+        (
+            FieldType::HalfVector,
+            DistanceMetric::L2,
+            VectorIndexType::IvfFlat,
+            Some("halfvec_l2_ops"),
+        ),
+        (
+            FieldType::SparseVector,
+            DistanceMetric::InnerProduct,
+            VectorIndexType::Hnsw,
+            Some("sparsevec_ip_ops"),
+        ),
+        (
+            FieldType::BitVector,
+            DistanceMetric::Hamming,
+            VectorIndexType::IvfFlat,
+            Some("bit_hamming_ops"),
+        ),
+        (FieldType::Vector, DistanceMetric::Cosine, VectorIndexType::None, None),
+    ] {
+        assert_eq!(
+            index.ops_class(&field_type, metric).unwrap(),
+            expected,
+            "{field_type:?} / {metric:?} / {index:?}"
+        );
+    }
+
+    // pgvector 0.8 ships no ivfflat operator class for a sparse vector at all.
+    let err = VectorIndexType::IvfFlat
+        .ops_class(&FieldType::SparseVector, DistanceMetric::L2)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("no ivfflat operator class"), "got: {err}");
 }
 
 #[test]
 fn test_vector_index_sql() {
     let hnsw_sql = VectorIndexType::Hnsw
-        .index_sql("documents", "embedding", DistanceMetric::Cosine)
+        .index_sql("documents", "embedding", &FieldType::Vector, DistanceMetric::Cosine)
         .unwrap();
     assert_eq!(
         hnsw_sql,
         Some("CREATE INDEX ON documents USING hnsw (embedding vector_cosine_ops)".to_string())
     );
 
-    let ivf_sql = VectorIndexType::IvfFlat.index_sql("docs", "vec", DistanceMetric::L2).unwrap();
+    let ivf_sql = VectorIndexType::IvfFlat
+        .index_sql("docs", "vec", &FieldType::Vector, DistanceMetric::L2)
+        .unwrap();
     assert_eq!(
         ivf_sql,
         Some("CREATE INDEX ON docs USING ivfflat (vec vector_l2_ops)".to_string())
     );
 
-    let none_sql = VectorIndexType::None.index_sql("t", "c", DistanceMetric::Cosine).unwrap();
+    let none_sql = VectorIndexType::None
+        .index_sql("t", "c", &FieldType::Vector, DistanceMetric::Cosine)
+        .unwrap();
     assert_eq!(none_sql, None);
 }
 
@@ -679,8 +734,15 @@ fn bit_vector_is_a_scalar_string_in_graphql() {
 fn binary_metrics_carry_the_bit_operators_and_ops_classes() {
     assert_eq!(DistanceMetric::Hamming.operator(), "<~>");
     assert_eq!(DistanceMetric::Jaccard.operator(), "<%>");
-    assert_eq!(DistanceMetric::Hamming.hnsw_ops_class(), "bit_hamming_ops");
-    assert_eq!(DistanceMetric::Jaccard.hnsw_ops_class(), "bit_jaccard_ops");
+    for (metric, ops) in [
+        (DistanceMetric::Hamming, "bit_hamming_ops"),
+        (DistanceMetric::Jaccard, "bit_jaccard_ops"),
+    ] {
+        assert_eq!(
+            VectorIndexType::Hnsw.ops_class(&FieldType::BitVector, metric).unwrap(),
+            Some(ops)
+        );
+    }
     assert!(DistanceMetric::Hamming.is_binary() && DistanceMetric::Jaccard.is_binary());
     assert!(!DistanceMetric::Cosine.is_binary());
 }
@@ -689,17 +751,21 @@ fn binary_metrics_carry_the_bit_operators_and_ops_classes() {
 /// `pg_opclass` on the pgvector/pgvector:pg16 rig.
 #[test]
 fn ivfflat_has_no_jaccard_operator_class() {
-    assert_eq!(DistanceMetric::Hamming.ivfflat_ops_class(), Some("bit_hamming_ops"));
-    assert_eq!(DistanceMetric::Jaccard.ivfflat_ops_class(), None);
+    assert_eq!(
+        VectorIndexType::IvfFlat
+            .ops_class(&FieldType::BitVector, DistanceMetric::Hamming)
+            .unwrap(),
+        Some("bit_hamming_ops")
+    );
 
     let err = VectorIndexType::IvfFlat
-        .index_sql("tb_doc", "fingerprint", DistanceMetric::Jaccard)
+        .index_sql("tb_doc", "fingerprint", &FieldType::BitVector, DistanceMetric::Jaccard)
         .unwrap_err()
         .to_string();
     assert!(err.contains("no ivfflat operator class") && err.contains("hnsw"), "got: {err}");
 
     let hnsw = VectorIndexType::Hnsw
-        .index_sql("tb_doc", "fingerprint", DistanceMetric::Jaccard)
+        .index_sql("tb_doc", "fingerprint", &FieldType::BitVector, DistanceMetric::Jaccard)
         .unwrap();
     assert_eq!(
         hnsw,

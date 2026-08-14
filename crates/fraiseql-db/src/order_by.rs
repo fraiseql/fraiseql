@@ -152,13 +152,11 @@ pub fn vector_distance_expr(
     }
     validate_vector_operator(&vector.operator, vector.kind)?;
     validate_vector_literal(&vector.query_vector, vector.kind)?;
-    let cast = match vector.kind {
-        VectorOperandKind::Bit => "varbit",
-        _ => "vector",
-    };
     Ok(Some(ComputedExpr::from_validated_parts(format!(
-        "{col} {} '{}'::{cast}",
-        vector.operator, vector.query_vector
+        "{col} {} '{}'::{}",
+        vector.operator,
+        vector.query_vector,
+        vector.kind.cast()
     ))))
 }
 
@@ -192,6 +190,15 @@ fn validate_vector_literal(literal: &str, kind: VectorOperandKind) -> crate::Res
         VectorOperandKind::Bit => {
             !literal.is_empty() && literal.chars().all(|c| matches!(c, '0' | '1'))
         },
+        // `{1:0.5,7:0.25}/1000` — index:value pairs and the dimension count.
+        VectorOperandKind::Sparse => {
+            literal.starts_with('{')
+                && literal.contains("}/")
+                && literal.chars().all(|c| {
+                    c.is_ascii_digit()
+                        || matches!(c, '{' | '}' | '/' | ':' | ',' | '.' | '-' | '+' | 'e' | 'E')
+                })
+        },
         _ => {
             literal.starts_with('[')
                 && literal.ends_with(']')
@@ -205,7 +212,8 @@ fn validate_vector_literal(literal: &str, kind: VectorOperandKind) -> crate::Res
     } else {
         Err(fraiseql_error::FraiseQLError::validation(
             "malformed vector literal in ORDER BY (expected a pgvector text literal built \
-             from numeric values, or a non-empty run of 0/1 bits)",
+             from numeric values, a non-empty run of 0/1 bits, or a sparse \
+             '{index:value,…}/dimensions' literal)",
         ))
     }
 }

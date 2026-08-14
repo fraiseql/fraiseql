@@ -126,7 +126,7 @@ impl VectorConfig {
             return Err(FraiseQLError::validation("vector_config.dimensions must be at least 1"));
         }
         match (field_type, self.distance_metric.is_binary()) {
-            (FieldType::Vector, true) => {
+            (ft, true) if ft.is_vector() => {
                 return Err(FraiseQLError::validation(format!(
                     "distance_metric '{}' operates on binary (bit) vectors; declare the field \
                      as BitVector, or use cosine / l2 / inner_product",
@@ -140,15 +140,15 @@ impl VectorConfig {
                     self.distance_metric.name()
                 )));
             },
-            (FieldType::Vector | FieldType::BitVector, _) => {},
+            (ft, _) if ft.is_searchable_vector() => {},
             (other, _) => {
                 return Err(FraiseQLError::validation(format!(
                     "vector_config is meaningless on a '{other}' field; declare the field as \
-                     Vector or BitVector"
+                     Vector, HalfVector, SparseVector or BitVector"
                 )));
             },
         }
-        self.index_type.ops_class(self.distance_metric).map(|_| ())
+        self.index_type.ops_class(field_type, self.distance_metric).map(|_| ())
     }
 }
 
@@ -184,26 +184,54 @@ pub enum VectorIndexType {
 }
 
 impl VectorIndexType {
-    /// The pgvector operator class this index uses for `distance_metric`.
+    /// The pgvector operator class this index uses for a field type and metric.
+    ///
+    /// The class is named after **both** — `vector_cosine_ops`,
+    /// `halfvec_cosine_ops`, `sparsevec_cosine_ops`, `bit_hamming_ops` — and not
+    /// every combination exists. Verified against `pg_opclass` on
+    /// pgvector 0.8.6: `ivfflat` has no `sparsevec_*` class at all, no
+    /// `halfvec_l1_ops`, and no `bit_jaccard_ops`.
     ///
     /// # Errors
     ///
     /// Returns [`FraiseQLError::Validation`] when pgvector defines no operator
-    /// class for the pair — `ivfflat` + `jaccard` is the only one (pgvector 0.8
-    /// ships `bit_jaccard_ops` for `hnsw` alone), and emitting its DDL anyway
-    /// produces a `CREATE INDEX` the server refuses at migration time.
-    pub fn ops_class(self, distance_metric: DistanceMetric) -> Result<Option<&'static str>> {
-        match self {
-            Self::Hnsw => Ok(Some(distance_metric.hnsw_ops_class())),
-            Self::IvfFlat => distance_metric.ivfflat_ops_class().map(Some).ok_or_else(|| {
-                FraiseQLError::validation(format!(
-                    "pgvector has no ivfflat operator class for the '{}' metric; use \
-                     index_type = \"hnsw\", or \"none\" for exact search",
-                    distance_metric.name()
-                ))
-            }),
-            Self::None => Ok(None),
-        }
+    /// class for the combination. Emitting the DDL anyway produces a
+    /// `CREATE INDEX` the server refuses at migration time, on a schema that
+    /// compiled.
+    pub fn ops_class(
+        self,
+        field_type: &FieldType,
+        distance_metric: DistanceMetric,
+    ) -> Result<Option<&'static str>> {
+        let method = match self {
+            Self::None => return Ok(None),
+            Self::Hnsw => "hnsw",
+            Self::IvfFlat => "ivfflat",
+        };
+        let unsupported = || {
+            FraiseQLError::validation(format!(
+                "pgvector has no {method} operator class for a {field_type} field searched \
+                 by '{}'; use index_type = \"hnsw\", or \"none\" for exact search",
+                distance_metric.name()
+            ))
+        };
+        let ops = match (field_type, distance_metric, self) {
+            (FieldType::Vector, DistanceMetric::Cosine, _) => "vector_cosine_ops",
+            (FieldType::Vector, DistanceMetric::L2, _) => "vector_l2_ops",
+            (FieldType::Vector, DistanceMetric::InnerProduct, _) => "vector_ip_ops",
+            (FieldType::HalfVector, DistanceMetric::Cosine, _) => "halfvec_cosine_ops",
+            (FieldType::HalfVector, DistanceMetric::L2, _) => "halfvec_l2_ops",
+            (FieldType::HalfVector, DistanceMetric::InnerProduct, _) => "halfvec_ip_ops",
+            (FieldType::SparseVector, DistanceMetric::Cosine, Self::Hnsw) => "sparsevec_cosine_ops",
+            (FieldType::SparseVector, DistanceMetric::L2, Self::Hnsw) => "sparsevec_l2_ops",
+            (FieldType::SparseVector, DistanceMetric::InnerProduct, Self::Hnsw) => {
+                "sparsevec_ip_ops"
+            },
+            (FieldType::BitVector, DistanceMetric::Hamming, _) => "bit_hamming_ops",
+            (FieldType::BitVector, DistanceMetric::Jaccard, Self::Hnsw) => "bit_jaccard_ops",
+            _ => return Err(unsupported()),
+        };
+        Ok(Some(ops))
     }
 
     /// Get the pgvector index creation SQL.
@@ -214,14 +242,16 @@ impl VectorIndexType {
     /// # Errors
     ///
     /// Returns [`FraiseQLError::Validation`] when the index type has no
-    /// operator class for `distance_metric` (see [`Self::ops_class`]).
+    /// operator class for the field type and metric (see [`Self::ops_class`]).
     pub fn index_sql(
         self,
         table: &str,
         column: &str,
+        field_type: &FieldType,
         distance_metric: DistanceMetric,
     ) -> Result<Option<String>> {
-        let (Some(method), Some(ops)) = (self.index_method(), self.ops_class(distance_metric)?)
+        let (Some(method), Some(ops)) =
+            (self.index_method(), self.ops_class(field_type, distance_metric)?)
         else {
             return Ok(None);
         };
@@ -308,34 +338,6 @@ impl DistanceMetric {
     #[must_use]
     pub const fn is_binary(&self) -> bool {
         matches!(self, Self::Hamming | Self::Jaccard)
-    }
-
-    /// Get the HNSW index operator class.
-    #[must_use]
-    pub const fn hnsw_ops_class(&self) -> &'static str {
-        match self {
-            Self::Cosine => "vector_cosine_ops",
-            Self::L2 => "vector_l2_ops",
-            Self::InnerProduct => "vector_ip_ops",
-            Self::Hamming => "bit_hamming_ops",
-            Self::Jaccard => "bit_jaccard_ops",
-        }
-    }
-
-    /// Get the `IVFFlat` index operator class, when pgvector defines one.
-    ///
-    /// `None` for [`Self::Jaccard`]: pgvector 0.8 ships `bit_jaccard_ops` for
-    /// `hnsw` only, so an `ivfflat` index over a jaccard-searched column is DDL
-    /// `CREATE INDEX` rejects.
-    #[must_use]
-    pub const fn ivfflat_ops_class(&self) -> Option<&'static str> {
-        match self {
-            Self::Cosine => Some("vector_cosine_ops"),
-            Self::L2 => Some("vector_l2_ops"),
-            Self::InnerProduct => Some("vector_ip_ops"),
-            Self::Hamming => Some("bit_hamming_ops"),
-            Self::Jaccard => None,
-        }
     }
 }
 
@@ -912,6 +914,23 @@ pub enum FieldType {
     /// over. This is what `binary_quantize(embedding)::bit(N)` produces.
     BitVector,
 
+    /// Half-precision float vector — pgvector's `halfvec(N)` (#959).
+    ///
+    /// The same `[Float!]!` surface and the same metrics as
+    /// [`Self::Vector`]; half the storage, and an HNSW index over it takes
+    /// half the memory. Precision is `f16`, so a component round-trips to
+    /// about three decimal digits.
+    HalfVector,
+
+    /// Sparse float vector — pgvector's `sparsevec(N)` (#959).
+    ///
+    /// Serialized as a `String` in pgvector's own text form,
+    /// `{1:0.5,7:0.25}/1000`: 1-based index/value pairs and the dimension
+    /// count. A dense `[Float!]` surface would defeat the point — a sparse
+    /// vector exists so that a 30-thousand-dimension bag of terms never has to
+    /// be written out in full.
+    SparseVector,
+
     // ===== Rich/Custom Scalar Types =====
     /// Named scalar type (rich scalars like Email, URL, IBAN, or custom user-defined).
     ///
@@ -962,14 +981,16 @@ impl FieldType {
                 | Self::Decimal
                 | Self::Vector
                 | Self::BitVector
+                | Self::HalfVector
+                | Self::SparseVector
                 | Self::Scalar(_)
         )
     }
 
-    /// Check if this is a float vector type.
+    /// Check if this is a float vector type — dense, half-precision or sparse.
     #[must_use]
     pub const fn is_vector(&self) -> bool {
-        matches!(self, Self::Vector)
+        matches!(self, Self::Vector | Self::HalfVector | Self::SparseVector)
     }
 
     /// Check if this is a binary (bit) vector type (#959).
@@ -978,11 +999,26 @@ impl FieldType {
         matches!(self, Self::BitVector)
     }
 
-    /// Check if this is a vector type of either kind — the fields `nearest`
-    /// and the pgvector WHERE operators can search.
+    /// Check if this is a vector type of any kind — the fields `nearest` and
+    /// the pgvector WHERE operators can search.
     #[must_use]
     pub const fn is_searchable_vector(&self) -> bool {
-        matches!(self, Self::Vector | Self::BitVector)
+        matches!(self, Self::Vector | Self::BitVector | Self::HalfVector | Self::SparseVector)
+    }
+
+    /// The pgvector type name this field is stored as, for the operator classes
+    /// and casts that are named after it (#959).
+    ///
+    /// `None` for anything that is not a vector.
+    #[must_use]
+    pub const fn pgvector_type(&self) -> Option<&'static str> {
+        match self {
+            Self::Vector => Some("vector"),
+            Self::HalfVector => Some("halfvec"),
+            Self::SparseVector => Some("sparsevec"),
+            Self::BitVector => Some("bit"),
+            _ => None,
+        }
     }
 
     /// Check if this is a list type.
@@ -1023,8 +1059,9 @@ impl FieldType {
     #[must_use]
     pub fn to_graphql_string(&self) -> String {
         match self {
-            // A bit vector is a run of `0`/`1` characters — `bit(N)`'s own text form.
-            Self::String | Self::BitVector => "String".to_string(),
+            // A bit vector is a run of `0`/`1` characters and a sparse vector is
+            // `{1:0.5,7:0.25}/1000` — each type's own text form.
+            Self::String | Self::BitVector | Self::SparseVector => "String".to_string(),
             Self::Int => "Int".to_string(),
             Self::Float => "Float".to_string(),
             Self::Boolean => "Boolean".to_string(),
@@ -1035,7 +1072,9 @@ impl FieldType {
             Self::Json => "JSON".to_string(),
             Self::Uuid => "UUID".to_string(),
             Self::Decimal => "Decimal".to_string(),
-            Self::Vector => "[Float!]!".to_string(), // Vectors are arrays of floats
+            // Vectors are arrays of floats; a half-precision one is the same
+            // surface with a smaller column behind it.
+            Self::Vector | Self::HalfVector => "[Float!]!".to_string(),
             Self::List(inner) => format!("[{}]", inner.to_graphql_string()),
             // Named types: scalars, objects, enums, inputs, interfaces, unions all use their name
             Self::Scalar(name)
@@ -1061,11 +1100,14 @@ impl FieldType {
             Self::Time => "TIME".to_string(),
             Self::Uuid => "UUID".to_string(),
             Self::Decimal => "NUMERIC".to_string(),
-            Self::Vector => {
+            Self::Vector | Self::HalfVector | Self::SparseVector => {
+                // Reason: the three arms are the same shape over a different
+                // type name, which `pgvector_type` already holds.
+                let name = self.pgvector_type().unwrap_or("vector");
                 if let Some(config) = vector_config {
-                    format!("vector({})", config.dimensions)
+                    format!("{name}({})", config.dimensions)
                 } else {
-                    "vector".to_string()
+                    name.to_string()
                 }
             },
             // `bit` without a length is `bit(1)` — a cast that silently keeps
@@ -1164,6 +1206,8 @@ impl FieldType {
             "decimal" | "numeric" | "bigdecimal" => Self::Decimal,
             "vector" => Self::Vector,
             "bitvector" | "bit_vector" => Self::BitVector,
+            "halfvector" | "half_vector" | "halfvec" => Self::HalfVector,
+            "sparsevector" | "sparse_vector" | "sparsevec" => Self::SparseVector,
             _ => {
                 // Check if it's a known rich scalar (case-insensitive)
                 if let Some(canonical_name) = Self::try_match_rich_scalar(s) {

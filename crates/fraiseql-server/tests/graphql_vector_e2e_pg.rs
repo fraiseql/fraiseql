@@ -75,14 +75,19 @@ async fn seed(adapter: &PostgresAdapter) {
         format!(
             "CREATE TABLE {SCHEMA}.tb_doc (id bigint PRIMARY KEY, title text NOT NULL, \
              embedding vector(3) NOT NULL, thumbnail vector(2) NOT NULL, \
-             fingerprint bit(8) NOT NULL)"
+             fingerprint bit(8) NOT NULL, compact halfvec(3) NOT NULL, \
+             terms sparsevec(5) NOT NULL)"
         ),
         format!(
             "INSERT INTO {SCHEMA}.tb_doc VALUES \
-             (1, 'exact',      '[1,0,0]',      '[4,0]', '11111111'), \
-             (2, 'longer',     '[5,0.01,0]',   '[3,0]', '11110000'), \
-             (3, 'shorter',    '[0.1,0.02,0]', '[2,0]', '00000011'), \
-             (4, 'orthogonal', '[0,1,0]',      '[1,0]', '10000000')"
+             (1, 'exact',      '[1,0,0]',      '[4,0]', '11111111', '[1,0,0]',      \
+              '{{1:1}}/5'), \
+             (2, 'longer',     '[5,0.01,0]',   '[3,0]', '11110000', '[5,0.01,0]',   \
+              '{{1:5,2:0.01}}/5'), \
+             (3, 'shorter',    '[0.1,0.02,0]', '[2,0]', '00000011', '[0.1,0.02,0]', \
+              '{{1:0.1,2:0.02}}/5'), \
+             (4, 'orthogonal', '[0,1,0]',      '[1,0]', '10000000', '[0,1,0]',      \
+              '{{2:1}}/5')"
         ),
         // The view exposes the vector BOTH ways deliberately: as a native
         // `embedding` column (the `nearest` storage contract — index-eligible)
@@ -91,8 +96,9 @@ async fn seed(adapter: &PostgresAdapter) {
         // binary vector (#959), follows the same contract.
         format!(
             "CREATE VIEW {SCHEMA}.v_doc AS SELECT id, jsonb_build_object('id', id, 'title', \
-             title, 'embedding', embedding::text, 'fingerprint', fingerprint::text) AS data, \
-             embedding, thumbnail, fingerprint FROM {SCHEMA}.tb_doc"
+             title, 'embedding', embedding::text, 'fingerprint', fingerprint::text, \
+             'compact', compact::text, 'terms', terms::text) AS data, \
+             embedding, thumbnail, fingerprint, compact, terms FROM {SCHEMA}.tb_doc"
         ),
     ];
     for stmt in stmts {
@@ -188,6 +194,31 @@ fn schema() -> CompiledSchema {
         query.auto_params.has_offset = true;
         schema.queries.push(query);
     }
+
+    // Half-precision and sparse vectors over the same four rows (#959). The
+    // components mirror `embedding`, so the expected orders are `Doc`'s — which
+    // is the point: these are the same search in a different storage type, and a
+    // cast that landed on the wrong one would not reproduce it.
+    let mut compact = TypeDefinition::new("CompactDoc", format!("{SCHEMA}.v_doc"));
+    compact.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("compact", FieldType::HalfVector)
+            .with_vector_config(VectorConfig::new(3)),
+        FieldDefinition::new("terms", FieldType::SparseVector).with_vector_config(VectorConfig {
+            dimensions: 5,
+            distance_metric: fraiseql_core::schema::DistanceMetric::L2,
+            ..VectorConfig::new(5)
+        }),
+        FieldDefinition::new("compactDistance", FieldType::Float).with_vector_distance("compact"),
+    ];
+    schema.types.push(compact);
+
+    let mut compact_docs = QueryDefinition::new("compactDocs", "CompactDoc")
+        .returning_list()
+        .with_sql_source(format!("{SCHEMA}.v_doc"));
+    compact_docs.auto_params.has_where = true;
+    compact_docs.auto_params.has_limit = true;
+    schema.queries.push(compact_docs);
 
     schema.build_indexes();
     schema
@@ -809,4 +840,95 @@ async fn a_distance_survives_the_full_row_path_a_gated_field_forces() {
     assert!(d.abs() < 1e-9, "and the distance is added to it, not instead of it: {resp}");
     let d1 = rows[1]["similarity"].as_f64().expect("similarity");
     assert!(d1 > 0.0 && d1 < 1e-5, "row 2's cosine distance is ~2e-6, got {d1}: {resp}");
+}
+
+// ── half-precision and sparse vectors (#959) ────────────────────────────────
+
+/// `nearest` on a `halfvec(N)` column: the same search, the same order, half the
+/// storage — and the distance it reports comes back too.
+#[tokio::test]
+async fn nearest_searches_a_half_precision_vector() {
+    if skip("nearest_halfvec") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r#"{ compactDocs(nearest: {vector: [1, 0, 0], k: 4, field: "compact"}) { id compactDistance } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "compactDocs"),
+        vec![1, 2, 3, 4],
+        "cosine order over halfvec matches the same vectors stored as `vector`: {resp}"
+    );
+    let d = resp["data"]["compactDocs"][0]["compactDistance"].as_f64().expect("distance");
+    assert!(d.abs() < 1e-6, "the exact match is at distance 0, got {d}: {resp}");
+}
+
+/// `nearest` on a `sparsevec(N)` column takes pgvector's sparse text form, and
+/// orders by the metric the field declares (L2 here).
+#[tokio::test]
+async fn nearest_searches_a_sparse_vector() {
+    if skip("nearest_sparsevec") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    // L2 distances from {1:1}/5: id1 = 0, id3 ≈ 0.9, id4 ≈ 1.41, id2 ≈ 4.0.
+    let q = r#"{ compactDocs(nearest: {vector: "{1:1}/5", k: 4, field: "terms"}) { id } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "compactDocs"),
+        vec![1, 3, 4, 2],
+        "the sparse column's declared L2 metric, not the cosine order: {resp}"
+    );
+}
+
+/// A sparse field refuses a dense array, and a dimension disagreement is named
+/// before it reaches the server.
+#[tokio::test]
+async fn a_sparse_vector_refuses_a_dense_operand_and_a_wrong_dimension() {
+    if skip("sparse_operand_shape") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let dense =
+        r#"{ compactDocs(nearest: {vector: [1, 0, 0, 0, 0], k: 2, field: "terms"}) { id } }"#;
+    let (_status, resp) = post_graphql(router.clone(), &json!({"query": dense})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("SparseVector") && msg.contains("not an array"),
+        "the refusal names the sparse form: {resp}"
+    );
+
+    let wrong = r#"{ compactDocs(nearest: {vector: "{1:1}/9", k: 2, field: "terms"}) { id } }"#;
+    let (_status, resp) = post_graphql(router.clone(), &json!({"query": wrong})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("9 dimensions") && msg.contains("5 dimensions"),
+        "the refusal names both dimension counts: {resp}"
+    );
+
+    let out_of_range =
+        r#"{ compactDocs(nearest: {vector: "{9:1}/5", k: 2, field: "terms"}) { id } }"#;
+    let (_status, resp) = post_graphql(router, &json!({"query": out_of_range})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(msg.contains("outside 1..=5"), "an index past the dimension count: {resp}");
+}
+
+/// A threshold filter over a sparse column: the operand's shape picks the cast,
+/// so `{…}/5` filters as a sparse vector instead of failing an input-syntax
+/// check against `::vector`.
+#[tokio::test]
+async fn a_sparse_threshold_filter_returns_the_rows_within_it() {
+    if skip("sparse_threshold") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    // L2 distances from {1:1}/5: id1 = 0, id3 ≈ 0.9, id4 ≈ 1.41, id2 ≈ 4.0.
+    let q = r#"{ compactDocs(where: {terms: {l2_distance: {vector: "{1:1}/5", threshold: 1.0}}}) { id } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    let mut got = ids_under(&resp, "compactDocs");
+    got.sort_unstable();
+    assert_eq!(got, vec![1, 3], "rows within L2 distance 1 of the query: {resp}");
 }

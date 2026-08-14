@@ -338,13 +338,28 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             )
         };
         let obj = value.as_object().ok_or_else(shape_err)?;
-        let vector =
-            obj.get("vector").and_then(serde_json::Value::as_array).ok_or_else(shape_err)?;
+        let operand = obj.get("vector").ok_or_else(shape_err)?;
         let threshold =
             obj.get("threshold").and_then(serde_json::Value::as_f64).ok_or_else(shape_err)?;
         if !threshold.is_finite() {
             return Err(FraiseQLError::validation("vector threshold must be a finite number"));
         }
+        // A sparse operand names itself: pgvector's `{1:0.5,7:0.25}/1000` text
+        // form is a string where a dense vector is an array, and casting it to
+        // `::vector` is an input-syntax error rather than a wrong answer. The
+        // shape of the operand picks the cast, exactly as it does for the
+        // binary operators (#959).
+        if let Some(sparse) = operand.as_str() {
+            return self.sparse_threshold_sql(
+                field_expr,
+                op,
+                sparse,
+                threshold,
+                params,
+                negate_threshold,
+            );
+        }
+        let vector = operand.as_array().ok_or_else(shape_err)?;
         if vector.is_empty() {
             return Err(FraiseQLError::validation("vector operand must not be empty"));
         }
@@ -379,6 +394,58 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         // `QueryParam::from`), so the placeholder must be inferred as text.
         Ok(format!(
             "(({field_expr})::vector {op} {vector_param}::text::vector) <= \
+             {threshold_param}::text::float8"
+        ))
+    }
+
+    /// Sparse-vector threshold predicate (#959):
+    /// `((expr)::sparsevec <=> $v::text::sparsevec) <= $t`.
+    ///
+    /// The operand is pgvector's own text form, `{index:value,…}/dimensions`
+    /// with 1-based indices. Its character set is re-validated here before it
+    /// binds, as it is for every other vector literal — it reaches the server as
+    /// a parameter, and the cast is what gives it a type.
+    ///
+    /// A dimension disagreement is `different sparsevec dimensions 5 and 4` from
+    /// the server, which is a refusal rather than a plausible number, so no
+    /// length check is needed on this path.
+    ///
+    /// `negate_threshold` carries the inner-product convention through
+    /// unchanged: pgvector's `<#>` returns the negated inner product on a sparse
+    /// vector exactly as it does on a dense one, so the bound value is negated
+    /// here too. Dropping it would make `inner_product` mean its own opposite on
+    /// this one operand shape.
+    #[allow(clippy::too_many_arguments)] // Reason: mirrors `vector_threshold_sql`'s operands
+    fn sparse_threshold_sql(
+        &self,
+        field_expr: &str,
+        op: &str,
+        sparse: &str,
+        threshold: f64,
+        params: &mut Vec<serde_json::Value>,
+        negate_threshold: bool,
+    ) -> Result<String> {
+        let valid = sparse.starts_with('{')
+            && sparse.contains("}/")
+            && sparse.chars().all(|c| {
+                c.is_ascii_digit()
+                    || matches!(c, '{' | '}' | '/' | ':' | ',' | '.' | '-' | '+' | 'e' | 'E')
+            });
+        if !valid {
+            return Err(FraiseQLError::validation(
+                "a sparse vector operand is pgvector's `{index:value,...}/dimensions` form — \
+                 e.g. {cosine_distance: {vector: \"{1:0.5,7:0.25}/1000\", threshold: 0.25}}",
+            ));
+        }
+        let vector_param = self.push_param(params, serde_json::Value::String(sparse.to_string()));
+        let bound = if negate_threshold {
+            -threshold
+        } else {
+            threshold
+        };
+        let threshold_param = self.push_param(params, serde_json::json!(bound));
+        Ok(format!(
+            "(({field_expr})::sparsevec {op} {vector_param}::text::sparsevec) <= \
              {threshold_param}::text::float8"
         ))
     }
