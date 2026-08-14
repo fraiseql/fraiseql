@@ -121,6 +121,9 @@ fn build_schema(require_auth: bool) -> CompiledSchema {
     let mut query = TestQueryBuilder::new("orders", "P03Order")
         .returns_list(true)
         .with_sql_source(VIEW)
+        // #958: the streaming representations are a per-route opt-in; these tests
+        // assert the tenant filter and the field gate reach them.
+        .rest_stream(true)
         .build();
     query
         .inject_params

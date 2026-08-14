@@ -77,6 +77,7 @@ impl SchemaExtractor for JavaExtractor {
                 relay_cursor_type: None,
                 // `extract` scans SDK source text; it does not parse REST annotations.
                 rest: None,
+                rest_stream: false,
             });
         }
 

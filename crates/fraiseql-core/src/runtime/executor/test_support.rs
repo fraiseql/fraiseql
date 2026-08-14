@@ -390,6 +390,7 @@ pub fn test_schema() -> CompiledSchema {
         requires_role:       None,
         rest_path:           None,
         rest_method:         None,
+        rest_stream:         false,
         native_columns:      HashMap::new(),
     });
     schema

@@ -482,6 +482,7 @@ fn test_validate_unknown_type_reference() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -570,6 +571,7 @@ fn test_convert_query_with_arguments() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -648,6 +650,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -727,6 +730,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -3322,6 +3326,7 @@ fn count_query(name: &str, tweak: impl FnOnce(&mut IntermediateQuery)) -> Interm
         requires_role:     None,
         relay_cursor_type: None,
         rest:              None,
+        rest_stream:       false,
     };
     tweak(&mut q);
     q

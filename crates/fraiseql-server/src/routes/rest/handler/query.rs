@@ -21,11 +21,58 @@ use crate::routes::rest::{
 };
 
 impl<A: DatabaseAdapter> RestHandler<'_, A> {
+    /// Resolve a GET request path for a **streaming representation**, refusing a
+    /// route that has not opted in (#958).
+    ///
+    /// The three export handlers (NDJSON, CSV, XLSX) resolve through here rather
+    /// than calling [`resolve_get_query`](Self::resolve_get_query) and checking the
+    /// flag themselves. That is the point: a fourth representation added later gets
+    /// the opt-in by using the only resolution function that fits it, instead of by
+    /// someone remembering.
+    ///
+    /// # Why the opt-in exists
+    ///
+    /// A streamed export is not a bigger page. It reads the whole filtered relation,
+    /// is not bounded by `max_page_size` (an export total is not a page), and holds
+    /// a pooled database connection until the client finishes reading. Those are the
+    /// properties a route meant to hand over a dataset should have and the ones most
+    /// routes should not, so the decision is the schema author's, per route.
+    ///
+    /// # Errors
+    ///
+    /// Returns `406 Not Acceptable` when the resolved query has `rest_stream = false`
+    /// — the representation the client asked for is one this route does not offer —
+    /// plus everything [`resolve_get_query`](Self::resolve_get_query) returns.
+    pub fn resolve_streaming_get_query(
+        &self,
+        relative_path: &str,
+        query_pairs: &[(&str, &str)],
+        headers: &http::HeaderMap,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<ResolvedGetQuery, RestError> {
+        let resolved =
+            self.resolve_get_query(relative_path, query_pairs, headers, security_context)?;
+
+        let streamable = self
+            .schema
+            .find_query(&resolved.query_name)
+            .is_some_and(|query_def| query_def.rest_stream);
+        if !streamable {
+            return Err(RestError::not_acceptable(format!(
+                "`{}` is not exported as a stream; set `rest_stream = true` on the query to \
+                 offer NDJSON, CSV and XLSX on this route",
+                resolved.query_name
+            )));
+        }
+
+        Ok(resolved)
+    }
+
     /// Resolve a GET request path into a prepared query match and extracted params.
     ///
-    /// Shared by `handle_get` (JSON envelope) and NDJSON streaming. Performs
-    /// route resolution, role checking, parameter extraction, and builds the
-    /// `QueryMatch` + variables.
+    /// Route resolution, role checking, parameter extraction, and the `QueryMatch`
+    /// with its variables. The streaming representations resolve through
+    /// [`resolve_streaming_get_query`](Self::resolve_streaming_get_query) instead.
     ///
     /// # Errors
     ///

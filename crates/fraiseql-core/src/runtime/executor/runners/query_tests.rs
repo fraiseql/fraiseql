@@ -56,6 +56,7 @@ mod sourceless {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         });
 
@@ -109,6 +110,7 @@ mod routing {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         });
 
@@ -152,6 +154,7 @@ mod auto_params {
             requires_role: None,
             rest_path: None,
             rest_method: None,
+            rest_stream: false,
             native_columns: HashMap::new(),
         });
         schema
@@ -330,6 +333,7 @@ mod rls_composition {
             requires_role: None,
             rest_path: None,
             rest_method: None,
+            rest_stream: false,
             native_columns: HashMap::new(),
         });
         schema
@@ -490,6 +494,7 @@ mod rls_composition {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      native_cols,
         });
         schema.types.push({
@@ -1146,6 +1151,7 @@ mod node_authz {
             requires_role: requires_role.map(str::to_string),
             rest_path: None,
             rest_method: None,
+            rest_stream: false,
             native_columns: HashMap::new(),
         });
         schema.types.push({
@@ -1325,6 +1331,7 @@ mod explicit_arg_recasing {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         });
         schema

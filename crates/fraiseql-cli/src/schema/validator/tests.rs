@@ -37,6 +37,7 @@ fn test_detect_unknown_return_type() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         ..Default::default()
     };
@@ -85,6 +86,7 @@ fn test_detect_duplicate_query_names() {
                 requires_role:     None,
                 relay_cursor_type: None,
                 rest:              None,
+                rest_stream:       false,
             },
             IntermediateQuery {
                 count:             false,
@@ -106,6 +108,7 @@ fn test_detect_duplicate_query_names() {
                 requires_role:     None,
                 relay_cursor_type: None,
                 rest:              None,
+                rest_stream:       false,
             },
         ],
         ..Default::default()
@@ -153,6 +156,7 @@ fn test_warning_for_query_without_sql_source() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         ..Default::default()
     };
@@ -399,6 +403,7 @@ fn test_query_injection_in_sql_source_rejected() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         ..Default::default()
     };
@@ -445,6 +450,7 @@ fn test_query_schema_qualified_sql_source_passes() {
             requires_role:     None,
             relay_cursor_type: None,
             rest:              None,
+            rest_stream:       false,
         }],
         ..Default::default()
     };

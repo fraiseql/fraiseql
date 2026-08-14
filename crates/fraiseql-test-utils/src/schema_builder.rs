@@ -200,6 +200,7 @@ pub struct TestQueryBuilder {
     relay:               bool,
     relay_cursor_column: Option<String>,
     relay_cursor_type:   CursorType,
+    rest_stream:         bool,
 }
 
 impl TestQueryBuilder {
@@ -222,6 +223,7 @@ impl TestQueryBuilder {
             relay:               false,
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
+            rest_stream:         false,
         }
     }
 
@@ -312,6 +314,13 @@ impl TestQueryBuilder {
         self
     }
 
+    /// Offer this query's rows over the REST streaming representations (#958).
+    #[must_use = "builder method returns modified builder"]
+    pub const fn rest_stream(mut self, flag: bool) -> Self {
+        self.rest_stream = flag;
+        self
+    }
+
     /// Build the `QueryDefinition`.
     ///
     /// Uses `QueryDefinition::new()` so new fields are picked up automatically.
@@ -327,6 +336,8 @@ impl TestQueryBuilder {
         if self.returns_list {
             q = q.returning_list();
         }
+
+        q.rest_stream = self.rest_stream;
 
         if let Some(role) = self.requires_role {
             q.requires_role = Some(role);

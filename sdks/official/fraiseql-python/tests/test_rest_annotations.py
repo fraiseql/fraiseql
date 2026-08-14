@@ -151,3 +151,41 @@ def test_mutation_rest_method_without_path_raises():
         @fraiseql.mutation(sql_source="fn_create_user", operation="CREATE", rest_method="POST")
         def create_user(name: str) -> "User":
             pass
+
+
+# -- `rest_stream` — the per-route streaming opt-in (#958) ---------------------
+
+
+def test_query_rest_stream_reaches_the_emitted_schema():
+    @fraiseql.query(sql_source="v_user", rest_stream=True)
+    def users() -> list["User"]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    assert schema["queries"][0]["rest_stream"] is True
+
+
+def test_query_without_rest_stream_does_not_opt_in():
+    @fraiseql.query(sql_source="v_user")
+    def users() -> list["User"]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    assert schema["queries"][0].get("rest_stream") is not True
+
+
+def test_rest_stream_on_a_single_item_query_is_refused():
+    """The streaming representations deliver a sequence of rows; this returns one."""
+    with pytest.raises(ValueError, match="list-returning"):
+
+        @fraiseql.query(sql_source="v_user", rest_stream=True)
+        def user() -> "User":
+            pass
+
+
+def test_rest_stream_must_be_a_bool():
+    with pytest.raises(TypeError, match="must be a bool"):
+
+        @fraiseql.query(sql_source="v_user", rest_stream="yes")
+        def users() -> list["User"]:
+            pass

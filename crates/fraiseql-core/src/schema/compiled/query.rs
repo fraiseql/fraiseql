@@ -220,6 +220,29 @@ pub struct QueryDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_method: Option<String>,
 
+    /// Whether this query may be exported as a stream over REST (#958).
+    ///
+    /// Default `false`. `Accept: application/x-ndjson`, `text/csv` and the XLSX type
+    /// are refused with `406` on a route that does not opt in — the JSON
+    /// representation is unaffected.
+    ///
+    /// # Why a per-route opt-in rather than a transport-wide switch
+    ///
+    /// A streamed export is not a bigger page. It reads the **whole** filtered
+    /// relation, bypasses `max_page_size` by construction (an export total is not a
+    /// page), and holds a pooled database connection for as long as the client takes
+    /// to read it. Those are reasonable properties for a route meant to hand over a
+    /// dataset and unreasonable ones for the other kind of route, which is most of
+    /// them — so which routes have them is the schema author's decision, made per
+    /// route, rather than a consequence of the REST transport being on.
+    ///
+    /// ```python
+    /// @fraiseql.query(sql_source="v_invoice", rest_stream=True)
+    /// def invoices() -> list[Invoice]: ...
+    /// ```
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rest_stream: bool,
+
     /// Native columns detected at compile time for direct query arguments.
     ///
     /// Maps argument name → PostgreSQL cast suffix (e.g., `"uuid"`, `"int4"`, `""`).
@@ -261,6 +284,7 @@ impl QueryDefinition {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         }
     }

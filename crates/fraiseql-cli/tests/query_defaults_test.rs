@@ -92,6 +92,7 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
         requires_role: None,
         relay_cursor_type: None,
         rest: None,
+        rest_stream: false,
     }
 }
 
@@ -116,6 +117,7 @@ fn single_query(name: &str) -> IntermediateQuery {
         requires_role:     None,
         relay_cursor_type: None,
         rest:              None,
+        rest_stream:       false,
     }
 }
 
@@ -140,6 +142,7 @@ fn relay_query(name: &str) -> IntermediateQuery {
         requires_role:     None,
         relay_cursor_type: None,
         rest:              None,
+        rest_stream:       false,
     }
 }
 
