@@ -250,7 +250,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                 &request_msg,
                 security_context.as_ref(),
                 batch_size,
-            );
+            )
+            .await;
 
             let body = http_body_util::StreamBody::new(body_stream);
             let mut response = http::Response::new(TonicBody::new(body));

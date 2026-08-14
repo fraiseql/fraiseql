@@ -174,6 +174,14 @@ use crate::{
 mod core;
 pub use core::Executor;
 
+/// Projected response rows delivered as the database produces them (#958).
+///
+/// What [`Executor::stream_query_direct`] returns: the same rows a buffered read
+/// of the same query would put inside its `data` envelope, one at a time and
+/// without the envelope, for a representation that has no end to wrap.
+pub type JsonRowStream =
+    std::pin::Pin<Box<dyn futures::Stream<Item = crate::error::Result<serde_json::Value>> + Send>>;
+
 mod execution;
 mod mutation;
 mod runners;

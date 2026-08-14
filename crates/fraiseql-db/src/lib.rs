@@ -85,9 +85,10 @@ pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{FieldKind, PostgresProjectionGenerator, ProjectionField};
 pub use traits::{
-    ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite, CursorValue, DatabaseAdapter,
-    DatabaseCapabilities, DirectMutationContext, DirectMutationOp, MutationStrategy,
-    ProjectionRequest, RelayDatabaseAdapter, RelayPageResult, ResultCacheStats, SupportsMutations,
+    ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite, ColumnRowStream, CursorValue,
+    DatabaseAdapter, DatabaseCapabilities, DirectMutationContext, DirectMutationOp, JsonbRowStream,
+    MutationStrategy, ProjectionRequest, RelayDatabaseAdapter, RelayPageResult, ResultCacheStats,
+    SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

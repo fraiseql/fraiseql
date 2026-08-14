@@ -24,7 +24,11 @@ use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
 use super::*;
-use crate::{WhereClause, WhereOperator, traits::DatabaseAdapter, types::DatabaseType};
+use crate::{
+    WhereClause, WhereOperator,
+    traits::{DatabaseAdapter, ProjectionRequest},
+    types::DatabaseType,
+};
 
 // Test DB URL from the `fraiseql_test_support` env-URL harness (`DATABASE_URL`), so this
 // suite runs against a Dagger-bound service (local == CI) instead of a hardcoded host.
@@ -714,12 +718,13 @@ async fn pool_prewarms_to_min_size() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      5,
-            max_size:      20,
-            timeout_secs:  None,
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: None,
+            min_size:            5,
+            max_size:            20,
+            timeout_secs:        None,
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: None,
         },
     )
     .await
@@ -738,12 +743,13 @@ async fn pool_prewarm_zero_min_size_creates_one_connection() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      10,
-            timeout_secs:  None,
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: None,
+            min_size:            0,
+            max_size:            10,
+            timeout_secs:        None,
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: None,
         },
     )
     .await
@@ -761,12 +767,13 @@ async fn pool_prewarm_min_capped_at_max() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      100,
-            max_size:      3,
-            timeout_secs:  None,
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: None,
+            min_size:            100,
+            max_size:            3,
+            timeout_secs:        None,
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: None,
         },
     )
     .await
@@ -785,12 +792,13 @@ async fn pool_timeout_causes_fast_failure_when_exhausted() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      1,
-            max_size:      1,
-            timeout_secs:  Some(1),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: None,
+            min_size:            1,
+            max_size:            1,
+            timeout_secs:        Some(1),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: None,
         },
     )
     .await
@@ -818,12 +826,13 @@ async fn acquire_does_not_retry_on_timeout_error() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      1,
-            max_size:      1,
-            timeout_secs:  Some(1),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: None,
+            min_size:            1,
+            max_size:            1,
+            timeout_secs:        Some(1),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: None,
         },
     )
     .await
@@ -1347,12 +1356,13 @@ async fn rr_adapter(
     PostgresAdapter::with_pool_config(
         primary_url,
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(10),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(10),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls: vec![replica_url.to_string()],
                 pin_after_write,
                 // No staleness budget: these tests assert *where* a read is
@@ -1527,12 +1537,13 @@ async fn replica_pool_carries_the_tenant_search_path() {
     let adapter = PostgresAdapter::with_pool_config(
         &primary_url,
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(10),
-            search_path:   Some(SearchPath::new(["tenant_rr", "public"]).unwrap()),
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(10),
+            search_path:         Some(SearchPath::new(["tenant_rr", "public"]).unwrap()),
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls:                  vec![replica_url.clone()],
                 pin_after_write:       std::time::Duration::from_secs(30),
                 max_lag:               None,
@@ -1565,12 +1576,13 @@ async fn unreachable_replica_refuses_to_boot() {
     let result = PostgresAdapter::with_pool_config(
         &primary_url,
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(2),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(2),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 // Port 9 (discard) on loopback: reliably connection-refused.
                 urls:                  vec![
                     "postgres://nobody:nothing@127.0.0.1:9/nowhere".to_string(),
@@ -1605,12 +1617,13 @@ async fn empty_replica_url_list_is_refused() {
     let result = PostgresAdapter::with_pool_config(
         &primary_url,
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(2),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(2),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls:                  vec![],
                 pin_after_write:       std::time::Duration::from_secs(5),
                 max_lag:               None,
@@ -1731,12 +1744,13 @@ async fn bs_adapter(
     PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(10),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(10),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls: vec![standby_db_url()],
                 // The fixtures are written through admin connections rather than
                 // the mutation pipeline, so no pin is ever armed; zero states
@@ -1880,12 +1894,13 @@ async fn a_replica_whose_lag_cannot_be_measured_is_never_eligible() {
     let adapter = PostgresAdapter::with_pool_config(
         &primary_url,
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(10),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(10),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls:                  vec![replica_url.clone()],
                 pin_after_write:       std::time::Duration::ZERO,
                 max_lag:               Some(std::time::Duration::from_secs(60)),
@@ -1965,12 +1980,13 @@ async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(10),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(10),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls:                  vec![standby_db_url()],
                 // Long enough that nothing expires during the test.
                 pin_after_write:       std::time::Duration::from_secs(300),
@@ -2124,12 +2140,13 @@ async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
     let adapter = PostgresAdapter::with_pool_config(
         &test_db_url(),
         PoolPrewarmConfig {
-            min_size:      0,
-            max_size:      5,
-            timeout_secs:  Some(10),
-            search_path:   None,
-            tls:           PostgresTlsConfig::default(),
-            read_replicas: Some(crate::postgres::ReadReplicaConfig {
+            min_size:            0,
+            max_size:            5,
+            timeout_secs:        Some(10),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            max_streaming_reads: None,
+            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls:                  vec![failover_url.clone()],
                 pin_after_write:       std::time::Duration::ZERO,
                 max_lag:               None,
@@ -2200,4 +2217,321 @@ async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
         ))
         .await
         .expect("fixture cleanup");
+}
+
+// ========================================================================
+// Streaming reads (#958)
+// ========================================================================
+
+/// A `data JSONB` view of `rows` sequential items, plus the raw table name so a
+/// test can write to it mid-stream.
+async fn setup_stream_fixture(adapter: &PostgresAdapter, tag: &str, rows: i32) -> (String, String) {
+    let table = format!("tb_stream_{tag}");
+    let view = format!("v_stream_{tag}");
+    for stmt in [
+        format!("DROP VIEW IF EXISTS {view}"),
+        format!("DROP TABLE IF EXISTS {table}"),
+        format!("CREATE TABLE {table} (pk BIGSERIAL PRIMARY KEY, data JSONB NOT NULL)"),
+        format!(
+            "INSERT INTO {table} (data) \
+             SELECT jsonb_build_object('n', g) FROM generate_series(1, {rows}) g"
+        ),
+        format!("CREATE VIEW {view} AS SELECT pk, data FROM {table} ORDER BY pk"),
+    ] {
+        adapter.execute_raw_query(&stmt).await.expect("apply stream fixture DDL");
+    }
+    (view, table)
+}
+
+async fn drop_stream_fixture(adapter: &PostgresAdapter, tag: &str) {
+    let _ = adapter.execute_raw_query(&format!("DROP VIEW IF EXISTS v_stream_{tag}")).await;
+    let _ = adapter
+        .execute_raw_query(&format!("DROP TABLE IF EXISTS tb_stream_{tag}"))
+        .await;
+}
+
+/// Every row arrives, in order, across more buffer refills than the pump holds.
+///
+/// `rows` is deliberately several times `STREAM_BUFFER_ROWS`: a delivery that fit
+/// inside one buffer would pass whether or not the consumer's progress ever
+/// re-opens the channel, which is the part that makes this bounded rather than
+/// merely late.
+#[tokio::test]
+async fn streaming_read_delivers_every_row_in_order() {
+    use futures::StreamExt as _;
+
+    let adapter = create_test_adapter().await;
+    let (view, _) = setup_stream_fixture(&adapter, "order", 500).await;
+
+    let stream = adapter
+        .stream_with_projection(&ProjectionRequest::new(&view), &[], ReadRouting::Any)
+        .await
+        .expect("open the streaming read");
+    let got: Vec<i64> = stream
+        .map(|r| r.expect("row").into_value()["n"].as_i64().expect("n"))
+        .collect()
+        .await;
+
+    assert_eq!(got, (1..=500).collect::<Vec<i64>>());
+    drop_stream_fixture(&adapter, "order").await;
+}
+
+/// Session variables land on the connection that runs the streamed read (#329).
+///
+/// The view reads `current_setting` itself, so this asserts the variable reached
+/// the *streaming* transaction rather than that some connection somewhere had it:
+/// a streamed read under RLS that lost its session variables would return another
+/// tenant's rows, and would look exactly like a working export.
+#[tokio::test]
+async fn streaming_read_applies_session_variables() {
+    use futures::StreamExt as _;
+
+    let adapter = create_test_adapter().await;
+    let view = "v_stream_sessionvar";
+    adapter
+        .execute_raw_query(&format!(
+            "CREATE OR REPLACE VIEW {view} AS SELECT jsonb_build_object('who', \
+             current_setting('fraiseql.probe', true)) AS data"
+        ))
+        .await
+        .expect("create session-var probe view");
+
+    let stream = adapter
+        .stream_with_projection(
+            &ProjectionRequest::new(view),
+            &[("fraiseql.probe", "tenant-a")],
+            ReadRouting::Any,
+        )
+        .await
+        .expect("open the streaming read");
+    let got: Vec<serde_json::Value> = stream.map(|r| r.expect("row").into_value()).collect().await;
+
+    assert_eq!(got, vec![json!({"who": "tenant-a"})]);
+    let _ = adapter.execute_raw_query(&format!("DROP VIEW IF EXISTS {view}")).await;
+}
+
+/// The delivery is one snapshot: rows written after it starts are not in it.
+///
+/// This is the property paginated re-execution cannot have at any batch size, and
+/// the reason this code exists. The write lands *between* two reads of the same
+/// stream, so a second statement would see it and the portal must not.
+#[tokio::test]
+async fn streaming_read_is_one_snapshot() {
+    use futures::StreamExt as _;
+
+    let adapter = create_test_adapter().await;
+    let (view, table) = setup_stream_fixture(&adapter, "snapshot", 200).await;
+
+    let mut stream = adapter
+        .stream_with_projection(&ProjectionRequest::new(&view), &[], ReadRouting::Any)
+        .await
+        .expect("open the streaming read");
+
+    let first = stream.next().await.expect("first row").expect("row");
+    assert_eq!(first.into_value()["n"], json!(1));
+
+    // A concurrent writer, on its own connection, appends beyond the fixture.
+    adapter
+        .execute_raw_query(&format!(
+            "INSERT INTO {table} (data) SELECT jsonb_build_object('n', g) \
+             FROM generate_series(1000, 1099) g"
+        ))
+        .await
+        .expect("concurrent insert");
+
+    let rest = stream.count().await;
+    assert_eq!(
+        rest + 1,
+        200,
+        "the stream must deliver the snapshot it opened with; seeing the 100 rows \
+         inserted mid-delivery would mean the read is re-executing, not streaming"
+    );
+    drop_stream_fixture(&adapter, "snapshot").await;
+}
+
+/// Streaming reads are capped below the pool, so exports cannot evict every
+/// ordinary request from it.
+#[tokio::test]
+async fn streaming_reads_are_bounded_by_their_own_slot_count() {
+    let adapter = PostgresAdapter::with_pool_config(
+        &test_db_url(),
+        PoolPrewarmConfig {
+            min_size:            0,
+            max_size:            8,
+            timeout_secs:        Some(5),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: Some(1),
+        },
+    )
+    .await
+    .expect("adapter should be created");
+    let (view, _) = setup_stream_fixture(&adapter, "bound", 300).await;
+
+    let held = adapter
+        .stream_with_projection(&ProjectionRequest::new(&view), &[], ReadRouting::Any)
+        .await
+        .expect("first streaming read takes the only slot");
+
+    // The pool has seven free connections, so anything that blocks here is the
+    // slot and not the pool.
+    let blocked = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        adapter.stream_with_projection(&ProjectionRequest::new(&view), &[], ReadRouting::Any),
+    )
+    .await;
+    assert!(
+        blocked.is_err(),
+        "a second streaming read must wait for a slot while the first holds the only one"
+    );
+
+    drop(held);
+    let after = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        adapter.stream_with_projection(&ProjectionRequest::new(&view), &[], ReadRouting::Any),
+    )
+    .await
+    .expect("the slot must be released when the stream is dropped");
+    assert!(after.is_ok(), "the released slot must be usable: {:?}", after.err());
+
+    // Load-bearing: an open streaming read holds ACCESS SHARE on the view for the
+    // life of its transaction, so the DDL below waits on it — indefinitely, since
+    // nothing else would ever consume this stream.
+    drop(after);
+    drop_stream_fixture(&adapter, "bound").await;
+}
+
+/// Abandoning a stream mid-delivery returns its connection to the pool.
+///
+/// The pool holds exactly one connection here, so a leaked one is not a slow
+/// path — it is every later query failing on the acquisition timeout.
+#[tokio::test]
+async fn abandoned_stream_returns_its_connection() {
+    use futures::StreamExt as _;
+
+    let adapter = PostgresAdapter::with_pool_config(
+        &test_db_url(),
+        PoolPrewarmConfig {
+            min_size:            0,
+            max_size:            1,
+            timeout_secs:        Some(10),
+            search_path:         None,
+            tls:                 PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: None,
+        },
+    )
+    .await
+    .expect("adapter should be created");
+
+    let view = {
+        let seeder = create_test_adapter().await;
+        setup_stream_fixture(&seeder, "abandon", 300).await.0
+    };
+
+    let mut stream = adapter
+        .stream_with_projection(&ProjectionRequest::new(&view), &[], ReadRouting::Any)
+        .await
+        .expect("open the streaming read");
+    stream.next().await.expect("first row").expect("row");
+    drop(stream);
+
+    let rows = adapter
+        .execute_where_query(&view, None, Some(1), None, None)
+        .await
+        .expect("the abandoned stream's connection must come back to the pool");
+    assert_eq!(rows.len(), 1);
+
+    let seeder = create_test_adapter().await;
+    drop_stream_fixture(&seeder, "abandon").await;
+}
+
+/// An open stream has **not** finished reading — the result set is not materialised.
+///
+/// Every other property here (all the rows, in order, one snapshot, session
+/// variables) is equally true of a read that collects into a `Vec` and replays it,
+/// which is exactly what the trait's default does and what a wrapping adapter that
+/// forgets to forward silently reverts to. The observable difference is that a
+/// streamed read is *still running*: its transaction is open and holding
+/// `ACCESS SHARE` on the view while the consumer has taken one row.
+///
+/// So the lock is the assertion. A buffering implementation has no transaction left
+/// to hold one.
+#[tokio::test]
+async fn an_open_streaming_read_still_holds_its_transaction() {
+    use futures::StreamExt as _;
+
+    let adapter = create_test_adapter().await;
+    let (view, _) = setup_stream_fixture(&adapter, "lockprobe", 500).await;
+
+    let mut stream = adapter
+        .stream_with_projection(&ProjectionRequest::new(&view), &[], ReadRouting::Any)
+        .await
+        .expect("open the streaming read");
+    stream.next().await.expect("first row").expect("row");
+
+    let held = adapter
+        .execute_raw_query(&format!(
+            "SELECT count(*) AS n FROM pg_locks l JOIN pg_class c ON c.oid = l.relation \
+             WHERE c.relname = '{view}' AND l.mode = 'AccessShareLock'"
+        ))
+        .await
+        .expect("probe pg_locks");
+    let n = held[0]["n"].as_i64().expect("lock count");
+    assert!(
+        n > 0,
+        "a streamed read that has delivered one row of 500 must still be reading — no \
+         lock on {view} means the result set was materialised and replayed"
+    );
+
+    drop(stream);
+    drop_stream_fixture(&adapter, "lockprobe").await;
+}
+
+/// The column-shaped streaming read decodes the same values its collecting sibling
+/// does — the gRPC transport encodes positionally against the declared columns.
+#[tokio::test]
+async fn streaming_row_query_decodes_typed_columns() {
+    use futures::StreamExt as _;
+
+    use crate::{dialect::RowViewColumnType, types::ColumnSpec};
+
+    let adapter = create_test_adapter().await;
+    let view = "v_stream_rowquery";
+    for stmt in [
+        format!("DROP VIEW IF EXISTS {view}"),
+        format!(
+            "CREATE VIEW {view} AS SELECT * FROM (VALUES (1, 'alice'), (2, 'bob')) t(id, name)"
+        ),
+    ] {
+        adapter.execute_raw_query(&stmt).await.expect("row-query fixture DDL");
+    }
+
+    let columns = [
+        ColumnSpec {
+            name:        "id".to_string(),
+            column_type: RowViewColumnType::Int32,
+        },
+        ColumnSpec {
+            name:        "name".to_string(),
+            column_type: RowViewColumnType::Text,
+        },
+    ];
+
+    let streamed = adapter
+        .stream_row_query(view, &columns, None, Some("id"), None, None)
+        .await
+        .expect("open the streaming row read");
+    let streamed: Vec<_> = streamed.map(|r| r.expect("row")).collect().await;
+
+    let collected = adapter
+        .execute_row_query(view, &columns, None, Some("id"), None, None)
+        .await
+        .expect("collecting row read");
+
+    assert_eq!(format!("{streamed:?}"), format!("{collected:?}"));
+    assert_eq!(streamed.len(), 2);
+
+    let _ = adapter.execute_raw_query(&format!("DROP VIEW IF EXISTS {view}")).await;
 }

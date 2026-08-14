@@ -6,48 +6,13 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::json;
 
 use super::{
-    helpers::{error_ndjson_line, extract_rows},
+    helpers::{error_ndjson_line, ndjson_chunk},
     *,
 };
 
 // ---------------------------------------------------------------------------
 // helpers tests
 // ---------------------------------------------------------------------------
-
-fn v(s: &str) -> serde_json::Value {
-    serde_json::from_str(s).unwrap()
-}
-
-#[test]
-fn extract_rows_from_array() {
-    let result = v(r#"{"data":{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}}"#);
-    let rows = extract_rows(&result, "users").unwrap();
-    assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0]["name"], "Alice");
-    assert_eq!(rows[1]["name"], "Bob");
-}
-
-#[test]
-fn extract_rows_from_single_resource() {
-    let result = v(r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#);
-    let rows = extract_rows(&result, "user").unwrap();
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0]["name"], "Alice");
-}
-
-#[test]
-fn extract_rows_missing_data() {
-    let result = v(r#"{"errors":[]}"#);
-    let err = extract_rows(&result, "users").unwrap_err();
-    assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
-}
-
-#[test]
-fn extract_rows_missing_query() {
-    let result = v(r#"{"data":{"other_query":[]}}"#);
-    let err = extract_rows(&result, "users").unwrap_err();
-    assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
-}
 
 #[test]
 fn error_ndjson_line_valid_json() {
@@ -243,65 +208,14 @@ fn ndjson_content_type_constant() {
 }
 
 // ---------------------------------------------------------------------------
-// #811 — the shared export pagination driver
+// The export row source (#811, #958)
 // ---------------------------------------------------------------------------
 
-use super::helpers::{next_batch_size, requested_total_limit, set_export_page};
-
-/// Without a client cap, every batch is a full page — the loop terminates on a short
-/// page from the database, not on arithmetic.
-#[test]
-fn next_batch_size_is_the_full_page_when_uncapped() {
-    assert_eq!(next_batch_size(500, None, 0), Some(500));
-    assert_eq!(next_batch_size(500, None, 10_000), Some(500));
-}
-
-/// A client cap clamps the final batch so `?limit=` is honoured exactly, including when
-/// it is not a multiple of the batch size.
-#[test]
-fn next_batch_size_clamps_the_final_batch_to_the_client_limit() {
-    assert_eq!(next_batch_size(100, Some(307), 0), Some(100));
-    assert_eq!(next_batch_size(100, Some(307), 100), Some(100));
-    assert_eq!(next_batch_size(100, Some(307), 200), Some(100));
-    // 307 - 300 = 7 rows left.
-    assert_eq!(next_batch_size(100, Some(307), 300), Some(7));
-}
-
-/// Reaching the cap ends the export. This is the arithmetic that makes a bounded export
-/// terminate; the `None` is what the loops read as "done".
-#[test]
-fn next_batch_size_is_none_once_the_client_limit_is_reached() {
-    assert_eq!(next_batch_size(100, Some(300), 300), None);
-    // Defensive: an overshoot must still terminate rather than underflow.
-    assert_eq!(next_batch_size(100, Some(300), 301), None);
-    assert_eq!(next_batch_size(100, Some(0), 0), None);
-}
-
-/// The page must land in `arguments`. `execute_query_direct` reads limit/offset from
-/// there and nowhere else — writing them into `variables` is exactly the #811 defect, and
-/// this test fails if the driver ever regresses to it.
-#[test]
-fn set_export_page_writes_into_arguments() {
-    let mut qm = fraiseql_core::runtime::QueryMatch::from_operation(
-        fraiseql_test_utils::schema_builder::TestQueryBuilder::new("things", "Thing")
-            .returns_list(true)
-            .with_sql_source("v_thing")
-            .build(),
-        vec!["id".to_string()],
-        std::collections::HashMap::new(),
-        None,
-    )
-    .unwrap();
-
-    set_export_page(&mut qm, 250, 1_000);
-
-    assert_eq!(qm.arguments.get("limit").and_then(serde_json::Value::as_u64), Some(250));
-    assert_eq!(qm.arguments.get("offset").and_then(serde_json::Value::as_u64), Some(1_000));
-}
+use super::helpers::requested_total_limit;
 
 /// An absent `?limit=` must stay absent rather than becoming `default_page_size`: the
 /// two mean opposite things to an export, and collapsing them is what made a full export
-/// silently return one page.
+/// silently return one page (#811).
 #[test]
 fn requested_total_limit_distinguishes_absent_from_supplied() {
     assert_eq!(requested_total_limit(&[]), None);
@@ -309,6 +223,46 @@ fn requested_total_limit_distinguishes_absent_from_supplied() {
     assert_eq!(requested_total_limit(&[("limit", "250")]), Some(250));
     // A malformed value is not a cap — the parameter validator rejects it upstream.
     assert_eq!(requested_total_limit(&[("limit", "abc")]), None);
+}
+
+/// One JSON document per line, no envelope.
+#[test]
+fn ndjson_chunk_writes_one_line_per_row() {
+    let (bytes, failed) =
+        ndjson_chunk(vec![Ok(json!({"id": 1})), Ok(json!({"id": 2, "name": "Bob"}))]);
+    assert!(!failed);
+
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    let lines: Vec<&str> = text.trim_end().split('\n').collect();
+    assert_eq!(lines.len(), 2);
+    for line in lines {
+        assert!(serde_json::from_str::<serde_json::Value>(line).unwrap().is_object());
+    }
+    assert!(!text.contains("\"data\""), "NDJSON carries no response envelope");
+}
+
+/// A failure part-way through a group keeps the rows that preceded it and says
+/// what went wrong. Dropping them, or ending silently, would leave a truncated
+/// export that reads as a complete one — #958's `hasNext` problem in another
+/// representation.
+#[test]
+fn ndjson_chunk_emits_preceding_rows_then_the_error() {
+    let (bytes, failed) = ndjson_chunk(vec![
+        Ok(json!({"id": 1})),
+        Err(fraiseql_core::error::FraiseQLError::Database {
+            message:   "connection reset".to_string(),
+            sql_state: None,
+        }),
+        Ok(json!({"id": 3})),
+    ]);
+    assert!(failed, "a failed group must terminate the export");
+
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    let lines: Vec<&str> = text.trim_end().split('\n').collect();
+    assert_eq!(lines.len(), 2, "the row before the failure, then the error line");
+    assert_eq!(serde_json::from_str::<serde_json::Value>(lines[0]).unwrap()["id"], 1);
+    let err: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+    assert!(err["error"].as_str().unwrap().contains("connection reset"));
 }
 
 // ---------------------------------------------------------------------------

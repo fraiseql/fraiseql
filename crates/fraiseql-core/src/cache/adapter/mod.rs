@@ -1021,6 +1021,45 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
+    /// Forwarded to the inner adapter, and deliberately **uncached** (#958).
+    ///
+    /// Forwarding at all is the load-bearing part. The trait's default would
+    /// satisfy this method by calling the *cached* read above and replaying the
+    /// buffer, which returns exactly the right rows — and silently converts every
+    /// streaming caller in the process back into one that materialises the whole
+    /// result set. A wrapper that inherits the default is how a memory bound
+    /// disappears without a single test failing.
+    ///
+    /// Uncached because the two are incompatible by construction: populating a
+    /// result-cache entry means holding every row, which is the cost this call
+    /// exists to avoid, and serving one means the caller never streams. A read
+    /// that wants the cache asks for the buffered method.
+    async fn stream_with_projection(
+        &self,
+        request: &crate::db::ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<fraiseql_db::JsonbRowStream> {
+        self.adapter.stream_with_projection(request, session_vars, routing).await
+    }
+
+    /// Forwarded to the inner adapter — see
+    /// [`stream_with_projection`](Self::stream_with_projection). The row-shaped
+    /// read was never cached in the first place.
+    async fn stream_row_query(
+        &self,
+        view_name: &str,
+        columns: &[fraiseql_db::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<fraiseql_db::ColumnRowStream> {
+        self.adapter
+            .stream_row_query(view_name, columns, where_sql, order_by, limit, offset)
+            .await
+    }
+
     async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
         // Delegate to the inherent (synchronous) method which handles cascade
         // expansion and cache eviction.

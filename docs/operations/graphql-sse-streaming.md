@@ -127,6 +127,11 @@ same response differently and interleaving them is not defined here.
 - Batches are separate statements, not one snapshot: concurrent writes can
   shift rows between batches. Use a deterministic `orderBy`, and prefer the
   primary-pinned window after writes when combined with read replicas.
+  This is a property of `@stream` specifically, and it is the price of a delivery
+  that can be **resumed**: each batch re-executes the query, which is what makes
+  `Last-Event-ID` work without a replay buffer. The REST exports made the opposite
+  trade — one statement, one snapshot, no resume — see
+  [the export note](#a-note-on-the-rest-exports) below.
 - Long-lived deliveries re-check the principal before every batch (the same
   rule subscriptions follow, through the same guard): an expired **or revoked**
   token terminates the stream with an `UNAUTHENTICATED` error event followed by
@@ -140,6 +145,19 @@ same response differently and interleaving them is not defined here.
   response-head production, not the streaming body), and incremental responses on
   both framings are exempt from response compression (a buffering encoder would
   defeat incremental flushing).
+
+### A note on the REST exports
+
+The REST export representations (`Accept: application/x-ndjson`, `text/csv`, XLSX) and
+gRPC server-streaming deliver rows from **one statement over one database portal**, so
+they are a single snapshot and cost `O(N)` rather than `O(N²)` in row scans. They are
+not resumable, and they hold a pooled connection for the life of the export — bounded
+by `pool_max_streaming_reads` (see the connection-pool runbook).
+
+The two are deliberately different, because the questions differ. An export is one
+transfer of a result set to a file; a `@stream` delivery is an interactive rendering
+that a browser may reconnect to. A snapshot cannot survive a reconnect, and a resume
+point cannot exist without re-execution.
 
 ## Resuming a dropped delivery
 
@@ -181,7 +199,6 @@ carries an id too, so a client that fixes the cause resumes rather than restarts
 
 ## Not (yet) supported
 
-Nested `@stream` and database-cursor row streaming (the fraiseql-wire integration)
-are tracked in the follow-up issue. `Last-Event-ID` on the REST observer stream
+Nested `@stream` is tracked in the follow-up issue. `Last-Event-ID` on the REST observer stream
 (`/rest/v1/{resource}/stream`) is #1113, and separate: that transport's event id is an
 event UUID over a live feed, not an offset into a re-executable query.

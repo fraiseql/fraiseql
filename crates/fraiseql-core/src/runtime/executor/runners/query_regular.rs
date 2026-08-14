@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use futures::StreamExt as _;
 use tracing::debug;
 
 use super::{
@@ -23,6 +24,52 @@ use crate::{
         authorizer::{OperationKind, enforce_authz},
     },
 };
+
+/// A direct read resolved down to the statement it will run (#958).
+///
+/// Produced by [`QueryRunner::resolve_direct_read`] and consumed by both the
+/// buffered and the streamed execution of the same read. Owned rather than
+/// borrowed from the `QueryMatch`, because the streaming path outlives the call
+/// that built it.
+pub(in super::super) struct ResolvedDirectRead {
+    /// The view to read.
+    sql_source:     String,
+    /// Security conditions (RLS + `inject_params`) AND-ed with the client filter.
+    composed_where: Option<WhereClause>,
+    /// Enriched ORDER BY, or `None` for the view's own order.
+    order_by:       Option<Vec<crate::db::OrderByClause>>,
+    /// Page size, already capped by `max_page_size` (#421).
+    limit:          Option<u32>,
+    /// Page offset.
+    offset:         Option<u32>,
+    /// Session variables to pin to the read's connection (#329).
+    session_vars:   Vec<(String, String)>,
+    /// Field-level RBAC classification for the projection (#886).
+    pub access:     crate::runtime::field_filter::FieldAccessResult,
+}
+
+impl ResolvedDirectRead {
+    /// Borrow the session variables in the shape the adapter takes.
+    fn session_pairs(&self) -> Vec<(&str, &str)> {
+        self.session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
+    }
+
+    /// The adapter call shape for this read.
+    ///
+    /// `projection: None` is deliberate and matches the buffered path: this runner
+    /// reads the whole `data` document and projects in Rust, because the REST
+    /// selection may name fields the SQL projection generator does not model.
+    fn projection_request(&self) -> crate::db::ProjectionRequest<'_> {
+        crate::db::ProjectionRequest {
+            view:         &self.sql_source,
+            projection:   None,
+            where_clause: self.composed_where.as_ref(),
+            order_by:     self.order_by.as_deref(),
+            limit:        self.limit,
+            offset:       self.offset,
+        }
+    }
+}
 
 impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Resolve configured session variables for `security_context` into owned
@@ -881,6 +928,58 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        let resolved = self.resolve_direct_read(query_match, variables, security_context)?;
+        let session_pairs = resolved.session_pairs();
+
+        let results = self
+            .ctx
+            .adapter
+            .execute_with_projection_arc_with_session(
+                &resolved.projection_request(),
+                &session_pairs,
+                query_match.query_def.read_routing,
+            )
+            .await?;
+
+        let projected = self.project_direct_rows(
+            query_match,
+            &resolved.access,
+            &results,
+            query_match.query_def.returns_list,
+        )?;
+
+        // Wrap in GraphQL data envelope.
+        Ok(ResultProjector::wrap_in_data_envelope(projected, query_match.response_key()))
+    }
+
+    /// Resolve a direct read down to the SQL it will run and the field access it
+    /// will project with — everything that happens *before* the database, in one
+    /// place (#958).
+    ///
+    /// # Why this is a function and not a comment saying "keep these in sync"
+    ///
+    /// The buffered read and the streamed read differ only in how rows arrive. Every
+    /// security decision — operation authorization, the field-authorization gate, the
+    /// RLS policy, the `inject_params` tenant filter, the field-level RBAC
+    /// classification — belongs to the *read*, not to its delivery, and the last time
+    /// two paths resolved a read separately, one of them composed the tenant filter
+    /// and the other did not (#739: a `count=exact` header that contradicted its own
+    /// body). A streaming path is a second such reader, so it resolves through this
+    /// function or it does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Authorization` when the operation, a gated field, or a
+    /// scope-restricted field is refused; `FraiseQLError::Validation` when the query
+    /// has no SQL source, when a policy or `inject_params` is configured but there is
+    /// no principal to evaluate it for (fail closed, #784), or when an argument does
+    /// not parse.
+    fn resolve_direct_read(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<ResolvedDirectRead> {
         // #422: operation-level authorization for the REST direct-read chokepoint.
         //       Every REST read (GET/count/streaming/embedding) and the in-core
         //       bulk-by-filter lookup funnel through this runner method, so gating
@@ -1067,37 +1166,112 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             (None, None) => None,
         };
 
-        // Execute, pinning session variables to the read's connection (#329).
-        let resolved_session_vars = self.resolve_session_vars(security_context)?;
-        let session_pairs: Vec<(&str, &str)> =
-            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let results = self
-            .ctx
-            .adapter
-            .execute_with_projection_arc_with_session(
-                &crate::db::ProjectionRequest {
-                    view: sql_source,
-                    projection: None,
-                    where_clause: composed_where.as_ref(),
-                    order_by: order_by_clauses.as_deref(),
-                    limit,
-                    offset,
-                },
-                &session_pairs,
-                query_match.query_def.read_routing,
-            )
-            .await?;
+        // Session variables pin to the read's connection (#329).
+        let session_vars = self.resolve_session_vars(security_context)?;
 
-        // Project results. Masked fields stay in the projection, in their requested
-        // position, and are nulled below — the response keeps the key and withholds
-        // only the value, as both GraphQL paths do.
+        Ok(ResolvedDirectRead {
+            sql_source: sql_source.clone(),
+            composed_where,
+            order_by: order_by_clauses,
+            limit,
+            offset,
+            session_vars,
+            access,
+        })
+    }
+
+    /// The same read as [`execute_query_direct`](Self::execute_query_direct),
+    /// delivered one projected row at a time (#958).
+    ///
+    /// Every row is resolved through [`resolve_direct_read`](Self::resolve_direct_read)
+    /// and projected through [`project_direct_rows`](Self::project_direct_rows), so an
+    /// export sees exactly the rows, fields and masking a buffered read of the same
+    /// query would return — the streaming path adds no second interpretation of the
+    /// request, only a second way to deliver the answer.
+    ///
+    /// The result is **not** wrapped in a `data` envelope: the caller frames rows for
+    /// its own representation (one NDJSON line, one CSV record, one worksheet row),
+    /// and there is no single envelope for a response with no end.
+    ///
+    /// # Ownership
+    ///
+    /// Arguments are taken by value because the returned stream outlives this call.
+    ///
+    /// # Errors
+    ///
+    /// Returns everything [`resolve_direct_read`](Self::resolve_direct_read) does,
+    /// plus `FraiseQLError::Database` for a read that fails before its first row. A
+    /// failure after that arrives as an `Err` item in the stream.
+    pub(in super::super) async fn stream_query_direct(
+        &self,
+        query_match: crate::runtime::matcher::QueryMatch,
+        variables: Option<serde_json::Value>,
+        security_context: Option<SecurityContext>,
+    ) -> Result<crate::runtime::JsonRowStream>
+    where
+        A: 'static,
+    {
+        let resolved =
+            self.resolve_direct_read(&query_match, variables.as_ref(), security_context.as_ref())?;
+        let rows = {
+            let session_pairs = resolved.session_pairs();
+            self.ctx
+                .adapter
+                .stream_with_projection(
+                    &resolved.projection_request(),
+                    &session_pairs,
+                    query_match.query_def.read_routing,
+                )
+                .await?
+        };
+
+        let runner = Self::new(Arc::clone(&self.ctx));
+        let access = resolved.access;
+        Ok(Box::pin(rows.map(move |row| {
+            let row = row?;
+            // Projected as a one-element list so the row goes through the list
+            // element path — the same one a buffered list read uses, including
+            // `project_entity`'s `__typename` stamping.
+            let projected = runner.project_direct_rows(&query_match, &access, &[row], true)?;
+            match projected {
+                serde_json::Value::Array(mut items) if items.len() == 1 => Ok(items.remove(0)),
+                serde_json::Value::Array(items) => Err(FraiseQLError::Internal {
+                    message: format!(
+                        "streaming projection produced {} rows for one input row",
+                        items.len()
+                    ),
+                    source:  None,
+                }),
+                _ => Err(FraiseQLError::Internal {
+                    message: "streaming projection did not produce a row list".to_string(),
+                    source:  None,
+                }),
+            }
+        })))
+    }
+
+    /// Project rows a direct read returned, exactly as `execute_query_direct` does.
+    ///
+    /// Shared with the streaming path, which calls it one row at a time (#958):
+    /// projection order, nested-list recasing, `__typename` stamping and mask
+    /// nulling are what a *row* looks like in a response, and a streamed row that
+    /// skipped any of them would be a second answer to the same question.
+    fn project_direct_rows(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        access: &crate::runtime::field_filter::FieldAccessResult,
+        rows: &[crate::db::types::JsonbValue],
+        returns_list: bool,
+    ) -> Result<serde_json::Value> {
+        // Masked fields stay in the projection, in their requested position, and are
+        // nulled below — the response keeps the key and withholds only the value, as
+        // both GraphQL paths do.
         let projector = ResultProjector::new(access.projected.clone())
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
             );
-        let mut projected =
-            projector.project_results(&results, query_match.query_def.returns_list)?;
+        let mut projected = projector.project_results(rows, returns_list)?;
         // #489: recase + project nested list-of-object fields left raw by SQL projection.
         crate::runtime::project_nested_lists(
             &mut projected,
@@ -1122,11 +1296,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             null_masked_fields(&mut projected, &access.masked);
         }
 
-        // Wrap in GraphQL data envelope.
-        let response =
-            ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
-
-        Ok(response)
+        Ok(projected)
     }
 
     /// Count the total number of rows matching the query's WHERE and RLS conditions.

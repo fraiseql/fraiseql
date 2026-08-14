@@ -1188,3 +1188,149 @@ async fn with_rls_does_not_disable_cache() {
         .unwrap();
     assert_eq!(adapter.inner().call_count(), 1, "has_rls=true must not prevent cache hits");
 }
+
+// ---------------------------------------------------------------------------
+// Streaming forwarding (#958)
+// ---------------------------------------------------------------------------
+
+/// Records which half of the read surface it was asked for.
+struct StreamSpyAdapter {
+    streamed:  std::sync::Arc<std::sync::atomic::AtomicU32>,
+    collected: std::sync::Arc<std::sync::atomic::AtomicU32>,
+}
+
+impl StreamSpyAdapter {
+    fn new() -> Self {
+        Self {
+            streamed:  std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            collected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        }
+    }
+}
+
+// Reason: the trait is declared with the async-trait macro; impls must match.
+#[async_trait]
+impl DatabaseAdapter for StreamSpyAdapter {
+    async fn execute_with_projection(
+        &self,
+        _view: &str,
+        _projection: Option<&crate::schema::SqlProjectionHint>,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Vec<JsonbValue>> {
+        self.collected.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(vec![JsonbValue::new(json!({"id": 1}))])
+    }
+
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Vec<JsonbValue>> {
+        self.collected.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(vec![JsonbValue::new(json!({"id": 1}))])
+    }
+
+    async fn stream_with_projection(
+        &self,
+        _request: &crate::db::ProjectionRequest<'_>,
+        _session_vars: &[(&str, &str)],
+        _routing: fraiseql_db::types::ReadRouting,
+    ) -> Result<fraiseql_db::JsonbRowStream> {
+        self.streamed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(Box::pin(futures::stream::iter(vec![Ok(JsonbValue::new(json!({"id": 1})))])))
+    }
+
+    fn database_type(&self) -> fraiseql_db::DatabaseType {
+        fraiseql_db::DatabaseType::PostgreSQL
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn pool_metrics(&self) -> fraiseql_db::PoolMetrics {
+        fraiseql_db::PoolMetrics {
+            total_connections:  0,
+            idle_connections:   0,
+            active_connections: 0,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        _sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(Vec::new())
+    }
+
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(Vec::new())
+    }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(Vec::new())
+    }
+}
+
+/// The cache wrapper must **forward** a streaming read, not answer it.
+///
+/// This is the one regression in this feature that no functional test can see. The
+/// trait's default satisfies `stream_with_projection` by calling the collecting read
+/// and replaying the buffer, so a wrapper that inherits it returns exactly the right
+/// rows, in the right order, with the right values — and quietly materialises the
+/// whole result set that the caller asked not to materialise. Every export would keep
+/// passing while the memory bound it exists for was gone.
+///
+/// So the assertion is about which method the inner adapter saw.
+#[tokio::test]
+async fn cached_adapter_forwards_a_streaming_read_instead_of_buffering_it() {
+    use futures::StreamExt as _;
+
+    let spy = StreamSpyAdapter::new();
+    let (streamed, collected) =
+        (std::sync::Arc::clone(&spy.streamed), std::sync::Arc::clone(&spy.collected));
+    let adapter = CachedDatabaseAdapter::new(
+        spy,
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    );
+
+    let rows: Vec<_> = adapter
+        .stream_with_projection(
+            &crate::db::ProjectionRequest::new("v_user"),
+            &[],
+            fraiseql_db::types::ReadRouting::Any,
+        )
+        .await
+        .unwrap()
+        .collect()
+        .await;
+
+    assert_eq!(rows.len(), 1, "the forwarded stream must deliver the inner adapter's rows");
+    assert_eq!(
+        streamed.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "the wrapper must call the inner adapter's streaming read"
+    );
+    assert_eq!(
+        collected.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "the wrapper must not satisfy a streaming read by collecting — that is the \
+         trait default, and inheriting it silently removes the memory bound"
+    );
+}

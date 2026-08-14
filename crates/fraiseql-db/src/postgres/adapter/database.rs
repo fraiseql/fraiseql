@@ -12,12 +12,14 @@ use tokio_postgres::{
 
 use super::{
     PostgresAdapter, build_projection_select_sql, build_where_select_sql,
-    build_where_select_sql_ordered, numeric::PgNumericText,
+    build_where_select_sql_ordered, jsonb_cell, numeric::PgNumericText,
 };
 use crate::{
     identifier::quote_postgres_identifier,
     postgres::pg_detail,
-    traits::{DatabaseAdapter, ProjectionRequest, SupportsMutations},
+    traits::{
+        ColumnRowStream, DatabaseAdapter, JsonbRowStream, ProjectionRequest, SupportsMutations,
+    },
     types::{
         DatabaseType, JsonbValue, PoolMetrics, QueryParam, ReadRouting,
         sql_hints::{OrderByClause, SqlProjectionHint},
@@ -1179,6 +1181,71 @@ impl DatabaseAdapter for PostgresAdapter {
         self.execute_raw_with_session(&sql, &param_refs, session_vars, routing)
             .await
             .map(Arc::new)
+    }
+
+    /// One statement, one snapshot, one connection held for the delivery (#958).
+    ///
+    /// The SQL is built by the same two builders the collecting read uses, so a
+    /// streamed export and a buffered read of the same query cannot select
+    /// different rows — the drift that made `execute_query_direct` disagree with
+    /// `count_rows` about a tenant filter (#739).
+    async fn stream_with_projection(
+        &self,
+        request: &ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<JsonbRowStream> {
+        let (sql, typed_params) = match request.projection {
+            Some(projection) => build_projection_select_sql(
+                projection,
+                request.view,
+                request.where_clause,
+                request.limit,
+                request.offset,
+                request.order_by,
+            )?,
+            None => build_where_select_sql_ordered(
+                request.view,
+                request.where_clause,
+                request.limit,
+                request.offset,
+                request.order_by,
+            )?,
+        };
+
+        super::streaming::stream_rows(self, sql, typed_params, session_vars, routing, |row, sql| {
+            jsonb_cell(row, 0, sql)
+        })
+        .await
+        .map_err(|e| enrich_undefined_column_error(e, request.view, request.where_clause))
+    }
+
+    /// The column-shaped streaming read behind gRPC server-streaming (#958).
+    ///
+    /// Routed to the primary like its collecting sibling: `execute_row_query`
+    /// reaches `execute_raw_query`, and a surface that executes composed SQL is
+    /// never sent to a replica.
+    async fn stream_row_query(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<ColumnRowStream> {
+        let sql = crate::traits::build_row_query_sql(view_name, where_sql, order_by, limit, offset);
+        let columns = columns.to_vec();
+
+        super::streaming::stream_rows(
+            self,
+            sql,
+            Vec::new(),
+            &[],
+            ReadRouting::Primary,
+            move |row, _sql| Ok(crate::traits::row_to_column_values(&row_to_map(row), &columns)),
+        )
+        .await
     }
 
     async fn explain_query(

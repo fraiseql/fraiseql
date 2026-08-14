@@ -21,15 +21,12 @@
 //!
 //! Gated behind the `export-xlsx` Cargo feature.
 
-use std::sync::Arc;
-
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use bytes::Bytes;
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    runtime::{Executor, QueryMatch},
-    security::SecurityContext,
+    db::traits::DatabaseAdapter, runtime::JsonRowStream, security::SecurityContext,
 };
+use futures::StreamExt as _;
 use rust_xlsxwriter::Workbook;
 use tempfile::NamedTempFile;
 
@@ -151,24 +148,20 @@ pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
             .unwrap_or_else(|_| HeaderValue::from_static("attachment; filename=\"export.xlsx\"")),
     );
 
-    let batch_size = handler.config().ndjson_batch_size.max(1);
-    let select_columns = extract_select_columns(query_pairs);
-
-    let executor = Arc::clone(handler.executor());
-    let security_ctx_owned = security_context.cloned();
-
-    let bytes = build_workbook(BuildContext {
-        executor,
-        query_name: query_name.clone(),
+    // One statement for the whole export (#958) — see `helpers::export_rows`.
+    let rows = super::helpers::export_rows(
+        handler.executor(),
         query_match,
         variables,
-        security_ctx: security_ctx_owned,
-        batch_size,
-        // #811: `?limit=` caps the export total; absent, the whole result set is
-        // streamed in `batch_size` pages, bounded by `max_rows`.
-        total_limit: super::helpers::requested_total_limit(query_pairs),
+        security_context.cloned(),
+        super::helpers::requested_total_limit(query_pairs),
+    )
+    .await?;
+
+    let bytes = build_workbook(BuildContext {
+        rows,
         max_rows: export_config.xlsx_max_rows,
-        select_columns,
+        select_columns: extract_select_columns(query_pairs),
         temp_dir: export_config.xlsx_temp_dir.clone(),
     })
     .await?;
@@ -219,15 +212,9 @@ impl XlsxBody {
 // ---------------------------------------------------------------------------
 
 /// Inputs to the workbook builder loop.
-struct BuildContext<A: DatabaseAdapter> {
-    executor:       Arc<Executor<A>>,
-    query_name:     String,
-    query_match:    QueryMatch,
-    variables:      serde_json::Value,
-    security_ctx:   Option<SecurityContext>,
-    batch_size:     u64,
-    /// Client-requested cap on the **total** rows exported (`?limit=`), if any.
-    total_limit:    Option<u64>,
+struct BuildContext {
+    /// The export's rows, from its single statement (#958).
+    rows:           JsonRowStream,
     max_rows:       u64,
     /// Column order from `?select=`, when supplied.
     select_columns: Option<Vec<String>>,
@@ -241,7 +228,7 @@ struct BuildContext<A: DatabaseAdapter> {
 /// the worksheet, and enforces `max_rows`. The workbook is built in
 /// `constant_memory` mode so the in-progress worksheet data lives on disk
 /// (inside `rust_xlsxwriter`) and peak heap stays bounded.
-async fn build_workbook<A: DatabaseAdapter>(ctx: BuildContext<A>) -> Result<Bytes, RestError> {
+async fn build_workbook(ctx: BuildContext) -> Result<Bytes, RestError> {
     let temp_file = create_temp_file(ctx.temp_dir.as_deref())?;
 
     let mut workbook = Workbook::new();
@@ -249,49 +236,28 @@ async fn build_workbook<A: DatabaseAdapter>(ctx: BuildContext<A>) -> Result<Byte
 
     let mut columns: Option<Vec<String>> = None;
     let mut rows_written: u64 = 0;
-    let mut offset: u64 = 0;
-    let mut done = false;
 
-    while !done {
-        // Size this batch, honouring any client-supplied total cap (#811).
-        let Some(page) =
-            super::helpers::next_batch_size(ctx.batch_size, ctx.total_limit, rows_written)
-        else {
-            break;
-        };
-        let rows = fetch_batch(&ctx, page, offset).await?;
+    let mut rows = ctx.rows;
+    while let Some(row) = rows.next().await {
+        let row = row.map_err(|e| RestError::internal(format!("XLSX export failed: {e}")))?;
 
-        if rows.is_empty() {
-            done = true;
-            continue;
-        }
-
+        // The column list comes from the first row, which is the first point at
+        // which it is known — an export with no `?select=` takes its header from
+        // the data, exactly as the CSV writer does.
         if columns.is_none() {
-            let cols = determine_columns(ctx.select_columns.as_deref(), &rows);
+            let cols = determine_columns(ctx.select_columns.as_deref(), std::slice::from_ref(&row));
             write_header_row(worksheet, &cols)?;
             columns = Some(cols);
         }
+        let active_columns = columns.as_ref().expect("columns initialised on the first row above");
 
-        let active_columns =
-            columns.as_ref().expect("columns initialised on first non-empty batch above");
-
-        for row in &rows {
-            if rows_written >= ctx.max_rows {
-                return Err(too_many_rows_error(ctx.max_rows));
-            }
-            let row_idx = u32::try_from(rows_written + 1)
-                .map_err(|_| RestError::internal("XLSX row index overflow"))?;
-            write_data_row(worksheet, row_idx, active_columns, row)?;
-            rows_written += 1;
+        if rows_written >= ctx.max_rows {
+            return Err(too_many_rows_error(ctx.max_rows));
         }
-
-        // Advance by the rows actually returned, not by the requested page size (#811).
-        let row_count = u64::try_from(rows.len()).unwrap_or(u64::MAX);
-        offset += row_count;
-
-        if row_count < page {
-            done = true;
-        }
+        let row_idx = u32::try_from(rows_written + 1)
+            .map_err(|_| RestError::internal("XLSX row index overflow"))?;
+        write_data_row(worksheet, row_idx, active_columns, &row)?;
+        rows_written += 1;
     }
 
     // Empty result set → header-less, single-sheet workbook is still a valid
@@ -320,34 +286,6 @@ fn create_temp_file(dir: Option<&std::path::Path>) -> Result<NamedTempFile, Rest
         None => builder.tempfile(),
     };
     file.map_err(|e| RestError::internal(format!("XLSX temp-file create failed: {e}")))
-}
-
-async fn fetch_batch<A: DatabaseAdapter>(
-    ctx: &BuildContext<A>,
-    page: u64,
-    offset: u64,
-) -> Result<Vec<serde_json::Value>, RestError> {
-    // #811: pagination goes into `arguments`, which is what the executor reads — the
-    // `variables` parameter feeds `enforce_authz` only. `ctx` is shared immutably across
-    // the loop, so the page is applied to a per-batch clone rather than in place; a
-    // `QueryMatch` clone per database round-trip is not a measurable cost.
-    let mut paged = ctx.query_match.clone();
-    super::helpers::set_export_page(&mut paged, page, offset);
-
-    let batch_vars = ctx.variables.clone();
-    let vars_ref = if batch_vars.as_object().is_none_or(serde_json::Map::is_empty) {
-        None
-    } else {
-        Some(&batch_vars)
-    };
-
-    let result_value = ctx
-        .executor
-        .execute_query_direct(&paged, vars_ref, ctx.security_ctx.as_ref())
-        .await
-        .map_err(|e| RestError::internal(format!("XLSX query execution failed: {e}")))?;
-
-    super::helpers::extract_rows(&result_value, &ctx.query_name)
 }
 
 fn write_header_row(
