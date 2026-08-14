@@ -1528,6 +1528,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a delivery, which on a large result set is unbounded.
 
 
+- **`nearest.field`: similarity search on a type with several vector fields (#959).**
+  A type declaring both a text and an image embedding could not be searched at all —
+  `nearest` refused any type with more than one vector field. It now takes an optional
+  `field:` naming which to search, and the selected field's own `dimensions` and
+  `distance_metric` apply.
+
+  `field` stays optional where there is one vector field and is **required** where
+  there are several: the omission is ambiguous rather than convenient, and answering it
+  by declaration order would search one embedding space and report the result as
+  another. The refusal names the candidates.
+
 - **REST `rest_stream` per-route opt-in (#958).** A query offers the streaming
   representations — `Accept: application/x-ndjson`, `text/csv`, XLSX — only with
   `rest_stream = true`. The flag reaches the compiled schema from the authored

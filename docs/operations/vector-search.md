@@ -62,9 +62,27 @@ query Similar($q: [Float!]!) {
   `vector_config.dimensions` with a named error.
 - Composes with `where` (and RLS / tenant injection) — filters apply, then
   similarity ordering.
-- Refused loudly on: relay queries, non-list queries, types without (or with
-  more than one) vector field, and documents combining `nearest` with `limit`
-  or `orderBy` (`k` is the page size).
+- Refused loudly on: relay queries, non-list queries, types without a vector
+  field, and documents combining `nearest` with `limit` or `orderBy` (`k` is the
+  page size).
+
+### Choosing among several vector fields
+
+A type may declare more than one — a text embedding and an image embedding on the
+same row — and `nearest.field` names which to search:
+
+```graphql
+{ docs(nearest: { vector: $q, k: 10, field: "imageEmbedding" }) { id } }
+```
+
+`field` is optional on a type with exactly one vector field, and **required** on a
+type with several: the omission is ambiguous rather than convenient, and the refusal
+names the candidates. Answering it by declaration order would search one embedding
+space and report the result as another — a query that succeeds and means something
+else.
+
+The selected field's own `dimensions` and `distance_metric` apply, so the dimension
+check is against the field being searched.
 
 ## Threshold filtering: WHERE distance operators
 
