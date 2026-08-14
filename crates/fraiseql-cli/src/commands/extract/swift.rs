@@ -47,6 +47,7 @@ impl SchemaExtractor for SwiftExtractor {
 
                     fields.push(IntermediateField {
                         vector_config: None,
+                        vector_distance: None,
                         name: field_name,
                         field_type: graphql_type,
                         nullable,

@@ -102,6 +102,35 @@ check is against the field being searched.
   not bare threshold predicates — expect a scan on large tables, or combine
   with `nearest`.
 
+## The distance in the response
+
+A `Float` field declaring `vector_distance` carries the distance the search
+ordered by:
+
+```toml
+[types.Doc.fields.similarity]
+type = "Float"
+vector_distance = "embedding"
+```
+
+```graphql
+{ docs(nearest: { vector: $q, k: 10 }) { id title similarity } }
+```
+
+- The value is projected from **the same expression** the `ORDER BY` was built
+  from, so the number a row reports and the position it occupies cannot be
+  computed two different ways. Override the metric and the reported number
+  follows it — including pgvector's negated inner product, where a closer row
+  reports a *smaller* (more negative) value.
+- It is not a stored column. Nothing needs to be added to the view, and nothing
+  writes it.
+- Selecting it on a query that ran no `nearest` search, or one that searched a
+  different vector field, is **refused**. A null would be indistinguishable from
+  a row whose distance is genuinely unknown, on a response that otherwise looks
+  like it succeeded.
+- The declaration is checked at compile time: the named field must exist on the
+  same type and be a vector field, and the declaring field must be a `Float`.
+
 ## Binary (bit) vectors
 
 pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined

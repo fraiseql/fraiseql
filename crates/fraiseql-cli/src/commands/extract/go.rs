@@ -108,6 +108,7 @@ pub(super) fn extract_go_struct_fields(lines: &[&str], start: usize) -> Vec<Inte
 
             fields.push(IntermediateField {
                 vector_config: None,
+                vector_distance: None,
                 name: tag_name,
                 field_type: graphql_type,
                 nullable,

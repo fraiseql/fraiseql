@@ -382,6 +382,7 @@ pub enum FieldDenyPolicy {
 ///     description: Some("User's email address".to_string()),
 ///     default_value: None,
 ///     vector_config: None,
+///     vector_distance: None,
 ///     alias: None,
 ///     deprecation: None,
 ///     requires_scope: None,
@@ -412,9 +413,20 @@ pub struct FieldDefinition {
     pub default_value: Option<super::graphql_value::GraphQLValue>,
 
     /// Vector configuration (for pgvector fields).
-    /// Only present when `field_type` is Vector.
+    /// Only present when `field_type` is `Vector` or `BitVector`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vector_config: Option<VectorConfig>,
+
+    /// Names the vector field whose search distance this field carries (#959).
+    ///
+    /// A `Float` field declaring `vector_distance = "embedding"` is projected
+    /// from the distance expression a `nearest` search on `embedding` orders
+    /// by — the same expression, so the number and the order agree by
+    /// construction. It is **not** a stored key: selecting it on a query that
+    /// did not search that field is refused rather than answered with null,
+    /// because "no distance" and "distance zero" are not the same claim.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vector_distance: Option<String>,
 
     /// GraphQL alias for this field (output key name in response).
     /// When set, the field value from JSONB key `name` is output under this alias.
@@ -444,6 +456,7 @@ pub struct FieldDefinition {
     ///     description: None,
     ///     default_value: None,
     ///     vector_config: None,
+    ///     vector_distance: None,
     ///     alias: None,
     ///     deprecation: None,
     ///     requires_scope: Some("read:Employee.salary".to_string()),
@@ -558,6 +571,7 @@ impl FieldDefinition {
             description: None,
             default_value: None,
             vector_config: None,
+            vector_distance: None,
             alias: None,
             deprecation: None,
             requires_scope: None,
@@ -578,6 +592,7 @@ impl FieldDefinition {
             description: None,
             default_value: None,
             vector_config: None,
+            vector_distance: None,
             alias: None,
             deprecation: None,
             requires_scope: None,
@@ -600,19 +615,20 @@ impl FieldDefinition {
     #[must_use]
     pub fn vector(name: impl Into<String>, config: VectorConfig) -> Self {
         Self {
-            name:           FieldName::new(name),
-            field_type:     FieldType::Vector,
-            nullable:       false,
-            description:    None,
-            default_value:  None,
-            vector_config:  Some(config),
-            alias:          None,
-            deprecation:    None,
-            requires_scope: None,
-            on_deny:        FieldDenyPolicy::default(),
-            authorize:      false,
-            encryption:     None,
-            hierarchy:      None,
+            name:            FieldName::new(name),
+            field_type:      FieldType::Vector,
+            nullable:        false,
+            description:     None,
+            default_value:   None,
+            vector_config:   Some(config),
+            vector_distance: None,
+            alias:           None,
+            deprecation:     None,
+            requires_scope:  None,
+            on_deny:         FieldDenyPolicy::default(),
+            authorize:       false,
+            encryption:      None,
+            hierarchy:       None,
         }
     }
 
@@ -694,6 +710,23 @@ impl FieldDefinition {
     #[must_use]
     pub const fn with_vector_config(mut self, config: VectorConfig) -> Self {
         self.vector_config = Some(config);
+        self
+    }
+
+    /// Declare this field as the search distance to a named vector field (#959).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{FieldDefinition, FieldType};
+    ///
+    /// let similarity =
+    ///     FieldDefinition::new("similarity", FieldType::Float).with_vector_distance("embedding");
+    /// assert_eq!(similarity.vector_distance.as_deref(), Some("embedding"));
+    /// ```
+    #[must_use]
+    pub fn with_vector_distance(mut self, vector_field: impl Into<String>) -> Self {
+        self.vector_distance = Some(vector_field.into());
         self
     }
 

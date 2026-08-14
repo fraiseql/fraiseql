@@ -649,19 +649,7 @@ impl TomlSchema {
             let mut fields_json = serde_json::Map::new();
 
             for (field_name, field_def) in &type_def.fields {
-                let mut field_json = serde_json::json!({
-                    "type": field_def.field_type,
-                    "nullable": field_def.nullable,
-                    "description": field_def.description,
-                });
-                // `vector_config` is emitted only when authored, matching the
-                // intermediate-format key the converter reads (#386). Serialized
-                // through the typed core struct so the wire shape cannot drift.
-                if let Some(ref vector) = field_def.vector {
-                    field_json["vector_config"] = serde_json::to_value(vector)
-                        .expect("VectorConfig holds only plain enums and integers");
-                }
-                fields_json.insert(field_name.clone(), field_json);
+                fields_json.insert(field_name.clone(), field_def.to_intermediate_json(field_name));
             }
 
             types_json.insert(

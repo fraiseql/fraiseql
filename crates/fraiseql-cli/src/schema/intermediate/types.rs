@@ -186,6 +186,21 @@ pub struct IntermediateField {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vector_config: Option<fraiseql_core::schema::VectorConfig>,
 
+    /// Names the vector field whose search distance this field carries (#959).
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "name": "similarity",
+    ///   "type": "Float",
+    ///   "nullable": false,
+    ///   "vector_distance": "embedding"
+    /// }
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vector_distance: Option<String>,
+
     /// Whether this field is gated by the dynamic field authorizer at runtime.
     ///
     /// When `true`, the compiled field is marked policy-gated

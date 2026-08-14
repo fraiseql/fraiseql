@@ -477,16 +477,17 @@ mod schema_validator_tests {
 
     fn field(name: &str, ty: &str) -> IntermediateField {
         IntermediateField {
-            vector_config:  None,
-            name:           name.to_string(),
-            field_type:     ty.to_string(),
-            nullable:       false,
-            description:    None,
-            directives:     None,
-            requires_scope: None,
-            on_deny:        None,
-            authorize:      None,
-            hierarchy:      None,
+            vector_config:   None,
+            vector_distance: None,
+            name:            name.to_string(),
+            field_type:      ty.to_string(),
+            nullable:        false,
+            description:     None,
+            directives:      None,
+            requires_scope:  None,
+            on_deny:         None,
+            authorize:       None,
+            hierarchy:       None,
         }
     }
 

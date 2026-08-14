@@ -94,6 +94,12 @@ const MANIFEST: &[(&str, &str)] = &[
     ("pool_max_size", "DB pool max size"),
     ("pool_timeout_secs", "DB pool acquire timeout"),
     (
+        "pool_max_streaming_reads",
+        "cap on pool connections a streaming read may hold (#958) — main.rs and \
+         fraiseql-cli run → PoolConfig.max_streaming_reads; a quarter of pool_max_size \
+         when unset",
+    ),
+    (
         "enable_graphql_incremental",
         "incremental-delivery toggle for both framings, SSE and multipart/mixed (#387, \
          #958) — build_app_state → AppState.graphql_incremental_enabled, negotiated in \

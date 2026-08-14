@@ -567,28 +567,13 @@ impl SchemaMerger {
                     "name": type_name,
                     "sql_source": toml_type.sql_source,
                     "description": toml_type.description,
-                    "fields": toml_type.fields.iter().map(|(fname, fdef)| {
-                        let mut field = json!({
-                            "name": fname,
-                            "type": fdef.field_type,
-                            "nullable": fdef.nullable,
-                            "description": fdef.description,
-                        });
-                        if let Some(ref h) = fdef.hierarchy {
-                            field["hierarchy"] = json!(h);
-                        }
-                        // #386: carried under the intermediate-format key the
-                        // converter reads. This is the second hand-built copy of
-                        // the TOML field emission (the first is
-                        // `TomlSchema::to_intermediate_schema`) — keep both in
-                        // sync or a TOML-authored key silently vanishes on one
-                        // path only.
-                        if let Some(ref vector) = fdef.vector {
-                            field["vector_config"] = serde_json::to_value(vector)
-                                .expect("VectorConfig holds only plain enums and integers");
-                        }
-                        field
-                    }).collect::<Vec<_>>(),
+                    // One emitter, shared with `TomlSchema::to_intermediate_schema`
+                    // (#959): the two hand-built copies had drifted, and the
+                    // symptom of the drift is an authored key that silently does
+                    // nothing on one of the two TOML paths.
+                    "fields": toml_type.fields.iter()
+                        .map(|(fname, fdef)| fdef.to_intermediate_json(fname))
+                        .collect::<Vec<_>>(),
                 }));
             }
         }

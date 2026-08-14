@@ -326,3 +326,111 @@ fn emitted_ddl_carries_dimension_index_and_extension() {
         "the declared index type and ops class must be emitted: {ddl}"
     );
 }
+
+// ── the distance in the response (#959) ──────────────────────────────────────
+
+fn distance_types_json(distance_field: &str) -> String {
+    format!(
+        r#"{{
+  "types": [
+    {{
+      "name": "Doc",
+      "sql_source": "v_doc",
+      "fields": [
+        {{"name": "id", "type": "ID", "nullable": false}},
+        {{"name": "embedding", "type": "Vector", "nullable": false,
+          "vector_config": {{"dimensions": 3}}}},
+        {distance_field}
+      ]
+    }}
+  ]
+}}"#
+    )
+}
+
+#[test]
+fn ir_authored_vector_distance_reaches_the_compiled_schema() {
+    let types = distance_types_json(
+        r#"{"name": "similarity", "type": "Float", "nullable": false,
+            "vector_distance": "embedding"}"#,
+    );
+    let (ok, log, dir) = run_compile(&types, BASE_TOML, false);
+    assert!(ok, "compile must succeed: {log}");
+
+    let compiled = fs::read_to_string(dir.path().join("schema.compiled.json")).unwrap();
+    let schema = CompiledSchema::from_json(&compiled, false).expect("compiled schema parses");
+    let doc = schema.find_type("Doc").expect("Doc type");
+    let field = doc.fields.iter().find(|f| f.name.as_str() == "similarity").expect("field");
+    assert_eq!(
+        field.vector_distance.as_deref(),
+        Some("embedding"),
+        "the reference must survive IR → converter → compiled schema"
+    );
+}
+
+#[test]
+fn toml_authored_vector_distance_reaches_the_compiled_schema() {
+    let toml = r#"
+[types.Doc]
+sql_source = "v_doc"
+
+[types.Doc.fields.id]
+type = "ID"
+
+[types.Doc.fields.embedding]
+type = "Vector"
+vector = { dimensions = 3 }
+
+[types.Doc.fields.similarity]
+type = "Float"
+vector_distance = "embedding"
+
+[queries.docs]
+return_type = "Doc"
+return_array = true
+sql_source = "v_doc"
+"#;
+    let (ok, log, dir) = run_compile(r#"{"types": []}"#, toml, false);
+    assert!(ok, "TOML-authored vector_distance must compile: {log}");
+
+    let compiled = fs::read_to_string(dir.path().join("schema.compiled.json")).unwrap();
+    let schema = CompiledSchema::from_json(&compiled, false).expect("compiled schema parses");
+    let doc = schema.find_type("Doc").expect("Doc type");
+    let field = doc.fields.iter().find(|f| f.name.as_str() == "similarity").expect("field");
+    assert_eq!(field.vector_distance.as_deref(), Some("embedding"));
+}
+
+/// The reference is resolved at compile time. Left to runtime, its only symptom
+/// is a query refused on a schema the author already shipped.
+#[test]
+fn a_vector_distance_naming_no_such_field_is_a_compile_error() {
+    let types = distance_types_json(
+        r#"{"name": "similarity", "type": "Float", "nullable": false,
+            "vector_distance": "embeddings"}"#,
+    );
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "a dangling vector_distance reference must refuse to compile");
+    assert!(log.contains("no field by that name"), "the error names the miss: {log}");
+}
+
+#[test]
+fn a_vector_distance_naming_a_non_vector_field_is_a_compile_error() {
+    let types = distance_types_json(
+        r#"{"name": "similarity", "type": "Float", "nullable": false,
+            "vector_distance": "id"}"#,
+    );
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "a distance to a non-vector field is not a distance");
+    assert!(log.contains("is not a vector field"), "got: {log}");
+}
+
+#[test]
+fn a_non_float_vector_distance_field_is_a_compile_error() {
+    let types = distance_types_json(
+        r#"{"name": "similarity", "type": "String", "nullable": false,
+            "vector_distance": "embedding"}"#,
+    );
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "pgvector's distance operators return double precision");
+    assert!(log.contains("a pgvector distance is a Float"), "got: {log}");
+}

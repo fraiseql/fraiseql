@@ -12,7 +12,10 @@ use super::{
         combine_explicit_arg_where, compute_projection_reduction, enforce_max_page_size,
         inject_param_where_clause, nearest_order_and_limit,
     },
-    query_projection::{build_typed_projection_fields, enrich_order_by_clauses, where_field_types},
+    query_projection::{
+        build_typed_projection_fields, enrich_order_by_clauses, merge_computed_fields,
+        vector_distance_projection_fields, where_field_types,
+    },
 };
 use crate::{
     db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
@@ -46,6 +49,9 @@ pub(in super::super) struct ResolvedDirectRead {
     session_vars:   Vec<(String, String)>,
     /// Field-level RBAC classification for the projection (#886).
     pub access:     crate::runtime::field_filter::FieldAccessResult,
+    /// Projection for the computed fields this read selects (#959), or `None`
+    /// when it selects none — see [`Self::projection_request`].
+    projection:     Option<crate::db::SqlProjectionHint>,
 }
 
 impl ResolvedDirectRead {
@@ -56,13 +62,16 @@ impl ResolvedDirectRead {
 
     /// The adapter call shape for this read.
     ///
-    /// `projection: None` is deliberate and matches the buffered path: this runner
-    /// reads the whole `data` document and projects in Rust, because the REST
-    /// selection may name fields the SQL projection generator does not model.
+    /// The projection is `None` unless the read selects a computed field: this
+    /// runner reads the whole `data` document and projects in Rust, because the
+    /// REST selection may name fields the SQL projection generator does not
+    /// model. A vector distance (#959) is not in the document at all, so it is
+    /// projected as `data || jsonb_build_object(…)` — additive, so the reason
+    /// for reading the whole row still holds.
     fn projection_request(&self) -> crate::db::ProjectionRequest<'_> {
         crate::db::ProjectionRequest {
             view:         &self.sql_source,
-            projection:   None,
+            projection:   self.projection.as_ref(),
             where_clause: self.composed_where.as_ref(),
             order_by:     self.order_by.as_deref(),
             limit:        self.limit,
@@ -121,6 +130,87 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             serde_json::json!(total),
             query_match.response_key(),
         ))
+    }
+
+    /// Build the SQL projection for a read, including any vector-distance field
+    /// it selects (#386, #959).
+    ///
+    /// One builder for all three read paths. They had two copies of the typed
+    /// projection block and a third path with none, and a projection is where a
+    /// field either reaches the response or silently does not — the shape #739
+    /// showed costs a surface its answer.
+    ///
+    /// `full_row` is the caller saying the row must come back whole: a selected
+    /// policy-gated field needs the complete parent for the authorizer to decide
+    /// on (#423), and the REST direct read may name fields the projection
+    /// generator does not model. A distance field still has to be delivered
+    /// there, so the projection becomes `data || jsonb_build_object(…)` — the
+    /// stored row, plus what is not stored.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when a selected vector-distance
+    /// field has no matching `nearest` search, and `FraiseQLError::Internal`
+    /// when a projection cannot be built at all — never a silent fallback to
+    /// "select everything", which is how a `node(id:)` lookup once served every
+    /// column in its view (#827).
+    fn build_projection_hint(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        plan: &crate::runtime::planner::ExecutionPlan,
+        full_row: bool,
+        nearest: Option<&crate::db::OrderByClause>,
+    ) -> Result<Option<SqlProjectionHint>> {
+        let root_fields = query_match
+            .selections
+            .first()
+            .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+        let distance_fields = vector_distance_projection_fields(
+            root_fields,
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            nearest,
+        )?;
+
+        let generator = PostgresProjectionGenerator::new();
+        let internal = |e: FraiseQLError| FraiseQLError::Internal {
+            message: format!(
+                "could not build a projection for type '{}': {e}",
+                query_match.query_def.return_type
+            ),
+            source:  None,
+        };
+
+        if full_row
+            || plan.projection_fields.is_empty()
+            || plan.jsonb_strategy != JsonbStrategy::Project
+        {
+            if distance_fields.is_empty() {
+                return Ok(None);
+            }
+            let sql =
+                generator.generate_merged_projection_sql(&distance_fields).map_err(internal)?;
+            return Ok(Some(SqlProjectionHint::new(self.ctx.adapter.database_type(), sql, 0)));
+        }
+
+        let mut typed_fields = build_typed_projection_fields(
+            root_fields,
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            0,
+        );
+        merge_computed_fields(&mut typed_fields, distance_fields);
+        // A projection that cannot be built is an error, not a licence to
+        // select every column: the Rust projector subsets top-level keys but
+        // returns nested objects whole, so the fallback leaked sub-blobs the
+        // client never asked for (#827's family).
+        let projection_sql =
+            generator.generate_typed_projection_sql(&typed_fields).map_err(internal)?;
+        Ok(Some(SqlProjectionHint::new(
+            self.ctx.adapter.database_type(),
+            projection_sql,
+            compute_projection_reduction(plan.projection_fields.len()),
+        )))
     }
 
     /// Execute a regular query with row-level security (RLS) filtering.
@@ -282,52 +372,6 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     path:    None,
                 })?;
 
-        // 6. Generate SQL projection hint for requested fields (optimization). Build a recursive
-        //    ProjectionField tree from the selection set so that composite sub-fields are projected
-        //    with nested jsonb_build_object instead of returning the full blob. When a policy-gated
-        //    field is selected (#423), the hint is skipped so the adapter returns the full row,
-        //    giving the field authorizer the complete `parent` to decide on.
-        let projection_hint = if !gated_present
-            && !plan.projection_fields.is_empty()
-            && plan.jsonb_strategy == JsonbStrategy::Project
-        {
-            let root_fields = query_match
-                .selections
-                .first()
-                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
-            let typed_fields = build_typed_projection_fields(
-                root_fields,
-                &self.ctx.schema,
-                &query_match.query_def.return_type,
-                0,
-            );
-
-            let generator = PostgresProjectionGenerator::new();
-            // A projection that cannot be built is an error, not a licence to
-            // select every column: the Rust projector subsets top-level keys but
-            // returns nested objects whole, so the fallback leaked sub-blobs the
-            // client never asked for (#827's family).
-            let projection_sql =
-                generator.generate_typed_projection_sql(&typed_fields).map_err(|e| {
-                    FraiseQLError::Internal {
-                        message: format!(
-                            "could not build a projection for type '{}': {e}",
-                            query_match.query_def.return_type
-                        ),
-                        source:  None,
-                    }
-                })?;
-
-            Some(SqlProjectionHint::new(
-                self.ctx.adapter.database_type(),
-                projection_sql,
-                compute_projection_reduction(plan.projection_fields.len()),
-            ))
-        } else {
-            // Stream strategy: return full JSONB, no projection hint
-            None
-        };
-
         // 7. AND inject conditions onto the RLS WHERE clause. Inject conditions always come after
         //    RLS so they cannot bypass it.
         let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
@@ -452,6 +496,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         } else {
             (limit, order_by_clauses)
         };
+
+        // 8c. Generate the SQL projection for the requested fields, after the
+        //     `nearest` lowering so a selected distance field can be projected
+        //     from the clause that ordered the rows.
+        let projection_hint = self.build_projection_hint(
+            &query_match,
+            &plan,
+            gated_present,
+            order_by_clauses.as_ref().and_then(|c| c.first()),
+        )?;
 
         // 9. Execute query with combined WHERE clause filter, pinning session variables to the
         //    read's connection (fixes #329 for RLS).
@@ -731,48 +785,6 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         })?;
 
-        // 3a. Generate SQL projection hint for requested fields (optimization).
-        //     Recursive typed projection: composite sub-fields are projected with nested
-        //     jsonb_build_object instead of returning the full blob.
-        let projection_hint = if !plan.projection_fields.is_empty()
-            && plan.jsonb_strategy == JsonbStrategy::Project
-        {
-            let root_fields = query_match
-                .selections
-                .first()
-                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
-            let typed_fields = build_typed_projection_fields(
-                root_fields,
-                &self.ctx.schema,
-                &query_match.query_def.return_type,
-                0,
-            );
-            let generator = PostgresProjectionGenerator::new();
-            // A projection that cannot be built is an error, not a licence to
-            // select every column: the Rust projector subsets top-level keys but
-            // returns nested objects whole, so the fallback leaked sub-blobs the
-            // client never asked for (#827's family).
-            let projection_sql =
-                generator.generate_typed_projection_sql(&typed_fields).map_err(|e| {
-                    FraiseQLError::Internal {
-                        message: format!(
-                            "could not build a projection for type '{}': {e}",
-                            query_match.query_def.return_type
-                        ),
-                        source:  None,
-                    }
-                })?;
-
-            Some(SqlProjectionHint::new(
-                self.ctx.adapter.database_type(),
-                projection_sql,
-                compute_projection_reduction(plan.projection_fields.len()),
-            ))
-        } else {
-            // Stream strategy: return full JSONB, no projection hint
-            None
-        };
-
         // 3b. Extract auto_params (limit, offset, where, order_by) from arguments
         let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
             query_match
@@ -854,6 +866,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         } else {
             (limit, order_by_clauses)
         };
+
+        // 3b. Generate the SQL projection, after the `nearest` lowering so a
+        //     selected distance field can be projected from the clause that
+        //     ordered the rows.
+        let projection_hint = self.build_projection_hint(
+            &query_match,
+            &plan,
+            false,
+            order_by_clauses.as_ref().and_then(|c| c.first()),
+        )?;
 
         // No session vars: this is the unauthenticated entrypoint (no
         // SecurityContext), so there is nothing to resolve session variables
@@ -1042,7 +1064,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let access = super::super::support::security::classify_fields_for_read(
             &self.ctx.schema,
             &query_match.query_def.return_type,
-            plan.projection_fields,
+            plan.projection_fields.clone(),
             security_context,
         )?;
 
@@ -1169,6 +1191,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // Session variables pin to the read's connection (#329).
         let session_vars = self.resolve_session_vars(security_context)?;
 
+        // The direct read projects in Rust, so the only SQL projection it needs
+        // is for values that are not in the document — the vector distance a
+        // `nearest` search computed (#959).
+        let projection = self.build_projection_hint(
+            query_match,
+            &plan,
+            true,
+            order_by_clauses.as_ref().and_then(|c| c.first()),
+        )?;
+
         Ok(ResolvedDirectRead {
             sql_source: sql_source.clone(),
             composed_where,
@@ -1177,6 +1209,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             offset,
             session_vars,
             access,
+            projection,
         })
     }
 

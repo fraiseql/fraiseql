@@ -127,6 +127,10 @@ fn schema() -> CompiledSchema {
             distance_metric: fraiseql_core::schema::DistanceMetric::L2,
             ..VectorConfig::new(2)
         }),
+        // Declared against `embedding`, deliberately: selecting it while
+        // searching `thumbnail` is the mismatch the refusal exists for (#959).
+        FieldDefinition::new("thumbnailDistance", FieldType::Float)
+            .with_vector_distance("embedding"),
     ];
     schema.types.push(multi);
 
@@ -137,6 +141,11 @@ fn schema() -> CompiledSchema {
     multi_docs.auto_params.has_limit = true;
     multi_docs.auto_params.has_offset = true;
     schema.queries.push(multi_docs);
+
+    // `similarity` carries the distance the search ordered by (#959). Declared
+    // on `Doc`, whose single vector field keeps `nearest.field` optional, so the
+    // test exercises the ordinary shape.
+    doc_fields_with_similarity(&mut schema);
 
     let mut docs = QueryDefinition::new("docs", "Doc")
         .returning_list()
@@ -166,6 +175,8 @@ fn schema() -> CompiledSchema {
                     ..VectorConfig::binary(8)
                 },
             ),
+            FieldDefinition::new("bitDistance", FieldType::Float)
+                .with_vector_distance("fingerprint"),
         ];
         schema.types.push(bit_doc);
 
@@ -180,6 +191,25 @@ fn schema() -> CompiledSchema {
 
     schema.build_indexes();
     schema
+}
+
+/// Add the distance field to `Doc` (#959).
+///
+/// A separate function rather than a fourth entry in `schema()`'s literal, so
+/// the reason it is on `Doc` and not on `MultiDoc` stays next to it: `Doc`
+/// declares one vector field, which is the case where `nearest.field` is
+/// omitted and the distance still has exactly one meaning.
+fn doc_fields_with_similarity(schema: &mut CompiledSchema) {
+    let doc = schema.types.iter_mut().find(|t| t.name == "Doc").expect("Doc type");
+    doc.fields.push(
+        FieldDefinition::new("similarity", FieldType::Float).with_vector_distance("embedding"),
+    );
+    // A policy-gated field (#423) — selecting it makes the runner return the row
+    // whole, because the per-row authorizer needs the complete parent to decide
+    // on. That is the branch where a distance has to be added to the stored row
+    // instead of replacing it; see the authenticated test below.
+    doc.fields
+        .push(FieldDefinition::new("gated", FieldType::String).with_authorize(true));
 }
 
 async fn setup() -> Option<Router> {
@@ -569,4 +599,214 @@ async fn nearest_without_a_field_on_a_multi_vector_type_is_refused() {
         message.contains("embedding") && message.contains("thumbnail"),
         "the refusal must name the candidates: {resp}"
     );
+}
+
+// ── the distance in the response (#959) ─────────────────────────────────────
+
+/// A selected `vector_distance` field carries the distance the rows were
+/// ordered by — the numbers, not just the order.
+///
+/// The values are hand-computed against the fixture, so a projection that
+/// invented a plausible number (a different metric, a different vector, the
+/// squared distance) fails here even though the row order is right.
+#[tokio::test]
+async fn a_vector_distance_field_carries_the_distance_the_rows_were_ordered_by() {
+    if skip("distance_in_response") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r"{ docs(nearest: {vector: [1, 0, 0], k: 4}) { id similarity } }";
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+
+    let rows = resp["data"]["docs"].as_array().expect("rows");
+    let got: Vec<(i64, f64)> = rows
+        .iter()
+        .map(|r| (r["id"].as_i64().expect("id"), r["similarity"].as_f64().expect("similarity")))
+        .collect();
+    assert_eq!(got.len(), 4, "{resp}");
+
+    // Cosine distances to [1,0,0]: id1 = 0, id2 ≈ 2e-6, id3 ≈ 0.0194, id4 = 1.
+    let expected = [(1_i64, 0.0_f64), (2, 2e-6), (3, 0.0194), (4, 1.0)];
+    for ((id, distance), (want_id, want)) in got.iter().zip(expected) {
+        assert_eq!(*id, want_id, "row order is the distance order: {resp}");
+        assert!(
+            (distance - want).abs() < 1e-3,
+            "row {id}: distance {distance} is not the cosine distance {want}: {resp}"
+        );
+    }
+}
+
+/// The reported distance follows the metric the search used, because it is the
+/// same expression the ORDER BY was built from.
+#[tokio::test]
+async fn the_reported_distance_follows_the_metric_the_search_used() {
+    if skip("distance_follows_metric") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r#"{ docs(nearest: {vector: [1, 0, 0], k: 1, metric: "l2"}) { id similarity } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    // L2 puts id1 first at distance 0; under inner product the same row reports
+    // -1 (pgvector negates), and under cosine 0 — so only an L2 reading passes
+    // together with the row identity below.
+    assert_eq!(resp["data"]["docs"][0]["id"].as_i64(), Some(1), "{resp}");
+    let d = resp["data"]["docs"][0]["similarity"].as_f64().expect("similarity");
+    assert!(d.abs() < 1e-6, "L2 distance from a vector to itself is 0, got {d}: {resp}");
+
+    let router = setup().await.unwrap();
+    let q = r#"{ docs(nearest: {vector: [1, 0, 0], k: 1, metric: "inner_product"}) { id similarity } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(resp["data"]["docs"][0]["id"].as_i64(), Some(2), "{resp}");
+    let d = resp["data"]["docs"][0]["similarity"].as_f64().expect("similarity");
+    assert!(
+        (d + 5.0).abs() < 1e-6,
+        "pgvector's <#> returns the negated inner product, -5 for [5,0.01,0], got {d}: {resp}"
+    );
+}
+
+/// Selecting the distance without a search is refused, not answered with null.
+///
+/// A null would be indistinguishable from a row whose distance is genuinely
+/// unknown, on a response that otherwise looks like it worked.
+#[tokio::test]
+async fn a_distance_field_without_a_nearest_search_is_refused() {
+    if skip("distance_without_nearest") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r"{ docs(limit: 2) { id similarity } }";
+    let (_status, resp) = post_graphql(router, &json!({"query": q})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("similarity") && msg.contains("nearest"),
+        "the refusal names the field and the way out: {resp}"
+    );
+}
+
+/// The distance of a binary search is the bit metric's own number: a count of
+/// differing bits for hamming, a ratio for jaccard.
+#[tokio::test]
+async fn a_binary_search_reports_its_own_metrics_distance() {
+    if skip("bit_distance_in_response") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r#"{ bitDocs(nearest: {vector: "11110000", k: 4}) { id bitDistance } }"#;
+    let (status, resp) = post_graphql(router.clone(), &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    let got: Vec<(i64, f64)> = resp["data"]["bitDocs"]
+        .as_array()
+        .expect("rows")
+        .iter()
+        .map(|r| (r["id"].as_i64().expect("id"), r["bitDistance"].as_f64().expect("distance")))
+        .collect();
+    assert_eq!(got, vec![(2, 0.0), (4, 3.0), (1, 4.0), (3, 6.0)], "hamming counts bits: {resp}");
+
+    let q = r#"{ jacDocs(nearest: {vector: "11110000", k: 2}) { id bitDistance } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    let second = resp["data"]["jacDocs"][1]["bitDistance"].as_f64().expect("distance");
+    assert!(
+        (second - 0.5).abs() < 1e-9,
+        "jaccard is a ratio, not a bit count: id1 shares 4 of 8 set bits — {resp}"
+    );
+}
+
+/// A distance field measures the vector field it was declared against, and a
+/// search of a *different* one is refused rather than reported as that field's
+/// distance.
+#[tokio::test]
+async fn a_distance_field_for_another_vector_field_is_refused() {
+    if skip("distance_field_mismatch") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r#"{ multiDocs(nearest: {vector: [0, 0], k: 2, field: "thumbnail"}) { id } }"#;
+    let (status, resp) = post_graphql(router.clone(), &json!({"query": q})).await;
+    assert_eq!(status, 200, "the control query works: {resp}");
+
+    // `Doc.similarity` measures `embedding`; asking for it while searching
+    // `thumbnail` would report one embedding space's distance as another's.
+    let q = r#"{ multiDocs(nearest: {vector: [0, 0], k: 2, field: "thumbnail"}) { id thumbnailDistance } }"#;
+    let (_status, resp) = post_graphql(router, &json!({"query": q})).await;
+    let msg = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("embedding") && msg.contains("thumbnail"),
+        "the refusal names both the declared field and the searched one: {resp}"
+    );
+}
+
+/// A distance selected alongside a policy-gated field, which is the case where
+/// the row must come back **whole**.
+///
+/// The gated-field path skips the field projection on purpose (#423: the per-row
+/// authorizer decides on the complete parent), so the distance cannot replace
+/// the projection — it is concatenated onto the stored row. This test is what
+/// stops that branch from being an unexecuted claim: it goes through
+/// `execute_with_security`, the same entry the HTTP handler calls once a request
+/// carries a principal, against the real database.
+#[tokio::test]
+async fn a_distance_survives_the_full_row_path_a_gated_field_forces() {
+    // An allow-all authorizer: this test is about the projection shape a gated
+    // field forces, not about the decision it makes. Without one configured the
+    // read fails closed, which is the correct behaviour and not what is under
+    // test here.
+    struct AllowAll;
+    impl fraiseql_core::security::FieldAuthorizer for AllowAll {
+        fn authorize_field(
+            &self,
+            _req: &fraiseql_core::security::FieldAuthzRequest<'_>,
+        ) -> fraiseql_core::error::Result<fraiseql_core::security::FieldAuthzDecision> {
+            Ok(fraiseql_core::security::FieldAuthzDecision::Allow)
+        }
+    }
+    if skip("distance_with_gated_field") {
+        return;
+    }
+    let url = try_database_url().unwrap();
+    let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
+    seed(&adapter).await;
+    let config =
+        fraiseql_core::runtime::RuntimeConfig::default().with_field_authorizer(Arc::new(AllowAll));
+    let executor = Executor::with_config(schema(), Arc::new(adapter), config);
+
+    let security = fraiseql_core::security::SecurityContext {
+        user_id:          "user-1".into(),
+        roles:            vec!["admin".to_string()],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::default(),
+        request_id:       "req-vector".to_string(),
+        ip_address:       None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: chrono::Utc::now(),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    };
+
+    let q = r"{ docs(nearest: {vector: [1, 0, 0], k: 2}) { id title gated similarity } }";
+    let resp = executor
+        .execute_with_security(q, None, &security)
+        .await
+        .expect("the gated-field read must succeed");
+
+    let rows = resp["data"]["docs"].as_array().expect("rows");
+    assert_eq!(rows.len(), 2, "{resp}");
+    assert_eq!(rows[0]["id"].as_i64(), Some(1), "{resp}");
+    assert_eq!(
+        rows[0]["title"].as_str(),
+        Some("exact"),
+        "the stored row survives the concatenation: {resp}"
+    );
+    let d = rows[0]["similarity"]
+        .as_f64()
+        .unwrap_or_else(|| panic!("similarity must be projected: {resp}"));
+    assert!(d.abs() < 1e-9, "and the distance is added to it, not instead of it: {resp}");
+    let d1 = rows[1]["similarity"].as_f64().expect("similarity");
+    assert!(d1 > 0.0 && d1 < 1e-5, "row 2's cosine distance is ~2e-6, got {d1}: {resp}");
 }

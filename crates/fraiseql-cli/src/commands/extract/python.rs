@@ -53,6 +53,7 @@ impl SchemaExtractor for PythonExtractor {
                     let (graphql_type, nullable) = map_type(Language::Python, &type_str);
                     fields.push(IntermediateField {
                         vector_config: None,
+                        vector_distance: None,
                         name: field_name,
                         field_type: graphql_type,
                         nullable,
