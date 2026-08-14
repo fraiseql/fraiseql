@@ -103,8 +103,12 @@ pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
 ) -> Result<CsvResponse, RestError> {
-    let resolved =
-        handler.resolve_get_query(relative_path, query_pairs, headers, security_context)?;
+    let resolved = handler.resolve_streaming_get_query(
+        relative_path,
+        query_pairs,
+        headers,
+        security_context,
+    )?;
 
     let prefer = PreferHeader::from_headers(headers);
     validate_csv_request(&prefer, &resolved.params.pagination)?;

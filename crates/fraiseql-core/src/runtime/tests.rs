@@ -1680,6 +1680,7 @@ mod matcher_tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         });
         schema
@@ -1883,6 +1884,7 @@ mod matcher_tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         });
         let matcher = QueryMatcher::new(schema);
@@ -1919,6 +1921,7 @@ mod matcher_tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         });
         let matcher = QueryMatcher::new(schema);
@@ -2429,6 +2432,7 @@ mod planner_tests {
                 requires_role:       None,
                 rest_path:           None,
                 rest_method:         None,
+                rest_stream:         false,
                 native_columns:      HashMap::new(),
             },
             fields:         vec!["id".to_string(), "name".to_string()],

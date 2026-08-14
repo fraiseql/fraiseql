@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **REST streaming exports are now a per-route opt-in (#958).** `Accept:
+  application/x-ndjson`, `text/csv` and the XLSX media type were served on every REST
+  resource; they are now served only where the query declares `rest_stream = true`, and
+  answered `406 Not Acceptable` everywhere else. The JSON representation is unchanged.
+
+  A deployment relying on exports must add the flag to the queries behind those routes.
+  Default-off rather than default-on because an export is not a bigger page: it reads
+  the whole filtered relation, is not bounded by `max_page_size`, and holds a pooled
+  database connection for as long as the client takes to read it. A capability with
+  those properties on every route by default is one an operator has not decided to
+  offer.
+
 - **`enable_graphql_sse` is now `enable_graphql_incremental`, and
   `graphql_sse_stream_batch_size` is now `graphql_incremental_batch_size` (#958).** The
   flag gates the incremental-delivery *capability*, and #958 gave that capability a
@@ -1498,7 +1510,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   terminates a delivery in flight. Expiry alone left both unenforced for the whole life of
   a delivery, which on a large result set is unbounded.
 
-  Still deferred, and still tracked on #958: the REST `rest_stream` per-route opt-in.
+
+- **REST `rest_stream` per-route opt-in (#958).** A query offers the streaming
+  representations — `Accept: application/x-ndjson`, `text/csv`, XLSX — only with
+  `rest_stream = true`. The flag reaches the compiled schema from the authored
+  `rest_stream` key (validated in the Python decorator and again in the compiler:
+  `rest_stream` on a single-item query is refused, because those representations
+  deliver a sequence of rows and that query returns one).
+
+  All three export handlers resolve through one `resolve_streaming_get_query`, so a
+  fourth representation gets the opt-in by using the only resolution function that
+  fits it rather than by someone remembering to check a flag.
+
+  A route without it answers `406 Not Acceptable` and names the flag; its JSON
+  envelope is untouched. Refusing rather than substituting the envelope is the point:
+  a client sending `Accept: application/x-ndjson` is asking to be handed a dataset,
+  and quietly answering with one page of a different representation is #811's failure
+  mode wearing a different header.
 
 - **Nested `@stream` (#958).** `@stream` on a list *inside* a row —
   `users { posts @stream(initialCount: 2) }` — is delivered incrementally instead of

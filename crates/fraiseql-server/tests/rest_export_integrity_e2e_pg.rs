@@ -93,7 +93,17 @@ fn build_schema() -> CompiledSchema {
     let query = TestQueryBuilder::new("exports", "P13Export")
         .returns_list(true)
         .with_sql_source(VIEW)
+        // #958: the streaming representations are a per-route opt-in.
+        .rest_stream(true)
         .build();
+
+    // The same rows behind a route that did **not** opt in (#958), so one server
+    // serves both and the difference is the flag rather than the fixture.
+    let mut plain = TestQueryBuilder::new("plainExports", "P13Plain")
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .build();
+    plain.rest_path = Some("/plain".to_string());
 
     let mut schema = TestSchemaBuilder::new()
         .with_type(
@@ -102,7 +112,14 @@ fn build_schema() -> CompiledSchema {
                 .with_field(TestFieldBuilder::new("label", FieldType::String).build())
                 .build(),
         )
+        .with_type(
+            TestTypeBuilder::new("P13Plain", VIEW)
+                .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                .with_field(TestFieldBuilder::new("label", FieldType::String).build())
+                .build(),
+        )
         .with_query(query)
+        .with_query(plain)
         .build();
 
     schema.rest_config = Some(RestConfig {
@@ -478,5 +495,80 @@ async fn a_disabled_export_format_is_refused_while_the_enabled_one_still_serves(
         allowed.status(),
         reqwest::StatusCode::OK,
         "the format left enabled must still serve"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `rest_stream` — the per-route opt-in (#958)
+// ---------------------------------------------------------------------------
+
+/// One request for a streaming representation on a route that did not opt in.
+async fn request_export(base: &str, path: &str, accept: &str) -> (reqwest::StatusCode, String) {
+    let response = reqwest::Client::new()
+        .get(format!("{base}/rest/v1{path}"))
+        .header("accept", accept)
+        .timeout(EXPORT_TIMEOUT)
+        .send()
+        .await
+        .unwrap_or_else(|e| panic!("{accept} {path}: request failed: {e}"));
+    let status = response.status();
+    (status, response.text().await.expect("response body"))
+}
+
+/// A route without `rest_stream = true` refuses every streaming representation
+/// with `406`, and says which flag would offer it.
+///
+/// Refusing rather than substituting the JSON envelope is the point. A client that
+/// sends `Accept: application/x-ndjson` is asking to be handed a dataset; quietly
+/// answering with one page of a different representation is #811's failure mode
+/// wearing a different header — the caller believes it exported everything.
+#[tokio::test]
+async fn a_route_without_rest_stream_refuses_every_streaming_representation() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    for accept in [
+        "application/x-ndjson",
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ] {
+        let (status, body) = request_export(&server.url, "/plain", accept).await;
+        assert_eq!(
+            status,
+            reqwest::StatusCode::NOT_ACCEPTABLE,
+            "{accept}: a route that did not opt in must refuse, got {status} {body}"
+        );
+        assert!(
+            body.contains("rest_stream"),
+            "{accept}: the refusal must name the flag that would offer it, got {body}"
+        );
+    }
+}
+
+/// The opt-in gates the *streaming* representations only: the same route still
+/// serves its JSON envelope. A flag that turned the route off would be a different,
+/// much blunter feature.
+#[tokio::test]
+async fn a_route_without_rest_stream_still_serves_json() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = request_export(&server.url, "/plain", "application/json").await;
+    assert_eq!(
+        status,
+        reqwest::StatusCode::OK,
+        "the JSON representation must be unaffected: {body}"
+    );
+    let parsed: Value = serde_json::from_str(&body).expect("JSON body");
+    assert!(
+        parsed
+            .get("data")
+            .and_then(Value::as_array)
+            .is_some_and(|rows| !rows.is_empty()),
+        "the JSON representation must still return rows: {body}"
     );
 }

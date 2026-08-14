@@ -111,6 +111,22 @@ impl RestError {
         }
     }
 
+    /// 406 Not Acceptable — the client named a representation this route does not
+    /// offer.
+    ///
+    /// Refusing rather than substituting the JSON envelope is deliberate: a client
+    /// that asks for `application/x-ndjson` is asking to be handed a dataset, and
+    /// silently serving it one page of an envelope instead is #811's failure mode
+    /// wearing a different header.
+    pub fn not_acceptable(message: impl Into<String>) -> Self {
+        Self {
+            status:  StatusCode::NOT_ACCEPTABLE,
+            code:    "NOT_ACCEPTABLE",
+            message: message.into(),
+            details: None,
+        }
+    }
+
     /// 500 Internal Server Error.
     pub fn internal(message: impl Into<String>) -> Self {
         Self {

@@ -199,6 +199,18 @@ they are a single snapshot and cost `O(N)` rather than `O(N²)` in row scans. Th
 not resumable, and they hold a pooled connection for the life of the export — bounded
 by `pool_max_streaming_reads` (see the connection-pool runbook).
 
+The REST exports are a **per-route opt-in**: a query offers them only with
+`rest_stream = true`, and a route without it answers `406 Not Acceptable` to those
+`Accept` values while serving its JSON envelope unchanged. An export is not a bigger
+page — it reads the whole filtered relation, is not bounded by `max_page_size`, and
+holds that connection for as long as the client reads — so which routes offer one is
+the schema author's decision.
+
+```python
+@fraiseql.query(sql_source="v_invoice", rest_stream=True)
+def invoices() -> list[Invoice]: ...
+```
+
 The two are deliberately different, because the questions differ. An export is one
 transfer of a result set to a file; a `@stream` delivery is an interactive rendering
 that a browser may reconnect to. A snapshot cannot survive a reconnect, and a resume

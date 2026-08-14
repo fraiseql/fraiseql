@@ -541,6 +541,7 @@ mod entities_authz {
             requires_role: requires_role.map(str::to_string),
             rest_path: None,
             rest_method: None,
+            rest_stream: false,
             native_columns: HashMap::new(),
         });
         schema.types.push({
@@ -773,6 +774,7 @@ mod entities_authz {
                 requires_role:       None,
                 rest_path:           None,
                 rest_method:         None,
+                rest_stream:         false,
                 native_columns:      HashMap::new(),
             });
         }
@@ -1300,6 +1302,7 @@ mod inject {
             requires_role: None,
             rest_path: None,
             rest_method: None,
+            rest_stream: false,
             native_columns: HashMap::new(),
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
@@ -1681,6 +1684,7 @@ mod field_rbac {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         });
         let mut user_type = TypeDefinition::new("User", "v_user");
@@ -2301,6 +2305,7 @@ mod field_authz {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         }
     }

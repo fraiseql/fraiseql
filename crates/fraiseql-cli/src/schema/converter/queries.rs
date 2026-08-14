@@ -171,6 +171,19 @@ impl SchemaConverter {
         let (rest_path, rest_method) =
             Self::convert_rest_annotation("Query", &intermediate.name, intermediate.rest)?;
 
+        // A streaming export delivers a sequence of rows; a single-item query has no
+        // sequence to deliver. Refused at compile time rather than at the first
+        // request, which is the last point the authored intent is still visible —
+        // the same rule `convert_rest_annotation` applies to an unknown HTTP verb.
+        if intermediate.rest_stream && !intermediate.returns_list {
+            anyhow::bail!(
+                "Query '{}': rest_stream = true requires a list-returning query. The \
+                 streaming representations (NDJSON, CSV, XLSX) deliver a sequence of \
+                 rows, and this query returns one.",
+                intermediate.name
+            );
+        }
+
         Ok(QueryDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -198,6 +211,7 @@ impl SchemaConverter {
             requires_role: intermediate.requires_role,
             rest_path,
             rest_method,
+            rest_stream: intermediate.rest_stream,
             native_columns: HashMap::new(),
         })
     }

@@ -726,6 +726,25 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                     )
                     raise ValueError(msg)
 
+        # rest_stream validation — fail fast at authoring time (#958).
+        # The streaming representations (NDJSON, CSV, XLSX) deliver a sequence of
+        # rows; a single-item query has no sequence. The compiler refuses this too,
+        # but the decorator is where the author is standing.
+        if (rest_stream := cfg.get("rest_stream")) is not None:
+            if not isinstance(rest_stream, bool):
+                msg = (
+                    f"@fraiseql.query rest_stream= on {f.__name__!r} must be a bool "
+                    f"(got {rest_stream.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            if rest_stream and not signature["return_type"]["is_list"]:
+                msg = (
+                    f"@fraiseql.query rest_stream=True on {f.__name__!r} requires a "
+                    "list-returning query: the streaming representations deliver a "
+                    "sequence of rows."
+                )
+                raise ValueError(msg)
+
         # deprecated= → deprecation={reason: ...}
         if "deprecated" in cfg:
             cfg["deprecation"] = {"reason": cfg.pop("deprecated")}

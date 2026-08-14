@@ -1663,6 +1663,7 @@ mod key_tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         };
 
@@ -1701,6 +1702,7 @@ mod key_tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         };
 
@@ -1734,6 +1736,7 @@ mod key_tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            rest_stream:         false,
             native_columns:      HashMap::new(),
         };
 

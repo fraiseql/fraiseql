@@ -380,6 +380,14 @@ pub struct IntermediateQuery {
     /// REST route override for this query. See [`IntermediateRest`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest: Option<IntermediateRest>,
+
+    /// Allow this query to be exported as a stream over REST (#958).
+    ///
+    /// Separate from [`rest`](Self::rest) rather than a key inside it, because
+    /// that block's `path` is mandatory: nesting the flag there would make every
+    /// author who wants an export also override the route.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rest_stream: bool,
 }
 
 /// Mutation definition in intermediate format

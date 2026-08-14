@@ -239,3 +239,60 @@ fn an_unknown_key_inside_the_rest_block_is_refused() {
     let json = schema_json(r#", "rest": {"pathh": "/api/v1/orders"}"#, "");
     assert_compile_error(&json, "pathh");
 }
+
+// ---------------------------------------------------------------------------
+// `rest_stream` — the per-route streaming opt-in (#958)
+// ---------------------------------------------------------------------------
+
+/// Compile raw intermediate JSON and return the first query's `rest_stream`.
+fn compile_rest_stream(json: &str) -> bool {
+    let intermediate: IntermediateSchema =
+        serde_json::from_str(json).expect("intermediate schema must deserialize");
+    let compiled = SchemaConverter::convert(intermediate).expect("schema must compile");
+    compiled.queries[0].rest_stream
+}
+
+/// The authored flag must reach the compiled artifact, because that is where the
+/// server reads it. This is the #846 defect class exactly: a key every producer
+/// emits and no consumer receives compiles clean and does nothing.
+#[test]
+fn rest_stream_survives_compilation() {
+    assert!(compile_rest_stream(&schema_json(r#", "rest_stream": true"#, "")));
+}
+
+/// Absent means off. A streaming export reads the whole relation and holds a
+/// database connection for the client's whole read, so the default cannot be "yes".
+#[test]
+fn an_operation_without_rest_stream_does_not_opt_in() {
+    assert!(!compile_rest_stream(&schema_json("", "")));
+    assert!(!compile_rest_stream(&schema_json(r#", "rest_stream": false"#, "")));
+}
+
+/// `rest_stream` on a single-item query is refused at compile time.
+///
+/// The streaming representations deliver a sequence of rows; a query that returns
+/// one has no sequence. Compile time is where this has to fail — it is the last
+/// point at which the authored intent is still visible, the same argument the
+/// unsupported-verb refusal above makes.
+#[test]
+fn rest_stream_on_a_single_item_query_is_refused() {
+    let json = r#"{
+      "types": [
+        {
+          "name": "Order",
+          "fields": [{"name": "id", "type": "ID", "nullable": false}]
+        }
+      ],
+      "queries": [
+        {
+          "name": "order",
+          "return_type": "Order",
+          "returns_list": false,
+          "sql_source": "v_order",
+          "rest_stream": true
+        }
+      ],
+      "mutations": []
+    }"#;
+    assert_compile_error(json, "requires a list-returning query");
+}
