@@ -22,18 +22,20 @@
 //!
 //! Consistency caveat (shared with the REST export and gRPC streaming paths):
 //! batches are separate statements, not one snapshot — concurrent writes can
-//! shift rows between batches. Long-lived deliveries re-check principal expiry
-//! before every batch (the P18 rule for long-lived responses).
+//! shift rows between batches. Long-lived deliveries re-check the principal before
+//! every batch — expiry **and** revocation, through the same
+//! [`StreamAuthGuard`](crate::middleware::stream_auth::StreamAuthGuard) the
+//! subscription transport uses (the P18 rule for long-lived responses, #958).
 
 use std::collections::HashMap;
 
-use axum::response::{
-    IntoResponse, Response,
-    sse::{Event, KeepAlive, Sse},
-};
+use axum::response::Response;
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
-    graphql::{parse_query, selection_set::variables_map, types::FieldSelection, value_json},
+    graphql::{
+        defer, parse_query, selection_set, selection_set::variables_map, types::FieldSelection,
+        value_json,
+    },
     runtime::QueryMatcher,
     security::SecurityContext,
 };
@@ -43,27 +45,14 @@ use tracing::{debug, warn};
 
 use super::{
     super::{app_state::AppState, request::GraphQLRequest, tenant_dispatch},
-    execute_graphql_request, stages,
+    execute_graphql_request,
+    incremental::{self, Chunk, Wire},
+    stages,
 };
-use crate::error::{ErrorResponse, GraphQLError};
-
-/// Whether the request negotiates the SSE response transport.
-///
-/// Same `split(',')` idiom as the REST transport's `accepts_sse`; media-type
-/// parameters (`;q=…`) are tolerated.
-pub(in super::super) fn accepts_event_stream(headers: &axum::http::HeaderMap) -> bool {
-    headers
-        .get(axum::http::header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|accept| {
-            accept.split(',').any(|part| {
-                part.trim()
-                    .split(';')
-                    .next()
-                    .is_some_and(|media| media.trim().eq_ignore_ascii_case("text/event-stream"))
-            })
-        })
-}
+use crate::{
+    error::{ErrorResponse, GraphQLError},
+    middleware::stream_auth::StreamAuthGuard,
+};
 
 /// A validated plan for one `@stream` delivery.
 struct StreamPlan {
@@ -81,9 +70,11 @@ struct StreamPlan {
 /// ordinary HTTP error when the request fails before any event is emitted.
 pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: AppState<A>,
+    wire: Wire,
     headers: axum::http::HeaderMap,
     peer_ip: String,
     security_context: Option<SecurityContext>,
+    token_claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
     mut request: GraphQLRequest,
 ) -> Result<Response, ErrorResponse> {
     // Resolve who is asking and what they are asking, through the same stages
@@ -94,11 +85,22 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
     let query = Box::pin(stages::resolve_query_body(&state, &mut request)).await?;
 
     let plan = plan_stream(&state, &query, request.variables.as_ref())?;
+    let defer_plan = plan_defer(&query, request.variables.as_ref());
+
+    if plan.is_some() && defer_plan.is_some() {
+        return Err(ErrorResponse::from_error(GraphQLError::new(
+            "@defer cannot be combined with @stream in one operation: the two order the \
+             same response differently and interleaving them is not defined here"
+                .to_string(),
+            crate::error::ErrorCode::ValidationError,
+        )));
+    }
 
     let Some(plan) = plan else {
         // Single-result mode: the whole buffered pipeline runs once (it
         // re-validates the already-resolved principal, which is idempotent),
         // and the response becomes one `next` event plus `complete`.
+        let variables = request.variables.clone();
         let response = Box::pin(execute_graphql_request(
             state,
             request,
@@ -108,11 +110,16 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
             &peer_ip,
         ))
         .await?;
-        let events = vec![
-            next_event(&response.body),
-            Event::default().event("complete").data(""),
-        ];
-        return Ok(sse_response(stream::iter(events.into_iter().map(Ok))));
+        let chunks = defer_plan.map_or_else(
+            || {
+                vec![Chunk {
+                    payload:   response.body.clone(),
+                    resume_id: None,
+                }]
+            },
+            |selections| deferred_chunks(response.body.clone(), &selections, variables.as_ref()),
+        );
+        return Ok(incremental::respond(wire, stream::iter(chunks)));
     };
 
     // ── @stream mode: one-time gates, then batched delivery ─────────────────
@@ -153,20 +160,33 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
         _ => serde_json::Map::new(),
     };
 
+    // #958: resume a dropped delivery. Every `next` event carries `id:` = the absolute
+    // offset of the first row it has *not* delivered, so `Last-Event-ID` is exactly
+    // where to start again. No replay buffer is needed and none would be honest: the
+    // source is a re-executable paginated query, not a transient event feed.
+    let resume_from = resume_offset(&headers, &plan).map_err(|msg| {
+        ErrorResponse::from_error(GraphQLError::new(msg, crate::error::ErrorCode::ValidationError))
+    })?;
+    let start_offset = resume_from.unwrap_or(plan.client_offset);
+    // Rows the earlier connection already delivered, charged against the client's own
+    // `limit`: resuming must not restart the row budget, or a resuming client outlives
+    // the limit it asked for.
+    let already_delivered = start_offset - plan.client_offset;
+    let remaining_budget = plan.client_limit.map(|total| total.saturating_sub(already_delivered));
+
     // First batch runs BEFORE the stream is constructed so pre-stream failures
     // (authorization, RLS refusal, bad arguments) surface as ordinary HTTP
     // errors instead of a 200 stream that opens and immediately errors.
-    let initial_requested = plan
-        .client_limit
-        .map_or(plan.initial_count, |total| plan.initial_count.min(total));
-    let initial_vars = batch_variables(&base_variables, initial_requested, plan.client_offset);
+    let initial_requested =
+        remaining_budget.map_or(plan.initial_count, |left| plan.initial_count.min(left));
+    let initial_vars = batch_variables(&base_variables, initial_requested, start_offset);
     let first =
         run_batch(&state, tenant_key.as_deref(), &query, &initial_vars, security_context.as_ref())
             .await
             .map_err(ErrorResponse::from_error)?;
 
     let initial_rows = extract_items(&first, &plan.response_key).map_or(0, <[Value]>::len) as u64;
-    let delivered = initial_rows;
+    let delivered = already_delivered + initial_rows;
     // `!=` rather than `<`: an over-full batch means pagination is not binding,
     // and continuing would stream forever (see the same guard in `batch_step`).
     let exhausted = initial_rows != initial_requested
@@ -178,34 +198,153 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
     debug!(
         response_key = %plan.response_key,
         initial_rows,
+        resume_from = ?resume_from,
         exhausted,
         "GraphQL @stream delivery started"
     );
 
-    let batch_size = u64::from(state.graphql_sse_batch_size.max(1));
+    // #958: the delivery outlives the request that authorised it, so every
+    // continuation batch re-checks the principal — expiry AND revocation, through the
+    // guard the subscription transport uses. Expiry alone (all this loop did before)
+    // leaves a "log out everywhere" and a stolen-token revocation unenforced for the
+    // whole life of the delivery, which on a large result set is unbounded.
+    let auth_guard = StreamAuthGuard::new(
+        security_context.as_ref(),
+        token_claims,
+        state.revocation_manager.clone(),
+    );
+
+    let batch_size = u64::from(state.graphql_incremental_batch_size.max(1));
     let unfold_state = BatchState {
         state: state.clone(),
         query,
         base_variables,
         security_context,
+        auth_guard,
         tenant_key,
         response_key: plan.response_key,
         client_limit: plan.client_limit,
         batch_size,
-        offset: plan.client_offset + delivered,
+        offset: start_offset + initial_rows,
         phase: if exhausted {
             Phase::Complete
         } else {
             Phase::Streaming
         },
-        emitted_rows: initial_rows,
+        emitted_rows: delivered,
         batches: 1,
     };
 
-    let events = stream::iter(vec![Ok(next_event(&initial_payload))])
-        .chain(stream::unfold(unfold_state, batch_step));
+    let resume_id = start_offset + initial_rows;
+    let chunks = stream::iter(vec![Chunk {
+        payload:   initial_payload,
+        resume_id: Some(resume_id),
+    }])
+    .chain(stream::unfold(unfold_state, batch_step));
 
-    Ok(sse_response(events))
+    Ok(incremental::respond(wire, chunks))
+}
+
+/// The effective selection set of a document that carries an enabled `@defer`,
+/// or `None` when it carries none.
+///
+/// Spreads are expanded and `@skip`/`@include` applied through the same
+/// `selection_set` helpers the executor uses, so the tree the split walks is the tree
+/// the response was built from. A document that does not parse takes the buffered
+/// path, which produces the canonical parse error — same rule as `plan_stream`.
+fn plan_defer(query: &str, variables: Option<&Value>) -> Option<Vec<FieldSelection>> {
+    let parsed = parse_query(query).ok()?;
+    let vars = variables_map(variables);
+    let effective =
+        selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars).ok()?;
+    defer::contains_defer(&effective, &vars).then_some(effective)
+}
+
+/// Split `body` into its immediate payload and one event per deferred fragment.
+///
+/// The whole result is already in hand — `@defer` here changes delivery, not the
+/// query plan (see [`fraiseql_core::graphql::defer`]) — so this cannot fail and
+/// cannot mis-align: one statement produced every field being split.
+fn deferred_chunks(
+    mut body: Value,
+    selections: &[FieldSelection],
+    variables: Option<&Value>,
+) -> Vec<Chunk> {
+    let vars = variables_map(variables);
+    let deferred = body
+        .get_mut("data")
+        .map(|data| defer::split(selections, data, &vars))
+        .unwrap_or_default();
+
+    if deferred.is_empty() {
+        // Every `@defer` resolved to a field the response does not carry. The
+        // delivery is an ordinary single result, and saying `hasNext: true` here
+        // would leave the client waiting for a payload that will never come.
+        return vec![Chunk {
+            payload:   body,
+            resume_id: None,
+        }];
+    }
+
+    attach_has_next(&mut body, true);
+    let mut chunks = vec![Chunk {
+        payload:   body,
+        resume_id: None,
+    }];
+    let last = deferred.len() - 1;
+    for (index, payload) in deferred.into_iter().enumerate() {
+        let mut entry = json!({
+            "data": Value::Object(payload.data),
+            "path": payload.path,
+        });
+        if let Some(label) = payload.label {
+            entry["label"] = Value::String(label);
+        }
+        chunks.push(Chunk {
+            payload:   json!({
+                "incremental": [entry],
+                "hasNext": index != last,
+            }),
+            resume_id: None,
+        });
+    }
+    chunks
+}
+
+/// Resolve `Last-Event-ID` into the absolute row offset to resume from.
+///
+/// Returns `Ok(None)` when the header is absent (a fresh delivery). The id this
+/// transport emits is an absolute row offset, so the header is validated as one: it
+/// must parse, and it must not point *before* the client's own `offset` argument —
+/// that would deliver rows the document did not ask for, turning a reconnect hint into
+/// an argument override. A bad value is refused loudly rather than clamped, because a
+/// silently-adjusted resume point delivers a wrong result set that looks like a right
+/// one.
+fn resume_offset(
+    headers: &axum::http::HeaderMap,
+    plan: &StreamPlan,
+) -> Result<Option<u64>, String> {
+    let Some(raw) = headers.get("last-event-id").and_then(|v| v.to_str().ok()) else {
+        return Ok(None);
+    };
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Ok(None);
+    }
+    let offset: u64 = raw.parse().map_err(|_| {
+        format!(
+            "Last-Event-ID must be the absolute row offset this transport emits as the \
+             event id, got {raw:?}"
+        )
+    })?;
+    if offset < plan.client_offset {
+        return Err(format!(
+            "Last-Event-ID {offset} precedes the query's own offset argument \
+             ({}); resuming cannot deliver rows before the requested start",
+            plan.client_offset
+        ));
+    }
+    Ok(Some(offset))
 }
 
 /// Delivery phases for the continuation stream.
@@ -224,6 +363,8 @@ struct BatchState<A: DatabaseAdapter + Clone + Send + Sync + 'static> {
     query:            String,
     base_variables:   serde_json::Map<String, Value>,
     security_context: Option<SecurityContext>,
+    /// Re-checked before every continuation batch (#958).
+    auth_guard:       StreamAuthGuard,
     tenant_key:       Option<String>,
     response_key:     String,
     client_limit:     Option<u64>,
@@ -241,7 +382,7 @@ struct BatchState<A: DatabaseAdapter + Clone + Send + Sync + 'static> {
 /// final `complete` event, or end the stream.
 async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     mut st: BatchState<A>,
-) -> Option<(Result<Event, std::convert::Infallible>, BatchState<A>)> {
+) -> Option<(Chunk, BatchState<A>)> {
     match st.phase {
         Phase::Finished => None,
         Phase::Complete => {
@@ -259,29 +400,30 @@ async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                 tenant = st.tenant_key.as_deref().unwrap_or(""),
                 "@stream delivery complete"
             );
-            Some((Ok(Event::default().event("complete").data("")), st))
+            None
         },
         Phase::Streaming => {
-            // P18: a long-lived response re-checks its principal before every
-            // continuation batch; an expired token terminates the delivery.
-            if st.security_context.as_ref().is_some_and(SecurityContext::is_expired) {
-                warn!("@stream delivery terminated: principal token expired mid-stream");
+            // P18 + #958: a long-lived response re-checks its principal before every
+            // continuation batch — expiry *and* revocation, via the same guard the
+            // subscription transport uses. Either terminates the delivery.
+            if let Err(reason) = st.auth_guard.check().await {
+                warn!(reason, "@stream delivery terminated: principal no longer valid");
                 st.phase = Phase::Complete;
                 let payload = json!({
                     "errors": [{
-                        "message": "Authentication token expired during streaming delivery",
+                        "message": format!("{reason} during streaming delivery"),
                         "extensions": {"code": "UNAUTHENTICATED"}
                     }],
                     "hasNext": false,
                 });
-                return Some((Ok(next_event(&payload)), st));
+                return Some((resumable_chunk(payload, st.offset), st));
             }
 
             let remaining = st.client_limit.map(|total| total.saturating_sub(st.emitted_rows));
             let requested = remaining.map_or(st.batch_size, |r| r.min(st.batch_size));
             if requested == 0 {
                 st.phase = Phase::Complete;
-                return Some((Ok(next_event(&json!({"hasNext": false}))), st));
+                return Some((resumable_chunk(json!({"hasNext": false}), st.offset), st));
             }
 
             let vars = batch_variables(&st.base_variables, requested, st.offset);
@@ -308,7 +450,7 @@ async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                         "errors": [err_json],
                         "hasNext": false,
                     });
-                    Some((Ok(next_event(&payload)), st))
+                    Some((resumable_chunk(payload, st.offset), st))
                 },
                 Ok(response) => {
                     let items = extract_items(&response, &st.response_key)
@@ -343,7 +485,8 @@ async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                         }],
                         "hasNext": !done,
                     });
-                    Some((Ok(next_event(&payload)), st))
+                    let resume_id = st.offset;
+                    Some((resumable_chunk(payload, resume_id), st))
                 },
             }
         },
@@ -403,19 +546,19 @@ fn attach_has_next(payload: &mut Value, has_next: bool) {
     }
 }
 
-/// Build a `next` event carrying a JSON payload.
-fn next_event(payload: &Value) -> Event {
-    Event::default().event("next").data(payload.to_string())
-}
-
-/// Wrap an event stream in the SSE response with keep-alive comments.
-fn sse_response<S>(events: S) -> Response
-where
-    S: futures::Stream<Item = Result<Event, std::convert::Infallible>> + Send + 'static,
-{
-    Sse::new(events)
-        .keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)).text(""))
-        .into_response()
+/// A payload stamped with its resume point: the absolute offset of the first row it
+/// has **not** delivered (#958).
+///
+/// Stamping the *next* offset rather than the last delivered one is what makes
+/// `Last-Event-ID` directly usable as the resume offset, with no off-by-one for the
+/// client to get wrong. The terminal payloads are stamped too — a delivery that ended
+/// because the token was revoked is exactly the one a client wants to resume once it
+/// holds a fresh one.
+const fn resumable_chunk(payload: Value, next_offset: u64) -> Chunk {
+    Chunk {
+        payload,
+        resume_id: Some(next_offset),
+    }
 }
 
 /// Inspect the operation for a root-level `@stream`.

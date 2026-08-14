@@ -214,8 +214,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // GraphQL-over-SSE transport (#387): opt-in, with the batch-size default
         // resolved through the single ServerConfig seam.
-        state.graphql_sse_enabled = self.config.enable_graphql_sse;
-        state.graphql_sse_batch_size = self.config.graphql_sse_batch_size();
+        state.graphql_incremental_enabled = self.config.enable_graphql_incremental;
+        state.graphql_incremental_batch_size = self.config.graphql_incremental_batch_size();
 
         // Derive the introspection policy from the two server-config booleans.
         // This is the single source of truth shared with the REST

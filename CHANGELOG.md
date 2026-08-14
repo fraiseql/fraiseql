@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`enable_graphql_sse` is now `enable_graphql_incremental`, and
+  `graphql_sse_stream_batch_size` is now `graphql_incremental_batch_size` (#958).** The
+  flag gates the incremental-delivery *capability*, and #958 gave that capability a
+  second wire framing (`multipart/mixed`) alongside SSE. A flag named for one framing
+  that switches both on is a configuration file that does not describe what it does —
+  the defect class `[fraiseql.security]` honesty work has been closing all program. An
+  operator's `fraiseql.toml` needs both keys renamed; there is no alias, deliberately.
+
 - **`DatabaseAdapter`'s read-path methods gained a `ReadRouting` argument (#957).**
   `execute_where_query_arc_with_session`, `execute_with_projection_arc_with_session`,
   `execute_parameterized_aggregate_with_session`, `count_where_query` and
@@ -1448,6 +1456,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or the render cache. The server refuses such a section at boot.
 
 ### Added
+
+- **Incremental delivery: `@defer`, `multipart/mixed`, resumable `@stream` (#958).** Four
+  of the eight deferred parts of #387.
+
+  **`@defer` on a fragment is live** over an incremental transport. The immediate payload
+  carries the fields the client did not defer; each deferred fragment then arrives as an
+  `incremental` entry addressed by its response path, one per list element, grouped by
+  `(path, label)` so one fragment produces one payload rather than one per field.
+
+  It is deliberately a **delivery split, not a second query**. A FraiseQL query is one SQL
+  statement over a JSONB view — there are no per-field resolvers to defer — so the only way
+  `@defer` could save database work is to drop the deferred fields from the projection and
+  re-query them, and for a list that is *unsound*: the two statements are separate
+  snapshots, so aligning the second to the first positionally attaches one row's deferred
+  fields to another row whenever a concurrent write shifts the window. Aligning by key
+  would require the client to have selected an identity field, which it is under no
+  obligation to do. So `@defer` here changes when bytes reach the client — a real benefit
+  when the deferred part is large — and never what they say. That is stated in the docs
+  rather than left to be inferred.
+
+  **`multipart/mixed`** joins SSE as a second framing (the Apollo/Relay
+  `deferSpec=20220824` shape), built from the same payload sequence in one code path so
+  the two cannot drift into delivering different results — a drift no client would catch,
+  since a client only ever exercises one of them. `Accept` naming both resolves to SSE.
+  The compression predicate exempts it, as it already did SSE.
+
+  **`@stream` deliveries are resumable.** Every payload carries the absolute row offset of
+  the first row it did *not* deliver, so `Last-Event-ID` is directly the resume point. No
+  replay buffer is involved and none would be honest — the source is a re-executable
+  paginated query, not a transient event feed. Rows already delivered are charged against
+  the document's own `limit`, so a resumed delivery cannot outlive the budget it asked for,
+  and a `Last-Event-ID` that is malformed or points *before* the document's `offset`
+  argument is refused rather than clamped: a silently adjusted resume point returns a wrong
+  result set that looks like a right one. The terminal payload of a delivery that ended
+  early is stamped too, so a client whose token was revoked resumes rather than restarts.
+
+  **Every continuation batch now re-checks revocation, not only expiry.** The `@stream`
+  loop uses the same `StreamAuthGuard` the subscription transport uses — now one shared
+  implementation rather than two — so a "log out everywhere" or a stolen-token revocation
+  terminates a delivery in flight. Expiry alone left both unenforced for the whole life of
+  a delivery, which on a large result set is unbounded.
+
+  Still deferred, and still tracked on #958: nested `@stream`, the `Stream`-returning
+  `DatabaseAdapter` method (with its gRPC and REST-export adopters), and the REST
+  `rest_stream` per-route opt-in.
 
 - **Read replicas: bounded staleness, per-query routing, failover detection, per-tenant
   replicas (#957).** The four parts #407 deferred.

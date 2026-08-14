@@ -102,16 +102,18 @@ fn schema() -> CompiledSchema {
 fn sse_config(batch_size: u32) -> ServerConfig {
     ServerConfig {
         cors_enabled: false,
-        enable_graphql_sse: true,
-        graphql_sse_stream_batch_size: Some(batch_size),
+        enable_graphql_incremental: true,
+        graphql_incremental_batch_size: Some(batch_size),
         ..ServerConfig::default()
     }
 }
 
-/// One parsed SSE event: `event:` name plus concatenated `data:` payload.
+/// One parsed SSE event: `event:` name, `id:` (the #958 resume point) and
+/// concatenated `data:` payload.
 #[derive(Debug)]
 struct SseEvent {
     name: String,
+    id:   Option<String>,
     data: String,
 }
 
@@ -119,10 +121,13 @@ fn parse_sse(body: &str) -> Vec<SseEvent> {
     body.split("\n\n")
         .filter_map(|block| {
             let mut name = String::from("message");
+            let mut id = None;
             let mut data = String::new();
             for line in block.lines() {
                 if let Some(v) = line.strip_prefix("event:") {
                     name = v.trim().to_string();
+                } else if let Some(v) = line.strip_prefix("id:") {
+                    id = Some(v.trim().to_string());
                 } else if let Some(v) = line.strip_prefix("data:") {
                     if !data.is_empty() {
                         data.push('\n');
@@ -135,7 +140,7 @@ fn parse_sse(body: &str) -> Vec<SseEvent> {
             if data.is_empty() && name == "message" {
                 None
             } else {
-                Some(SseEvent { name, data })
+                Some(SseEvent { name, id, data })
             }
         })
         .collect()
@@ -210,7 +215,7 @@ async fn sse_disabled_by_default_ignores_accept() {
         .to_string();
     assert!(
         content_type.starts_with("application/json"),
-        "with enable_graphql_sse=false the Accept header must be ignored; got {content_type}"
+        "with enable_graphql_incremental=false the Accept header must be ignored; got {content_type}"
     );
     let body: Value = resp.json().await.unwrap();
     assert_eq!(body["data"]["items"].as_array().map(Vec::len), Some(5));
@@ -305,6 +310,430 @@ async fn stream_respects_the_client_row_limit() {
     assert_eq!(payloads.last().unwrap()["hasNext"], json!(false));
 }
 
+// ── multipart/mixed, the second framing (#958) ───────────────────────────────
+
+/// Split a `multipart/mixed` body into its parts' JSON bodies.
+///
+/// Deliberately strict about the framing rather than "find the JSON": the delimiter
+/// (`---`) and terminator (`-----`) differing is the whole contract, and a client that
+/// cannot tell them apart hangs waiting for a body that never comes.
+fn parse_multipart(body: &str) -> Vec<Value> {
+    assert!(
+        body.ends_with("-----\r\n"),
+        "the body must end with the closing boundary: {body:?}"
+    );
+    body.trim_end_matches("-----\r\n")
+        .split("\r\n---\r\n")
+        .filter(|part| !part.trim().is_empty())
+        .map(|part| {
+            let (headers, json) = part
+                .split_once("\r\n\r\n")
+                .unwrap_or_else(|| panic!("each part has headers then a body: {part:?}"));
+            assert!(
+                headers.contains("content-type: application/json"),
+                "each part declares its content type: {headers:?}"
+            );
+            serde_json::from_str(json.trim_end())
+                .unwrap_or_else(|e| panic!("part body is JSON ({e}): {json:?}"))
+        })
+        .collect()
+}
+
+async fn multipart_post(server: &TestServer, body: &Value) -> reqwest::Response {
+    reqwest::Client::new()
+        .post(format!("{}/graphql", server.url))
+        .header("accept", "multipart/mixed; deferSpec=20220824")
+        .header("content-type", "application/json")
+        .json(body)
+        .send()
+        .await
+        .expect("request")
+}
+
+/// The same `@stream` delivery, framed as `multipart/mixed`: identical payload
+/// sequence, different envelope. A client of either framing must see the same rows.
+#[tokio::test]
+async fn multipart_delivers_the_same_stream_payloads_as_sse() {
+    if database_url_or_skip("multipart_stream").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(1))).await.unwrap();
+    let query = r"{ items(orderBy: {id: ASC}) @stream(initialCount: 2) { id } }";
+
+    let sse_ids = streamed_ids(
+        &next_payloads(&parse_sse(
+            &sse_post(&server, &json!({"query": query}), None).await.text().await.unwrap(),
+        )),
+        "items",
+    );
+
+    let resp = multipart_post(&server, &json!({"query": query})).await;
+    assert_eq!(resp.status(), 200);
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    assert!(
+        content_type.starts_with("multipart/mixed"),
+        "a negotiated multipart request must answer multipart/mixed; got {content_type}"
+    );
+    assert!(
+        content_type.contains("boundary=\"-\""),
+        "the boundary must be declared for the client to split on: {content_type}"
+    );
+
+    let payloads = parse_multipart(&resp.text().await.unwrap());
+    assert_eq!(
+        streamed_ids(&payloads, "items"),
+        sse_ids,
+        "the two framings must deliver the same rows: {payloads:?}"
+    );
+    assert_eq!(
+        payloads.last().unwrap()["hasNext"],
+        json!(false),
+        "multipart has no terminal event, so the last payload's hasNext:false is the \
+         only end-of-delivery signal: {payloads:?}"
+    );
+}
+
+/// `@defer` over multipart, the framing Apollo and Relay default to.
+#[tokio::test]
+async fn multipart_delivers_deferred_payloads() {
+    if database_url_or_skip("multipart_defer").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+
+    let query = r#"
+        { items(limit: 1, orderBy: {id: ASC}) { id ...Detail @defer(label: "detail") } }
+        fragment Detail on SseItem { label }
+    "#;
+    let resp = multipart_post(&server, &json!({"query": query})).await;
+    assert_eq!(resp.status(), 200);
+    let payloads = parse_multipart(&resp.text().await.unwrap());
+
+    assert_eq!(payloads.len(), 2, "an immediate part and a deferred part: {payloads:?}");
+    assert_eq!(payloads[0]["data"]["items"], json!([{"id": 1}]));
+    assert_eq!(payloads[0]["hasNext"], json!(true));
+    assert_eq!(payloads[1]["incremental"][0]["data"], json!({"label": "one"}));
+    assert_eq!(payloads[1]["incremental"][0]["path"], json!(["items", 0]));
+    assert_eq!(payloads[1]["hasNext"], json!(false));
+}
+
+/// `Accept` listing both framings gets SSE — the one this transport shipped first.
+/// A client naming both is saying "either", and answering it with neither would be
+/// the only wrong reply.
+#[tokio::test]
+async fn accept_listing_both_framings_resolves_to_sse() {
+    if database_url_or_skip("multipart_accept_both").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+
+    let resp = reqwest::Client::new()
+        .post(format!("{}/graphql", server.url))
+        .header("accept", "multipart/mixed; deferSpec=20220824, text/event-stream")
+        .header("content-type", "application/json")
+        .json(&json!({"query": "{ items(limit: 1) { id } }"}))
+        .send()
+        .await
+        .expect("request");
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    assert!(content_type.starts_with("text/event-stream"), "got {content_type}");
+}
+
+/// Multipart is the same opt-in as SSE. With incremental delivery disabled, the
+/// `Accept` header is ignored and the ordinary buffered JSON response is served —
+/// answering a multipart body here would mean the operator's opt-out applied to one
+/// framing and not the other.
+#[tokio::test]
+async fn multipart_is_ignored_when_incremental_delivery_is_disabled() {
+    if database_url_or_skip("multipart_disabled").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    }))
+    .await
+    .unwrap();
+
+    let resp = multipart_post(&server, &json!({"query": "{ items(limit: 1) { id } }"})).await;
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    assert!(content_type.starts_with("application/json"), "got {content_type}");
+}
+
+// ── @defer on fragments (#958) ───────────────────────────────────────────────
+
+/// `@defer` on a fragment spread: the immediate payload carries the fields the
+/// client did not defer, then the deferred fragment arrives as an `incremental`
+/// entry addressed by its path.
+#[tokio::test]
+async fn defer_on_a_fragment_splits_the_response_into_two_payloads() {
+    if database_url_or_skip("sse_defer_fragment").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+
+    let query = r#"
+        { items(limit: 2, orderBy: {id: ASC}) { id ...Detail @defer(label: "detail") } }
+        fragment Detail on SseItem { label }
+    "#;
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    assert_eq!(resp.status(), 200);
+    let payloads = next_payloads(&parse_sse(&resp.text().await.unwrap()));
+
+    // Immediate payload: the undeferred field only, and hasNext announcing more.
+    assert_eq!(
+        payloads[0]["data"]["items"],
+        json!([{"id": 1}, {"id": 2}]),
+        "the deferred fragment's field must not be in the immediate payload: {payloads:?}"
+    );
+    assert_eq!(payloads[0]["hasNext"], json!(true));
+
+    // One incremental entry per list element, each addressed by its own index.
+    let entries: Vec<&Value> = payloads[1..]
+        .iter()
+        .filter_map(|p| p.get("incremental").and_then(Value::as_array))
+        .flatten()
+        .collect();
+    assert_eq!(entries.len(), 2, "one deferred payload per element: {payloads:?}");
+    assert_eq!(entries[0]["path"], json!(["items", 0]));
+    assert_eq!(entries[0]["data"], json!({"label": "one"}));
+    assert_eq!(entries[0]["label"], json!("detail"));
+    assert_eq!(entries[1]["path"], json!(["items", 1]));
+    assert_eq!(entries[1]["data"], json!({"label": "two"}));
+
+    assert_eq!(
+        payloads.last().unwrap()["hasNext"],
+        json!(false),
+        "the final payload closes the delivery: {payloads:?}"
+    );
+}
+
+/// `@defer(if: false)` is not a defer: the response must keep its ordinary
+/// single-payload shape, with no `hasNext` promising a payload that never comes.
+#[tokio::test]
+async fn defer_if_false_delivers_one_ordinary_payload() {
+    if database_url_or_skip("sse_defer_if_false").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+
+    let query = r"
+        { items(limit: 1) { id ...Detail @defer(if: false) } }
+        fragment Detail on SseItem { label }
+    ";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    let events = parse_sse(&resp.text().await.unwrap());
+    let payloads = next_payloads(&events);
+
+    assert_eq!(payloads.len(), 1, "a disabled @defer must not split the response: {payloads:?}");
+    assert_eq!(payloads[0]["data"]["items"][0]["label"], json!("one"));
+    assert!(
+        payloads[0].get("hasNext").is_none(),
+        "an unsplit response must not announce a continuation: {payloads:?}"
+    );
+    assert_eq!(events.last().map(|e| e.name.as_str()), Some("complete"));
+}
+
+/// `@defer` and `@stream` in one operation order the same response differently.
+/// Interleaving them is not defined here, so the combination is refused rather
+/// than silently resolved one way.
+#[tokio::test]
+async fn defer_combined_with_stream_is_refused() {
+    if database_url_or_skip("sse_defer_with_stream").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(1))).await.unwrap();
+
+    let query = r"
+        { items(orderBy: {id: ASC}) @stream(initialCount: 1) { id ...Detail @defer } }
+        fragment Detail on SseItem { label }
+    ";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    assert!(
+        content_type.starts_with("application/json"),
+        "the refusal must be a buffered error response, never a stream; got {content_type}"
+    );
+    let body: Value = resp.json().await.unwrap();
+    assert!(
+        body["errors"][0]["message"].as_str().unwrap_or("").contains("@defer"),
+        "the combination must be refused with the reason: {body}"
+    );
+}
+
+/// The buffered transport cannot deliver incrementally, so `@defer` stays what the
+/// spec permits there: the full result in one response. A split payload over
+/// `application/json` would be a response no GraphQL client could read.
+#[tokio::test]
+async fn defer_over_the_buffered_transport_delivers_the_full_result() {
+    if database_url_or_skip("sse_defer_buffered").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+
+    let body: Value = reqwest::Client::new()
+        .post(format!("{}/graphql", server.url))
+        .header("content-type", "application/json")
+        .json(&json!({"query": r"
+            { items(limit: 1) { id ...Detail @defer } }
+            fragment Detail on SseItem { label }
+        "}))
+        .send()
+        .await
+        .expect("request")
+        .json()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        body["data"]["items"][0],
+        json!({"id": 1, "label": "one"}),
+        "without an incremental transport the deferred field must still be delivered: {body}"
+    );
+}
+
+// ── Resumption via Last-Event-ID (#958) ──────────────────────────────────────
+
+/// Every `next` event carries `id:` = the absolute offset of the first row it has
+/// *not* delivered, so a client that reconnects with `Last-Event-ID` continues
+/// exactly where it stopped: no row repeated, none skipped.
+#[tokio::test]
+async fn last_event_id_resumes_the_delivery_without_repeating_or_skipping_rows() {
+    if database_url_or_skip("sse_resume").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(1))).await.unwrap();
+
+    let query = r"{ items(orderBy: {id: ASC}) @stream(initialCount: 2) { id } }";
+
+    // First connection, read whole: ids are 2, 3, 4, 5, 5 (initial delivers 2 rows,
+    // then one per batch, and the terminal payload repeats the final offset).
+    let first =
+        parse_sse(&sse_post(&server, &json!({"query": query}), None).await.text().await.unwrap());
+    let ids: Vec<&str> = first
+        .iter()
+        .filter(|e| e.name == "next")
+        .map(|e| e.id.as_deref().unwrap_or(""))
+        .collect();
+    assert_eq!(
+        ids.first().copied(),
+        Some("2"),
+        "the initial payload's id is the offset after its initialCount rows: {ids:?}"
+    );
+    assert!(
+        ids.iter().all(|id| !id.is_empty()),
+        "every next event must carry a resume id: {ids:?}"
+    );
+
+    // A client that got as far as id "2" reconnects from there.
+    let resumed = reqwest::Client::new()
+        .post(format!("{}/graphql", server.url))
+        .header("accept", "text/event-stream")
+        .header("content-type", "application/json")
+        .header("last-event-id", "2")
+        .json(&json!({"query": query}))
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resumed.status(), 200);
+    let payloads = next_payloads(&parse_sse(&resumed.text().await.unwrap()));
+    assert_eq!(
+        streamed_ids(&payloads, "items"),
+        vec![3, 4, 5],
+        "resuming at offset 2 must deliver rows 3..5 and nothing already seen"
+    );
+}
+
+/// Resuming must not restart the client's own row budget: `limit: 3` means three
+/// rows across the whole logical delivery, not three more per reconnect.
+#[tokio::test]
+async fn resuming_charges_already_delivered_rows_against_the_client_limit() {
+    if database_url_or_skip("sse_resume_budget").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(1))).await.unwrap();
+
+    let query = r"{ items(limit: 3, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let resumed = reqwest::Client::new()
+        .post(format!("{}/graphql", server.url))
+        .header("accept", "text/event-stream")
+        .header("content-type", "application/json")
+        .header("last-event-id", "2")
+        .json(&json!({"query": query}))
+        .send()
+        .await
+        .expect("request");
+    assert_eq!(resumed.status(), 200);
+    let payloads = next_payloads(&parse_sse(&resumed.text().await.unwrap()));
+    assert_eq!(
+        streamed_ids(&payloads, "items"),
+        vec![3],
+        "two rows were already delivered before the reconnect, so a limit of 3 leaves \
+         exactly one — a resumed delivery that restarted the budget would return three"
+    );
+}
+
+/// A `Last-Event-ID` that is not an offset, or that points before the document's own
+/// `offset` argument, is refused loudly. Clamping it silently would deliver a wrong
+/// result set that looks like a right one — and pointing it *backwards* would let a
+/// header override a query argument.
+#[tokio::test]
+async fn a_malformed_or_backwards_last_event_id_is_refused() {
+    if database_url_or_skip("sse_resume_refusals").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(1))).await.unwrap();
+
+    for (header, expect) in [("not-an-offset", "Last-Event-ID"), ("1", "precedes")] {
+        let resp = reqwest::Client::new()
+            .post(format!("{}/graphql", server.url))
+            .header("accept", "text/event-stream")
+            .header("content-type", "application/json")
+            .header("last-event-id", header)
+            .json(&json!({
+                "query": r"{ items(offset: 2, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }"
+            }))
+            .send()
+            .await
+            .expect("request");
+        let content_type = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+        assert!(
+            content_type.starts_with("application/json"),
+            "the refusal must be a buffered error response, never a stream; got {content_type}"
+        );
+        let body: Value = resp.json().await.unwrap();
+        assert!(
+            body["errors"][0]["message"].as_str().unwrap_or("").contains(expect),
+            "Last-Event-ID {header:?} must be refused naming {expect:?}: {body}"
+        );
+    }
+}
+
 // ── Refusals: loud, before any event ─────────────────────────────────────────
 
 #[tokio::test]
@@ -374,6 +803,10 @@ fn hs256_config(batch_size: u32) -> ServerConfig {
 }
 
 fn mint_token(ttl_secs: i64) -> String {
+    mint_token_with_jti(ttl_secs, None)
+}
+
+fn mint_token_with_jti(ttl_secs: i64, jti: Option<&str>) -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     let now = i64::try_from(
         std::time::SystemTime::now()
@@ -382,13 +815,16 @@ fn mint_token(ttl_secs: i64) -> String {
             .as_secs(),
     )
     .expect("epoch seconds fit i64");
-    let claims = json!({
+    let mut claims = json!({
         "sub": "sse-user",
         "iss": ISSUER,
         "aud": AUDIENCE,
         "iat": now,
         "exp": now + ttl_secs,
     });
+    if let Some(jti) = jti {
+        claims["jti"] = json!(jti);
+    }
     encode(
         &Header::new(Algorithm::HS256),
         &claims,
@@ -445,6 +881,80 @@ async fn expired_token_terminates_the_stream_mid_delivery() {
             .unwrap_or("")
             .contains("UNAUTHENTICATED"),
         "the termination names token expiry: {error_payload}"
+    );
+    assert_eq!(events.last().map(|e| e.name.as_str()), Some("complete"));
+}
+
+/// The `jti` the mid-delivery test revokes.
+const JTI: &str = "sse-stream-jti";
+
+/// #958: expiry is not the only way a principal stops being one. A `revoke-all`
+/// ("log out everywhere") or a single-token revocation lands *while* the delivery is
+/// running, and before this the batch loop checked only `expires_at` — so a revoked
+/// principal kept being served for the whole remaining life of the delivery, which on
+/// a large result set is unbounded.
+///
+/// The token here is valid for an hour, so **expiry cannot be what terminates it**;
+/// the assertion on the reason string is what keeps that honest.
+#[tokio::test]
+async fn revoked_token_terminates_the_stream_mid_delivery() {
+    use fraiseql_server::token_revocation::{
+        InMemoryRevocationStore, RevocationStore, TokenRevocationManager,
+    };
+
+    let Some(url) = database_url_or_skip("sse_revocation_mid_stream") else {
+        return;
+    };
+
+    let store: Arc<dyn RevocationStore> = Arc::new(InMemoryRevocationStore::new());
+    let revocation = Arc::new(TokenRevocationManager::new(store, false, false, 3600));
+
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("adapter"));
+    seed(&adapter).await;
+    let server = Box::pin(TestServer::start_with_revocation(
+        hs256_config(1),
+        schema(),
+        adapter,
+        Arc::clone(&revocation),
+    ))
+    .await;
+
+    let token = mint_token_with_jti(3600, Some(JTI));
+
+    // Revoke ~600 ms in: the delivery is ~2 s (5 rows x 400 ms, one row per batch),
+    // so this lands mid-stream.
+    let revoker = Arc::clone(&revocation);
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+        revoker.revoke(JTI, 3600).await.expect("revoke mid-stream");
+    });
+
+    let query = "{ slowItems @stream(initialCount: 1) { id } }";
+    let resp = sse_post(&server, &json!({"query": query}), Some(&token)).await;
+    assert_eq!(resp.status(), 200, "the stream starts while the token is valid");
+
+    let events = parse_sse(&resp.text().await.unwrap());
+    let payloads = next_payloads(&events);
+
+    let ids = streamed_ids(&payloads, "slowItems");
+    assert!(
+        ids.len() < 5,
+        "the delivery must terminate before completing all rows; got {ids:?}"
+    );
+    let error_payload = payloads
+        .iter()
+        .find(|p| p.get("errors").is_some())
+        .unwrap_or_else(|| panic!("an UNAUTHENTICATED error event must be emitted: {payloads:?}"));
+    let message = error_payload["errors"][0]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("revoked"),
+        "the termination must name revocation, not expiry — an hour-long token cannot \
+         have expired, so an expiry message would mean the revocation check never ran: \
+         {error_payload}"
+    );
+    assert_eq!(
+        error_payload["errors"][0]["extensions"]["code"].as_str().unwrap_or(""),
+        "UNAUTHENTICATED"
     );
     assert_eq!(events.last().map(|e| e.name.as_str()), Some("complete"));
 }

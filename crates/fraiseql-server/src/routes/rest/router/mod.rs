@@ -830,6 +830,13 @@ where
     // With observers feature: set up SSE stream with real event subscription.
     #[cfg(feature = "observers")]
     {
+        // #1113: `Last-Event-ID` is read and deliberately not honoured here. Resuming
+        // this stream is not the `@stream` transport's problem — that one's event id is
+        // a row offset into a re-executable query (#958), whereas this one's is an event
+        // UUID, which no ordering can resolve to a resume point. A durable replay would
+        // read `core.tb_entity_change_log` by `seq`; an in-process buffer would not do,
+        // being per-replica. Filed with the tenant-filter gap in the same branch, both
+        // of which land the moment #428 populates `event_transport`.
         let _last_event_id = super::sse::extract_last_event_id(&parts.headers);
         let heartbeat_interval = std::time::Duration::from_secs(heartbeat_secs);
 

@@ -59,10 +59,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // normally exempts `text/event-stream`; without re-composing that
         // exemption here, a large SSE response (#387) would be buffered by the
         // encoder and its events would stop flushing incrementally.
+        //
+        // `multipart/mixed` is the same delivery under a different framing (#958)
+        // and needs the same exemption — an incremental transport that arrives all at
+        // once is not one. `NotForContentType::SSE` is a `text/event-stream`-only
+        // constant, so the multipart exemption is spelled out beside it rather than
+        // assumed.
         if self.config.compression_enabled {
             graphql_router.layer(
-                CompressionLayer::new()
-                    .compress_when(SizeAbove::new(1024).and(NotForContentType::SSE)),
+                CompressionLayer::new().compress_when(
+                    SizeAbove::new(1024)
+                        .and(NotForContentType::SSE)
+                        .and(NotForContentType::const_new("multipart/mixed")),
+                ),
             )
         } else {
             graphql_router

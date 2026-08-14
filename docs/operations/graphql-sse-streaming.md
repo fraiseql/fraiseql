@@ -1,27 +1,40 @@
-# GraphQL over SSE and `@stream`
+# Incremental GraphQL delivery: `@stream`, `@defer`, SSE and `multipart/mixed`
 
-FraiseQL can deliver GraphQL responses as Server-Sent Events, including
-incremental row delivery for large list queries (#387). The transport is
-**opt-in** and default-off.
+FraiseQL can deliver a GraphQL response incrementally — row batches for a large
+list (`@stream`, #387) and a split payload for a deferred fragment (`@defer`,
+#958) — over either of two wire framings. The capability is **opt-in** and
+default-off.
 
 ## Configuration
 
 ```toml
-enable_graphql_sse = true
+enable_graphql_incremental = true
 
 # Rows per continuation batch after the initial payload. Optional; default 100.
-# Setting it without enable_graphql_sse is a configuration error.
-graphql_sse_stream_batch_size = 100
+# Setting it without enable_graphql_incremental is a configuration error.
+graphql_incremental_batch_size = 100
 ```
 
 ## Negotiation
 
-A request to the GraphQL endpoint (GET or POST) carrying
-`Accept: text/event-stream` receives its response as SSE. With the feature
-disabled, the header is ignored and behaviour is byte-for-byte unchanged.
+A request to the GraphQL endpoint (GET or POST) is delivered incrementally when
+its `Accept` header names one of two framings:
 
-The SSE branch lives **inside** the `/graphql` route, so it sits behind the
-same authentication layer, content-type enforcement, body limits, rate
+| `Accept` | Framing |
+|---|---|
+| `text/event-stream` | GraphQL-over-SSE: one `next` event per payload, then `complete` |
+| `multipart/mixed` | the Apollo/Relay framing (`deferSpec=20220824`): one MIME part per payload, then the closing boundary |
+
+Both carry the **same payload sequence** — they are two envelopes over one
+delivery, built from one code path so they cannot drift. A request naming both
+gets SSE. With the feature disabled, both headers are ignored and behaviour is
+byte-for-byte unchanged.
+
+`multipart/mixed` has no terminal event: the last payload's `hasNext: false` is
+the end-of-delivery signal, which is why every payload carries `hasNext`.
+
+The incremental branch lives **inside** the `/graphql` route, so it sits behind
+the same authentication layer, content-type enforcement, body limits, rate
 limiting and timeout middleware as the buffered transport. An unauthenticated
 request is refused with the ordinary HTTP 401 before any stream opens.
 
@@ -70,9 +83,44 @@ parameters. Everything else is refused loudly before the stream opens:
 - documents declaring `$limit` or `$offset` variables (batching injects those
   variables; silently overriding the client's would corrupt nested arguments).
 
-Outside a negotiated SSE request, `@stream` and `@defer` are known, advisory
-no-ops (the incremental-delivery proposal permits serving the full result) —
-they parse, evaluate as include, and produce no warnings.
+Outside a negotiated incremental request, `@stream` and `@defer` are known,
+advisory no-ops (the incremental-delivery proposal permits serving the full
+result) — they parse, evaluate as include, and produce no warnings.
+
+## `@defer` on a fragment
+
+```graphql
+{ items(limit: 2) { id ...Detail @defer(label: "detail") } }
+fragment Detail on SseItem { label }
+```
+
+The immediate payload carries the fields the client did not defer, with
+`hasNext: true`; each deferred fragment then arrives as an `incremental` entry
+addressed by its response path, one per list element:
+
+```
+{"data":{"items":[{"id":1},{"id":2}]},"hasNext":true}
+{"incremental":[{"data":{"label":"one"},"path":["items",0],"label":"detail"}],"hasNext":true}
+{"incremental":[{"data":{"label":"two"},"path":["items",1],"label":"detail"}],"hasNext":false}
+```
+
+**`@defer` here splits the delivery, not the query plan.** A FraiseQL query is
+one SQL statement over a JSONB view — there are no per-field resolvers to defer —
+so the deferred fields are produced by the same statement as the immediate ones
+and then held back. Two consequences, stated plainly so neither is inferred
+wrongly:
+
+- It does **not** reduce database work. It changes when bytes reach the client, which is
+  a real benefit when the deferred part is large (a big nested list) and close to nothing
+  when it is small.
+- It is **always correctly aligned**, including inside lists. The alternative —
+  re-querying the deferred fields in a second statement — would genuinely save work in
+  the first, and would attach one row's deferred fields to another row whenever a
+  concurrent write shifted the window between the two snapshots. That trade was refused.
+
+`@defer(if: false)` leaves the response in its ordinary single-payload shape.
+`@defer` combined with `@stream` in one operation is refused: the two order the
+same response differently and interleaving them is not defined here.
 
 ## Consistency and lifecycle
 
@@ -80,19 +128,60 @@ they parse, evaluate as include, and produce no warnings.
   shift rows between batches. Use a deterministic `orderBy`, and prefer the
   primary-pinned window after writes when combined with read replicas.
 - Long-lived deliveries re-check the principal before every batch (the same
-  rule subscriptions follow): an expired token terminates the stream with an
-  `UNAUTHENTICATED` error event followed by `complete`. The executor
-  additionally refuses expired contexts per batch as defence in depth.
+  rule subscriptions follow, through the same guard): an expired **or revoked**
+  token terminates the stream with an `UNAUTHENTICATED` error event followed by
+  `complete`. The executor additionally refuses expired contexts per batch as
+  defence in depth. Revocation covers both a single-token `jti` revoke and a
+  per-user `revoke-all` epoch, and applies to any caller the auth layer
+  authenticated with a JWT.
 - A client disconnect drops the response stream, which stops the batch loop;
   no further database statements are issued for that delivery.
 - The delivery survives `request_timeout_secs` (the timeout bounds
-  response-head production, not the streaming body), and SSE responses are
-  exempt from response compression (a buffering encoder would defeat
-  incremental flushing).
+  response-head production, not the streaming body), and incremental responses on
+  both framings are exempt from response compression (a buffering encoder would
+  defeat incremental flushing).
+
+## Resuming a dropped delivery
+
+Every `next` event carries an `id:` — the **absolute row offset of the first row
+that event did not deliver**. Reconnect with the same document and
+`Last-Event-ID: <that id>` and the delivery continues from exactly there: no row
+repeated, none skipped. A browser `EventSource` sends the header automatically;
+other clients set it themselves.
+
+```
+id: 2
+event: next
+data: {"data":{"items":[{"id":1},{"id":2}]},"hasNext":true}
+```
+
+```http
+POST /graphql
+Accept: text/event-stream
+Last-Event-ID: 2
+```
+
+No replay buffer is involved, and none would be honest: the source is a
+re-executable paginated query, not a transient event feed. Two consequences worth
+knowing:
+
+- Rows already delivered are **charged against the document's own `limit`**. Resuming a
+  `limit: 100` delivery that got 40 rows through delivers at most 60 more, not 100.
+- Because batches are separate statements, a row inserted before the resume offset
+  between the two connections shifts the window, exactly as it does between batches of
+  one connection. A deterministic `orderBy` bounds this; a snapshot does not exist across
+  a reconnect by definition.
+- A `Last-Event-ID` that is not an offset, or that points before the document's own
+  `offset` argument, is refused with a `400`-shaped GraphQL error rather than clamped —
+  a silently adjusted resume point returns a wrong result set that looks like a right
+  one.
+
+The terminal payload of a delivery that ended early (revoked token, batch error)
+carries an id too, so a client that fixes the cause resumes rather than restarts.
 
 ## Not (yet) supported
 
-`@defer` on fragments, `multipart/mixed` incremental delivery, nested
-`@stream`, database-cursor row streaming (the fraiseql-wire integration),
-resumable streams via `Last-Event-ID`, and mid-stream revocation re-checks are
-tracked in the follow-up issue.
+Nested `@stream` and database-cursor row streaming (the fraiseql-wire integration)
+are tracked in the follow-up issue. `Last-Event-ID` on the REST observer stream
+(`/rest/v1/{resource}/stream`) is #1113, and separate: that transport's event id is an
+event UUID over a live feed, not an offset into a re-executable query.
