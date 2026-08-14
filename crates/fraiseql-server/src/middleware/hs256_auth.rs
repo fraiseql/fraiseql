@@ -18,7 +18,7 @@ use axum::{
 };
 use fraiseql_core::security::{AuthMiddleware, AuthRequest};
 
-use super::oidc_auth::AuthUser;
+use super::oidc_auth::{AuthUser, SessionJti, check_revocation};
 
 /// State for HS256 authentication middleware.
 #[derive(Clone)]
@@ -33,6 +33,13 @@ pub struct Hs256AuthState {
     /// handler, which is where the principal is actually resolved (ADR-0018). This
     /// layer never builds a `SecurityContext` from it — it decides pass or refuse.
     pub service_accounts: Option<Arc<crate::service_account::ServiceAccountAuthenticator>>,
+    /// Token-revocation manager, when `[security.token_revocation]` is configured.
+    ///
+    /// `[security.token_revocation]` is a compiled-schema setting and says nothing about
+    /// the auth mode, but only the OIDC layer ever consulted it — so under `[auth_hs256]`
+    /// a configured store was silently inert and Studio's "revoke all of a user's active
+    /// sessions" reported success over tokens that kept working (#1112).
+    pub revocation:       Option<Arc<crate::token_revocation::TokenRevocationManager>>,
 }
 
 impl Hs256AuthState {
@@ -43,6 +50,7 @@ impl Hs256AuthState {
             validator,
             realm,
             service_accounts: None,
+            revocation: None,
         }
     }
 
@@ -56,6 +64,20 @@ impl Hs256AuthState {
         self.service_accounts = authenticator;
         self
     }
+
+    /// Attach a token-revocation manager so authenticated requests are checked against
+    /// the revocation store, exactly as [`OidcAuthState`] does. `None` leaves revocation
+    /// enforcement disabled (#1112).
+    ///
+    /// [`OidcAuthState`]: super::oidc_auth::OidcAuthState
+    #[must_use]
+    pub fn with_revocation(
+        mut self,
+        revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    ) -> Self {
+        self.revocation = revocation;
+        self
+    }
 }
 
 /// HS256 authentication middleware.
@@ -63,8 +85,12 @@ impl Hs256AuthState {
 /// Validates JWT tokens from the `Authorization: Bearer` header using a
 /// shared-secret HS256 key. All validation is local — no network calls.
 ///
-/// On success, inserts an [`AuthUser`] extension into the request so
-/// downstream handlers see the same extension shape as the OIDC path.
+/// On success, enforces token revocation through the same seam the OIDC layer uses
+/// and inserts [`AuthUser`], [`SessionJti`] and `SessionTokenClaims` so downstream
+/// handlers see the same extension shape as the OIDC path (#1112). "Same shape" is
+/// not cosmetic: a long-lived transport decides whether a mid-stream revocation
+/// re-check applies by whether the claims extension is present, so an auth layer
+/// that omits it silently disables that check for every connection it authenticates.
 pub async fn hs256_auth_middleware(
     State(auth_state): State<Hs256AuthState>,
     mut request: Request<Body>,
@@ -113,7 +139,23 @@ pub async fn hs256_auth_middleware(
                 scopes = ?user.scopes,
                 "User authenticated successfully (HS256)"
             );
+            // #1112: the same revocation seam the OIDC layer runs. Signature, expiry
+            // and audience are verified above, so re-decoding the payload for `jti`/`iat`
+            // carries no integrity risk. Inserting the claims is load-bearing beyond this
+            // request: it is what lets a long-lived transport (the `/ws` subscription
+            // guard, the `@stream` batch loop) re-check revocation mid-delivery.
+            // `validate_request` succeeded, so the same extraction cannot fail — going
+            // back through it rather than re-implementing `Bearer ` stripping keeps the
+            // token this layer revocation-checks identical to the one it validated.
+            let token = auth_req.extract_bearer_token().unwrap_or_default();
+            let claims = match check_revocation(auth_state.revocation.as_ref(), &user, &token).await
+            {
+                Ok(claims) => claims,
+                Err(response) => return response,
+            };
             request.extensions_mut().insert(AuthUser(user));
+            request.extensions_mut().insert(SessionJti(claims.jti.clone()));
+            request.extensions_mut().insert(claims);
             next.run(request).await
         },
         Err(e) => {

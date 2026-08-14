@@ -1229,6 +1229,13 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// invalid bearer and an unmatched secret all still 401 at the layer.
 		"echo '### cargo test -p fraiseql-server --test hs256_service_account_e2e_pg (#934)'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test hs256_service_account_e2e_pg -- --test-threads=1",
+		// #1112 token revocation under [auth_hs256]: only the OIDC layer ever consulted
+		// the revocation store, so a configured [security.token_revocation] was inert and
+		// Studio's "revoke all sessions" reported success over tokens that kept working.
+		// Both revocation shapes (single jti, revoke-all epoch) plus the accepting half
+		// and require_jti, through the real mount.
+		"echo '### cargo test -p fraiseql-server --test hs256_revocation_e2e_pg (#1112)'",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test hs256_revocation_e2e_pg -- --test-threads=1",
 		// #368 P26 — social login through the shipped mount, against a stub IdP:
 		// Google OIDC full loop, the GitHub /user/emails second hop (email-keyed
 		// linking), the auth_start path bucket on /auth/v1/authorize (#788), and

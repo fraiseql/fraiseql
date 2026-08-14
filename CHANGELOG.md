@@ -3441,6 +3441,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Token revocation is now enforced under `[auth_hs256]`, not only under `[auth]` (#1112).**
+  `[security.token_revocation]` is a compiled-schema setting that says nothing about the auth
+  mode, and Studio's `POST /admin/v1/users/{id}/revoke` — "revoke all of a user's active
+  sessions", the compromised-account path — calls `revoke_all_for_user` whatever the mode is.
+  But `TokenRevocationManager::check_token` had exactly two callers, the OIDC middleware and
+  the subscription guard, so under HS256 the store was written and never read: the operator
+  got `{"success": true, "message": "All sessions revoked"}` and every one of that user's
+  tokens kept working until its own `exp`. That is the #749 fabricated-success shape surviving
+  in the other auth mode, and `[auth.social]` and `[auth.local]` both *require* `[auth_hs256]`
+  — so it was the auth mode of every social-login and local-password deployment, the ones
+  where FraiseQL is the issuer and there is no IdP behind it.
+
+  `hs256_auth_middleware` now runs the same `check_revocation` seam the OIDC middleware runs,
+  and inserts `SessionJti` + `SessionTokenClaims`. The second half matters on its own: their
+  absence is what disabled the subscription transport's mid-stream revocation re-check (#771)
+  under HS256, silently, since `StreamAuthGuard` treats missing claims as "no re-check
+  applies".
+
+  **Operational note:** `TokenRevocationConfig::require_jti` defaults to `true`, and
+  FraiseQL's own session minting (`fraiseql_auth::Claims`) carries `jti` only as a custom
+  claim. An HS256 deployment that enables revocation without also minting `jti` will now see
+  its own sessions refused — which is the setting doing what it says, but it was previously
+  inert. Set `require_jti = false` to rely on the `revoke-all` epoch (which keys on `iat`,
+  present on every FraiseQL-minted session), or mint tokens carrying a `jti`.
+
 - **`examples/saas`: the intra-account write rules were nullified by permissive-policy OR
   (#1070).** `account_isolation` is created with no `FOR` clause (so it covers ALL commands)
   and no `WITH CHECK`, and PostgreSQL both combines permissive policies with OR and reuses a
