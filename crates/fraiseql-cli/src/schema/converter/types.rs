@@ -32,6 +32,8 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert type '{}'", intermediate.name))?;
 
+        Self::validate_vector_distance_fields(&intermediate.name, &fields)?;
+
         // Owned types bind their relation on the query that returns them, so the
         // type-level source is normally empty. An owner-split `extend type`
         // federation entity carries a type-level `sql_source` (it has no local
@@ -63,6 +65,57 @@ impl SchemaConverter {
             relationships: Vec::new(),
             subscription_policy: None,
         })
+    }
+
+    /// Check every `vector_distance` declaration against its siblings (#959).
+    ///
+    /// The reference is only resolvable once the whole type is converted, and it
+    /// has to be resolved *somewhere*: a distance field naming a vector field
+    /// that does not exist compiles into a schema whose only symptom is a query
+    /// refused at runtime, on a query the author cannot see from the
+    /// declaration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the named field is absent or is not a vector field,
+    /// or when the declaring field is not a `Float` — the type pgvector's
+    /// distance operators return.
+    fn validate_vector_distance_fields(type_name: &str, fields: &[FieldDefinition]) -> Result<()> {
+        for field in fields {
+            let Some(measures) = field.vector_distance.as_deref() else {
+                continue;
+            };
+            if field.field_type != FieldType::Float {
+                anyhow::bail!(
+                    "Field '{type_name}.{}' declares vector_distance but its type is '{}'; \
+                     a pgvector distance is a Float",
+                    field.name,
+                    field.field_type
+                );
+            }
+            if field.vector_config.is_some() {
+                anyhow::bail!(
+                    "Field '{type_name}.{}' declares both vector_distance and vector_config; \
+                     it carries the distance to '{measures}', it is not itself a vector",
+                    field.name
+                );
+            }
+            let target = fields.iter().find(|f| f.name.as_str() == measures);
+            match target {
+                Some(t) if t.field_type.is_searchable_vector() => {},
+                Some(_) => anyhow::bail!(
+                    "Field '{type_name}.{}' declares vector_distance = \"{measures}\", but \
+                     '{measures}' is not a vector field",
+                    field.name
+                ),
+                None => anyhow::bail!(
+                    "Field '{type_name}.{}' declares vector_distance = \"{measures}\", and \
+                     '{type_name}' has no field by that name",
+                    field.name
+                ),
+            }
+        }
+        Ok(())
     }
 
     /// Convert `IntermediateEnum` to `EnumDefinition`
@@ -335,6 +388,7 @@ impl SchemaConverter {
             default_value: None,
             description: intermediate.description,
             vector_config: intermediate.vector_config,
+            vector_distance: intermediate.vector_distance,
             alias: None,
             deprecation,
             requires_scope: intermediate.requires_scope,

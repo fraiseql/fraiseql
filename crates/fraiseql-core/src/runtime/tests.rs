@@ -942,19 +942,20 @@ mod field_filter_tests {
 
     fn create_test_field(name: &str, requires_scope: Option<&str>) -> FieldDefinition {
         FieldDefinition {
-            name:           name.into(),
-            field_type:     FieldType::String,
-            nullable:       false,
-            default_value:  None,
-            description:    None,
-            vector_config:  None,
-            alias:          None,
-            deprecation:    None,
-            requires_scope: requires_scope.map(|s| s.to_string()),
-            on_deny:        FieldDenyPolicy::default(),
-            authorize:      false,
-            encryption:     None,
-            hierarchy:      None,
+            name:            name.into(),
+            field_type:      FieldType::String,
+            nullable:        false,
+            default_value:   None,
+            description:     None,
+            vector_config:   None,
+            vector_distance: None,
+            alias:           None,
+            deprecation:     None,
+            requires_scope:  requires_scope.map(|s| s.to_string()),
+            on_deny:         FieldDenyPolicy::default(),
+            authorize:       false,
+            encryption:      None,
+            hierarchy:       None,
         }
     }
 
@@ -1074,6 +1075,7 @@ mod field_filter_tests {
             default_value: None,
             description: None,
             vector_config: None,
+            vector_distance: None,
             alias: None,
             deprecation: None,
             requires_scope: requires_scope.map(|s| s.to_string()),

@@ -118,6 +118,7 @@ fn mutation_error_type() -> TypeDefinition {
         description: Some(desc.to_string()),
         default_value: None,
         vector_config: None,
+        vector_distance: None,
         alias: None,
         deprecation: None,
         requires_scope: None,

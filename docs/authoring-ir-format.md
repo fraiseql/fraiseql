@@ -65,6 +65,20 @@ default `"cosine"`) drive the emitted index DDL and the default metric of the
 `vector(N)` column named after the field (snake_case) — the JSONB `data` payload
 does not carry embeddings.
 
+### Distance fields (#959)
+
+A `Float` field may declare `vector_distance`, naming the vector field whose
+search distance it carries:
+
+```json
+{ "name": "similarity", "type": "Float", "nullable": false,
+  "vector_distance": "embedding" }
+```
+
+It is projected from the `nearest` search's own distance expression, and is
+refused on a query that did not run that search. See
+[vector search](operations/vector-search.md).
+
 ### Binary vector fields (#959)
 
 A `"BitVector"` field carries the same `vector_config`, where `dimensions`

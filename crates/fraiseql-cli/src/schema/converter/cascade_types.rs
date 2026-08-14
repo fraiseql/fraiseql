@@ -316,6 +316,7 @@ fn synth_field(name: &str, field_type: FieldType, nullable: bool, desc: &str) ->
         description: Some(desc.to_string()),
         default_value: None,
         vector_config: None,
+        vector_distance: None,
         alias: None,
         deprecation: None,
         requires_scope: None,

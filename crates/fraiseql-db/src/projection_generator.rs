@@ -46,6 +46,33 @@ pub enum FieldKind {
     Composite,
 }
 
+/// A SQL expression a projection may emit verbatim, in place of reading a key
+/// out of the JSONB column (#959).
+///
+/// The inner string is private and there is **no public constructor**: the only
+/// way to obtain one is
+/// [`vector_distance_expr`](crate::order_by::vector_distance_expr), which builds
+/// it from a validated identifier, an operator drawn from a fixed set and a
+/// literal whose character set it re-checks. A projection is SQL the caller does
+/// not get to write, and this type is what enforces that across the crate
+/// boundary — `fraiseql-core` can carry one into a `ProjectionField` but cannot
+/// invent one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputedExpr(String);
+
+impl ComputedExpr {
+    /// Wrap an expression assembled from validated parts.
+    pub(crate) const fn from_validated_parts(sql: String) -> Self {
+        Self(sql)
+    }
+
+    /// The expression as it will appear in the SELECT list.
+    #[must_use]
+    pub fn as_sql(&self) -> &str {
+        &self.0
+    }
+}
+
 /// A field in a SQL projection with type information.
 ///
 /// Used by typed projection generators to choose the correct JSONB extraction
@@ -80,6 +107,14 @@ pub struct ProjectionField {
     /// List fields should always use `None` — sub-projection inside aggregated
     /// JSONB arrays is out of scope for this first iteration.
     pub sub_fields: Option<Vec<ProjectionField>>,
+
+    /// A SQL expression this field's value comes from, instead of the JSONB
+    /// column (#959) — the vector distance a `nearest` query ordered by.
+    ///
+    /// When set it wins over [`kind`](Self::kind) and
+    /// [`source`](Self::source): the field is not stored, so there is no key to
+    /// read. See [`ComputedExpr`] for why an arbitrary string cannot get here.
+    pub computed: Option<ComputedExpr>,
 }
 
 impl ProjectionField {
@@ -95,6 +130,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Text,
             sub_fields: None,
+            computed: None,
         }
     }
 
@@ -111,6 +147,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Native,
             sub_fields: None,
+            computed: None,
         }
     }
 
@@ -123,6 +160,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Composite,
             sub_fields: None,
+            computed: None,
         }
     }
 
@@ -138,6 +176,25 @@ impl ProjectionField {
             name,
             kind: FieldKind::Composite,
             sub_fields: Some(sub_fields),
+            computed: None,
+        }
+    }
+
+    /// Create a field whose value is computed in SQL rather than read from the
+    /// JSONB column (#959).
+    ///
+    /// `kind` is [`FieldKind::Native`] because the expression yields a JSON
+    /// number, but the projection never consults it — a computed field has no
+    /// stored key to extract.
+    #[must_use]
+    pub fn computed(name: impl Into<String>, expr: ComputedExpr) -> Self {
+        let name = name.into();
+        Self {
+            source: name.clone(),
+            name,
+            kind: FieldKind::Native,
+            sub_fields: None,
+            computed: Some(expr),
         }
     }
 
@@ -322,6 +379,31 @@ impl PostgresProjectionGenerator {
         Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
     }
 
+    /// Project the whole JSONB column **plus** a set of computed fields (#959).
+    ///
+    /// `"data" || jsonb_build_object('similarity', (…))`. Used where the row has
+    /// to come back whole — a policy-gated field needs the full parent to decide
+    /// on, and the stream strategy returns the stored blob — but a computed
+    /// value still has to reach the response. Concatenation, so a computed key
+    /// that collides with a stored one wins, which is the only reading that
+    /// matches what the caller asked for.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if a field name cannot be safely
+    /// projected.
+    pub fn generate_merged_projection_sql(&self, computed: &[ProjectionField]) -> Result<String> {
+        if computed.is_empty() {
+            return Ok(format!("\"{}\"", self.jsonb_column));
+        }
+        let path = format!("\"{}\"", self.jsonb_column);
+        let pairs = computed
+            .iter()
+            .map(|field| Self::render_field(field, &path, 0))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(format!("{path} || jsonb_build_object({})", pairs.join(",")))
+    }
+
     /// Recursively render one projection field as a `'key', <expr>` pair for
     /// `jsonb_build_object`.
     ///
@@ -335,6 +417,11 @@ impl PostgresProjectionGenerator {
         // the same, but an aliased field (`myName: fullName`) must read
         // `data->>'full_name'`, not `data->>'my_name'` (#418).
         let resp_key = Self::escape_sql_string(&field.name);
+        // A computed field has no stored key: the expression is the value, at
+        // whatever depth the field appears (#959).
+        if let Some(expr) = &field.computed {
+            return Ok(format!("'{}', ({})", resp_key, expr.as_sql()));
+        }
         let jsonb_key = to_snake_case(&field.source);
         let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
 

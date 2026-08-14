@@ -6,9 +6,12 @@
 
 use std::fmt::Write;
 
-use crate::types::{
-    DatabaseType,
-    sql_hints::{OrderByClause, VectorOperandKind},
+use crate::{
+    projection_generator::ComputedExpr,
+    types::{
+        DatabaseType,
+        sql_hints::{OrderByClause, VectorOperandKind},
+    },
 };
 
 /// Append an `ORDER BY` clause to the SQL buffer.
@@ -94,33 +97,10 @@ pub fn render_order_by_columns(
         // Vector-distance ordering (#386): `{col} {op} '{vec}'::vector` — the
         // pgvector ANN shape. Only valid against a native column (a JSONB
         // extraction would re-parse text per row and defeat every index).
-        if let Some(ref vector) = clause.vector {
-            let Some(ref col) = clause.native_column else {
-                return Err(fraiseql_error::FraiseQLError::validation(
-                    "vector-distance ordering requires the view to expose the vector as a \
-                     native column",
-                ));
-            };
-            if db_type != DatabaseType::PostgreSQL {
-                return Err(fraiseql_error::FraiseQLError::validation(
-                    "vector-distance ordering is PostgreSQL-only (pgvector)",
-                ));
-            }
-            validate_vector_operator(&vector.operator, vector.kind)?;
-            validate_vector_literal(&vector.query_vector, vector.kind)?;
-            let cast = match vector.kind {
-                VectorOperandKind::Bit => "varbit",
-                _ => "vector",
-            };
+        if let Some(distance) = vector_distance_expr(clause, db_type)? {
             // Reason: fmt::Write for String is infallible
-            write!(
-                columns,
-                "{col} {} '{}'::{cast} {}",
-                vector.operator,
-                vector.query_vector,
-                clause.direction.as_sql()
-            )
-            .expect("write to String is infallible");
+            write!(columns, "{} {}", distance.as_sql(), clause.direction.as_sql())
+                .expect("write to String is infallible");
             continue;
         }
         // When a native typed column is available, use it directly — this
@@ -136,6 +116,50 @@ pub fn render_order_by_columns(
             .expect("write to String is infallible");
     }
     Ok(Some(columns))
+}
+
+/// The distance expression a vector-ordered clause sorts by, e.g.
+/// `"embedding" <=> '[1,0,0]'::vector` (#386, #959).
+///
+/// `Ok(None)` when the clause carries no vector operand — an ordinary ORDER BY.
+///
+/// This is the **one** construction site for a pgvector distance expression, so
+/// the number a query reports and the order it comes back in cannot be computed
+/// two different ways: projecting the distance (#959) renders exactly the
+/// expression the ORDER BY sorts by, because it is the same string.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` when the view exposes no native column
+/// for the vector, when the dialect is not PostgreSQL, or when the operator or
+/// the literal does not belong to the clause's operand kind.
+pub fn vector_distance_expr(
+    clause: &OrderByClause,
+    db_type: DatabaseType,
+) -> crate::Result<Option<ComputedExpr>> {
+    let Some(ref vector) = clause.vector else {
+        return Ok(None);
+    };
+    let Some(ref col) = clause.native_column else {
+        return Err(fraiseql_error::FraiseQLError::validation(
+            "vector-distance ordering requires the view to expose the vector as a native column",
+        ));
+    };
+    if db_type != DatabaseType::PostgreSQL {
+        return Err(fraiseql_error::FraiseQLError::validation(
+            "vector-distance ordering is PostgreSQL-only (pgvector)",
+        ));
+    }
+    validate_vector_operator(&vector.operator, vector.kind)?;
+    validate_vector_literal(&vector.query_vector, vector.kind)?;
+    let cast = match vector.kind {
+        VectorOperandKind::Bit => "varbit",
+        _ => "vector",
+    };
+    Ok(Some(ComputedExpr::from_validated_parts(format!(
+        "{col} {} '{}'::{cast}",
+        vector.operator, vector.query_vector
+    ))))
 }
 
 /// The pgvector distance operators reachable through `nearest`, per operand

@@ -1499,6 +1499,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The distance a `nearest` search ordered by, in the response (#959).** A `Float` field
+  declaring `vector_distance = "embedding"` carries it:
+  `docs(nearest: {vector: $q, k: 10}) { id similarity }`.
+
+  Projected from **the same expression** the `ORDER BY` was built from — one construction
+  site, so the number a row reports and the position it occupies cannot be computed two
+  different ways. Override the metric and the reported number follows, negated inner
+  product included.
+
+  Selecting it on a query that ran no `nearest` search, or one that searched a *different*
+  vector field, is refused rather than answered with null: a null is indistinguishable
+  from a row whose distance is genuinely unknown, on a response that otherwise looks like
+  it worked. The declaration itself is checked at compile time — the named field must
+  exist on the same type and be a vector field, and the declaring field must be a `Float`.
+
+  Under the hood a projection may now carry a computed expression, which is a small new
+  power and a deliberately narrow one: `ComputedExpr` has no public constructor, so the
+  only SQL that can reach a projection this way is the distance expression the ORDER BY
+  builder produced.
+
 - **Binary (bit) vectors: the `BitVector` field type, hamming and jaccard search (#959).**
   pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined over
   `bit` values, not `vector` ones — so both operators were, until now, advertised by the

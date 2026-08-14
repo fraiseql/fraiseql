@@ -95,6 +95,7 @@ pub fn build_typed_projection_fields(
                 source: sel.name.clone(),
                 kind,
                 sub_fields,
+                computed: None,
             }
         })
         .collect()
@@ -202,3 +203,79 @@ pub fn selections_contain_field(selections: &[FieldSelection], field_name: &str)
 #[cfg(test)]
 #[path = "query_projection_tests.rs"]
 mod query_projection_tests;
+
+/// The computed projection fields for the vector-distance fields a selection
+/// asks for (#959).
+///
+/// A field declaring `vector_distance = "embedding"` is not stored anywhere: its
+/// value is the distance expression the `nearest` search ordered by, taken from
+/// the very clause that ordered it, so the number a row reports and the position
+/// it occupies cannot come from two different computations.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when such a field is selected on a
+/// query that ran no `nearest` search, or one that searched a different vector
+/// field. Both are answered rather than nulled: a null here reads as "distance
+/// unknown" from a query that looks like it succeeded, and the caller cannot
+/// tell it from a row that genuinely has no distance.
+pub fn vector_distance_projection_fields(
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    parent_type_name: &str,
+    nearest: Option<&OrderByClause>,
+) -> crate::error::Result<Vec<ProjectionField>> {
+    let Some(type_def) = schema.find_type(parent_type_name) else {
+        return Ok(Vec::new());
+    };
+
+    let mut fields = Vec::new();
+    for sel in selections {
+        let Some(field_def) = type_def.fields.iter().find(|f| f.name == sel.name.as_str()) else {
+            continue;
+        };
+        let Some(measures) = field_def.vector_distance.as_deref() else {
+            continue;
+        };
+
+        let Some(clause) = nearest else {
+            return Err(crate::error::FraiseQLError::validation(format!(
+                "'{parent_type_name}.{}' is the distance to '{measures}' and is only defined \
+                 on a query that searches it; add a `nearest` argument or drop the field",
+                field_def.name
+            )));
+        };
+        if clause.field != measures {
+            return Err(crate::error::FraiseQLError::validation(format!(
+                "'{parent_type_name}.{}' is the distance to '{measures}', but this query \
+                 searched '{}'",
+                field_def.name, clause.field
+            )));
+        }
+        let expr =
+            crate::db::order_by::vector_distance_expr(clause, crate::db::DatabaseType::PostgreSQL)?
+                .ok_or_else(|| {
+                    crate::error::FraiseQLError::internal(
+                        "a nearest clause carried no vector operand",
+                    )
+                })?;
+        fields.push(ProjectionField::computed(sel.response_key(), expr));
+    }
+    Ok(fields)
+}
+
+/// Merge computed distance fields into a typed projection, replacing the
+/// stored-key read the selection would otherwise have produced.
+///
+/// Replacement is by response key and in place, because GraphQL requires the
+/// response to keep the query's field order — appending would move the distance
+/// to the end of every row.
+pub fn merge_computed_fields(typed: &mut Vec<ProjectionField>, computed: Vec<ProjectionField>) {
+    for field in computed {
+        if let Some(slot) = typed.iter_mut().find(|f| f.name == field.name) {
+            *slot = field;
+        } else {
+            typed.push(field);
+        }
+    }
+}

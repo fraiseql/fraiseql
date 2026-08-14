@@ -27,16 +27,17 @@ fn order_type() -> IntermediateType {
     IntermediateType {
         name: "Order".to_string(),
         fields: vec![IntermediateField {
-            vector_config:  None,
-            field_type:     "ID".to_string(),
-            name:           "id".to_string(),
-            nullable:       false,
-            description:    None,
-            directives:     None,
-            requires_scope: None,
-            on_deny:        None,
-            authorize:      None,
-            hierarchy:      None,
+            vector_config:   None,
+            vector_distance: None,
+            field_type:      "ID".to_string(),
+            name:            "id".to_string(),
+            nullable:        false,
+            description:     None,
+            directives:      None,
+            requires_scope:  None,
+            on_deny:         None,
+            authorize:       None,
+            hierarchy:       None,
         }],
         ..Default::default()
     }
