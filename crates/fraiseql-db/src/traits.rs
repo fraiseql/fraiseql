@@ -714,53 +714,10 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
-        use crate::types::ColumnValue;
-
-        let mut sql = format!("SELECT * FROM \"{view_name}\"");
-        if let Some(w) = where_sql {
-            sql.push_str(" WHERE ");
-            sql.push_str(w);
-        }
-        if let Some(ob) = order_by {
-            sql.push_str(" ORDER BY ");
-            sql.push_str(ob);
-        }
-        if let Some(l) = limit {
-            use std::fmt::Write;
-            let _ = write!(sql, " LIMIT {l}");
-        }
-        if let Some(o) = offset {
-            use std::fmt::Write;
-            let _ = write!(sql, " OFFSET {o}");
-        }
-
+        let sql = build_row_query_sql(view_name, where_sql, order_by, limit, offset);
         let results = self.execute_raw_query(&sql).await?;
 
-        Ok(results
-            .iter()
-            .map(|row| {
-                columns
-                    .iter()
-                    .map(|col| {
-                        row.get(&col.name).map_or(ColumnValue::Null, |v| match v {
-                            serde_json::Value::Null => ColumnValue::Null,
-                            serde_json::Value::Bool(b) => ColumnValue::Boolean(*b),
-                            serde_json::Value::Number(n) => {
-                                if let Some(i) = n.as_i64() {
-                                    ColumnValue::Int64(i)
-                                } else if let Some(f) = n.as_f64() {
-                                    ColumnValue::Float64(f)
-                                } else {
-                                    ColumnValue::Text(n.to_string())
-                                }
-                            },
-                            serde_json::Value::String(s) => ColumnValue::Text(s.clone()),
-                            other => ColumnValue::Json(other.to_string()),
-                        })
-                    })
-                    .collect()
-            })
-            .collect())
+        Ok(results.iter().map(|row| row_to_column_values(row, columns)).collect())
     }
 
     /// Execute a parameterized aggregate SQL query (GROUP BY / HAVING / window).
@@ -1238,6 +1195,96 @@ pub trait DatabaseAdapter: Send + Sync {
         self.execute_with_projection_arc(request).await
     }
 
+    /// The same read as
+    /// [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session),
+    /// delivered row by row instead of as a materialised `Vec` (#958).
+    ///
+    /// Same view, same predicate, same session variables, same routing. The only
+    /// difference is *when* the rows arrive and how much memory the caller needs
+    /// to hold them: a streamed read is `O(1)` in the number of rows, so an export
+    /// of a table larger than memory is possible where the collecting method would
+    /// have to fail.
+    ///
+    /// # Why this exists as its own method
+    ///
+    /// A paginated re-execution loop (`LIMIT n OFFSET k`, `k += n`) delivers the
+    /// same rows in bounded memory and needs no new trait method, and that is what
+    /// the export surfaces did. It has two properties a stream does not:
+    ///
+    /// - it is `O(offset)` per batch, so exporting `N` rows costs `O(N²)` row scans;
+    /// - each batch is its own snapshot, so a concurrent insert or delete between batches shifts
+    ///   rows across the page boundary — silently duplicating a row into two batches, or skipping
+    ///   one entirely.
+    ///
+    /// One statement over one portal has neither problem.
+    ///
+    /// # Default implementation
+    ///
+    /// Collects the read and replays it. That is *correct* — same rows, same order —
+    /// but it holds the whole result set, so an adapter that can stream should
+    /// override it. `PostgresAdapter` does.
+    ///
+    /// ⚠ A wrapping adapter (caching, instrumentation) that inherits this default
+    /// converts every streaming caller back into a buffering one **without failing**:
+    /// the rows are right and the memory bound is gone. A wrapper must forward this
+    /// method explicitly.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same errors as
+    /// [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session).
+    /// Note that an implementation that truly streams can only report the errors it
+    /// has seen *so far* when this returns: a failure raised after the first row —
+    /// a lost connection, a runtime cast error on a later row — surfaces as an `Err`
+    /// item inside the stream, not from this call.
+    async fn stream_with_projection(
+        &self,
+        request: &ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<JsonbRowStream> {
+        let rows = self
+            .execute_with_projection_arc_with_session(request, session_vars, routing)
+            .await?;
+        // Unwrap when this call owns the only reference (the usual case, since the
+        // read above just built it) so replaying the buffer costs no deep clone.
+        let rows = Arc::try_unwrap(rows).unwrap_or_else(|shared| (*shared).clone());
+        Ok(Box::pin(futures::stream::iter(rows.into_iter().map(Ok))))
+    }
+
+    /// The same read as [`execute_row_query`](Self::execute_row_query), delivered
+    /// row by row (#958).
+    ///
+    /// The column-shaped counterpart of
+    /// [`stream_with_projection`](Self::stream_with_projection); see that method for
+    /// why streaming and paginated re-execution are not interchangeable. This is the
+    /// gRPC transport's source, which encodes one protobuf message per row and has
+    /// no use for a `Vec` of them.
+    ///
+    /// # Default implementation
+    ///
+    /// Collects and replays, with the same caveat about wrapping adapters.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same errors as [`execute_row_query`](Self::execute_row_query);
+    /// see [`stream_with_projection`](Self::stream_with_projection) for which of
+    /// them can still arrive after this call has returned `Ok`.
+    async fn stream_row_query(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<ColumnRowStream> {
+        let rows = self
+            .execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
+            .await?;
+        Ok(Box::pin(futures::stream::iter(rows.into_iter().map(Ok))))
+    }
+
     /// Execute a direct SQL mutation (INSERT/UPDATE/DELETE) and return the
     /// mutation response rows as JSON objects.
     ///
@@ -1318,6 +1365,74 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// The default implementation is a no-op.
     fn on_schema_reload(&self) {}
+}
+
+/// The `SELECT` behind [`DatabaseAdapter::execute_row_query`] and its streaming
+/// sibling.
+///
+/// Shared rather than written twice: the two methods answer the same question and
+/// a transport that got a different row set depending on whether it streamed would
+/// be the hardest kind of bug to see. `where_sql` and `order_by` are compiler-
+/// generated SQL fragments, as the method contract requires.
+#[must_use]
+pub fn build_row_query_sql(
+    view_name: &str,
+    where_sql: Option<&str>,
+    order_by: Option<&str>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut sql = format!("SELECT * FROM \"{view_name}\"");
+    if let Some(w) = where_sql {
+        sql.push_str(" WHERE ");
+        sql.push_str(w);
+    }
+    if let Some(ob) = order_by {
+        sql.push_str(" ORDER BY ");
+        sql.push_str(ob);
+    }
+    if let Some(l) = limit {
+        let _ = write!(sql, " LIMIT {l}");
+    }
+    if let Some(o) = offset {
+        let _ = write!(sql, " OFFSET {o}");
+    }
+    sql
+}
+
+/// Decode one JSON-shaped row into the declared column order.
+///
+/// A column the row does not carry decodes to [`ColumnValue::Null`] rather than
+/// shortening the row: the transport encodes positionally against `columns`.
+#[must_use]
+pub fn row_to_column_values<S: std::hash::BuildHasher>(
+    row: &std::collections::HashMap<String, serde_json::Value, S>,
+    columns: &[crate::types::ColumnSpec],
+) -> Vec<crate::types::ColumnValue> {
+    use crate::types::ColumnValue;
+
+    columns
+        .iter()
+        .map(|col| {
+            row.get(&col.name).map_or(ColumnValue::Null, |v| match v {
+                serde_json::Value::Null => ColumnValue::Null,
+                serde_json::Value::Bool(b) => ColumnValue::Boolean(*b),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        ColumnValue::Int64(i)
+                    } else if let Some(f) = n.as_f64() {
+                        ColumnValue::Float64(f)
+                    } else {
+                        ColumnValue::Text(n.to_string())
+                    }
+                },
+                serde_json::Value::String(s) => ColumnValue::Text(s.clone()),
+                other => ColumnValue::Json(other.to_string()),
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -20,16 +20,10 @@
 //!
 //! Gated behind the `export-csv` Cargo feature.
 
-use std::sync::Arc;
-
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
-use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    runtime::{Executor, QueryMatch},
-    security::SecurityContext,
-};
-use futures::stream;
+use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
+use futures::{StreamExt as _, stream};
 
 use super::{
     super::{
@@ -139,44 +133,33 @@ pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
     );
 
     let batch_size = handler.config().ndjson_batch_size.max(1);
-    let delimiter = ascii_delimiter(export_config.csv_delimiter);
-    let select_columns = extract_select_columns(query_pairs);
 
-    let executor = Arc::clone(handler.executor());
-    let security_ctx_owned = security_context.cloned();
+    // One statement for the whole export (#958) — see `helpers::export_rows`.
+    let rows = super::helpers::export_rows(
+        handler.executor(),
+        query_match,
+        variables,
+        security_context.cloned(),
+        super::helpers::requested_total_limit(query_pairs),
+    )
+    .await?;
 
     let csv_stream = stream::unfold(
         CsvStreamState {
-            executor,
-            query_name,
-            query_match,
-            variables,
-            security_ctx: security_ctx_owned,
-            batch_size,
-            // #811: `?limit=` caps the export total; absent, the whole result set is
-            // streamed in `batch_size` pages.
-            total_limit: super::helpers::requested_total_limit(query_pairs),
-            emitted: 0,
-            offset: 0,
-            done: false,
-            delimiter,
-            include_bom: export_config.csv_include_bom,
-            select_columns,
-            columns: None,
+            chunks:         rows.ready_chunks(usize::try_from(batch_size).unwrap_or(usize::MAX)),
+            delimiter:      ascii_delimiter(export_config.csv_delimiter),
+            include_bom:    export_config.csv_include_bom,
+            select_columns: extract_select_columns(query_pairs),
+            columns:        None,
             header_emitted: false,
+            finished:       false,
         },
         |mut state| async move {
-            if state.done {
+            if state.finished {
                 return None;
             }
-            match fetch_and_serialize_csv_batch(&mut state).await {
-                Ok(Some(bytes)) => Some((Ok(bytes), state)),
-                Ok(None) => None,
-                Err(err_bytes) => {
-                    state.done = true;
-                    Some((Ok(err_bytes), state))
-                },
-            }
+            let bytes = serialize_next_csv_chunk(&mut state).await?;
+            Some((Ok(bytes), state))
         },
     );
 
@@ -227,140 +210,91 @@ impl CsvBody {
 // Streaming internals
 // ---------------------------------------------------------------------------
 
-/// Internal state carried through the streaming unfold loop.
-struct CsvStreamState<A: DatabaseAdapter> {
-    executor:       Arc<Executor<A>>,
-    query_name:     String,
-    query_match:    QueryMatch,
-    variables:      serde_json::Value,
-    security_ctx:   Option<SecurityContext>,
-    batch_size:     u64,
-    /// Client-requested cap on the **total** rows exported (`?limit=`), if any.
-    total_limit:    Option<u64>,
-    /// Rows emitted so far, across every batch.
-    emitted:        u64,
-    offset:         u64,
-    done:           bool,
+/// Internal state carried through the CSV unfold loop.
+struct CsvStreamState {
+    /// Row groups from the export's single statement (#958).
+    chunks:         futures::stream::ReadyChunks<fraiseql_core::runtime::JsonRowStream>,
     delimiter:      u8,
     include_bom:    bool,
     /// Column order parsed from `?select=`. `None` means "infer from the
     /// first row's keys (sorted)".
     select_columns: Option<Vec<String>>,
-    /// Column list finalised on the first non-empty batch.
+    /// Column list finalised on the first non-empty group.
     columns:        Option<Vec<String>>,
     /// Tracks whether the header row has been written yet.
     header_emitted: bool,
+    /// Set once a terminal payload (the error line, or the header-only body) has
+    /// been emitted, so the next poll ends the stream instead of repeating it.
+    finished:       bool,
 }
 
-/// Fetch the next batch and serialise it as CSV bytes.
+/// Serialise the next group of rows as CSV bytes, or `None` when the export is
+/// complete.
 ///
-/// On the first non-empty batch this writes the optional BOM and the header
-/// row. Subsequent batches write only data rows.
-async fn fetch_and_serialize_csv_batch<A: DatabaseAdapter>(
-    state: &mut CsvStreamState<A>,
-) -> Result<Option<Bytes>, Bytes> {
-    // Size this batch, honouring any client-supplied total cap.
-    let Some(page) =
-        super::helpers::next_batch_size(state.batch_size, state.total_limit, state.emitted)
-    else {
-        state.done = true;
-        return Ok(None);
-    };
-    // #811: pagination goes into `arguments`, which is what the executor reads.
-    super::helpers::set_export_page(&mut state.query_match, page, state.offset);
-
-    let batch_vars = state.variables.clone();
-    let vars_ref = if batch_vars.as_object().is_none_or(serde_json::Map::is_empty) {
-        None
-    } else {
-        Some(&batch_vars)
-    };
-
-    let result_value = match state
-        .executor
-        .execute_query_direct(&state.query_match, vars_ref, state.security_ctx.as_ref())
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            state.done = true;
-            return Err(error_csv_line(&e.to_string()));
-        },
-    };
-
-    let rows = match super::helpers::extract_rows(&result_value, &state.query_name) {
-        Ok(r) => r,
-        Err(e) => {
-            state.done = true;
-            return Err(error_csv_line(&e.message));
-        },
-    };
-
-    if rows.is_empty() {
-        // Emit a header-only response if no batch ever produced data and a
-        // `?select=` column list is known. Otherwise terminate cleanly.
-        if !state.header_emitted && state.offset == 0 {
+/// On the first non-empty group this writes the optional BOM and the header row.
+async fn serialize_next_csv_chunk(state: &mut CsvStreamState) -> Option<Bytes> {
+    let Some(chunk) = state.chunks.next().await else {
+        // No rows at all. A header-only body is still a correct CSV export when
+        // the client named its columns, and is what a spreadsheet expects to
+        // open; without a `?select=` there is no column list to write.
+        if !state.header_emitted {
             if let Some(cols) = state.select_columns.clone() {
-                state.columns = Some(cols);
-                let bytes = match serialize_batch(state, &[]) {
-                    Ok(b) => b,
-                    Err(err_bytes) => {
-                        state.done = true;
-                        return Err(err_bytes);
-                    },
-                };
-                state.done = true;
-                return Ok(Some(bytes));
+                state.columns = Some(cols.clone());
+                state.finished = true;
+                state.header_emitted = true;
+                return Some(
+                    write_csv_payload(&cols, &[], state.delimiter, state.include_bom, true)
+                        .unwrap_or_else(|err| err),
+                );
             }
         }
-        state.done = true;
-        return Ok(None);
+        return None;
+    };
+
+    let mut rows = Vec::with_capacity(chunk.len());
+    let mut failure = None;
+    for row in chunk {
+        match row {
+            Ok(row) => rows.push(row),
+            Err(e) => {
+                failure = Some(e.to_string());
+                break;
+            },
+        }
     }
 
-    if state.columns.is_none() {
+    if state.columns.is_none() && !rows.is_empty() {
         state.columns = Some(determine_columns(state.select_columns.as_deref(), &rows));
     }
 
-    let bytes = match serialize_batch(state, &rows) {
-        Ok(b) => b,
-        Err(err_bytes) => {
-            state.done = true;
-            return Err(err_bytes);
-        },
+    let mut bytes = if let Some(columns) = state.columns.clone() {
+        let emit_header = !state.header_emitted;
+        state.header_emitted = true;
+        match write_csv_payload(
+            &columns,
+            &rows,
+            state.delimiter,
+            state.include_bom && emit_header,
+            emit_header,
+        ) {
+            Ok(b) => b.to_vec(),
+            Err(err) => {
+                state.finished = true;
+                return Some(err);
+            },
+        }
+    } else {
+        Vec::new()
     };
 
-    // Advance by the rows actually returned, not by the requested page size (#811).
-    let row_count = u64::try_from(rows.len()).unwrap_or(u64::MAX);
-    state.emitted += row_count;
-    state.offset += row_count;
-
-    if row_count < page {
-        state.done = true;
+    // Rows that were serialised before the failure still go out — a truncated
+    // export that says why is recoverable, one that just ends is not.
+    if let Some(message) = failure {
+        bytes.extend_from_slice(&error_csv_line(&message));
+        state.finished = true;
     }
 
-    Ok(Some(bytes))
-}
-
-/// Serialise one batch (possibly empty) into bytes, emitting BOM + header on
-/// the first call.
-fn serialize_batch<A: DatabaseAdapter>(
-    state: &mut CsvStreamState<A>,
-    rows: &[serde_json::Value],
-) -> Result<Bytes, Bytes> {
-    let columns = state
-        .columns
-        .as_ref()
-        .ok_or_else(|| error_csv_line("internal error: columns not initialised"))?;
-
-    let payload = write_csv_payload(
-        columns,
-        rows,
-        state.delimiter,
-        state.include_bom && !state.header_emitted,
-        !state.header_emitted,
-    )?;
-    state.header_emitted = true;
-    Ok(payload)
+    Some(Bytes::from(bytes))
 }
 
 /// Stateless CSV chunk writer. Shared by [`serialize_batch`] and the unit

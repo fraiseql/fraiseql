@@ -395,6 +395,43 @@ impl<A: DatabaseAdapter> Executor<A> {
             .execute_query_direct(query_match, variables, security_context)
             .await
     }
+
+    /// The same read as [`execute_query_direct`](Self::execute_query_direct),
+    /// delivered as a stream of projected rows (#958).
+    ///
+    /// The export representations — NDJSON, CSV, XLSX — consume rows, not a
+    /// response envelope, and used to obtain them by re-executing
+    /// `execute_query_direct` with a walking `OFFSET`. That is `O(offset)` per page
+    /// and gives each page its own snapshot, so a concurrent write can move a row
+    /// across a page boundary and the export duplicates or drops it. One statement
+    /// has neither problem.
+    ///
+    /// The read resolves through the same authorization, RLS, `inject_params` and
+    /// field-RBAC path as the buffered call — see
+    /// `QueryRunner::resolve_direct_read`.
+    ///
+    /// ⚠ On PostgreSQL the returned stream holds a pooled connection until it is
+    /// dropped. Consume it promptly and drop it when the response ends.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Authorization` if the operation or a selected field is
+    /// refused, `FraiseQLError::Validation` if the query has no SQL source or a
+    /// required principal is absent, and `FraiseQLError::Database` if the read fails
+    /// before its first row.
+    pub async fn stream_query_direct(
+        &self,
+        query_match: QueryMatch,
+        variables: Option<serde_json::Value>,
+        security_context: Option<SecurityContext>,
+    ) -> Result<crate::runtime::JsonRowStream>
+    where
+        A: 'static,
+    {
+        self.query_runner()
+            .stream_query_direct(query_match, variables, security_context)
+            .await
+    }
 }
 
 impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {

@@ -84,7 +84,28 @@ grep -E "pool_(min|max)_size|pool_timeout_secs" /etc/fraiseql/server.toml
 # pool_min_size = 5
 # pool_max_size = 20
 # pool_timeout_secs = 30   (acquire timeout)
+
+# How many of those connections streaming reads may hold at once:
+grep -E "pool_max_streaming_reads" /etc/fraiseql/server.toml
+# Default when unset: a quarter of pool_max_size, at least 1.
 ```
+
+A **streaming read** holds its connection for as long as the client is reading, not
+for as long as a query takes: a REST export (`Accept: application/x-ndjson`,
+`text/csv`, XLSX) and a gRPC server-streaming RPC each occupy one connection from the
+first row to the last. `pool_max_streaming_reads` is what keeps that from consuming
+the pool — it is deliberately a fraction of `pool_max_size` so interactive requests
+always have connections left. Raise it on a server whose job is bulk export; lower it
+where exports are incidental.
+
+Two consequences worth recognising during an incident:
+
+- Exports **waiting** on a streaming slot look like idle requests, not like pool
+  pressure — the pool has free connections and the export is queued behind the slot
+  limit. That is the mechanism working.
+- An open export holds `ACCESS SHARE` on the views it reads, so a migration against an
+  exported view waits for the export. See "long-running queries" below; it is the same
+  rule.
 
 ### 4. Request Queue Depth
 
@@ -333,6 +354,19 @@ EOF
 #      server.toml:  pool_max_size = 50
 docker restart fraiseql-server
 ```
+
+Streaming exports are long-running **by design** rather than by accident, so they show
+up here without being a defect. Confirm before tuning:
+
+```bash
+# Backends holding a read-only transaction open are the streaming exports.
+psql $DATABASE_URL -c "SELECT pid, state, xact_start, left(query, 60) \
+  FROM pg_stat_activity WHERE state = 'idle in transaction' ORDER BY xact_start;"
+```
+
+If those dominate the pool, lower `pool_max_streaming_reads` rather than raising
+`pool_max_size`: the ceiling that matters is how many connections exports may hold,
+not how many exist.
 
 ### Fix 2: Connection Leak (Not Releasing)
 

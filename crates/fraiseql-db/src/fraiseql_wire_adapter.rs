@@ -23,6 +23,16 @@ use super::{
 /// Uses fraiseql-wire for streaming JSON queries with bounded memory usage.
 /// This adapter is optimized for read-heavy workloads with large result sets.
 ///
+/// # Streaming reads
+///
+/// This adapter inherits the trait's *buffering* default for
+/// [`stream_with_projection`](DatabaseAdapter::stream_with_projection), so its rows
+/// are correct but materialised — the same shape the collecting methods below already
+/// have. That is a deliberate non-implementation, not an oversight: the underlying
+/// `QueryStream` really does stream, and threading it through would be a small change,
+/// but no CI leg executes this adapter against a real database, so the result could
+/// not be proven — only compiled. See #1115.
+///
 /// # Architecture
 ///
 /// - Connection Factory: Creates fresh clients on demand

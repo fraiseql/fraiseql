@@ -75,7 +75,7 @@ pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use executor::{
-    Executor,
+    Executor, JsonRowStream,
     pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},
 };
 pub use executor_adapter::ExecutorAdapter;

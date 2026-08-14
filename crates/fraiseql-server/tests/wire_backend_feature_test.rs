@@ -91,12 +91,13 @@ mod postgres_adapter_tests {
         let adapter = PostgresAdapter::with_pool_config(
             &db_url,
             fraiseql_core::db::postgres::PoolPrewarmConfig {
-                min_size:      5,
-                max_size:      20,
-                timeout_secs:  None,
-                search_path:   None,
-                tls:           fraiseql_core::db::postgres::PostgresTlsConfig::default(),
-                read_replicas: None,
+                min_size:            5,
+                max_size:            20,
+                timeout_secs:        None,
+                search_path:         None,
+                tls:                 fraiseql_core::db::postgres::PostgresTlsConfig::default(),
+                read_replicas:       None,
+                max_streaming_reads: None,
             },
         )
         .await;
@@ -197,12 +198,13 @@ async fn test_feature_gated_main_initialization_postgres() {
     let adapter = PostgresAdapter::with_pool_config(
         &db_url,
         PoolPrewarmConfig {
-            min_size:      5,
-            max_size:      20,
-            timeout_secs:  None,
-            search_path:   None,
-            tls:           fraiseql_core::db::postgres::PostgresTlsConfig::default(),
-            read_replicas: None,
+            min_size:            5,
+            max_size:            20,
+            timeout_secs:        None,
+            search_path:         None,
+            tls:                 fraiseql_core::db::postgres::PostgresTlsConfig::default(),
+            read_replicas:       None,
+            max_streaming_reads: None,
         },
     )
     .await;

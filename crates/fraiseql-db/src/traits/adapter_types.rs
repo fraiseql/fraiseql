@@ -3,12 +3,15 @@
 //! Extracted from the main `traits` module to keep the trait definition file
 //! focused on method signatures.
 
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
+
+use fraiseql_error::Result;
+use futures::Stream;
 
 use super::DatabaseAdapter;
 use crate::{
     types::{
-        DatabaseType, JsonbValue,
+        ColumnValue, DatabaseType, JsonbValue,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -226,6 +229,31 @@ impl<'a> ProjectionRequest<'a> {
         }
     }
 }
+
+/// JSONB rows delivered as the database produces them, rather than collected
+/// into a `Vec` first (#958).
+///
+/// Returned by
+/// [`DatabaseAdapter::stream_with_projection`](super::DatabaseAdapter::stream_with_projection).
+/// Boxed because the trait is used through `dyn DatabaseAdapter`, and `Send`
+/// because a response body is polled from whichever task the transport runs on.
+///
+/// # What the caller is holding
+///
+/// A stream is not a `Vec` that arrives late. On PostgreSQL it is an open portal
+/// inside an open transaction, which means the read holds a pooled connection for
+/// as long as the stream is alive. Consume it promptly, and drop it as soon as the
+/// response is finished — dropping is what closes the transaction and returns the
+/// connection.
+pub type JsonbRowStream = Pin<Box<dyn Stream<Item = Result<JsonbValue>> + Send>>;
+
+/// The column-shaped counterpart of [`JsonbRowStream`], for transports that
+/// decode typed columns rather than a JSONB document (gRPC).
+///
+/// Returned by
+/// [`DatabaseAdapter::stream_row_query`](super::DatabaseAdapter::stream_row_query).
+/// The same connection-lifetime caveat applies.
+pub type ColumnRowStream = Pin<Box<dyn Stream<Item = Result<Vec<ColumnValue>>> + Send>>;
 
 /// Type alias for boxed dynamic database adapters.
 ///

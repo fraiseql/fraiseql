@@ -315,6 +315,7 @@ async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<Pos
             search_path: None,
             tls,
             read_replicas: config.read_replicas(),
+            max_streaming_reads: config.pool_max_streaming_reads,
         },
     )
     .await?;

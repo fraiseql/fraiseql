@@ -292,7 +292,13 @@ lint-expect:
 # 192 → 195: `ScimStore` (#946), its `PgScimStore` impl, and the `AccountStore` impl the
 # SCIM tests exercise. Same reason: the SCIM router holds the store dyn-dispatched so the
 # provisioning surface is backend-agnostic and testable.
-ASYNC_TRAIT_LIMIT := 195
+# 195 → 197: two `DatabaseAdapter` test doubles for the streaming read surface (#958) —
+# the trait-default adapter in `fraiseql-db/src/traits/tests.rs` and the forwarding spy in
+# `fraiseql-core/src/cache/adapter/tests.rs`. Both implement a trait that is itself
+# declared with the macro, so the impls have no choice; both live in `src/` because they
+# test module-private behaviour (the trait's own defaults, and which method the cache
+# wrapper calls on its inner adapter).
+ASYNC_TRAIT_LIMIT := 197
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

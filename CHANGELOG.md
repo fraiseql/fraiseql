@@ -1498,9 +1498,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   terminates a delivery in flight. Expiry alone left both unenforced for the whole life of
   a delivery, which on a large result set is unbounded.
 
-  Still deferred, and still tracked on #958: nested `@stream`, the `Stream`-returning
-  `DatabaseAdapter` method (with its gRPC and REST-export adopters), and the REST
+  Still deferred, and still tracked on #958: nested `@stream` and the REST
   `rest_stream` per-route opt-in.
+
+- **Streaming reads through the `DatabaseAdapter` boundary (#958).** The structural part of
+  #387's remainder: `DatabaseAdapter::stream_with_projection` and `stream_row_query` deliver
+  rows as PostgreSQL produces them instead of collecting them into a `Vec` at the boundary,
+  and the REST exports (`Accept: application/x-ndjson`, `text/csv`, XLSX) and gRPC
+  server-streaming consume them.
+
+  What that fixes is not speed. All three exports walked their result set with
+  `LIMIT n OFFSET k` re-executions, which has two properties no batch size changes:
+  `OFFSET k` makes PostgreSQL walk and discard `k` rows, so exporting `N` rows scans
+  `O(N²)`; and each batch is its own snapshot, so a concurrent insert or delete shifts rows
+  across a batch boundary and the export silently emits one row twice and another not at
+  all. One statement over one portal has neither problem.
+
+  **The cost is stated rather than discovered.** A streamed read holds its pooled connection
+  for as long as the client is reading — the whole duration of an export, not the duration
+  of a query — and holds `ACCESS SHARE` on the views it reads, so DDL against a view under
+  active export waits. `pool_max_streaming_reads` bounds how many connections streaming
+  reads may hold at once, defaulting to a quarter of `pool_max_size` (at least 1): a bound
+  at the pool size would be no bound, since exports would evict every interactive request
+  from it. Rows move through a bounded channel, so a client that stops reading stops the
+  delivery all the way back to the socket.
+
+  Both methods carry a **buffering default** that collects and replays, so an adapter that
+  implements neither is correct — and a wrapping adapter that inherits it converts every
+  streaming caller back into a buffering one *without failing any test*: the rows are right
+  and only the memory bound is gone. `CachedDatabaseAdapter` therefore forwards both
+  explicitly (uncached: populating a cache entry means holding every row, which is the cost
+  the call exists to avoid), and a test asserts which method the inner adapter saw rather
+  than which rows came back.
+
+  The buffered and streamed executions of a read now resolve through **one**
+  `resolve_direct_read`: operation authorization, the field-authorization gate, the RLS
+  policy, the `inject_params` tenant filter and the field-level RBAC classification belong
+  to the read, not to its delivery. #739 is the standing proof that "the other reader of
+  the same query" is where a row filter goes missing, and that it goes missing invisibly —
+  so the tenant filter and the gated-field refusal are asserted on the export surface
+  itself, not inferred from the shared code path.
+
+  Opening the read before any response header is sent has a visible consequence: a refusal
+  — unauthorized, gated field, tenant-scoped query with no principal — is now an HTTP
+  status on the export, where a mid-stream failure could only ever be an error line inside
+  a `200`.
+
+  `FraiseWireAdapter` keeps the buffering default. Its `QueryStream` really does stream and
+  threading it through would be small, but no CI leg executes that adapter against a real
+  database, so the result could be compiled and not proven — tracked as #1115 with the rig
+  it needs.
 
 - **Read replicas: bounded staleness, per-query routing, failover detection, per-tenant
   replicas (#957).** The four parts #407 deferred.

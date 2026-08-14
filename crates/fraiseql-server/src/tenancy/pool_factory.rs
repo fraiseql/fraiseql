@@ -144,6 +144,11 @@ impl FromPoolConfig for PostgresAdapter {
                 read_replicas: config
                     .read_replica_policy
                     .with_urls(config.read_replica_urls.clone()),
+                // Derived per tenant from that tenant's own `max_connections`
+                // (#958): the bound protects the pool it is a fraction of, and a
+                // tenant with four connections and a server with two hundred want
+                // different absolute numbers for the same reason.
+                max_streaming_reads: None,
             },
         )
         .await

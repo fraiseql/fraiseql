@@ -21,13 +21,10 @@ pub mod xlsx;
 #[cfg(test)]
 mod tests;
 
-use std::sync::Arc;
-
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
 use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
-use futures::stream;
-use helpers::{StreamState, fetch_and_serialize_batch};
+use futures::{StreamExt as _, stream};
 
 use super::{
     handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id},
@@ -110,13 +107,26 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
     validate_ndjson_request(&prefer, &resolved.params.pagination)?;
 
     let ResolvedGetQuery {
-        query_name,
         query_match,
         variables,
         ..
     } = resolved;
 
     let batch_size = handler.config().ndjson_batch_size.max(1);
+
+    // The row source opens before any header is sent, so a refusal — authorization,
+    // a gated field, a tenant-scoped query with no principal — is still an ordinary
+    // HTTP error rather than an error line inside a 200 (#958).
+    let rows = helpers::export_rows(
+        handler.executor(),
+        query_match,
+        variables,
+        security_context.cloned(),
+        // `?limit=` caps the export total; its absence means "the whole table",
+        // which is what an export is for (#811).
+        helpers::requested_total_limit(query_pairs),
+    )
+    .await?;
 
     // Build response headers eagerly (before starting the stream).
     let mut response_headers = HeaderMap::new();
@@ -128,43 +138,17 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
             .unwrap_or_else(|_| HeaderValue::from_static("500")),
     );
 
-    // Clone what we need for the async stream closure.
-    let executor = Arc::clone(handler.executor());
-    let security_ctx_owned = security_context.cloned();
+    // Rows are grouped into byte chunks so the body is not one write syscall per
+    // row; `ready_chunks` takes whatever has arrived rather than waiting for a full
+    // group, so a slow producer still reaches the client promptly.
+    let chunks = rows.ready_chunks(usize::try_from(batch_size).unwrap_or(usize::MAX));
+    let ndjson_stream = stream::unfold(Some(chunks), |state| async move {
+        let mut chunks = state?;
+        let chunk = chunks.next().await?;
 
-    // Create an async stream that fetches batches and yields NDJSON lines.
-    let ndjson_stream = stream::unfold(
-        StreamState {
-            executor,
-            query_name,
-            query_match,
-            variables,
-            security_ctx: security_ctx_owned,
-            batch_size,
-            // #811: `?limit=` caps the export total. Without it the export streams the
-            // whole result set in `batch_size` pages — which is what an export is for,
-            // and what the "Memory usage is bounded by `ndjson_batch_size`" claim above
-            // has always promised.
-            total_limit: helpers::requested_total_limit(query_pairs),
-            emitted: 0,
-            offset: 0,
-            done: false,
-        },
-        |mut state| async move {
-            if state.done {
-                return None;
-            }
-
-            match fetch_and_serialize_batch(&mut state).await {
-                Ok(Some(bytes)) => Some((Ok(bytes), state)),
-                Ok(None) => None,
-                Err(err_bytes) => {
-                    state.done = true;
-                    Some((Ok(err_bytes), state))
-                },
-            }
-        },
-    );
+        let (bytes, failed) = helpers::ndjson_chunk(chunk);
+        Some((Ok(bytes), if failed { None } else { Some(chunks) }))
+    });
 
     Ok(NdjsonResponse {
         headers: response_headers,

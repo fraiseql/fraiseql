@@ -29,6 +29,7 @@ fn probe_config(tls: PostgresTlsConfig) -> PoolPrewarmConfig {
         search_path: None,
         tls,
         read_replicas: None,
+        max_streaming_reads: None,
     }
 }
 

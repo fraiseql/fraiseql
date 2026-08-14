@@ -380,6 +380,18 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_pool_timeout")]
     pub pool_timeout_secs: u64,
 
+    /// How many pool connections streaming reads may hold at once (#958).
+    ///
+    /// `None` (the default) derives a quarter of `pool_max_size`, at least 1.
+    ///
+    /// A streaming read — an NDJSON/CSV/XLSX export, a gRPC server-streaming RPC —
+    /// keeps its connection for as long as the client is reading, which on a large
+    /// export is unbounded. Raise this on a server whose job is bulk export; lower
+    /// it on one where exports are incidental and must never cost interactive
+    /// requests their connections.
+    #[serde(default)]
+    pub pool_max_streaming_reads: Option<usize>,
+
     /// Enable incremental delivery on the GraphQL endpoint (#387, #958).
     /// Default `false`.
     ///
@@ -1224,11 +1236,12 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
+            pool_max_streaming_reads: None, // a quarter of pool_max_size (#958)
             enable_graphql_incremental: false, // incremental delivery is opt-in (#387)
             graphql_incremental_batch_size: None, // 100 when incremental delivery is enabled
-            read_replica_urls: Vec::new(),     // Primary-only by default
+            read_replica_urls: Vec::new(),  // Primary-only by default
             read_replica_pin_after_write_ms: None, // 5000 ms when replicas are set
-            read_replica_max_lag_ms: None,     // No lag-based routing by default (#957)
+            read_replica_max_lag_ms: None,  // No lag-based routing by default (#957)
             read_replica_health_probe_interval_ms: None, // 1000 ms when replicas are set
 
             auth: None, // No auth by default

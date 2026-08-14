@@ -650,3 +650,144 @@ async fn a_masked_field_is_nulled_not_served_over_rest() {
     }))
     .await;
 }
+
+// ---------------------------------------------------------------------------
+// The same contract on the streaming export (#958)
+// ---------------------------------------------------------------------------
+
+/// One NDJSON export: the raw body, plus the status it came back with.
+///
+/// Deliberately not parsed as one JSON document — an NDJSON body is a sequence of
+/// them, and a failed export can be a plain error line rather than any of the
+/// shapes [`Read`] models.
+async fn export_orders_ndjson(base: &str, token: Option<&str>) -> (reqwest::StatusCode, String) {
+    let mut req = reqwest::Client::new()
+        .get(format!("{base}/rest/v1/orders"))
+        .header("accept", "application/x-ndjson");
+    if let Some(t) = token {
+        req = req.header("authorization", format!("Bearer {t}"));
+    }
+    let response = req.send().await.expect("REST NDJSON GET");
+    let status = response.status();
+    (status, response.text().await.expect("NDJSON body"))
+}
+
+/// Every `tenant_id` in an NDJSON body.
+fn ndjson_tenants(body: &str) -> Vec<String> {
+    body.lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|line| {
+            let row: Value = serde_json::from_str(line)
+                .unwrap_or_else(|e| panic!("NDJSON line is not JSON ({e}): {line}"));
+            assert!(row.get("error").is_none(), "export emitted an error line: {line}");
+            row.get("tenant_id")
+                .and_then(Value::as_str)
+                .unwrap_or_else(|| panic!("NDJSON row carries no tenant_id: {line}"))
+                .to_string()
+        })
+        .collect()
+}
+
+/// #958: the streaming export applies the tenant filter, like every other read.
+///
+/// The export is a **second** execution route to the same rows — it resolves through
+/// `resolve_direct_read` and then streams rather than collecting. #739 is the standing
+/// proof that "the other reader of the same query" is exactly where a row filter goes
+/// missing, and it went missing silently: the rows were right-looking, just too many
+/// of them. This asserts the filter on the surface rather than inferring it from the
+/// shared code path.
+#[tokio::test]
+async fn an_ndjson_export_is_scoped_to_the_callers_tenant() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(true, true).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        for (tenant, expected) in [(TENANT_A, ROWS_A), (TENANT_B, ROWS_B)] {
+            let (status, body) = export_orders_ndjson(&server.url, Some(&token_for(tenant))).await;
+
+            assert_eq!(status, reqwest::StatusCode::OK, "{tenant}: export should succeed: {body}");
+
+            let tenants = ndjson_tenants(&body);
+            assert_eq!(
+                tenants.len(),
+                expected,
+                "{tenant}: expected exactly its own {expected} rows of the {} seeded, got: {body}",
+                ROWS_A + ROWS_B
+            );
+            assert!(
+                tenants.iter().all(|t| t == tenant),
+                "{tenant}: every exported row must belong to the caller's tenant, got {tenants:?}"
+            );
+        }
+    }))
+    .await;
+}
+
+/// #958: an anonymous streaming export of a tenant-scoped query fails **closed, and
+/// as an HTTP status**.
+///
+/// Both halves matter. The refusal is the #739 contract. That it arrives as a status
+/// rather than as an error line inside a `200` is a property of opening the read before
+/// the response headers are sent: a client that streams a `200` and parses lines has no
+/// reason to inspect the last one, so a refusal delivered that way reads as an empty
+/// export.
+#[tokio::test]
+async fn an_anonymous_ndjson_export_of_a_tenant_scoped_query_is_refused_with_a_status() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) = start(false, false).await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let (status, body) = export_orders_ndjson(&server.url, None).await;
+
+        assert!(
+            !status.is_success(),
+            "an anonymous export of an inject-scoped query must be refused before the \
+             stream opens, got {status} {body}"
+        );
+        assert!(
+            !body.contains("\"tenant_id\""),
+            "no row may reach an anonymous caller of a tenant-scoped query, got {body}"
+        );
+    }))
+    .await;
+}
+
+/// #958: the field-authorization gate fires on the streaming export too.
+///
+/// `deny_if_gated_field_selected` and the `requires_scope` classification both live in
+/// the read's resolution, not its delivery — but "both" is a claim about code that a
+/// test on one delivery cannot make about the other.
+#[tokio::test]
+async fn a_scope_gated_field_is_refused_on_the_streaming_export() {
+    Box::pin(temp_env::async_with_vars([(SECRET_ENV, Some(SECRET))], async {
+        let Some(server) =
+            start_with_schema(true, build_schema_with_gated_field(FieldDenyPolicy::Reject)).await
+        else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+
+        let mut req = reqwest::Client::new()
+            .get(format!("{}/rest/v1/orders?select=id,{GATED_FIELD}", server.url))
+            .header("accept", "application/x-ndjson");
+        req = req.header("authorization", format!("Bearer {}", token_for(TENANT_A)));
+        let response = req.send().await.expect("REST NDJSON GET");
+        let status = response.status();
+        let body = response.text().await.expect("NDJSON body");
+
+        assert!(
+            !status.is_success(),
+            "selecting a scope-gated field without the scope must be refused on the \
+             export too, got {status} {body}"
+        );
+        assert!(
+            !body.contains(GATED_FIELD),
+            "the gated field must never reach the client, got {body}"
+        );
+    }))
+    .await;
+}

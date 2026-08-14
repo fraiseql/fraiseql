@@ -4,6 +4,7 @@ mod database;
 mod numeric;
 mod query_stats;
 mod relay;
+mod streaming;
 
 #[cfg(test)]
 mod tests;
@@ -22,6 +23,7 @@ use std::{
 
 use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use fraiseql_error::{FraiseQLError, Result};
+use tokio::sync::Semaphore;
 use tokio_postgres::{NoTls, Row};
 
 use super::{
@@ -40,6 +42,23 @@ use crate::{
     },
     where_clause::WhereClause,
 };
+
+/// How many concurrent streaming reads this pool allows (#958).
+///
+/// The derived default is a quarter of the pool, never zero and never the whole
+/// pool: a streaming read holds its connection until the client finishes reading,
+/// so a bound at `max_size` is no bound at all — exports would evict every
+/// ordinary request from the pool. An explicit `Some(n)` is the operator's
+/// decision and is honoured as given, except that `Some(0)` would disable
+/// streaming reads *silently* (they would wait forever on a permit that can
+/// never be issued), so it is raised to 1.
+const fn streaming_read_slots(configured: Option<usize>, max_size: usize) -> usize {
+    let requested = match configured {
+        Some(n) => n,
+        None => max_size / 4,
+    };
+    if requested == 0 { 1 } else { requested }
+}
 
 /// Extract the JSONB `data` cell from a result row, failing loud rather than
 /// panicking.
@@ -110,6 +129,8 @@ const CONNECTION_RETRY_DELAY_MS: u64 = 50;
 ///     tls:           PostgresTlsConfig::default(),
 ///     // Mandatory: every pool site must state its replica topology (#407).
 ///     read_replicas: None,
+///     // `None` derives a quarter of `max_size` (#958).
+///     max_streaming_reads: None,
 /// };
 /// ```
 #[derive(Debug, Clone)]
@@ -149,6 +170,20 @@ pub struct PoolPrewarmConfig {
     /// new pool site cannot compile without deciding (#801, #824). Callers with no
     /// opinion pass [`PostgresTlsConfig::default`] (libpq's `prefer`).
     pub tls: PostgresTlsConfig,
+
+    /// How many of this pool's connections may be held by streaming reads at once
+    /// (#958). `None` derives a quarter of [`max_size`](Self::max_size), at least 1.
+    ///
+    /// A streamed read holds its connection for the whole life of the stream — for
+    /// an export, that is however long the client takes to consume a table, not
+    /// however long a query takes to run. Without a bound below `max_size`,
+    /// concurrent exports can occupy every connection in the pool and ordinary
+    /// requests then fail on the acquisition timeout: a feature for large reads
+    /// would take the server down by being used.
+    ///
+    /// The bound is *not* a queue-length limit. A streaming read past the bound
+    /// waits for a slot, exactly as any read waits for a connection.
+    pub max_streaming_reads: Option<usize>,
 
     /// Read replicas for this pool set, or `None` for a single-primary adapter.
     ///
@@ -603,6 +638,11 @@ pub struct PostgresAdapter {
     mutation_timing_enabled: bool,
     /// The PostgreSQL session variable name for timing.
     timing_variable_name:    String,
+    /// Slots for reads that hold a connection for the life of a stream (#958).
+    ///
+    /// Shared across clones, because they share the pool the slots protect.
+    /// See [`PoolPrewarmConfig::max_streaming_reads`].
+    streaming_permits:       Arc<Semaphore>,
 }
 
 /// The built replica pools plus the shared read-your-writes watermark.
@@ -846,6 +886,7 @@ impl std::fmt::Debug for PostgresAdapter {
                 "read_replicas",
                 &self.read_replicas.as_ref().map(|r| r.pools.len()).unwrap_or_default(),
             )
+            .field("streaming_permits", &self.streaming_permits.available_permits())
             .finish()
     }
 }
@@ -874,14 +915,15 @@ impl PostgresAdapter {
         Self::with_pool_config(
             connection_string,
             PoolPrewarmConfig {
-                min_size:      0,
-                max_size:      DEFAULT_POOL_SIZE,
-                timeout_secs:  None,
-                search_path:   None,
+                min_size:            0,
+                max_size:            DEFAULT_POOL_SIZE,
+                timeout_secs:        None,
+                search_path:         None,
+                max_streaming_reads: None,
                 // libpq's default: negotiate TLS when the server offers it. Callers
                 // that need a guarantee go through `with_pool_config`.
-                tls:           PostgresTlsConfig::default(),
-                read_replicas: None,
+                tls:                 PostgresTlsConfig::default(),
+                read_replicas:       None,
             },
         )
         .await
@@ -943,6 +985,10 @@ impl PostgresAdapter {
             read_replicas,
             mutation_timing_enabled: false,
             timing_variable_name: "fraiseql.started_at".to_string(),
+            streaming_permits: Arc::new(Semaphore::new(streaming_read_slots(
+                cfg.max_streaming_reads,
+                cfg.max_size,
+            ))),
         };
 
         // Pre-warm to `min_size` — NOT `min_size - 1`. The health-check connection
@@ -979,6 +1025,7 @@ impl PostgresAdapter {
                 search_path: None,
                 tls: PostgresTlsConfig::default(),
                 read_replicas: None,
+                max_streaming_reads: None,
             },
         )
         .await
