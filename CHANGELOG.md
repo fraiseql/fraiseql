@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`fraiseql_core::utils::vector` is removed (#959).** `VectorQueryBuilder`,
+  `VectorSearchQuery`, `VectorInsertQuery`, `VectorParam` and `PlaceholderStyle` are
+  gone. The module was a complete pgvector SQL builder that predated the executed
+  vector work (#386) and had **zero callers** — nothing in the workspace referenced it,
+  which is why deleting it compiles the workspace unchanged.
+
+  It is removed rather than kept because of how it built SQL: the table name, the
+  embedding column, every `select_columns` entry and an entire raw `where_clause` were
+  interpolated into the statement as strings. As published API on a crate whose whole
+  claim is that user input reaches the database as bind parameters, that is a shape to
+  delete, not to document.
+
+  Nothing to fold forward: the executed path already does top-K `nearest`, threshold
+  predicates, dimension validation and DDL emission. The one capability this builder
+  had that the executed path lacks — the distance value in the response — is its own
+  tracked item on #959 and needs computed-column projection, not this.
+
 - **REST streaming exports are now a per-route opt-in (#958).** `Accept:
   application/x-ndjson`, `text/csv` and the XLSX media type were served on every REST
   resource; they are now served only where the query declares `rest_stream = true`, and
