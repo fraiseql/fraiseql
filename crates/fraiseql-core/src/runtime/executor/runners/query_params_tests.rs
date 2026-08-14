@@ -360,3 +360,124 @@ fn nearest_rejects_unknown_keys_zero_k_and_bad_metric() {
         assert!(err.contains(needle), "expected '{needle}' in: {err}");
     }
 }
+
+// ── multi-field `nearest` (#959) ────────────────────────────────────────────
+
+/// A type with two vector fields of different dimensions and metrics — the
+/// ordinary shape once a row carries both a text and an image embedding.
+fn two_vector_schema() -> crate::schema::CompiledSchema {
+    use crate::schema::{
+        CompiledSchema, DistanceMetric, FieldDefinition, FieldType, TypeDefinition, VectorConfig,
+    };
+    let mut schema = CompiledSchema::new();
+    let mut doc = TypeDefinition::new("Doc", "v_doc");
+    doc.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("textEmbedding", FieldType::Vector)
+            .with_vector_config(VectorConfig::new(3)),
+        FieldDefinition::new("imageEmbedding", FieldType::Vector).with_vector_config(
+            VectorConfig {
+                dimensions: 2,
+                distance_metric: DistanceMetric::L2,
+                ..VectorConfig::new(2)
+            },
+        ),
+    ];
+    schema.types.push(doc);
+    schema.build_indexes();
+    schema
+}
+
+/// `field:` selects which embedding to search, and the selected field's own
+/// dimensions and default metric apply — not the first field's.
+#[test]
+fn nearest_field_selects_among_several_vector_fields() {
+    let (clause, k) = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": [0.5, 0.5], "k": 3, "field": "imageEmbedding"}
+        })),
+        &two_vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap()
+    .expect("plan");
+
+    assert_eq!(k, 3);
+    assert_eq!(clause.native_column.as_deref(), Some("\"image_embedding\""));
+    let vector = clause.vector.expect("vector operand");
+    assert_eq!(
+        vector.operator, "<->",
+        "the selected field's declared metric applies, not the first field's"
+    );
+}
+
+/// The selected field's dimensions are the ones checked. Validating against the
+/// wrong field would accept a vector PostgreSQL then refuses — or worse, accept one
+/// of the right length for a different embedding space.
+#[test]
+fn nearest_checks_the_selected_fields_dimensions() {
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": [1.0, 2.0, 3.0], "k": 2, "field": "imageEmbedding"}
+        })),
+        &two_vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("3 components") && err.contains("2 dimensions"),
+        "the error must name the selected field's dimensions; got: {err}"
+    );
+}
+
+/// Omitting `field:` on a type with several is ambiguous, and the refusal names the
+/// candidates. Picking whichever the field order puts first would answer a question
+/// about one embedding space with a search of another.
+#[test]
+fn nearest_without_a_field_on_a_multi_vector_type_is_refused() {
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({"nearest": {"vector": [1.0, 2.0, 3.0], "k": 2}})),
+        &two_vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("nearest.field"), "the refusal must name the way out; got: {err}");
+    assert!(
+        err.contains("textEmbedding") && err.contains("imageEmbedding"),
+        "the refusal must name the candidates; got: {err}"
+    );
+}
+
+/// `field:` stays optional where it is unambiguous.
+#[test]
+fn nearest_without_a_field_on_a_single_vector_type_still_works() {
+    let got = nearest_order_and_limit(
+        &args(&serde_json::json!({"nearest": {"vector": [1.0, 0.0, 0.25], "k": 5}})),
+        &vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap();
+    assert!(got.is_some());
+}
+
+/// Naming a field that is not a vector field is refused, and the refusal lists the
+/// vector fields rather than confirming which non-vector names exist.
+#[test]
+fn nearest_field_naming_a_non_vector_field_is_refused() {
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({
+            "nearest": {"vector": [1.0, 2.0, 3.0], "k": 2, "field": "id"}
+        })),
+        &two_vector_schema(),
+        &list_query_def(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("is not a vector field"), "got: {err}");
+    assert!(
+        err.contains("textEmbedding"),
+        "the refusal must name the real candidates; got: {err}"
+    );
+}

@@ -51,16 +51,21 @@ async fn seed(adapter: &PostgresAdapter) {
         "CREATE EXTENSION IF NOT EXISTS vector".to_string(),
         format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"),
         format!("CREATE SCHEMA {SCHEMA}"),
+        // `thumbnail` is a SECOND vector field, of a different dimension and a
+        // different metric, whose nearest-neighbour order is the REVERSE of
+        // `embedding`'s (#959). A `field:` selector that quietly searched the first
+        // vector field would return the other order, which is the only assertion
+        // that can tell the two apart.
         format!(
             "CREATE TABLE {SCHEMA}.tb_doc (id bigint PRIMARY KEY, title text NOT NULL, \
-             embedding vector(3) NOT NULL)"
+             embedding vector(3) NOT NULL, thumbnail vector(2) NOT NULL)"
         ),
         format!(
             "INSERT INTO {SCHEMA}.tb_doc VALUES \
-             (1, 'exact',      '[1,0,0]'), \
-             (2, 'longer',     '[5,0.01,0]'), \
-             (3, 'shorter',    '[0.1,0.02,0]'), \
-             (4, 'orthogonal', '[0,1,0]')"
+             (1, 'exact',      '[1,0,0]',      '[4,0]'), \
+             (2, 'longer',     '[5,0.01,0]',   '[3,0]'), \
+             (3, 'shorter',    '[0.1,0.02,0]', '[2,0]'), \
+             (4, 'orthogonal', '[0,1,0]',      '[1,0]')"
         ),
         // The view exposes the vector BOTH ways deliberately: as a native
         // `embedding` column (the `nearest` storage contract — index-eligible)
@@ -68,7 +73,8 @@ async fn seed(adapter: &PostgresAdapter) {
         // operators resolve via `data->>'embedding'`).
         format!(
             "CREATE VIEW {SCHEMA}.v_doc AS SELECT id, jsonb_build_object('id', id, 'title', \
-             title, 'embedding', embedding::text) AS data, embedding FROM {SCHEMA}.tb_doc"
+             title, 'embedding', embedding::text) AS data, embedding, thumbnail \
+             FROM {SCHEMA}.tb_doc"
         ),
     ];
     for stmt in stmts {
@@ -87,6 +93,32 @@ fn schema() -> CompiledSchema {
             .with_vector_config(VectorConfig::new(3)),
     ];
     schema.types.push(doc);
+
+    // A second type over the SAME view, declaring both vectors (#959). Kept
+    // separate from `Doc` so the single-vector-field path — where `nearest.field`
+    // is optional — keeps its own end-to-end coverage rather than being replaced
+    // by the multi-field one.
+    let mut multi = TypeDefinition::new("MultiDoc", format!("{SCHEMA}.v_doc"));
+    multi.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("title", FieldType::String),
+        FieldDefinition::new("embedding", FieldType::Vector)
+            .with_vector_config(VectorConfig::new(3)),
+        FieldDefinition::new("thumbnail", FieldType::Vector).with_vector_config(VectorConfig {
+            dimensions: 2,
+            distance_metric: fraiseql_core::schema::DistanceMetric::L2,
+            ..VectorConfig::new(2)
+        }),
+    ];
+    schema.types.push(multi);
+
+    let mut multi_docs = QueryDefinition::new("multiDocs", "MultiDoc")
+        .returning_list()
+        .with_sql_source(format!("{SCHEMA}.v_doc"));
+    multi_docs.auto_params.has_where = true;
+    multi_docs.auto_params.has_limit = true;
+    multi_docs.auto_params.has_offset = true;
+    schema.queries.push(multi_docs);
 
     let mut docs = QueryDefinition::new("docs", "Doc")
         .returning_list()
@@ -129,9 +161,14 @@ async fn post_graphql(router: Router, body: &Value) -> (StatusCode, Value) {
 }
 
 fn ids(response: &Value) -> Vec<i64> {
-    response["data"]["docs"]
+    ids_under(response, "docs")
+}
+
+/// The row ids under a named response key, in order.
+fn ids_under(response: &Value, key: &str) -> Vec<i64> {
+    response["data"][key]
         .as_array()
-        .unwrap_or_else(|| panic!("expected data.docs list, got: {response}"))
+        .unwrap_or_else(|| panic!("expected data.{key} list, got: {response}"))
         .iter()
         .map(|d| d["id"].as_i64().expect("id"))
         .collect()
@@ -271,5 +308,79 @@ async fn hamming_distance_is_loudly_unsupported() {
     assert!(
         msg.contains("binary"),
         "the refusal explains the bit-vector gap instead of emitting broken SQL: {resp}"
+    );
+}
+
+// ── nearest: choosing among several vector fields (#959) ─────────────────────
+
+/// `nearest.field` searches the named embedding, not the first one declared.
+///
+/// The fixture's two vectors order the same four rows in opposite directions, so a
+/// selector that were ignored — or applied to the wrong column — returns the reverse
+/// of what this asserts. A test on a type with one vector field cannot tell the
+/// difference, which is why the second column exists.
+#[tokio::test]
+async fn nearest_field_searches_the_named_vector_field() {
+    if skip("nearest_field_selector") {
+        return;
+    }
+
+    let router = setup().await.unwrap();
+    let q = r#"{ multiDocs(nearest: {vector: [0, 0], k: 4, field: "thumbnail"}) { id } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "multiDocs"),
+        vec![4, 3, 2, 1],
+        "`thumbnail` orders by distance from the origin: [1,0] is nearest — {resp}"
+    );
+
+    let router = setup().await.unwrap();
+    let q = r#"{ multiDocs(nearest: {vector: [1, 0, 0], k: 4, field: "embedding"}) { id } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "multiDocs"),
+        vec![1, 2, 3, 4],
+        "`embedding` keeps its own cosine order — {resp}"
+    );
+}
+
+/// The selected field's declared dimensions are the ones validated. Checking the
+/// wrong field's would accept a vector of the right length for a different embedding
+/// space — a search that runs and answers about the wrong thing.
+#[tokio::test]
+async fn nearest_field_validates_the_selected_fields_dimensions() {
+    if skip("nearest_field_dimensions") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r#"{ multiDocs(nearest: {vector: [1, 0, 0], k: 2, field: "thumbnail"}) { id } }"#;
+    let (_, resp) = post_graphql(router, &json!({"query": q})).await;
+
+    let message = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("3 components") && message.contains("2 dimensions"),
+        "the refusal must name the selected field's dimensions: {resp}"
+    );
+}
+
+/// Omitting `field:` on a type that declares several is refused, with the candidates
+/// named. Answering it by field order would silently search one embedding space and
+/// report it as another.
+#[tokio::test]
+async fn nearest_without_a_field_on_a_multi_vector_type_is_refused() {
+    if skip("nearest_field_ambiguous") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    let q = r"{ multiDocs(nearest: {vector: [1, 0, 0], k: 2}) { id } }";
+    let (_, resp) = post_graphql(router, &json!({"query": q})).await;
+
+    let message = resp["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(message.contains("nearest.field"), "the refusal must name the way out: {resp}");
+    assert!(
+        message.contains("embedding") && message.contains("thumbnail"),
+        "the refusal must name the candidates: {resp}"
     );
 }

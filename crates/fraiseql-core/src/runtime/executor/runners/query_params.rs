@@ -68,37 +68,25 @@ pub fn nearest_order_and_limit(
             query_def.return_type
         ))
     })?;
-    let mut vector_fields = type_def.fields.iter().filter(|f| f.vector_config.is_some());
-    let Some(field) = vector_fields.next() else {
-        return Err(FraiseQLError::validation(format!(
-            "`nearest` requires a vector field on type '{}', and it declares none",
-            type_def.name
-        )));
-    };
-    if vector_fields.next().is_some() {
-        return Err(FraiseQLError::validation(format!(
-            "type '{}' declares more than one vector field; `nearest` does not yet \
-             support selecting between them",
-            type_def.name
-        )));
-    }
-    let config = field.vector_config.as_ref().expect("filtered on vector_config.is_some() above");
-
     let shape_err = || {
         FraiseQLError::validation(
-            "`nearest` takes {vector: [Float, ...], k: Int, metric: \
-             \"cosine\"|\"l2\"|\"inner_product\"} (metric optional — defaults to the \
-             field's declared distance metric)",
+            "`nearest` takes {vector: [Float, ...], k: Int, field: String, metric: \
+             \"cosine\"|\"l2\"|\"inner_product\"} (field optional on a type with one \
+             vector field; metric optional — defaults to the field's declared distance \
+             metric)",
         )
     };
     let obj = raw.as_object().ok_or_else(shape_err)?;
     for key in obj.keys() {
-        if !matches!(key.as_str(), "vector" | "k" | "metric") {
+        if !matches!(key.as_str(), "vector" | "k" | "metric" | "field") {
             return Err(FraiseQLError::validation(format!(
-                "unknown `nearest` argument key '{key}' (expected vector, k, metric)"
+                "unknown `nearest` argument key '{key}' (expected vector, k, field, metric)"
             )));
         }
     }
+
+    let field = select_vector_field(type_def, obj.get("field"))?;
+    let config = field.vector_config.as_ref().expect("select_vector_field filters on it");
     let vector = obj.get("vector").and_then(serde_json::Value::as_array).ok_or_else(shape_err)?;
     let k = obj
         .get("k")
@@ -171,6 +159,80 @@ pub fn nearest_order_and_limit(
     });
 
     Ok(Some((clause, k)))
+}
+
+/// Resolve which vector field a `nearest` request targets (#959).
+///
+/// A type may declare several — an image embedding and a text embedding on the same
+/// row is the ordinary case — so `nearest` takes an optional `field:` selector. It
+/// stays optional because naming the field on a type that has exactly one is noise,
+/// and the moment there is a second the omission becomes ambiguous rather than
+/// convenient: that is the case this refuses, naming the candidates, rather than
+/// picking whichever the field order happens to put first.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when the type declares no vector field, when
+/// `field:` names one that does not exist or is not a vector field, or when `field:`
+/// is omitted on a type that declares more than one.
+fn select_vector_field<'a>(
+    type_def: &'a crate::schema::TypeDefinition,
+    requested: Option<&serde_json::Value>,
+) -> Result<&'a crate::schema::FieldDefinition> {
+    let mut vector_fields = type_def.fields.iter().filter(|f| f.vector_config.is_some());
+
+    let Some(first) = vector_fields.next() else {
+        return Err(FraiseQLError::validation(format!(
+            "`nearest` requires a vector field on type '{}', and it declares none",
+            type_def.name
+        )));
+    };
+
+    let Some(requested) = requested else {
+        if vector_fields.next().is_some() {
+            return Err(FraiseQLError::validation(format!(
+                "type '{}' declares more than one vector field ({}); name the one to \
+                 search with `nearest.field`",
+                type_def.name,
+                vector_field_names(type_def).join(", ")
+            )));
+        }
+        return Ok(first);
+    };
+
+    let name = requested.as_str().ok_or_else(|| {
+        FraiseQLError::validation("`nearest.field` must be the name of a vector field")
+    })?;
+
+    type_def
+        .fields
+        .iter()
+        .find(|f| f.name == name && f.vector_config.is_some())
+        .ok_or_else(|| {
+            let declared = vector_field_names(type_def);
+            // Distinguishing "no such field" from "not a vector field" would tell an
+            // unauthenticated caller which fields exist; naming the *vector* fields
+            // is the answer to the question actually asked.
+            FraiseQLError::validation(format!(
+                "`nearest.field` '{name}' is not a vector field on type '{}'; it declares {}",
+                type_def.name,
+                if declared.is_empty() {
+                    "none".to_string()
+                } else {
+                    declared.join(", ")
+                }
+            ))
+        })
+}
+
+/// The names of a type's vector fields, in declaration order.
+fn vector_field_names(type_def: &crate::schema::TypeDefinition) -> Vec<&str> {
+    type_def
+        .fields
+        .iter()
+        .filter(|f| f.vector_config.is_some())
+        .map(|f| f.name.as_str())
+        .collect()
 }
 
 /// Build a `WhereClause` for a single inject param, respecting `native_columns`.
