@@ -55,6 +55,13 @@ use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
+// A subscription's principal is validated once at the upgrade and then held for an
+// unbounded duration; `StreamAuthGuard` is what keeps that trust honest. It is
+// re-checked periodically (every `SubscriptionState::auth_recheck_interval`) and —
+// for expiry — on every event delivery; any failure closes the socket with 4401.
+// The guard is shared with the `@stream` delivery loop (#958), so the two long-lived
+// transports cannot answer "is this principal still allowed?" differently.
+use crate::middleware::stream_auth::StreamAuthGuard;
 use crate::{
     extractors::OptionalSecurityContext,
     routes::graphql::{DomainRegistry, TenantStatusSource},
@@ -472,85 +479,6 @@ fn derive_policy_conditions(
         OwnerCondition::Bypass => Ok(Vec::new()),
         OwnerCondition::Eq { field, value } => Ok(vec![(field, value)]),
         OwnerCondition::Refuse(reason) => Err(reason),
-    }
-}
-
-/// The per-connection authorization guard for a long-lived stream (#771).
-///
-/// A subscription's principal is validated once at the upgrade and then held for an
-/// unbounded duration; this guard is what keeps that trust honest. It is re-checked
-/// periodically (every [`SubscriptionState::auth_recheck_interval`]) and — for expiry
-/// — on every event delivery:
-///
-/// - **Expiry** is a clock comparison against the principal's `expires_at` (the JWT `exp` claim;
-///   service-account principals carry their mint-time ceiling).
-/// - **Revocation** consults the configured revocation store (never the `IdP`) with the token's
-///   `jti`/`iat` claims, exactly like the HTTP middleware does at request time. It applies only to
-///   JWT principals (the claims extension is the marker); a store outage follows the manager's
-///   configured fail-open/fail-closed posture.
-///
-/// Any failure terminates the connection with close code 4401.
-struct StreamAuthGuard {
-    /// When the principal's token expires. `None` for anonymous connections.
-    expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// The principal's subject, for the revocation `revoke-all` epoch check.
-    sub:        Option<String>,
-    /// The validated bearer token's `jti`/`iat` claims. `None` when the
-    /// connection did not authenticate with a JWT — which also disables the
-    /// revocation re-check for it.
-    claims:     Option<crate::middleware::oidc_auth::SessionTokenClaims>,
-    /// The revocation store to consult, when configured.
-    revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
-}
-
-impl StreamAuthGuard {
-    fn new(
-        principal: Option<&SecurityContext>,
-        claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
-        revocation: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
-    ) -> Self {
-        Self {
-            expires_at: principal.map(|p| p.expires_at),
-            sub: principal.map(|p| p.user_id.to_string()),
-            // Revocation is a JWT concern: without decoded token claims there is
-            // no jti/iat to check (anonymous or service-account connection).
-            revocation: if claims.is_some() { revocation } else { None },
-            claims,
-        }
-    }
-
-    /// Whether any mid-stream re-check applies to this connection.
-    const fn applies(&self) -> bool {
-        self.expires_at.is_some()
-    }
-
-    /// Cheap per-delivery check: has the principal's token expired?
-    fn expired(&self) -> bool {
-        self.expires_at.is_some_and(|exp| exp <= chrono::Utc::now())
-    }
-
-    /// The periodic re-check: expiry plus revocation. Returns the close reason
-    /// when the connection must be terminated.
-    async fn check(&self) -> Result<(), &'static str> {
-        if self.expired() {
-            return Err("Token expired");
-        }
-        if let (Some(revocation), Some(sub), Some(claims)) =
-            (self.revocation.as_ref(), self.sub.as_deref(), self.claims.as_ref())
-        {
-            use crate::token_revocation::TokenRejection;
-            match revocation.check_token(claims.jti.as_deref(), sub, claims.iat).await {
-                Ok(()) => {},
-                Err(TokenRejection::Revoked) => return Err("Token revoked"),
-                Err(TokenRejection::MissingJti) => return Err("Token lacks required jti claim"),
-                // The manager already applied its fail-open posture internally; an
-                // error here means fail-closed is configured — terminate.
-                Err(TokenRejection::StoreUnavailable) => {
-                    return Err("Revocation store unavailable");
-                },
-            }
-        }
-        Ok(())
     }
 }
 

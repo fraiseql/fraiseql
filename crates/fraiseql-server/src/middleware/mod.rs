@@ -9,6 +9,7 @@ pub mod hs256_auth;
 pub mod metrics;
 pub mod oidc_auth;
 pub mod rate_limit;
+pub mod stream_auth;
 pub mod tenant;
 pub mod trace;
 

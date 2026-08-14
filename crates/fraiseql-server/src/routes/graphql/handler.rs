@@ -49,6 +49,11 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     headers: HeaderMap,
     PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
+    // #958: an SSE `@stream` delivery outlives its request, so it re-checks the
+    // principal per batch — which needs the decoded `jti`/`iat` the auth middleware
+    // put in the extensions. Absent for anonymous and service-account callers, which
+    // is exactly the signal that no revocation re-check applies.
+    token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<axum::response::Response, ErrorResponse> {
     // Extract trace context from W3C headers
@@ -63,8 +68,21 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
     // GraphQL-over-SSE (#387): opt-in, negotiated by Accept. This branch runs
     // INSIDE the authenticated route, so it inherits the full middleware stack.
-    if state.graphql_sse_enabled && sse::accepts_event_stream(&headers) {
-        return Box::pin(sse::handle_sse(state, headers, peer_ip, security_context, request)).await;
+    if let Some(wire) = state
+        .graphql_incremental_enabled
+        .then(|| incremental::negotiate(&headers))
+        .flatten()
+    {
+        return Box::pin(sse::handle_sse(
+            state,
+            wire,
+            headers,
+            peer_ip,
+            security_context,
+            token_claims.map(|axum::Extension(claims)| claims),
+            request,
+        ))
+        .await;
     }
 
     execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
@@ -106,6 +124,8 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     headers: HeaderMap,
     PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
+    // #958: see `graphql_handler` — the SSE branch needs the token's revocation claims.
+    token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
     Query(params): Query<GraphQLGetParams>,
 ) -> Result<axum::response::Response, ErrorResponse> {
     // Reject oversized GET queries early to prevent DoS via query parsing.
@@ -181,8 +201,21 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 
     // GraphQL-over-SSE (#387): the GET arm is what an `EventSource` client can
     // reach (it cannot POST). Mutations were already rejected above.
-    if state.graphql_sse_enabled && sse::accepts_event_stream(&headers) {
-        return Box::pin(sse::handle_sse(state, headers, peer_ip, security_context, request)).await;
+    if let Some(wire) = state
+        .graphql_incremental_enabled
+        .then(|| incremental::negotiate(&headers))
+        .flatten()
+    {
+        return Box::pin(sse::handle_sse(
+            state,
+            wire,
+            headers,
+            peer_ip,
+            security_context,
+            token_claims.map(|axum::Extension(claims)| claims),
+            request,
+        ))
+        .await;
     }
 
     execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
@@ -718,6 +751,7 @@ pub(super) fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
     }
 }
 
+mod incremental;
 mod sse;
 mod stages;
 

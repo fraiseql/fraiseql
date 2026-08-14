@@ -468,6 +468,7 @@ mod app_state_tests {
             axum::http::HeaderMap::new(),
             crate::extractors::PeerIp("127.0.0.1".to_string()),
             crate::extractors::OptionalSecurityContext(None),
+            None,
             axum::extract::Query(params),
         )
         .await;

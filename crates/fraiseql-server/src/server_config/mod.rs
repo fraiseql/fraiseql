@@ -380,26 +380,36 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_pool_timeout")]
     pub pool_timeout_secs: u64,
 
-    /// Enable the GraphQL-over-SSE response transport (#387). Default `false`.
+    /// Enable incremental delivery on the GraphQL endpoint (#387, #958).
+    /// Default `false`.
     ///
-    /// When enabled, a request to the GraphQL endpoint carrying
-    /// `Accept: text/event-stream` receives its response as Server-Sent Events
-    /// (`next` payload events followed by `complete`), and a query whose root
-    /// field carries `@stream(initialCount: N)` is delivered incrementally:
-    /// an initial payload with `N` items, then batches re-executed through the
-    /// full pipeline (auth, validation, RLS, caching) with paginated variables.
-    /// When disabled (default), the `Accept` header is ignored and behaviour is
+    /// When enabled, a request carrying `Accept: text/event-stream` or
+    /// `Accept: multipart/mixed` receives its response incrementally, and
+    /// `@stream(initialCount: N)` / `@defer` become live rather than advisory:
+    /// `@stream` delivers an initial payload with `N` items then batches
+    /// re-executed through the full pipeline (auth, validation, RLS, caching) with
+    /// paginated variables; `@defer` splits the one execution's result into an
+    /// immediate payload and one payload per deferred fragment.
+    ///
+    /// This gates the **capability**, not one framing of it: SSE and
+    /// `multipart/mixed` are two envelopes over the same payload sequence, and an
+    /// operator opting out of one is opting out of both. (It was
+    /// `enable_graphql_sse` until #958 added the second framing, at which point
+    /// the name no longer described what the flag did.)
+    ///
+    /// When disabled (default), both `Accept` headers are ignored and behaviour is
     /// byte-for-byte unchanged; `@stream`/`@defer` remain advisory no-ops.
     #[serde(default)]
-    pub enable_graphql_sse: bool,
+    pub enable_graphql_incremental: bool,
 
     /// Continuation batch size for `@stream` deliveries (#387).
     ///
-    /// Rows per incremental batch after the initial payload. Optional; defaults
-    /// to 100. Setting it while [`enable_graphql_sse`](Self::enable_graphql_sse)
-    /// is `false` is a configuration error (the value would be inert).
+    /// Rows per incremental batch after the initial payload, on either framing.
+    /// Optional; defaults to 100. Setting it while
+    /// [`enable_graphql_incremental`](Self::enable_graphql_incremental) is `false` is
+    /// a configuration error (the value would be inert).
     #[serde(default)]
-    pub graphql_sse_stream_batch_size: Option<u32>,
+    pub graphql_incremental_batch_size: Option<u32>,
 
     /// Read replica connection URLs (#407). Empty = no replicas.
     ///
@@ -1214,11 +1224,11 @@ impl Default for ServerConfig {
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
-            enable_graphql_sse: false, // SSE transport is opt-in (#387)
-            graphql_sse_stream_batch_size: None, // 100 when SSE is enabled
-            read_replica_urls: Vec::new(), // Primary-only by default
+            enable_graphql_incremental: false, // incremental delivery is opt-in (#387)
+            graphql_incremental_batch_size: None, // 100 when incremental delivery is enabled
+            read_replica_urls: Vec::new(),     // Primary-only by default
             read_replica_pin_after_write_ms: None, // 5000 ms when replicas are set
-            read_replica_max_lag_ms: None, // No lag-based routing by default (#957)
+            read_replica_max_lag_ms: None,     // No lag-based routing by default (#957)
             read_replica_health_probe_interval_ms: None, // 1000 ms when replicas are set
 
             auth: None, // No auth by default

@@ -98,6 +98,54 @@ impl TestServer {
         }
     }
 
+    /// Start a server with an explicit [`ServerConfig`] **and** a caller-held token
+    /// revocation manager, so a test can revoke through the very manager the mount
+    /// enforces.
+    ///
+    /// `[security.token_revocation]` with the `memory` backend builds a manager the
+    /// test cannot reach; this installs one it can, exactly as the binary's PostgreSQL
+    /// boot path installs the Postgres-backed store.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the listener cannot be bound or the server fails to start.
+    pub async fn start_with_revocation<A>(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        revocation: Arc<fraiseql_server::token_revocation::TokenRevocationManager>,
+    ) -> Self
+    where
+        A: DatabaseAdapter + Clone + Send + Sync + 'static,
+    {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
+        let port = listener.local_addr().expect("local addr").port();
+
+        let server = Server::new(config, schema, adapter, None)
+            .await
+            .expect("Server::new")
+            .with_revocation_manager(revocation);
+
+        let (tx, rx) = oneshot::channel::<()>();
+
+        tokio::spawn(async move {
+            server
+                .serve_on_listener(listener, async {
+                    let _ = rx.await; // intentional
+                })
+                .await
+                .expect("server task failed");
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        Self {
+            url: format!("http://127.0.0.1:{port}"),
+            port,
+            _shutdown: tx,
+        }
+    }
+
     /// Start a server whose REST transport includes its **write** half, exactly as
     /// the binary's PostgreSQL boot path does.
     ///

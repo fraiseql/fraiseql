@@ -99,6 +99,9 @@ pub mod complexity;
 /// Field-level RBAC directive (@require_permission).
 pub mod require_permission_directive;
 
+/// `@defer`: splitting a resolved response into immediate and deferred payloads.
+pub mod defer;
+
 // ============================================================================
 // Re-exports for convenient access
 // ============================================================================
@@ -107,6 +110,7 @@ pub use complexity::{
     ComplexityConfig, ComplexityValidationError, DEFAULT_MAX_ALIASES, MAX_VARIABLES_COUNT,
     QueryMetrics, RequestValidator, estimate_query_cost, parse_graphql_document,
 };
+pub use defer::DeferredPayload;
 pub use directive_evaluator::{
     CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler,
     DirectiveResult, EvaluationContext, OperationType,
