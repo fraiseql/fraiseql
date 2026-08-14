@@ -62,6 +62,14 @@ async fn seed(adapter: &PostgresAdapter) {
             "CREATE VIEW {SCHEMA}.v_slow_item AS SELECT id, jsonb_build_object('id', id, \
              'label', label, 'nap', (pg_sleep(0.4))::text) AS data FROM {SCHEMA}.tb_item"
         ),
+        // A row carrying a nested list, for nested `@stream` (#958). The list lives
+        // inside the row's own `data` document — which is the whole reason a nested
+        // `@stream` cannot page the database the way a root one does.
+        format!(
+            "CREATE VIEW {SCHEMA}.v_tagged_item AS SELECT id, jsonb_build_object('id', id, \
+             'label', label, 'tags', jsonb_build_array('t1', 't2', 't3', 't4')) AS data \
+             FROM {SCHEMA}.tb_item ORDER BY id"
+        ),
     ];
     for stmt in stmts {
         let _: Vec<std::collections::HashMap<String, Value>> =
@@ -88,8 +96,27 @@ fn schema() -> CompiledSchema {
     ];
     schema.types.push(item);
 
+    let mut tagged = TypeDefinition::new("SseTaggedItem", format!("{SCHEMA}.v_tagged_item"));
+    tagged.fields = vec![
+        fraiseql_core::schema::FieldDefinition::new("id", FieldType::Int),
+        fraiseql_core::schema::FieldDefinition::new("label", FieldType::String),
+        fraiseql_core::schema::FieldDefinition::new(
+            "tags",
+            FieldType::List(Box::new(FieldType::String)),
+        ),
+    ];
+    schema.types.push(tagged);
+
     schema.queries.push(list_query("items", "v_item"));
     schema.queries.push(list_query("slowItems", "v_slow_item"));
+    {
+        let mut q = QueryDefinition::new("taggedItems", "SseTaggedItem")
+            .returning_list()
+            .with_sql_source(format!("{SCHEMA}.v_tagged_item"));
+        q.auto_params.has_limit = true;
+        q.auto_params.has_offset = true;
+        schema.queries.push(q);
+    }
     // Single-item query: the @stream-ineligible shape.
     schema
         .queries
@@ -1017,4 +1044,154 @@ async fn sse_responses_are_not_compressed() {
     );
     let events = parse_sse(&resp.text().await.unwrap());
     assert_eq!(streamed_ids(&next_payloads(&events), "items"), vec![1, 2, 3, 4, 5]);
+}
+
+// ---------------------------------------------------------------------------
+// Nested `@stream` (#958)
+// ---------------------------------------------------------------------------
+
+/// A nested `@stream` splits the delivery of a list the single statement already
+/// produced: the initial payload carries `initialCount` items and each chunk arrives
+/// addressed by the index of its first item.
+///
+/// It is deliberately **not** database paging. The list lives inside the row's own
+/// JSONB document, so there is nothing to page — see
+/// `fraiseql_core::graphql::stream_split` for why a second statement would be a
+/// second snapshot with no sound alignment.
+#[tokio::test]
+async fn nested_stream_splits_the_delivery_of_an_inner_list() {
+    if database_url_or_skip("sse_nested_stream").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(2))).await.unwrap();
+
+    let query = r"{ taggedItems(limit: 1) { id tags @stream(initialCount: 1) } }";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    let events = parse_sse(&resp.text().await.unwrap());
+    let payloads = next_payloads(&events);
+
+    assert_eq!(
+        payloads.len(),
+        3,
+        "one immediate payload plus two chunks of the four-item list: {payloads:?}"
+    );
+
+    assert_eq!(
+        payloads[0]["data"]["taggedItems"][0]["tags"],
+        json!(["t1"]),
+        "the immediate payload keeps exactly initialCount items: {payloads:?}"
+    );
+    assert_eq!(payloads[0]["hasNext"], json!(true));
+
+    assert_eq!(payloads[1]["incremental"][0]["items"], json!(["t2", "t3"]));
+    assert_eq!(
+        payloads[1]["incremental"][0]["path"],
+        json!(["taggedItems", 0, "tags", 1]),
+        "a chunk is addressed by the response path of its first item: {payloads:?}"
+    );
+    assert_eq!(payloads[1]["hasNext"], json!(true));
+
+    assert_eq!(payloads[2]["incremental"][0]["items"], json!(["t4"]));
+    assert_eq!(payloads[2]["incremental"][0]["path"], json!(["taggedItems", 0, "tags", 3]));
+    assert_eq!(
+        payloads[2]["hasNext"],
+        json!(false),
+        "the last chunk ends the delivery: {payloads:?}"
+    );
+
+    assert_eq!(events.last().map(|e| e.name.as_str()), Some("complete"));
+}
+
+/// Each element of the enclosing list is its own path.
+///
+/// Without that, every row's inner list would be addressed as the same list and a
+/// client would splice all of them into the first row — a corruption that looks like
+/// a working stream, which is why it is asserted rather than assumed.
+#[tokio::test]
+async fn nested_stream_addresses_each_enclosing_row_separately() {
+    if database_url_or_skip("sse_nested_stream_rows").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+
+    let query = r"{ taggedItems(limit: 2) { id tags @stream(initialCount: 0) } }";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    let events = parse_sse(&resp.text().await.unwrap());
+    let payloads = next_payloads(&events);
+
+    assert_eq!(payloads.len(), 3, "one immediate payload plus one chunk per row: {payloads:?}");
+    assert_eq!(payloads[1]["incremental"][0]["path"], json!(["taggedItems", 0, "tags", 0]));
+    assert_eq!(payloads[2]["incremental"][0]["path"], json!(["taggedItems", 1, "tags", 0]));
+}
+
+/// A root `@stream` still pages the database, and is not turned into a delivery
+/// split by the nested support: the two are different features over different things.
+#[tokio::test]
+async fn a_root_stream_still_pages_the_database() {
+    if database_url_or_skip("sse_root_stream_unchanged").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(2))).await.unwrap();
+
+    let query = r"{ items(orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    let events = parse_sse(&resp.text().await.unwrap());
+    let payloads = next_payloads(&events);
+
+    assert_eq!(streamed_ids(&payloads, "items"), vec![1, 2, 3, 4, 5]);
+    assert!(
+        events.iter().any(|e| e.id.is_some()),
+        "a root @stream is resumable and stamps its resume point: {events:?}"
+    );
+}
+
+/// A nested `@stream` on a field that did not resolve to a list is refused, and
+/// refused as an **HTTP error** — the split happens before any byte is written, so
+/// the transport can still say no. A directive that silently did nothing on a
+/// negotiated incremental transport would read to the client as "streaming worked".
+#[tokio::test]
+async fn nested_stream_on_a_non_list_field_is_refused() {
+    if database_url_or_skip("sse_nested_stream_non_list").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(2))).await.unwrap();
+
+    let query = r"{ taggedItems(limit: 1) { id label @stream } }";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    assert!(
+        content_type.starts_with("application/json"),
+        "the refusal must be a buffered error response, never a stream; got {content_type}"
+    );
+    let body: Value = resp.json().await.unwrap();
+    assert!(
+        body["errors"][0]["message"].as_str().unwrap_or("").contains("list"),
+        "the refusal must name the reason: {body}"
+    );
+}
+
+/// A nested `@stream` and a `@defer` both split the delivery of one result, and
+/// their payload order is not defined here. Refused rather than resolved one way.
+#[tokio::test]
+async fn nested_stream_combined_with_defer_is_refused() {
+    if database_url_or_skip("sse_nested_stream_defer").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(2))).await.unwrap();
+
+    let query = r"
+        { taggedItems(limit: 1) { id tags @stream ...Detail @defer } }
+        fragment Detail on SseTaggedItem { label }
+    ";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    let body: Value = resp.json().await.unwrap();
+    assert!(
+        body["errors"][0]["message"].as_str().unwrap_or("").contains("@defer"),
+        "the combination must be refused with the reason: {body}"
+    );
 }

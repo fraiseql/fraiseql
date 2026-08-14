@@ -146,6 +146,51 @@ same response differently and interleaving them is not defined here.
   both framings are exempt from response compression (a buffering encoder would
   defeat incremental flushing).
 
+## Nested `@stream`
+
+`@stream` on a list **inside** a row — `users { posts @stream(initialCount: 2) }` —
+is supported, and is a different mechanism from the root-field form above. It splits
+the *delivery* of a list the query already produced, exactly as `@defer` splits the
+delivery of a deferred fragment:
+
+```
+event: next
+data: {"data":{"users":[{"id":1,"posts":["p1","p2"]}]},"hasNext":true}
+
+event: next
+data: {"incremental":[{"items":["p3","p4"],"path":["users",0,"posts",2]}],"hasNext":false}
+```
+
+The `path` addresses the position of the chunk's **first item**, so a client splices
+it back at that index. Each element of an enclosing list gets its own path
+(`["users",0,…]`, `["users",1,…]`).
+
+Why it is a delivery split and not paging: a nested list is a JSONB array produced by
+the same single statement as the row that carries it. There is no per-path pagination
+to push down — the array is already in memory by the time anything could page it, and
+fetching "the next 10 posts of user 3" would be a second statement over a second
+snapshot, with the alignment problem described under `@defer` above. The honest
+consequences:
+
+- it does **not** reduce database work, and does not bound server memory;
+- it is always correctly aligned, because there is one snapshot;
+- it is **not** resumable. A root `@stream`'s event id is a row offset the query
+  accepts as an argument; a nested chunk boundary is a position in a value that no
+  longer exists once the response is delivered. Nested-`@stream` payloads carry no
+  `id:`.
+
+`initialCount` (default 0) is how many items stay in the immediate payload;
+`graphql_incremental_batch_size` sizes the chunks. `@stream(if: false)` leaves the
+list alone. A `@stream` on a field that resolved to something other than a list is
+**refused** with an ordinary HTTP error — the split happens before any byte of the
+response is written, and a directive that silently did nothing on a negotiated
+incremental transport would read as "streaming worked".
+
+Two combinations are refused rather than resolved one way: a nested `@stream` with a
+`@defer` (both split one result and their payload order is undefined here), and a
+nested `@stream` with a root `@stream` (each root batch would carry its own copy of
+the nested list, which has no incremental addressing).
+
 ### A note on the REST exports
 
 The REST export representations (`Accept: application/x-ndjson`, `text/csv`, XLSX) and
@@ -199,6 +244,6 @@ carries an id too, so a client that fixes the cause resumes rather than restarts
 
 ## Not (yet) supported
 
-Nested `@stream` is tracked in the follow-up issue. `Last-Event-ID` on the REST observer stream
-(`/rest/v1/{resource}/stream`) is #1113, and separate: that transport's event id is an
-event UUID over a live feed, not an offset into a re-executable query.
+`Last-Event-ID` on the REST observer stream (`/rest/v1/{resource}/stream`) is #1113, and
+separate: that transport's event id is an event UUID over a live feed, not an offset
+into a re-executable query.
