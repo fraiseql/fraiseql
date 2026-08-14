@@ -33,8 +33,8 @@ use axum::response::Response;
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     graphql::{
-        defer, parse_query, selection_set, selection_set::variables_map, types::FieldSelection,
-        value_json,
+        defer, parse_query, selection_set, selection_set::variables_map, stream_split,
+        types::FieldSelection, value_json,
     },
     runtime::QueryMatcher,
     security::SecurityContext,
@@ -86,11 +86,29 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
 
     let plan = plan_stream(&state, &query, request.variables.as_ref())?;
     let defer_plan = plan_defer(&query, request.variables.as_ref());
+    let nested_stream_plan = plan_nested_stream(&query, request.variables.as_ref());
 
     if plan.is_some() && defer_plan.is_some() {
         return Err(ErrorResponse::from_error(GraphQLError::new(
             "@defer cannot be combined with @stream in one operation: the two order the \
              same response differently and interleaving them is not defined here"
+                .to_string(),
+            crate::error::ErrorCode::ValidationError,
+        )));
+    }
+    if nested_stream_plan.is_some() && defer_plan.is_some() {
+        return Err(ErrorResponse::from_error(GraphQLError::new(
+            "@defer cannot be combined with a nested @stream in one operation: both split \
+             the delivery of one result and their payload order is not defined here"
+                .to_string(),
+            crate::error::ErrorCode::ValidationError,
+        )));
+    }
+    if plan.is_some() && nested_stream_plan.is_some() {
+        return Err(ErrorResponse::from_error(GraphQLError::new(
+            "a root @stream cannot be combined with a nested @stream in one operation: the \
+             root one pages the database and each of its batches would carry its own copy \
+             of the nested list, which has no incremental addressing"
                 .to_string(),
             crate::error::ErrorCode::ValidationError,
         )));
@@ -101,6 +119,7 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
         // re-validates the already-resolved principal, which is idempotent),
         // and the response becomes one `next` event plus `complete`.
         let variables = request.variables.clone();
+        let batch_size = state.graphql_incremental_batch_size.max(1) as usize;
         let response = Box::pin(execute_graphql_request(
             state,
             request,
@@ -110,15 +129,18 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
             &peer_ip,
         ))
         .await?;
-        let chunks = defer_plan.map_or_else(
-            || {
-                vec![Chunk {
-                    payload:   response.body.clone(),
-                    resume_id: None,
-                }]
+        let chunks = match (defer_plan, nested_stream_plan) {
+            (Some(selections), _) => {
+                deferred_chunks(response.body, &selections, variables.as_ref())
             },
-            |selections| deferred_chunks(response.body.clone(), &selections, variables.as_ref()),
-        );
+            (None, Some(selections)) => {
+                streamed_chunks(response.body, &selections, variables.as_ref(), batch_size)?
+            },
+            (None, None) => vec![Chunk {
+                payload:   response.body,
+                resume_id: None,
+            }],
+        };
         return Ok(incremental::respond(wire, stream::iter(chunks)));
     };
 
@@ -258,6 +280,73 @@ fn plan_defer(query: &str, variables: Option<&Value>) -> Option<Vec<FieldSelecti
     let effective =
         selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars).ok()?;
     defer::contains_defer(&effective, &vars).then_some(effective)
+}
+
+/// The effective selection set of a document carrying a **nested** `@stream`, or
+/// `None` when it carries none.
+///
+/// Mirrors [`plan_defer`], including its rule for an unparseable document, because
+/// nested `@stream` is the same kind of thing: a split of a delivery the server
+/// already holds, not a second query. See
+/// [`fraiseql_core::graphql::stream_split`] for why a nested list cannot be paged
+/// the way a root one can.
+fn plan_nested_stream(query: &str, variables: Option<&Value>) -> Option<Vec<FieldSelection>> {
+    let parsed = parse_query(query).ok()?;
+    let vars = variables_map(variables);
+    let effective =
+        selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars).ok()?;
+    stream_split::contains_nested_stream(&effective, &vars).then_some(effective)
+}
+
+/// Split `body` into its immediate payload and one event per streamed chunk.
+///
+/// The whole result is in hand, so the split cannot mis-align: one statement
+/// produced the list and every chunk of it. A `@stream` on a field that did not
+/// resolve to a list is refused here — before any byte of the response is written,
+/// which is why it can still be an ordinary HTTP error.
+fn streamed_chunks(
+    mut body: Value,
+    selections: &[FieldSelection],
+    variables: Option<&Value>,
+    batch_size: usize,
+) -> Result<Vec<Chunk>, ErrorResponse> {
+    let vars = variables_map(variables);
+    let streamed = match body.get_mut("data") {
+        Some(data) => stream_split::split(selections, data, &vars, batch_size).map_err(|e| {
+            ErrorResponse::from_error(GraphQLError::new(
+                format!("@stream on `{}`: {}", e.field, e.reason),
+                crate::error::ErrorCode::ValidationError,
+            ))
+        })?,
+        None => Vec::new(),
+    };
+
+    if streamed.is_empty() {
+        // Every `@stream` resolved to a list that fits its `initialCount` (or to
+        // nothing). The delivery is an ordinary single result, and `hasNext: true`
+        // here would leave the client waiting for a payload that will never come.
+        return Ok(vec![Chunk {
+            payload:   body,
+            resume_id: None,
+        }]);
+    }
+
+    attach_has_next(&mut body, true);
+    let mut chunks = vec![Chunk {
+        payload:   body,
+        resume_id: None,
+    }];
+    let last = streamed.len() - 1;
+    for (index, chunk) in streamed.into_iter().enumerate() {
+        chunks.push(Chunk {
+            payload:   json!({
+                "incremental": [stream_split::incremental_entry(chunk)],
+                "hasNext": index != last,
+            }),
+            resume_id: None,
+        });
+    }
+    Ok(chunks)
 }
 
 /// Split `body` into its immediate payload and one event per deferred fragment.
@@ -592,6 +681,19 @@ fn plan_stream<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     if parsed.operation_type != "query" {
         return Err(bad_request("@stream is only supported on query operations"));
     }
+
+    // A `@stream` that is not on the root field is a **nested** one: a delivery
+    // split over the list the single statement already produced, planned by
+    // `plan_nested_stream`. Only a root `@stream` reaches the database paging
+    // below, and only it needs the `$limit`/`$offset` injection this refuses to
+    // collide with.
+    if !parsed
+        .selections
+        .iter()
+        .any(|s| s.directives.iter().any(|d| d.name == "stream"))
+    {
+        return Ok(None);
+    }
     if parsed.variables.iter().any(|v| v.name == "limit" || v.name == "offset") {
         return Err(bad_request(
             "@stream cannot be combined with document variables named $limit or $offset: \
@@ -616,10 +718,10 @@ fn plan_stream<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         .first()
         .ok_or_else(|| bad_request("@stream requires a selected root field"))?;
     let Some(directive) = root.directives.iter().find(|d| d.name == "stream") else {
-        return Err(bad_request(
-            "@stream is only supported on the root field of the operation (nested \
-             @stream is not supported)",
-        ));
+        // The pre-scan above found a root `@stream` in the parsed document but the
+        // matched selection carries none, which means `@skip`/`@include` removed
+        // the field that had it. Nothing to page.
+        return Ok(None);
     };
 
     let vars_map = variables_map(variables);

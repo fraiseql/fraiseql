@@ -102,6 +102,9 @@ pub mod require_permission_directive;
 /// `@defer`: splitting a resolved response into immediate and deferred payloads.
 pub mod defer;
 
+/// Nested `@stream`: splitting an already-resolved list into delivery chunks.
+pub mod stream_split;
+
 // ============================================================================
 // Re-exports for convenient access
 // ============================================================================

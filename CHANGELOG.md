@@ -1498,8 +1498,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   terminates a delivery in flight. Expiry alone left both unenforced for the whole life of
   a delivery, which on a large result set is unbounded.
 
-  Still deferred, and still tracked on #958: nested `@stream` and the REST
-  `rest_stream` per-route opt-in.
+  Still deferred, and still tracked on #958: the REST `rest_stream` per-route opt-in.
+
+- **Nested `@stream` (#958).** `@stream` on a list *inside* a row —
+  `users { posts @stream(initialCount: 2) }` — is delivered incrementally instead of
+  refused. It is a **delivery split**, the shape `@defer` already has, not the database
+  paging a root `@stream` gets: a nested list is a JSONB array produced by the same
+  single statement as the row that carries it, so there is no per-path pagination to
+  push down. Fetching "the next 10 posts of user 3" would be a second statement over a
+  second snapshot, with the alignment problem `@defer` documents.
+
+  So the honest properties are stated rather than implied: it does not reduce database
+  work, it does not bound server memory, it is always correctly aligned, and it is
+  **not** resumable — a root `@stream`'s event id is a row offset the query accepts as
+  an argument, while a nested chunk boundary is a position in a value that no longer
+  exists once the response is delivered.
+
+  Each chunk is addressed by the response path of its **first item**
+  (`["users",0,"posts",2]`), so every element of an enclosing list splices into its own
+  row rather than all of them into the first. A `@stream` on a field that resolved to
+  something other than a list is refused with an ordinary HTTP error — the split runs
+  before any byte is written, and a directive that silently did nothing on a negotiated
+  incremental transport would read to the client as "streaming worked". Nested `@stream`
+  combined with `@defer`, or with a root `@stream`, is refused for the same reason the
+  existing `@defer`+`@stream` combination is: their payload order is not defined here.
 
 - **Streaming reads through the `DatabaseAdapter` boundary (#958).** The structural part of
   #387's remainder: `DatabaseAdapter::stream_with_projection` and `stream_row_query` deliver
