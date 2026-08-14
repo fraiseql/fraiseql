@@ -138,14 +138,21 @@ fn revocation_rejected_response(rejection: &TokenRejection) -> Response {
 
 /// Enforce token revocation for an already-validated bearer token.
 ///
-/// Decodes `jti`/`iat` from the token (safe via `insecure_decode` — `validate_token` has
+/// Decodes `jti`/`iat` from the token (safe via `insecure_decode` — the caller has
 /// already verified signature/expiry/audience) and, when a revocation manager is present,
 /// rejects the request if the token's `jti` is revoked or its `iat` predates the user's
 /// `revoke-all` epoch. Returns the decoded claims (for `SessionJti` /
 /// [`SessionTokenClaims`]) on success, or a 401 response to short-circuit the request.
-/// With no revocation manager it is a pure claims-decode (preserving prior behaviour).
-async fn check_revocation(
-    auth_state: &OidcAuthState,
+/// With no revocation manager it is a pure claims-decode.
+///
+/// **This is the single revocation seam for request-entry authentication.** Both auth
+/// layers call it: OIDC via [`oidc_auth_middleware`], HS256 via
+/// [`hs256_auth_middleware`](crate::middleware::hs256_auth::hs256_auth_middleware).
+/// They had independent code before #1112, and only one of them checked anything — so
+/// `[security.token_revocation]`, which is auth-mode independent, was silently inert
+/// under `[auth_hs256]` while Studio's "revoke all sessions" reported success.
+pub(crate) async fn check_revocation(
+    revocation: Option<&Arc<TokenRevocationManager>>,
     user: &AuthenticatedUser,
     token: &str,
 ) -> Result<SessionTokenClaims, Response> {
@@ -155,7 +162,7 @@ async fn check_revocation(
     let jti = claims.as_ref().and_then(|c| c.jti.clone());
     let iat = claims.as_ref().and_then(|c| c.iat);
 
-    if let Some(revocation) = auth_state.revocation.as_ref() {
+    if let Some(revocation) = revocation {
         if let Err(rejection) =
             revocation.check_token(jti.as_deref(), user.user_id.as_str(), iat).await
         {
@@ -276,10 +283,12 @@ pub async fn oidc_auth_middleware(
                     // surface the `jti` claim for downstream handlers that need to revoke
                     // the caller's current session.  `check_revocation` re-decodes the
                     // already-validated token (safe via `insecure_decode`).
-                    let claims = match check_revocation(&auth_state, &user, &token).await {
-                        Ok(claims) => claims,
-                        Err(response) => return response,
-                    };
+                    let claims =
+                        match check_revocation(auth_state.revocation.as_ref(), &user, &token).await
+                        {
+                            Ok(claims) => claims,
+                            Err(response) => return response,
+                        };
                     request.extensions_mut().insert(AuthUser(user));
                     request.extensions_mut().insert(SessionJti(claims.jti.clone()));
                     // #771: long-lived streams re-run the revocation check mid-stream.
@@ -380,7 +389,8 @@ async fn authenticate_required(
         Ok(user) => {
             // Enforce token revocation on the admin/required planes too — a revoked token
             // must be rejected everywhere, not only on the data plane.
-            let claims = match check_revocation(auth_state, &user, &token).await {
+            let claims = match check_revocation(auth_state.revocation.as_ref(), &user, &token).await
+            {
                 Ok(claims) => claims,
                 Err(response) => return Err(response),
             };
@@ -535,9 +545,13 @@ mod revocation_tests {
     #[tokio::test]
     async fn no_manager_is_a_noop_passthrough() {
         let state = OidcAuthState::new(validator());
-        let claims = check_revocation(&state, &user("alice"), &token(Some("j1"), Some(1000)))
-            .await
-            .expect("with no revocation manager the check is a pure claims decode");
+        let claims = check_revocation(
+            state.revocation.as_ref(),
+            &user("alice"),
+            &token(Some("j1"), Some(1000)),
+        )
+        .await
+        .expect("with no revocation manager the check is a pure claims decode");
         assert_eq!(claims.jti.as_deref(), Some("j1"));
         assert_eq!(claims.iat, Some(1000));
     }
@@ -550,7 +564,12 @@ mod revocation_tests {
 
         // H8: before this wiring the middleware decoded the jti but never consulted the
         // revocation store, so a revoked token was accepted.
-        let result = check_revocation(&state, &user("alice"), &token(Some("j1"), Some(1000))).await;
+        let result = check_revocation(
+            state.revocation.as_ref(),
+            &user("alice"),
+            &token(Some("j1"), Some(1000)),
+        )
+        .await;
         let response = result.expect_err("a revoked jti must be rejected");
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
@@ -566,16 +585,24 @@ mod revocation_tests {
         // A token issued before the revoke-all epoch is rejected even though its jti was
         // never individually revoked (M-revoke-all).
         assert!(
-            check_revocation(&state, &user("alice"), &token(Some("j-old"), Some(now - 100)))
-                .await
-                .is_err(),
+            check_revocation(
+                state.revocation.as_ref(),
+                &user("alice"),
+                &token(Some("j-old"), Some(now - 100))
+            )
+            .await
+            .is_err(),
             "a token issued before revoke-all must be rejected"
         );
         // A token issued after the epoch is accepted.
         assert!(
-            check_revocation(&state, &user("alice"), &token(Some("j-new"), Some(now + 100)))
-                .await
-                .is_ok(),
+            check_revocation(
+                state.revocation.as_ref(),
+                &user("alice"),
+                &token(Some("j-new"), Some(now + 100))
+            )
+            .await
+            .is_ok(),
             "a token issued after revoke-all must be accepted"
         );
     }

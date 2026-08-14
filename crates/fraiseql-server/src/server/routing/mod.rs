@@ -96,7 +96,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .unwrap_or_else(|| "fraiseql".to_string());
             // #934: without the authenticator, this layer refuses a bearer-less
             // service-account request before the handler's ADR-0018 seam runs.
-            let auth_state = Hs256AuthState::new(Arc::clone(validator), realm)
+            let auth_state = self
+                .hs256_auth_state(Arc::clone(validator), realm)
                 .with_service_accounts(self.service_account_authenticator.clone());
             return router.route_layer(from_fn_with_state(auth_state, hs256_auth_middleware));
         }
@@ -120,6 +121,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// the revocation check for that route.
     pub(super) fn oidc_auth_state(&self, validator: Arc<OidcValidator>) -> OidcAuthState {
         OidcAuthState::new(validator).with_revocation(self.revocation_manager.clone())
+    }
+
+    /// Build an [`Hs256AuthState`], attaching the configured token-revocation manager —
+    /// the HS256 twin of [`oidc_auth_state`](Self::oidc_auth_state).
+    ///
+    /// `[security.token_revocation]` is a compiled-schema setting independent of the auth
+    /// mode, but only the OIDC layer consulted it, so under `[auth_hs256]` a configured
+    /// store was inert: Studio's `POST /admin/v1/users/{id}/revoke` recorded the epoch,
+    /// answered `"All sessions revoked"`, and every one of that user's tokens kept working
+    /// (#1112). `[auth.social]` and `[auth.local]` both require `[auth_hs256]`, so that was
+    /// the auth mode of every social-login and local-password deployment.
+    ///
+    /// This helper exists for the same reason its OIDC twin does: a bare
+    /// `Hs256AuthState::new` at a mount would silently skip revocation for that mount.
+    pub(super) fn hs256_auth_state(
+        &self,
+        validator: Arc<fraiseql_core::security::AuthMiddleware>,
+        realm: String,
+    ) -> Hs256AuthState {
+        Hs256AuthState::new(validator, realm).with_revocation(self.revocation_manager.clone())
     }
 
     /// Build application router and return the shared `AppState`.
