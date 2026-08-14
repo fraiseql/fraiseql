@@ -155,6 +155,147 @@ fn vector_config_on_a_non_vector_field_is_a_compile_error() {
     assert!(log.contains("not Vector"), "the error names the mismatch: {log}");
 }
 
+// ── binary (bit) vectors (#959) ──────────────────────────────────────────────
+
+fn bit_vector_types_json(field_extra: &str) -> String {
+    format!(
+        r#"{{
+  "types": [
+    {{
+      "name": "Doc",
+      "sql_source": "v_doc",
+      "fields": [
+        {{"name": "id", "type": "ID", "nullable": false}},
+        {{"name": "fingerprint", "type": "BitVector", "nullable": false{field_extra}}}
+      ]
+    }}
+  ],
+  "queries": [
+    {{
+      "name": "docs",
+      "return_type": "Doc",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_doc"
+    }}
+  ]
+}}"#
+    )
+}
+
+#[test]
+fn ir_authored_bit_vector_reaches_the_compiled_schema() {
+    let types = bit_vector_types_json(
+        r#", "vector_config": {"dimensions": 8, "index_type": "hnsw", "distance_metric": "jaccard"}"#,
+    );
+    let (ok, log, dir) = run_compile(&types, BASE_TOML, false);
+    assert!(ok, "compile must succeed: {log}");
+
+    let compiled = fs::read_to_string(dir.path().join("schema.compiled.json")).unwrap();
+    let schema = CompiledSchema::from_json(&compiled, false).expect("compiled schema parses");
+    let doc = schema.find_type("Doc").expect("Doc type");
+    let field = doc.fields.iter().find(|f| f.name.as_str() == "fingerprint").expect("field");
+    assert!(field.is_bit_vector(), "the field type must survive as BitVector, not Vector");
+    let config = field.vector_config.as_ref().expect("vector_config must be carried");
+    assert_eq!(config.dimensions, 8);
+    assert_eq!(config.distance_metric, DistanceMetric::Jaccard);
+}
+
+#[test]
+fn toml_authored_bit_vector_reaches_the_compiled_schema() {
+    let toml = r#"
+[types.Doc]
+sql_source = "v_doc"
+
+[types.Doc.fields.id]
+type = "ID"
+
+[types.Doc.fields.fingerprint]
+type = "BitVector"
+vector = { dimensions = 768, distance_metric = "hamming" }
+
+[queries.docs]
+return_type = "Doc"
+return_array = true
+sql_source = "v_doc"
+"#;
+    let (ok, log, dir) = run_compile(r#"{"types": []}"#, toml, false);
+    assert!(ok, "TOML-authored BitVector field must compile: {log}");
+
+    let compiled = fs::read_to_string(dir.path().join("schema.compiled.json")).unwrap();
+    let schema = CompiledSchema::from_json(&compiled, false).expect("compiled schema parses");
+    let doc = schema.find_type("Doc").expect("Doc type");
+    let field = doc.fields.iter().find(|f| f.name.as_str() == "fingerprint").expect("field");
+    assert!(field.is_bit_vector());
+    let config = field.vector_config.as_ref().expect("TOML `vector = {…}` must be carried");
+    assert_eq!(config.dimensions, 768);
+    assert_eq!(config.distance_metric, DistanceMetric::Hamming);
+}
+
+#[test]
+fn emitted_bit_vector_ddl_carries_width_bit_ops_index_and_extension() {
+    let types = bit_vector_types_json(
+        r#", "vector_config": {"dimensions": 8, "index_type": "hnsw", "distance_metric": "hamming"}"#,
+    );
+    let (ok, log, dir) = run_compile(&types, BASE_TOML, true);
+    assert!(ok, "compile with --emit-ddl must succeed: {log}");
+
+    let ddl = fs::read_to_string(dir.path().join("ddl").join("doc.sql")).expect("DDL emitted");
+    assert!(
+        ddl.contains("fingerprint bit(8)"),
+        "the column must carry its width — a bare `bit` column is `bit(1)`: {ddl}"
+    );
+    assert!(
+        ddl.contains("CREATE EXTENSION IF NOT EXISTS vector;"),
+        "`bit(N)` is a PostgreSQL type but `<~>` and `bit_hamming_ops` are pgvector's: {ddl}"
+    );
+    assert!(
+        ddl.contains("USING hnsw") && ddl.contains("bit_hamming_ops"),
+        "a bit vector indexes with the bit operator class, not vector_*_ops: {ddl}"
+    );
+}
+
+#[test]
+fn a_float_metric_on_a_bit_vector_is_a_compile_error() {
+    let types = bit_vector_types_json(
+        r#", "vector_config": {"dimensions": 8, "distance_metric": "cosine"}"#,
+    );
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "cosine over a bit(N) column is an operator pgvector does not define");
+    assert!(
+        log.contains("float vectors") && log.contains("hamming or jaccard"),
+        "the error names the metrics a BitVector field takes: {log}"
+    );
+}
+
+#[test]
+fn a_binary_metric_on_a_float_vector_is_a_compile_error() {
+    let types =
+        vector_types_json(r#", "vector_config": {"dimensions": 3, "distance_metric": "hamming"}"#);
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "hamming over a vector(N) column is an operator pgvector does not define");
+    assert!(
+        log.contains("binary (bit) vectors") && log.contains("BitVector"),
+        "the error names the field type that carries binary metrics: {log}"
+    );
+}
+
+/// pgvector 0.8 ships `bit_jaccard_ops` for `hnsw` only, so this combination is
+/// DDL `CREATE INDEX` refuses. Caught at compile time, where the author can see
+/// it, rather than at migration time against a live database.
+#[test]
+fn ivfflat_with_jaccard_is_a_compile_error() {
+    let types = bit_vector_types_json(
+        r#", "vector_config": {"dimensions": 8, "index_type": "ivf_flat", "distance_metric": "jaccard"}"#,
+    );
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "ivfflat has no jaccard operator class for bit vectors");
+    assert!(
+        log.contains("no ivfflat operator class") && log.contains("hnsw"),
+        "the error names the index type that does support it: {log}"
+    );
+}
+
 #[test]
 fn zero_dimensions_is_a_compile_error() {
     let types = vector_types_json(r#", "vector_config": {"dimensions": 0}"#);

@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{domain_types::FieldName, scalar_types};
+use crate::error::{FraiseQLError, Result};
 
 // ============================================================================
 // Vector Types - pgvector support
@@ -15,6 +16,11 @@ use super::{domain_types::FieldName, scalar_types};
 ///
 /// This represents the configuration for a vector embedding field,
 /// including dimensions, index type, and distance metric.
+///
+/// The same config describes both vector field types: for
+/// [`FieldType::Vector`] `dimensions` counts float components, for
+/// [`FieldType::BitVector`] it counts **bits**. Which distance metrics are
+/// legal follows from the field type — see [`VectorConfig::validate_for`].
 ///
 /// # Example
 ///
@@ -29,7 +35,9 @@ use super::{domain_types::FieldName, scalar_types};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VectorConfig {
-    /// Number of dimensions in the vector (e.g., 1536 for `OpenAI` embeddings).
+    /// Number of dimensions in the vector: float components for
+    /// [`FieldType::Vector`], bits for [`FieldType::BitVector`]
+    /// (e.g., 1536 for `OpenAI` embeddings).
     pub dimensions: u32,
 
     /// Type of index to use for similarity search.
@@ -85,6 +93,63 @@ impl VectorConfig {
         self.distance_metric = distance_metric;
         self
     }
+
+    /// Create a binary-vector config (`bit(N)`, hamming distance, HNSW).
+    ///
+    /// `bits` is the bit width of the column, e.g. 768 for a
+    /// `binary_quantize(embedding)::bit(768)` fingerprint.
+    #[must_use]
+    pub const fn binary(bits: u32) -> Self {
+        Self {
+            dimensions:      bits,
+            index_type:      VectorIndexType::Hnsw,
+            distance_metric: DistanceMetric::Hamming,
+        }
+    }
+
+    /// Check that this config is coherent with the field type carrying it (#959).
+    ///
+    /// The three refusals are all cases pgvector cannot execute, and each one
+    /// fails at a different moment when it is not caught here: a float metric
+    /// on a `bit(N)` column is an operator that does not exist, a binary metric
+    /// on a `vector(N)` column is the same in reverse, and `ivfflat` +
+    /// `jaccard` is DDL `CREATE INDEX` rejects — pgvector 0.8 ships
+    /// `bit_jaccard_ops` for `hnsw` only.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when `dimensions` is zero, when the
+    /// metric and the field type disagree about float versus binary vectors, or
+    /// when the index type has no operator class for the metric.
+    pub fn validate_for(&self, field_type: &FieldType) -> Result<()> {
+        if self.dimensions == 0 {
+            return Err(FraiseQLError::validation("vector_config.dimensions must be at least 1"));
+        }
+        match (field_type, self.distance_metric.is_binary()) {
+            (FieldType::Vector, true) => {
+                return Err(FraiseQLError::validation(format!(
+                    "distance_metric '{}' operates on binary (bit) vectors; declare the field \
+                     as BitVector, or use cosine / l2 / inner_product",
+                    self.distance_metric.name()
+                )));
+            },
+            (FieldType::BitVector, false) => {
+                return Err(FraiseQLError::validation(format!(
+                    "distance_metric '{}' operates on float vectors; a BitVector field takes \
+                     hamming or jaccard",
+                    self.distance_metric.name()
+                )));
+            },
+            (FieldType::Vector | FieldType::BitVector, _) => {},
+            (other, _) => {
+                return Err(FraiseQLError::validation(format!(
+                    "vector_config is meaningless on a '{other}' field; declare the field as \
+                     Vector or BitVector"
+                )));
+            },
+        }
+        self.index_type.ops_class(self.distance_metric).map(|_| ())
+    }
 }
 
 impl Default for VectorConfig {
@@ -119,23 +184,56 @@ pub enum VectorIndexType {
 }
 
 impl VectorIndexType {
+    /// The pgvector operator class this index uses for `distance_metric`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when pgvector defines no operator
+    /// class for the pair — `ivfflat` + `jaccard` is the only one (pgvector 0.8
+    /// ships `bit_jaccard_ops` for `hnsw` alone), and emitting its DDL anyway
+    /// produces a `CREATE INDEX` the server refuses at migration time.
+    pub fn ops_class(self, distance_metric: DistanceMetric) -> Result<Option<&'static str>> {
+        match self {
+            Self::Hnsw => Ok(Some(distance_metric.hnsw_ops_class())),
+            Self::IvfFlat => distance_metric.ivfflat_ops_class().map(Some).ok_or_else(|| {
+                FraiseQLError::validation(format!(
+                    "pgvector has no ivfflat operator class for the '{}' metric; use \
+                     index_type = \"hnsw\", or \"none\" for exact search",
+                    distance_metric.name()
+                ))
+            }),
+            Self::None => Ok(None),
+        }
+    }
+
     /// Get the pgvector index creation SQL.
-    #[must_use]
+    ///
+    /// `Ok(None)` means the declared index type is [`Self::None`] — exact
+    /// search, no index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when the index type has no
+    /// operator class for `distance_metric` (see [`Self::ops_class`]).
     pub fn index_sql(
-        &self,
+        self,
         table: &str,
         column: &str,
         distance_metric: DistanceMetric,
-    ) -> Option<String> {
+    ) -> Result<Option<String>> {
+        let (Some(method), Some(ops)) = (self.index_method(), self.ops_class(distance_metric)?)
+        else {
+            return Ok(None);
+        };
+        Ok(Some(format!("CREATE INDEX ON {table} USING {method} ({column} {ops})")))
+    }
+
+    /// The `USING <method>` keyword, or `None` for [`Self::None`] (no index).
+    #[must_use]
+    pub const fn index_method(self) -> Option<&'static str> {
         match self {
-            Self::Hnsw => {
-                let ops = distance_metric.hnsw_ops_class();
-                Some(format!("CREATE INDEX ON {table} USING hnsw ({column} {ops})"))
-            },
-            Self::IvfFlat => {
-                let ops = distance_metric.ivfflat_ops_class();
-                Some(format!("CREATE INDEX ON {table} USING ivfflat ({column} {ops})"))
-            },
+            Self::Hnsw => Some("hnsw"),
+            Self::IvfFlat => Some("ivfflat"),
             Self::None => None,
         }
     }
@@ -166,6 +264,18 @@ pub enum DistanceMetric {
     /// Use when embeddings are already normalized and you want max inner product.
     /// Operator: `<#>`
     InnerProduct,
+
+    /// Hamming distance — the number of differing bits (#959).
+    /// Binary vectors ([`FieldType::BitVector`]) only.
+    /// Operator: `<~>`
+    Hamming,
+
+    /// Jaccard distance — `1 - |intersection| / |union|` over set bits (#959).
+    /// Binary vectors ([`FieldType::BitVector`]) only; unlike hamming it
+    /// normalises by how many bits are set, so a sparse near-match beats a
+    /// dense one.
+    /// Operator: `<%>`
+    Jaccard,
 }
 
 impl DistanceMetric {
@@ -176,7 +286,28 @@ impl DistanceMetric {
             Self::Cosine => "<=>",
             Self::L2 => "<->",
             Self::InnerProduct => "<#>",
+            Self::Hamming => "<~>",
+            Self::Jaccard => "<%>",
         }
+    }
+
+    /// The metric's authoring name, as spelled in `fraiseql.toml` / the IR.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Cosine => "cosine",
+            Self::L2 => "l2",
+            Self::InnerProduct => "inner_product",
+            Self::Hamming => "hamming",
+            Self::Jaccard => "jaccard",
+        }
+    }
+
+    /// Whether this metric is defined over binary (`bit`) vectors rather than
+    /// float ones — the property that decides which field type may carry it.
+    #[must_use]
+    pub const fn is_binary(&self) -> bool {
+        matches!(self, Self::Hamming | Self::Jaccard)
     }
 
     /// Get the HNSW index operator class.
@@ -186,16 +317,24 @@ impl DistanceMetric {
             Self::Cosine => "vector_cosine_ops",
             Self::L2 => "vector_l2_ops",
             Self::InnerProduct => "vector_ip_ops",
+            Self::Hamming => "bit_hamming_ops",
+            Self::Jaccard => "bit_jaccard_ops",
         }
     }
 
-    /// Get the `IVFFlat` index operator class.
+    /// Get the `IVFFlat` index operator class, when pgvector defines one.
+    ///
+    /// `None` for [`Self::Jaccard`]: pgvector 0.8 ships `bit_jaccard_ops` for
+    /// `hnsw` only, so an `ivfflat` index over a jaccard-searched column is DDL
+    /// `CREATE INDEX` rejects.
     #[must_use]
-    pub const fn ivfflat_ops_class(&self) -> &'static str {
+    pub const fn ivfflat_ops_class(&self) -> Option<&'static str> {
         match self {
-            Self::Cosine => "vector_cosine_ops",
-            Self::L2 => "vector_l2_ops",
-            Self::InnerProduct => "vector_ip_ops",
+            Self::Cosine => Some("vector_cosine_ops"),
+            Self::L2 => Some("vector_l2_ops"),
+            Self::InnerProduct => Some("vector_ip_ops"),
+            Self::Hamming => Some("bit_hamming_ops"),
+            Self::Jaccard => None,
         }
     }
 }
@@ -477,6 +616,23 @@ impl FieldDefinition {
         }
     }
 
+    /// Create a new binary (bit) vector field (#959).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{FieldDefinition, VectorConfig};
+    ///
+    /// let fingerprint = FieldDefinition::bit_vector("fingerprint", VectorConfig::binary(768));
+    /// ```
+    #[must_use]
+    pub fn bit_vector(name: impl Into<String>, config: VectorConfig) -> Self {
+        Self {
+            field_type: FieldType::BitVector,
+            ..Self::vector(name, config)
+        }
+    }
+
     /// Add a scope requirement to the field (field-level access control).
     ///
     /// # Example
@@ -587,10 +743,16 @@ impl FieldDefinition {
         self.alias.is_some()
     }
 
-    /// Check if this is a vector field.
+    /// Check if this is a float vector field.
     #[must_use]
     pub const fn is_vector(&self) -> bool {
         matches!(self.field_type, FieldType::Vector)
+    }
+
+    /// Check if this is a binary (bit) vector field (#959).
+    #[must_use]
+    pub const fn is_bit_vector(&self) -> bool {
+        matches!(self.field_type, FieldType::BitVector)
     }
 
     /// Mark this field as deprecated.
@@ -709,6 +871,14 @@ pub enum FieldType {
     /// Serialized as `[Float!]!` in GraphQL, stored as `vector(N)` in `PostgreSQL`.
     Vector,
 
+    /// Binary (bit) vector for pgvector's hamming / jaccard distance (#959).
+    ///
+    /// Serialized as a `String` of `0`/`1` characters in GraphQL — the text
+    /// form `PostgreSQL` itself gives a `bit(N)` value — and stored as
+    /// `bit(N)`, the type pgvector's `<~>` and `<%>` operators are defined
+    /// over. This is what `binary_quantize(embedding)::bit(N)` produces.
+    BitVector,
+
     // ===== Rich/Custom Scalar Types =====
     /// Named scalar type (rich scalars like Email, URL, IBAN, or custom user-defined).
     ///
@@ -758,14 +928,28 @@ impl FieldType {
                 | Self::Uuid
                 | Self::Decimal
                 | Self::Vector
+                | Self::BitVector
                 | Self::Scalar(_)
         )
     }
 
-    /// Check if this is a vector type.
+    /// Check if this is a float vector type.
     #[must_use]
     pub const fn is_vector(&self) -> bool {
         matches!(self, Self::Vector)
+    }
+
+    /// Check if this is a binary (bit) vector type (#959).
+    #[must_use]
+    pub const fn is_bit_vector(&self) -> bool {
+        matches!(self, Self::BitVector)
+    }
+
+    /// Check if this is a vector type of either kind — the fields `nearest`
+    /// and the pgvector WHERE operators can search.
+    #[must_use]
+    pub const fn is_searchable_vector(&self) -> bool {
+        matches!(self, Self::Vector | Self::BitVector)
     }
 
     /// Check if this is a list type.
@@ -806,7 +990,8 @@ impl FieldType {
     #[must_use]
     pub fn to_graphql_string(&self) -> String {
         match self {
-            Self::String => "String".to_string(),
+            // A bit vector is a run of `0`/`1` characters — `bit(N)`'s own text form.
+            Self::String | Self::BitVector => "String".to_string(),
             Self::Int => "Int".to_string(),
             Self::Float => "Float".to_string(),
             Self::Boolean => "Boolean".to_string(),
@@ -848,6 +1033,17 @@ impl FieldType {
                     format!("vector({})", config.dimensions)
                 } else {
                     "vector".to_string()
+                }
+            },
+            // `bit` without a length is `bit(1)` — a cast that silently keeps
+            // one bit and compares as if it were the whole fingerprint. With no
+            // declared width the only honest type is the varying one, which
+            // carries whatever width the value actually has.
+            Self::BitVector => {
+                if let Some(config) = vector_config {
+                    format!("bit({})", config.dimensions)
+                } else {
+                    "varbit".to_string()
                 }
             },
             // Lists and complex types stored as JSONB
@@ -934,6 +1130,7 @@ impl FieldType {
             "uuid" => Self::Uuid,
             "decimal" | "numeric" | "bigdecimal" => Self::Decimal,
             "vector" => Self::Vector,
+            "bitvector" | "bit_vector" => Self::BitVector,
             _ => {
                 // Check if it's a known rich scalar (case-insensitive)
                 if let Some(canonical_name) = Self::try_match_rich_scalar(s) {

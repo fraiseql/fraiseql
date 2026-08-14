@@ -35,6 +35,7 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 | `"UUID"`     | `UUID`         |                                |
 | `"Decimal"`  | `Decimal`      | Arbitrary-precision numeric    |
 | `"Vector"`   | `[Float!]!`    | pgvector embedding — requires `vector_config` |
+| `"BitVector"`| `String`       | pgvector binary vector — requires `vector_config` |
 
 Any unrecognized type name (e.g. `"User"`, `"Post"`) is treated as a reference
 to a GraphQL **object type** defined elsewhere in the schema.
@@ -63,6 +64,31 @@ default `"cosine"`) drive the emitted index DDL and the default metric of the
 `nearest` query argument. The backing view must expose the vector as a native
 `vector(N)` column named after the field (snake_case) — the JSONB `data` payload
 does not carry embeddings.
+
+### Binary vector fields (#959)
+
+A `"BitVector"` field carries the same `vector_config`, where `dimensions`
+counts **bits** and `distance_metric` is `"hamming"` or `"jaccard"` — the two
+metrics pgvector defines over `bit` values:
+
+```json
+{
+  "name": "fingerprint",
+  "type": "BitVector",
+  "nullable": false,
+  "vector_config": {
+    "dimensions": 768,
+    "index_type": "hnsw",
+    "distance_metric": "hamming"
+  }
+}
+```
+
+A metric of the wrong kind for the field type is a compile error in both
+directions, as is `"ivf_flat"` with `"jaccard"` (pgvector ships
+`bit_jaccard_ops` for `hnsw` only). The backing view exposes the field as a
+native `bit(N)` column; in GraphQL it is a `String` of `0`/`1` characters. See
+[vector search](operations/vector-search.md).
 
 ### Nullability is separate from the type
 

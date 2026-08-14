@@ -94,6 +94,7 @@ pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
     sql_hints::{
         OrderByClause, OrderDirection, ScalarFieldType, SqlProjectionHint, VectorDistanceOrder,
+        VectorOperandKind,
     },
 };
 pub use view_name::ViewName;

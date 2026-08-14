@@ -204,27 +204,31 @@ pub enum WhereOperator {
         threshold: f32,
     },
 
-    /// Hamming distance: `hamming_distance(field, vector) < threshold`
+    /// Hamming distance: `field::varbit <~> bits::varbit < threshold`
     ///
-    /// Requires pgvector extension. Works with bit vectors.
+    /// Requires pgvector extension. Defined over **binary** (`bit`) vectors, so
+    /// the operand is the text form of a `bit(N)` value — a run of `0`/`1`
+    /// characters, as `binary_quantize(embedding)::bit(N)` produces (#959).
     HammingDistance {
-        /// The vector field to compare against
+        /// The bit-vector field to compare against
         field: Field,
-        /// The embedding vector for distance calculation
-        vector: Vec<f32>,
-        /// Distance threshold for comparison
+        /// The query bit vector, e.g. `"11110000"`
+        bits: String,
+        /// Distance threshold for comparison (a count of differing bits)
         threshold: f32,
     },
 
-    /// Jaccard distance: `jaccard_distance(field, set) < threshold`
+    /// Jaccard distance: `field::varbit <%> bits::varbit < threshold`
     ///
-    /// Works with text arrays, measures set overlap.
+    /// Requires pgvector extension. Like hamming it is a **binary** (`bit`)
+    /// vector operator — `1 - |intersection| / |union|` over set bits — not a
+    /// set-overlap operator over text arrays (#959).
     JaccardDistance {
-        /// The field to compare against
+        /// The bit-vector field to compare against
         field: Field,
-        /// The set of values for comparison
-        set: Vec<String>,
-        /// Distance threshold for comparison
+        /// The query bit vector, e.g. `"11110000"`
+        bits: String,
+        /// Distance threshold for comparison, in `0.0..=1.0`
         threshold: f32,
     },
 

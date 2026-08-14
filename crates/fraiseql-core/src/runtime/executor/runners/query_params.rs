@@ -23,6 +23,10 @@ pub const AUTO_PARAM_NAMES: &[&str] = &[
 /// column (the storage contract; the JSONB `data` payload does not carry
 /// embeddings).
 ///
+/// On a `BitVector` field (#959) the operand is the text form of a `bit(N)`
+/// value — `{vector: "11110000", k: 4, metric: "hamming"|"jaccard"}` — and the
+/// lowering is `ORDER BY "<column>" <~> '1111…'::varbit LIMIT k`.
+///
 /// Returns `Ok(None)` when no `nearest` argument is present; every malformed or
 /// unsupported shape is a loud validation error — a similarity request that
 /// silently ran unordered would read as "search worked".
@@ -68,15 +72,7 @@ pub fn nearest_order_and_limit(
             query_def.return_type
         ))
     })?;
-    let shape_err = || {
-        FraiseQLError::validation(
-            "`nearest` takes {vector: [Float, ...], k: Int, field: String, metric: \
-             \"cosine\"|\"l2\"|\"inner_product\"} (field optional on a type with one \
-             vector field; metric optional — defaults to the field's declared distance \
-             metric)",
-        )
-    };
-    let obj = raw.as_object().ok_or_else(shape_err)?;
+    let obj = raw.as_object().ok_or_else(nearest_shape_err)?;
     for key in obj.keys() {
         if !matches!(key.as_str(), "vector" | "k" | "metric" | "field") {
             return Err(FraiseQLError::validation(format!(
@@ -86,8 +82,6 @@ pub fn nearest_order_and_limit(
     }
 
     let field = select_vector_field(type_def, obj.get("field"))?;
-    let config = field.vector_config.as_ref().expect("select_vector_field filters on it");
-    let vector = obj.get("vector").and_then(serde_json::Value::as_array).ok_or_else(shape_err)?;
     let k = obj
         .get("k")
         .and_then(serde_json::Value::as_u64)
@@ -95,48 +89,12 @@ pub fn nearest_order_and_limit(
         .filter(|k| *k > 0)
         .ok_or_else(|| FraiseQLError::validation("`nearest.k` must be a positive integer"))?;
 
-    // Dimension check against the declared config — the request-time consumer
-    // vector_config previously never had.
-    let declared = config.dimensions as usize;
-    if vector.len() != declared {
-        return Err(FraiseQLError::validation(format!(
-            "`nearest.vector` has {} components but '{}.{}' declares {} dimensions",
-            vector.len(),
-            type_def.name,
-            field.name,
-            declared
-        )));
-    }
-
-    let metric = match obj.get("metric").and_then(serde_json::Value::as_str) {
-        None => config.distance_metric,
-        Some("cosine") => crate::schema::DistanceMetric::Cosine,
-        Some("l2") => crate::schema::DistanceMetric::L2,
-        Some("inner_product") => crate::schema::DistanceMetric::InnerProduct,
-        Some(other) => {
-            return Err(FraiseQLError::validation(format!(
-                "unknown `nearest.metric` '{other}' (expected cosine, l2 or inner_product)"
-            )));
-        },
-    };
-
-    // pgvector text literal, built exclusively from finite numbers — this is
-    // what makes the interpolated form injection-impossible (and the SQL
-    // builder re-validates the character set as defence in depth).
-    let mut literal = String::with_capacity(vector.len() * 8 + 2);
-    literal.push('[');
-    for (i, component) in vector.iter().enumerate() {
-        let n = component.as_f64().filter(|n| n.is_finite()).ok_or_else(|| {
-            FraiseQLError::validation("`nearest.vector` components must all be finite numbers")
-        })?;
-        if i > 0 {
-            literal.push(',');
-        }
-        // Reason: fmt::Write for String is infallible
-        std::fmt::Write::write_fmt(&mut literal, format_args!("{n}"))
-            .expect("write to String is infallible");
-    }
-    literal.push(']');
+    let (literal, kind) = query_vector_literal(
+        obj.get("vector").ok_or_else(nearest_shape_err)?,
+        field,
+        type_def.name.as_str(),
+    )?;
+    let metric = resolve_metric(obj.get("metric"), field, type_def.name.as_str())?;
 
     // The storage contract: the view exposes the vector as a native snake_case
     // column. Validated as a bare identifier, then quoted.
@@ -154,11 +112,149 @@ pub fn nearest_order_and_limit(
         crate::db::OrderByClause::new(field.name.to_string(), crate::db::OrderDirection::Asc);
     clause.native_column = Some(format!("\"{column}\""));
     clause.vector = Some(crate::db::VectorDistanceOrder {
-        operator:     metric.operator().to_string(),
+        operator: metric.operator().to_string(),
         query_vector: literal,
+        kind,
     });
 
     Ok(Some((clause, k)))
+}
+
+/// The shape a `nearest` argument must have, named in one place so the float
+/// and the binary spelling are described together.
+fn nearest_shape_err() -> FraiseQLError {
+    FraiseQLError::validation(
+        "`nearest` takes {vector: [Float, ...] | \"1011…\", k: Int, field: String, metric: \
+         \"cosine\"|\"l2\"|\"inner_product\"|\"hamming\"|\"jaccard\"} (vector is an array of \
+         floats on a Vector field and a run of 0/1 bits on a BitVector one; field optional on \
+         a type with one vector field; metric optional — defaults to the field's declared \
+         distance metric)",
+    )
+}
+
+/// Build the pgvector text literal for the query vector, in the operand kind
+/// the selected field is declared in (#386, #959).
+///
+/// The literal is built exclusively from finite numbers (float fields) or from
+/// `0`/`1` characters (binary fields) — that is what makes the interpolated
+/// form injection-impossible, and the SQL builder re-validates the character
+/// set as defence in depth.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when the operand is not the shape the
+/// field's kind takes, when its length does not match the declared dimensions,
+/// or when a component is not a finite number / a `0` or `1`.
+fn query_vector_literal(
+    operand: &serde_json::Value,
+    field: &crate::schema::FieldDefinition,
+    type_name: &str,
+) -> Result<(String, crate::db::VectorOperandKind)> {
+    let config = field.vector_config.as_ref().expect("caller selected a configured vector field");
+    // Dimension check against the declared config — the request-time consumer
+    // vector_config previously never had. On the binary side it is the only
+    // check there is: a `bit(N)` cast pads or truncates a wrong-width operand
+    // without complaint, so an unchecked one searches a different fingerprint.
+    let declared = config.dimensions as usize;
+    let dimension_err = |got: usize, unit: &str| {
+        FraiseQLError::validation(format!(
+            "`nearest.vector` has {got} {unit} but '{type_name}.{}' declares {declared} \
+             dimensions",
+            field.name
+        ))
+    };
+
+    if field.is_bit_vector() {
+        let bits = operand.as_str().ok_or_else(|| {
+            FraiseQLError::validation(format!(
+                "'{type_name}.{}' is a BitVector field, so `nearest.vector` is a string of \
+                 '0' and '1' characters, not an array",
+                field.name
+            ))
+        })?;
+        if !bits.chars().all(|c| matches!(c, '0' | '1')) {
+            return Err(FraiseQLError::validation(
+                "`nearest.vector` on a BitVector field must contain only '0' and '1'",
+            ));
+        }
+        if bits.len() != declared {
+            return Err(dimension_err(bits.len(), "bits"));
+        }
+        return Ok((bits.to_string(), crate::db::VectorOperandKind::Bit));
+    }
+
+    let vector = operand.as_array().ok_or_else(nearest_shape_err)?;
+    if vector.len() != declared {
+        return Err(dimension_err(vector.len(), "components"));
+    }
+    let mut literal = String::with_capacity(vector.len() * 8 + 2);
+    literal.push('[');
+    for (i, component) in vector.iter().enumerate() {
+        let n = component.as_f64().filter(|n| n.is_finite()).ok_or_else(|| {
+            FraiseQLError::validation("`nearest.vector` components must all be finite numbers")
+        })?;
+        if i > 0 {
+            literal.push(',');
+        }
+        // Reason: fmt::Write for String is infallible
+        std::fmt::Write::write_fmt(&mut literal, format_args!("{n}"))
+            .expect("write to String is infallible");
+    }
+    literal.push(']');
+    Ok((literal, crate::db::VectorOperandKind::Float))
+}
+
+/// Resolve the distance metric for a `nearest` request (#386, #959).
+///
+/// An absent `metric:` takes the field's declared one. A named one must exist
+/// *and* belong to the field's vector kind: hamming and jaccard are defined
+/// over `bit` vectors and the other three over `vector` ones, so the wrong
+/// pairing is an operator PostgreSQL has no candidate for. Refusing here names
+/// the field and the alternatives; emitting it surfaces as a raw SQL error at
+/// execution time instead.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when `metric:` is not a string, names
+/// no known metric, or names one of the other vector kind.
+fn resolve_metric(
+    requested: Option<&serde_json::Value>,
+    field: &crate::schema::FieldDefinition,
+    type_name: &str,
+) -> Result<crate::schema::DistanceMetric> {
+    use crate::schema::DistanceMetric;
+
+    let config = field.vector_config.as_ref().expect("caller selected a configured vector field");
+    let Some(requested) = requested else {
+        return Ok(config.distance_metric);
+    };
+    let name = requested.as_str().ok_or_else(nearest_shape_err)?;
+    let metric = match name {
+        "cosine" => DistanceMetric::Cosine,
+        "l2" => DistanceMetric::L2,
+        "inner_product" => DistanceMetric::InnerProduct,
+        "hamming" => DistanceMetric::Hamming,
+        "jaccard" => DistanceMetric::Jaccard,
+        other => {
+            return Err(FraiseQLError::validation(format!(
+                "unknown `nearest.metric` '{other}' (expected cosine, l2, inner_product, \
+                 hamming or jaccard)"
+            )));
+        },
+    };
+    if metric.is_binary() != field.is_bit_vector() {
+        let (operates_on, declared_as, alternatives) = if metric.is_binary() {
+            ("binary (bit)", "Vector", "cosine, l2 or inner_product")
+        } else {
+            ("float", "BitVector", "hamming or jaccard")
+        };
+        return Err(FraiseQLError::validation(format!(
+            "`nearest.metric` '{name}' operates on {operates_on} vectors, and \
+             '{type_name}.{}' is a {declared_as} field; use {alternatives}",
+            field.name
+        )));
+    }
+    Ok(metric)
 }
 
 /// Resolve which vector field a `nearest` request targets (#959).
@@ -179,7 +275,7 @@ fn select_vector_field<'a>(
     type_def: &'a crate::schema::TypeDefinition,
     requested: Option<&serde_json::Value>,
 ) -> Result<&'a crate::schema::FieldDefinition> {
-    let mut vector_fields = type_def.fields.iter().filter(|f| f.vector_config.is_some());
+    let mut vector_fields = type_def.fields.iter().filter(|f| is_vector_field(f));
 
     let Some(first) = vector_fields.next() else {
         return Err(FraiseQLError::validation(format!(
@@ -207,7 +303,7 @@ fn select_vector_field<'a>(
     type_def
         .fields
         .iter()
-        .find(|f| f.name == name && f.vector_config.is_some())
+        .find(|f| f.name == name && is_vector_field(f))
         .ok_or_else(|| {
             let declared = vector_field_names(type_def);
             // Distinguishing "no such field" from "not a vector field" would tell an
@@ -230,9 +326,15 @@ fn vector_field_names(type_def: &crate::schema::TypeDefinition) -> Vec<&str> {
     type_def
         .fields
         .iter()
-        .filter(|f| f.vector_config.is_some())
+        .filter(|f| is_vector_field(f))
         .map(|f| f.name.as_str())
         .collect()
+}
+
+/// A field `nearest` can search: a vector type of either kind *carrying* the
+/// config, since the dimensions and the metric both come from it.
+const fn is_vector_field(field: &crate::schema::FieldDefinition) -> bool {
+    field.field_type.is_searchable_vector() && field.vector_config.is_some()
 }
 
 /// Build a `WhereClause` for a single inject param, respecting `native_columns`.

@@ -6,7 +6,10 @@
 
 use std::fmt::Write;
 
-use crate::types::{DatabaseType, sql_hints::OrderByClause};
+use crate::types::{
+    DatabaseType,
+    sql_hints::{OrderByClause, VectorOperandKind},
+};
 
 /// Append an `ORDER BY` clause to the SQL buffer.
 ///
@@ -103,12 +106,16 @@ pub fn render_order_by_columns(
                     "vector-distance ordering is PostgreSQL-only (pgvector)",
                 ));
             }
-            validate_vector_operator(&vector.operator)?;
-            validate_vector_literal(&vector.query_vector)?;
+            validate_vector_operator(&vector.operator, vector.kind)?;
+            validate_vector_literal(&vector.query_vector, vector.kind)?;
+            let cast = match vector.kind {
+                VectorOperandKind::Bit => "varbit",
+                _ => "vector",
+            };
             // Reason: fmt::Write for String is infallible
             write!(
                 columns,
-                "{col} {} '{}'::vector {}",
+                "{col} {} '{}'::{cast} {}",
                 vector.operator,
                 vector.query_vector,
                 clause.direction.as_sql()
@@ -131,31 +138,50 @@ pub fn render_order_by_columns(
     Ok(Some(columns))
 }
 
-/// The three pgvector distance operators reachable through `nearest` (#386).
-fn validate_vector_operator(op: &str) -> crate::Result<()> {
-    match op {
-        "<=>" | "<->" | "<#>" => Ok(()),
-        other => Err(fraiseql_error::FraiseQLError::validation(format!(
-            "unsupported vector distance operator '{other}'"
-        ))),
+/// The pgvector distance operators reachable through `nearest`, per operand
+/// kind (#386, #959).
+///
+/// The pairing is checked, not just membership: `<~>` against a `vector` cast
+/// (or `<=>` against a `varbit` one) is an operator PostgreSQL has no candidate
+/// for, and emitting it turns a metric mix-up into a runtime SQL error instead
+/// of a named refusal.
+fn validate_vector_operator(op: &str, kind: VectorOperandKind) -> crate::Result<()> {
+    let ok = match kind {
+        VectorOperandKind::Bit => matches!(op, "<~>" | "<%>"),
+        _ => matches!(op, "<=>" | "<->" | "<#>"),
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err(fraiseql_error::FraiseQLError::validation(format!(
+            "unsupported vector distance operator '{op}' for a {kind:?} operand"
+        )))
     }
 }
 
 /// Defence in depth for the interpolated vector literal: the builder constructs
-/// it exclusively from formatted `f64` values, so anything outside a numeric
-/// literal's character set is a bug — refuse rather than emit.
-fn validate_vector_literal(literal: &str) -> crate::Result<()> {
-    let ok = literal.starts_with('[')
-        && literal.ends_with(']')
-        && literal.chars().all(|c| {
-            c.is_ascii_digit() || matches!(c, '[' | ']' | ',' | '.' | '-' | '+' | 'e' | 'E')
-        });
+/// it exclusively from formatted `f64` values (or from `0`/`1` characters for a
+/// bit vector), so anything outside that character set is a bug — refuse rather
+/// than emit.
+fn validate_vector_literal(literal: &str, kind: VectorOperandKind) -> crate::Result<()> {
+    let ok = match kind {
+        VectorOperandKind::Bit => {
+            !literal.is_empty() && literal.chars().all(|c| matches!(c, '0' | '1'))
+        },
+        _ => {
+            literal.starts_with('[')
+                && literal.ends_with(']')
+                && literal.chars().all(|c| {
+                    c.is_ascii_digit() || matches!(c, '[' | ']' | ',' | '.' | '-' | '+' | 'e' | 'E')
+                })
+        },
+    };
     if ok {
         Ok(())
     } else {
         Err(fraiseql_error::FraiseQLError::validation(
             "malformed vector literal in ORDER BY (expected a pgvector text literal built \
-             from numeric values)",
+             from numeric values, or a non-empty run of 0/1 bits)",
         ))
     }
 }

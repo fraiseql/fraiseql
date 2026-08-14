@@ -292,29 +292,29 @@ impl SchemaConverter {
 
         // #386: vector_config is required on Vector fields (DDL and request-time
         // dimension validation both need it) and meaningless anywhere else —
-        // both inert shapes are compile errors, not silent drops.
-        let is_vector = matches!(field_type, FieldType::Vector);
-        match (&intermediate.vector_config, is_vector) {
+        // both inert shapes are compile errors, not silent drops. #959 adds
+        // BitVector, whose config the same two consumers need, and whose metric
+        // must be one pgvector defines over `bit` values.
+        match (&intermediate.vector_config, field_type.is_searchable_vector()) {
             (None, true) => anyhow::bail!(
-                "Field '{}' has type Vector but no vector_config; declare \
+                "Field '{}' has type {} but no vector_config; declare \
                  {{\"dimensions\": N, \"index_type\": ..., \"distance_metric\": ...}} \
                  (dimensions is required)",
-                intermediate.name
+                intermediate.name,
+                intermediate.field_type
             ),
             (Some(_), false) => anyhow::bail!(
-                "Field '{}' declares vector_config but its type is '{}', not Vector",
+                "Field '{}' declares vector_config but its type is '{}', not Vector or \
+                 BitVector",
                 intermediate.name,
                 intermediate.field_type
             ),
             _ => {},
         }
         if let Some(ref config) = intermediate.vector_config {
-            if config.dimensions == 0 {
-                anyhow::bail!(
-                    "Field '{}': vector_config.dimensions must be at least 1",
-                    intermediate.name
-                );
-            }
+            config
+                .validate_for(&field_type)
+                .map_err(|e| anyhow::anyhow!("Field '{}': {e}", intermediate.name))?;
         }
 
         // Extract deprecation info from @deprecated directive if present
@@ -401,6 +401,7 @@ impl SchemaConverter {
             "UUID" => FieldType::Uuid,
             "Decimal" => FieldType::Decimal,
             "Vector" => FieldType::Vector,
+            "BitVector" => FieldType::BitVector,
             // Author-declared enum / interface / union references keep their kind; anything
             // else is an object reference (#923).
             custom => declared.resolve(custom),

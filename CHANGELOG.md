@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`fraiseql-wire`'s `HammingDistance` / `JaccardDistance` operands are bit strings
+  (#959).** Both variants took `vector: Vec<f32>` / `set: Vec<String>` and now take
+  `bits: String`. The emitted SQL was a second, unreachable implementation that disagreed
+  with the executed one and was wrong on its own terms: jaccard cast both sides to
+  `::text[]`, though pgvector's `<%>` is a bit-vector operator, and hamming cast to `::bit`
+  — which is `bit(1)`. Both now emit `::varbit` and match the executed path.
+
 - **The unused `fraiseql_core::utils::vector` module is removed — vector *search* is
   unaffected (#959).** To be unambiguous, because the two are easy to confuse: `nearest`
   top-K queries, the threshold WHERE operators, dimensioned `vector(N)` DDL and index
@@ -1491,6 +1498,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or the render cache. The server refuses such a section at boot.
 
 ### Added
+
+- **Binary (bit) vectors: the `BitVector` field type, hamming and jaccard search (#959).**
+  pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined over
+  `bit` values, not `vector` ones — so both operators were, until now, advertised by the
+  operator table and refused by the generator, because no column they could apply to could
+  be declared.
+
+  `type = "BitVector"` declares one. `dimensions` counts bits; `--emit-ddl` produces a
+  `bit(N)` column and an index with the `bit_hamming_ops` / `bit_jaccard_ops` operator
+  class. `nearest: { vector: "11110000", k: 10 }` lowers to
+  `ORDER BY "fingerprint" <~> '11110000'::varbit LIMIT k`, and
+  `where: { fingerprint: { jaccard_distance: { vector: "…", threshold: 0.4 } } }` filters.
+  In GraphQL the field is a `String` — a run of `0`/`1`, which is `bit(N)`'s own text form
+  and what `binary_quantize(embedding)::bit(N)` produces.
+
+  Three refusals, each a case pgvector cannot execute: a float metric on a `BitVector`
+  field or a binary metric on a `Vector` one (compile error, both directions);
+  `index_type = "ivf_flat"` with `jaccard`, since pgvector 0.8 ships `bit_jaccard_ops` for
+  `hnsw` only; and a query vector whose length is not the declared width.
+
+  That last one is not a nicety. Casting text to `bit(N)` **pads a short value on the
+  right and truncates a long one, both silently**, so an unchecked operand searches a
+  different fingerprint and reports the result as an answer to the question asked. For the
+  same reason every emitted cast is `varbit` rather than `bit`: `'1011'::bit` is `bit(1)`,
+  which reduces every comparison to the first bit — and, proven by mutation, returns *all
+  four* fixture rows for a filter that must return two.
 
 - **Incremental delivery: `@defer`, `multipart/mixed`, resumable `@stream` (#958).** Four
   of the eight deferred parts of #387.

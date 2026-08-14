@@ -383,6 +383,60 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         ))
     }
 
+    /// Binary-vector threshold predicate (#959):
+    /// `((expr)::varbit <~> $v::text::varbit) <= $t`.
+    ///
+    /// Operand shape: `{vector: "1011…", threshold: Float}` — the query vector
+    /// is the text form of a `bit(N)` value, which is what a `BitVector` field
+    /// carries in the JSONB payload and what `binary_quantize(…)::bit(N)`
+    /// produces. `threshold` is the maximum distance, inclusive, as for the
+    /// float metrics: hamming counts differing bits, jaccard is `1 -
+    /// |intersection| / |union|` over set bits.
+    ///
+    /// Both sides are cast to `varbit`, never to `bit`: `'1011'::bit` is
+    /// `bit(1)`, so the length-less cast would compare the first bit of the
+    /// column against the first bit of the operand and answer *0* for every
+    /// row that happens to start the same way. `varbit` keeps each side's own
+    /// width, and pgvector then refuses a width disagreement with
+    /// `different bit lengths 8 and 4` instead of returning a plausible number.
+    fn bit_threshold_sql(
+        &self,
+        field_expr: &str,
+        op: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let shape_err = || {
+            FraiseQLError::validation(
+                "binary vector operators take {vector: \"1011…\", threshold: Float} — e.g. \
+                 {hamming_distance: {vector: \"11110000\", threshold: 2}}",
+            )
+        };
+        let obj = value.as_object().ok_or_else(shape_err)?;
+        let bits = obj.get("vector").and_then(serde_json::Value::as_str).ok_or_else(shape_err)?;
+        let threshold =
+            obj.get("threshold").and_then(serde_json::Value::as_f64).ok_or_else(shape_err)?;
+        if !threshold.is_finite() {
+            return Err(FraiseQLError::validation("vector threshold must be a finite number"));
+        }
+        if bits.is_empty() || !bits.chars().all(|c| matches!(c, '0' | '1')) {
+            return Err(FraiseQLError::validation(
+                "a binary vector operand must be a non-empty run of '0' and '1' characters",
+            ));
+        }
+
+        let vector_param = self.push_param(params, serde_json::Value::String(bits.to_string()));
+        let threshold_param = self.push_param(params, serde_json::json!(threshold));
+        // `$n::text::varbit` for the same reason `::text::vector` is used on the
+        // float path: a bare `::varbit` cast makes the prepared-statement
+        // protocol infer the parameter type as varbit while the driver binds
+        // text.
+        Ok(format!(
+            "(({field_expr})::varbit {op} {vector_param}::text::varbit) <= \
+             {threshold_param}::text::float8"
+        ))
+    }
+
     // ── Field visitor ─────────────────────────────────────────────────────────
 
     fn visit_field(
@@ -658,17 +712,12 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 self.vector_threshold_sql(&field_expr, "<#>", value, params, true)
             },
             // Hamming and Jaccard operate on pgvector's *binary* (`bit`)
-            // vectors; FraiseQL's Vector type models float vectors ([Float!]!
-            // with dimensions), so no column these operators could apply to can
-            // currently be declared. Loudly unsupported until a binary-vector
-            // type exists, rather than emitting SQL PostgreSQL refuses.
-            WhereOperator::HammingDistance | WhereOperator::JaccardDistance => {
-                Err(FraiseQLError::validation(format!(
-                    "'{operator:?}' operates on binary (bit) vectors, which FraiseQL's \
-                     float Vector type cannot declare; this operator is unsupported. \
-                     Use cosine_distance / l2_distance / l1_distance / inner_product \
-                     threshold filters, or the `nearest` query argument for top-K search."
-                )))
+            // vectors, which a `BitVector` field declares (#959).
+            WhereOperator::HammingDistance => {
+                self.bit_threshold_sql(&field_expr, "<~>", value, params)
+            },
+            WhereOperator::JaccardDistance => {
+                self.bit_threshold_sql(&field_expr, "<%>", value, params)
             },
 
             // ── Network (INET/CIDR) ───────────────────────────────────────────

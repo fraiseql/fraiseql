@@ -35,7 +35,9 @@ pub(super) fn field_type_to_introspection(
     let inner = match field_type {
         FieldType::Int => type_ref("Int"),
         FieldType::Float => type_ref("Float"),
-        FieldType::String => type_ref("String"),
+        // A bit vector's value IS its text form (`0`/`1` characters), so it
+        // introspects as the scalar a client actually receives (#959).
+        FieldType::String | FieldType::BitVector => type_ref("String"),
         FieldType::Boolean => type_ref("Boolean"),
         FieldType::Id => type_ref("ID"),
         FieldType::DateTime => type_ref("DateTime"),

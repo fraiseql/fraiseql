@@ -235,7 +235,9 @@ fn graphql_type_name(field_type: &FieldType) -> String {
         FieldType::List(inner) => format!("[{}]", graphql_type_name(inner)),
         // Reason: FieldType is #[non_exhaustive]; a future variant carries no known
         // GraphQL name, and `String` is the same fallback `field_type_to_json_schema`
-        // uses for the advertised input schema.
+        // uses for the advertised input schema. `BitVector` lands here by
+        // agreement rather than by accident: its value IS a string of `0`/`1`
+        // characters, which is how introspection advertises it too (#959).
         _ => "String".to_string(),
     }
 }
@@ -284,6 +286,7 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
         | FieldType::Uuid
         | FieldType::Decimal
         | FieldType::Vector
+        | FieldType::BitVector
         | FieldType::Scalar(_)
         | FieldType::Enum(_) => true,
         FieldType::List(inner) => is_scalar_field_type(inner),
