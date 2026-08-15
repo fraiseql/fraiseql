@@ -599,8 +599,8 @@ impl SchemaConverter {
         }
 
         // Add built-in scalars
-        for scalar in crate::schema::BUILTIN_SCALAR_NAMES {
-            type_names.insert((*scalar).to_string());
+        for scalar in crate::schema::builtin_scalar_names() {
+            type_names.insert(scalar.to_string());
         }
 
         // Add **declared** custom scalars, from the registry the compiler actually carries.
@@ -740,22 +740,12 @@ impl SchemaConverter {
     ///
     /// Built-in types return their scalar name, Object types return the object name
     fn extract_type_name(field_type: &FieldType) -> String {
+        // A built-in scalar's name is the one the author wrote, from the same
+        // table `parse_field_type` reads — this is that function's inverse.
+        if let Some(name) = field_type.authoring_name() {
+            return name.to_string();
+        }
         match field_type {
-            FieldType::String => "String".to_string(),
-            FieldType::Int => "Int".to_string(),
-            FieldType::Float => "Float".to_string(),
-            FieldType::Boolean => "Boolean".to_string(),
-            FieldType::Id => "ID".to_string(),
-            FieldType::DateTime => "DateTime".to_string(),
-            FieldType::Date => "Date".to_string(),
-            FieldType::Time => "Time".to_string(),
-            FieldType::Json => "Json".to_string(),
-            FieldType::Uuid => "UUID".to_string(),
-            FieldType::Decimal => "Decimal".to_string(),
-            FieldType::Vector => "Vector".to_string(),
-            FieldType::BitVector => "BitVector".to_string(),
-            FieldType::HalfVector => "HalfVector".to_string(),
-            FieldType::SparseVector => "SparseVector".to_string(),
             FieldType::Scalar(name) => name.clone(),
             FieldType::Object(name) => name.clone(),
             FieldType::Enum(name) => name.clone(),

@@ -1124,8 +1124,34 @@ fn serde_roundtrip_via_json_string() {
 #[test]
 fn test_builtin_scalars_recognized() {
     // Test all builtin scalars are recognized
-    for &scalar in BUILTIN_SCALARS {
+    for (scalar, _) in BUILTIN_SCALARS {
         assert!(is_known_scalar(scalar), "Builtin scalar '{}' should be recognized", scalar);
+    }
+}
+
+/// The built-in half of `is_known_scalar` answers what the compiler answers.
+///
+/// It used to carry its own list under a docstring calling itself the unified source of
+/// truth, and that list disagreed with the compiler in both directions — `"JSON"` for a
+/// format that writes `"Json"`, no vector types at all, and `BigInt` / `Timestamp` /
+/// `Void` reported as built-ins where `FieldType` resolves them to object references.
+/// Nothing called it, so nothing noticed.
+#[test]
+fn known_builtin_scalars_are_the_ones_the_compiler_parses() {
+    for (name, expected) in BUILTIN_SCALARS {
+        assert!(is_known_scalar(name), "{name} is a built-in the compiler parses");
+        assert_eq!(
+            FieldType::from_authoring_name(name).as_ref(),
+            Some(expected),
+            "{name} must denote the type the table pairs it with"
+        );
+    }
+    for absent in ["BigInt", "Timestamp", "Void", "JSON"] {
+        assert!(
+            !is_known_scalar(absent),
+            "{absent} is not a field type the compiler recognizes, so calling it a known \
+             scalar tells an author their schema will compile when it will not"
+        );
     }
 }
 
@@ -1148,7 +1174,7 @@ fn test_unknown_types_not_recognized() {
 #[test]
 fn test_builtin_scalar_count() {
     // Verify we have the expected number of builtin scalars
-    assert_eq!(BUILTIN_SCALARS.len(), 14);
+    assert_eq!(BUILTIN_SCALARS.len(), 15);
 }
 
 #[test]
@@ -1160,9 +1186,9 @@ fn test_rich_scalar_count() {
 #[test]
 fn test_no_duplicate_scalars() {
     // Ensure no scalar appears in both lists
-    for &builtin in BUILTIN_SCALARS {
+    for (builtin, _) in BUILTIN_SCALARS {
         assert!(
-            !RICH_SCALARS.contains(&builtin),
+            !RICH_SCALARS.contains(builtin),
             "Scalar '{}' appears in both BUILTIN and RICH lists",
             builtin
         );

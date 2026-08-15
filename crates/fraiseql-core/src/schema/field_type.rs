@@ -962,7 +962,80 @@ pub enum FieldType {
     Union(String),
 }
 
+/// Declare the built-in scalar type names once, for both directions.
+///
+/// A type name is decided to be a built-in scalar in two places that must
+/// agree: the authoring parser, which turns `"BitVector"` into a
+/// [`FieldType`], and the schema validator's known-type registry, which
+/// decides whether a field's declared type exists at all. Kept as two
+/// hand-written lists they drifted twice — first over `Json` versus `JSON`
+/// (#724), then over the three vector types added in #959, which parsed
+/// correctly and were reported by the validator as undeclared, with a hint
+/// telling the author to declare a custom scalar shadowing a built-in.
+///
+/// This macro emits the table and the reverse lookup from one list of pairs,
+/// and the reverse lookup is an **exhaustive** match: adding a variant to
+/// [`FieldType`] stops the crate compiling until the variant says how an author
+/// spells it — or says, by joining the arm below, that it has no authored
+/// spelling of its own.
+macro_rules! builtin_scalars {
+    ($($variant:ident => $name:literal),+ $(,)?) => {
+        /// Every built-in scalar name an author may write in `schema.json`,
+        /// paired with the [`FieldType`] it denotes.
+        pub const BUILTIN_SCALARS: &[(&str, FieldType)] = &[$(($name, FieldType::$variant)),+];
+
+        impl FieldType {
+            /// The name an author writes for this type in `schema.json`.
+            ///
+            /// `None` for the variants that carry their own name — a custom
+            /// scalar, an object, enum, input, interface or union reference, or
+            /// a list — where the name is data rather than a fixed spelling.
+            #[must_use]
+            pub const fn authoring_name(&self) -> Option<&'static str> {
+                match self {
+                    $(Self::$variant => Some($name),)+
+                    Self::Scalar(_)
+                    | Self::List(_)
+                    | Self::Object(_)
+                    | Self::Enum(_)
+                    | Self::Input(_)
+                    | Self::Interface(_)
+                    | Self::Union(_) => None,
+                }
+            }
+        }
+    };
+}
+
+builtin_scalars! {
+    String => "String",
+    Int => "Int",
+    Float => "Float",
+    Boolean => "Boolean",
+    Id => "ID",
+    DateTime => "DateTime",
+    Date => "Date",
+    Time => "Time",
+    Json => "Json",
+    Uuid => "UUID",
+    Decimal => "Decimal",
+    Vector => "Vector",
+    BitVector => "BitVector",
+    HalfVector => "HalfVector",
+    SparseVector => "SparseVector",
+}
+
 impl FieldType {
+    /// The built-in scalar an authored type name denotes, if it is one.
+    ///
+    /// `None` means the name is not a built-in scalar — a reference to a
+    /// declared type, enum, union or custom scalar, which only the surrounding
+    /// schema can resolve.
+    #[must_use]
+    pub fn from_authoring_name(name: &str) -> Option<Self> {
+        BUILTIN_SCALARS.iter().find(|(n, _)| *n == name).map(|(_, ty)| ty.clone())
+    }
+
     /// Check if this is a scalar type (including rich/custom scalars).
     #[must_use]
     pub const fn is_scalar(&self) -> bool {

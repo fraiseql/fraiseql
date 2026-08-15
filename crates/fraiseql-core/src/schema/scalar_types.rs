@@ -4,27 +4,6 @@
 //! single location to eliminate duplication and provide a consistent API for checking
 //! whether a given type name is a known scalar.
 
-/// Builtin GraphQL scalar types that are always available.
-///
-/// These are the core scalar types defined by the GraphQL specification and
-/// commonly used types provided by FraiseQL.
-pub const BUILTIN_SCALARS: &[&str] = &[
-    "ID",
-    "String",
-    "Int",
-    "Float",
-    "Boolean",
-    "DateTime",
-    "Date",
-    "Time",
-    "JSON",
-    "UUID",
-    "Decimal",
-    "BigInt",
-    "Timestamp",
-    "Void",
-];
-
 /// Rich scalar types with validation rules beyond basic GraphQL scalars.
 ///
 /// These are scalar types with application-level validation rules.
@@ -94,9 +73,14 @@ pub const RICH_SCALARS: &[&str] = &[
 
 /// Check if a type name is a known scalar (builtin or rich).
 ///
-/// This provides a unified way to determine if a type string refers to a
-/// scalar type, eliminating the need to maintain multiple hardcoded lists
-/// throughout the codebase.
+/// The built-in half reads [`BUILTIN_SCALARS`](super::BUILTIN_SCALARS), the
+/// table the compiler itself parses authored type names with, so this answers
+/// the same question the compiler does. It used to carry a hand-written list of
+/// its own, which claimed to be "the unified source of truth" while disagreeing
+/// with the compiler in both directions: it spelled JSON `"JSON"` where the
+/// authoring format writes `"Json"`, it did not know the four vector types, and
+/// it called `BigInt`, `Timestamp` and `Void` built-ins, none of which the
+/// compiler recognizes as a field type.
 ///
 /// # Arguments
 ///
@@ -119,5 +103,6 @@ pub const RICH_SCALARS: &[&str] = &[
 #[inline]
 #[must_use]
 pub fn is_known_scalar(name: &str) -> bool {
-    BUILTIN_SCALARS.contains(&name) || RICH_SCALARS.contains(&name)
+    super::field_type::BUILTIN_SCALARS.iter().any(|(builtin, _)| *builtin == name)
+        || RICH_SCALARS.contains(&name)
 }

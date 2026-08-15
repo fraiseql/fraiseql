@@ -442,26 +442,14 @@ impl SchemaConverter {
             return Ok(FieldType::List(Box::new(Self::parse_field_type(inner, declared)?)));
         }
 
-        Ok(match type_name {
-            "String" => FieldType::String,
-            "Int" => FieldType::Int,
-            "Float" => FieldType::Float,
-            "Boolean" => FieldType::Boolean,
-            "ID" => FieldType::Id,
-            "DateTime" => FieldType::DateTime,
-            "Date" => FieldType::Date,
-            "Time" => FieldType::Time,
-            "Json" => FieldType::Json,
-            "UUID" => FieldType::Uuid,
-            "Decimal" => FieldType::Decimal,
-            "Vector" => FieldType::Vector,
-            "BitVector" => FieldType::BitVector,
-            "HalfVector" => FieldType::HalfVector,
-            "SparseVector" => FieldType::SparseVector,
+        // The built-in scalar table is shared with the validator's known-type
+        // registry, so a name cannot parse as a scalar here and be reported as
+        // undeclared there.
+        Ok(FieldType::from_authoring_name(type_name).unwrap_or_else(|| {
             // Author-declared enum / interface / union references keep their kind; anything
             // else is an object reference (#923).
-            custom => declared.resolve(custom),
-        })
+            declared.resolve(type_name)
+        }))
     }
 
     /// Check whether a string is a safe SQL identifier.

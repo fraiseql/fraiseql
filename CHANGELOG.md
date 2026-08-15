@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **`fraiseql_core::schema::BUILTIN_SCALARS` is now the compiler's own table, and the
+  list it replaces is gone (#959).** It was `&[&str]`; it is now
+  `&[(&str, FieldType)]`, pairing each built-in scalar name with the type it denotes.
+  The old constant was a hand-written list under a docstring calling itself the unified
+  source of truth for scalar recognition, with **no non-test caller anywhere**, and it
+  disagreed with the compiler in both directions: it spelled JSON `"JSON"` where the
+  authoring format writes `"Json"`, it did not know `Vector`, `BitVector`, `HalfVector`
+  or `SparseVector`, and it listed `BigInt`, `Timestamp` and `Void`, none of which the
+  compiler accepts as a field type. `is_known_scalar` now answers from the real table,
+  so those three names return `false` and the four vector types return `true`.
+
 - **`fraiseql-wire`'s `HammingDistance` / `JaccardDistance` operands are bit strings
   (#959).** Both variants took `vector: Vec<f32>` / `set: Vec<String>` and now take
   `bits: String`. The emitted SQL was a second, unreachable implementation that disagreed
@@ -2478,6 +2489,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   archived onto issue #687 before removal.
 
 ### Fixed
+
+- **A schema authoring a `BitVector`, `HalfVector` or `SparseVector` field no longer
+  compiles with a warning telling the author the type does not exist (#959).** The three
+  vector types were added to the compiler's type parser but not to the validator's
+  known-type list, so every schema using one was reported as declaring a field whose type
+  "is not a declared type", with a hint suggesting it be declared as a custom scalar —
+  advice that would have shadowed a built-in. The two lists, and a third in
+  `extract_type_name`, were separately hand-written; they had already drifted once over
+  `Json` versus `JSON` (#724), and the guard test written then maintained a *fourth* copy
+  and so could not see the second drift. All of them now read one table, and the reverse
+  lookup is an exhaustive match: adding a `FieldType` variant stops the crate compiling
+  until the variant says how an author spells it.
 
 - **SAML replay protection is shared across replicas (#949).** `SamlReplayCache` was an
   in-process `DashMap`, and its own module doc said so: "replay protection therefore holds
