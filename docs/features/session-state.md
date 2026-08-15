@@ -51,5 +51,17 @@ Library embedders reach the store through `Server::session_state()`
 `list_thread` / `expire_thread`, plus `evict_expired` for custom sweeps. The
 subsystem requires the `auth` feature (on by default).
 
-See `.github` issue #389 for the roadmap items built on top of this store
-(MCP session continuity, GraphQL-surfaced `Thread`/`Message` types).
+## Who consumes it
+
+**MCP session continuity** (#967) — with `[mcp] session_state = true`, an
+authenticated agent's tool calls accumulate into a thread here, and each result
+carries the thread back. The key derivation is worth knowing if you inspect the
+store directly: `session_id` is a `UUIDv5` over the authenticated `user_id` and
+`thread_id` is the client's `mcp-session-id` header, so entries are partitioned
+by principal first and by the client's own thread id second. See
+[../mcp.md](../mcp.md#session-continuity).
+
+Library embedders reach the same store directly (above).
+
+See `.github` issue #389 for the remaining roadmap items built on top of it
+(GraphQL-surfaced `Thread`/`Message` types).
