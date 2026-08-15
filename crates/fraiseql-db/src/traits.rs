@@ -1365,6 +1365,41 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// The default implementation is a no-op.
     fn on_schema_reload(&self) {}
+
+    /// Run one operator-supplied statement under the bounds in `request` (#962).
+    ///
+    /// This is the only method on this trait whose SQL FraiseQL did not generate.
+    /// It exists for the Studio SQL console, and it is deliberately the *narrowest*
+    /// possible shape for that: a single statement, in a transaction whose mode,
+    /// timeout, row budget and session identity are all decided by the caller and
+    /// enforced by the database. See [`AdminSqlRequest`] for what each bound buys.
+    ///
+    /// # Default implementation
+    ///
+    /// **Refuses.** An adapter that has not implemented containment does not get
+    /// to run arbitrary SQL by inheriting a default that "just works" — the
+    /// convenient default here would be `execute_raw_query`, which has no
+    /// transaction, no timeout, no row cap and no way to roll back. Every
+    /// adapter that should serve this endpoint says so by overriding, and the
+    /// endpoint answers "unsupported" for the rest.
+    ///
+    /// A wrapping adapter must forward explicitly for the same reason it forwards
+    /// [`stream_with_projection`](Self::stream_with_projection): inheriting the
+    /// default here turns a capable adapter into an incapable one, and the only
+    /// symptom is a refusal nobody asked for.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` by default. Implementations return
+    /// `FraiseQLError::Database` for anything PostgreSQL rejects — which
+    /// includes the write refused by a `READ ONLY` transaction (SQLSTATE
+    /// `25006`) and the statement cancelled by the timeout (`57014`).
+    async fn execute_admin_sql(&self, _request: &AdminSqlRequest) -> Result<AdminSqlOutcome> {
+        Err(FraiseQLError::Unsupported {
+            message: "Operator-supplied SQL execution is not supported by this database adapter."
+                .to_string(),
+        })
+    }
 }
 
 /// The `SELECT` behind [`DatabaseAdapter::execute_row_query`] and its streaming

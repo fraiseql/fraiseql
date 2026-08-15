@@ -184,6 +184,14 @@ wiremock = "0.6"
 # Arrow Flight server for high-performance data delivery
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
 auth = ["dep:fraiseql-auth"]
+# The operator SQL console (#962): POST /api/v1/admin/sql, which runs statements
+# the operator typed. Not a default feature and never will be — it is the most
+# powerful endpoint the server can expose, so a deployment that does not want one
+# should not have the code in the binary. Pulls `auth` because every execution is
+# recorded in the audit ledger, which lives there; without the ledger the endpoint
+# would not meet its own acceptance. With this off, `[admin_sql] enabled = true`
+# is refused by name at boot.
+admin-sql = ["auth"]
 aws-s3 = ["aws-sdk-s3", "aws-config", "fraiseql-storage/aws-s3"]
 azure-blob = ["fraiseql-storage/azure-blob"]
 # The image-render endpoint (#370): compiles fraiseql-storage's transform
@@ -347,6 +355,14 @@ exclude = [
     "studio/.npm/**",
     "studio/*.log",
 ]
+
+[[test]]
+name = "admin_sql_console_e2e_pg"
+# Declared here rather than with a file-level `#![cfg(feature = "admin-sql")]`:
+# the inner form compiles to an empty binary that reports 0 tests and reads green
+# in a leg that lacks the feature (#1082), and `check-suite-coverage.py` can only
+# see the manifest form.
+required-features = ["admin-sql"]
 
 [[test]]
 name = "secrets_manager_integration_test"

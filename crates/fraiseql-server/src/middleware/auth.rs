@@ -286,6 +286,155 @@ pub(crate) fn constant_time_compare(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
+/// Which admin credential authenticated a request to the SQL console (#962).
+///
+/// Every other admin route is on one of two routers, each authenticated by one
+/// token, so "which token" is answered by which router matched. The console is a
+/// single route that both tokens may reach and that must behave *differently* for
+/// each, so the answer has to travel from the middleware to the handler. It does
+/// so as a request extension the middleware inserts and nothing else constructs
+/// — a client cannot supply it, because it is a Rust type and not a header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdminPrivilege {
+    /// Authenticated by `admin_readonly_token`. The transaction runs `READ ONLY`.
+    ReadOnly,
+    /// Authenticated by `admin_token`. Writes are permitted; committing is still
+    /// opt-in per request.
+    ReadWrite,
+}
+
+/// What [`admin_dual_auth_middleware`] establishes about a request.
+///
+/// Inserted as a request extension on success and constructed nowhere else, so a
+/// handler reading it is reading the middleware's conclusion rather than
+/// re-deriving one. The peer address travels with the privilege because the
+/// middleware has already resolved it (from `ConnectInfo`, never from
+/// `X-Forwarded-For`), and both belong in the same audit record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdminCaller {
+    /// Which admin credential authenticated.
+    pub privilege: AdminPrivilege,
+    /// The transport peer's IP, or `"unknown"` when there is no `ConnectInfo`.
+    pub peer_ip:   String,
+}
+
+/// Shared state for the dual-token admin authentication used by the SQL console.
+///
+/// Holds both tokens and **one** failure limiter, deliberately: the limiter
+/// counts failed attempts per peer, and two limiters would let a caller spend a
+/// fresh budget by guessing against each token in turn.
+#[derive(Clone)]
+pub struct AdminDualAuthState {
+    write_token:     Arc<String>,
+    readonly_token:  Option<Arc<String>>,
+    failure_limiter: FailureLimiter,
+}
+
+impl AdminDualAuthState {
+    /// Build the state from the two configured tokens.
+    ///
+    /// `readonly_token` is `None` in single-token mode, where `admin_token`
+    /// grants everything — the console then has no read-only credential at all,
+    /// which is the honest reading of "one token, all operations" and matches how
+    /// the rest of the admin API already behaves.
+    #[must_use]
+    pub fn new(write_token: String, readonly_token: Option<String>, max_failures: u32) -> Self {
+        Self {
+            write_token:     Arc::new(write_token),
+            readonly_token:  readonly_token.map(Arc::new),
+            failure_limiter: FailureLimiter::new(max_failures),
+        }
+    }
+
+    /// Classify a presented token.
+    ///
+    /// Both comparisons always run: returning early on the write-token match
+    /// would make the response time depend on which token was presented, and the
+    /// whole point of [`constant_time_compare`] is that it does not.
+    fn classify(&self, presented: &str) -> Option<AdminPrivilege> {
+        let is_write = constant_time_compare(presented, &self.write_token);
+        let is_readonly = self
+            .readonly_token
+            .as_ref()
+            .is_some_and(|t| constant_time_compare(presented, t));
+        match (is_write, is_readonly) {
+            (true, _) => Some(AdminPrivilege::ReadWrite),
+            (false, true) => Some(AdminPrivilege::ReadOnly),
+            (false, false) => None,
+        }
+    }
+}
+
+/// Bearer authentication that reports *which* admin token authenticated (#962).
+///
+/// Same refusals and the same per-peer brute-force guard as
+/// [`bearer_auth_middleware`]; the difference is that a success inserts an
+/// [`AdminPrivilege`] into the request extensions instead of discarding the
+/// distinction. Used only by the SQL console, whose behaviour depends on it.
+///
+/// # Response
+///
+/// - **401 Unauthorized**: missing or malformed `Authorization` header
+/// - **403 Forbidden**: the token matches neither admin credential
+/// - **429 Too Many Requests**: too many failures from this peer
+pub async fn admin_dual_auth_middleware(
+    State(auth_state): State<AdminDualAuthState>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    use std::net::SocketAddr;
+
+    use axum::extract::ConnectInfo;
+
+    // Keyed on the transport peer only, never on `X-Forwarded-For` — see
+    // `bearer_auth_middleware` for why (M-xff-limiter).
+    let peer_key = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map_or_else(|| "unknown".to_string(), |ci| ci.0.ip().to_string());
+
+    if auth_state.failure_limiter.is_blocked(&peer_key) {
+        return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+    }
+
+    let Some(header_value) = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "Missing Authorization header",
+        )
+            .into_response();
+    };
+
+    let Some(token) = extract_bearer_token(header_value) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "Invalid Authorization header format. Expected: Bearer <token>",
+        )
+            .into_response();
+    };
+
+    let Some(privilege) = auth_state.classify(token) else {
+        if auth_state.failure_limiter.record_failure(&peer_key) {
+            return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts")
+                .into_response();
+        }
+        return (StatusCode::FORBIDDEN, "Invalid token").into_response();
+    };
+
+    auth_state.failure_limiter.record_success(&peer_key);
+    request.extensions_mut().insert(AdminCaller {
+        privilege,
+        peer_ip: peer_key,
+    });
+    next.run(request).await
+}
+
 #[cfg(test)]
 mod xff_tests {
     //! M-xff-limiter: the brute-force limiter must not key on the attacker-controlled

@@ -171,79 +171,92 @@ impl<'a> FromSql<'a> for PgEnumLabel {
 fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value> {
     let mut map = std::collections::HashMap::new();
     for (idx, column) in row.columns().iter().enumerate() {
-        let column_name = column.name().to_string();
-        let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i16>(idx) {
-            // SMALLINT/int2 columns (e.g. `app.mutation_response.http_status`).
-            // Without this branch a non-null int2 fell through to `Null` because
-            // `FromSql for i32` rejects int2 — which dropped `MutationError`'s
-            // `httpStatus` to absent. Order among i16/i32/i64 is correctness-
-            // neutral (each `FromSql` accepts only its own PG int width), so this
-            // sits first for readability.
-            serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, i32>(idx) {
-            serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, i64>(idx) {
-            serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, f64>(idx) {
-            serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, String>(idx) {
-            serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, bool>(idx) {
-            serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, PgNumericText>(idx) {
-            // NUMERIC/DECIMAL — decoded to PostgreSQL's exact text rendering
-            // (#980), then re-parsed as a JSON number so the value isn't forced
-            // through f64 at construction. Without this branch a `SUM(revenue)`
-            // aggregate (and every raw NUMERIC column) fell through to `Null`
-            // (H35). Falls back to a JSON string for the values whose text is
-            // not JSON numeric syntax: NaN, Infinity and -Infinity.
-            let s = v.0;
-            serde_json::from_str::<serde_json::Value>(&s).unwrap_or(serde_json::Value::String(s))
-        } else if let Ok(v) = row.try_get::<_, uuid::Uuid>(idx) {
-            // UUID columns (e.g. `app.mutation_response.entity_id`) render as the
-            // canonical hyphenated string instead of silently nulling (H35).
-            serde_json::json!(v.to_string())
-        } else if let Ok(v) = row.try_get::<_, chrono::DateTime<chrono::Utc>>(idx) {
-            // `timestamptz` → RFC 3339 / ISO 8601 text (H35).
-            serde_json::json!(v.to_rfc3339())
-        } else if let Ok(v) = row.try_get::<_, chrono::NaiveDateTime>(idx) {
-            // `timestamp` (no tz) → ISO 8601 text (H35).
-            serde_json::json!(v.to_string())
-        } else if let Ok(v) = row.try_get::<_, chrono::NaiveDate>(idx) {
-            // `date` → ISO 8601 date text (H35).
-            serde_json::json!(v.to_string())
-        } else if let Ok(v) = row.try_get::<_, Vec<String>>(idx) {
-            // TEXT[] columns (e.g. `app.mutation_response.updated_fields`) — without
-            // this branch a non-null text array falls through to Null and a parser
-            // expecting a sequence fails. Must precede the jsonb branch (a jsonb
-            // column never deserializes as Vec<String>, so ordering is safe).
-            serde_json::json!(v)
-        } else if let Ok(v) = row.try_get::<_, PgEnumLabel>(idx) {
-            // ENUM columns (e.g. `app.mutation_response.error_class`, the
-            // `app.mutation_error_class` enum) render as their text label. Without
-            // this branch a non-null enum fell through to `Null` (`String: FromSql`
-            // rejects a custom enum OID), which dropped `error_class` to absent on a
-            // failed mutation — and the parser then rejected the row with
-            // "succeeded=false requires error_class", so the typed error arm was
-            // never reached (#472). `PgEnumLabel` accepts only `Kind::Enum`, so this
-            // never shadows another branch regardless of position.
-            serde_json::json!(v.0)
-        } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
-            v
-        } else {
-            // A column whose PostgreSQL type none of the branches above can
-            // decode. Name the column and its type so the next drift is visible
-            // in logs instead of a silent null (H35).
-            tracing::warn!(
-                column = %column_name,
-                pg_type = %column.type_(),
-                "row_to_map: column type not representable as JSON; returning null"
-            );
-            serde_json::Value::Null
-        };
-        map.insert(column_name, value);
+        map.insert(column.name().to_string(), decode_cell(row, idx));
     }
     map
+}
+
+/// Decode one cell of a `tokio_postgres::Row` to JSON.
+///
+/// The decode ladder itself, extracted from [`row_to_map`] so the positional
+/// reader the admin SQL console needs (#962) and the name-keyed map every other
+/// caller wants cannot disagree about what a `numeric`, an enum or a `timestamptz`
+/// becomes. A console keyed by column *name* would also collapse `SELECT 1 AS a,
+/// 2 AS a` to one column and silently drop the other.
+///
+/// Tries each PostgreSQL type in priority order; falls back to `Null` for types
+/// that cannot be represented as JSON.
+pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
+    let column = &row.columns()[idx];
+    if let Ok(v) = row.try_get::<_, i16>(idx) {
+        // SMALLINT/int2 columns (e.g. `app.mutation_response.http_status`).
+        // Without this branch a non-null int2 fell through to `Null` because
+        // `FromSql for i32` rejects int2 — which dropped `MutationError`'s
+        // `httpStatus` to absent. Order among i16/i32/i64 is correctness-
+        // neutral (each `FromSql` accepts only its own PG int width), so this
+        // sits first for readability.
+        serde_json::json!(v)
+    } else if let Ok(v) = row.try_get::<_, i32>(idx) {
+        serde_json::json!(v)
+    } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+        serde_json::json!(v)
+    } else if let Ok(v) = row.try_get::<_, f64>(idx) {
+        serde_json::json!(v)
+    } else if let Ok(v) = row.try_get::<_, String>(idx) {
+        serde_json::json!(v)
+    } else if let Ok(v) = row.try_get::<_, bool>(idx) {
+        serde_json::json!(v)
+    } else if let Ok(v) = row.try_get::<_, PgNumericText>(idx) {
+        // NUMERIC/DECIMAL — decoded to PostgreSQL's exact text rendering
+        // (#980), then re-parsed as a JSON number so the value isn't forced
+        // through f64 at construction. Without this branch a `SUM(revenue)`
+        // aggregate (and every raw NUMERIC column) fell through to `Null`
+        // (H35). Falls back to a JSON string for the values whose text is
+        // not JSON numeric syntax: NaN, Infinity and -Infinity.
+        let s = v.0;
+        serde_json::from_str::<serde_json::Value>(&s).unwrap_or(serde_json::Value::String(s))
+    } else if let Ok(v) = row.try_get::<_, uuid::Uuid>(idx) {
+        // UUID columns (e.g. `app.mutation_response.entity_id`) render as the
+        // canonical hyphenated string instead of silently nulling (H35).
+        serde_json::json!(v.to_string())
+    } else if let Ok(v) = row.try_get::<_, chrono::DateTime<chrono::Utc>>(idx) {
+        // `timestamptz` → RFC 3339 / ISO 8601 text (H35).
+        serde_json::json!(v.to_rfc3339())
+    } else if let Ok(v) = row.try_get::<_, chrono::NaiveDateTime>(idx) {
+        // `timestamp` (no tz) → ISO 8601 text (H35).
+        serde_json::json!(v.to_string())
+    } else if let Ok(v) = row.try_get::<_, chrono::NaiveDate>(idx) {
+        // `date` → ISO 8601 date text (H35).
+        serde_json::json!(v.to_string())
+    } else if let Ok(v) = row.try_get::<_, Vec<String>>(idx) {
+        // TEXT[] columns (e.g. `app.mutation_response.updated_fields`) — without
+        // this branch a non-null text array falls through to Null and a parser
+        // expecting a sequence fails. Must precede the jsonb branch (a jsonb
+        // column never deserializes as Vec<String>, so ordering is safe).
+        serde_json::json!(v)
+    } else if let Ok(v) = row.try_get::<_, PgEnumLabel>(idx) {
+        // ENUM columns (e.g. `app.mutation_response.error_class`, the
+        // `app.mutation_error_class` enum) render as their text label. Without
+        // this branch a non-null enum fell through to `Null` (`String: FromSql`
+        // rejects a custom enum OID), which dropped `error_class` to absent on a
+        // failed mutation — and the parser then rejected the row with
+        // "succeeded=false requires error_class", so the typed error arm was
+        // never reached (#472). `PgEnumLabel` accepts only `Kind::Enum`, so this
+        // never shadows another branch regardless of position.
+        serde_json::json!(v.0)
+    } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
+        v
+    } else {
+        // A column whose PostgreSQL type none of the branches above can
+        // decode. Name the column and its type so the next drift is visible
+        // in logs instead of a silent null (H35).
+        tracing::warn!(
+            column = %column.name(),
+            pg_type = %column.type_(),
+            "decode_cell: column type not representable as JSON; returning null"
+        );
+        serde_json::Value::Null
+    }
 }
 
 /// Apply transaction-local session variables on an in-progress transaction.
@@ -1295,6 +1308,19 @@ impl DatabaseAdapter for PostgresAdapter {
 
     async fn reset_query_stats(&self) -> Result<()> {
         self.pg_reset_query_stats().await
+    }
+
+    /// The operator SQL console (#962). The containment lives in the private
+    /// `postgres::adapter::admin_sql` module; see [`AdminSqlRequest`] for what
+    /// each bound is and how PostgreSQL — not a parse of the statement text —
+    /// enforces it.
+    ///
+    /// [`AdminSqlRequest`]: crate::traits::AdminSqlRequest
+    async fn execute_admin_sql(
+        &self,
+        request: &crate::traits::AdminSqlRequest,
+    ) -> Result<crate::traits::AdminSqlOutcome> {
+        super::admin_sql::execute_admin_sql_impl(self, request).await
     }
 }
 

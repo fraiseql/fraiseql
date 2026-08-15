@@ -277,3 +277,66 @@ pub type BoxDatabaseAdapter = Box<dyn DatabaseAdapter>;
 /// let adapter: ArcDatabaseAdapter = Arc::new(postgres_adapter);
 /// ```
 pub type ArcDatabaseAdapter = Arc<dyn DatabaseAdapter>;
+
+/// One operator-supplied statement, and every bound the database is asked to
+/// enforce on it (#962).
+///
+/// This is the call shape of
+/// [`DatabaseAdapter::execute_admin_sql`](super::DatabaseAdapter::execute_admin_sql),
+/// the only path on which FraiseQL runs SQL it did not generate. Every field is a
+/// containment control, and each is enforced *by PostgreSQL* rather than by
+/// inspecting the statement text:
+///
+/// * `read_only` becomes the transaction's own mode, so a write is refused with SQLSTATE `25006` no
+///   matter how it is spelled. A parser deciding whether a string "is a SELECT" is a guess about a
+///   dialect it does not own; a read-only transaction is not.
+/// * `commit` is the *only* thing that makes any effect outlast the request. The transaction is
+///   rolled back otherwise, which is what makes the default a preview.
+/// * `statement_timeout_ms` is `SET LOCAL statement_timeout`, so the server cancels the backend.
+/// * `session_vars` are the same transaction-local settings the executor applies for a real query,
+///   which is what lets an operator preview a row under a tenant's RLS rather than as the pool's
+///   role.
+///
+/// Not `#[non_exhaustive]`: it is a trait method's parameter list, so adding a
+/// field is a breaking change either way, and a struct literal makes an omitted
+/// bound a compile error rather than a default someone did not choose.
+#[derive(Debug, Clone)]
+pub struct AdminSqlRequest {
+    /// The statement to run, verbatim. Never parsed, rewritten or inspected.
+    pub sql:                  String,
+    /// Start the transaction `READ ONLY`.
+    pub read_only:            bool,
+    /// Commit instead of rolling back. `false` is a preview.
+    pub commit:               bool,
+    /// `SET LOCAL statement_timeout` for the transaction, in milliseconds.
+    pub statement_timeout_ms: u32,
+    /// Stop reading after this many rows and report the result as truncated.
+    pub max_rows:             usize,
+    /// Transaction-local settings applied before the statement, as
+    /// `set_config(name, value, true)` — the RLS-preview identity.
+    pub session_vars:         Vec<(String, String)>,
+}
+
+/// What one [`AdminSqlRequest`] did.
+///
+/// `committed` is reported rather than assumed: it is the difference between a
+/// preview and a change, and an operator reading the response should not have to
+/// re-derive it from what they asked for.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct AdminSqlOutcome {
+    /// Column names in result order. Empty when the statement returned no rows.
+    pub columns:       Vec<String>,
+    /// Rows, in result order, each aligned to `columns`.
+    pub rows:          Vec<Vec<serde_json::Value>>,
+    /// `true` when `max_rows` cut the result short — the statement produced more.
+    pub truncated:     bool,
+    /// Rows the statement reported affected, when PostgreSQL reported a count.
+    ///
+    /// `None` when the read stopped early, because a count over rows nobody
+    /// consumed is not a count of anything.
+    pub rows_affected: Option<u64>,
+    /// Whether the transaction was committed. `false` means every effect was
+    /// rolled back.
+    pub committed:     bool,
+}

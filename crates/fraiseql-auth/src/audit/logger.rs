@@ -107,6 +107,19 @@ pub enum AuditEventType {
     /// for compliance (SOC 2) audit trails and is distinct from `AuthFailure`,
     /// which covers failed authentication.
     AuthorizationDenied,
+    /// An operator ran a statement on the admin SQL console (#962).
+    ///
+    /// The first variant that is not auth-shaped, and it is here because the
+    /// console is the most powerful surface the server exposes: arbitrary SQL,
+    /// under an admin credential, optionally committed. "Who ran what, when, and
+    /// did it persist" is precisely the question a compliance audit asks of it,
+    /// and the answer belongs in the same tamper-evident chain as the credential
+    /// events rather than in a second ledger nobody verifies.
+    ///
+    /// Recorded for **every** execution, including refused and failed ones — a
+    /// ledger that holds only the statements that worked describes a different
+    /// session than the one that happened.
+    AdminSqlExecution,
 }
 
 impl AuditEventType {
@@ -131,6 +144,7 @@ impl AuditEventType {
             AuditEventType::AuthSuccess => "auth_success",
             AuditEventType::AuthFailure => "auth_failure",
             AuditEventType::AuthorizationDenied => "authorization_denied",
+            AuditEventType::AdminSqlExecution => "admin_sql_execution",
         }
     }
 }
@@ -157,6 +171,13 @@ pub enum SecretType {
     StateToken,
     /// A CSRF token used to bind a user-agent session to an OAuth flow.
     CsrfToken,
+    /// An admin API bearer token (`admin_token` or `admin_readonly_token`).
+    ///
+    /// Added with the SQL console (#962): its events are authenticated by an
+    /// admin credential, not by any of the user-facing token types above, and
+    /// recording them as `jwt_token` would put operator actions and end-user
+    /// sessions in one bucket for every compliance query that filters on this.
+    AdminToken,
 }
 
 impl SecretType {
@@ -173,6 +194,7 @@ impl SecretType {
             SecretType::AuthorizationCode => "authorization_code",
             SecretType::StateToken => "state_token",
             SecretType::CsrfToken => "csrf_token",
+            SecretType::AdminToken => "admin_token",
         }
     }
 }

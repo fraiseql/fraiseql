@@ -75,8 +75,14 @@ pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use executor::{
-    Executor, JsonRowStream,
+    Executor,
+    JsonRowStream,
     pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},
+    // Exported so the admin SQL console's RLS preview (#962) resolves an
+    // identity's session variables with the *same* function that sets them on a
+    // real query. A preview computed by a second implementation is a preview of
+    // that implementation.
+    security::resolve_session_variables,
 };
 pub use executor_adapter::ExecutorAdapter;
 pub use explain::{ExplainPlan, ExplainResult};

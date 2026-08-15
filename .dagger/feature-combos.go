@@ -162,6 +162,13 @@ var featureCombos = []featureCombo{
 	// feature-ON half of validate_kind compile only here, while the feature-OFF
 	// half compiles only where cdc-kinesis is absent.
 	{name: "server-cdc-kinesis", crate: "fraiseql-server", features: []string{"cdc-kinesis"}},
+	// #962: the operator SQL console. Its handler, its dual-token middleware and
+	// the *enabled* half of the mount compile only here; the disabled half — the
+	// boot refusal that names the feature, and the `#[cfg(not)]` mount stub —
+	// compiles only where `admin-sql` is absent. Neither configuration covers
+	// both, and clippy so that the endpoint that runs operator SQL is linted
+	// under `-D warnings` rather than merely built.
+	{name: "server-admin-sql", crate: "fraiseql-server", clippy: true, features: []string{"admin-sql"}},
 	{name: "storage-gcs", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"gcs"}},
 	{name: "storage-azure-blob", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"azure-blob"}},
 

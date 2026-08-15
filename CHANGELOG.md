@@ -1510,6 +1510,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The operator SQL console: `POST /api/v1/admin/sql`, behind the new `admin-sql`
+  feature (#962).** Studio's SQL tab. This runs statements an operator typed — the only
+  endpoint on the server that executes SQL FraiseQL did not generate — so it is off in
+  three independent ways until all three are on: the `admin-sql` cargo feature (not a
+  default, and never will be), `admin_api_enabled` with an `admin_token`, and
+  `[admin_sql] enabled = true`. Each missing piece is a **boot error naming itself**,
+  never a route that quietly is not there, and a mounted console logs a `WARN` at every
+  boot naming the bounds in force.
+
+  Every control is enforced **by PostgreSQL**, not by inspecting the statement text:
+
+  - **Read-only is the transaction's mode.** `admin_readonly_token` opens a `READ ONLY`
+    transaction, so a write is refused with SQLSTATE `25006` however it is spelled. This is the
+    load-bearing choice: `WITH x AS (UPDATE …) SELECT`, `SELECT nextval(…)` and a `VOLATILE`
+    function that writes are all writes that no regex over the text recognises. A `commit: true`
+    request under that token is refused *before* the database is touched — `COMMIT` on a read-only
+    transaction succeeds and persists nothing, so allowing it would answer `committed: true` over a
+    change that never happened.
+  - **Rollback by default.** The statement runs inside a transaction that rolls back unless
+    `commit: true` is sent, so the default is a genuine preview: `RETURNING` comes back, nothing
+    persists. `[admin_sql] allow_commit = false` removes the opt-in entirely.
+  - **`SET LOCAL statement_timeout` and a row cap.** A request may tighten either and never loosen
+    it, and the response reports the values *actually applied* — an operator who asked for ten
+    minutes on a thirty-second server would otherwise read the cancellation as a hung database. `0`
+    is refused rather than clamped for both, because PostgreSQL reads a zero timeout as *no*
+    timeout.
+  - **One statement per request**, from the extended query protocol's Parse rather than a
+    `split(';')` — which would be a bypass, since a semicolon inside a string literal is not a
+    statement boundary. `; COMMIT` cannot be appended to escape the rollback, and `; DROP TABLE`
+    is rejected before anything runs.
+  - **RLS preview.** `impersonate` sets the session variables the compiled schema's mappings would
+    produce for that identity, resolved by the *same* function the executor calls — a preview
+    computed by a second implementation is a preview of that implementation. Claims in the reserved
+    `fraiseql.` namespace are refused by name, since the token extractor strips that namespace from
+    real tokens precisely so a client cannot write it.
+  - **Every execution is audited**, including the failed and refused ones: a new
+    `AuditEventType::AdminSqlExecution` (the first non-auth-shaped variant) and
+    `SecretType::AdminToken`, carrying the peer, the credential that authenticated, whether a
+    commit was requested and whether it happened, and the statement — truncated to the entry's
+    bound, with the SHA-256 of the full text beside it.
+
+  Rows come back **positional** against a `columns` list rather than keyed by name,
+  because `SELECT 1 AS a, 2 AS a` is legal SQL and a name-keyed object silently drops
+  one of the two.
+
+  `docs/operations/admin-sql-console.md` documents it, including a section on what none
+  of this bounds: a committed statement bypasses the mutation pipeline, field
+  authorization, the change log, observers and cache invalidation; the console holds a
+  primary connection and an `ACCESS SHARE` lock for the life of the request; and the
+  database role is the real outer boundary — if the pool's role can `DROP SCHEMA`, so
+  can `admin_token`.
+
 - **Typed clients for Go and Rust: `fraiseql generate-client {go,rust}` (#961).** Both
   plug into the same `client::common` document core the `TypeScript` and Python
   generators use, so all four emit **byte-identical `GraphQL` documents** — a claim now

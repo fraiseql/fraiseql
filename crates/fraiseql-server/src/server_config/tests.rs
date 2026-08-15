@@ -1484,3 +1484,157 @@ mod graphql_sse_387 {
         assert_eq!(config.graphql_incremental_batch_size(), 10);
     }
 }
+
+/// The SQL console's boot refusals (#962).
+///
+/// The console executes SQL an operator typed, so every condition that could
+/// make it reachable is refused by name rather than by quietly not mounting. An
+/// operator who configured a console and got a 404 cannot tell "not mounted" from
+/// "wrong URL"; an operator who gets a boot error naming the missing piece can.
+mod admin_sql_console {
+    use super::*;
+
+    const TOKEN: &str = "admin-token-at-least-32-characters-long";
+    const READONLY: &str = "readonly-token-at-least-32-characters-x";
+
+    fn enabled_console() -> AdminSqlConfig {
+        AdminSqlConfig {
+            enabled: true,
+            ..AdminSqlConfig::default()
+        }
+    }
+
+    fn base(admin_sql: Option<AdminSqlConfig>) -> ServerConfig {
+        ServerConfig {
+            cors_enabled: false,
+            admin_api_enabled: true,
+            admin_token: Some(TOKEN.to_string()),
+            admin_readonly_token: Some(READONLY.to_string()),
+            admin_sql,
+            ..ServerConfig::default()
+        }
+    }
+
+    /// The default is off, and an absent section validates.
+    #[test]
+    fn absent_and_disabled_are_both_fine() {
+        assert!(!AdminSqlConfig::default().enabled);
+        assert!(base(None).validate().is_ok());
+        assert!(base(Some(AdminSqlConfig::default())).validate().is_ok());
+    }
+
+    /// The `admin-sql` cargo feature is the outer gate. In a build that has it
+    /// the fully-configured console validates; in one that does not, `enabled =
+    /// true` is refused and the message names the feature.
+    ///
+    /// Written as one test over `cfg!` rather than two `#[cfg]`-gated ones
+    /// because a `#[cfg(not(feature))]` test never runs in the all-features leg
+    /// (the #1082 asymmetry) — this arm always runs and always asserts.
+    #[test]
+    fn the_cargo_feature_is_the_outer_gate() {
+        let result = base(Some(enabled_console())).validate();
+        if cfg!(feature = "admin-sql") {
+            assert!(result.is_ok(), "a fully-configured console must validate: {result:?}");
+        } else {
+            let err = result.expect_err("without the feature the console must be refused");
+            assert!(err.contains("admin-sql"), "the refusal must name the feature: {err}");
+        }
+    }
+
+    /// The feature gate is outermost, so in a build without it *that* is the
+    /// refusal — asserted per build rather than assumed, because a test that
+    /// expects the inner message would fail only in the narrow-feature leg (the
+    /// shape `make preflight`'s `--all-features` structurally cannot see).
+    #[test]
+    fn enabled_without_the_admin_api_is_refused() {
+        let config = ServerConfig {
+            admin_api_enabled: false,
+            ..base(Some(enabled_console()))
+        };
+        let err = config.validate().expect_err("must be refused");
+        let expected = if cfg!(feature = "admin-sql") {
+            "admin_api_enabled"
+        } else {
+            "admin-sql"
+        };
+        assert!(err.contains(expected), "got: {err}");
+    }
+
+    /// The console cannot exist without `admin_token` — and not because
+    /// `[admin_sql]` checks for it: `admin_api_enabled` already requires it, and
+    /// the mount sits inside the `Some(admin_token)` branch. This pins the
+    /// property at the level that actually enforces it.
+    #[test]
+    fn the_admin_api_already_refuses_to_enable_without_a_token() {
+        let config = ServerConfig {
+            admin_token: None,
+            admin_readonly_token: None,
+            ..base(Some(enabled_console()))
+        };
+        let err = config.validate().expect_err("must be refused");
+        assert!(err.contains("admin_token"), "got: {err}");
+    }
+
+    /// A zero timeout looks like the strictest possible setting and is the
+    /// opposite: PostgreSQL reads `statement_timeout = 0` as *no* timeout.
+    #[test]
+    fn a_zero_bound_is_refused_rather_than_accepted_as_a_limit() {
+        let zero_timeout = base(Some(AdminSqlConfig {
+            statement_timeout_ms: 0,
+            ..enabled_console()
+        }));
+        let err = zero_timeout.validate().expect_err("must be refused");
+        assert!(err.contains("statement_timeout_ms"), "got: {err}");
+
+        let zero_rows = base(Some(AdminSqlConfig {
+            max_rows: 0,
+            ..enabled_console()
+        }));
+        let err = zero_rows.validate().expect_err("must be refused");
+        assert!(err.contains("max_rows"), "got: {err}");
+    }
+
+    /// A disabled section is not validated for its bounds — an operator may
+    /// leave a tuning they are not currently using.
+    #[test]
+    fn a_disabled_section_is_not_bound_checked() {
+        let config = base(Some(AdminSqlConfig {
+            enabled:              false,
+            statement_timeout_ms: 0,
+            max_rows:             0,
+            allow_commit:         true,
+        }));
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn toml_round_trip() {
+        let toml = r"
+            [admin_sql]
+            enabled = true
+            statement_timeout_ms = 5000
+            max_rows = 250
+            allow_commit = false
+        ";
+        let config: ServerConfig = toml::from_str(toml).expect("[admin_sql] must deserialize");
+        let section = config.admin_sql.expect("section present");
+        assert!(section.enabled);
+        assert_eq!(section.statement_timeout_ms, 5_000);
+        assert_eq!(section.max_rows, 250);
+        assert!(!section.allow_commit);
+    }
+
+    /// The defaults an operator gets by writing only `enabled = true`.
+    #[test]
+    fn defaults_are_the_conservative_ones() {
+        let toml = r"
+            [admin_sql]
+            enabled = true
+        ";
+        let config: ServerConfig = toml::from_str(toml).expect("[admin_sql] must deserialize");
+        let section = config.admin_sql.expect("section present");
+        assert_eq!(section.statement_timeout_ms, 30_000);
+        assert_eq!(section.max_rows, 1_000);
+        assert!(section.allow_commit, "the acceptance is an endpoint that can commit on request");
+    }
+}
