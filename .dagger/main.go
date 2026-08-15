@@ -1091,6 +1091,7 @@ func (m *FraiseqlCi) integrationFederationCompose(ctx context.Context, source *d
 // (no #[ignore]), so they run plainly and execute once DATABASE_URL is injected.
 func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Directory) (string, error) {
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
 
 	script := strings.Join([]string{
 		"set -e",
@@ -1278,9 +1279,21 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"echo 'test-integration OK: server suite passed'",
 	}, "\n")
 
+	// One pgService instance bound to both the test container and the standby:
+	// tenant_schema_isolation_e2e_pg's #957 case writes on the primary and reads
+	// through the standby, so a second pgService(source) call would leave the
+	// standby streaming from a database nobody writes to.
+	//
+	// Only the one standby — this suite has no promotion case, and the failover
+	// standby is `pg_promote()`-destroyed by design (it lives in the postgres
+	// suite, which owns that test).
+	primary := m.pgService(source)
+
 	return m.integrationBase(source, rustMsrv).
-		WithServiceBinding(pgBindHost, m.pgService(source)).
+		WithServiceBinding(pgBindHost, primary).
+		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
 		WithEnvVariable("FRAISEQL_PIPELINE_E2E", "1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
