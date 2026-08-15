@@ -1294,6 +1294,7 @@ mod tenant_registry_tests {
             max_storage_bytes_advisory: None,
             cost_budget:                None,
             cost_budget_per_minute:     None,
+            cost_budget_per_actor:      std::collections::HashMap::new(),
         };
         let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
         assert!(was_insert);
@@ -1321,19 +1322,20 @@ mod tenant_registry_tests {
             max_storage_bytes_advisory: None,
             cost_budget:                Some(100),
             cost_budget_per_minute:     None,
+            cost_budget_per_actor:      std::collections::HashMap::new(),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
         assert!(registry.has_cost_budget("tenant-abc"));
         // At or below budget → admitted (only cost > budget is rejected).
         registry
-            .check_cost_budget("tenant-abc", 100)
+            .check_cost_budget("tenant-abc", None, 100)
             .expect("cost == budget is admitted");
-        registry.check_cost_budget("tenant-abc", 1).expect("cheap query admitted");
+        registry.check_cost_budget("tenant-abc", None, 1).expect("cheap query admitted");
         // Over budget → CostExceeded with no retry hint: a per-request ceiling
         // is permanent for this operation, so it must NOT surface as a
         // rate-limit (#379) — retrying cannot succeed.
-        let err = registry.check_cost_budget("tenant-abc", 101).unwrap_err();
+        let err = registry.check_cost_budget("tenant-abc", None, 101).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -1388,7 +1390,7 @@ mod tenant_registry_tests {
         registry.upsert("tenant-abc", tenant_executor("abc"));
         assert!(!registry.has_cost_budget("tenant-abc"));
         registry
-            .check_cost_budget("tenant-abc", usize::MAX)
+            .check_cost_budget("tenant-abc", None, usize::MAX)
             .expect("no budget → unlimited");
     }
 
@@ -1399,6 +1401,7 @@ mod tenant_registry_tests {
     fn cost_window_accumulates_and_rejects_with_retry_hint() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
+            cost_budget_per_actor:      std::collections::HashMap::new(),
             max_concurrent:             None,
             max_requests_per_sec:       None,
             max_storage_bytes_advisory: None,
@@ -1410,9 +1413,11 @@ mod tenant_registry_tests {
         // A per-minute budget alone must trigger cost estimation.
         assert!(registry.has_cost_budget("tenant-abc"));
 
-        registry.charge_cost_window("tenant-abc", 600).expect("600/1000 admitted");
-        registry.charge_cost_window("tenant-abc", 400).expect("1000/1000 admitted");
-        let err = registry.charge_cost_window("tenant-abc", 1).unwrap_err();
+        registry.charge_cost_window("tenant-abc", None, 600).expect("600/1000 admitted");
+        registry
+            .charge_cost_window("tenant-abc", None, 400)
+            .expect("1000/1000 admitted");
+        let err = registry.charge_cost_window("tenant-abc", None, 1).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -1451,9 +1456,11 @@ mod tenant_registry_tests {
             registry.has_cost_budget("tenant-abc"),
             "the schema-wide default must count as a budget"
         );
-        registry.charge_cost_window("tenant-abc", 600).expect("600/1000 admitted");
-        registry.charge_cost_window("tenant-abc", 400).expect("1000/1000 admitted");
-        let err = registry.charge_cost_window("tenant-abc", 1).unwrap_err();
+        registry.charge_cost_window("tenant-abc", None, 600).expect("600/1000 admitted");
+        registry
+            .charge_cost_window("tenant-abc", None, 400)
+            .expect("1000/1000 admitted");
+        let err = registry.charge_cost_window("tenant-abc", None, 1).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -1485,6 +1492,7 @@ mod tenant_registry_tests {
 
         let registry = TenantExecutorRegistry::new(default);
         let quota = TenantQuota {
+            cost_budget_per_actor:      std::collections::HashMap::new(),
             max_concurrent:             None,
             max_requests_per_sec:       None,
             max_storage_bytes_advisory: None,
@@ -1494,7 +1502,7 @@ mod tenant_registry_tests {
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
         registry
-            .charge_cost_window("tenant-abc", 400)
+            .charge_cost_window("tenant-abc", None, 400)
             .expect("the explicit 500 budget applies, not the default 10");
     }
 
@@ -1505,7 +1513,7 @@ mod tenant_registry_tests {
         registry.upsert("tenant-abc", tenant_executor("abc"));
         for _ in 0..10 {
             registry
-                .charge_cost_window("tenant-abc", usize::MAX / 20)
+                .charge_cost_window("tenant-abc", None, usize::MAX / 20)
                 .expect("no per-minute budget → unlimited");
         }
     }
@@ -1528,6 +1536,7 @@ mod tenant_registry_tests {
             max_storage_bytes_advisory: None,
             cost_budget:                None,
             cost_budget_per_minute:     None,
+            cost_budget_per_actor:      std::collections::HashMap::new(),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1584,6 +1593,7 @@ mod tenant_registry_tests {
             max_storage_bytes_advisory: Some(1_000_000),
             cost_budget:                None,
             cost_budget_per_minute:     None,
+            cost_budget_per_actor:      std::collections::HashMap::new(),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1631,6 +1641,181 @@ mod tenant_registry_tests {
 
         let pb = registry.try_acquire_concurrency("tenant-b").unwrap();
         assert!(pb.is_some());
+    }
+
+    // ── #966: budgets keyed on (tenant, actor_type) ──────────────────────────
+
+    use fraiseql_core::security::ActorType;
+
+    use super::super::tenant_registry::ActorCostBudget;
+
+    fn per_actor(entries: &[(ActorType, ActorCostBudget)]) -> TenantQuota {
+        TenantQuota {
+            cost_budget: Some(100),
+            cost_budget_per_minute: Some(1_000),
+            cost_budget_per_actor: entries.iter().copied().collect(),
+            ..Default::default()
+        }
+    }
+
+    /// A class with its own ceiling uses **it**, not the tenant-wide one — and a
+    /// class without one still uses the tenant-wide ceiling.
+    ///
+    /// The override *replaces* rather than stacks: an agent budgeted at 500 on a
+    /// tenant capped at 100 is a legitimate configuration (agents run the
+    /// expensive reports), and stacking would make that override unreachable.
+    #[test]
+    fn a_per_actor_ceiling_replaces_the_tenant_wide_one() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota(
+            "t",
+            tenant_executor("t"),
+            per_actor(&[
+                (
+                    ActorType::AiAgent,
+                    ActorCostBudget {
+                        per_request: Some(10),
+                        per_minute:  None,
+                    },
+                ),
+                (
+                    ActorType::ServiceAccount,
+                    ActorCostBudget {
+                        per_request: Some(500),
+                        per_minute:  None,
+                    },
+                ),
+            ]),
+        );
+
+        // The agent's tighter ceiling binds…
+        assert!(registry.check_cost_budget("t", Some(ActorType::AiAgent), 10).is_ok());
+        assert!(registry.check_cost_budget("t", Some(ActorType::AiAgent), 11).is_err());
+        // …the service account's looser one is actually reachable…
+        assert!(registry.check_cost_budget("t", Some(ActorType::ServiceAccount), 400).is_ok());
+        // …and a class with no override keeps the tenant-wide 100.
+        assert!(registry.check_cost_budget("t", Some(ActorType::HumanUser), 100).is_ok());
+        assert!(registry.check_cost_budget("t", Some(ActorType::HumanUser), 101).is_err());
+        // An unclassified request takes the tenant-wide budget rather than
+        // whatever `ActorType::default()` happens to be.
+        assert!(registry.check_cost_budget("t", None, 101).is_err());
+    }
+
+    /// The refusal names the class whose budget refused it.
+    #[test]
+    fn a_per_actor_refusal_names_the_class() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota(
+            "t",
+            tenant_executor("t"),
+            per_actor(&[(
+                ActorType::AiAgent,
+                ActorCostBudget {
+                    per_request: Some(10),
+                    per_minute:  None,
+                },
+            )]),
+        );
+        let err = registry.check_cost_budget("t", Some(ActorType::AiAgent), 50).unwrap_err();
+        assert!(err.to_string().contains("ai_agent"), "got {err}");
+    }
+
+    /// Each class draws on its **own** rolling window.
+    ///
+    /// This is the whole point of the feature: a batch job exhausting its minute
+    /// must leave the humans' minute untouched. An implementation that charged
+    /// one shared window passes every per-request test above and fails here.
+    #[test]
+    fn each_class_draws_on_its_own_rolling_window() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota(
+            "t",
+            tenant_executor("t"),
+            per_actor(&[(
+                ActorType::AiAgent,
+                ActorCostBudget {
+                    per_request: None,
+                    per_minute:  Some(30),
+                },
+            )]),
+        );
+
+        // Spend the agent's whole minute.
+        registry
+            .charge_cost_window("t", Some(ActorType::AiAgent), 30)
+            .expect("first charge fits");
+        let err = registry.charge_cost_window("t", Some(ActorType::AiAgent), 1).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                FraiseQLError::CostExceeded {
+                    retry_after_secs: Some(_),
+                    ..
+                }
+            ),
+            "an exhausted window is retryable: {err:?}"
+        );
+
+        // The humans' window is untouched — it is a different counter.
+        registry
+            .charge_cost_window("t", Some(ActorType::HumanUser), 900)
+            .expect("the tenant-wide window still has its 1000");
+    }
+
+    /// A tenant may budget *only* a class, with no tenant-wide budget at all.
+    ///
+    /// Without this, `has_cost_budget` answers `false`, the caller skips the
+    /// estimate, and the one budget the tenant configured is never charged — an
+    /// accepted-and-unconsumed budget of exactly the shape rule 2 forbids.
+    #[test]
+    fn a_class_only_budget_is_still_a_budget() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert_with_quota(
+            "t",
+            tenant_executor("t"),
+            TenantQuota {
+                cost_budget_per_actor: std::iter::once((
+                    ActorType::AiAgent,
+                    ActorCostBudget {
+                        per_request: Some(5),
+                        per_minute:  None,
+                    },
+                ))
+                .collect(),
+                ..Default::default()
+            },
+        );
+        assert!(registry.has_cost_budget("t"), "a class-only budget must be seen as a budget");
+        assert!(registry.check_cost_budget("t", Some(ActorType::AiAgent), 6).is_err());
+        assert!(registry.check_cost_budget("t", Some(ActorType::HumanUser), 10_000).is_ok());
+    }
+
+    /// An override that sets neither number is refused, not stored.
+    #[test]
+    fn an_override_that_budgets_nothing_is_refused() {
+        let quota = TenantQuota {
+            cost_budget_per_actor: std::iter::once((
+                ActorType::AiAgent,
+                ActorCostBudget::default(),
+            ))
+            .collect(),
+            ..Default::default()
+        };
+        let err = quota.validate().expect_err("an empty override must be refused");
+        assert!(err.contains("ai_agent"), "the refusal names the class: {err}");
+
+        // …and a real one validates.
+        assert!(
+            per_actor(&[(
+                ActorType::AiAgent,
+                ActorCostBudget {
+                    per_request: Some(1),
+                    per_minute:  None,
+                },
+            )])
+            .validate()
+            .is_ok()
+        );
     }
 }
 

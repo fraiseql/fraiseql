@@ -119,3 +119,101 @@ fn from_token_round_trips_as_str() {
 fn default_is_human_user() {
     assert_eq!(ActorType::default(), ActorType::HumanUser);
 }
+
+/// The `requires_actor` predicate itself (#966).
+///
+/// These pin the *decision*; that the decision is reached on every transport is
+/// what `actor_predicate_e2e_pg` proves against a real server.
+mod requires_actor {
+    use super::{ActorType, HashMap, Uuid, json};
+    use crate::security::{SecurityContext, actor_type::enforce_requires_actor};
+
+    fn ctx(actor: ActorType) -> SecurityContext {
+        let mut c = SecurityContext::system_job("t", "r", vec![], vec![], None);
+        // `system_job` stamps SystemJob; re-stamp to the class under test so each
+        // case goes through the same public setter the auth paths use.
+        c = c.with_actor_type(actor);
+        c
+    }
+
+    /// The common case costs a slice check and admits everything.
+    #[test]
+    fn an_empty_list_admits_every_actor_and_the_anonymous() {
+        for actor in ActorType::ALL {
+            assert!(enforce_requires_actor("Query", "q", &[], Some(&ctx(actor))).is_ok());
+        }
+        assert!(enforce_requires_actor("Query", "q", &[], None).is_ok());
+    }
+
+    /// The issue's own example: agents may not run this, humans may.
+    #[test]
+    fn a_list_admits_only_the_classes_it_names() {
+        let allow = [ActorType::HumanUser];
+        assert!(
+            enforce_requires_actor(
+                "Mutation",
+                "deleteTenant",
+                &allow,
+                Some(&ctx(ActorType::HumanUser))
+            )
+            .is_ok()
+        );
+        for denied in [
+            ActorType::AiAgent,
+            ActorType::ServiceAccount,
+            ActorType::SystemJob,
+        ] {
+            let err =
+                enforce_requires_actor("Mutation", "deleteTenant", &allow, Some(&ctx(denied)))
+                    .expect_err("must refuse");
+            assert!(
+                matches!(err, crate::error::FraiseQLError::Authorization { .. }),
+                "an actor refusal is an authorization error, not a 'not found': {err}"
+            );
+            assert!(
+                err.to_string().contains(denied.as_str()),
+                "the refusal names the class that was refused: {err}"
+            );
+        }
+    }
+
+    /// An unclassifiable request belongs to no class. Asserted separately from
+    /// the allow-list cases because the tempting implementation — read the
+    /// context's actor type, defaulting to `ActorType::default()` — admits every
+    /// anonymous request to a `["human_user"]` operation, since the default *is*
+    /// `HumanUser`.
+    #[test]
+    fn anonymous_is_refused_by_any_non_empty_list() {
+        for actor in ActorType::ALL {
+            assert!(
+                enforce_requires_actor("Query", "q", &[actor], None).is_err(),
+                "anonymous must not satisfy [{}]",
+                actor.as_str()
+            );
+        }
+    }
+
+    /// Delegation is deliberately not consulted: an agent acting for a human is
+    /// an agent, however privileged that human is.
+    ///
+    /// This is the whole reason the predicate exists — "agents cannot delete a
+    /// tenant *regardless of* the underlying user's permissions". An
+    /// implementation that fell back to `acting_for` would pass every other test
+    /// here and silently do the opposite of what was asked.
+    #[test]
+    fn a_delegated_agent_does_not_inherit_the_humans_admission() {
+        let sub = "550e8400-e29b-41d4-a716-446655440000";
+        let mut extra = HashMap::new();
+        extra.insert("act".to_string(), json!({ "sub": "agent-robot-7" }));
+        let (actor, acting_for) = super::super::derive_actor(sub, &[], &extra);
+        assert_eq!(actor, ActorType::AiAgent);
+        assert_eq!(acting_for, Some(Uuid::parse_str(sub).unwrap()));
+
+        let mut c = ctx(actor);
+        c.roles = vec!["admin".to_string(), "owner".to_string()];
+        let err =
+            enforce_requires_actor("Mutation", "deleteTenant", &[ActorType::HumanUser], Some(&c))
+                .expect_err("an agent is refused however privileged the human it acts for");
+        assert!(err.to_string().contains("ai_agent"), "{err}");
+    }
+}

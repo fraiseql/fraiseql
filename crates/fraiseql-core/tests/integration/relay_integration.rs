@@ -429,6 +429,48 @@ async fn test_node_query_not_found() {
     assert!(result["data"]["node"].is_null(), "unknown id should return null");
 }
 
+/// #966: the `node(id:)` lookup inherits its backing query's actor allow-list.
+///
+/// The fifth door, and the one #1030 showed can be forgotten: `node` resolves a
+/// row through whichever query returns the type, so a gate placed only on the
+/// named operations leaves an opaque-id path around it. Proven here rather than
+/// in `actor_predicate_e2e_pg` because relay dispatch needs a relay-capable
+/// adapter the HTTP harness does not build.
+#[tokio::test]
+async fn node_lookup_inherits_the_backing_querys_actor_allow_list() {
+    use fraiseql_core::security::{ActorType, SecurityContext};
+
+    let mut schema = relay_schema();
+    for q in &mut schema.queries {
+        if q.return_type == "User" {
+            q.requires_actor = vec![ActorType::HumanUser];
+        }
+    }
+    let exec = Executor::new_with_relay(schema, Arc::new(RelayMockAdapter::new()));
+
+    let alice_uuid = "aaaa0000-0000-0000-0000-000000000001";
+    let node_id = encode_node_id("User", alice_uuid);
+    let query = "{ node(id: $id) { id } }";
+    let vars = json!({ "id": node_id });
+
+    let human = SecurityContext::system_job("t", "r", vec![], vec![], None)
+        .with_actor_type(ActorType::HumanUser);
+    let found = exec.execute_with_security(query, Some(&vars), &human).await.unwrap();
+    assert_eq!(
+        found["data"]["node"]["id"],
+        json!(alice_uuid),
+        "a permitted class still resolves the node: {found}"
+    );
+
+    let agent = SecurityContext::system_job("t", "r", vec![], vec![], None)
+        .with_actor_type(ActorType::AiAgent);
+    let refused = exec.execute_with_security(query, Some(&vars), &agent).await;
+    match refused {
+        Err(fraiseql_core::error::FraiseQLError::Authorization { .. }) => {},
+        other => panic!("the node lookup must refuse what its query refuses, got: {other:?}"),
+    }
+}
+
 #[tokio::test]
 async fn test_node_query_invalid_id_returns_error() {
     let exec = executor();

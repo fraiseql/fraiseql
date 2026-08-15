@@ -1661,6 +1661,7 @@ mod matcher_tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
             return_type:         "User".to_string(),
@@ -1865,6 +1866,7 @@ mod matcher_tests {
     fn test_uzer_typo_suggests_user() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "user".to_string(),
             return_type:         "User".to_string(),
@@ -1902,6 +1904,7 @@ mod matcher_tests {
     fn test_unknown_query_error_includes_suggestion() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
             return_type:         "User".to_string(),
@@ -2413,6 +2416,7 @@ mod planner_tests {
     fn test_query_match() -> QueryMatch {
         QueryMatch {
             query_def:      QueryDefinition {
+                requires_actor:      Vec::new(),
                 returns_count:       false,
                 name:                "users".to_string(),
                 return_type:         "User".to_string(),

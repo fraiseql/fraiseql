@@ -97,8 +97,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> QueryExecutor for Polic
         // 4. Per-tenant cost budget, charged at the same chokepoint as the other quotas and from
         //    the same estimate.
         let estimated_cost = tenant_dispatch::estimate_request_cost(query, variables, executor);
-        tenant_dispatch::charge_cost_budget(&self.state, tenant_key.as_deref(), estimated_cost)
-            .map_err(|e| format!("Cost budget refused: {e}"))?;
+        tenant_dispatch::charge_cost_budget(
+            &self.state,
+            tenant_key.as_deref(),
+            Some(security_context),
+            estimated_cost,
+        )
+        .map_err(|e| format!("Cost budget refused: {e}"))?;
 
         // 5. Execute on the *tenant's* executor, not the default one.
         executor

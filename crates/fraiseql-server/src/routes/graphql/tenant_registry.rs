@@ -4,16 +4,19 @@
 //! compiled schema and database adapter. Reads are lock-free via `ArcSwap`;
 //! writes are serialized per-key via `DashMap`.
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicU8, Ordering},
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU8, Ordering},
+    },
 };
 
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
+use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::ActorType};
 use fraiseql_error::FraiseQLError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "auth")]
@@ -108,6 +111,73 @@ pub struct TenantQuota {
     /// (429 + `Retry-After` until the window resets).
     #[serde(default)]
     pub cost_budget_per_minute:     Option<usize>,
+    /// Per-actor-class overrides of the two budgets above (#966).
+    ///
+    /// A service account draining a report and a human clicking through a UI are
+    /// the same tenant and should not share one allowance: the batch job's spend
+    /// would exhaust the window the humans need, and sizing the window for the
+    /// batch job removes the ceiling from everyone. Keying the budget on
+    /// `(tenant, actor_type)` gives each class its own.
+    ///
+    /// A class present here uses **its** numbers and **its own** rolling window,
+    /// entirely independent of the tenant-wide one — not a second charge against
+    /// it. Two budgets charged for one request would make the tenant-wide window
+    /// a function of the traffic mix, which is exactly the coupling this exists
+    /// to remove. A class absent here falls back to the tenant-wide budget.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub cost_budget_per_actor:      HashMap<ActorType, ActorCostBudget>,
+}
+
+/// One actor class's override of a tenant's cost budgets (#966).
+///
+/// Both fields are independent: setting only `per_request` leaves the class on
+/// the tenant-wide rolling window, and setting only `per_minute` leaves it on
+/// the tenant-wide per-request ceiling. Neither set is a configuration that says
+/// nothing — it is refused at boot rather than accepted as an empty override
+/// (see [`TenantQuota::validate`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActorCostBudget {
+    /// This class's per-request cost ceiling. `None` → the tenant-wide one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_request: Option<usize>,
+    /// This class's rolling per-minute budget, in its **own** window. `None` →
+    /// the tenant-wide window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_minute:  Option<usize>,
+}
+
+impl ActorCostBudget {
+    /// `true` when this override sets nothing at all.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.per_request.is_none() && self.per_minute.is_none()
+    }
+}
+
+impl TenantQuota {
+    /// Refuse a quota whose cost configuration cannot do anything (#966).
+    ///
+    /// Rule 2 of the program: anything the binary accepts must have a consumer.
+    /// A per-actor override that sets neither number is accepted by serde, stored,
+    /// reported by the admin API and consulted on every request — and changes no
+    /// decision. An operator reading it back sees a budget where there is none.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message naming the actor class whose override is empty.
+    pub fn validate(&self) -> Result<(), String> {
+        for (actor, budget) in &self.cost_budget_per_actor {
+            if budget.is_empty() {
+                return Err(format!(
+                    "cost_budget_per_actor['{}'] sets neither per_request nor per_minute, so it \
+                     is a budget that can never refuse anything. Give it a number or remove it.",
+                    actor.as_str()
+                ));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Fixed-window per-minute cost accumulator (#379).
@@ -159,10 +229,10 @@ impl CostWindow {
 
 /// A single tenant entry in the registry: executor + lifecycle status + quotas.
 struct TenantEntry<A: DatabaseAdapter> {
-    executor:    Arc<ArcSwap<Executor<A>>>,
-    status:      AtomicU8,
+    executor:              Arc<ArcSwap<Executor<A>>>,
+    status:                AtomicU8,
     /// Concurrency semaphore — `None` when `max_concurrent` is unset.
-    concurrency: Option<Arc<Semaphore>>,
+    concurrency:           Option<Arc<Semaphore>>,
     /// Per-second request-rate limiter — `None` when `max_requests_per_sec` is
     /// unset. Built from `max_requests_per_sec` as a fixed one-second window.
     ///
@@ -172,12 +242,19 @@ struct TenantEntry<A: DatabaseAdapter> {
     /// but not enforced; [`with_quota`](TenantEntry::with_quota) logs a warning
     /// in that case so the gap is never silent.
     #[cfg(feature = "auth")]
-    rps:         Option<Arc<KeyedRateLimiter>>,
+    rps:                   Option<Arc<KeyedRateLimiter>>,
     /// Rolling per-minute cost window — `None` when `cost_budget_per_minute`
     /// is unset (#379).
-    cost_window: Option<CostWindow>,
+    cost_window:           Option<CostWindow>,
+    /// One rolling window per actor class that overrides `per_minute` (#966).
+    ///
+    /// Separate windows rather than one shared counter, because that separation
+    /// *is* the feature: a batch job's spend must not shorten the window humans
+    /// are drawing on. Built at registration, so the set of windows is fixed for
+    /// a tenant's lifetime and a charge is a lookup, not an insert.
+    cost_windows_by_actor: HashMap<ActorType, CostWindow>,
     /// Quota configuration (cloned from registration request).
-    quota:       TenantQuota,
+    quota:                 TenantQuota,
 }
 
 impl<A: DatabaseAdapter> TenantEntry<A> {
@@ -189,6 +266,7 @@ impl<A: DatabaseAdapter> TenantEntry<A> {
             #[cfg(feature = "auth")]
             rps: None,
             cost_window: None,
+            cost_windows_by_actor: HashMap::new(),
             quota: TenantQuota::default(),
         }
     }
@@ -217,6 +295,13 @@ impl<A: DatabaseAdapter> TenantEntry<A> {
         }
         self.cost_window =
             quota.cost_budget_per_minute.map(|budget| CostWindow::new(budget as u64));
+        self.cost_windows_by_actor = quota
+            .cost_budget_per_actor
+            .iter()
+            .filter_map(|(actor, budget)| {
+                budget.per_minute.map(|b| (*actor, CostWindow::new(b as u64)))
+            })
+            .collect();
         self.quota = quota;
         self
     }
@@ -478,8 +563,12 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     pub fn has_cost_budget(&self, key: &str) -> bool {
         self.tenants.get(key).is_some_and(|e| {
             // The window covers both the explicit per-tenant budget and the
-            // schema-default-seeded one.
-            e.value().quota.cost_budget.is_some() || e.value().cost_window.is_some()
+            // schema-default-seeded one. A per-actor override counts too (#966):
+            // a tenant may budget *only* its agents, and answering `false` there
+            // would skip the estimation and never charge the one budget it has.
+            e.value().quota.cost_budget.is_some()
+                || e.value().cost_window.is_some()
+                || !e.value().quota.cost_budget_per_actor.is_empty()
         })
     }
 
@@ -496,12 +585,27 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// [`FraiseQLError::CostExceeded`] when `cost` exceeds the configured budget
     /// (`retry_after_secs: None` — a per-request ceiling is permanent for the
     /// operation, so it must not surface as a retryable rate limit).
-    pub fn check_cost_budget(&self, key: &str, cost: usize) -> fraiseql_error::Result<()> {
+    pub fn check_cost_budget(
+        &self,
+        key: &str,
+        actor: Option<ActorType>,
+        cost: usize,
+    ) -> fraiseql_error::Result<()> {
         let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
-        match entry.value().quota.cost_budget {
+        // The class's own ceiling replaces the tenant-wide one rather than
+        // stacking with it (#966): a class configured with a *larger* allowance
+        // than the tenant default is a legitimate configuration, and stacking
+        // would silently make it unreachable.
+        let quota = &entry.value().quota;
+        let (budget, scope) = actor
+            .and_then(|a| {
+                quota.cost_budget_per_actor.get(&a).and_then(|b| b.per_request).map(|b| (b, a))
+            })
+            .map_or((quota.cost_budget, "per-request"), |(b, a)| (Some(b), a.as_str()));
+        match budget {
             Some(budget) if cost > budget => Err(FraiseQLError::CostExceeded {
                 message:          format!(
-                    "Tenant '{key}' operation cost {cost} exceeds the per-request cost budget of \
+                    "Tenant '{key}' operation cost {cost} exceeds the {scope} cost budget of \
                      {budget}"
                 ),
                 cost:             cost as u64,
@@ -523,9 +627,22 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// Returns [`FraiseQLError::NotFound`] if the tenant key is not registered,
     /// or [`FraiseQLError::CostExceeded`] with `retry_after_secs: Some(_)` when
     /// the window budget is spent — retryable once the window resets.
-    pub fn charge_cost_window(&self, key: &str, cost: usize) -> fraiseql_error::Result<()> {
+    pub fn charge_cost_window(
+        &self,
+        key: &str,
+        actor: Option<ActorType>,
+        cost: usize,
+    ) -> fraiseql_error::Result<()> {
         let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
-        let Some(ref window) = entry.value().cost_window else {
+        // The class's own window, when it has one — charged *instead of* the
+        // tenant-wide window, never in addition. Charging both would make the
+        // tenant-wide budget a function of the traffic mix, which is the coupling
+        // per-actor budgets exist to remove (#966).
+        let value = entry.value();
+        let window = actor
+            .and_then(|a| value.cost_windows_by_actor.get(&a))
+            .or(value.cost_window.as_ref());
+        let Some(window) = window else {
             return Ok(());
         };
         let now_secs = std::time::SystemTime::now()

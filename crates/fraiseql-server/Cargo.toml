@@ -357,6 +357,13 @@ exclude = [
 ]
 
 [[test]]
+name = "actor_predicate_e2e_pg"
+# `rest` for the REST door and `mcp` for the MCP one: the whole point of the
+# suite is that one gate covers every transport, so a build that cannot drive
+# them all would silently prove less than the file claims.
+required-features = ["rest", "mcp"]
+
+[[test]]
 name = "admin_sql_console_e2e_pg"
 # Declared here rather than with a file-level `#![cfg(feature = "admin-sql")]`:
 # the inner form compiles to an empty binary that reports 0 tests and reads green

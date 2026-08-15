@@ -822,3 +822,41 @@ impl SchemaConverter {
         }
     }
 }
+
+/// Parse an authored `requires_actor` list into [`ActorType`]s (#966).
+///
+/// One parser for queries and mutations, so the two cannot disagree about which
+/// tokens exist.
+///
+/// # Why an unknown token is an error
+///
+/// `requires_actor` is an allow-list, so a dropped entry does not open the
+/// operation — it *closes* it further, and a typo'd `"human"` would refuse every
+/// human user while the schema reads as though it admits them. And a whole list
+/// that failed to parse would leave the field empty, which means *unrestricted*:
+/// the failure mode of silence is a security gate that is not there. Naming the
+/// bad token at compile time is the only reading where the author finds out.
+///
+/// # Errors
+///
+/// Returns an error naming the offending token and listing the valid ones.
+pub(crate) fn parse_requires_actor(
+    operation_kind: &str,
+    operation_name: &str,
+    tokens: &[String],
+) -> Result<Vec<fraiseql_core::security::ActorType>> {
+    use fraiseql_core::security::ActorType;
+
+    tokens
+        .iter()
+        .map(|token| {
+            ActorType::from_token(token).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "{operation_kind} '{operation_name}': requires_actor entry '{token}' is not a \
+                     known actor type. Valid values: {}",
+                    ActorType::ALL.map(ActorType::as_str).join(", ")
+                )
+            })
+        })
+        .collect()
+}

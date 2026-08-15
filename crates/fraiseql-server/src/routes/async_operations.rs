@@ -206,7 +206,9 @@ async fn submit<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         body.variables.as_ref(),
         &state.app.executor(),
     );
-    if let Err(e) = tenant_dispatch::charge_cost_budget(&state.app, tenant_key.as_deref(), cost) {
+    if let Err(e) =
+        tenant_dispatch::charge_cost_budget(&state.app, tenant_key.as_deref(), Some(&ctx), cost)
+    {
         return error_response(StatusCode::TOO_MANY_REQUESTS, &e.to_string());
     }
 

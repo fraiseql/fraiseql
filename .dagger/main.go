@@ -1145,6 +1145,14 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// statement is all the protocol accepts, and impersonation sets the
 		// session variables the executor would set.
 		"cargo test -p fraiseql-server --features admin-sql --test admin_sql_console_e2e_pg -- --test-threads=1",
+		// #966 — `requires_actor` enforced at execution on EVERY transport. The
+		// claim is not "the predicate works" (a unit test covers that) but "no
+		// door around it exists", so this drives GraphQL query, GraphQL mutation,
+		// REST and MCP at the same restricted operation and requires the same
+		// refusal from each. Its REST case found a real hole: the direct-read
+		// path does not go through the GraphQL entry gates, so a predicate placed
+		// only there served every restricted row over REST (#808's shape).
+		"cargo test -p fraiseql-server --features rest,mcp --test actor_predicate_e2e_pg -- --test-threads=1",
 		// #812/#739/#810: the REST read surface carried no authentication, discarded the
 		// resolved tenant filter, and honoured `require_auth` on one route out of six.
 		// None of it was visible to the existing REST suite, which builds its router with

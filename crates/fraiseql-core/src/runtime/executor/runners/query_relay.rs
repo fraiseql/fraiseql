@@ -534,6 +534,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         }
 
+        // requires_actor (#966): the `node(id:)` lookup is a second door onto the
+        // rows its backing query guards, so it inherits that query's actor
+        // allow-list exactly as it inherits `requires_role` above.
+        crate::security::actor_type::enforce_requires_actor(
+            "Query",
+            &node_qdef.name,
+            &node_qdef.requires_actor,
+            security_context,
+        )?;
+
         // Build the security WHERE (RLS ∧ inject_params). Fail closed when a policy is
         // configured but no security context is present: such a type is never resolvable by
         // opaque id without a principal, so return "not found" (null) — never the raw row.

@@ -173,8 +173,13 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
             request.variables.as_ref(),
             &dispatch.executor,
         );
-        tenant_dispatch::charge_cost_budget(&state, tenant_key.as_deref(), estimated_cost)
-            .map_err(|e| ErrorResponse::from_error(super::tenant_dispatch_error(&e)))?;
+        tenant_dispatch::charge_cost_budget(
+            &state,
+            tenant_key.as_deref(),
+            security_context.as_ref(),
+            estimated_cost,
+        )
+        .map_err(|e| ErrorResponse::from_error(super::tenant_dispatch_error(&e)))?;
     }
 
     let base_variables = match request.variables.clone() {

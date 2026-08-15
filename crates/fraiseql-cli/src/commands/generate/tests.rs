@@ -80,6 +80,7 @@ fn test_wrap_nullable() {
 #[test]
 fn test_derive_class_name() {
     let list_query = IntermediateQuery {
+        requires_actor:    Vec::new(),
         count:             false,
         name:              "authors".to_string(),
         return_type:       "Author".to_string(),
@@ -104,6 +105,7 @@ fn test_derive_class_name() {
     assert_eq!(derive_class_name(&list_query), "Authors");
 
     let single_query = IntermediateQuery {
+        requires_actor:    Vec::new(),
         count:             false,
         name:              "author".to_string(),
         return_type:       "Author".to_string(),
@@ -214,6 +216,7 @@ fn sample_schema() -> IntermediateSchema {
         }],
         queries: vec![
             IntermediateQuery {
+                requires_actor:    Vec::new(),
                 count:             false,
                 name:              "authors".to_string(),
                 return_type:       "Author".to_string(),
@@ -236,6 +239,7 @@ fn sample_schema() -> IntermediateSchema {
                 rest_stream:       false,
             },
             IntermediateQuery {
+                requires_actor:    Vec::new(),
                 count:             false,
                 name:              "author".to_string(),
                 return_type:       "Author".to_string(),

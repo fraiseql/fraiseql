@@ -27,6 +27,7 @@ fn object_type(name: &str) -> IntermediateType {
 
 fn object_mutation(name: &str, return_type: &str) -> IntermediateMutation {
     IntermediateMutation {
+        requires_actor:          Vec::new(),
         name:                    name.to_string(),
         return_type:             return_type.to_string(),
         returns_list:            false,

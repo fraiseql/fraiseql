@@ -63,6 +63,7 @@ fn tenancy_schema_json() -> Value {
 
 fn registration(url: &str) -> TenantRegistrationRequest {
     TenantRegistrationRequest {
+        cost_budget_per_actor:      std::collections::HashMap::new(),
         schema:                     tenancy_schema_json(),
         connection:                 TenantPoolConfig {
             connection_string:    url.to_string(),
