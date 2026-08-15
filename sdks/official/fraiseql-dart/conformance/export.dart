@@ -95,7 +95,8 @@ FraiseQLSchema authorFull() {
         'SparseVector',
         VectorConfig(30000, indexType: VectorConfig.indexNone),
       ),
-      'similarity': const FieldType.vectorDistanceOf('embedding', nullable: false),
+      'similarity':
+          const FieldType.vectorDistanceOf('embedding', nullable: false),
     },
   );
 

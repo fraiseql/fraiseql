@@ -80,9 +80,9 @@ fn full() -> SchemaRegistry {
             Field::new("compact", "HalfVector").with_nullable(true).with_vector_config(Some(
                 VectorConfig::new(1536).with_metric(VectorMetric::InnerProduct),
             )),
-            Field::new("terms", "SparseVector").with_nullable(true).with_vector_config(Some(
-                VectorConfig::new(30000).with_index(VectorIndex::None),
-            )),
+            Field::new("terms", "SparseVector")
+                .with_nullable(true)
+                .with_vector_config(Some(VectorConfig::new(30000).with_index(VectorIndex::None))),
             Field::new("similarity", "Float")
                 .with_nullable(false)
                 .with_vector_distance(Some("embedding".to_string())),

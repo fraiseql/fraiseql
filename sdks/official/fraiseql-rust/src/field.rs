@@ -40,9 +40,9 @@ pub struct VectorConfig {
     /// Vector width: float components for `Vector`, `HalfVector` and `SparseVector`,
     /// **bits** for `BitVector`. It sizes the column, and a query vector of a different
     /// width is refused rather than silently padded.
-    pub dimensions:      u32,
+    pub dimensions: u32,
     /// The index this column is searched through.
-    pub index_type:      VectorIndex,
+    pub index_type: VectorIndex,
     /// The metric a search over this column orders by.
     pub distance_metric: VectorMetric,
 }
@@ -368,13 +368,12 @@ mod tests {
     /// would still compile — to hnsw + cosine, chosen by nobody.
     #[test]
     fn vector_config_reaches_the_emitted_json() {
-        let field = Field::new("embedding", "Vector").with_nullable(false).with_vector_config(
-            Some(
+        let field =
+            Field::new("embedding", "Vector").with_nullable(false).with_vector_config(Some(
                 VectorConfig::new(1536)
                     .with_index(VectorIndex::IvfFlat)
                     .with_metric(VectorMetric::L2),
-            ),
-        );
+            ));
         let json: serde_json::Value = serde_json::from_str(&field.to_json()).expect("json");
         assert_eq!(json["vector_config"]["dimensions"], 1536);
         assert_eq!(json["vector_config"]["index_type"], "ivf_flat");
@@ -383,7 +382,8 @@ mod tests {
 
     #[test]
     fn the_index_and_metric_left_to_the_default_are_written_out() {
-        let field = Field::new("embedding", "Vector").with_vector_config(Some(VectorConfig::new(8)));
+        let field =
+            Field::new("embedding", "Vector").with_vector_config(Some(VectorConfig::new(8)));
         let json: serde_json::Value = serde_json::from_str(&field.to_json()).expect("json");
         assert_eq!(json["vector_config"]["index_type"], "hnsw");
         assert_eq!(json["vector_config"]["distance_metric"], "cosine");
@@ -391,8 +391,8 @@ mod tests {
 
     #[test]
     fn a_distance_field_names_the_vector_it_measures() {
-        let field = Field::new("similarity", "Float")
-            .with_vector_distance(Some("embedding".to_string()));
+        let field =
+            Field::new("similarity", "Float").with_vector_distance(Some("embedding".to_string()));
         let json: serde_json::Value = serde_json::from_str(&field.to_json()).expect("json");
         assert_eq!(json["vector_distance"], "embedding");
     }
