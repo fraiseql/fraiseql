@@ -2488,6 +2488,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
   archived onto issue #687 before removal.
 
+### Added
+
+- **Every official SDK can author a pgvector field (#959).** `vector_config` and
+  `vector_distance` are on the field surface of all eleven — Python, TypeScript, Go, PHP,
+  Java, C#, F#, Elixir, Ruby, Dart and Rust — each in its own idiom, together with the
+  `BitVector`, `HalfVector` and `SparseVector` type names. Until now the `Vector` scalar
+  existed in some of them as a name with nothing behind it: the compiler refuses a vector
+  field carrying no configuration, so no SDK could author one at all.
+
+  Two properties are deliberate. Every SDK writes `index_type` and `distance_metric` into
+  the emitted `schema.json` even when the author leaves them off, so the artifact says
+  which index and which metric the column will get instead of deferring to a compiler
+  default nobody chose. And no SDK carries the table of which field-type / metric / index
+  combinations pgvector actually defines — that lives once, in the compiler, which refuses
+  an unsupported combination by name. Eleven copies of that table would be eleven things
+  to drift.
+
+  The cross-SDK conformance suite gained the `vector_fields` construct, which owns a type
+  carrying all four vector field types plus a `Float` declaring `vector_distance`, and
+  asserts every key of every config survives authoring, export and compilation. All eleven
+  SDKs satisfy it; none needed a declared gap.
+
 ### Fixed
 
 - **A schema authoring a `BitVector`, `HalfVector` or `SparseVector` field no longer

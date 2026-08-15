@@ -70,20 +70,20 @@ type QueryDefinition struct {
 
 // MutationDefinition represents a GraphQL mutation
 type MutationDefinition struct {
-	Name                 string                 `json:"name"`
-	ReturnType           string                 `json:"return_type"`
-	ReturnsList          bool                   `json:"returns_list"`
-	Nullable             bool                   `json:"nullable"`
-	Arguments            []ArgumentDefinition   `json:"arguments"`
-	Description          string                 `json:"description,omitempty"`
-	Operation            string                 `json:"operation,omitempty"`
-	SqlSource            string                 `json:"sql_source,omitempty"`
-	InjectParams         map[string]interface{} `json:"inject_params,omitempty"`
-	InvalidatesViews     []string               `json:"invalidates_views,omitempty"`
-	InvalidatesFactTables []string              `json:"invalidates_fact_tables,omitempty"`
-	Cascade              bool                   `json:"cascade,omitempty"`
-	Deprecation          *DeprecationInfo       `json:"deprecation,omitempty"`
-	Rest                 *RestAnnotation        `json:"rest,omitempty"`
+	Name                  string                 `json:"name"`
+	ReturnType            string                 `json:"return_type"`
+	ReturnsList           bool                   `json:"returns_list"`
+	Nullable              bool                   `json:"nullable"`
+	Arguments             []ArgumentDefinition   `json:"arguments"`
+	Description           string                 `json:"description,omitempty"`
+	Operation             string                 `json:"operation,omitempty"`
+	SqlSource             string                 `json:"sql_source,omitempty"`
+	InjectParams          map[string]interface{} `json:"inject_params,omitempty"`
+	InvalidatesViews      []string               `json:"invalidates_views,omitempty"`
+	InvalidatesFactTables []string               `json:"invalidates_fact_tables,omitempty"`
+	Cascade               bool                   `json:"cascade,omitempty"`
+	Deprecation           *DeprecationInfo       `json:"deprecation,omitempty"`
+	Rest                  *RestAnnotation        `json:"rest,omitempty"`
 	// See QueryDefinition.Config — an SDK-internal bag, never serialized.
 	Config map[string]interface{} `json:"-"`
 }
@@ -182,16 +182,16 @@ type InputObjectDefinition struct {
 // one: every shipped Go example printed "✅ Schema exported successfully" and was then
 // rejected by the very next command it told the user to run (#850).
 type Schema struct {
-	Types            []TypeDefinition           `json:"types,omitempty"`
-	Enums            []EnumDefinition           `json:"enums,omitempty"`
-	InputTypes       []InputObjectDefinition    `json:"input_types,omitempty"`
-	Queries          []QueryDefinition          `json:"queries,omitempty"`
-	Mutations        []MutationDefinition       `json:"mutations,omitempty"`
-	Subscriptions    []SubscriptionDefinition   `json:"subscriptions,omitempty"`
-	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
-	Observers        []ObserverDefinition       `json:"observers,omitempty"`
-	CustomScalars    []map[string]interface{}   `json:"custom_scalars,omitempty"`
-	InjectDefaults   *InjectDefaults            `json:"inject_defaults,omitempty"`
+	Types          []TypeDefinition         `json:"types,omitempty"`
+	Enums          []EnumDefinition         `json:"enums,omitempty"`
+	InputTypes     []InputObjectDefinition  `json:"input_types,omitempty"`
+	Queries        []QueryDefinition        `json:"queries,omitempty"`
+	Mutations      []MutationDefinition     `json:"mutations,omitempty"`
+	Subscriptions  []SubscriptionDefinition `json:"subscriptions,omitempty"`
+	FactTables     []FactTableDefinition    `json:"fact_tables,omitempty"`
+	Observers      []ObserverDefinition     `json:"observers,omitempty"`
+	CustomScalars  []map[string]interface{} `json:"custom_scalars,omitempty"`
+	InjectDefaults *InjectDefaults          `json:"inject_defaults,omitempty"`
 }
 
 // InjectDefaults holds the default inject_params loaded from fraiseql.toml.
@@ -205,16 +205,16 @@ type InjectDefaults struct {
 
 // SchemaRegistry is a singleton registry for collecting types, queries, mutations, and subscriptions
 type SchemaRegistry struct {
-	mu               sync.RWMutex
-	types            map[string]TypeDefinition
-	enums            map[string]EnumDefinition
-	inputTypes       map[string]InputObjectDefinition
-	queries          map[string]QueryDefinition
-	mutations        map[string]MutationDefinition
-	subscriptions    map[string]SubscriptionDefinition
-	factTables       map[string]FactTableDefinition
-	observers        map[string]ObserverDefinition
-	injectDefaults   *InjectDefaults
+	mu             sync.RWMutex
+	types          map[string]TypeDefinition
+	enums          map[string]EnumDefinition
+	inputTypes     map[string]InputObjectDefinition
+	queries        map[string]QueryDefinition
+	mutations      map[string]MutationDefinition
+	subscriptions  map[string]SubscriptionDefinition
+	factTables     map[string]FactTableDefinition
+	observers      map[string]ObserverDefinition
+	injectDefaults *InjectDefaults
 }
 
 // Global registry instance
@@ -225,13 +225,13 @@ var once sync.Once
 func getInstance() *SchemaRegistry {
 	once.Do(func() {
 		registry = &SchemaRegistry{
-			types:            make(map[string]TypeDefinition),
-			enums:            make(map[string]EnumDefinition),
-			queries:          make(map[string]QueryDefinition),
-			mutations:        make(map[string]MutationDefinition),
-			subscriptions:    make(map[string]SubscriptionDefinition),
-			factTables:       make(map[string]FactTableDefinition),
-			observers:        make(map[string]ObserverDefinition),
+			types:         make(map[string]TypeDefinition),
+			enums:         make(map[string]EnumDefinition),
+			queries:       make(map[string]QueryDefinition),
+			mutations:     make(map[string]MutationDefinition),
+			subscriptions: make(map[string]SubscriptionDefinition),
+			factTables:    make(map[string]FactTableDefinition),
+			observers:     make(map[string]ObserverDefinition),
 		}
 	})
 	return registry
@@ -255,10 +255,37 @@ func toSnakeCase(s string) string {
 	return string(result)
 }
 
+// validateVectorFields refuses the vector declarations that are wrong on their own
+// terms, before the compiler sees them.
+//
+// Only these two: a field is either an embedding or the Float reporting how far a
+// search's result was from the query vector, and a column has at least one dimension.
+// Which metrics a field type admits and which index types have an operator class for
+// them depends on pgvector's own tables, and is checked once, in the compiler.
+func validateVectorFields(typeName string, fields []FieldInfo) error {
+	for _, f := range fields {
+		if f.Vector != nil && f.VectorDistance != "" {
+			return fmt.Errorf(
+				"field %q of type %q declares both a vector config and a vector distance; "+
+					"a field is either an embedding or the Float reporting a search's distance, not both",
+				f.Name, typeName)
+		}
+		if f.Vector != nil && f.Vector.Dimensions < 1 {
+			return fmt.Errorf(
+				"field %q of type %q declares %d vector dimensions; dimensions must be at least 1",
+				f.Name, typeName, f.Vector.Dimensions)
+		}
+	}
+	return nil
+}
+
 // RegisterType registers a type with the schema registry.
 // sql_source is automatically derived as "v_" + snake_case(name).
 // Returns an error if a type with the same name is already registered.
 func RegisterType(name string, fields []FieldInfo, description string, relay ...bool) error {
+	if err := validateVectorFields(name, fields); err != nil {
+		return err
+	}
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
@@ -281,6 +308,9 @@ func RegisterType(name string, fields []FieldInfo, description string, relay ...
 // Error types are used to return structured error responses from mutations.
 // Returns an error if a type with the same name is already registered.
 func RegisterErrorType(name string, fields []FieldInfo, description string) error {
+	if err := validateVectorFields(name, fields); err != nil {
+		return err
+	}
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
@@ -421,7 +451,6 @@ func GetSchema() Schema {
 		schema.FactTables = append(schema.FactTables, reg.factTables[name])
 	}
 
-
 	for _, name := range sortedKeys(reg.observers) {
 		schema.Observers = append(schema.Observers, reg.observers[name])
 	}
@@ -514,6 +543,9 @@ func Enum(name string, members ...string) {
 // RegisterInputType registers a GraphQL input object type with the schema registry.
 // Returns an error if a name is registered twice.
 func RegisterInputType(name string, fields []FieldInfo, description string) error {
+	if err := validateVectorFields(name, fields); err != nil {
+		return err
+	}
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()

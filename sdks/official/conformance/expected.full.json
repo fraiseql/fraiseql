@@ -195,5 +195,70 @@
       ],
       "sql_source": "v_user_not_found"
     }
+  },
+  "vector_fields": {
+    "Document": {
+      "fields": [
+        {
+          "name": "id",
+          "nullable": false,
+          "type": "ID",
+          "vector_config": null,
+          "vector_distance": null
+        },
+        {
+          "name": "embedding",
+          "nullable": false,
+          "type": "Vector",
+          "vector_config": {
+            "dimensions": 1536,
+            "distance_metric": "l2",
+            "index_type": "ivf_flat"
+          },
+          "vector_distance": null
+        },
+        {
+          "name": "fingerprint",
+          "nullable": false,
+          "type": "BitVector",
+          "vector_config": {
+            "dimensions": 768,
+            "distance_metric": "hamming",
+            "index_type": "hnsw"
+          },
+          "vector_distance": null
+        },
+        {
+          "name": "compact",
+          "nullable": true,
+          "type": "HalfVector",
+          "vector_config": {
+            "dimensions": 1536,
+            "distance_metric": "inner_product",
+            "index_type": "hnsw"
+          },
+          "vector_distance": null
+        },
+        {
+          "name": "terms",
+          "nullable": true,
+          "type": "SparseVector",
+          "vector_config": {
+            "dimensions": 30000,
+            "distance_metric": "cosine",
+            "index_type": "none"
+          },
+          "vector_distance": null
+        },
+        {
+          "name": "similarity",
+          "nullable": false,
+          "type": "Float",
+          "vector_config": null,
+          "vector_distance": "embedding"
+        }
+      ],
+      "sql_source": "v_document"
+    }
   }
 }

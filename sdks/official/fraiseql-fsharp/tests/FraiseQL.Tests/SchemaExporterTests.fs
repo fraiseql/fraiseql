@@ -27,6 +27,8 @@ let private singleField =
         description = None
         scope = None
         computed = false
+        vector_config = None
+        vector_distance = None
     }
 
 let private singleType =

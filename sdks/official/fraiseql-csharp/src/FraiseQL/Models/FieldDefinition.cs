@@ -15,6 +15,10 @@ namespace FraiseQL.Models;
 /// When <see langword="true"/>, this field is server-computed and excluded from CRUD input types.
 /// Computed fields remain visible in query results.
 /// </param>
+/// <param name="Vector">Optional pgvector configuration, on a vector-typed field.</param>
+/// <param name="VectorDistance">
+/// Optional name of the vector field whose search distance this <c>Float</c> field carries.
+/// </param>
 public record FieldDefinition(
     string Name,
     string Type,
@@ -23,4 +27,6 @@ public record FieldDefinition(
     string? Resolver,
     string? Scope,
     IReadOnlyList<string>? Scopes,
-    bool Computed = false);
+    bool Computed = false,
+    VectorConfig? Vector = null,
+    string? VectorDistance = null);

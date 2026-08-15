@@ -50,6 +50,21 @@ def author_full
     t.field :code, :string, nullable: false
   end
 
+  schema.type "Document", sql_source: "v_document" do |t|
+    t.field :id, :id, nullable: false
+    t.field :embedding, :vector, nullable: false,
+                                 vector_config: { dimensions: 1536, index_type: :ivf_flat,
+                                                  distance_metric: :l2 }
+    t.field :fingerprint, :bit_vector, nullable: false,
+                                       vector_config: { dimensions: 768, distance_metric: :hamming }
+    t.field :compact, :half_vector, nullable: true,
+                                    vector_config: { dimensions: 1536,
+                                                     distance_metric: :inner_product }
+    t.field :terms, :sparse_vector, nullable: true,
+                                    vector_config: { dimensions: 30_000, index_type: :none }
+    t.field :similarity, :float, nullable: false, vector_distance: :embedding
+  end
+
   schema.type "CreateUserInput", is_input: true do |t|
     t.field :email, :string, nullable: false
     t.field :name, :string, nullable: true

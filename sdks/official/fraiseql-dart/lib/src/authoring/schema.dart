@@ -206,6 +206,70 @@ class FraiseQLSchema {
 ///
 /// Named constructors mirror the GraphQL scalar names; [FieldType.named] references a
 /// type declared elsewhere in the schema.
+/// pgvector configuration for a vector field.
+///
+/// The compiler refuses a `Vector`, `BitVector`, `HalfVector` or `SparseVector` field
+/// that carries no configuration, so this is what makes those types authorable.
+///
+/// Which combinations of field type, metric and index exist is pgvector's business and
+/// the compiler's: it holds the operator-class table — `ivfflat` has no class for a
+/// sparse vector at all, and none for jaccard — and refuses a schema that asks for one
+/// that does not, naming the alternative. This SDK carries no second copy of that table;
+/// a copy is what drifts.
+class VectorConfig {
+  /// Hierarchical Navigable Small World index — the default.
+  static const String indexHnsw = 'hnsw';
+
+  /// Inverted-file index: smaller and faster to build, slower to query.
+  static const String indexIvfFlat = 'ivf_flat';
+
+  /// No index — exact search.
+  static const String indexNone = 'none';
+
+  /// Cosine distance — the default, and what most text embeddings want.
+  static const String metricCosine = 'cosine';
+
+  /// Euclidean distance.
+  static const String metricL2 = 'l2';
+
+  /// Negative inner product.
+  static const String metricInnerProduct = 'inner_product';
+
+  /// Differing bits — `BitVector` only.
+  static const String metricHamming = 'hamming';
+
+  /// Set overlap normalised by set size — `BitVector` only.
+  static const String metricJaccard = 'jaccard';
+
+  /// Vector width: float components for `Vector`, `HalfVector` and `SparseVector`,
+  /// **bits** for `BitVector`. It sizes the column, and a query vector of a different
+  /// width is refused rather than silently padded.
+  final int dimensions;
+
+  /// One of the `index*` constants. Defaults to [indexHnsw].
+  final String indexType;
+
+  /// One of the `metric*` constants. Defaults to [metricCosine].
+  final String distanceMetric;
+
+  const VectorConfig(
+    this.dimensions, {
+    this.indexType = indexHnsw,
+    this.distanceMetric = metricCosine,
+  }) : assert(dimensions >= 1, 'A vector column has at least 1 dimension.');
+
+  /// The `vector_config` object as the AuthoringIR spells it.
+  ///
+  /// The index type and the metric are written out even where the author left them to
+  /// the default, so the emitted schema says which index and which metric the column
+  /// will get rather than leaving it to a compiler default the author cannot see.
+  Map<String, Object?> toJson() => {
+        'dimensions': dimensions,
+        'index_type': indexType,
+        'distance_metric': distanceMetric,
+      };
+}
+
 class FieldType {
   /// The GraphQL type name, e.g. `String`, `ID`, `Order`.
   final String type;
@@ -223,13 +287,63 @@ class FieldType {
   /// Policy when the caller lacks [requiresScope]: `reject` (default) or `mask`.
   final String? onDeny;
 
+  /// pgvector configuration, on a `Vector` / `BitVector` / `HalfVector` /
+  /// `SparseVector` field. The compiler refuses such a field without one.
+  final VectorConfig? vectorConfig;
+
+  /// On a `Float` field, the vector field whose `nearest` search distance this field
+  /// carries. Selecting it on a query that did not run that search is refused, not
+  /// answered with null.
+  final String? vectorDistance;
+
   const FieldType.named(
     this.type, {
     this.nullable = true,
     this.description,
     this.requiresScope,
     this.onDeny,
-  });
+    this.vectorConfig,
+    this.vectorDistance,
+  }) : assert(
+          vectorConfig == null || vectorDistance == null,
+          'A field declares either vectorConfig or vectorDistance, not both: vectorConfig '
+          'declares an embedding, vectorDistance declares the Float reporting how far a '
+          "search's result was from the query vector.",
+        );
+
+  /// A pgvector embedding column — `Vector`, `BitVector`, `HalfVector` or
+  /// `SparseVector`, named by [type].
+  ///
+  /// `Vector` and `HalfVector` are `[Float!]!` in GraphQL; `BitVector` is a string of
+  /// `0`/`1` characters and `SparseVector` is pgvector's own `{1:0.5,7:0.25}/1000` text
+  /// form — each type's own way of writing the same thing down.
+  const FieldType.vector(
+    String type,
+    VectorConfig config, {
+    bool nullable = true,
+    String? description,
+    String? requiresScope,
+    String? onDeny,
+  }) : this.named(
+          type,
+          nullable: nullable,
+          description: description,
+          requiresScope: requiresScope,
+          onDeny: onDeny,
+          vectorConfig: config,
+        );
+
+  /// A `Float` carrying the distance a `nearest` search over [vectorField] ordered by.
+  const FieldType.vectorDistanceOf(
+    String vectorField, {
+    bool nullable = true,
+    String? description,
+  }) : this.named(
+          'Float',
+          nullable: nullable,
+          description: description,
+          vectorDistance: vectorField,
+        );
 
   /// GraphQL `ID`.
   const FieldType.id({
@@ -310,6 +424,11 @@ class FieldType {
     if (description != null) json['description'] = description;
     if (requiresScope != null) json['requires_scope'] = requiresScope;
     if (onDeny != null) json['on_deny'] = onDeny;
+    // A `Vector` field without its config is refused by the compiler, so dropping this
+    // would not be a silent loss — it would make the four pgvector field types
+    // unauthorable in Dart.
+    if (vectorConfig != null) json['vector_config'] = vectorConfig!.toJson();
+    if (vectorDistance != null) json['vector_distance'] = vectorDistance;
     return json;
   }
 }

@@ -103,4 +103,23 @@ public @interface GraphQLField {
      * The field remains visible in query results.
      */
     boolean computed() default false;
+
+    /**
+     * pgvector configuration, on a {@code Vector} / {@code BitVector} /
+     * {@code HalfVector} / {@code SparseVector} field.
+     *
+     * <p>The compiler refuses such a field without one, so this is what makes the four
+     * pgvector field types authorable. Left at its default — {@code dimensions = 0} —
+     * the field is not a vector field.
+     */
+    VectorConfig vector() default @VectorConfig;
+
+    /**
+     * On a {@code Float} field, the vector field whose {@code nearest} search distance
+     * this field carries.
+     *
+     * <p>Selecting it on a query that did not run that search is refused, not answered
+     * with null: "no distance" and "distance zero" are not the same claim.
+     */
+    String vectorDistance() default "";
 }

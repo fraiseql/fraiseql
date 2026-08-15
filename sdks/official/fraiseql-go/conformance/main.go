@@ -58,6 +58,21 @@ func authorFull() error {
 		return err
 	}
 
+	if err := fraiseql.RegisterType("Document", []fraiseql.FieldInfo{
+		{Name: "id", Type: "ID", Nullable: false},
+		{Name: "embedding", Type: "Vector", Nullable: false,
+			Vector: fraiseql.NewVectorConfig(1536).WithIndex(fraiseql.IndexIVFFlat).WithMetric(fraiseql.MetricL2)},
+		{Name: "fingerprint", Type: "BitVector", Nullable: false,
+			Vector: fraiseql.NewVectorConfig(768).WithMetric(fraiseql.MetricHamming)},
+		{Name: "compact", Type: "HalfVector", Nullable: true,
+			Vector: fraiseql.NewVectorConfig(1536).WithMetric(fraiseql.MetricInnerProduct)},
+		{Name: "terms", Type: "SparseVector", Nullable: true,
+			Vector: fraiseql.NewVectorConfig(30000).WithIndex(fraiseql.IndexNone)},
+		{Name: "similarity", Type: "Float", Nullable: false, VectorDistance: "embedding"},
+	}, ""); err != nil {
+		return err
+	}
+
 	if err := fraiseql.RegisterInputType("CreateUserInput", []fraiseql.FieldInfo{
 		{Name: "email", Type: "String", Nullable: false},
 		{Name: "name", Type: "String", Nullable: true},

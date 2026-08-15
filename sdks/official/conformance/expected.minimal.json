@@ -44,5 +44,6 @@
       ],
       "sql_source": "v_user"
     }
-  }
+  },
+  "vector_fields": {}
 }

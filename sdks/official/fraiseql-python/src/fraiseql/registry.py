@@ -83,10 +83,19 @@ class SchemaRegistry:
             "deprecated",
             "description",
             "federation",
+            "vector_config",
+            "vector_distance",
         )
         for key in optional_keys:
             if key in field_info:
                 field_def[key] = field_info[key]
+        # `vector_distance` names a sibling *field*, and field names are camelCased on
+        # the way out — so the reference has to be too, or an author who declares
+        # `my_embedding` and points at it by the name they wrote gets a compile error
+        # naming a field that no longer exists under that spelling. `_snake_to_camel` is
+        # idempotent, so pointing at it in either casing works.
+        if "vector_distance" in field_def:
+            field_def["vector_distance"] = _snake_to_camel(field_def["vector_distance"])
         return field_def
 
     @classmethod

@@ -366,15 +366,45 @@ defmodule FraiseQL.Schema do
     * `:description` — optional human-readable description
     * `:requires_scope` — optional OAuth scope string
     * `:requires_scopes` — optional list of OAuth scope strings
+    * `:vector_config` — pgvector configuration on a `:vector`, `:bit_vector`,
+      `:half_vector` or `:sparse_vector` field; see `FraiseQL.VectorConfig`
+    * `:vector_distance` — on a `:float` field, the vector field whose `nearest` search
+      distance this field carries
 
   ## Example
 
       field :name, :string, nullable: false
       field :email, :string, nullable: true, requires_scope: "read:user.email"
+
+      field :embedding, :vector,
+        nullable: false,
+        vector_config: [dimensions: 1536, index_type: :ivf_flat, distance_metric: :l2]
+
+      field :similarity, :float, nullable: false, vector_distance: :embedding
   """
   defmacro field(name, type, opts \\ []) do
     field_name = Atom.to_string(name)
     field_type = canonicalize_id_type(field_name, FraiseQL.TypeMapper.to_graphql_type(type))
+
+    # A field is either an embedding or the Float reporting how far a search's result was
+    # from the query vector, and a column has at least one dimension. Which metrics a
+    # field type admits and which index types have an operator class for them depends on
+    # pgvector's own tables, and is checked once, in the compiler.
+    vector_config = opts[:vector_config]
+    vector_distance = opts[:vector_distance]
+
+    if vector_config && vector_distance do
+      raise ArgumentError,
+            "Field #{inspect(field_name)} declares both vector_config and vector_distance; " <>
+              "a field is either an embedding or the Float reporting a search's distance, " <>
+              "not both"
+    end
+
+    vector_config = vector_config && Macro.escape(FraiseQL.VectorConfig.new(vector_config))
+
+    # `vector_distance` names a sibling field, and a field name is the atom verbatim, so
+    # an atom and its string spelling are the same reference.
+    vector_distance = vector_distance && to_string(vector_distance)
 
     quote do
       @__fraiseql_field_buffer %FraiseQL.FieldDefinition{
@@ -383,7 +413,9 @@ defmodule FraiseQL.Schema do
         nullable: unquote(Keyword.get(opts, :nullable, false)),
         description: unquote(opts[:description]),
         requires_scope: unquote(opts[:requires_scope]),
-        requires_scopes: unquote(opts[:requires_scopes])
+        requires_scopes: unquote(opts[:requires_scopes]),
+        vector_config: unquote(vector_config),
+        vector_distance: unquote(vector_distance)
       }
     end
   end

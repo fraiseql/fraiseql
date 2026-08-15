@@ -70,7 +70,8 @@ public sealed class SchemaRegistry
                 .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description, f.Resolver,
                     // Normalise a singleton Scopes list onto Scope; anything longer is
                     // unrepresentable downstream and is refused rather than dropped (#807).
-                    NormaliseScope(f.Scope, f.Scopes, f.Name), null, f.Computed ? true : null))
+                    NormaliseScope(f.Scope, f.Scopes, f.Name), null, f.Computed ? true : null,
+                    f.Vector, f.VectorDistance))
                 .ToList()
                 .AsReadOnly();
 
@@ -298,10 +299,59 @@ public sealed class SchemaRegistry
                 Resolver: fieldAttr.Resolver,
                 Scope: fieldAttr.Scope,
                 Scopes: fieldAttr.Scopes,
-                Computed: fieldAttr.Computed));
+                Computed: fieldAttr.Computed,
+                Vector: BuildVectorConfig(fieldAttr, fieldName),
+                VectorDistance: fieldAttr.VectorDistance));
         }
 
         return fields.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Build a field's <c>vector_config</c>, refusing the two combinations that are wrong
+    /// on their own terms before the compiler sees them.
+    /// </summary>
+    /// <remarks>
+    /// Only these two: a field is either an embedding or the <c>Float</c> reporting how
+    /// far a search's result was from the query vector, and a column has at least one
+    /// dimension. Which metrics a field type admits and which index types have an
+    /// operator class for them depends on pgvector's own tables, and is checked once, in
+    /// the compiler.
+    /// <para>
+    /// The index type and the metric are written out even where the author left them off,
+    /// so the emitted schema says which index and which metric the column will get rather
+    /// than leaving it to a compiler default the author cannot see.
+    /// </para>
+    /// </remarks>
+    private static VectorConfig? BuildVectorConfig(GraphQLFieldAttribute fieldAttr, string fieldName)
+    {
+        var declaresVector = fieldAttr.VectorDimensions != 0
+            || fieldAttr.VectorIndexType is not null
+            || fieldAttr.VectorDistanceMetric is not null;
+
+        if (!declaresVector)
+        {
+            return null;
+        }
+
+        if (fieldAttr.VectorDistance is not null)
+        {
+            throw new InvalidOperationException(
+                $"Field '{fieldName}' declares both a vector config and a vector distance; a " +
+                "field is either an embedding or the Float reporting a search's distance, not both.");
+        }
+
+        if (fieldAttr.VectorDimensions < 1)
+        {
+            throw new InvalidOperationException(
+                $"Field '{fieldName}' declares {fieldAttr.VectorDimensions} vector dimensions; " +
+                "dimensions must be at least 1.");
+        }
+
+        return new VectorConfig(
+            fieldAttr.VectorDimensions,
+            fieldAttr.VectorIndexType ?? VectorIndex.Hnsw,
+            fieldAttr.VectorDistanceMetric ?? VectorMetric.Cosine);
     }
 
     /// <summary>Converts a PascalCase property name to a camelCase GraphQL field name.</summary>

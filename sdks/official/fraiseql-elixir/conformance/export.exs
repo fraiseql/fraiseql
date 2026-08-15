@@ -49,6 +49,32 @@ defmodule Conformance.FullSchema do
     field(:code, :string, nullable: false)
   end
 
+  fraiseql_type "Document", sql_source: "v_document" do
+    field(:id, :id, nullable: false)
+
+    field(:embedding, :vector,
+      nullable: false,
+      vector_config: [dimensions: 1536, index_type: :ivf_flat, distance_metric: :l2]
+    )
+
+    field(:fingerprint, :bit_vector,
+      nullable: false,
+      vector_config: [dimensions: 768, distance_metric: :hamming]
+    )
+
+    field(:compact, :half_vector,
+      nullable: true,
+      vector_config: [dimensions: 1536, distance_metric: :inner_product]
+    )
+
+    field(:terms, :sparse_vector,
+      nullable: true,
+      vector_config: [dimensions: 30000, index_type: :none]
+    )
+
+    field(:similarity, :float, nullable: false, vector_distance: :embedding)
+  end
+
   # `is_input: true` is this SDK's only route to an input object — its exporter emits no
   # `input_types` key, and the compiler reclassifies a type carrying the flag.
   fraiseql_type "CreateUserInput", is_input: true do

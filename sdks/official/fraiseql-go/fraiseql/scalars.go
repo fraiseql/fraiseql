@@ -73,8 +73,26 @@ type UUID string
 // Decimal is a Decimal/BigDecimal scalar for precise numeric values.
 type Decimal string
 
-// Vector is a vector scalar for pgvector embeddings.
+// Vector is a vector scalar for pgvector embeddings — a vector(N) column,
+// [Float!]! in GraphQL.
 type Vector []float64
+
+// BitVector is a binary vector for pgvector's hamming / jaccard distance.
+//
+// A bit(N) column, and a string of 0/1 characters in GraphQL — the text form
+// PostgreSQL itself gives a bit value, and what binary_quantize(embedding)::bit(N)
+// produces.
+type BitVector string
+
+// HalfVector is a half-precision vector — a halfvec(N) column, the same [Float!]!
+// surface as Vector.
+type HalfVector []float64
+
+// SparseVector is a sparse vector — a sparsevec(N) column, in pgvector's own text
+// form: {1:0.5,7:0.25}/1000, 1-based index/value pairs and the dimension count. A
+// string rather than a slice of floats because a sparse vector exists so that a
+// 30-thousand-dimension bag of terms never has to be written out in full.
+type SparseVector string
 
 // =============================================================================
 // Contact/Communication Scalars
@@ -263,11 +281,14 @@ type LTree string
 // Used by the type system to recognize scalar types.
 var ScalarNames = map[string]bool{
 	// Core
-	"ID":      true,
-	"UUID":    true,
-	"Json":    true,
-	"Decimal": true,
-	"Vector":  true,
+	"ID":           true,
+	"UUID":         true,
+	"Json":         true,
+	"Decimal":      true,
+	"Vector":       true,
+	"BitVector":    true,
+	"HalfVector":   true,
+	"SparseVector": true,
 	// Date/Time
 	"DateTime":  true,
 	"Date":      true,

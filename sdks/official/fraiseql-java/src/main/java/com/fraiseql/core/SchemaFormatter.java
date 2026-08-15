@@ -183,6 +183,21 @@ public class SchemaFormatter {
                 fieldNode.put("requires_scope", fieldInfo.requiresScopes[0]);
             }
         }
+        // A Vector field without its config is refused by the compiler, so dropping this
+        // here would not be a silent loss — it would make the four pgvector field types
+        // unauthorable in Java. The index type and the metric are written out even where
+        // the author left them to the annotation default, so the emitted schema says
+        // which index and which metric the column will get.
+        if (fieldInfo.vectorConfig != null) {
+            ObjectNode vectorNode = mapper.createObjectNode();
+            vectorNode.put("dimensions", fieldInfo.vectorConfig.dimensions());
+            vectorNode.put("index_type", fieldInfo.vectorConfig.indexType());
+            vectorNode.put("distance_metric", fieldInfo.vectorConfig.distanceMetric());
+            fieldNode.set("vector_config", vectorNode);
+        }
+        if (fieldInfo.vectorDistance != null) {
+            fieldNode.put("vector_distance", fieldInfo.vectorDistance);
+        }
         return fieldNode;
     }
 

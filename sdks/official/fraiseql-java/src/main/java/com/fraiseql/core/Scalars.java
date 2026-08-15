@@ -97,8 +97,29 @@ public final class Scalars {
     /** Decimal/BigDecimal scalar for precise numeric values. */
     public static final String DECIMAL = "Decimal";
 
-    /** Vector scalar for pgvector embeddings. */
+    /** Vector scalar for pgvector embeddings — a {@code vector(N)} column, {@code [Float!]!} in GraphQL. */
     public static final String VECTOR = "Vector";
+
+    /**
+     * Binary vector for pgvector's hamming / jaccard distance.
+     *
+     * <p>A {@code bit(N)} column, and a string of {@code 0}/{@code 1} characters in
+     * GraphQL — the text form PostgreSQL itself gives a bit value, and what
+     * {@code binary_quantize(embedding)::bit(N)} produces.
+     */
+    public static final String BIT_VECTOR = "BitVector";
+
+    /** Half-precision vector — a {@code halfvec(N)} column, the same {@code [Float!]!} surface as {@link #VECTOR}. */
+    public static final String HALF_VECTOR = "HalfVector";
+
+    /**
+     * Sparse vector — a {@code sparsevec(N)} column, in pgvector's own text form.
+     *
+     * <p>{@code {1:0.5,7:0.25}/1000}: 1-based index/value pairs and the dimension count.
+     * A string rather than a list of floats because a sparse vector exists so that a
+     * 30-thousand-dimension bag of terms never has to be written out in full.
+     */
+    public static final String SPARSE_VECTOR = "SparseVector";
 
     // ==========================================================================
     // Contact/Communication Scalars
@@ -294,6 +315,9 @@ public final class Scalars {
         names.add("Json");
         names.add("Decimal");
         names.add("Vector");
+        names.add("BitVector");
+        names.add("HalfVector");
+        names.add("SparseVector");
         // Date/Time
         names.add("DateTime");
         names.add("Date");

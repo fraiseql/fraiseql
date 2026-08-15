@@ -42,8 +42,21 @@ module FraiseQL
       time: "Time",
       json: "Json",
       uuid: "UUID",
-      decimal: "Decimal"
+      decimal: "Decimal",
+      vector: "Vector",
+      bit_vector: "BitVector",
+      half_vector: "HalfVector",
+      sparse_vector: "SparseVector"
     }.freeze
+
+    # Index types a pgvector column can be searched through.
+    VECTOR_INDEXES = %w[hnsw ivf_flat none].freeze
+
+    # Distance metrics a vector search can order by. Which of them a given field type
+    # and index admit is pgvector's business and the compiler's — it holds the
+    # operator-class table and refuses a combination that has no class, naming the
+    # alternative. This SDK carries no second copy of that table; a copy is what drifts.
+    VECTOR_METRICS = %w[cosine l2 inner_product hamming jaccard].freeze
 
     def initialize
       @types = []
@@ -201,7 +214,8 @@ module FraiseQL
 
       # `nullable` is required by the compiler and has no default there; it defaults to
       # true here, matching GraphQL's own default for an unadorned type.
-      def field(name, type, nullable: true, description: nil, requires_scope: nil, on_deny: nil)
+      def field(name, type, nullable: true, description: nil, requires_scope: nil, on_deny: nil,
+                vector_config: nil, vector_distance: nil)
         definition = {
           "name" => name.to_s,
           "type" => Schema.graphql_type(type),
@@ -211,8 +225,50 @@ module FraiseQL
         definition["requires_scope"] = requires_scope.to_s if requires_scope
         definition["on_deny"] = on_deny.to_s if on_deny
 
+        add_vector(definition, name, vector_config, vector_distance)
+
         @fields << definition
         definition
+      end
+
+      private
+
+      # A `Vector` field without its config is refused by the compiler, so dropping these
+      # would not be a silent loss — it would make the four pgvector field types
+      # unauthorable in Ruby.
+      #
+      # Two refusals here, and only two: a field is either an embedding or the Float
+      # reporting how far a search's result was from the query vector, and a column has
+      # at least one dimension. Which metrics a field type admits and which index types
+      # have an operator class for them depends on pgvector's own tables, and is checked
+      # once, in the compiler.
+      def add_vector(definition, name, vector_config, vector_distance)
+        if vector_config && vector_distance
+          raise ArgumentError,
+                "Field #{name} declares both vector_config and vector_distance; a field is " \
+                "either an embedding or the Float reporting a search's distance, not both"
+        end
+
+        definition["vector_config"] = normalize_vector_config(name, vector_config) if vector_config
+        definition["vector_distance"] = vector_distance.to_s if vector_distance
+      end
+
+      # The index type and the metric are written out even where the author left them
+      # off, so the emitted schema says which index and which metric the column will get
+      # rather than leaving it to a compiler default the author cannot see.
+      def normalize_vector_config(name, config)
+        dimensions = config[:dimensions] || config["dimensions"]
+        unless dimensions.is_a?(Integer) && dimensions >= 1
+          raise ArgumentError,
+                "Field #{name} declares #{dimensions.inspect} vector dimensions; dimensions " \
+                "must be a whole number of at least 1"
+        end
+
+        {
+          "dimensions" => dimensions,
+          "index_type" => (config[:index_type] || config["index_type"] || "hnsw").to_s,
+          "distance_metric" => (config[:distance_metric] || config["distance_metric"] || "cosine").to_s
+        }
       end
     end
 

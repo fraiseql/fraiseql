@@ -58,6 +58,39 @@ type ConformanceUserNotFound() =
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Code = "" with get, set
 
+[<GraphQLType(Name = "Document", SqlSource = "v_document")>]
+type ConformanceDocument() =
+    [<GraphQLField(Type = "ID", Nullable = false)>]
+    member val Id = "" with get, set
+
+    [<GraphQLField(Type = "Vector",
+                   Nullable = false,
+                   VectorDimensions = 1536,
+                   VectorIndexType = VectorIndex.ivfFlat,
+                   VectorDistanceMetric = VectorMetric.l2)>]
+    member val Embedding: float array = [||] with get, set
+
+    [<GraphQLField(Type = "BitVector",
+                   Nullable = false,
+                   VectorDimensions = 768,
+                   VectorDistanceMetric = VectorMetric.hamming)>]
+    member val Fingerprint = "" with get, set
+
+    [<GraphQLField(Type = "HalfVector",
+                   Nullable = true,
+                   VectorDimensions = 1536,
+                   VectorDistanceMetric = VectorMetric.innerProduct)>]
+    member val Compact: float array = [||] with get, set
+
+    [<GraphQLField(Type = "SparseVector",
+                   Nullable = true,
+                   VectorDimensions = 30000,
+                   VectorIndexType = VectorIndex.none)>]
+    member val Terms = "" with get, set
+
+    [<GraphQLField(Type = "Float", Nullable = false, VectorDistance = "embedding")>]
+    member val Similarity = 0.0 with get, set
+
 let private authorMinimal () =
     SchemaRegistry.register typeof<ConformanceMinimalUser>
 
@@ -71,6 +104,7 @@ let private authorFull () =
     SchemaRegistry.register typeof<ConformanceUser>
     SchemaRegistry.register typeof<ConformanceOrder>
     SchemaRegistry.register typeof<ConformanceUserNotFound>
+    SchemaRegistry.register typeof<ConformanceDocument>
 
     SchemaRegistry.registerInput
         {

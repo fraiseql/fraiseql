@@ -58,4 +58,36 @@ public sealed class GraphQLFieldAttribute : Attribute
     /// The field remains visible in query results.
     /// </summary>
     public bool Computed { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the vector width on a <c>Vector</c> / <c>BitVector</c> /
+    /// <c>HalfVector</c> / <c>SparseVector</c> field: float components for the float
+    /// kinds, <b>bits</b> for <c>BitVector</c>.
+    /// </summary>
+    /// <remarks>
+    /// The compiler refuses a vector field carrying no configuration, so this is what
+    /// makes the four pgvector field types authorable. Zero — the default — means the
+    /// field is not a vector field; a column with no dimensions is not a thing an author
+    /// can mean.
+    /// </remarks>
+    public int VectorDimensions { get; set; }
+
+    /// <summary>
+    /// Gets or sets the index this vector column is searched through: one of the
+    /// <see cref="FraiseQL.Models.VectorIndex"/> constants. Defaults to <c>"hnsw"</c>.
+    /// </summary>
+    public string? VectorIndexType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the distance metric a search over this column orders by: one of the
+    /// <see cref="FraiseQL.Models.VectorMetric"/> constants. Defaults to <c>"cosine"</c>.
+    /// </summary>
+    public string? VectorDistanceMetric { get; set; }
+
+    /// <summary>
+    /// Gets or sets, on a <c>Float</c> field, the vector field whose <c>nearest</c>
+    /// search distance this field carries. Selecting it on a query that did not run that
+    /// search is refused, not answered with null.
+    /// </summary>
+    public string? VectorDistance { get; set; }
 }

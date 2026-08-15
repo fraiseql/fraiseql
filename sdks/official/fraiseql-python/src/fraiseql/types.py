@@ -270,6 +270,10 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
                 field_info["description"] = config.description
             if config.computed:
                 field_info["computed"] = True
+            if config.vector_config is not None:
+                field_info["vector_config"] = config.vector_config.to_dict()
+            if config.vector_distance:
+                field_info["vector_distance"] = config.vector_distance
 
             # Federation field-level directives
             federation = _extract_federation_directives(config)

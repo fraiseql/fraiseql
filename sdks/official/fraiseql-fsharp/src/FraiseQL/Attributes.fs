@@ -84,3 +84,25 @@ type GraphQLFieldAttribute() =
     /// provided by the client, so they are omitted from Create{Type}Input and
     /// Update{Type}Input. They remain visible in query results.
     member val Computed: bool = false with get, set
+
+    /// Vector width on a `Vector` / `BitVector` / `HalfVector` / `SparseVector` field:
+    /// float components for the float kinds, bits for `BitVector`.
+    ///
+    /// The compiler refuses a vector field carrying no configuration, so this is what
+    /// makes the four pgvector field types authorable. Zero — the default — means the
+    /// field is not a vector field; a column with no dimensions is not a thing an author
+    /// can mean.
+    member val VectorDimensions: int = 0 with get, set
+
+    /// The index this vector column is searched through: one of the `VectorIndex` values.
+    /// Empty means the default, `hnsw`.
+    member val VectorIndexType: string = "" with get, set
+
+    /// The distance metric a search over this column orders by: one of the
+    /// `VectorMetric` values. Empty means the default, `cosine`.
+    member val VectorDistanceMetric: string = "" with get, set
+
+    /// On a `Float` field, the vector field whose `nearest` search distance this field
+    /// carries. Selecting it on a query that did not run that search is refused, not
+    /// answered with null.
+    member val VectorDistance: string = "" with get, set

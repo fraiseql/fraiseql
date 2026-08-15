@@ -29,6 +29,22 @@
         { "name": "message", "type": "String", "nullable": false },
         { "name": "code", "type": "String", "nullable": false }
       ]
+    },
+    {
+      "name": "Document",
+      "sql_source": "v_document",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "embedding", "type": "Vector", "nullable": false,
+          "vector_config": { "dimensions": 1536, "index_type": "ivf_flat", "distance_metric": "l2" } },
+        { "name": "fingerprint", "type": "BitVector", "nullable": false,
+          "vector_config": { "dimensions": 768, "index_type": "hnsw", "distance_metric": "hamming" } },
+        { "name": "compact", "type": "HalfVector", "nullable": true,
+          "vector_config": { "dimensions": 1536, "index_type": "hnsw", "distance_metric": "inner_product" } },
+        { "name": "terms", "type": "SparseVector", "nullable": true,
+          "vector_config": { "dimensions": 30000, "index_type": "none", "distance_metric": "cosine" } },
+        { "name": "similarity", "type": "Float", "nullable": false, "vector_distance": "embedding" }
+      ]
     }
   ],
   "enums": [

@@ -38,6 +38,8 @@ module Dsl =
             description: string option
             scope: string option
             computed: bool
+            vectorConfig: VectorConfig option
+            vectorDistance: string option
         }
 
     /// Computation expression builder for a single <see cref="FieldDefinition"/>.
@@ -53,6 +55,8 @@ module Dsl =
                 description = None
                 scope = None
                 computed = false
+                vectorConfig = None
+                vectorDistance = None
             }
 
         member this.Zero() : FieldState = this.Yield(())
@@ -67,6 +71,8 @@ module Dsl =
                 description = s.description
                 scope = s.scope
                 computed = s.computed
+                vector_config = s.vectorConfig
+                vector_distance = s.vectorDistance
             }
 
         /// Sets whether this field may be null.
@@ -85,6 +91,25 @@ module Dsl =
         /// Marks this field as server-computed; excluded from CRUD input types.
         [<CustomOperation("computed")>]
         member _.Computed(s: FieldState, v: bool) : FieldState = { s with computed = v }
+
+        /// Declares this field a pgvector column of the given width, searched through the
+        /// given index by the given metric.
+        [<CustomOperation("vector")>]
+        member _.Vector(s: FieldState, dimensions: int, indexType: string, metric: string) : FieldState =
+            { s with
+                vectorConfig =
+                    Some
+                        {
+                            dimensions = dimensions
+                            index_type = indexType
+                            distance_metric = metric
+                        } }
+
+        /// Declares this `Float` field the distance a `nearest` search over the named
+        /// vector field ordered by.
+        [<CustomOperation("vectorDistance")>]
+        member _.VectorDistance(s: FieldState, v: string) : FieldState =
+            { s with vectorDistance = Some v }
 
     // -------------------------------------------------------------------------
     // TypeCEBuilder

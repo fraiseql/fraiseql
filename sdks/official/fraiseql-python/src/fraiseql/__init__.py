@@ -47,7 +47,16 @@ from fraiseql.client import (
     FraiseQLRateLimitError,
     FraiseQLUnsupportedError,
 )
-from fraiseql.decorators import FieldConfig, field, mutation, query, scalar, source, subscription
+from fraiseql.decorators import (
+    FieldConfig,
+    VectorConfig,
+    field,
+    mutation,
+    query,
+    scalar,
+    source,
+    subscription,
+)
 from fraiseql.decorators import enum as enum_decorator
 from fraiseql.decorators import error as error_decorator
 from fraiseql.decorators import input as input_decorator
@@ -62,7 +71,20 @@ from fraiseql.errors import (
 )
 from fraiseql.registry import SchemaRegistry, generate_schema_json
 from fraiseql.retry import RetryConfig
-from fraiseql.scalars import ID, UUID, CustomScalar, Date, DateTime, Decimal, Json, Time, Vector
+from fraiseql.scalars import (
+    ID,
+    UUID,
+    BitVector,
+    CustomScalar,
+    Date,
+    DateTime,
+    Decimal,
+    HalfVector,
+    Json,
+    SparseVector,
+    Time,
+    Vector,
+)
 from fraiseql.schema import Federation, export_schema, export_types, get_schema_dict
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
 from fraiseql.validators import (
@@ -86,6 +108,7 @@ __all__ = [
     "UUID",
     "AsyncFraiseQLClient",
     "AuthenticationError",
+    "BitVector",
     "CustomScalar",
     "Date",
     "DateTime",
@@ -99,15 +122,18 @@ __all__ = [
     "FraiseQLRateLimitError",
     "FraiseQLUnsupportedError",
     "GraphQLError",
+    "HalfVector",
     "Json",
     "NetworkError",
     "RetryConfig",
     "ScalarValidationError",
     "SchemaRegistry",
     "ScopeValidationError",
+    "SparseVector",
     "Time",
     "TimeoutError",
     "Vector",
+    "VectorConfig",
     "describe_scope_format",
     "enum",
     "error",

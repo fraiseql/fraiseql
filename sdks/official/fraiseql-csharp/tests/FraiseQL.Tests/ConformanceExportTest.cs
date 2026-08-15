@@ -1,6 +1,7 @@
 using FraiseQL.Attributes;
 using FraiseQL.Builders;
 using FraiseQL.Export;
+using FraiseQL.Models;
 using FraiseQL.Registry;
 using Xunit;
 
@@ -65,6 +66,7 @@ public class ConformanceExportTest
         SchemaRegistry.Instance.Register(typeof(ConformanceUser));
         SchemaRegistry.Instance.Register(typeof(ConformanceOrder));
         SchemaRegistry.Instance.Register(typeof(ConformanceUserNotFound));
+        SchemaRegistry.Instance.Register(typeof(ConformanceDocument));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
 
         SchemaRegistry.Instance.RegisterEnum("OrderStatus", new[] { "PENDING", "SHIPPED", "CANCELLED" });
@@ -135,6 +137,37 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "Float", Nullable = true, Scope = "read:User.salary")]
         public double? Salary { get; set; }
+    }
+
+    [GraphQLType(Name = "Document", SqlSource = "v_document")]
+    private sealed class ConformanceDocument
+    {
+        [GraphQLField(Type = "ID")]
+        public string Id { get; set; } = string.Empty;
+
+        [GraphQLField(Type = "Vector",
+            VectorDimensions = 1536,
+            VectorIndexType = VectorIndex.IvfFlat,
+            VectorDistanceMetric = VectorMetric.L2)]
+        public double[] Embedding { get; set; } = [];
+
+        [GraphQLField(Type = "BitVector",
+            VectorDimensions = 768,
+            VectorDistanceMetric = VectorMetric.Hamming)]
+        public string Fingerprint { get; set; } = string.Empty;
+
+        [GraphQLField(Type = "HalfVector", Nullable = true,
+            VectorDimensions = 1536,
+            VectorDistanceMetric = VectorMetric.InnerProduct)]
+        public double[]? Compact { get; set; }
+
+        [GraphQLField(Type = "SparseVector", Nullable = true,
+            VectorDimensions = 30000,
+            VectorIndexType = VectorIndex.None)]
+        public string? Terms { get; set; }
+
+        [GraphQLField(Type = "Float", VectorDistance = "embedding")]
+        public double Similarity { get; set; }
     }
 
     [GraphQLType(Name = "Order", SqlSource = "v_order")]

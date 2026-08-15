@@ -24,6 +24,8 @@ final readonly class FieldDefinition
      * @param string|null $scope Optional JWT scope required to access this field
      * @param array<string>|null $scopes Optional JWT scopes required to access this field
      * @param bool $computed When true, this field is server-computed and excluded from CRUD input types
+     * @param VectorConfig|null $vectorConfig pgvector configuration for a vector field
+     * @param string|null $vectorDistance The vector field whose search distance a Float field carries
      */
     public function __construct(
         public string $name,
@@ -37,6 +39,8 @@ final readonly class FieldDefinition
         public ?string $scope = null,
         public ?array $scopes = null,
         public bool $computed = false,
+        public ?VectorConfig $vectorConfig = null,
+        public ?string $vectorDistance = null,
     ) {
     }
 

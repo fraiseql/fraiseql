@@ -172,7 +172,26 @@ Decimal = NewType("Decimal", str)
 """Decimal/BigDecimal scalar for precise numeric values."""
 
 Vector = NewType("Vector", list)
-"""Vector scalar for pgvector embeddings."""
+"""Vector scalar for pgvector embeddings — a `vector(N)` column, `[Float!]!` in GraphQL."""
+
+BitVector = NewType("BitVector", str)
+"""Binary vector for pgvector's hamming / jaccard distance.
+
+A `bit(N)` column, and a string of `0`/`1` characters in GraphQL — the text form
+PostgreSQL itself gives a bit value, and what `binary_quantize(embedding)::bit(N)`
+produces.
+"""
+
+HalfVector = NewType("HalfVector", list)
+"""Half-precision vector — a `halfvec(N)` column, the same `[Float!]!` surface as `Vector`."""
+
+SparseVector = NewType("SparseVector", str)
+"""Sparse vector — a `sparsevec(N)` column, in pgvector's own text form.
+
+`{1:0.5,7:0.25}/1000`: 1-based index/value pairs and the dimension count. A string
+rather than a list of floats because a sparse vector exists so that a
+30-thousand-dimension bag of terms never has to be written out in full.
+"""
 
 # =============================================================================
 # Contact/Communication Scalars

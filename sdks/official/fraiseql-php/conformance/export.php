@@ -19,6 +19,7 @@ use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\SchemaExporter;
 use FraiseQL\StaticAPI;
+use FraiseQL\VectorConfig;
 
 #[GraphQLType(name: 'User', sqlSource: 'v_user', relay: true)]
 final class ConformanceUser
@@ -59,6 +60,41 @@ final class ConformanceUserNotFound
     public string $code;
 }
 
+#[GraphQLType(name: 'Document', sqlSource: 'v_document')]
+final class ConformanceDocument
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $id;
+
+    #[GraphQLField(type: 'Vector', nullable: false, vectorConfig: new VectorConfig(
+        dimensions: 1536,
+        indexType: VectorConfig::INDEX_IVF_FLAT,
+        distanceMetric: VectorConfig::METRIC_L2,
+    ))]
+    public array $embedding;
+
+    #[GraphQLField(type: 'BitVector', nullable: false, vectorConfig: new VectorConfig(
+        dimensions: 768,
+        distanceMetric: VectorConfig::METRIC_HAMMING,
+    ))]
+    public string $fingerprint;
+
+    #[GraphQLField(type: 'HalfVector', nullable: true, vectorConfig: new VectorConfig(
+        dimensions: 1536,
+        distanceMetric: VectorConfig::METRIC_INNER_PRODUCT,
+    ))]
+    public ?array $compact;
+
+    #[GraphQLField(type: 'SparseVector', nullable: true, vectorConfig: new VectorConfig(
+        dimensions: 30000,
+        indexType: VectorConfig::INDEX_NONE,
+    ))]
+    public ?string $terms;
+
+    #[GraphQLField(type: 'Float', nullable: false, vectorDistance: 'embedding')]
+    public float $similarity;
+}
+
 #[GraphQLType(name: 'CreateUserInput', isInput: true)]
 final class ConformanceCreateUserInput
 {
@@ -96,6 +132,7 @@ function authorFull(): void
     StaticAPI::register(ConformanceUser::class);
     StaticAPI::register(ConformanceOrder::class);
     StaticAPI::register(ConformanceUserNotFound::class);
+    StaticAPI::register(ConformanceDocument::class);
     StaticAPI::register(ConformanceCreateUserInput::class);
 
     StaticAPI::enum('OrderStatus', ['PENDING', 'SHIPPED', 'CANCELLED']);

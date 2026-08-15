@@ -7,6 +7,43 @@
 
 import type { CustomScalar } from "./scalars";
 
+/** Index a pgvector column is searched through. `"none"` means exact search. */
+export type VectorIndexType = "hnsw" | "ivf_flat" | "none";
+
+/**
+ * Distance metric a vector search orders by.
+ *
+ * `cosine` / `l2` / `inner_product` are defined over float vectors; `hamming` and
+ * `jaccard` over `BitVector`. Which of them a given field type and index admit is
+ * pgvector's business and the compiler's — it holds the operator-class table and
+ * refuses a combination that has no class, naming the alternative.
+ */
+export type DistanceMetric = "cosine" | "l2" | "inner_product" | "hamming" | "jaccard";
+
+/**
+ * pgvector configuration for a vector field.
+ *
+ * @example
+ * ```ts
+ * registerTypeFields("Document", [
+ *   { name: "embedding", type: "Vector", nullable: false,
+ *     vectorConfig: { dimensions: 1536, indexType: "hnsw", distanceMetric: "cosine" } },
+ * ], undefined, { sqlSource: "v_document" });
+ * ```
+ */
+export interface VectorConfig {
+  /**
+   * Vector width — float components for `Vector`, `HalfVector` and `SparseVector`,
+   * **bits** for `BitVector`. Required: it sizes the column, and a query vector of a
+   * different width is refused rather than silently padded.
+   */
+  dimensions: number;
+  /** Defaults to `"hnsw"`. */
+  indexType?: VectorIndexType;
+  /** Defaults to `"cosine"`. */
+  distanceMetric?: DistanceMetric;
+}
+
 /**
  * Field metadata for access control and deprecation.
  */
@@ -15,6 +52,13 @@ export interface FieldMetadata {
   deprecated?: boolean | string;
   description?: string;
   computed?: boolean;
+  /** pgvector configuration, on a `Vector` / `BitVector` / `HalfVector` / `SparseVector` field. */
+  vectorConfig?: VectorConfig;
+  /**
+   * On a `Float` field, the vector field whose `nearest` search distance it carries.
+   * Selecting it on a query that did not run that search is refused, not nulled.
+   */
+  vectorDistance?: string;
 }
 
 /**
@@ -486,6 +530,56 @@ export class SchemaRegistry {
     });
   }
 
+  /**
+   * Rename the vector keys to the ones the compiler reads, and fill the two defaults.
+   *
+   * Same shape as `canonicalizeFieldScopes` and for the same reason (#925): this SDK
+   * documents camelCase field metadata, and a key that reaches `fraiseql compile`
+   * camelCased is refused by name. `index_type` and `distance_metric` are written out
+   * even when the author left them off, so the `schema.json` says which index and
+   * which metric the column will get rather than leaving it to a default the author
+   * cannot see.
+   */
+  private static canonicalizeVectorFields<T extends Field>(fields: T[]): T[] {
+    return fields.map((f) => {
+      const { vectorConfig, vectorDistance, ...rest } = f as T & {
+        vector_config?: unknown;
+        vector_distance?: string;
+      };
+      if (vectorConfig === undefined && vectorDistance === undefined) {
+        return f;
+      }
+      if (vectorConfig !== undefined && vectorDistance !== undefined) {
+        throw new Error(
+          `Field '${f.name}' declares both vectorConfig and vectorDistance. A field is ` +
+            `either an embedding or the Float reporting how far a search's result was ` +
+            `from the query vector, not both.`
+        );
+      }
+      const out = { ...rest } as unknown as T & {
+        vector_config?: unknown;
+        vector_distance?: string;
+      };
+      if (vectorConfig !== undefined) {
+        if (!Number.isInteger(vectorConfig.dimensions) || vectorConfig.dimensions < 1) {
+          throw new Error(
+            `Field '${f.name}' declares ${vectorConfig.dimensions} vector dimensions; ` +
+              `dimensions must be a whole number of at least 1.`
+          );
+        }
+        out.vector_config = {
+          dimensions: vectorConfig.dimensions,
+          index_type: vectorConfig.indexType ?? "hnsw",
+          distance_metric: vectorConfig.distanceMetric ?? "cosine",
+        };
+      }
+      if (vectorDistance !== undefined) {
+        out.vector_distance = vectorDistance;
+      }
+      return out;
+    });
+  }
+
   static registerType(
     name: string,
     fields: Field[],
@@ -513,7 +607,9 @@ export class SchemaRegistry {
         `Type '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
-    fields = this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields));
+    fields = this.canonicalizeVectorFields(
+      this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+    );
     const typeDef: TypeDefinition = { name, fields, description };
     if (options?.relay) typeDef.relay = true;
     if (options?.sqlSource) typeDef.sql_source = options.sqlSource;
