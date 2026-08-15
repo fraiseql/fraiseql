@@ -352,6 +352,28 @@ impl<A: DatabaseAdapter> Executor<A> {
                 }
             }
 
+            // requires_actor (#966): `_entities` is the second door around the
+            // operation gates (#1030), so the backing query's actor allow-list is
+            // enforced here too. Unlike `requires_role` there is no type-level
+            // declaration to fall back to — `requires_actor` is operation-only by
+            // design, precisely so there is no lowering that can fail to reach a
+            // queryless entity. An entity with no backing query is therefore
+            // unrestricted by this gate and covered by `requires_role` above.
+            if let Some(q) = qdef {
+                crate::security::actor_type::enforce_requires_actor(
+                    "Query",
+                    &q.name,
+                    &q.requires_actor,
+                    security_context,
+                )
+                .map_err(|_| {
+                    entities_authz_denied(&format!(
+                        "type '{}' is restricted to actor types the _entities request is not",
+                        rep.typename
+                    ))
+                })?;
+            }
+
             // inject_params (tenant/owner scoping): fail closed for anonymous callers —
             // the resolver cannot apply the per-row filter. A queryless entity declares
             // no inject params (it has nowhere to); its session variables are still

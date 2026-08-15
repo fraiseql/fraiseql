@@ -537,8 +537,13 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // other per-tenant quotas, in the shared seam for the same reason (#858).
     let estimated_cost =
         super::tenant_dispatch::estimate_request_cost(&query, variables.as_ref(), executor);
-    super::tenant_dispatch::charge_cost_budget(&state, tenant_key.as_deref(), estimated_cost)
-        .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
+    super::tenant_dispatch::charge_cost_budget(
+        &state,
+        tenant_key.as_deref(),
+        security_context.as_ref(),
+        estimated_cost,
+    )
+    .map_err(|e| ErrorResponse::from_error(tenant_dispatch_error(&e)))?;
 
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]

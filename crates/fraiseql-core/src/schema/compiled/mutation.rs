@@ -119,6 +119,19 @@ pub struct MutationDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
 
+    /// Actor classes permitted to execute this mutation — an **allow-list** (#966).
+    ///
+    /// Empty (the default) means unrestricted. See
+    /// [`QueryDefinition::requires_actor`](super::query::QueryDefinition::requires_actor)
+    /// for the semantics, which are identical: an allow-list rather than a
+    /// deny-list so a future actor class is refused until an author admits it;
+    /// delegation deliberately not consulted; anonymous refused.
+    ///
+    /// This is where the issue's own example lives — "autonomous agents cannot
+    /// delete a tenant" is `requires_actor = ["human_user"]` on that mutation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires_actor: Vec<crate::security::ActorType>,
+
     /// Whether a successful run of this mutation writes a Change-Spine change-log
     /// row (default `true`).
     ///
@@ -267,6 +280,7 @@ impl MutationDefinition {
             rest_method:             None,
             upsert_function:         None,
             requires_role:           None,
+            requires_actor:          Vec::new(),
             changelog:               true,
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,

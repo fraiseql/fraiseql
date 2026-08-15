@@ -18,7 +18,10 @@ use crate::{
     extractors::OptionalSecurityContext,
     routes::{
         api::types::ApiError,
-        graphql::{AppState, tenant_registry::TenantQuota},
+        graphql::{
+            AppState,
+            tenant_registry::{ActorCostBudget, TenantQuota},
+        },
     },
     tenancy::{
         audit::{AuditActor, TenantEventKind},
@@ -88,6 +91,15 @@ pub struct TenantRegistrationRequest {
     /// may spend per fixed 60-second window. `None` = no window budget.
     #[serde(default)]
     pub cost_budget_per_minute:     Option<usize>,
+    /// Per-actor-class budget overrides (#966), keyed by the `snake_case` actor
+    /// token (`human_user`, `service_account`, `ai_agent`, `system_job`).
+    ///
+    /// A class listed here gets its own per-request ceiling and its own rolling
+    /// window, independent of the tenant-wide ones — so a batch job cannot spend
+    /// the allowance the humans are drawing on. An override that sets neither
+    /// number is refused, not stored.
+    #[serde(default)]
+    pub cost_budget_per_actor:      std::collections::HashMap<ActorType, ActorCostBudget>,
 }
 
 /// Response for tenant write operations.
@@ -267,6 +279,22 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let schema_json = serde_json::to_string(&body.schema)
         .map_err(|e| ApiError::validation_error(format!("invalid schema JSON: {e}")))?;
 
+    // Refuse a quota that cannot enforce anything *before* provisioning the
+    // executor (#966). Tenants are registered here rather than from a config
+    // file, so this endpoint is where "a configured-but-unconsumed budget is an
+    // error, not a silent no-op" lands — the registration-time analogue of a boot
+    // refusal. Checked ahead of the factory call so a rejected registration does
+    // not leave a connection pool behind.
+    let quota = TenantQuota {
+        max_requests_per_sec:       body.max_requests_per_sec,
+        max_concurrent:             body.max_concurrent,
+        max_storage_bytes_advisory: body.max_storage_bytes_advisory,
+        cost_budget:                body.cost_budget,
+        cost_budget_per_minute:     body.cost_budget_per_minute,
+        cost_budget_per_actor:      body.cost_budget_per_actor.clone(),
+    };
+    quota.validate().map_err(ApiError::validation_error)?;
+
     let executor =
         factory(key.clone(), schema_json, body.connection).await.map_err(|e| match &e {
             fraiseql_error::FraiseQLError::Parse { .. }
@@ -277,14 +305,6 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
             },
             _ => ApiError::internal_error(e),
         })?;
-
-    let quota = TenantQuota {
-        max_requests_per_sec:       body.max_requests_per_sec,
-        max_concurrent:             body.max_concurrent,
-        max_storage_bytes_advisory: body.max_storage_bytes_advisory,
-        cost_budget:                body.cost_budget,
-        cost_budget_per_minute:     body.cost_budget_per_minute,
-    };
 
     let was_insert = registry.upsert_with_quota(&key, executor, quota);
     let status = if was_insert { "created" } else { "updated" };

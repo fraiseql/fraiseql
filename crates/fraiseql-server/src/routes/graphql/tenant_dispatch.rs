@@ -151,6 +151,7 @@ pub fn estimate_request_cost<A: DatabaseAdapter>(
 pub fn charge_cost_budget<A: DatabaseAdapter>(
     state: &AppState<A>,
     tenant_key: Option<&str>,
+    security_context: Option<&fraiseql_core::security::SecurityContext>,
     cost: Option<u64>,
 ) -> fraiseql_error::Result<()> {
     let (Some(key), Some(registry), Some(cost)) = (tenant_key, state.tenant_registry(), cost)
@@ -160,12 +161,17 @@ pub fn charge_cost_budget<A: DatabaseAdapter>(
     if !registry.has_cost_budget(key) {
         return Ok(());
     }
+    // The actor class the budget is keyed on (#966). `None` for an
+    // unauthenticated request, which then takes the tenant-wide budget — the
+    // only safe reading, since `ActorType::default()` is `HumanUser` and
+    // defaulting would hand anonymous traffic whatever allowance the humans got.
+    let actor = security_context.map(fraiseql_core::security::SecurityContext::actor_type);
     #[allow(clippy::cast_possible_truncation)]
     // Reason: cost values are bounded by document size; u64→usize is lossless on 64-bit
     let cost = cost as usize;
     // Per-request ceiling first — an operation that can never run must not
     // consume any of the rolling window (#379).
-    registry.check_cost_budget(key, cost)?;
-    registry.charge_cost_window(key, cost)?;
+    registry.check_cost_budget(key, actor, cost)?;
+    registry.charge_cost_window(key, actor, cost)?;
     Ok(())
 }

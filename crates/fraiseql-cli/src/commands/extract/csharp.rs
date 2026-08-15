@@ -75,6 +75,7 @@ impl SchemaExtractor for CSharpExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                requires_actor: Vec::new(),
                 relay_cursor_type: None,
                 // `extract` scans SDK source text; it does not parse REST annotations.
                 rest: None,

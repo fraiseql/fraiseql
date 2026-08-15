@@ -258,6 +258,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         }
 
+        // 2c. Enforce requires_actor (#966), after the role gate so a caller
+        //     lacking the role learns nothing here that "not found" did not
+        //     already tell them.
+        crate::security::actor_type::enforce_requires_actor(
+            "Query",
+            &query_match.query_def.name,
+            &query_match.query_def.requires_actor,
+            Some(security_context),
+        )?;
+
         // Resolve session variables once. They are applied transaction-locally
         // on the same connection as the read (fixes #329) by passing them into
         // the connection-affine adapter call below, so PostgreSQL RLS policies
@@ -718,6 +728,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             });
         }
 
+        // The same guard for the actor allow-list (#966): an unauthenticated
+        // request has no classification, so it belongs to no class.
+        crate::security::actor_type::enforce_requires_actor(
+            "Query",
+            &query_match.query_def.name,
+            &query_match.query_def.requires_actor,
+            None,
+        )?;
+
         // Guard: queries with inject params require a security context.
         if !query_match.query_def.inject_params.is_empty() {
             return Err(FraiseQLError::Validation {
@@ -1010,6 +1029,20 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             let ops = [(OperationKind::Query, query_match.query_def.name.clone())];
             enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
         }
+
+        // #966: the actor allow-list, for the same reason and in the same place.
+        // The GraphQL entry points gate before dispatching; this path does not go
+        // through them — `execute_query_direct`, `count_rows` and the streaming
+        // reader all enter here — so a gate placed only there served every
+        // restricted row over REST. Caught by `actor_predicate_e2e_pg`'s REST
+        // case, which is precisely the #808 shape the issue warns about: a
+        // predicate enforced on one transport is not enforced.
+        crate::security::actor_type::enforce_requires_actor(
+            "Query",
+            &query_match.query_def.name,
+            &query_match.query_def.requires_actor,
+            security_context,
+        )?;
 
         // #423: the REST direct projection path does not run per-row field
         // authorization; fail closed if a policy-gated field is selected.

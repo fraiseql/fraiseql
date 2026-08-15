@@ -1510,6 +1510,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`requires_actor`: an operation may restrict which actor classes run it (#966).** #390
+  completed the *recording* half of the actor model; this is the consuming half. A query or
+  mutation may declare `requires_actor`, an **allow-list** of `ActorType`s
+  (`human_user`, `service_account`, `ai_agent`, `system_job`), evaluated in the same
+  executor gate as `requires_role` and composing with it as AND. Empty (the default) is
+  unrestricted, so no existing schema changes behaviour.
+
+  An allow-list rather than a deny-list, because a deny-list admits every class
+  invented after it was written. **Delegation is deliberately not consulted**: an
+  agent acting for an administrator is still an agent — a delegated token carries
+  the human's roles, so `requires_role` already consults them, and having
+  `requires_actor` do the same would make it a no-op for exactly the case it
+  exists for. An unauthenticated request has no classification and is refused by
+  any non-empty list, rather than falling back to `ActorType::default()` — which
+  is `HumanUser`, and would admit every anonymous caller to a human-only operation.
+
+  Enforced **inside the executor**, at the gates every read and write already
+  passes on its way to the database — the regular query path, the direct-read path
+  (REST reads, `Prefer: count=exact`, streaming exports), the universal mutation
+  chokepoint, the relay `node(id:)` lookup and the federation `_entities`
+  resolver. That is what makes "every transport" a fact rather than a claim, and
+  it is not theoretical: the REST case of the new `actor_predicate_e2e_pg` suite
+  found a **real hole** during development, where a predicate placed only on the
+  GraphQL entry points served every restricted row over REST (#808's shape).
+
+  The role gate still runs first, so a caller lacking the role keeps its
+  enumeration-hiding "not found"; a caller holding the role but of the wrong class
+  gets `FORBIDDEN`. Authored from `schema.json` today — an unrecognised token is a
+  compile error naming it, never a silently-dropped restriction, because an
+  allow-list that failed to parse would leave the operation *open*. No official
+  SDK authors it yet; that rollout is #1123.
+
+- **Per-actor-class cost budgets, keyed on `(tenant, actor_type)` (#966).** A tenant's
+  `cost_budget_per_actor` map gives a class its own per-request ceiling and its **own**
+  rolling minute window. A service account draining a report and a human clicking through a
+  UI are the same tenant, and without this they share one allowance: the batch job exhausts
+  the window the humans need, and sizing the window for the batch job removes the ceiling
+  from everyone.
+
+  A class's budget **replaces** the tenant-wide one rather than stacking — a class
+  configured with a *larger* allowance is a legitimate configuration, and stacking
+  would make it unreachable. Each class draws on its own counter, because charging
+  one shared window would make the tenant-wide budget a function of the traffic
+  mix. A class absent from the map falls back to the tenant-wide budget; an
+  unauthenticated request takes the tenant-wide one rather than `human_user`'s. A
+  tenant may configure *only* per-class budgets, and they are still charged. An
+  override setting neither number is **refused at registration** rather than
+  stored — it would otherwise be reported by the admin API and consulted per
+  request while refusing nothing.
+
+  MCP remains deliberately excluded from tenant cost budgets, unchanged and for
+  the reason already documented: an MCP document's shape is fixed by the schema,
+  so its score is constant and the check would meter nothing.
+
+  Documented in `docs/operations/actor-policies.md`.
+
 - **The operator SQL console: `POST /api/v1/admin/sql`, behind the new `admin-sql`
   feature (#962).** Studio's SQL tab. This runs statements an operator typed — the only
   endpoint on the server that executes SQL FraiseQL did not generate — so it is off in

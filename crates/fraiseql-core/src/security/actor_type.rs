@@ -7,8 +7,13 @@
 //! forensics ("every action an automated process took on behalf of user X") into
 //! a trivial query against the change-log / tenant audit tables.
 //!
-//! The classification is *recorded*, not an authorization input — see the
-//! security note on [`derive_actor`].
+//! The classification is recorded on every audited operation, and since #966 it
+//! is also **consumable as an authorization input**: an operation may declare
+//! `requires_actor`, an allow-list of actor classes, enforced by
+//! [`enforce_requires_actor`] in the same executor gate as `requires_role`. That
+//! is a deliberate change from the earlier "recorded, never consumed" stance,
+//! and it rests entirely on the classification being underivable from anything a
+//! client controls — see the security note on [`derive_actor`].
 
 use std::collections::HashMap;
 
@@ -30,7 +35,7 @@ const DELEGATION_CLAIM: &str = "act";
 /// [`HumanUser`](Self::HumanUser) — the safe, most-common classification and the
 /// value a serde-defaulted [`SecurityContext`](crate::security::SecurityContext)
 /// deserializes to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActorType {
     /// A human end user (the default classification for an ordinary user JWT).
@@ -114,12 +119,23 @@ impl ActorType {
 ///
 /// # Security
 ///
-/// The result is *recorded* (audit / change-log envelope), never consumed by an
-/// authorization decision in the engine. The `act` claim is only honoured on
-/// signature-verified tokens, so an unauthenticated or unsigned request cannot
-/// inject a delegation. An application that chooses to trust `actor_type` in its
-/// own [`Authorizer`](crate::security::Authorizer) is trusting its `IdP`'s `act`
-/// issuance.
+/// The result is recorded in the audit / change-log envelope **and**, since
+/// #966, is an authorization input wherever an operation declares
+/// `requires_actor` (see [`enforce_requires_actor`]). What makes that safe is
+/// that no client can choose its own classification:
+///
+/// * the `act` claim is honoured only on **signature-verified** tokens, so an unauthenticated or
+///   unsigned request cannot inject a delegation;
+/// * the derived value is stamped into the reserved `fraiseql.` attribute namespace, which the HTTP
+///   extractor **strips** from token claims — a caller cannot supply `fraiseql.actor_type` and have
+///   it survive;
+/// * the API-key, gRPC and Flight construction paths never forward `extra_claims` at all; and
+/// * nothing deserializes a [`SecurityContext`](crate::security::SecurityContext) from an untrusted
+///   payload.
+///
+/// Weaken any one of those and `requires_actor` becomes a gate the caller sets
+/// for itself. A deployment trusting `AiAgent` restrictions is still trusting its
+/// `IdP`'s `act` issuance, exactly as `requires_role` trusts its role claims.
 #[must_use]
 pub fn derive_actor<S: std::hash::BuildHasher>(
     user_id: &str,
@@ -133,6 +149,75 @@ pub fn derive_actor<S: std::hash::BuildHasher>(
         return (ActorType::ServiceAccount, None);
     }
     (ActorType::HumanUser, None)
+}
+
+/// Refuse an operation whose `requires_actor` allow-list excludes this request's
+/// actor class (#966).
+///
+/// `Ok(())` when `required` is empty — the overwhelmingly common case, and the
+/// reason this is a cheap slice check rather than a policy lookup.
+///
+/// # One implementation, every transport
+///
+/// This is the whole predicate, called from each executor gate that already
+/// enforces `requires_role` (regular queries, the relay node lookup, mutations,
+/// and the federation `_entities` resolver). Living inside the executor is what
+/// makes "every transport" true rather than asserted: GraphQL, REST, MCP, gRPC
+/// and the functions bridge all reach the database through those gates, so none
+/// of them can be the one that forgot (#808's lesson). A per-transport copy
+/// would be four more places to be wrong.
+///
+/// # Ordering
+///
+/// Call this **after** `requires_role`. The role gate answers "not found" to
+/// avoid role enumeration; running it first means a caller who lacks the role
+/// learns nothing new here. A caller who *has* the role and is refused on class
+/// gets a plain `Authorization` error naming the class — which leaks nothing,
+/// since a caller already knows what kind of principal it is, and a "not found"
+/// would send an agent's author hunting a schema bug that does not exist.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Authorization`](crate::error::FraiseQLError::Authorization)
+/// when the request's actor class is
+/// not in a non-empty `required` list, and when there is no security context at
+/// all — an unclassifiable request is refused rather than defaulted, so the gate
+/// does not depend on [`ActorType::default`] being the benign variant.
+pub fn enforce_requires_actor(
+    operation_kind: &str,
+    operation_name: &str,
+    required: &[ActorType],
+    security_context: Option<&crate::security::SecurityContext>,
+) -> crate::error::Result<()> {
+    if required.is_empty() {
+        return Ok(());
+    }
+    let permitted = || required.iter().map(|a| a.as_str()).collect::<Vec<_>>().join(", ");
+    let Some(ctx) = security_context else {
+        return Err(crate::error::FraiseQLError::Authorization {
+            message:  format!(
+                "{operation_kind} '{operation_name}' is restricted to actor types [{}], and an \
+                 unauthenticated request has no actor classification",
+                permitted()
+            ),
+            action:   Some(operation_kind.to_ascii_lowercase()),
+            resource: Some(operation_name.to_string()),
+        });
+    };
+    let actor = ctx.actor_type();
+    if required.contains(&actor) {
+        return Ok(());
+    }
+    Err(crate::error::FraiseQLError::Authorization {
+        message:  format!(
+            "{operation_kind} '{operation_name}' is not available to actor type '{}'; permitted: \
+             [{}]",
+            actor.as_str(),
+            permitted()
+        ),
+        action:   Some(operation_kind.to_ascii_lowercase()),
+        resource: Some(operation_name.to_string()),
+    })
 }
 
 #[cfg(test)]

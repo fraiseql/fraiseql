@@ -882,6 +882,17 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         }
     }
 
+    // 1c. Enforce requires_actor (#966). This chokepoint is why "every transport"
+    //     is a fact rather than a claim: every mutation entry path — both GraphQL
+    //     branches, `execute_mutation_query`, and the direct `SupportsMutations`
+    //     API the REST write path uses — converges here.
+    crate::security::actor_type::enforce_requires_actor(
+        "Mutation",
+        mutation_name,
+        &mutation_def.requires_actor,
+        security_ctx,
+    )?;
+
     // 2. Require a sql_source (PostgreSQL function name).
     //
     // Fall back to the operation's table field when sql_source is absent.

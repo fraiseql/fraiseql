@@ -520,6 +520,7 @@ mod entities_authz {
             ..Default::default()
         });
         schema.queries.push(QueryDefinition {
+            requires_actor: Vec::new(),
             returns_count: false,
             name: "users".to_string(),
             return_type: "User".to_string(),
@@ -753,6 +754,7 @@ mod entities_authz {
         });
         if with_query {
             schema.queries.push(QueryDefinition {
+                requires_actor:      Vec::new(),
                 returns_count:       false,
                 name:                "employees".to_string(),
                 return_type:         "Employee".to_string(),
@@ -1281,6 +1283,7 @@ mod inject {
         let mut inject_params = IndexMap::new();
         inject_params.insert("org_id".to_string(), InjectedParamSource::Jwt("org_id".to_string()));
         schema.queries.push(QueryDefinition {
+            requires_actor: Vec::new(),
             returns_count: false,
             name: "org_items".to_string(),
             return_type: "User".to_string(),
@@ -1663,6 +1666,7 @@ mod field_rbac {
     fn schema_with_rbac_fields() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
             return_type:         "User".to_string(),
@@ -2288,6 +2292,7 @@ mod field_authz {
 
     fn users_query() -> QueryDefinition {
         QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
             return_type:         "User".to_string(),

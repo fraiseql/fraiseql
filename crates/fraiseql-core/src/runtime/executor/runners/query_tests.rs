@@ -35,6 +35,7 @@ mod sourceless {
     async fn query_with_no_sql_source_is_refused_loudly() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "money".to_string(),
             return_type:         "Money".to_string(),
@@ -89,6 +90,7 @@ mod routing {
     async fn test_per_view_mock_returns_distinct_results() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
             return_type:         "User".to_string(),
@@ -133,6 +135,7 @@ mod auto_params {
     fn schema_with_auto_params(auto_params: AutoParams) -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor: Vec::new(),
             returns_count: false,
             name: "users".to_string(),
             return_type: "User".to_string(),
@@ -309,6 +312,7 @@ mod rls_composition {
     ) -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor: Vec::new(),
             returns_count: false,
             name: "users".to_string(),
             return_type: "User".to_string(),
@@ -470,6 +474,7 @@ mod rls_composition {
         let mut native_cols = HashMap::new();
         native_cols.insert("tenant_id".to_string(), "uuid".to_string());
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
             return_type:         "User".to_string(),
@@ -1130,6 +1135,7 @@ mod node_authz {
     ) -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor: Vec::new(),
             returns_count: false,
             name: "users".to_string(),
             return_type: "User".to_string(),
@@ -1310,6 +1316,7 @@ mod explicit_arg_recasing {
     fn orders_schema_with_arg(arg_name: &str) -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "orders".to_string(),
             return_type:         "Order".to_string(),

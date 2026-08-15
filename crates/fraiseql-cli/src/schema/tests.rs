@@ -136,6 +136,7 @@ mod database_validator_tests {
 
     fn make_query(name: &str, return_type: &str, sql_source: &str) -> QueryDefinition {
         QueryDefinition {
+            requires_actor:      Vec::new(),
             returns_count:       false,
             name:                name.to_string(),
             return_type:         return_type.to_string(),
@@ -1757,6 +1758,7 @@ mod optimizer_tests {
             interfaces: vec![],
             unions: vec![],
             queries: vec![QueryDefinition {
+                requires_actor:      Vec::new(),
                 returns_count:       false,
                 name:                "users".to_string(),
                 return_type:         "User".to_string(),
@@ -1821,6 +1823,7 @@ mod optimizer_tests {
             interfaces: vec![],
             unions: vec![],
             queries: vec![QueryDefinition {
+                requires_actor:      Vec::new(),
                 returns_count:       false,
                 name:                "products".to_string(),
                 return_type:         "Product".to_string(),

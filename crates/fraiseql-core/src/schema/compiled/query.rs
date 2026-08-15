@@ -212,6 +212,38 @@ pub struct QueryDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
 
+    /// Actor classes permitted to execute this query — an **allow-list** (#966).
+    ///
+    /// Empty (the default) means unrestricted. Non-empty means the request's
+    /// derived [`ActorType`](crate::security::ActorType) must be one of these, or
+    /// the operation is refused — regardless of what roles the caller holds. That
+    /// independence is the point: "autonomous agents may not read this" is a
+    /// statement about the *kind* of principal, not about its permissions.
+    ///
+    /// # An allow-list, not a deny-list
+    ///
+    /// A deny-list would admit every actor class added after it was written. An
+    /// allow-list refuses them, which is the fail-closed direction: a new
+    /// [`ActorType`](crate::security::ActorType) variant is in nobody's list until
+    /// an author puts it there.
+    ///
+    /// # Delegation is deliberately not consulted
+    ///
+    /// For a delegated request (RFC 8693: an agent acting for a human), the
+    /// classification is `AiAgent` and the check does **not** fall back to the
+    /// permissions of the human in `acting_for`. Composite authorization already
+    /// happens through roles — a delegated token carries the human's roles, so
+    /// `requires_role` consults them — and having `requires_actor` do the same
+    /// would make it a no-op for exactly the case it exists for.
+    ///
+    /// # Anonymous
+    ///
+    /// A request with no security context has no classification, so a non-empty
+    /// list refuses it. Fail-closed, and it does not depend on
+    /// [`ActorType::default`](crate::security::ActorType) being the benign variant.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires_actor: Vec<crate::security::ActorType>,
+
     /// Custom REST path override (e.g., `"/users/{id}/posts"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_path: Option<String>,
@@ -282,6 +314,7 @@ impl QueryDefinition {
             cache_ttl_seconds:   None,
             additional_views:    Vec::new(),
             requires_role:       None,
+            requires_actor:      Vec::new(),
             rest_path:           None,
             rest_method:         None,
             rest_stream:         false,

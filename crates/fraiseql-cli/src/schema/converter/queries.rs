@@ -184,6 +184,9 @@ impl SchemaConverter {
             );
         }
 
+        let requires_actor =
+            super::parse_requires_actor("Query", &intermediate.name, &intermediate.requires_actor)?;
+
         Ok(QueryDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -209,6 +212,7 @@ impl SchemaConverter {
             cache_ttl_seconds: intermediate.cache_ttl_seconds,
             additional_views: intermediate.additional_views,
             requires_role: intermediate.requires_role,
+            requires_actor,
             rest_path,
             rest_method,
             rest_stream: intermediate.rest_stream,

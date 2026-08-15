@@ -66,6 +66,12 @@ impl SchemaConverter {
         let (rest_path, rest_method) =
             Self::convert_rest_annotation("Mutation", &intermediate.name, intermediate.rest)?;
 
+        let requires_actor = super::parse_requires_actor(
+            "Mutation",
+            &intermediate.name,
+            &intermediate.requires_actor,
+        )?;
+
         Ok(MutationDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -81,6 +87,7 @@ impl SchemaConverter {
             rest_method,
             upsert_function: None,
             requires_role: intermediate.requires_role,
+            requires_actor,
             changelog: intermediate.changelog,
             input_style: intermediate.input_style,
             changelog_pre_image: intermediate.changelog_pre_image,

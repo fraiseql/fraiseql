@@ -372,6 +372,15 @@ pub struct IntermediateQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
 
+    /// Actor classes permitted to execute this query — an allow-list (#966).
+    ///
+    /// Empty means unrestricted. Tokens are the `snake_case` `ActorType` names
+    /// (`human_user`, `service_account`, `ai_agent`, `system_job`); an
+    /// unrecognised one is a compile error rather than a silently-ignored
+    /// restriction, which is the difference between a typo and an open operation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires_actor: Vec<String>,
+
     /// Relay cursor column type: `"uuid"` for UUID PKs, `"int64"` (or absent) for bigint PKs.
     /// Only meaningful when `relay = true`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -449,6 +458,12 @@ pub struct IntermediateMutation {
     /// the role cannot distinguish a forbidden mutation from a nonexistent one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// Actor classes permitted to execute this mutation — an allow-list (#966).
+    ///
+    /// Mirrors [`IntermediateQuery::requires_actor`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires_actor: Vec<String>,
 
     /// Fact tables whose version counter should be bumped after this mutation succeeds.
     ///
@@ -528,6 +543,7 @@ impl Default for IntermediateMutation {
             operation:               None,
             deprecated:              None,
             inject:                  IndexMap::new(),
+            requires_actor:          Vec::new(),
             requires_role:           None,
             invalidates_fact_tables: Vec::new(),
             invalidates_views:       Vec::new(),

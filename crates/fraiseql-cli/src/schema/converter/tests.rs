@@ -468,6 +468,7 @@ fn test_validate_unknown_type_reference() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
             return_type:       "UnknownType".to_string(),
@@ -545,6 +546,7 @@ fn test_convert_query_with_arguments() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
             return_type:       "User".to_string(),
@@ -636,6 +638,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            requires_actor:    Vec::new(),
             count:             false,
             name:              "items".to_string(),
             return_type:       "Item".to_string(),
@@ -716,6 +719,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            requires_actor:    Vec::new(),
             count:             false,
             name:              "item".to_string(),
             return_type:       "Item".to_string(),
@@ -3327,6 +3331,7 @@ fn custom_scalar_without_rules_still_compiles() {
 /// A list query carrying `count = true`, with everything else at its default.
 fn count_query(name: &str, tweak: impl FnOnce(&mut IntermediateQuery)) -> IntermediateQuery {
     let mut q = IntermediateQuery {
+        requires_actor:    Vec::new(),
         count:             true,
         name:              name.to_string(),
         return_type:       "User".to_string(),
