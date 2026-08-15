@@ -81,8 +81,8 @@ pub use config_types::{
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
-    DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig,
-    FieldType, VectorConfig, VectorIndexType,
+    BUILTIN_SCALARS, DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy,
+    FieldEncryptionConfig, FieldType, VectorConfig, VectorIndexType,
 };
 pub use graphql_type_defs::{
     EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
@@ -96,7 +96,7 @@ pub use introspection::{
     IntrospectionType, IntrospectionTypeRef, IntrospectionValidationRule, TypeKind,
 };
 pub use observer_types::{ObserverDefinition, RetryConfig};
-pub use scalar_types::{BUILTIN_SCALARS, RICH_SCALARS, is_known_scalar};
+pub use scalar_types::{RICH_SCALARS, is_known_scalar};
 pub use security_config::{
     ApiKeySecurityConfig, CodeChallengeMethod, CostBudgetConfig, EncryptionAlgorithm,
     ErrorSanitizationConfig, InjectedParamSource, KeySource, PkceSecurityConfig,

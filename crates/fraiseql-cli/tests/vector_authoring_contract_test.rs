@@ -514,3 +514,31 @@ fn a_binary_metric_on_a_half_vector_is_a_compile_error() {
     assert!(!ok, "jaccard is a bit-vector metric");
     assert!(log.contains("binary (bit) vectors"), "got: {log}");
 }
+
+/// Every vector field type is a **known** type name to the schema validator.
+///
+/// The validator seeds its known-type registry from a hand-maintained name list
+/// that `parse_field_type` — the only other place a name is decided to be a
+/// scalar — did not share. `BitVector`, `HalfVector` and `SparseVector` were
+/// added to the converter and not to the list, so a schema authoring any of
+/// them compiled with a warning saying the field's type "is not a declared
+/// type", suggesting the author declare it as a custom scalar. The advice was
+/// wrong and the type was fine: an author following it would have declared a
+/// custom scalar shadowing a built-in.
+#[test]
+fn every_vector_field_type_is_a_known_type_name() {
+    for (type_name, config) in [
+        ("Vector", r#"{"dimensions": 3, "distance_metric": "cosine"}"#),
+        ("BitVector", r#"{"dimensions": 3, "distance_metric": "hamming"}"#),
+        ("HalfVector", r#"{"dimensions": 3, "distance_metric": "cosine"}"#),
+        ("SparseVector", r#"{"dimensions": 3, "distance_metric": "cosine"}"#),
+    ] {
+        let (ok, log, _dir) = run_compile(&typed_vector_json(type_name, config), BASE_TOML, false);
+        assert!(ok, "{type_name} must compile: {log}");
+        assert!(
+            !log.contains("is not a declared type"),
+            "{type_name} is a built-in scalar the compiler parses, so the validator must \
+             recognize it rather than report it as undeclared: {log}"
+        );
+    }
+}

@@ -81,8 +81,8 @@ impl SchemaValidator {
         }
 
         // Add built-in scalars
-        for scalar in crate::schema::BUILTIN_SCALAR_NAMES {
-            type_names.insert((*scalar).to_string());
+        for scalar in crate::schema::builtin_scalar_names() {
+            type_names.insert(scalar.to_string());
         }
 
         // Add **declared** custom scalars.

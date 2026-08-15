@@ -3147,47 +3147,44 @@ fn absent_sources_convert_to_an_empty_list() {
 // The scalar-name table and the converter must not drift (#724 item 2)
 // ===========================================================================
 
-/// Every name in `BUILTIN_SCALAR_NAMES` must parse to a scalar, not an object reference.
+/// Every built-in scalar name round-trips: name → `FieldType` → the same name.
 ///
-/// The two tables were separately maintained and disagreed: the validator listed `"JSON"`,
-/// which `parse_field_type` does not recognize, so it became `FieldType::Object("JSON")` — a
-/// reference to a nonexistent type — while `"Json"`, the spelling every SDK emits, was not
-/// in the validator's list at all. Implicit custom-scalar registration hid both.
+/// The two directions used to be three hand-written lists — the validator's known-type
+/// registry, `parse_field_type` and `extract_type_name` — and they drifted twice. First
+/// over spelling: the validator listed `"JSON"`, which `parse_field_type` does not
+/// recognize, so it became `FieldType::Object("JSON")`, a reference to a nonexistent type,
+/// while `"Json"`, the spelling every SDK emits, was not in the validator's list at all.
+/// Then over the #959 vector types, which parsed correctly and were reported as
+/// undeclared. All three now read `fraiseql_core::schema::BUILTIN_SCALARS`; this pins that
+/// they still do, in both directions.
 #[test]
-fn builtin_scalar_names_match_the_converter() {
-    for name in crate::schema::BUILTIN_SCALAR_NAMES {
+fn builtin_scalar_names_round_trip_through_the_converter() {
+    for (name, expected) in fraiseql_core::schema::BUILTIN_SCALARS {
         let parsed = SchemaConverter::parse_field_type(
             name,
             &crate::schema::converter::DeclaredTypeNames::default(),
         )
         .unwrap_or_else(|e| panic!("scalar {name:?} must parse: {e}"));
-        assert!(
-            !matches!(parsed, FieldType::Object(_)),
-            "{name:?} is listed as a built-in scalar but the converter parses it as an object \
-             type reference ({parsed:?}) — a field with that type would reference a type that \
-             does not exist"
+        assert_eq!(
+            &parsed, expected,
+            "{name:?} is listed as a built-in scalar denoting {expected:?} but the converter \
+             parses it as {parsed:?}"
+        );
+        assert_eq!(
+            SchemaConverter::extract_type_name(&parsed),
+            *name,
+            "{name:?} does not survive the round trip back to a type name, so a compiled \
+             schema would name the type something an author cannot write"
         );
     }
 }
 
 /// A name that is *not* in the scalar table must parse as an object reference.
 ///
-/// The reverse guard: a scalar the converter recognizes but the validator's list omits is
-/// invisible to schema validation, which is the half of the drift that let `Json` through.
+/// The reverse guard: the table must not be so broad that an ordinary type name is
+/// swallowed as a scalar, which would make a reference to a real type unresolvable.
 #[test]
-fn converter_scalars_are_all_listed_as_builtins() {
-    // Every distinct scalar the converter can produce, with a name that yields it.
-    for name in [
-        "String", "Int", "Float", "Boolean", "ID", "DateTime", "Date", "Time", "Json", "UUID",
-        "Decimal", "Vector",
-    ] {
-        assert!(
-            crate::schema::BUILTIN_SCALAR_NAMES.contains(&name),
-            "the converter parses {name:?} as a scalar but it is absent from \
-             BUILTIN_SCALAR_NAMES, so schema validation cannot recognize it"
-        );
-    }
-    // A non-scalar must stay an object reference, or the table is over-broad.
+fn an_undeclared_name_stays_an_object_reference() {
     assert!(
         matches!(
             SchemaConverter::parse_field_type("User", &crate::schema::converter::DeclaredTypeNames::default()).unwrap(),
