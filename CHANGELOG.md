@@ -1670,10 +1670,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Only the type rendering, the identifier rules and the ~100-line runtime are per
   language.
 
-  Acceptance is compile-the-output, not "a template exists": the `generated-clients` CI
-  job generates from the canonical conformance fixture and runs `gofmt -l` + `go build`
-  + `go vet` on the Go client and `cargo check` with warnings denied on the Rust one,
-  then compiles a consumer project that calls every operation
+  Acceptance is compile-the-output, not "a template exists": the `generated-clients`
+  CI job generates from the canonical conformance fixture and runs
+  `gofmt -l` + `go build` + `go vet` on the Go client, and `cargo check` with warnings
+  denied on the Rust one, then compiles a consumer project that calls every operation
   (`client_go_consumer` / `client_rust_consumer`).
 
   **Go** is one package (`fraiseqlclient`), Go ≥ 1.21, standard library only

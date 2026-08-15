@@ -1,9 +1,9 @@
 # Incremental GraphQL delivery: `@stream`, `@defer`, SSE and `multipart/mixed`
 
 FraiseQL can deliver a GraphQL response incrementally — row batches for a large
-list (`@stream`, #387) and a split payload for a deferred fragment (`@defer`,
-#958) — over either of two wire framings. The capability is **opt-in** and
-default-off.
+list (`@stream`, #387) and a split payload for a deferred fragment
+(`@defer`, #958) — over either of two wire framings. The capability is
+**opt-in** and default-off.
 
 ## Configuration
 

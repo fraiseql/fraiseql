@@ -53,23 +53,23 @@ ignore = [
   # STILL what aws-smithy-http-client pulls, so the bump does not resolve these and the ignores
   # remain load-bearing.
   # 2026-08-13 re-assessment (#1103), against this tree, extending the deadline deliberately:
-  #   * Path re-verified: rustls 0.21.12 ← aws-smithy-http-client 1.3.0 ← aws-smithy-runtime
-  #     1.13.1 ← aws-config 1.10.1 ← fraiseql-cdc-sinks / fraiseql-storage.
-  #   * Non-default re-verified by construction, not by assertion: `cargo tree -i rustls@0.21.12`
-  #     on the DEFAULT feature set reports "did not match any packages"; the crate appears only
-  #     under --all-features. `aws-s3` and `cdc-kinesis` are both opt-in
-  #     (crates/fraiseql-server/Cargo.toml), so a default deployment cannot reach these bugs.
-  #   * Severity in context: all three are certificate-VALIDATION defects in rustls-webpki,
-  #     reachable only on a TLS handshake an aws-* client makes against a hostile or misissued
-  #     chain — i.e. an operator who opted into S3 or Kinesis and whose AWS endpoint is already
-  #     being impersonated. Not remotely triggerable by a FraiseQL client.
-  #   * Ruled out, do not retry: the aws-* version bump. The #975 coordinated sweep moved
-  #     aws-sdk-kinesis to 1.112, aws-config to 1.10.1, aws-sdk-s3 to 1.141 and
-  #     aws-smithy-http-client to 1.3.0 — rustls 0.21.12 survived all of it. The 2026-06-11
-  #     spike still holds: every aws-config HTTP-client feature (default-https-client /
-  #     client-hyper / rustls) routes to aws-smithy-runtime's legacy-rustls-ring connector, and
-  #     no clean feature selects rustls 0.23. The fix is a code-level custom hyper-rustls 0.27
-  #     HttpClient, tracked separately as real engineering.
+  # * Path re-verified: rustls 0.21.12 ← aws-smithy-http-client 1.3.0 ← aws-smithy-runtime
+  # 1.13.1 ← aws-config 1.10.1 ← fraiseql-cdc-sinks / fraiseql-storage.
+  # * Non-default re-verified by construction, not by assertion: `cargo tree -i rustls@0.21.12`
+  # on the DEFAULT feature set reports "did not match any packages"; the crate appears only
+  # under --all-features. `aws-s3` and `cdc-kinesis` are both opt-in
+  # (crates/fraiseql-server/Cargo.toml), so a default deployment cannot reach these bugs.
+  # * Severity in context: all three are certificate-VALIDATION defects in rustls-webpki,
+  # reachable only on a TLS handshake an aws-* client makes against a hostile or misissued
+  # chain — i.e. an operator who opted into S3 or Kinesis and whose AWS endpoint is already
+  # being impersonated. Not remotely triggerable by a FraiseQL client.
+  # * Ruled out, do not retry: the aws-* version bump. The #975 coordinated sweep moved
+  # aws-sdk-kinesis to 1.112, aws-config to 1.10.1, aws-sdk-s3 to 1.141 and
+  # aws-smithy-http-client to 1.3.0 — rustls 0.21.12 survived all of it. The 2026-06-11
+  # spike still holds: every aws-config HTTP-client feature (default-https-client /
+  # client-hyper / rustls) routes to aws-smithy-runtime's legacy-rustls-ring connector, and
+  # no clean feature selects rustls 0.23. The fix is a code-level custom hyper-rustls 0.27
+  # HttpClient, tracked separately as real engineering.
   # deadline: 2026-12-01 — deliberately STAGGERED off the 2026-10-01 cluster below. Five other
   # acceptances expire on 2026-10-01; sharing a sixth would make one day on which every open
   # branch blocks at once, which is the failure mode this deadline exists to surface, not cause.
