@@ -276,6 +276,12 @@ exclude = ["deleteAllUsers", "dangerousReset"]
 # Never expose any mutation as a tool, whatever `include` says (default: false).
 # See "Prefer read_only = true" under Limitations.
 read_only = true
+
+# Keep per-thread working state across an agent's tool calls (default: false).
+# Requires an authenticated caller and a configured [session_state] backend.
+# See "Session continuity" above for what the thread is keyed on — and why it
+# is not keyed on the client-controlled `mcp-session-id` header.
+session_state = true
 ```
 
 ### Filtering exposed tools
