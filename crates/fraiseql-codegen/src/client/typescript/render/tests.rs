@@ -14,6 +14,23 @@ fn scalars_map_to_ts() {
     assert_eq!(field_type_ts(&FieldType::Vector), "number[]");
 }
 
+/// Every pgvector field type renders as the surface it actually has (#959).
+///
+/// The wildcard arm in `field_type_ts` exists to keep a future `#[non_exhaustive]`
+/// scalar compiling, and that is exactly what let `HalfVector` and `SparseVector`
+/// degrade to `unknown` when they were added: the generator kept building, the
+/// generated client kept type-checking, and a caller's embedding lost its type.
+#[test]
+fn every_vector_type_maps_to_its_own_surface() {
+    // `[Float!]!` in GraphQL, whatever the column's precision.
+    assert_eq!(field_type_ts(&FieldType::Vector), "number[]");
+    assert_eq!(field_type_ts(&FieldType::HalfVector), "number[]");
+    // Each of these is a string in its own text form: a run of 0/1 for a bit
+    // vector, `{1:0.5,7:0.25}/1000` for a sparse one.
+    assert_eq!(field_type_ts(&FieldType::BitVector), "string");
+    assert_eq!(field_type_ts(&FieldType::SparseVector), "string");
+}
+
 #[test]
 fn references_pass_through_as_names() {
     assert_eq!(field_type_ts(&FieldType::Object("User".into())), "User");

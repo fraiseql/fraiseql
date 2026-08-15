@@ -2528,6 +2528,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The generated TypeScript and Python clients type a half-precision or sparse vector
+  field (#959).** Both renderers learned `Vector` and `BitVector` when those landed and
+  not `HalfVector` or `SparseVector`, which fell through a wildcard arm to `unknown` /
+  `Any`. The wildcard is deliberate — it keeps a future `#[non_exhaustive]` scalar
+  compiling — and it is exactly what made the omission invisible: the generator kept
+  building and the generated client kept type-checking, with a caller's embedding typed
+  as nothing in particular. `HalfVector` now renders as `number[]` / `list[float]` like
+  `Vector`, and `SparseVector` as `string` / `str` like `BitVector`, because half
+  precision is a storage choice and each of the two string forms is that type's own way
+  of writing itself down.
+
 - **A schema authoring a `BitVector`, `HalfVector` or `SparseVector` field no longer
   compiles with a warning telling the author the type does not exist (#959).** The three
   vector types were added to the compiler's type parser but not to the validator's
