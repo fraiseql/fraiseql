@@ -285,6 +285,59 @@ E = TypeVar("E", bound=PythonEnum)
 S = TypeVar("S", bound="CustomScalar")
 
 
+@dataclass(frozen=True)
+class VectorConfig:
+    """pgvector configuration for a vector field.
+
+    Carried by ``fraiseql.field(vector_config=...)`` on a ``Vector``,
+    ``BitVector``, ``HalfVector`` or ``SparseVector`` field, and emitted as the
+    ``vector_config`` object the compiler reads.
+
+    Attributes:
+        dimensions: Vector width — float components for ``Vector``, ``HalfVector``
+            and ``SparseVector``, **bits** for ``BitVector``. Required: it sizes the
+            column, and a query whose vector is a different width is refused rather
+            than silently padded.
+        index_type: ``"hnsw"`` (default), ``"ivf_flat"`` or ``"none"`` for exact search.
+        distance_metric: ``"cosine"`` (default), ``"l2"`` or ``"inner_product"`` for
+            float vectors; ``"hamming"`` or ``"jaccard"`` for ``BitVector``.
+
+    Which combinations exist is pgvector's business and the compiler's: it holds the
+    operator-class table (``ivf_flat`` has no class for a sparse vector at all, and
+    none for jaccard) and refuses a schema that asks for one that does not, naming
+    the alternative. This SDK does not carry a second copy of that table — a copy is
+    what drifts.
+
+    Examples:
+        >>> from typing import Annotated
+        >>> import fraiseql
+        >>> from fraiseql.scalars import Vector
+        >>> @fraiseql.type(sql_source="v_document")
+        ... class Document:
+        ...     embedding: Annotated[
+        ...         Vector,
+        ...         fraiseql.field(vector_config=fraiseql.VectorConfig(dimensions=1536)),
+        ...     ]
+    """
+
+    dimensions: int
+    index_type: str = "hnsw"
+    distance_metric: str = "cosine"
+
+    def __post_init__(self) -> None:
+        if self.dimensions < 1:
+            msg = f"vector dimensions must be at least 1 (got {self.dimensions})"
+            raise ValueError(msg)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The `vector_config` object as the AuthoringIR spells it."""
+        return {
+            "dimensions": self.dimensions,
+            "index_type": self.index_type,
+            "distance_metric": self.distance_metric,
+        }
+
+
 @dataclass
 class FieldConfig(Generic[T]):
     """Configuration for a GraphQL field with access control.
@@ -311,6 +364,9 @@ class FieldConfig(Generic[T]):
         deprecated: Deprecation reason if field is deprecated
         description: Field description for GraphQL schema
         computed: When True, field is excluded from all crud=True generated input types
+        vector_config: pgvector configuration, on a vector-typed field
+        vector_distance: on a ``float`` field, the vector field whose search distance
+            it carries
     """
 
     requires_scope: str | None = None
@@ -318,6 +374,8 @@ class FieldConfig(Generic[T]):
     deprecated: str | None = None
     description: str | None = None
     computed: bool = False
+    vector_config: VectorConfig | None = None
+    vector_distance: str | None = None
     # Federation field-level directives
     external: bool = False
     requires: str | None = None
@@ -325,6 +383,27 @@ class FieldConfig(Generic[T]):
     shareable: bool = False
     inaccessible: bool = False
     override_from: str | None = None
+
+
+def _validate_vector(vector_config: VectorConfig | None, vector_distance: str | None) -> None:
+    """Refuse the one vector combination that is locally decidable.
+
+    A field is either a vector or the distance a vector search produced; it cannot be
+    both, and the compiler says so too. Everything else about a `vector_config` —
+    which metrics a field type admits, which index types have an operator class for
+    them — depends on the field's declared type and on pgvector's own tables, and is
+    checked once, in the compiler, rather than copied into eleven SDKs.
+    """
+    if vector_config is not None and vector_distance is not None:
+        msg = (
+            "a field carries either vector_config or vector_distance, not both: "
+            "vector_config declares an embedding, vector_distance declares the Float "
+            "that reports how far a search's result was from the query vector"
+        )
+        raise ValueError(msg)
+    if vector_distance is not None and not vector_distance:
+        msg = "vector_distance must name the vector field whose distance this field carries"
+        raise ValueError(msg)
 
 
 def field(  # noqa: PLR0913 — public API; all parameters are meaningful
@@ -340,6 +419,8 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
     shareable: bool = False,
     inaccessible: bool = False,
     override_from: str | None = None,
+    vector_config: VectorConfig | None = None,
+    vector_distance: str | None = None,
 ) -> FieldConfig[Any]:
     """Create a field configuration for use with Annotated type hints.
 
@@ -359,6 +440,11 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
         computed: When True, the field is excluded from all input types generated by
             ``crud=True``. Use this for server-computed fields (e.g. auto-generated
             slugs, view aggregations) that are never provided by the client.
+        vector_config: pgvector configuration for a ``Vector``, ``BitVector``,
+            ``HalfVector`` or ``SparseVector`` field. See :class:`VectorConfig`.
+        vector_distance: on a ``float`` field, the name of the vector field whose
+            ``nearest`` search distance this field carries. Selecting it on a query
+            that did not run that search is refused rather than answered with null.
 
     Returns:
         FieldConfig instance for use with Annotated[T, field(...)]
@@ -416,6 +502,8 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
         )
         raise ValueError(msg)
 
+    _validate_vector(vector_config, vector_distance)
+
     return FieldConfig(
         requires_scope=requires_scope,
         on_deny=on_deny,
@@ -428,6 +516,8 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
         shareable=shareable,
         inaccessible=inaccessible,
         override_from=override_from,
+        vector_config=vector_config,
+        vector_distance=vector_distance,
     )
 
 

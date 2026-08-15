@@ -43,6 +43,9 @@ export { SchemaRegistry } from "./registry";
 export type {
   Field,
   FieldMetadata,
+  VectorConfig,
+  VectorIndexType,
+  DistanceMetric,
   TypeDefinition,
   QueryDefinition,
   MutationDefinition,
@@ -107,6 +110,9 @@ export type {
   Json,
   Decimal,
   Vector,
+  BitVector,
+  HalfVector,
+  SparseVector,
   // Date/Time scalars
   DateTime,
   Date,

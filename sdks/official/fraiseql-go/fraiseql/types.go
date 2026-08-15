@@ -22,6 +22,72 @@ type FieldInfo struct {
 	// gated with `fraiseql:"...,scope=..."` compiled with no scope at all and was
 	// served to callers holding none (#807).
 	Scope string `json:"requires_scope,omitempty"`
+	// Vector is the pgvector configuration of a Vector / BitVector / HalfVector /
+	// SparseVector field. The compiler refuses such a field without one, so it is
+	// what makes those types authorable at all.
+	Vector *VectorConfig `json:"vector_config,omitempty"`
+	// VectorDistance names, on a Float field, the vector field whose nearest-search
+	// distance this field carries. Selecting it on a query that did not run that
+	// search is refused, not answered with null.
+	VectorDistance string `json:"vector_distance,omitempty"`
+}
+
+// VectorConfig is the pgvector configuration of a vector field.
+//
+// Which combinations of field type, metric and index exist is pgvector's business
+// and the compiler's: it holds the operator-class table — ivfflat has no class for a
+// sparse vector at all, and none for jaccard — and refuses a schema that asks for one
+// that does not, naming the alternative. This SDK carries no second copy of that
+// table; a copy is what drifts.
+type VectorConfig struct {
+	// Dimensions is the vector width: float components for Vector, HalfVector and
+	// SparseVector, bits for BitVector. Required — it sizes the column, and a query
+	// vector of a different width is refused rather than silently padded.
+	Dimensions int `json:"dimensions"`
+	// IndexType is "hnsw" (default), "ivf_flat", or "none" for exact search.
+	IndexType string `json:"index_type"`
+	// DistanceMetric is "cosine" (default), "l2" or "inner_product" for float
+	// vectors; "hamming" or "jaccard" for a BitVector.
+	DistanceMetric string `json:"distance_metric"`
+}
+
+// Index types and distance metrics, named so a typo is a compile error rather than a
+// schema the compiler rejects.
+const (
+	IndexHNSW    = "hnsw"
+	IndexIVFFlat = "ivf_flat"
+	IndexNone    = "none"
+
+	MetricCosine       = "cosine"
+	MetricL2           = "l2"
+	MetricInnerProduct = "inner_product"
+	MetricHamming      = "hamming"
+	MetricJaccard      = "jaccard"
+)
+
+// NewVectorConfig builds a config with the defaults filled in.
+//
+// The defaults are written into the emitted schema rather than left off, so the
+// schema.json says which index and which metric the column will get instead of
+// leaving it to a compiler default the author cannot see.
+func NewVectorConfig(dimensions int) *VectorConfig {
+	return &VectorConfig{
+		Dimensions:     dimensions,
+		IndexType:      IndexHNSW,
+		DistanceMetric: MetricCosine,
+	}
+}
+
+// WithIndex returns the config searched through the named index type.
+func (v *VectorConfig) WithIndex(indexType string) *VectorConfig {
+	v.IndexType = indexType
+	return v
+}
+
+// WithMetric returns the config searched by the named distance metric.
+func (v *VectorConfig) WithMetric(metric string) *VectorConfig {
+	v.DistanceMetric = metric
+	return v
 }
 
 // goToGraphQLType converts a Go type to GraphQL type string and nullable flag

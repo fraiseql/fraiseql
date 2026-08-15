@@ -2,6 +2,67 @@ namespace FraiseQL
 
 open System.Text.Json.Serialization
 
+/// pgvector configuration for a vector field, emitted as the `vector_config` object
+/// the compiler reads.
+///
+/// The compiler refuses a `Vector`, `BitVector`, `HalfVector` or `SparseVector` field
+/// that carries no configuration, so this is what makes those types authorable.
+///
+/// Which combinations of field type, metric and index exist is pgvector's business and
+/// the compiler's: it holds the operator-class table — `ivfflat` has no class for a
+/// sparse vector at all, and none for jaccard — and refuses a schema that asks for one
+/// that does not, naming the alternative. This SDK carries no second copy of that table;
+/// a copy is what drifts.
+[<CLIMutable>]
+type VectorConfig =
+    {
+        /// Vector width: float components for `Vector`, `HalfVector` and `SparseVector`,
+        /// **bits** for `BitVector`. It sizes the column, and a query vector of a
+        /// different width is refused rather than silently padded.
+        dimensions: int
+        /// One of `VectorIndex.hnsw` (the default), `ivfFlat` or `none`.
+        index_type: string
+        /// One of `VectorMetric.cosine` (the default), `l2`, `innerProduct`, `hamming`
+        /// or `jaccard`.
+        distance_metric: string
+    }
+
+/// The index a pgvector column is searched through.
+module VectorIndex =
+    /// Hierarchical Navigable Small World index — the default.
+    [<Literal>]
+    let hnsw = "hnsw"
+
+    /// Inverted-file index: smaller and faster to build, slower to query.
+    [<Literal>]
+    let ivfFlat = "ivf_flat"
+
+    /// No index — exact search.
+    [<Literal>]
+    let none = "none"
+
+/// The distance metric a vector search orders by.
+module VectorMetric =
+    /// Cosine distance — the default, and what most text embeddings want.
+    [<Literal>]
+    let cosine = "cosine"
+
+    /// Euclidean distance.
+    [<Literal>]
+    let l2 = "l2"
+
+    /// Negative inner product.
+    [<Literal>]
+    let innerProduct = "inner_product"
+
+    /// Differing bits — `BitVector` only.
+    [<Literal>]
+    let hamming = "hamming"
+
+    /// Set overlap normalised by set size — `BitVector` only.
+    [<Literal>]
+    let jaccard = "jaccard"
+
 /// Represents a single field on a GraphQL type.
 [<CLIMutable>]
 type FieldDefinition =
@@ -31,6 +92,15 @@ type FieldDefinition =
         /// produced a `schema.json` the compiler refuses outright.
         [<JsonIgnore>]
         computed: bool
+        /// pgvector configuration on a `Vector` / `BitVector` / `HalfVector` /
+        /// `SparseVector` field. The compiler refuses such a field without one, so
+        /// dropping it here would not be a silent loss — it would make the four pgvector
+        /// field types unauthorable in F#.
+        vector_config: VectorConfig option
+        /// On a `Float` field, the vector field whose `nearest` search distance this
+        /// field carries. Selecting it on a query that did not run that search is
+        /// refused, not answered with null.
+        vector_distance: string option
     }
 
 /// Represents an argument on a GraphQL query or mutation.

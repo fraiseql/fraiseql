@@ -106,6 +106,35 @@ directions, as is `"ivf_flat"` with `"jaccard"` (pgvector ships
 native `bit(N)` column; in GraphQL it is a `String` of `0`/`1` characters. See
 [vector search](operations/vector-search.md).
 
+### Half-precision and sparse vector fields (#959)
+
+`HalfVector` and `SparseVector` carry the same `vector_config` and the same
+float metrics as `Vector`; what differs is the column behind them and, for
+sparse vectors, how a value is written:
+
+```json
+{ "name": "compact", "type": "HalfVector", "nullable": true,
+  "vector_config": { "dimensions": 1536, "index_type": "hnsw", "distance_metric": "l2" } },
+{ "name": "terms", "type": "SparseVector", "nullable": true,
+  "vector_config": { "dimensions": 30000, "index_type": "none", "distance_metric": "cosine" } }
+```
+
+`HalfVector` is a `halfvec(N)` column with the same `[Float!]!` GraphQL surface
+as `Vector`. `SparseVector` is a `sparsevec(N)` column and a GraphQL `String`,
+in pgvector's own `{1:0.5,7:0.25}/1000` text form — index/value pairs and the
+dimension count. `index_type = "ivf_flat"` on a sparse vector is a compile
+error: pgvector ships no `sparsevec_*` operator class for it. See
+[vector search](operations/vector-search.md).
+
+### SDK support
+
+All eleven official SDKs author `vector_config` and `vector_distance`, and the
+cross-SDK conformance suite's `vector_fields` construct holds them to it. Each
+SDK writes `index_type` and `distance_metric` into the emitted document even
+when the author leaves them at their default, so the IR states which index and
+which metric the column will get. Which *combinations* pgvector defines is the
+compiler's to know, not an SDK's.
+
 ### Nullability is separate from the type
 
 Nullability is **always** controlled by the `nullable` field, **not** by

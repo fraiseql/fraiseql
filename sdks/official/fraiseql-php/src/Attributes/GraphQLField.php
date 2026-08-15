@@ -41,6 +41,12 @@ final readonly class GraphQLField
      *   Computed fields (e.g. auto-generated slugs, view aggregations) are never provided by the
      *   client, so they are omitted from Create{Type}Input and Update{Type}Input.
      *   They remain visible in query results.
+     * @param \FraiseQL\VectorConfig|null $vectorConfig pgvector configuration, on a Vector /
+     *   BitVector / HalfVector / SparseVector field. The compiler refuses such a field
+     *   without one.
+     * @param string|null $vectorDistance On a Float field, the vector field whose nearest-search
+     *   distance this field carries. Selecting it on a query that did not run that search is
+     *   refused, not answered with null.
      */
     public function __construct(
         public ?string $type = null,
@@ -50,6 +56,15 @@ final readonly class GraphQLField
         public ?string $scope = null,
         public ?array $scopes = null,
         public bool $computed = false,
+        public ?\FraiseQL\VectorConfig $vectorConfig = null,
+        public ?string $vectorDistance = null,
     ) {
+        if ($vectorConfig !== null && $vectorDistance !== null) {
+            throw new \InvalidArgumentException(
+                'A field declares either vectorConfig or vectorDistance, not both: '
+                . 'vectorConfig declares an embedding, vectorDistance declares the Float '
+                . "reporting how far a search's result was from the query vector.",
+            );
+        }
     }
 }

@@ -159,6 +159,21 @@ defmodule FraiseQL.SchemaExporter do
     base
     |> maybe_put("description", f.description)
     |> maybe_put("requires_scope", single_scope(f))
+    |> maybe_put("vector_config", vector_config_to_map(f.vector_config))
+    |> maybe_put("vector_distance", f.vector_distance)
+  end
+
+  # A `Vector` field without its config is refused by the compiler, so dropping this
+  # would not be a silent loss — it would make the four pgvector field types unauthorable
+  # in Elixir.
+  defp vector_config_to_map(nil), do: nil
+
+  defp vector_config_to_map(%FraiseQL.VectorConfig{} = config) do
+    %{
+      "dimensions" => config.dimensions,
+      "index_type" => config.index_type,
+      "distance_metric" => config.distance_metric
+    }
   end
 
   # `requires_scopes` is a key the compiler does not read, and the compiled schema and the

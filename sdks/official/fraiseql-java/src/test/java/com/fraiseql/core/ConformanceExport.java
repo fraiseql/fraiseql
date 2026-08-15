@@ -58,6 +58,7 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceUser.class);
         FraiseQL.registerType(ConformanceOrder.class);
         FraiseQL.registerErrorType(ConformanceUserNotFound.class);
+        FraiseQL.registerType(ConformanceDocument.class);
 
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         FraiseQL.getRegistry().registerInputType(
@@ -162,6 +163,36 @@ public class ConformanceExport {
 
         @GraphQLField(type = "String")
         public String code;
+    }
+
+    @GraphQLType(name = "Document", sqlSource = "v_document")
+    public static class ConformanceDocument {
+        @GraphQLField(type = "ID")
+        public String id;
+
+        @GraphQLField(type = Scalars.VECTOR, vector = @VectorConfig(
+            dimensions = 1536,
+            indexType = VectorConfig.INDEX_IVF_FLAT,
+            distanceMetric = VectorConfig.METRIC_L2))
+        public float[] embedding;
+
+        @GraphQLField(type = Scalars.BIT_VECTOR, vector = @VectorConfig(
+            dimensions = 768,
+            distanceMetric = VectorConfig.METRIC_HAMMING))
+        public String fingerprint;
+
+        @GraphQLField(type = Scalars.HALF_VECTOR, nullable = true, vector = @VectorConfig(
+            dimensions = 1536,
+            distanceMetric = VectorConfig.METRIC_INNER_PRODUCT))
+        public float[] compact;
+
+        @GraphQLField(type = Scalars.SPARSE_VECTOR, nullable = true, vector = @VectorConfig(
+            dimensions = 30000,
+            indexType = VectorConfig.INDEX_NONE))
+        public String terms;
+
+        @GraphQLField(type = "Float", vectorDistance = "embedding")
+        public float similarity;
     }
 
     @GraphQLType(name = "CreateUserInput")

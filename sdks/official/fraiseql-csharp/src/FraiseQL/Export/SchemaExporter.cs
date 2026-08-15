@@ -116,7 +116,9 @@ public static class SchemaExporter
                 Resolver: f.Resolver,
                 Scope: f.Scope,
                 Scopes: f.Scopes,
-                Computed: f.Computed ? true : null))
+                Computed: f.Computed ? true : null,
+                Vector: f.Vector,
+                VectorDistance: f.VectorDistance))
             .ToList()
             .AsReadOnly();
 

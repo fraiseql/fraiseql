@@ -70,6 +70,40 @@ function authorFull(): void {
     { sqlSource: "v_user_not_found", isError: true }
   );
 
+  registerTypeFields(
+    "Document",
+    [
+      { name: "id", type: "ID", nullable: false },
+      {
+        name: "embedding",
+        type: "Vector",
+        nullable: false,
+        vectorConfig: { dimensions: 1536, indexType: "ivf_flat", distanceMetric: "l2" },
+      },
+      {
+        name: "fingerprint",
+        type: "BitVector",
+        nullable: false,
+        vectorConfig: { dimensions: 768, indexType: "hnsw", distanceMetric: "hamming" },
+      },
+      {
+        name: "compact",
+        type: "HalfVector",
+        nullable: true,
+        vectorConfig: { dimensions: 1536, indexType: "hnsw", distanceMetric: "inner_product" },
+      },
+      {
+        name: "terms",
+        type: "SparseVector",
+        nullable: true,
+        vectorConfig: { dimensions: 30000, indexType: "none", distanceMetric: "cosine" },
+      },
+      { name: "similarity", type: "Float", nullable: false, vectorDistance: "embedding" },
+    ],
+    undefined,
+    { sqlSource: "v_document" }
+  );
+
   enum_("OrderStatus", { PENDING: "PENDING", SHIPPED: "SHIPPED", CANCELLED: "CANCELLED" });
 
   input("CreateUserInput", [

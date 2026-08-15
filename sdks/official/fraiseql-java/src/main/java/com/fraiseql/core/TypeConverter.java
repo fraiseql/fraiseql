@@ -212,6 +212,30 @@ public class TypeConverter {
             );
             fieldInfo.isList = isList;
 
+            // A vector field and a distance field are the same declaration site with two
+            // meanings, and a field cannot be both: `vector_config` declares an embedding,
+            // `vector_distance` declares the Float reporting how far a search's result was
+            // from the query vector. The compiler says so too; saying it here names the
+            // Java field rather than the emitted key.
+            VectorConfig vector = annotation.vector();
+            boolean hasVector = vector.dimensions() != 0;
+            String vectorDistance = annotation.vectorDistance();
+            boolean hasDistance = !vectorDistance.isEmpty();
+            if (hasVector && hasDistance) {
+                throw new RuntimeException(String.format(
+                    "Field %s.%s declares both a vector config and a vector distance; a field "
+                        + "is either an embedding or the Float reporting a search's distance, "
+                        + "not both",
+                    type.getSimpleName(), fieldName));
+            }
+            if (hasVector && vector.dimensions() < 1) {
+                throw new RuntimeException(String.format(
+                    "Field %s.%s declares %d vector dimensions; dimensions must be at least 1",
+                    type.getSimpleName(), fieldName, vector.dimensions()));
+            }
+            fieldInfo.vectorConfig = hasVector ? vector : null;
+            fieldInfo.vectorDistance = hasDistance ? vectorDistance : null;
+
             // Set deprecation flag if deprecated reason is provided
             if (!annotation.deprecated().isEmpty()) {
                 fieldInfo.isDeprecated = true;
@@ -293,6 +317,10 @@ public class TypeConverter {
         public final boolean computed;
         public boolean isDeprecated;
         public boolean isList;
+        /** pgvector configuration, or null on an ordinary field. */
+        public VectorConfig vectorConfig;
+        /** The vector field this Float reports the search distance of, or null. */
+        public String vectorDistance;
 
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description) {
             this(name, type, nullable, description, null, null, false);

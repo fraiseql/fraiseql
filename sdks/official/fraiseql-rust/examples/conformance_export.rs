@@ -13,7 +13,7 @@
 
 use std::{env, fs};
 
-use fraiseql_rust::{Field, SchemaRegistry};
+use fraiseql_rust::{Field, SchemaRegistry, VectorConfig, VectorIndex, VectorMetric};
 
 fn minimal() -> SchemaRegistry {
     let mut registry = SchemaRegistry::new();
@@ -62,6 +62,32 @@ fn full() -> SchemaRegistry {
             Field::new("code", "String").with_nullable(false),
         ],
         "v_user_not_found",
+    );
+    registry.register_type_with_source(
+        "Document",
+        vec![
+            Field::new("id", "ID").with_nullable(false),
+            Field::new("embedding", "Vector").with_nullable(false).with_vector_config(Some(
+                VectorConfig::new(1536)
+                    .with_index(VectorIndex::IvfFlat)
+                    .with_metric(VectorMetric::L2),
+            )),
+            Field::new("fingerprint", "BitVector")
+                .with_nullable(false)
+                .with_vector_config(Some(
+                    VectorConfig::new(768).with_metric(VectorMetric::Hamming),
+                )),
+            Field::new("compact", "HalfVector").with_nullable(true).with_vector_config(Some(
+                VectorConfig::new(1536).with_metric(VectorMetric::InnerProduct),
+            )),
+            Field::new("terms", "SparseVector").with_nullable(true).with_vector_config(Some(
+                VectorConfig::new(30000).with_index(VectorIndex::None),
+            )),
+            Field::new("similarity", "Float")
+                .with_nullable(false)
+                .with_vector_distance(Some("embedding".to_string())),
+        ],
+        "v_document",
     );
     registry
 }

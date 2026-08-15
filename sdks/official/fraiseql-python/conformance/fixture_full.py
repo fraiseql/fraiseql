@@ -19,7 +19,13 @@ from enum import Enum
 from typing import Annotated
 
 import fraiseql
-from fraiseql.scalars import ID  # noqa: TC001 — deferred annotations are resolved at runtime
+from fraiseql.scalars import (  # noqa: TC001 — deferred annotations are resolved at runtime
+    ID,
+    BitVector,
+    HalfVector,
+    SparseVector,
+    Vector,
+)
 
 
 @fraiseql.type(sql_source="v_user", relay=True)
@@ -41,6 +47,44 @@ class Order:
 class UserNotFound:
     message: str
     code: str
+
+
+@fraiseql.type(sql_source="v_document")
+class Document:
+    id: ID
+    embedding: Annotated[
+        Vector,
+        fraiseql.field(
+            vector_config=fraiseql.VectorConfig(
+                dimensions=1536, index_type="ivf_flat", distance_metric="l2"
+            )
+        ),
+    ]
+    fingerprint: Annotated[
+        BitVector,
+        fraiseql.field(
+            vector_config=fraiseql.VectorConfig(
+                dimensions=768, index_type="hnsw", distance_metric="hamming"
+            )
+        ),
+    ]
+    compact: Annotated[
+        HalfVector | None,
+        fraiseql.field(
+            vector_config=fraiseql.VectorConfig(
+                dimensions=1536, index_type="hnsw", distance_metric="inner_product"
+            )
+        ),
+    ] = None
+    terms: Annotated[
+        SparseVector | None,
+        fraiseql.field(
+            vector_config=fraiseql.VectorConfig(
+                dimensions=30000, index_type="none", distance_metric="cosine"
+            )
+        ),
+    ] = None
+    similarity: Annotated[float, fraiseql.field(vector_distance="embedding")]
 
 
 @fraiseql.enum

@@ -149,6 +149,17 @@ final class SchemaExporter
                             $field['requires_scope'] = $scope;
                         }
 
+                        // A Vector field without its config is refused by the compiler,
+                        // so dropping these here would not be a silent loss — it would
+                        // make the four pgvector field types unauthorable in PHP.
+                        if ($f->vectorConfig !== null) {
+                            $field['vector_config'] = $f->vectorConfig->toArray();
+                        }
+
+                        if ($f->vectorDistance !== null) {
+                            $field['vector_distance'] = $f->vectorDistance;
+                        }
+
                         return $field;
                     },
                     $fields,

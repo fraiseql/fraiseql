@@ -81,6 +81,64 @@ module SchemaRegistry =
                 let scope =
                     if fieldAttr.Scope <> "" then Some fieldAttr.Scope else None
 
+                // A field is either an embedding or the Float reporting how far a
+                // search's result was from the query vector, and a column has at least
+                // one dimension. Which metrics a field type admits and which index types
+                // have an operator class for them depends on pgvector's own tables, and
+                // is checked once, in the compiler.
+                let declaresVector =
+                    fieldAttr.VectorDimensions <> 0
+                    || fieldAttr.VectorIndexType <> ""
+                    || fieldAttr.VectorDistanceMetric <> ""
+
+                if declaresVector && fieldAttr.VectorDistance <> "" then
+                    invalidArg
+                        "VectorDistance"
+                        (sprintf
+                            "Field '%s' declares both a vector config and a vector distance; a field is either an embedding or the Float reporting a search's distance, not both"
+                            fieldName)
+
+                if declaresVector && fieldAttr.VectorDimensions < 1 then
+                    invalidArg
+                        "VectorDimensions"
+                        (sprintf
+                            "Field '%s' declares %d vector dimensions; dimensions must be at least 1"
+                            fieldName
+                            fieldAttr.VectorDimensions)
+
+                // The index type and the metric are written out even where the author
+                // left them off, so the emitted schema says which index and which metric
+                // the column will get rather than leaving it to a compiler default the
+                // author cannot see.
+                let vectorConfig =
+                    if declaresVector then
+                        Some
+                            {
+                                dimensions = fieldAttr.VectorDimensions
+                                index_type =
+                                    if fieldAttr.VectorIndexType <> "" then
+                                        fieldAttr.VectorIndexType
+                                    else
+                                        VectorIndex.hnsw
+                                distance_metric =
+                                    if fieldAttr.VectorDistanceMetric <> "" then
+                                        fieldAttr.VectorDistanceMetric
+                                    else
+                                        VectorMetric.cosine
+                            }
+                    else
+                        None
+
+                // `vector_distance` names a sibling *field*, and field names are
+                // snake_cased on the way out — so the reference has to be too, or an
+                // author who points at the name they wrote gets a compile error naming a
+                // field that exists under a different spelling.
+                let vectorDistance =
+                    if fieldAttr.VectorDistance <> "" then
+                        Some(TypeMapper.toSnakeCase fieldAttr.VectorDistance)
+                    else
+                        None
+
                 {
                     name = fieldName
                     type_ = resolvedType
@@ -92,6 +150,8 @@ module SchemaRegistry =
                             None
                     scope = scope
                     computed = fieldAttr.Computed
+                    vector_config = vectorConfig
+                    vector_distance = vectorDistance
                 }))
         |> Array.toList
 

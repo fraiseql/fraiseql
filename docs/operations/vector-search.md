@@ -26,6 +26,37 @@ Authoring IR (what SDKs emit):
 dimensioned `vector(N)` column, `CREATE EXTENSION IF NOT EXISTS vector`, and the
 declared HNSW/IVFFlat index.
 
+All eleven official SDKs author it (#959), each in its own idiom, and the
+cross-SDK conformance suite holds them to it — the `vector_fields` construct
+compiles a type carrying all four vector field types plus a distance field, and
+asserts every key survives:
+
+```python
+# Python
+embedding: Annotated[Vector, fraiseql.field(
+    vector_config=fraiseql.VectorConfig(dimensions=1536, index_type="ivf_flat", distance_metric="l2"))]
+```
+
+```typescript
+// TypeScript
+{ name: "embedding", type: "Vector", nullable: false,
+  vectorConfig: { dimensions: 1536, indexType: "ivf_flat", distanceMetric: "l2" } }
+```
+
+```go
+// Go
+{Name: "embedding", Type: "Vector",
+    Vector: fraiseql.NewVectorConfig(1536).WithIndex(fraiseql.IndexIVFFlat).WithMetric(fraiseql.MetricL2)}
+```
+
+The index type and the distance metric have compiler-side defaults (`hnsw`,
+`cosine`), and every SDK writes them into the emitted `schema.json` even when the
+author left them off — so the artifact says which index and which metric the
+column will get rather than leaving it to a default nobody chose. What an SDK
+does **not** carry is the table of which combinations pgvector actually defines;
+that lives in the compiler, which refuses an unsupported one by name. A copy of
+that table in eleven places is a copy that drifts.
+
 ## Storage contract
 
 The backing view must expose the vector as a **native `vector(N)` column**

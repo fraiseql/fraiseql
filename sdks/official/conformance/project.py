@@ -34,13 +34,23 @@ AUTHORED_ENUMS = ("OrderStatus",)
 AUTHORED_QUERIES = ("users", "user", "tenantOrders")
 AUTHORED_MUTATIONS = ("createUser", "placeOrder")
 
+# The pgvector type is kept out of `AUTHORED_TYPES` on purpose: the `vector_fields`
+# construct owns it whole. A `Vector` field without a `vector_config` is a compile
+# error, so an SDK that cannot author the config cannot author the type either —
+# were it listed above, declaring the gap would still leave it failing `types`,
+# which reads as "this SDK's types are broken" rather than "this SDK has no vector
+# surface". Owning the type makes the gap declarable in one place, the way
+# `type_relay` owns the connection types the compiler synthesizes.
+AUTHORED_VECTOR_TYPES = ("Document",)
+
 # Every construct the canonical fixture exercises. An SDK must satisfy each one or
 # declare it unsupported in `manifest.json` with a reason.
 #
 # Adding an entry here is how the suite grows: a new construct fails every SDK that
 # has not implemented it until each either implements it or declares the gap. That is
-# the intended behaviour, and `test_new_construct_fails_every_sdk` in `selftest.py`
-# pins it.
+# the intended behaviour, and it follows from two places — `project()` refuses to return
+# unless every listed construct produced an observation, and `diff_observations` skips a
+# construct only where the SDK's manifest declares it unsupported.
 CONSTRUCTS = (
     "types",
     "field_description",
@@ -58,6 +68,7 @@ CONSTRUCTS = (
     "mutation_arguments",
     "mutation_invalidates_views",
     "mutation_invalidates_fact_tables",
+    "vector_fields",
 )
 
 
@@ -75,6 +86,27 @@ def _fields(type_def: dict[str, Any]) -> list[dict[str, Any]]:
             "name": f.get("name"),
             "type": f.get("field_type"),
             "nullable": f.get("nullable"),
+        }
+        for f in type_def.get("fields", [])
+        if isinstance(f, dict)
+    ]
+
+
+def _vector_fields(type_def: dict[str, Any]) -> list[dict[str, Any]]:
+    """A vector type's fields, carrying what makes them vector fields.
+
+    `vector_distance` travels with them: it names the vector field whose search
+    distance a `Float` field carries, the compiler resolves that name against the
+    type's own fields, and a dangling reference is a compile error — so the pair
+    only ever appears together.
+    """
+    return [
+        {
+            "name": f.get("name"),
+            "type": f.get("field_type"),
+            "nullable": f.get("nullable"),
+            "vector_config": f.get("vector_config"),
+            "vector_distance": f.get("vector_distance"),
         }
         for f in type_def.get("fields", [])
         if isinstance(f, dict)
@@ -239,6 +271,26 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: mutations[name]["invalidates_fact_tables"]
         for name in AUTHORED_MUTATIONS
         if mutations.get(name, {}).get("invalidates_fact_tables")
+    }
+
+    # Every key of `vector_config` is asserted, not just its presence, because two of
+    # the three have serde defaults: an SDK that emits `dimensions` alone compiles to
+    # hnsw + cosine and would pass a presence check while having silently chosen the
+    # index and the metric for the author. The fixture therefore declares a non-default
+    # `index_type` and `distance_metric` on every field.
+    #
+    # The field type is asserted here too, and not left to `types`, because it is what
+    # the compiler acted on: `vector_config` is refused on a non-vector field, a binary
+    # metric is refused on a float vector and vice versa, and `ivf_flat` is refused where
+    # pgvector ships no operator class — so a config that survives next to its declared
+    # type is a config the compiler checked against pgvector's own table.
+    observations["vector_fields"] = {
+        name: {
+            "sql_source": types[name].get("sql_source"),
+            "fields": _vector_fields(types[name]),
+        }
+        for name in AUTHORED_VECTOR_TYPES
+        if name in types
     }
 
     missing = set(CONSTRUCTS) - set(observations)

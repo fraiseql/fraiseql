@@ -465,6 +465,8 @@ final class SchemaRegistry
             scope: $typeInfo->scope,
             scopes: $typeInfo->scopes,
             computed: $fieldAttr?->computed ?? false,
+            vectorConfig: $fieldAttr?->vectorConfig,
+            vectorDistance: $fieldAttr?->vectorDistance,
         );
     }
 }

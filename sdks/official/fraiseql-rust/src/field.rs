@@ -14,6 +14,105 @@
 
 use serde::Serialize;
 
+/// pgvector configuration for a vector field.
+///
+/// The compiler refuses a `Vector`, `BitVector`, `HalfVector` or `SparseVector` field
+/// that carries no configuration, so this is what makes those types authorable.
+///
+/// Which combinations of field type, metric and index exist is pgvector's business and
+/// the compiler's: it holds the operator-class table — `ivfflat` has no class for a
+/// sparse vector at all, and none for jaccard — and refuses a schema that asks for one
+/// that does not, naming the alternative. This SDK carries no second copy of that table;
+/// a copy is what drifts.
+///
+/// # Example
+/// ```
+/// use fraiseql_rust::{Field, VectorConfig, VectorIndex, VectorMetric};
+///
+/// let field = Field::new("embedding", "Vector")
+///     .with_nullable(false)
+///     .with_vector_config(Some(
+///         VectorConfig::new(1536).with_index(VectorIndex::IvfFlat).with_metric(VectorMetric::L2),
+///     ));
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct VectorConfig {
+    /// Vector width: float components for `Vector`, `HalfVector` and `SparseVector`,
+    /// **bits** for `BitVector`. It sizes the column, and a query vector of a different
+    /// width is refused rather than silently padded.
+    pub dimensions:      u32,
+    /// The index this column is searched through.
+    pub index_type:      VectorIndex,
+    /// The metric a search over this column orders by.
+    pub distance_metric: VectorMetric,
+}
+
+/// The index a pgvector column is searched through.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VectorIndex {
+    /// Hierarchical Navigable Small World index — the default.
+    #[default]
+    Hnsw,
+    /// Inverted-file index: smaller and faster to build, slower to query.
+    IvfFlat,
+    /// No index — exact search.
+    None,
+}
+
+/// The distance metric a vector search orders by.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VectorMetric {
+    /// Cosine distance — the default, and what most text embeddings want.
+    #[default]
+    Cosine,
+    /// Euclidean distance.
+    L2,
+    /// Negative inner product.
+    InnerProduct,
+    /// Differing bits — `BitVector` only.
+    Hamming,
+    /// Set overlap normalised by set size — `BitVector` only.
+    Jaccard,
+}
+
+impl VectorConfig {
+    /// A config of the given width, searched through an HNSW index by cosine distance.
+    ///
+    /// The index type and the metric are always written into the emitted schema, so it
+    /// says which index and which metric the column will get rather than leaving it to a
+    /// compiler default the author cannot see.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `dimensions` is zero: a column with no dimensions is not a thing an
+    /// author can mean, and the compiler refuses it one step later.
+    #[must_use]
+    pub fn new(dimensions: u32) -> Self {
+        assert!(dimensions >= 1, "a vector column has at least 1 dimension");
+        Self {
+            dimensions,
+            index_type: VectorIndex::Hnsw,
+            distance_metric: VectorMetric::Cosine,
+        }
+    }
+
+    /// Sets the index type (fluent API).
+    #[must_use]
+    pub const fn with_index(mut self, index_type: VectorIndex) -> Self {
+        self.index_type = index_type;
+        self
+    }
+
+    /// Sets the distance metric (fluent API).
+    #[must_use]
+    pub const fn with_metric(mut self, distance_metric: VectorMetric) -> Self {
+        self.distance_metric = distance_metric;
+        self
+    }
+}
+
 /// Represents a GraphQL field definition with optional scope requirements.
 ///
 /// Fields can have scope-based access control through either a single scope
@@ -44,6 +143,15 @@ pub struct Field {
     /// Optional field description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// pgvector configuration, on a `Vector` / `BitVector` / `HalfVector` /
+    /// `SparseVector` field. The compiler refuses such a field without one.
+    #[serde(rename = "vector_config", skip_serializing_if = "Option::is_none")]
+    pub vector_config: Option<VectorConfig>,
+    /// On a `Float` field, the vector field whose `nearest` search distance this field
+    /// carries. Selecting it on a query that did not run that search is refused, not
+    /// answered with null.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_distance: Option<String>,
 }
 
 impl Field {
@@ -69,6 +177,8 @@ impl Field {
             requires_scope: None,
             requires_scopes: None,
             description: None,
+            vector_config: None,
+            vector_distance: None,
         }
     }
 
@@ -144,6 +254,34 @@ impl Field {
         self
     }
 
+    /// Sets the pgvector configuration (fluent API).
+    ///
+    /// # Example
+    /// ```
+    /// # use fraiseql_rust::{Field, VectorConfig};
+    /// let field = Field::new("embedding", "Vector")
+    ///     .with_vector_config(Some(VectorConfig::new(1536)));
+    /// ```
+    #[must_use]
+    pub fn with_vector_config(mut self, config: Option<VectorConfig>) -> Self {
+        self.vector_config = config;
+        self
+    }
+
+    /// Names, on a `Float` field, the vector field whose search distance it carries.
+    ///
+    /// # Example
+    /// ```
+    /// # use fraiseql_rust::Field;
+    /// let field = Field::new("similarity", "Float")
+    ///     .with_vector_distance(Some("embedding".to_string()));
+    /// ```
+    #[must_use]
+    pub fn with_vector_distance(mut self, vector_field: Option<String>) -> Self {
+        self.vector_distance = vector_field;
+        self
+    }
+
     /// The field as it is written to `schema.json`, with scopes normalized.
     ///
     /// # Panics
@@ -153,8 +291,19 @@ impl Field {
     /// multi-scope declaration cannot be honoured; emitting it produced a field with no
     /// scope at all — silently public (#807). Failing loudly at authoring time is the
     /// only outcome that does not ship an ungated field.
+    ///
+    /// Also panics when the field is both an embedding and a search distance. A field is
+    /// one or the other: `vector_config` declares an embedding, `vector_distance`
+    /// declares the `Float` reporting how far a search's result was from the query
+    /// vector.
     #[must_use]
     pub fn normalized(&self) -> Self {
+        assert!(
+            !(self.vector_config.is_some() && self.vector_distance.is_some()),
+            "field `{}` declares both a vector config and a vector distance; a field is \
+             either an embedding or the Float reporting a search's distance, not both",
+            self.name
+        );
         let mut field = self.clone();
         if let Some(scopes) = self.requires_scopes.as_deref() {
             match scopes {
@@ -210,6 +359,65 @@ mod tests {
         assert_eq!(field.name, "id");
         assert_eq!(field.field_type, "Int");
         assert!(field.nullable);
+    }
+
+    /// All four pgvector field types keep their own config through serialization.
+    ///
+    /// Every key is asserted, not just the object's presence: `index_type` and
+    /// `distance_metric` both have compiler-side defaults, so a config that lost them
+    /// would still compile — to hnsw + cosine, chosen by nobody.
+    #[test]
+    fn vector_config_reaches_the_emitted_json() {
+        let field = Field::new("embedding", "Vector").with_nullable(false).with_vector_config(
+            Some(
+                VectorConfig::new(1536)
+                    .with_index(VectorIndex::IvfFlat)
+                    .with_metric(VectorMetric::L2),
+            ),
+        );
+        let json: serde_json::Value = serde_json::from_str(&field.to_json()).expect("json");
+        assert_eq!(json["vector_config"]["dimensions"], 1536);
+        assert_eq!(json["vector_config"]["index_type"], "ivf_flat");
+        assert_eq!(json["vector_config"]["distance_metric"], "l2");
+    }
+
+    #[test]
+    fn the_index_and_metric_left_to_the_default_are_written_out() {
+        let field = Field::new("embedding", "Vector").with_vector_config(Some(VectorConfig::new(8)));
+        let json: serde_json::Value = serde_json::from_str(&field.to_json()).expect("json");
+        assert_eq!(json["vector_config"]["index_type"], "hnsw");
+        assert_eq!(json["vector_config"]["distance_metric"], "cosine");
+    }
+
+    #[test]
+    fn a_distance_field_names_the_vector_it_measures() {
+        let field = Field::new("similarity", "Float")
+            .with_vector_distance(Some("embedding".to_string()));
+        let json: serde_json::Value = serde_json::from_str(&field.to_json()).expect("json");
+        assert_eq!(json["vector_distance"], "embedding");
+    }
+
+    #[test]
+    fn an_ordinary_field_carries_no_vector_keys() {
+        let json: serde_json::Value =
+            serde_json::from_str(&Field::new("id", "ID").to_json()).expect("json");
+        assert!(json.get("vector_config").is_none());
+        assert!(json.get("vector_distance").is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "not both")]
+    fn a_field_is_an_embedding_or_a_distance_not_both() {
+        let _ = Field::new("embedding", "Vector")
+            .with_vector_config(Some(VectorConfig::new(8)))
+            .with_vector_distance(Some("embedding".to_string()))
+            .to_json();
+    }
+
+    #[test]
+    #[should_panic(expected = "at least 1 dimension")]
+    fn a_dimension_count_no_column_can_have_is_refused() {
+        let _ = VectorConfig::new(0);
     }
 
     #[test]

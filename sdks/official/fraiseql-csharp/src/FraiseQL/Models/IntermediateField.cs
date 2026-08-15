@@ -17,6 +17,17 @@ namespace FraiseQL.Models;
 /// When <see langword="true"/>, the field is server-computed and excluded from CRUD input types.
 /// Omitted from JSON when <see langword="null"/> (the default) to keep the schema compact.
 /// </param>
+/// <param name="Vector">
+/// pgvector configuration on a <c>Vector</c> / <c>BitVector</c> / <c>HalfVector</c> /
+/// <c>SparseVector</c> field. The compiler refuses such a field without one, so dropping
+/// it here would not be a silent loss — it would make the four pgvector field types
+/// unauthorable in C#.
+/// </param>
+/// <param name="VectorDistance">
+/// On a <c>Float</c> field, the vector field whose <c>nearest</c> search distance this
+/// field carries. Selecting it on a query that did not run that search is refused, not
+/// answered with null.
+/// </param>
 public record IntermediateField(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("type")]        string Type,
@@ -32,4 +43,6 @@ public record IntermediateField(
     // retained for source compatibility but is never serialised: emitting it produced a
     // key nothing reads. A singleton list is normalised onto Scope by SchemaRegistry.
     [property: JsonIgnore]                      IReadOnlyList<string>? Scopes = null,
-    [property: JsonPropertyName("computed")]    bool? Computed = null);
+    [property: JsonPropertyName("computed")]    bool? Computed = null,
+    [property: JsonPropertyName("vector_config")]   VectorConfig? Vector = null,
+    [property: JsonPropertyName("vector_distance")] string? VectorDistance = null);

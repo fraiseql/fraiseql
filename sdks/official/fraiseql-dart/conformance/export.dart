@@ -71,6 +71,35 @@ FraiseQLSchema authorFull() {
   );
 
   schema.type(
+    'Document',
+    sqlSource: 'v_document',
+    fields: {
+      'id': const FieldType.id(nullable: false),
+      'embedding': const FieldType.vector(
+        'Vector',
+        VectorConfig(1536,
+            indexType: VectorConfig.indexIvfFlat,
+            distanceMetric: VectorConfig.metricL2),
+        nullable: false,
+      ),
+      'fingerprint': const FieldType.vector(
+        'BitVector',
+        VectorConfig(768, distanceMetric: VectorConfig.metricHamming),
+        nullable: false,
+      ),
+      'compact': const FieldType.vector(
+        'HalfVector',
+        VectorConfig(1536, distanceMetric: VectorConfig.metricInnerProduct),
+      ),
+      'terms': const FieldType.vector(
+        'SparseVector',
+        VectorConfig(30000, indexType: VectorConfig.indexNone),
+      ),
+      'similarity': const FieldType.vectorDistanceOf('embedding', nullable: false),
+    },
+  );
+
+  schema.type(
     'CreateUserInput',
     isInput: true,
     fields: {
