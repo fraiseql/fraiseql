@@ -1591,6 +1591,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .or_else(|| self.hs256_auth.clone().map(crate::mcp::handler::McpTokenValidator::Hs256));
         let service = crate::mcp::handler::FraiseQLMcpService::new(self.build_app_state(), mcp_cfg)
             .with_token_validator(validator);
+        // Same store as the HTTP transport (#967). stdio carries no
+        // `mcp-session-id` header, so continuity resolves to none there — but the
+        // construction paths stay identical rather than differing by omission,
+        // which is #858's lesson about these two sites.
+        #[cfg(feature = "auth")]
+        let service = service.with_session_state(self.session_state.clone());
 
         info!("MCP stdio transport starting — reading from stdin, writing to stdout");
 

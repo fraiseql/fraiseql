@@ -674,3 +674,60 @@ path_column = ""
         assert!(bad.validate().is_err());
     }
 }
+
+/// #967: `[mcp] session_state` reaches the compiled schema.
+///
+/// The key is compiled from `fraiseql.toml` and read by the MCP transport at
+/// runtime, and the two ends are different `McpConfig` types that meet through
+/// serde field names in `merger.rs`. A key added to one and not the other parses,
+/// serializes, and silently means nothing at the far end — which is exactly the
+/// accepted-and-unconsumed shape rule 2 forbids.
+mod mcp_session_state {
+    use super::super::*;
+
+    #[test]
+    fn the_key_parses_and_defaults_off() {
+        let cfg: TomlSchema = toml::from_str(
+            r"
+            [mcp]
+            enabled = true
+            ",
+        )
+        .expect("[mcp] must parse");
+        assert!(
+            !cfg.mcp.session_state,
+            "continuity is opt-in: a deployment must not acquire it by upgrading"
+        );
+
+        let on: TomlSchema = toml::from_str(
+            r"
+            [mcp]
+            enabled = true
+            session_state = true
+            ",
+        )
+        .expect("session_state must parse");
+        assert!(on.mcp.session_state);
+    }
+
+    /// The value survives the JSON hop into the compiled schema, where the
+    /// server's own `McpConfig` reads it back.
+    #[test]
+    fn the_value_survives_the_hop_into_the_compiled_schema() {
+        let cfg: TomlSchema = toml::from_str(
+            r"
+            [mcp]
+            enabled = true
+            session_state = true
+            ",
+        )
+        .expect("parse");
+        let json = serde_json::to_value(&cfg.mcp).expect("serialize as merger.rs does");
+        let round_tripped: fraiseql_core::schema::McpConfig =
+            serde_json::from_value(json).expect("the runtime type must read it back");
+        assert!(
+            round_tripped.session_state,
+            "the key set in fraiseql.toml must be the one the MCP transport consults"
+        );
+    }
+}

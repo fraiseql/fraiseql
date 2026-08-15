@@ -7,6 +7,7 @@
 pub mod executor;
 pub mod handler;
 pub mod resources;
+pub mod session;
 pub mod tools;
 
 #[cfg(test)]

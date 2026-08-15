@@ -181,7 +181,10 @@ tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 # URL parsing (consolidated — F033)
 url = "2"
 # UUID
-uuid = {version = "1.21", features = ["v4", "serde"]}
+# `v5` (namespace-SHA-1) is used to derive an MCP agent thread's store key from
+# the authenticated principal (#967) — the derivation must be stable across
+# restarts, so a random v4 will not do.
+uuid = {version = "1.21", features = ["v4", "v5", "serde"]}
 # Hashing
 xxhash-rust = {version = "0.8", features = ["xxh3"]}
 

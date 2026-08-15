@@ -77,13 +77,14 @@ fn build_test_schema() -> CompiledSchema {
 
 fn make_mcp_config() -> McpConfig {
     McpConfig {
-        enabled:      true,
-        transport:    "http".to_string(),
-        path:         "/mcp".to_string(),
-        require_auth: false,
-        include:      vec![],
-        exclude:      vec![],
-        read_only:    false,
+        session_state: false,
+        enabled:       true,
+        transport:     "http".to_string(),
+        path:          "/mcp".to_string(),
+        require_auth:  false,
+        include:       vec![],
+        exclude:       vec![],
+        read_only:     false,
     }
 }
 

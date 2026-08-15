@@ -1530,8 +1530,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `resources/read` is a read verb — but they *are* Prompts, because a prompt is a
   sentence and getting one changes nothing.
 
-  Session continuity (#967's third part) is **not** in this change; each tool call
-  remains independent. The issue stays open for it.
+- **MCP session continuity, opt-in via `[mcp] session_state` (#967).** An authenticated
+  agent's tool calls accumulate into a thread in the `[session_state]` store, and every
+  result carries that thread back in `_meta` — so an agent can see what it has already
+  done. Off by default: it writes to a durable store on every authenticated call and makes
+  one call's result depend on the ones before it, which is a behaviour change no deployment
+  should acquire by upgrading.
+
+  **The whole security question is what the thread is keyed on.** rmcp's
+  streamable-HTTP transport surfaces a session in the `mcp-session-id` header,
+  and that header is client-controlled — keying the store on it would let any
+  caller read and overwrite any other's *durable* thread by sending their id. The
+  store is two-level, and the levels come from different places: `session_id` is
+  a UUIDv5 over the **authenticated** `user_id`, with nothing the client sends
+  contributing; `thread_id` is the header, verbatim. A client partitions its own
+  threads and can address nothing else. Two callers sending the identical header
+  get entirely separate histories, asserted end to end against a real store.
+
+  There is no fallback for an unauthenticated caller: no principal means nothing
+  safe to key on, and one unscoped thread shared by every anonymous caller is
+  worse than no continuity. Only tool **names** and argument **names** are
+  recorded — never values, which may be customer identifiers or search terms —
+  and only calls that actually happened, so a thread never tells an agent it has
+  done work it has not. A store failure is logged and the tool call still
+  succeeds.
 
 - **`requires_actor`: an operation may restrict which actor classes run it (#966).** #390
   completed the *recording* half of the actor model; this is the consuming half. A query or

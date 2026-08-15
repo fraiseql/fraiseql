@@ -384,34 +384,49 @@ pub struct ValidationConfig {
 #[serde(default)]
 pub struct McpConfig {
     /// Whether MCP is enabled.
-    pub enabled:      bool,
+    pub enabled:       bool,
     /// Transport mode: "http", "stdio", or "both".
-    pub transport:    String,
+    pub transport:     String,
     /// HTTP path for MCP endpoint (e.g., "/mcp").
-    pub path:         String,
+    pub path:          String,
     /// Require authentication for MCP requests.
-    pub require_auth: bool,
+    pub require_auth:  bool,
     /// Whitelist of query/mutation names to expose (empty = all).
-    pub include:      Vec<String>,
+    pub include:       Vec<String>,
     /// Blacklist of query/mutation names to hide.
-    pub exclude:      Vec<String>,
+    pub exclude:       Vec<String>,
     /// **Read-only exposure**: when `true`, no mutation is ever exposed as an MCP
     /// tool, regardless of [`include`](Self::include)/[`exclude`](Self::exclude) —
     /// a fail-closed default for AI callers, so a mutation added later is not
     /// silently exposed. Wins over `include` listing a mutation.
-    pub read_only:    bool,
+    pub read_only:     bool,
+    /// Keep per-thread working state across an agent's tool calls, in the
+    /// `[session_state]` store (#967).
+    ///
+    /// Off by default, and opt-in rather than automatic for two reasons: it
+    /// writes to a durable store on every authenticated tool call, and it makes
+    /// one call's result depend on the calls before it — which is the point, and
+    /// also a behaviour change no deployment should acquire by upgrading.
+    ///
+    /// Requires an authenticated caller and a configured `[session_state]`
+    /// backend. With either missing, tool calls run exactly as they do today: an
+    /// anonymous caller has no principal to scope a thread to, so there is
+    /// nothing safe to key on.
+    #[serde(default)]
+    pub session_state: bool,
 }
 
 impl Default for McpConfig {
     fn default() -> Self {
         Self {
-            enabled:      false,
-            transport:    "http".to_string(),
-            path:         "/mcp".to_string(),
-            require_auth: true,
-            include:      Vec::new(),
-            exclude:      Vec::new(),
-            read_only:    false,
+            enabled:       false,
+            transport:     "http".to_string(),
+            path:          "/mcp".to_string(),
+            require_auth:  true,
+            include:       Vec::new(),
+            exclude:       Vec::new(),
+            read_only:     false,
+            session_state: false,
         }
     }
 }

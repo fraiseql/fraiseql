@@ -111,11 +111,13 @@ impl McpTokenValidator {
 /// session construction is precisely what made every MCP call run on the default
 /// tenant's database and let a suspended tenant keep reading (#858).
 pub struct FraiseQLMcpService<A: DatabaseAdapter> {
-    state:     AppState<A>,
-    schema:    Arc<CompiledSchema>,
-    tools:     Vec<Tool>,
-    config:    McpConfig,
-    validator: Option<McpTokenValidator>,
+    state:         AppState<A>,
+    schema:        Arc<CompiledSchema>,
+    tools:         Vec<Tool>,
+    config:        McpConfig,
+    validator:     Option<McpTokenValidator>,
+    /// The `[session_state]` store, when the deployment configured one (#967).
+    session_state: Option<Arc<fraiseql_auth::session_state::SessionState>>,
 }
 
 impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
@@ -139,7 +141,24 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
             tools,
             config,
             validator: None,
+            session_state: None,
         }
+    }
+
+    /// Bind the `[session_state]` store, enabling per-thread continuity (#967).
+    ///
+    /// Continuity is active only when this is `Some` **and** `[mcp]
+    /// session_state = true`: the store is a deployment's, the flag is the
+    /// operator's decision to use it for MCP, and neither implies the other. A
+    /// server with the store configured but the flag unset behaves exactly as
+    /// before.
+    #[must_use]
+    pub fn with_session_state(
+        mut self,
+        store: Option<Arc<fraiseql_auth::session_state::SessionState>>,
+    ) -> Self {
+        self.session_state = store;
+        self
     }
 
     /// Attach the token validator used to authenticate MCP tool calls — OIDC or
@@ -248,7 +267,25 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
             Err(e) => return error_result(&sanitize(sanitizer, &e)),
         };
 
-        super::executor::call_tool(
+        // Per-thread continuity (#967), when the operator asked for it and the
+        // deployment configured a store. Resolved *after* authentication, because
+        // the thread is keyed on the authenticated principal and on nothing the
+        // client sent — see `session::thread_key`.
+        let thread = self
+            .config
+            .session_state
+            .then_some(self.session_state.as_ref())
+            .flatten()
+            .and_then(|store| {
+                super::session::thread_key(security_context, headers).map(|key| (store, key))
+            });
+
+        let prior = match thread {
+            Some((store, ref key)) => super::session::read_context(store, key).await,
+            None => Vec::new(),
+        };
+
+        let mut result = super::executor::call_tool(
             tool_name,
             arguments,
             &super::executor::McpCallContext {
@@ -259,7 +296,21 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
                 error_sanitizer: sanitizer,
             },
         )
-        .await
+        .await;
+
+        if let Some((store, key)) = thread {
+            // Only a call that happened is remembered. A refused or failed call
+            // did nothing to the database, and a thread that recorded it would
+            // tell the agent it had already done work it has not done.
+            if result.is_error != Some(true) {
+                super::session::record_call(store, &key, tool_name, arguments, prior.clone()).await;
+                let mut calls = prior;
+                calls.push(serde_json::json!({ "tool": tool_name }));
+                super::session::attach_context(&mut result, &key, &calls);
+            }
+        }
+
+        result
     }
 }
 
