@@ -263,7 +263,7 @@ impl Field {
     ///     .with_vector_config(Some(VectorConfig::new(1536)));
     /// ```
     #[must_use]
-    pub fn with_vector_config(mut self, config: Option<VectorConfig>) -> Self {
+    pub const fn with_vector_config(mut self, config: Option<VectorConfig>) -> Self {
         self.vector_config = config;
         self
     }
