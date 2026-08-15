@@ -38,17 +38,21 @@ void main() {
           'SparseVector',
           VectorConfig(30000, indexType: VectorConfig.indexNone),
         ),
-        'plain': const FieldType.vector('Vector', VectorConfig(8), nullable: false),
-        'similarity': const FieldType.vectorDistanceOf('embedding', nullable: false),
+        'plain':
+            const FieldType.vector('Vector', VectorConfig(8), nullable: false),
+        'similarity':
+            const FieldType.vectorDistanceOf('embedding', nullable: false),
       },
     );
 
-    final decoded = jsonDecode(jsonEncode(schema.toJson())) as Map<String, Object?>;
+    final decoded =
+        jsonDecode(jsonEncode(schema.toJson())) as Map<String, Object?>;
     final types = decoded['types']! as List<Object?>;
     final document = types.cast<Map<String, Object?>>().firstWhere(
           (t) => t['name'] == 'Document',
         );
-    final fields = (document['fields']! as List<Object?>).cast<Map<String, Object?>>();
+    final fields =
+        (document['fields']! as List<Object?>).cast<Map<String, Object?>>();
     return {for (final f in fields) f['name']! as String: f};
   }
 
@@ -67,7 +71,11 @@ void main() {
     final fields = documentFields();
     expect(
       fields['embedding']!['vector_config'],
-      equals({'dimensions': 1536, 'index_type': 'ivf_flat', 'distance_metric': 'l2'}),
+      equals({
+        'dimensions': 1536,
+        'index_type': 'ivf_flat',
+        'distance_metric': 'l2'
+      }),
     );
     expect(
       (fields['fingerprint']!['vector_config']! as Map)['distance_metric'],
@@ -77,18 +85,21 @@ void main() {
       (fields['compact']!['vector_config']! as Map)['distance_metric'],
       equals('inner_product'),
     );
-    expect((fields['terms']!['vector_config']! as Map)['index_type'], equals('none'));
+    expect((fields['terms']!['vector_config']! as Map)['index_type'],
+        equals('none'));
   });
 
   test('the index and metric left to the default are written out', () {
     expect(
       documentFields()['plain']!['vector_config'],
-      equals({'dimensions': 8, 'index_type': 'hnsw', 'distance_metric': 'cosine'}),
+      equals(
+          {'dimensions': 8, 'index_type': 'hnsw', 'distance_metric': 'cosine'}),
     );
   });
 
   test('a distance field names the vector it measures', () {
-    expect(documentFields()['similarity']!['vector_distance'], equals('embedding'));
+    expect(documentFields()['similarity']!['vector_distance'],
+        equals('embedding'));
   });
 
   test('an ordinary field carries no vector keys', () {
