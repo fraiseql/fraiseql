@@ -53,6 +53,28 @@ SERVICES = {
         ),
         "satisfied_by": {"DATABASE_URL", "TLS_DATABASE_URL"},
     },
+    # A streaming standby is a *distinct* service from the primary (#957): a leg
+    # can bind Postgres and still have no replica to read from, which is exactly
+    # how `tenant_schema_isolation_e2e_pg` reached the `server` suite needing a
+    # standby that suite never bound. `standby_database_url()` panics rather than
+    # skipping, so it failed loudly — but only once the leg ran, and no gate said
+    # so first. `\b` before `standby_database_url` keeps the failover getter (whose
+    # name ends with it) out of this group.
+    "pg_standby": {
+        "detect": re.compile(
+            r"\bstandby_database_url\(\)|" + ENV_READ.format(name="STANDBY_DATABASE_URL")
+        ),
+        "satisfied_by": {"STANDBY_DATABASE_URL"},
+    },
+    # The second standby, which exists to be promoted and destroyed. A leg binding
+    # the read-only standby does not satisfy a test that needs one to `pg_promote()`.
+    "pg_failover_standby": {
+        "detect": re.compile(
+            r"failover_standby_database_url\(\)|"
+            + ENV_READ.format(name="FAILOVER_STANDBY_DATABASE_URL")
+        ),
+        "satisfied_by": {"FAILOVER_STANDBY_DATABASE_URL"},
+    },
     "redis": {
         "detect": re.compile(
             r"(?:test_support|services)::redis\(|" + ENV_READ.format(name="REDIS_URL")
