@@ -131,7 +131,62 @@ check is against the field being searched.
   apply to `BitVector` fields — see below.
 - Performance: ANN indexes accelerate `ORDER BY … LIMIT` (the `nearest` shape),
   not bare threshold predicates — expect a scan on large tables, or combine
-  with `nearest`.
+  with `nearest`. How much of a scan is measured below.
+
+## Index eligibility: what a filter costs an ANN search
+
+`benches/vector_filtered_ann.sql` measures both shapes against 100 000 documents
+of 384 dimensions with an HNSW index. Run it against any pgvector 0.8+ database:
+
+```bash
+psql "$DATABASE_URL" -f benches/vector_filtered_ann.sql
+```
+
+Measured on pgvector 0.8.6 / PostgreSQL 16.14, `k = 10`, filter uncorrelated
+with the embedding (a tenant or status predicate, not a topic):
+
+| rows matching the filter | `hnsw.iterative_scan` | rows returned | recall | median |
+|---|---|---|---|---|
+| all (no filter) | any            | 10 | 1.00 | 0.11 ms |
+| 50%             | any            | 10 | 1.00 | 0.24 ms |
+| 5%              | `off` (default)| **3** | **0.30** | 0.43 ms |
+| 5%              | `relaxed_order`| 10 | 1.00 | 1.9 ms |
+| 1% and below    | `off` (default)| **2** | **0.20** | 0.43 ms |
+| 1% and below    | `relaxed_order`| 10 | 1.00 | 3.1 ms |
+
+**The failure mode is not slowness.** With pgvector's default
+`hnsw.iterative_scan = off`, the index scan hands up a bounded candidate list and
+the filter is applied to it; once the filter is selective the list is exhausted
+before ten survivors exist, and the query returns two rows and succeeds. A client
+asking for the ten nearest gets two, with nothing to distinguish that from "only
+two matched".
+
+FraiseQL does not set this GUC. An operator whose queries combine `nearest` with
+a selective `where` should:
+
+```sql
+ALTER DATABASE app SET hnsw.iterative_scan = relaxed_order;
+```
+
+`relaxed_order` and `strict_order` were indistinguishable here in both recall and
+latency; `relaxed_order` is the cheaper guarantee and the one to reach for unless
+the exact ordering of the returned k matters. The cost is real but bounded — 3.1 ms
+against 0.43 ms — and it buys a complete answer.
+
+Threshold predicates are a different story: a distance *range* is not what an ANN
+index answers, so no setting makes one index-eligible. Both forms read every row.
+What differs is where the vector comes from:
+
+| threshold predicate | median |
+|---|---|
+| against the native `vector(N)` column | 22 ms |
+| through the JSONB payload (`(data->>'embedding')::vector`) | **2667 ms** |
+
+That 122× is the per-row text parse. The WHERE generator resolves vector fields
+from `data->>'field'` like every other filter, so today a threshold predicate pays
+it — on the same view that already exposes the native column `nearest` orders by.
+Until that changes, prefer `nearest` with a `k` over a threshold predicate on any
+table worth indexing.
 
 ## The distance in the response
 
