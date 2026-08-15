@@ -2557,6 +2557,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subscription re-checks its principal's expiry/revocation (#771). `0` disables the
   periodic check; per-delivery expiry enforcement remains.
 
+
+- **A filtered-ANN benchmark, and what it found (#959).**
+  `benches/vector_filtered_ann.sql` measures `nearest` combined with a `where` over
+  100 000 documents × 384 dimensions against any pgvector 0.8+ database, reporting rows
+  returned, recall against the exact answer, and latency across six selectivities and
+  the three `hnsw.iterative_scan` settings.
+
+  The headline is not a speed number. With pgvector's default
+  `hnsw.iterative_scan = off`, a `nearest` search asking for ten rows returns **two**
+  once the filter is selective — the index scan's candidate list is exhausted before ten
+  survive the filter, and the query succeeds. `relaxed_order` returns all ten at full
+  recall for 3.1 ms against 0.43 ms. FraiseQL sets neither GUC today; the operator-level
+  remedy is in `docs/operations/vector-search.md` and the automatic one is filed as
+  #1116. Separately, a threshold predicate reading the vector out of the JSONB payload
+  costs 122× the identical predicate against the native column the same view must
+  already expose (#1117).
+
+- **Every official SDK can author a pgvector field (#959).** `vector_config` and
+  `vector_distance` are on the field surface of all eleven — Python, TypeScript, Go, PHP,
+  Java, C#, F#, Elixir, Ruby, Dart and Rust — each in its own idiom, together with the
+  `BitVector`, `HalfVector` and `SparseVector` type names. Until now the `Vector` scalar
+  existed in some of them as a name with nothing behind it: the compiler refuses a vector
+  field carrying no configuration, so no SDK could author one at all.
+
+  Two properties are deliberate. Every SDK writes `index_type` and `distance_metric` into
+  the emitted `schema.json` even when the author leaves them off, so the artifact says
+  which index and which metric the column will get instead of deferring to a compiler
+  default nobody chose. And no SDK carries the table of which field-type / metric / index
+  combinations pgvector actually defines — that lives once, in the compiler, which refuses
+  an unsupported combination by name. Eleven copies of that table would be eleven things
+  to drift.
+
+  The cross-SDK conformance suite gained the `vector_fields` construct, which owns a type
+  carrying all four vector field types plus a `Float` declaring `vector_distance`, and
+  asserts every key of every config survives authoring, export and compilation. All eleven
+  SDKs satisfy it; none needed a declared gap.
+
+
+- **`count = true` emits a `<name>Count(where): Int!` sibling for a list query (#938).**
+  A non-Relay list compiles to `where`/`orderBy`/`limit`/`offset` returning a bare `[T]`,
+  which has nowhere to hang a total — so an offset-paginated client could not compute a
+  page count. `totalCount` existed, but only on a Relay connection, and a Relay connection
+  is keyset-only: obtaining the count cost random access, which is the reason offset paging
+  was chosen. The sibling closes that gap without either compromise:
+
+  ```graphql
+  users(where: UserWhere, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+  usersCount(where: UserWhere): Int!
+  ```
+
+  Opt-in per query, because the extra `SELECT COUNT(*)` scans the whole filtered set and is
+  wasted on any list not rendered with page numbers. Refused at compile time on a
+  single-item query, on a query with no `sql_source`, and on `relay = true` (redundant with
+  its `totalCount`); a generated name that collides with an authored query is also refused
+  rather than silently displacing it.
+
+  The sibling is **derived** from the list definition, not authored separately, so it
+  inherits the same `sql_source`, `inject_params`, `requires_role`, declared arguments,
+  `native_columns` and `additional_views`. That inheritance is the point: a count answers
+  "how many rows match?" without returning one, so a count that kept the rows but dropped
+  the tenant filter would leak another tenant's row total while leaking no row — and would
+  pass any test that only inspects returned data.
+
 ### Changed
 
 - **The weekly fuzz campaign reports what it finds (#441).** A crash now opens
@@ -2677,44 +2740,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `IMPROVEMENTS.md` / `IMPROVEMENTS_R3.md` audit ledgers moved to `docs/history/` (code
   comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
   archived onto issue #687 before removal.
-
-### Added
-
-- **A filtered-ANN benchmark, and what it found (#959).**
-  `benches/vector_filtered_ann.sql` measures `nearest` combined with a `where` over
-  100 000 documents × 384 dimensions against any pgvector 0.8+ database, reporting rows
-  returned, recall against the exact answer, and latency across six selectivities and
-  the three `hnsw.iterative_scan` settings.
-
-  The headline is not a speed number. With pgvector's default
-  `hnsw.iterative_scan = off`, a `nearest` search asking for ten rows returns **two**
-  once the filter is selective — the index scan's candidate list is exhausted before ten
-  survive the filter, and the query succeeds. `relaxed_order` returns all ten at full
-  recall for 3.1 ms against 0.43 ms. FraiseQL sets neither GUC today; the operator-level
-  remedy is in `docs/operations/vector-search.md` and the automatic one is filed as
-  #1116. Separately, a threshold predicate reading the vector out of the JSONB payload
-  costs 122× the identical predicate against the native column the same view must
-  already expose (#1117).
-
-- **Every official SDK can author a pgvector field (#959).** `vector_config` and
-  `vector_distance` are on the field surface of all eleven — Python, TypeScript, Go, PHP,
-  Java, C#, F#, Elixir, Ruby, Dart and Rust — each in its own idiom, together with the
-  `BitVector`, `HalfVector` and `SparseVector` type names. Until now the `Vector` scalar
-  existed in some of them as a name with nothing behind it: the compiler refuses a vector
-  field carrying no configuration, so no SDK could author one at all.
-
-  Two properties are deliberate. Every SDK writes `index_type` and `distance_metric` into
-  the emitted `schema.json` even when the author leaves them off, so the artifact says
-  which index and which metric the column will get instead of deferring to a compiler
-  default nobody chose. And no SDK carries the table of which field-type / metric / index
-  combinations pgvector actually defines — that lives once, in the compiler, which refuses
-  an unsupported combination by name. Eleven copies of that table would be eleven things
-  to drift.
-
-  The cross-SDK conformance suite gained the `vector_fields` construct, which owns a type
-  carrying all four vector field types plus a `Float` declaring `vector_distance`, and
-  asserts every key of every config survives authoring, export and compilation. All eleven
-  SDKs satisfy it; none needed a declared gap.
 
 ### Fixed
 
@@ -3955,6 +3980,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subject is tenant isolation), and its isolation assertions connect as an unprivileged
   role and drive real session variables rather than comparing two different WHERE clauses.
 
+
+- **`Prefer: count=exact` no longer materialises the whole filtered set (#938).** The REST
+  count path fetched every matching row and returned `rows.len()`, so
+  `GET /rest/users?limit=10` with the header pulled the entire table into memory to produce
+  one integer. Both surfaces now go through a new `DatabaseAdapter::count_where_query`,
+  which PostgreSQL implements as `SELECT COUNT(*)` with the same `WhereClause` generator and
+  the same session variables as the read it describes. The trait default still counts rows
+  in memory — correct, and the only option for an adapter that cannot push the count down —
+  so this is a performance fix on PostgreSQL, not a behaviour change.
+
 ### Security
 
 - **Token revocation is now enforced under `[auth_hs256]`, not only under `[auth]` (#1112).**
@@ -4618,44 +4653,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the raw JSON at **both** deserialization sites — the JSON workflow and the TOML /
   multi-file merger — because guarding only one would have left every `--schema-dir` user
   with the original silent drop.
-
-### Added
-
-- **`count = true` emits a `<name>Count(where): Int!` sibling for a list query (#938).**
-  A non-Relay list compiles to `where`/`orderBy`/`limit`/`offset` returning a bare `[T]`,
-  which has nowhere to hang a total — so an offset-paginated client could not compute a
-  page count. `totalCount` existed, but only on a Relay connection, and a Relay connection
-  is keyset-only: obtaining the count cost random access, which is the reason offset paging
-  was chosen. The sibling closes that gap without either compromise:
-
-  ```graphql
-  users(where: UserWhere, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
-  usersCount(where: UserWhere): Int!
-  ```
-
-  Opt-in per query, because the extra `SELECT COUNT(*)` scans the whole filtered set and is
-  wasted on any list not rendered with page numbers. Refused at compile time on a
-  single-item query, on a query with no `sql_source`, and on `relay = true` (redundant with
-  its `totalCount`); a generated name that collides with an authored query is also refused
-  rather than silently displacing it.
-
-  The sibling is **derived** from the list definition, not authored separately, so it
-  inherits the same `sql_source`, `inject_params`, `requires_role`, declared arguments,
-  `native_columns` and `additional_views`. That inheritance is the point: a count answers
-  "how many rows match?" without returning one, so a count that kept the rows but dropped
-  the tenant filter would leak another tenant's row total while leaking no row — and would
-  pass any test that only inspects returned data.
-
-### Fixed
-
-- **`Prefer: count=exact` no longer materialises the whole filtered set (#938).** The REST
-  count path fetched every matching row and returned `rows.len()`, so
-  `GET /rest/users?limit=10` with the header pulled the entire table into memory to produce
-  one integer. Both surfaces now go through a new `DatabaseAdapter::count_where_query`,
-  which PostgreSQL implements as `SELECT COUNT(*)` with the same `WhereClause` generator and
-  the same session variables as the read it describes. The trait default still counts rows
-  in memory — correct, and the only option for an adapter that cannot push the count down —
-  so this is a performance fix on PostgreSQL, not a behaviour change.
 
 ## [2.14.1] - 2026-07-24
 
