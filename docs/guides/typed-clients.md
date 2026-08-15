@@ -1,4 +1,4 @@
-# Typed clients (TypeScript & Python)
+# Typed clients (TypeScript, Python, Go & Rust)
 
 Frontend and backend-to-backend callers of a FraiseQL API can be fully typed from
 the same `schema.compiled.json` the server runs on — no hand-maintained interfaces,
@@ -12,6 +12,14 @@ fraiseql generate-client typescript \
 fraiseql generate-client python \
   --schema ./schema.compiled.json \
   --out ./app/fraiseql_client
+
+fraiseql generate-client go \
+  --schema ./schema.compiled.json \
+  --out ./internal/fraiseqlclient
+
+fraiseql generate-client rust \
+  --schema ./schema.compiled.json \
+  --out ./src/generated
 ```
 
 `--schema` is auto-detected from conventional locations (`schema.compiled.json`,
@@ -110,6 +118,107 @@ Two Python-specific notes:
   the server applies its own defaults. To send an explicit JSON `null`, call
   `client.request(document, variables)` directly.
 
+## Go
+
+One package (`fraiseqlclient`), Go ≥ 1.21 (the Relay `Connection[T]` needs
+generics), and nothing outside the standard library — the transport is
+`net/http`.
+
+| File | Contents |
+|---|---|
+| `types.go` | object/interface types as structs with `json` tags; unions; relay `Connection[T]` |
+| `enums.go` | GraphQL enums as defined string types plus one constant per value |
+| `inputs.go` | input objects as structs (`*T` + `omitempty` for optional fields) |
+| `queries.go` / `mutations.go` | operations as methods on `*Client`, plus `IsErrorResult` |
+| `client.go` | `Client` over `net/http`, with a per-request `Headers` hook |
+
+```go
+c := fraiseqlclient.NewClient("https://api.example.com/graphql")
+c.Headers = func() map[string]string {
+    return map[string]string{"authorization": "Bearer " + token()}
+}
+
+user, err := c.GetUser("abc")          // *User — nil when the server returns null
+
+created, err := c.CreateUser(fraiseqlclient.CreateUserInput{
+    Email: "a@b.c",
+    Role:  fraiseqlclient.UserRoleEditor,
+})
+switch {
+case created.EmailTakenError != nil:   // exactly one member pointer is set
+    log.Println(created.EmailTakenError.Message)
+case created.User != nil:
+    log.Println(created.User.Id)
+}
+```
+
+Three Go-specific notes:
+
+- **Operations are methods on `*Client`, not package functions.** Go has one
+  exported namespace per package, and the canonical schema puts a `user` query
+  next to a `User` type — as functions the two would be the same identifier. A
+  method lives in the receiver's namespace, so both fit.
+- **A union is a struct with one pointer per member** and a generated
+  `UnmarshalJSON` that fills the member its `__typename` names. Go has no sum
+  type; flattening the members into one struct would lose which one arrived,
+  which is the only thing a union is for. A `__typename` outside the union's
+  members is an error, not a zero value.
+- **Optional arguments are nilable and omitted when nil.** They are checked at
+  the typed parameter, before being boxed — a typed nil inside an `any` is not
+  `== nil`, so filtering the map afterwards would send `null` for every unset
+  argument.
+
+## Rust
+
+A module tree you drop into your crate next to a `pub mod generated;`. It depends
+on `serde` (with `derive`) and `serde_json`, and on nothing else.
+
+| File | Contents |
+|---|---|
+| `types.rs` | object/interface types as structs; unions as `#[serde(tag = "__typename")]` enums; relay `Connection<T>` |
+| `enums.rs` | GraphQL enums as unit-variant enums with `#[serde(rename)]` |
+| `inputs.rs` | input objects as structs (`Option<T>` + `skip_serializing_if` for optional fields) |
+| `queries.rs` / `mutations.rs` | typed operation functions + `is_error_typename` |
+| `client.rs` | `FraiseqlClient<T: Transport>`, the `Transport` trait, and `Error` |
+| `mod.rs` | submodule declarations and the data-type re-exports |
+
+```rust
+use generated::{CreateUserInput, CreateUserResult, Error, FraiseqlClient, UserRole, mutations, queries};
+
+// std has no HTTP client, so the transport is yours — any
+// `Fn(&str) -> Result<String, Error>` is one.
+let client = FraiseqlClient::new(|body: &str| {
+    ureq::post(ENDPOINT)
+        .set("content-type", "application/json")
+        .send_string(body)
+        .and_then(|r| Ok(r.into_string()?))
+        .map_err(|e| Error::transport(e.to_string()))
+});
+
+let user = queries::get_user(&client, "abc".to_string())?;   // Option<User>
+
+match mutations::create_user(&client, CreateUserInput {
+    email: "a@b.c".to_string(),
+    display_name: None,
+    role: UserRole::Editor,
+})? {
+    CreateUserResult::User(user) => println!("{}", user.id),
+    CreateUserResult::EmailTakenError(error) => eprintln!("{}", error.message),
+}
+```
+
+Three Rust-specific notes:
+
+- **The transport is a trait, not a built-in HTTP client.** Rust's standard
+  library has none, and a generated module is the wrong place to pick one for
+  you — `reqwest`, `ureq`, blocking or async are all five lines away.
+- **Operations stay under `queries::` / `mutations::`.** `GraphQL` lets a query
+  and a mutation share a name; re-exporting both at the top level would hand you
+  an ambiguity at your own use site.
+- **Descriptions are `//` comments, not `///` doc comments.** A doc comment is
+  markdown, and a fenced block inside one becomes a doctest your `cargo test`
+  would try to compile — schema-author text must never escape into code.
+
 ## How the types are designed (and why)
 
 **Result types are selection-scoped, not schema-mirrors.** Each generated default
@@ -190,8 +299,8 @@ across serializer settings.
 
 ## Limitations (v1)
 
-- **TypeScript and Python.** Go and Rust generators follow the same shared
-  document core (tracked as a follow-up issue).
+- **Four target languages.** All four share one document core, pinned by a
+  cross-language test; a fifth would plug into the same seam.
 - **Scalar-default documents.** Nested relationship fields are not auto-selected;
   pass a custom document to `client.request` for deep fetches. Bounded-depth
   expansion / a selection builder is a follow-up.

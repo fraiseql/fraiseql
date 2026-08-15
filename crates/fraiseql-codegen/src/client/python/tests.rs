@@ -1,10 +1,11 @@
 //! Tests for the Python client generator.
 //!
-//! Structural assertions on the emitted files, plus the load-bearing
-//! cross-language guarantee: the `GraphQL` documents inside the Python client
-//! are byte-identical to the `TypeScript` client's. The "does the output
-//! type-check" direction runs in CI (`sdk-conformance.yml` generates from the
-//! canonical conformance fixture and runs `ty`/`tsc` on the output).
+//! Structural assertions on the emitted files. The cross-language guarantee —
+//! that the `GraphQL` documents are byte-identical in every generated client —
+//! is a claim about all the generators at once and lives in `client::tests`. The
+//! "does the output type-check" direction runs in CI (`sdk-conformance.yml`
+//! generates from the canonical conformance fixture and runs `ty`/`tsc` on the
+//! output).
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
@@ -231,43 +232,6 @@ fn python_keywords_are_escaped_without_changing_the_wire_shape() {
     );
     // The document itself uses the GraphQL name, untouched.
     assert!(queries.contains("$from: String!"), "{queries}");
-}
-
-/// The load-bearing shared-core guarantee: the `GraphQL` documents inside the
-/// Python and `TypeScript` clients are byte-identical, so the two languages can
-/// never drift into different queries.
-#[test]
-fn documents_are_identical_across_languages() {
-    let schema = fixture();
-    let py = generate(&schema).unwrap();
-    let ts = crate::client::typescript::generate(&schema).unwrap();
-
-    let py_docs = extract_docs(&file(&py, "queries.py"), "\"\"\"", "\"\"\"")
-        .into_iter()
-        .chain(extract_docs(&file(&py, "mutations.py"), "\"\"\"", "\"\"\""))
-        .filter(|d| d.starts_with("query ") || d.starts_with("mutation "))
-        .collect::<Vec<_>>();
-    let ts_docs = extract_docs(&file(&ts, "queries.ts"), "`", "`")
-        .into_iter()
-        .chain(extract_docs(&file(&ts, "mutations.ts"), "`", "`"))
-        .filter(|d| d.starts_with("query ") || d.starts_with("mutation "))
-        .collect::<Vec<_>>();
-
-    assert_eq!(py_docs.len(), 4, "fixture has 3 queries + 1 mutation: {py_docs:?}");
-    assert_eq!(py_docs, ts_docs, "Python and TypeScript documents drifted");
-}
-
-/// Extract delimited blocks (documents) from generated source.
-fn extract_docs(source: &str, open: &str, close: &str) -> Vec<String> {
-    let mut docs = Vec::new();
-    let mut rest = source;
-    while let Some(start) = rest.find(open) {
-        let after = &rest[start + open.len()..];
-        let Some(end) = after.find(close) else { break };
-        docs.push(after[..end].to_string());
-        rest = &after[end + close.len()..];
-    }
-    docs
 }
 
 /// Every pgvector field type renders as the surface it actually has (#959).

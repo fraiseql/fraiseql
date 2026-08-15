@@ -17,6 +17,7 @@ on:
     paths:
       - 'sdks/official/**'
       - 'crates/fraiseql-cli/**'
+      - 'crates/fraiseql-codegen/**'
       - 'crates/fraiseql-core/src/schema/**'
       - 'docs/architecture/intermediate-schema.md'
       - '.github/workflows/sdk-conformance.yml'
@@ -24,6 +25,7 @@ on:
     paths:
       - 'sdks/official/**'
       - 'crates/fraiseql-cli/**'
+      - 'crates/fraiseql-codegen/**'
       - 'crates/fraiseql-core/src/schema/**'
       - 'docs/architecture/intermediate-schema.md'
       - '.github/workflows/sdk-conformance.yml'
@@ -131,7 +133,7 @@ jobs:
   # toolchains (npx typescript / uvx ty) the Dagger legs deliberately avoid:
   # the cargo tests they wrap are #[ignore]d and execute in no other leg.
   generated-clients:
-    name: Generated clients compile (tsc --strict / ty)
+    name: Generated clients compile (tsc --strict / ty / go / cargo)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -151,6 +153,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: '20'
+
+      # The `conformance` job sets up Go for the Go SDK; this job needs its own
+      # (#961) — the generated Go client is compiled here, not there.
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
+        with:
+          go-version: '1.23'
 
       - name: Build fraiseql-cli
         run: cargo build -p fraiseql-cli
@@ -192,11 +200,46 @@ jobs:
           python3 -m compileall -q .
           uvx ty check --python-version 3.12 .
 
+      - name: Generate + compile the Go client
+        run: |
+          set -euo pipefail
+          ./target/debug/fraiseql-cli generate-client go \
+            --schema /tmp/schema.compiled.json --out /tmp/gen-go/fraiseqlclient
+          printf 'module example.com/gen\n\ngo 1.21\n' > /tmp/gen-go/go.mod
+          cd /tmp/gen-go
+          # The generator does its own gofmt column alignment rather than shelling
+          # out to the Go toolchain, so it has to be checked against the real one.
+          test -z "$(gofmt -l fraiseqlclient)" || { gofmt -d fraiseqlclient; exit 1; }
+          go build ./...
+          go vet ./...
+
+      - name: Generate + compile the Rust client
+        run: |
+          set -euo pipefail
+          ./target/debug/fraiseql-cli generate-client rust \
+            --schema /tmp/schema.compiled.json --out /tmp/gen-rs/src/generated
+          cat > /tmp/gen-rs/Cargo.toml <<'TOML'
+          [package]
+          name = "fraiseql-generated-client"
+          version = "0.0.0"
+          edition = "2021"
+          publish = false
+
+          [dependencies]
+          serde = { version = "1", features = ["derive"] }
+          serde_json = "1"
+
+          [workspace]
+          TOML
+          printf '#![deny(warnings)]\n\npub mod generated;\n' > /tmp/gen-rs/src/lib.rs
+          cd /tmp/gen-rs && cargo check
+
       # The consumer-usage direction: a realistic caller imports the generated
-      # client and exercises every operation; tsc/ty must accept the whole
-      # project. These are the #[ignore]d cargo tests, run for real.
+      # client and exercises every operation; tsc/ty/go/cargo must accept the
+      # whole project. These are the #[ignore]d cargo tests, run for real.
       - name: Consumer-usage gates
         run: >
           cargo test -p fraiseql-codegen
           --test client_ts_consumer --test client_py_consumer
+          --test client_go_consumer --test client_rust_consumer
           -- --ignored

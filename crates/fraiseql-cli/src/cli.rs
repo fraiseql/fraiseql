@@ -429,7 +429,9 @@ EXAMPLES:
 EXAMPLES:
     fraiseql generate-client typescript --out ./src/generated
     fraiseql generate-client typescript --schema ./schema.compiled.json --out ./gen --force
-    fraiseql generate-client python --out ./app/fraiseql_client")]
+    fraiseql generate-client python --out ./app/fraiseql_client
+    fraiseql generate-client go --out ./internal/fraiseqlclient
+    fraiseql generate-client rust --out ./src/generated")]
     GenerateClient {
         #[command(subcommand)]
         language: GenerateClientCommands,
@@ -1000,6 +1002,42 @@ pub(crate) enum GenerateClientCommands {
         schema: Option<std::path::PathBuf>,
 
         /// Output directory for the generated client (becomes a Python package).
+        #[arg(long, value_name = "DIR")]
+        out: std::path::PathBuf,
+
+        /// Overwrite an existing generated client in the output directory.
+        #[arg(long, default_value_t = false)]
+        force: bool,
+    },
+
+    /// Generate a Go client (structs + typed query/mutation functions; requires
+    /// Go >= 1.21 for the Relay `Connection[T]`).
+    Go {
+        /// Path to schema.compiled.json (auto-detected from conventional
+        /// locations if omitted).
+        #[arg(long, value_name = "SCHEMA")]
+        schema: Option<std::path::PathBuf>,
+
+        /// Output directory for the generated client (becomes package
+        /// `fraiseqlclient`).
+        #[arg(long, value_name = "DIR")]
+        out: std::path::PathBuf,
+
+        /// Overwrite an existing generated client in the output directory.
+        #[arg(long, default_value_t = false)]
+        force: bool,
+    },
+
+    /// Generate a Rust client (serde types + typed query/mutation functions;
+    /// depends only on serde and serde_json).
+    Rust {
+        /// Path to schema.compiled.json (auto-detected from conventional
+        /// locations if omitted).
+        #[arg(long, value_name = "SCHEMA")]
+        schema: Option<std::path::PathBuf>,
+
+        /// Output directory for the generated client (becomes a module tree with
+        /// its own `mod.rs`).
         #[arg(long, value_name = "DIR")]
         out: std::path::PathBuf,
 

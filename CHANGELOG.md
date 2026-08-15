@@ -1510,6 +1510,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Typed clients for Go and Rust: `fraiseql generate-client {go,rust}` (#961).** Both
+  plug into the same `client::common` document core the `TypeScript` and Python
+  generators use, so all four emit **byte-identical `GraphQL` documents** — a claim now
+  pinned by one test over all four generators rather than a copy owned by one of them.
+  Only the type rendering, the identifier rules and the ~100-line runtime are per
+  language.
+
+  Acceptance is compile-the-output, not "a template exists": the `generated-clients` CI
+  job generates from the canonical conformance fixture and runs `gofmt -l` + `go build`
+  + `go vet` on the Go client and `cargo check` with warnings denied on the Rust one,
+  then compiles a consumer project that calls every operation
+  (`client_go_consumer` / `client_rust_consumer`).
+
+  **Go** is one package (`fraiseqlclient`), Go ≥ 1.21, standard library only
+  (`net/http`). Operations are **methods on `*Client`**: Go has a single exported
+  namespace per package, and the canonical schema puts a `user` query beside a `User`
+  type, which as package functions is a redeclaration — the conformance fixture caught
+  exactly that. Unions become a struct with one pointer per member and a generated
+  `UnmarshalJSON`, since Go has no sum type and flattening the members would lose which
+  one arrived. Optional arguments are checked at their typed parameter before being
+  boxed, because a typed nil inside an `any` is not `== nil`.
+
+  **Rust** is a module tree depending only on `serde` and `serde_json`. Unions map onto
+  `#[serde(tag = "__typename")]` enums — the one place the two type systems line up
+  exactly. Rust's standard library has no HTTP client, so the transport is a `Transport`
+  trait with a blanket impl for any `Fn(&str) -> Result<String, Error>` rather than a
+  dependency chosen on the caller's behalf.
+
+  Both renderers carry `every_field_type_maps_to_its_own_surface` from the start:
+  `FieldType` is `#[non_exhaustive]` and lives in another crate, so the mapping must end
+  in a wildcard arm — which is what let `HalfVector` and `SparseVector` degrade silently
+  in the two older generators when they were added (#959).
+
+  `sdk-conformance.yml` now also triggers on `crates/fraiseql-codegen/**`; it watched
+  `fraiseql-cli` and `fraiseql-core/src/schema` only, so a change confined to the
+  generators skipped the very job that gates them.
+
 - **Half-precision and sparse vectors: `HalfVector` and `SparseVector` (#959).**
   `halfvec(N)` halves the storage and the HNSW index memory at `f16` precision, with an
   unchanged query surface. `sparsevec(N)` takes pgvector's own text form,

@@ -23,15 +23,31 @@ target = "fraiseql-arrow::flight_error_handling_test"
 reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
 
 # ── Codegen real-consumer gates — need network + external toolchains ─────────
-# Both shell out to package managers (uvx ty / npx tsc) and typecheck the
-# generated client as a real consumer would. The Dagger legs are offline by
-# design; running these needs a dedicated networked leg (tracked in #961's
-# codegen work, which also adds Go/Rust compile-the-output gates).
+# All four generate a client and compile it as a real consumer would, shelling
+# out to that language's toolchain (uvx ty / npx tsc / go / cargo). The Dagger
+# legs are offline by design, so these execute in `sdk-conformance.yml`'s
+# `generated-clients` job — a GitHub-hosted, networked runner that installs all
+# four toolchains and runs the four suites with `-- --ignored` on every push
+# touching `crates/fraiseql-codegen/**`, `crates/fraiseql-cli/**` or `sdks/**`.
+#
+# They are exempt rather than covered because this gate reads `.dagger/main.go`
+# only. Teaching it to read GitHub Actions `run:` blocks is the real fix and is
+# tracked separately (#1120) — a parser that has to resolve `${{ matrix.* }}`
+# and per-step `working-directory` is its own correctness surface, and a
+# half-right one would report coverage that does not exist.
 
 [[exempt]]
 target = "fraiseql-codegen::client_py_consumer"
-reason = "shells out to `uvx ty` (network + uv toolchain); offline Dagger legs cannot run it — #961 owns a networked codegen-consumer leg"
+reason = "shells out to `uvx ty` (network + uv toolchain); offline Dagger legs cannot run it — executes in sdk-conformance.yml's `generated-clients` job, #1120 owns teaching this gate to see it"
 
 [[exempt]]
 target = "fraiseql-codegen::client_ts_consumer"
-reason = "shells out to `npx`/`tsc` (network + Node toolchain); offline Dagger legs cannot run it — #961 owns a networked codegen-consumer leg"
+reason = "shells out to `npx`/`tsc` (network + Node toolchain); offline Dagger legs cannot run it — executes in sdk-conformance.yml's `generated-clients` job, #1120 owns teaching this gate to see it"
+
+[[exempt]]
+target = "fraiseql-codegen::client_go_consumer"
+reason = "shells out to `gofmt`/`go build`/`go vet` (Go toolchain); offline Dagger legs cannot run it — executes in sdk-conformance.yml's `generated-clients` job, #1120 owns teaching this gate to see it"
+
+[[exempt]]
+target = "fraiseql-codegen::client_rust_consumer"
+reason = "shells out to a nested `cargo check` (network: crates.io registry); offline Dagger legs cannot run it — executes in sdk-conformance.yml's `generated-clients` job, #1120 owns teaching this gate to see it"
