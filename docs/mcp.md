@@ -190,6 +190,62 @@ described either.
 
 `prompts/get` touches no database and needs no identity.
 
+## Session continuity
+
+With `[mcp] session_state = true` and a configured `[session_state]` backend, an
+authenticated agent's tool calls accumulate into a thread, and every result
+carries that thread back in `_meta`:
+
+```jsonc
+"_meta": { "fraiseql/session": {
+  "threadId": "the client's mcp-session-id",
+  "calls": [{ "tool": "users", "arguments": ["limit"], "at": "…" }, …]
+}}
+```
+
+`_meta` rather than the content block, because the content is the operation's
+answer — an agent parsing a query result should not have to strip the server's
+bookkeeping out of it first.
+
+Only the tool **name** and the argument **names** are recorded, never argument
+values. An argument may be a customer identifier, a search term or an embedding;
+the thread exists so an agent can see the shape of what it has done, and copying
+values into a second durable store is a data-retention decision nobody made. A
+thread remembers its most recent 20 calls.
+
+Only calls that happened are recorded: a refused or failed call did nothing, and
+a thread that logged it would tell the agent it had already done work it has not.
+
+### What the thread is keyed on
+
+rmcp's streamable-HTTP transport surfaces a session in the `mcp-session-id`
+header. **That header is client-controlled**, so it is deliberately *not* the key.
+The store is two-level, and the two levels come from different places:
+
+| Level | Source |
+|---|---|
+| `session_id` | UUIDv5 over the **authenticated** `user_id`. Nothing the client sends contributes. |
+| `thread_id` | the client's `mcp-session-id`, verbatim |
+
+A client therefore partitions its **own** threads freely and can address nothing
+else — reaching another principal's thread would require producing their token
+subject, which is not a header. Two callers sending the identical
+`mcp-session-id` get entirely separate histories.
+
+The derivation is a pure function of the principal, so a thread survives a server
+restart.
+
+### When continuity is simply off
+
+- `[mcp] session_state = false` (the default) — nothing is read or written, and no `_meta` is attached. This is opt-in because it writes to a durable store on every authenticated call and makes one call's result depend on the ones before it.
+- No `[session_state]` backend configured.
+- **An unauthenticated caller** — there is no principal to scope a thread to, and one unscoped thread shared by every anonymous caller is worse than no continuity.
+- **No `mcp-session-id`** — including the stdio transport, which carries no headers. The caller has not asked for a thread, and inventing an id would start writing state nobody requested.
+
+A store read or write that fails is logged and the tool call still succeeds:
+continuity is an aid, and a store hiccup must not turn a working query into an
+error — nor report an error for a database write that did happen.
+
 ## Configuration Reference
 
 All MCP settings live under `[mcp]` in `fraiseql.toml`:
@@ -308,5 +364,4 @@ fault does not hand an AI agent internal relation names or SQLSTATE codes.
 - **No streaming.** MCP tool results are returned as a single JSON text block. Large result sets should be paginated using query arguments (`limit`/`offset`).
 - **Feature flag required.** MCP support is not compiled by default. You must build with `--features mcp` to include it. This keeps the binary size minimal for deployments that do not need MCP.
 - **Single session.** The stdio transport serves one MCP client at a time. For multi-client scenarios, run separate server processes.
-- **No cross-call session state yet.** Each tool call is independent; the server keeps no per-thread working memory for an agent. Binding the `[session_state]` store into the MCP transport is tracked at [#967](https://github.com/fraiseql/fraiseql/issues/967).
 - **Tenant cost budgets do not apply to MCP.** An MCP document's shape is fixed by the schema, so its estimated cost is constant per tool and the check would meter nothing — it would either always pass or permanently disable that tool. Volume is bounded by the tenant's concurrency permit and per-second limiter, which do apply, and the schema-wide `[security.cost_budget] per_request_max` is enforced inside the executor for MCP as for every transport.

@@ -156,6 +156,171 @@ async fn setup() -> Option<(PostgresAdapter, FraiseQLMcpService<PostgresAdapter>
     Some((adapter, service))
 }
 
+/// #967: per-thread continuity accumulates across calls, and a client-controlled
+/// `mcp-session-id` partitions only its **own** principal's threads.
+///
+/// The second half is the security property. The header is whatever the client
+/// sends, so if the store were keyed on it, one caller could read and overwrite
+/// another's durable thread by sending their id. Two principals sending the
+/// *identical* header must therefore see entirely separate histories — asserted
+/// here against a real store, through the seam the transport actually calls.
+///
+/// The first half is what makes the second meaningful: without it, a
+/// server that recorded nothing would pass the isolation assertion trivially.
+#[tokio::test]
+async fn session_continuity_accumulates_and_stays_scoped_to_the_principal() {
+    use fraiseql_auth::session_state::{
+        InMemorySessionStateStore, SessionState, SessionStateBackend,
+    };
+
+    /// The thread history a call came back with, as reported in `_meta`.
+    fn thread_of(result: &rmcp::model::CallToolResult) -> serde_json::Value {
+        result
+            .meta
+            .as_ref()
+            .and_then(|m| m.get("fraiseql/session").cloned())
+            .unwrap_or(serde_json::Value::Null)
+    }
+
+    let Some((adapter, _)) = setup().await else {
+        eprintln!("SKIP session_continuity_accumulates_and_stays_scoped_to_the_principal");
+        return;
+    };
+    let state = AppState::new(Arc::new(Executor::new(schema(), Arc::new(adapter.clone()))));
+    let store = Arc::new(SessionState::new(
+        SessionStateBackend::InMemory(InMemorySessionStateStore::default()),
+        3600,
+    ));
+    let service = FraiseQLMcpService::new(
+        state,
+        McpConfig {
+            session_state: true,
+            ..mcp_config()
+        },
+    )
+    .with_token_validator(Some(hs256_validator()))
+    .with_session_state(Some(Arc::clone(&store)));
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("mcp-session-id", "shared-thread-id".parse().unwrap());
+
+    // Alice calls twice on her thread.
+    let alice = mint_token(HUMAN_SUB);
+    let mut alice_last = serde_json::Value::Null;
+    for n in 0..2 {
+        let mut args = serde_json::Map::new();
+        args.insert("label".to_string(), json!(format!("alice-{n}")));
+        let result = service
+            .call_tool_authenticated(
+                "createItem",
+                Some(&args),
+                Some(alice.clone()),
+                format!("mcp-p29-sess-alice-{n}"),
+                &headers,
+            )
+            .await;
+        assert_ne!(result.is_error, Some(true), "alice call {n}: {:?}", result.content);
+        alice_last = thread_of(&result);
+    }
+    let alice_calls = alice_last["calls"].as_array().cloned().unwrap_or_default();
+    assert_eq!(
+        alice_calls.len(),
+        2,
+        "the thread accumulates across calls, it does not reset: {alice_last}"
+    );
+
+    // Bob calls once, sending the SAME session header.
+    let bob = mint_token("5a1e0000-0000-4000-8000-000000000967");
+    let mut bob_args = serde_json::Map::new();
+    bob_args.insert("label".to_string(), json!("bob-0"));
+    let result = service
+        .call_tool_authenticated(
+            "createItem",
+            Some(&bob_args),
+            Some(bob),
+            "mcp-p29-sess-bob".to_string(),
+            &headers,
+        )
+        .await;
+    assert_ne!(result.is_error, Some(true), "bob call: {:?}", result.content);
+    let bob_thread = thread_of(&result);
+    let bob_calls = bob_thread["calls"].as_array().cloned().unwrap_or_default();
+
+    assert_eq!(
+        bob_calls.len(),
+        1,
+        "bob's first call must see HIS thread, not alice's two entries — the header is \
+         client-controlled and must not address another principal's store: {bob_thread}"
+    );
+    assert_eq!(
+        bob_thread["threadId"],
+        serde_json::json!("shared-thread-id"),
+        "…while still being the thread he asked for: {bob_thread}"
+    );
+
+    // …and alice's thread was not disturbed by bob writing to the same header.
+    let mut after_args = serde_json::Map::new();
+    after_args.insert("label".to_string(), json!("alice-2"));
+    let after = service
+        .call_tool_authenticated(
+            "createItem",
+            Some(&after_args),
+            Some(alice),
+            "mcp-p29-sess-alice-2".to_string(),
+            &headers,
+        )
+        .await;
+    let after_calls = thread_of(&after)["calls"].as_array().cloned().unwrap_or_default();
+    assert_eq!(after_calls.len(), 3, "alice's thread continued from 2, unaffected by bob");
+}
+
+/// #967: with `[mcp] session_state = false` — the default — nothing is stored and
+/// no thread is reported.
+///
+/// The opt-in is the feature: a deployment that upgrades must not silently start
+/// writing an agent's call history to a durable store.
+#[tokio::test]
+async fn continuity_is_off_unless_the_operator_turns_it_on() {
+    use fraiseql_auth::session_state::{
+        InMemorySessionStateStore, SessionState, SessionStateBackend,
+    };
+
+    let Some((adapter, _)) = setup().await else {
+        eprintln!("SKIP continuity_is_off_unless_the_operator_turns_it_on");
+        return;
+    };
+    let state = AppState::new(Arc::new(Executor::new(schema(), Arc::new(adapter.clone()))));
+    let store = Arc::new(SessionState::new(
+        SessionStateBackend::InMemory(InMemorySessionStateStore::default()),
+        3600,
+    ));
+    // The store IS bound; only the flag is off.
+    let service = FraiseQLMcpService::new(state, mcp_config())
+        .with_token_validator(Some(hs256_validator()))
+        .with_session_state(Some(store));
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("mcp-session-id", "some-thread".parse().unwrap());
+
+    let mut args = serde_json::Map::new();
+    args.insert("label".to_string(), json!("off"));
+    let result = service
+        .call_tool_authenticated(
+            "createItem",
+            Some(&args),
+            Some(mint_token(HUMAN_SUB)),
+            "mcp-p29-sess-off".to_string(),
+            &headers,
+        )
+        .await;
+    assert_ne!(result.is_error, Some(true), "the call itself still works");
+    assert!(
+        result.meta.as_ref().is_none_or(|m| m.get("fraiseql/session").is_none()),
+        "no thread is reported when [mcp] session_state is off: {:?}",
+        result.meta
+    );
+}
+
 /// The headline: an HS256-authenticated MCP mutation succeeds (auth parity) and
 /// its change-log row is attributable — `extra_metadata.transport = "mcp"` plus
 /// the #390 actor stamp — while nothing else about the envelope is disturbed.

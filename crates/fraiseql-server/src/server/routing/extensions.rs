@@ -418,17 +418,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let cfg = mcp_cfg.clone();
                 let oidc = self.oidc_validator.clone();
                 let hs256 = self.hs256_auth.clone();
+                // The `[session_state]` store, for per-thread continuity (#967).
+                // Handed over unconditionally; `[mcp] session_state` decides
+                // whether the service uses it, so the two switches stay separate:
+                // having a store is the deployment's, using it for MCP is the
+                // operator's.
+                #[cfg(feature = "auth")]
+                let session_store = self.session_state.clone();
                 let mcp_service = StreamableHttpService::new(
                     move || {
                         let validator =
                             oidc.clone().map(crate::mcp::handler::McpTokenValidator::Oidc).or_else(
                                 || hs256.clone().map(crate::mcp::handler::McpTokenValidator::Hs256),
                             );
-                        Ok(crate::mcp::handler::FraiseQLMcpService::new(
+                        let service = crate::mcp::handler::FraiseQLMcpService::new(
                             session_state.clone(),
                             cfg.clone(),
                         )
-                        .with_token_validator(validator))
+                        .with_token_validator(validator);
+                        #[cfg(feature = "auth")]
+                        let service = service.with_session_state(session_store.clone());
+                        Ok(service)
                     },
                     std::sync::Arc::new(LocalSessionManager::default()),
                     StreamableHttpServerConfig::default(),

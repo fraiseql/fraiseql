@@ -270,6 +270,7 @@ mod tools_tests {
 
     fn make_config(include: Vec<String>, exclude: Vec<String>) -> McpConfig {
         McpConfig {
+            session_state: false,
             enabled: true,
             transport: "http".to_string(),
             path: "/mcp".to_string(),
