@@ -2490,6 +2490,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A filtered-ANN benchmark, and what it found (#959).**
+  `benches/vector_filtered_ann.sql` measures `nearest` combined with a `where` over
+  100 000 documents × 384 dimensions against any pgvector 0.8+ database, reporting rows
+  returned, recall against the exact answer, and latency across six selectivities and
+  the three `hnsw.iterative_scan` settings.
+
+  The headline is not a speed number. With pgvector's default
+  `hnsw.iterative_scan = off`, a `nearest` search asking for ten rows returns **two**
+  once the filter is selective — the index scan's candidate list is exhausted before ten
+  survive the filter, and the query succeeds. `relaxed_order` returns all ten at full
+  recall for 3.1 ms against 0.43 ms. FraiseQL sets neither GUC today; the operator-level
+  remedy is in `docs/operations/vector-search.md` and the automatic one is filed as
+  #1116. Separately, a threshold predicate reading the vector out of the JSONB payload
+  costs 122× the identical predicate against the native column the same view must
+  already expose (#1117).
+
 - **Every official SDK can author a pgvector field (#959).** `vector_config` and
   `vector_distance` are on the field surface of all eleven — Python, TypeScript, Go, PHP,
   Java, C#, F#, Elixir, Ruby, Dart and Rust — each in its own idiom, together with the
