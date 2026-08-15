@@ -16,7 +16,7 @@ use fraiseql_core::schema::{
     TypeDefinition,
 };
 
-use super::generate;
+use super::{generate, render::field_type_py};
 
 fn fixture() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
@@ -268,4 +268,21 @@ fn extract_docs(source: &str, open: &str, close: &str) -> Vec<String> {
         rest = &after[end + close.len()..];
     }
     docs
+}
+
+/// Every pgvector field type renders as the surface it actually has (#959).
+///
+/// The wildcard arm in `field_type_py` exists to keep a future `#[non_exhaustive]`
+/// scalar compiling, and that is exactly what let `HalfVector` and `SparseVector`
+/// degrade to `Any` when they were added: the generator kept building, the generated
+/// client kept passing `ty`, and a caller's embedding lost its type.
+#[test]
+fn every_vector_type_maps_to_its_own_surface() {
+    // `[Float!]!` in GraphQL, whatever the column's precision.
+    assert_eq!(field_type_py(&FieldType::Vector), "list[float]");
+    assert_eq!(field_type_py(&FieldType::HalfVector), "list[float]");
+    // Each of these is a string in its own text form: a run of 0/1 for a bit
+    // vector, `{1:0.5,7:0.25}/1000` for a sparse one.
+    assert_eq!(field_type_py(&FieldType::BitVector), "str");
+    assert_eq!(field_type_py(&FieldType::SparseVector), "str");
 }

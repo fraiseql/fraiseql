@@ -36,11 +36,15 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
         | FieldType::Date
         | FieldType::Time
         | FieldType::Scalar(_)
-        // A bit vector arrives as its text form, a run of '0'/'1' (#959).
-        | FieldType::BitVector => "string".to_string(),
+        // A bit vector arrives as its text form, a run of '0'/'1'; a sparse one as
+        // pgvector's own `{1:0.5,7:0.25}/1000` (#959).
+        | FieldType::BitVector
+        | FieldType::SparseVector => "string".to_string(),
         FieldType::Int | FieldType::Float => "number".to_string(),
         FieldType::Boolean => "boolean".to_string(),
-        FieldType::Vector => "number[]".to_string(),
+        // Half precision is a storage choice, not a surface one: both are
+        // `[Float!]!` in GraphQL.
+        FieldType::Vector | FieldType::HalfVector => "number[]".to_string(),
         FieldType::List(inner) => format!("{}[]", field_type_ts(inner)),
         FieldType::Enum(name)
         | FieldType::Object(name)

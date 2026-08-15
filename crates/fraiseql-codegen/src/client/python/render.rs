@@ -35,12 +35,16 @@ pub(super) fn field_type_py(ft: &FieldType) -> String {
         | FieldType::Date
         | FieldType::Time
         | FieldType::Scalar(_)
-        // A bit vector arrives as its text form, a run of '0'/'1' (#959).
-        | FieldType::BitVector => "str".to_string(),
+        // A bit vector arrives as its text form, a run of '0'/'1'; a sparse one as
+        // pgvector's own `{1:0.5,7:0.25}/1000` (#959).
+        | FieldType::BitVector
+        | FieldType::SparseVector => "str".to_string(),
         FieldType::Int => "int".to_string(),
         FieldType::Float => "float".to_string(),
         FieldType::Boolean => "bool".to_string(),
-        FieldType::Vector => "list[float]".to_string(),
+        // Half precision is a storage choice, not a surface one: both are
+        // `[Float!]!` in GraphQL.
+        FieldType::Vector | FieldType::HalfVector => "list[float]".to_string(),
         FieldType::List(inner) => format!("list[{}]", field_type_py(inner)),
         FieldType::Enum(name)
         | FieldType::Object(name)
