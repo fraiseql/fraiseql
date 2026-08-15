@@ -12,7 +12,25 @@ use crate::{
 
 /// Resolve session variable mappings against the current security context.
 ///
-/// See [`support::security::resolve_session_variables`] for full documentation.
+/// Returns the `(name, value)` pairs to apply transaction-locally with
+/// `set_config` before the statement, so PostgreSQL RLS policies reading
+/// `current_setting()` see the caller's identity (#329).
+///
+/// Resolution follows each mapping's [`SessionVariableSource`]: a `Jwt` claim is
+/// looked up in the context's attributes, falling back to `user_id` for
+/// `sub`/`user_id` and to `tenant_id`/`email`/`name` for their own claims; a
+/// `Header` is read from attributes; a `Literal` is used as-is; and an
+/// `Enrichment` field reads the reserved `fraiseql.enriched.*` namespace with
+/// **no** fallback — a missing enriched field is an error, never a silently
+/// absent GUC (#539). With `inject_started_at`, the started-at directive is
+/// prepended for the adapter to stamp on the database clock.
+///
+/// This is the one construction site: the query, mutation and aggregate runners
+/// call it, and so does the admin SQL console's RLS preview (#962). A preview
+/// computed by a second implementation would be a preview of that
+/// implementation.
+///
+/// [`SessionVariableSource`]: crate::schema::SessionVariableSource
 ///
 /// # Errors
 ///

@@ -7,6 +7,7 @@
 //! `*Settings` (compiled into `schema.compiled.json`, immutable at runtime),
 //! see `docs/architecture/config-vs-settings.md`.
 
+pub mod admin_sql;
 pub mod async_operations;
 #[cfg(feature = "cdc-outbound")]
 pub mod cdc_outbound;
@@ -26,6 +27,7 @@ mod tests;
 
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
+pub use admin_sql::AdminSqlConfig;
 pub use async_operations::AsyncOperationsConfig;
 #[cfg(feature = "cdc-outbound")]
 pub use cdc_outbound::{CdcOutboundConfig, CdcSinkSectionConfig};
@@ -529,6 +531,15 @@ pub struct ServerConfig {
     /// `admin_token`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scim: Option<ScimServerConfig>,
+
+    /// The operator SQL console (#962).
+    ///
+    /// Mounts `POST /api/v1/admin/sql`, which runs statements the operator typed
+    /// — the only such surface on the server. Requires the `admin-sql` cargo
+    /// feature, `admin_api_enabled` and `admin_token`; each missing piece is a
+    /// boot error naming itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admin_sql: Option<AdminSqlConfig>,
 
     /// Name of the environment variable holding the server HMAC secret.
     ///
@@ -1249,6 +1260,7 @@ impl Default for ServerConfig {
             #[cfg(feature = "auth-saml")]
             saml: None, // No HS256 auth by default
             scim: None,            // Provisioning is opt-in
+            admin_sql: None,       // The SQL console is opt-in (#962)
             hmac_secret_env: None, // No HMAC secret → unsigned idempotency token
             tls: None,             // TLS disabled by default
             database_tls: None,    /* Database TLS disabled

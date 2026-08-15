@@ -78,6 +78,9 @@ impl IntoResponse for ApiError {
             "VALIDATION_ERROR" | "PARSE_ERROR" => StatusCode::BAD_REQUEST,
             "UNSUPPORTED_OPERATION" => StatusCode::NOT_IMPLEMENTED,
             "SERVICE_UNAVAILABLE" => StatusCode::SERVICE_UNAVAILABLE,
+            // The server cancelled the work, so the caller learns "too slow", not
+            // "broken" (#962: the admin SQL console's statement timeout).
+            "TIMEOUT" => StatusCode::REQUEST_TIMEOUT,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

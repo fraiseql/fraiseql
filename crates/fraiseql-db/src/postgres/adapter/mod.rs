@@ -1,5 +1,6 @@
 //! PostgreSQL database adapter implementation.
 
+mod admin_sql;
 mod database;
 mod numeric;
 mod query_stats;

@@ -586,6 +586,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.merge(admin_read_router);
 
             app = self.mount_storage_policy_admin(app, write_token);
+            app = self.mount_admin_sql_console(app, state, write_token);
 
             info!("Admin API endpoints enabled (bearer token required)");
         } else {
@@ -646,6 +647,85 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             "Storage bucket policy admin endpoints enabled (GET under the read token, \
              PUT/DELETE under the write token)"
         );
+        app
+    }
+
+    /// The operator SQL console — `POST /api/v1/admin/sql` (#962).
+    ///
+    /// Mounted only when the `admin-sql` feature is compiled in **and**
+    /// `[admin_sql] enabled = true`. It is reached from inside the
+    /// `admin_token`-guarded branch above, so a server without an admin token has
+    /// already returned before this is called; `ServerConfig::validate` refuses
+    /// the same three conditions at boot, so an operator who misconfigures it
+    /// learns from the boot error rather than from a 404.
+    ///
+    /// Its own router because it is the one admin route that both tokens may
+    /// reach and that behaves differently for each: `admin_dual_auth_middleware`
+    /// authenticates against both and tells the handler which one matched. That
+    /// is also why it cannot live on either of the two routers above — a path can
+    /// be mounted once.
+    #[cfg(feature = "admin-sql")]
+    fn mount_admin_sql_console(
+        &self,
+        mut app: Router,
+        state: &AppState<A>,
+        write_token: &str,
+    ) -> Router {
+        use crate::{
+            middleware::{AdminDualAuthState, admin_dual_auth_middleware},
+            routes::api::admin_sql::{AdminSqlState, admin_sql_handler},
+        };
+
+        const SQL_PATH: &str = "/api/v1/admin/sql";
+
+        let Some(ref config) = self.config.admin_sql else {
+            return app;
+        };
+        if !config.enabled {
+            return app;
+        }
+
+        let auth = AdminDualAuthState::new(
+            write_token.to_string(),
+            self.config.admin_readonly_token.clone(),
+            self.config.admin_auth_max_failures,
+        );
+        let console = Router::new()
+            .route(SQL_PATH, post(admin_sql_handler::<A>))
+            .route_layer(middleware::from_fn_with_state(auth, admin_dual_auth_middleware))
+            .with_state(AdminSqlState {
+                app:    state.clone(),
+                config: config.clone(),
+            });
+
+        warn!(
+            path = SQL_PATH,
+            statement_timeout_ms = config.statement_timeout_ms,
+            max_rows = config.max_rows,
+            allow_commit = config.allow_commit,
+            readonly_token_configured = self.config.admin_readonly_token.is_some(),
+            "Admin SQL console ENABLED: this endpoint executes operator-supplied SQL. \
+             Statements roll back unless `commit: true` is sent; admin_readonly_token runs \
+             READ ONLY. Every execution is written to the audit ledger."
+        );
+        app = app.merge(console);
+        app
+    }
+
+    /// No-op when the `admin-sql` feature is off.
+    ///
+    /// A configured-but-uncompiled console is refused at boot by
+    /// `ServerConfig::validate`, so reaching here with `[admin_sql] enabled =
+    /// true` is impossible — this arm exists so the mount site reads the same in
+    /// both builds.
+    #[cfg(not(feature = "admin-sql"))]
+    #[allow(clippy::unused_self)] // Reason: mirrors the enabled arm's signature
+    fn mount_admin_sql_console(
+        &self,
+        app: Router,
+        _state: &AppState<A>,
+        _write_token: &str,
+    ) -> Router {
         app
     }
 

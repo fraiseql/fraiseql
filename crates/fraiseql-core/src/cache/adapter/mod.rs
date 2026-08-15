@@ -1060,6 +1060,28 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
+    /// Forwarded to the inner adapter, and deliberately **uncached** (#962).
+    ///
+    /// Forwarding is load-bearing for the same reason as
+    /// [`stream_with_projection`](Self::stream_with_projection), in the other
+    /// direction: the trait's default here *refuses*, so a wrapper that inherited
+    /// it would turn every PostgreSQL deployment — which is every deployment,
+    /// since the shipped binary always wraps its adapter in this one — into a
+    /// server whose SQL console answers "unsupported".
+    ///
+    /// Uncached because the statement is not a query FraiseQL knows anything
+    /// about: it has no cache key, its result is a preview of a moment, and a
+    /// committed one changes rows other entries describe. Invalidation is
+    /// deliberately not attempted either — see the endpoint's documentation for
+    /// why a committed console write is an operator action that should be
+    /// followed by `cache/clear`.
+    async fn execute_admin_sql(
+        &self,
+        request: &fraiseql_db::AdminSqlRequest,
+    ) -> Result<fraiseql_db::AdminSqlOutcome> {
+        self.adapter.execute_admin_sql(request).await
+    }
+
     async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
         // Delegate to the inherent (synchronous) method which handles cascade
         // expansion and cache eviction.

@@ -460,6 +460,37 @@ impl ServerConfig {
             }
         }
 
+        // The SQL console (#962). Three separate things have to be true for the
+        // most powerful endpoint on the server to exist, and each missing one is
+        // refused by name at boot rather than producing a route that quietly is
+        // not there — an operator who configured a console and got a 404 has no
+        // way to tell "not mounted" from "wrong URL".
+        if let Some(ref admin_sql) = self.admin_sql {
+            admin_sql.validate()?;
+            if admin_sql.enabled {
+                if !cfg!(feature = "admin-sql") {
+                    return Err("[admin_sql] enabled = true requires the `admin-sql` cargo \
+                                feature, which this binary was not built with. The endpoint \
+                                executes operator-supplied SQL, so it is not compiled in by \
+                                default. Rebuild with --features admin-sql, or set \
+                                [admin_sql] enabled = false."
+                        .to_string());
+                }
+                if !self.admin_api_enabled {
+                    return Err("[admin_sql] enabled = true requires admin_api_enabled = true: \
+                                the SQL console is mounted on the admin API and authenticated \
+                                by its tokens."
+                        .to_string());
+                }
+                // No `admin_token.is_none()` check here: the branch above has
+                // already established `admin_api_enabled`, and this function
+                // refuses that with no `admin_token` further up. The mount is
+                // structurally inside `if let Some(write_token) = admin_token`,
+                // so "never reachable without a credential" is enforced by
+                // construction rather than by a check that could drift.
+            }
+        }
+
         if Self::is_production_mode() {
             // Playground should be disabled in production
             if self.playground_enabled {

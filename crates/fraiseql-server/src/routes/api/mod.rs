@@ -9,6 +9,10 @@ use axum::{
 use fraiseql_core::db::traits::DatabaseAdapter;
 
 pub mod admin;
+/// The operator SQL console (#962) — compiled in only with the `admin-sql`
+/// feature, because it executes SQL the operator typed.
+#[cfg(feature = "admin-sql")]
+pub mod admin_sql;
 pub mod design;
 #[cfg(feature = "federation")]
 pub mod federation;
