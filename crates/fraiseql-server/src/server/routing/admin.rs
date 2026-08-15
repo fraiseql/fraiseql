@@ -720,7 +720,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// both builds.
     #[cfg(not(feature = "admin-sql"))]
     #[allow(clippy::unused_self)] // Reason: mirrors the enabled arm's signature
-    fn mount_admin_sql_console(
+    const fn mount_admin_sql_console(
         &self,
         app: Router,
         _state: &AppState<A>,

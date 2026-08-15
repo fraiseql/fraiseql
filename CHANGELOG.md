@@ -1510,6 +1510,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MCP Resources and Prompts (#967, partial).** Alongside tools, the MCP server now
+  advertises every exposed **query** as a readable Resource at `fraiseql://query/{name}`,
+  publishes a `similarity-search` resource *template* for each vector-backed query, and
+  describes every exposed operation as a Prompt built from its `description`.
+
+  All three surfaces are derived from the **same** exposed set, so `include`,
+  `exclude` and `read_only` govern them together: an operation an operator
+  withheld is not advertised, described, or readable. A Resource list built from
+  the schema directly would have been an existence oracle for exactly the names
+  the allowlist hides.
+
+  **Reading a Resource routes through the tool seam**, and that is the whole
+  security design rather than an implementation detail: authentication, tenant
+  resolution, quota charging, the allowlist, RLS and the executor's gates are the
+  tool path's, so there is one execution path and RLS parity is structural. A
+  refused read comes back as a protocol error, never as a successful read whose
+  body says "access denied". Mutations are deliberately not Resources —
+  `resources/read` is a read verb — but they *are* Prompts, because a prompt is a
+  sentence and getting one changes nothing.
+
+  Session continuity (#967's third part) is **not** in this change; each tool call
+  remains independent. The issue stays open for it.
+
 - **`requires_actor`: an operation may restrict which actor classes run it (#966).** #390
   completed the *recording* half of the actor model; this is the consuming half. A query or
   mutation may declare `requires_actor`, an **allow-list** of `ActorType`s

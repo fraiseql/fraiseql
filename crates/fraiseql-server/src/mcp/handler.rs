@@ -16,8 +16,10 @@ use fraiseql_core::{
 use rmcp::{
     ServerHandler,
     model::{
-        CallToolRequestParams, CallToolResult, ListToolsResult, ServerCapabilities, ServerInfo,
-        Tool,
+        CallToolRequestParams, CallToolResult, GetPromptRequestParams, GetPromptResult,
+        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
+        ServerCapabilities, ServerInfo, Tool,
     },
     service::RequestContext,
 };
@@ -261,6 +263,65 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     }
 }
 
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> FraiseQLMcpService<A> {
+    /// Read a Resource, given credentials already in hand (#967).
+    ///
+    /// The seam under [`ServerHandler::read_resource`], for the same reason
+    /// [`call_tool_authenticated`](Self::call_tool_authenticated) is one:
+    /// [`RequestContext`] needs a live `Peer` and cannot be constructed in a
+    /// test, and what must be tested is precisely that this path and the tool
+    /// path see the same identity, the same tenant and the same rows.
+    ///
+    /// It delegates to `call_tool_authenticated` rather than reimplementing it,
+    /// so RLS parity is **structural**: there is one execution path, and this
+    /// function contributes only a URI parse and a result shape.
+    ///
+    /// # Errors
+    ///
+    /// [`rmcp::ErrorData::resource_not_found`] for a URI that is not
+    /// `fraiseql://query/{name}`, and `invalid_request` when the underlying tool
+    /// call was refused — a refusal must not come back as a successful read whose
+    /// body says "access denied" (#749).
+    #[doc(hidden)] // Internal-pub: the testable seam under `ServerHandler::read_resource`.
+    pub async fn read_resource_authenticated(
+        &self,
+        uri: &str,
+        token: Option<String>,
+        request_id: String,
+        headers: &axum::http::HeaderMap,
+    ) -> Result<ReadResourceResult, rmcp::ErrorData> {
+        let Some(name) = super::resources::query_name_from_uri(uri) else {
+            return Err(rmcp::ErrorData::resource_not_found(
+                format!("Unknown resource URI: {uri}"),
+                None,
+            ));
+        };
+
+        let result = self.call_tool_authenticated(name, None, token, request_id, headers).await;
+
+        if result.is_error == Some(true) {
+            let detail = first_text(&result).unwrap_or_else(|| "resource read refused".to_string());
+            return Err(rmcp::ErrorData::invalid_request(detail, None));
+        }
+
+        Ok(ReadResourceResult::new(vec![ResourceContents::TextResourceContents {
+            uri:       uri.to_string(),
+            mime_type: Some("application/json".to_string()),
+            text:      first_text(&result).unwrap_or_default(),
+            meta:      None,
+        }]))
+    }
+}
+
+/// The text of a tool result's first content block, if it has one.
+///
+/// `CallToolResult` carries `Option<Vec<Content>>`, and both the refusal path and
+/// the success path of `read_resource` need the same string out of it — a second
+/// extraction is a second place for "no content" to mean something different.
+fn first_text(result: &CallToolResult) -> Option<String> {
+    result.content.first()?.as_text().map(|t| t.text.clone())
+}
+
 /// Render an error for the MCP client through the configured sanitizer.
 ///
 /// `/graphql` runs every execution error through
@@ -280,8 +341,21 @@ pub(crate) fn sanitize(
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for FraiseQLMcpService<A> {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
-            .with_instructions("FraiseQL GraphQL database — query and mutate via MCP tools")
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                // #967: Resources and Prompts are advertised only because they are
+                // implemented below. A capability announced without a handler
+                // answers `method_not_found` to a client that took it at its word.
+                .enable_resources()
+                .enable_prompts()
+                .build(),
+        )
+        .with_instructions(
+            "FraiseQL GraphQL database — query and mutate via MCP tools. Each readable query is \
+             also a Resource at fraiseql://query/{name}; reading one runs the same operation \
+             under the same authentication and tenant scoping as calling its tool.",
+        )
     }
 
     fn list_tools(
@@ -339,6 +413,106 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for Frais
 
             Ok(result)
         }
+    }
+
+    /// Every exposed query, advertised as a readable Resource (#967).
+    fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ListResourcesResult, rmcp::ErrorData>> + Send + '_
+    {
+        let result = ListResourcesResult::with_all_items(super::resources::schema_to_resources(
+            &self.schema,
+            &self.config,
+        ));
+        std::future::ready(Ok(result))
+    }
+
+    /// The parameterised reads — today, similarity search over a vector-backed
+    /// query (#386/#967).
+    fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ListResourceTemplatesResult, rmcp::ErrorData>>
+    + Send
+    + '_ {
+        let result = ListResourceTemplatesResult::with_all_items(
+            super::resources::schema_to_resource_templates(&self.schema, &self.config),
+        );
+        std::future::ready(Ok(result))
+    }
+
+    /// Read a Resource — i.e. run the query it names.
+    ///
+    /// **This routes through `call_tool_authenticated`, and that is the whole
+    /// security design.** A Resource read is an execution against the database
+    /// with a caller's identity attached; giving it its own path would mean a
+    /// second implementation of authentication, tenant resolution, quota
+    /// charging, the allowlist and every executor gate — and the one that drifted
+    /// would be the one nobody was testing (#808, and #1030 for the shape where a
+    /// second door around a gate is the bug). Routing through the tool seam makes
+    /// RLS parity structural rather than asserted: there is only one path.
+    fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        context: RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ReadResourceResult, rmcp::ErrorData>> + Send + '_
+    {
+        // Same synchronous pre-extraction as `call_tool`: the HTTP request parts
+        // are not `Sync` and must not be held across the validation await.
+        let request_id = context.id.to_string();
+        let parts = context.extensions.get::<http::request::Parts>();
+        let token = parts.and_then(|parts| extract_bearer(&parts.headers));
+        let headers = parts.map(|parts| parts.headers.clone()).unwrap_or_default();
+        let uri = request.uri;
+
+        async move { self.read_resource_authenticated(&uri, token, request_id, &headers).await }
+    }
+
+    /// Every exposed operation, advertised as a Prompt (#967).
+    fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<ListPromptsResult, rmcp::ErrorData>> + Send + '_
+    {
+        let result = ListPromptsResult::with_all_items(super::resources::schema_to_prompts(
+            &self.schema,
+            &self.config,
+        ));
+        std::future::ready(Ok(result))
+    }
+
+    /// Render one Prompt.
+    ///
+    /// No database access and no identity: a prompt is a sentence describing an
+    /// operation, and getting it changes nothing. What the agent may then *do*
+    /// with that sentence is decided when it calls the tool, by the gate that
+    /// already exists. The allowlist is still consulted, so an operation an
+    /// operator withheld is not described either.
+    fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<GetPromptResult, rmcp::ErrorData>> + Send + '_
+    {
+        let rendered = super::resources::render_prompt(
+            &request.name,
+            request.arguments.as_ref(),
+            &self.schema,
+            &self.config,
+        );
+        std::future::ready(match rendered {
+            Some((description, messages)) => {
+                Ok(GetPromptResult::new(messages).with_description(description))
+            },
+            None => Err(rmcp::ErrorData::invalid_params(
+                format!("Unknown prompt: {}", request.name),
+                None,
+            )),
+        })
     }
 
     fn get_tool(&self, name: &str) -> Option<Tool> {

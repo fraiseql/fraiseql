@@ -448,3 +448,196 @@ mod handler_tests {
         assert_eq!(extract_bearer(&headers), None);
     }
 }
+
+/// #967: Resources and Prompts.
+///
+/// The load-bearing property is not the shape of the advertisement — it is that
+/// all three surfaces are derived from **one** allowlist, so a Resource can never
+/// name an operation `tools/call` would refuse to run, and `read_resource`'s
+/// execution goes through the tool seam rather than beside it.
+mod resource_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use fraiseql_core::schema::{
+        ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, McpConfig,
+        MutationDefinition, QueryDefinition, TypeDefinition, VectorConfig,
+    };
+
+    use super::super::resources::{
+        query_name_from_uri, render_prompt, schema_to_prompts, schema_to_resource_templates,
+        schema_to_resources,
+    };
+
+    /// Two queries (one vector-backed, one not) and one mutation.
+    fn schema() -> CompiledSchema {
+        let mut s = CompiledSchema::new();
+
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields.push(FieldDefinition::new("id", FieldType::Id));
+        user.fields.push(FieldDefinition::new("name", FieldType::String));
+        s.types.push(user);
+
+        let mut doc = TypeDefinition::new("Doc", "v_doc");
+        doc.fields.push(FieldDefinition::new("id", FieldType::Id));
+        let mut embedding = FieldDefinition::new("embedding", FieldType::Vector);
+        embedding.vector_config = Some(VectorConfig {
+            dimensions: 3,
+            ..VectorConfig::default()
+        });
+        doc.fields.push(embedding);
+        s.types.push(doc);
+
+        let mut users = QueryDefinition::new("users", "User").returning_list();
+        users.description = Some("Every registered user".to_string());
+        users.sql_source = Some("v_user".to_string());
+        s.queries.push(users);
+
+        let mut docs = QueryDefinition::new("docs", "Doc").returning_list();
+        docs.sql_source = Some("v_doc".to_string());
+        s.queries.push(docs);
+
+        let mut create = MutationDefinition::new("createUser", "User");
+        create.description = Some("Register a user".to_string());
+        create.arguments = vec![ArgumentDefinition::new("name", FieldType::String)];
+        s.mutations.push(create);
+
+        s.build_indexes();
+        s
+    }
+
+    fn config() -> McpConfig {
+        McpConfig {
+            enabled: true,
+            ..McpConfig::default()
+        }
+    }
+
+    /// Queries are Resources; mutations are not.
+    ///
+    /// `resources/read` is a read verb in every client that speaks MCP. A mutation
+    /// advertised as a Resource would be a write behind a verb that promises
+    /// otherwise, whatever `read_only` is set to.
+    #[test]
+    fn resources_are_the_queries_and_never_the_mutations() {
+        let resources = schema_to_resources(&schema(), &config());
+        let names: Vec<&str> = resources.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, vec!["users", "docs"], "queries only: {names:?}");
+        assert_eq!(resources[0].uri, "fraiseql://query/users");
+        assert_eq!(
+            resources[0].description.as_deref(),
+            Some("Every registered user"),
+            "the authored description is used when there is one"
+        );
+        assert!(
+            resources[1].description.as_deref().is_some_and(|d| d.contains("docs")),
+            "and a query with none still gets one: {:?}",
+            resources[1].description
+        );
+    }
+
+    /// The allowlist governs the Resource list, not just the tool list.
+    ///
+    /// A Resource naming an operation `exclude` withholds would be an existence
+    /// oracle for exactly the names an operator chose to hide, and reading it
+    /// would be a second door around `resolve_tool` (#808).
+    #[test]
+    fn the_allowlist_governs_resources_and_prompts_too() {
+        let hidden = McpConfig {
+            exclude: vec!["users".to_string()],
+            ..config()
+        };
+        let resources = schema_to_resources(&schema(), &hidden);
+        assert!(
+            resources.iter().all(|r| r.name != "users"),
+            "an excluded query is not advertised as a Resource"
+        );
+        let prompts = schema_to_prompts(&schema(), &hidden);
+        assert!(prompts.iter().all(|p| p.name != "users"), "nor described as a Prompt");
+        // …and `render_prompt` refuses it, indistinguishably from a name that
+        // does not exist.
+        assert!(render_prompt("users", None, &schema(), &hidden).is_none());
+        assert!(render_prompt("nosuchthing", None, &schema(), &hidden).is_none());
+    }
+
+    /// `read_only` removes mutations from every surface at once, because all three
+    /// read the same exposed set.
+    #[test]
+    fn read_only_removes_the_mutation_from_the_prompt_list() {
+        let ro = McpConfig {
+            read_only: true,
+            ..config()
+        };
+        let prompts = schema_to_prompts(&schema(), &ro);
+        assert!(
+            prompts.iter().all(|p| p.name != "createUser"),
+            "read_only withholds the mutation from Prompts as it does from tools"
+        );
+        assert!(render_prompt("createUser", None, &schema(), &ro).is_none());
+    }
+
+    /// Only the vector-backed query gets a similarity-search template.
+    #[test]
+    fn only_a_vector_backed_query_gets_a_similarity_template() {
+        let templates = schema_to_resource_templates(&schema(), &config());
+        assert_eq!(templates.len(), 1, "one template: {templates:?}");
+        assert!(templates[0].name.starts_with("docs"), "{:?}", templates[0].name);
+        assert!(
+            templates[0].uri_template.contains("nearest"),
+            "the template names the argument that makes it a search: {:?}",
+            templates[0].uri_template
+        );
+    }
+
+    /// The URI parser accepts exactly one shape.
+    ///
+    /// Anything else is refused rather than normalised: the returned name is
+    /// looked up by exact match in the exposed set, so a parser that trimmed a
+    /// path or dropped a query string would be inventing a name the caller did
+    /// not send.
+    #[test]
+    fn the_uri_parser_accepts_one_path_segment_and_nothing_else() {
+        assert_eq!(query_name_from_uri("fraiseql://query/users"), Some("users"));
+        for bad in [
+            "fraiseql://query/",
+            "fraiseql://query/users/extra",
+            "fraiseql://query/users?limit=1",
+            "fraiseql://query/users#frag",
+            "fraiseql://mutation/createUser",
+            "file:///etc/passwd",
+            "users",
+        ] {
+            assert!(query_name_from_uri(bad).is_none(), "must refuse {bad:?}");
+        }
+    }
+
+    /// A Prompt carries the operation's arguments, with required-ness taken from
+    /// nullability.
+    #[test]
+    fn a_prompt_describes_the_operations_arguments() {
+        let prompts = schema_to_prompts(&schema(), &config());
+        let create = prompts.iter().find(|p| p.name == "createUser").expect("mutation prompt");
+        assert_eq!(create.description.as_deref(), Some("Register a user"));
+        let args = create.arguments.as_ref().expect("createUser takes an argument");
+        assert_eq!(args[0].name, "name");
+        assert_eq!(args[0].required, Some(true), "a non-nullable argument is required");
+    }
+
+    /// The rendered message names the tool and its arguments, in a stable order.
+    ///
+    /// Stable because an agent's behaviour has to be reproducible: iterating a
+    /// map would render the same request differently between runs.
+    #[test]
+    fn a_rendered_prompt_is_stable_and_names_the_tool() {
+        let mut args = serde_json::Map::new();
+        args.insert("zeta".to_string(), serde_json::json!(1));
+        args.insert("alpha".to_string(), serde_json::json!("x"));
+
+        let (_, messages) =
+            render_prompt("createUser", Some(&args), &schema(), &config()).expect("renders");
+        let text = format!("{:?}", messages[0]);
+        assert!(text.contains("createUser"), "{text}");
+        let alpha = text.find("alpha").expect("alpha present");
+        let zeta = text.find("zeta").expect("zeta present");
+        assert!(alpha < zeta, "arguments render in sorted order, not map order: {text}");
+    }
+}

@@ -133,6 +133,63 @@ When an AI client calls a tool, FraiseQL builds a GraphQL query from the tool na
 4. The caller's tenant is resolved (JWT claim, `X-Tenant-ID`, or `Host`) and the operation is executed on that tenant's `Executor`, applying all security rules.
 5. The JSON result is returned as an MCP text content block. Execution errors pass through the configured error sanitizer first.
 
+## Resources and Prompts
+
+Alongside tools, the server advertises two discovery surfaces (#967). Both are
+derived from the **same** exposed set `tools/list` uses, so `include`, `exclude`
+and `read_only` govern all three at once — an operation you withheld is not
+advertised, described, or readable.
+
+### Resources — `fraiseql://query/{name}`
+
+Every exposed **query** is a readable Resource. Mutations are not: `resources/read`
+is a read verb in every MCP client, and a mutation behind it would be a write
+under a verb that promises otherwise.
+
+```
+resources/list  → [{ "uri": "fraiseql://query/users", "name": "users",
+                     "description": "Fetches user records",
+                     "mimeType": "application/json" }, …]
+resources/read  → { "contents": [{ "uri": "…", "text": "<the query's JSON result>" }] }
+```
+
+**Reading a Resource runs the same operation, through the same path, as calling
+its tool.** `read_resource` delegates to the tool seam rather than executing on
+its own, so authentication, tenant resolution, the concurrency and per-second
+quotas, RLS, `requires_role`, `requires_actor` and the field gates are the tool
+path's — not a second copy that could drift. There is one execution path, which
+is why RLS parity here is structural rather than asserted.
+
+A refused read is a **protocol error**, never a successful read whose body says
+"access denied": `resources/read` has no error flag, so returning the refusal as
+content would hand a client a success it did not get.
+
+Queries whose return type declares a vector field additionally publish a
+`similarity-search` **resource template**, so a RAG client can discover that the
+operation takes an embedding rather than inferring it from the tool's JSON
+schema. The template is a discovery aid — its URI resolves through the same
+`read_resource`.
+
+### Prompts
+
+Every exposed operation — queries **and** mutations — is advertised as a Prompt:
+the operation's own `description` rendered as an instruction, with one argument
+per operation argument and required-ness taken from nullability.
+
+```
+prompts/list → [{ "name": "createUser", "description": "Creates a new user",
+                  "arguments": [{ "name": "name", "required": true }, …] }, …]
+prompts/get  → the instruction, with the supplied arguments substituted
+```
+
+Mutations are included here even though they are excluded from Resources, because
+a prompt is a sentence and getting one changes nothing. Whether the agent may then
+*call* the operation is the tool allowlist's decision — and if you set
+`read_only = true`, the mutation is not in the exposed set at all, so it is not
+described either.
+
+`prompts/get` touches no database and needs no identity.
+
 ## Configuration Reference
 
 All MCP settings live under `[mcp]` in `fraiseql.toml`:
@@ -251,3 +308,5 @@ fault does not hand an AI agent internal relation names or SQLSTATE codes.
 - **No streaming.** MCP tool results are returned as a single JSON text block. Large result sets should be paginated using query arguments (`limit`/`offset`).
 - **Feature flag required.** MCP support is not compiled by default. You must build with `--features mcp` to include it. This keeps the binary size minimal for deployments that do not need MCP.
 - **Single session.** The stdio transport serves one MCP client at a time. For multi-client scenarios, run separate server processes.
+- **No cross-call session state yet.** Each tool call is independent; the server keeps no per-thread working memory for an agent. Binding the `[session_state]` store into the MCP transport is tracked at [#967](https://github.com/fraiseql/fraiseql/issues/967).
+- **Tenant cost budgets do not apply to MCP.** An MCP document's shape is fixed by the schema, so its estimated cost is constant per tool and the check would meter nothing — it would either always pass or permanently disable that tool. Volume is bounded by the tenant's concurrency permit and per-second limiter, which do apply, and the schema-wide `[security.cost_budget] per_request_max` is enforced inside the executor for MCP as for every transport.
