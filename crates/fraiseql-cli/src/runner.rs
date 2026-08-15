@@ -324,6 +324,18 @@ pub async fn run() {
                     force,
                 )
             },
+            GenerateClientCommands::Go { schema, out, force } => commands::generate_client::run(
+                commands::generate_client::ClientLanguage::Go,
+                schema.as_deref(),
+                &out,
+                force,
+            ),
+            GenerateClientCommands::Rust { schema, out, force } => commands::generate_client::run(
+                commands::generate_client::ClientLanguage::Rust,
+                schema.as_deref(),
+                &out,
+                force,
+            ),
         },
 
         Commands::Init {
