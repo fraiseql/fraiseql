@@ -209,6 +209,87 @@ async fn call_as(state: &AppState<PostgresAdapter>, tenant: Option<&str>) -> (bo
     (result.is_error == Some(true), text)
 }
 
+/// Read the same operation as a **Resource** (#967), through the seam under
+/// `ServerHandler::read_resource`.
+async fn read_as(
+    state: &AppState<PostgresAdapter>,
+    uri: &str,
+    tenant: Option<&str>,
+) -> Result<String, String> {
+    let service = FraiseQLMcpService::new(state.clone(), mcp_config());
+    service
+        .read_resource_authenticated(
+            uri,
+            None,
+            format!("mcp-p09-res-{}", tenant.unwrap_or("default")),
+            &headers_for(tenant),
+        )
+        .await
+        .map(|r| format!("{:?}", r.contents))
+        .map_err(|e| e.message.to_string())
+}
+
+/// #967's guard rail, executed: `resources/read` carries the same security
+/// context and tenant dispatch as `tools/call`.
+///
+/// Asserted as **agreement between the two paths on the same identity**, not as
+/// "the resource read returns something": a resource path that quietly ran on the
+/// default executor would return rows, which is exactly the silent wrong-database
+/// read #858 shipped. Each tenant must see its own marker and never the other's
+/// nor the default one.
+///
+/// The parity is structural — `read_resource_authenticated` delegates to
+/// `call_tool_authenticated` — and this is the test that keeps it structural: a
+/// future refactor that gives the resource path its own execution has to make
+/// this pass again.
+#[tokio::test]
+async fn a_resource_read_is_dispatched_exactly_as_the_tool_call() {
+    let Some((admin, state)) = setup().await else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+
+    for key in [TENANT_A, TENANT_B] {
+        let (is_error, via_tool) = call_as(&state, Some(key)).await;
+        assert!(!is_error, "tenant {key}: tool call failed: {via_tool}");
+
+        let via_resource = read_as(&state, "fraiseql://query/widgets", Some(key))
+            .await
+            .unwrap_or_else(|e| panic!("tenant {key}: resource read refused: {e}"));
+
+        assert!(
+            via_resource.contains(&marker(key)),
+            "tenant {key}: the resource read must see that tenant's data: {via_resource}",
+        );
+        assert!(
+            !via_resource.contains(DEFAULT_MARKER),
+            "tenant {key}: the resource read must not fall back to the default executor: \
+             {via_resource}",
+        );
+        assert!(
+            !via_resource.contains(&marker(if key == TENANT_A { TENANT_B } else { TENANT_A })),
+            "tenant {key}: the resource read must not see the other tenant: {via_resource}",
+        );
+    }
+
+    // A suspended tenant is refused on this path too — the refusal comes from the
+    // shared seam, so there is nothing resource-specific to get wrong, and that
+    // is the point.
+    let registry = state.tenant_registry().expect("registry");
+    registry.suspend(TENANT_A).expect("suspend");
+    let refused = read_as(&state, "fraiseql://query/widgets", Some(TENANT_A)).await;
+    assert!(refused.is_err(), "a suspended tenant must be refused: {refused:?}");
+    registry.resume(TENANT_A).expect("resume");
+
+    // A refusal is an error, never a successful read whose body says "denied".
+    let unknown = read_as(&state, "fraiseql://query/nosuchquery", Some(TENANT_A)).await;
+    assert!(unknown.is_err(), "an unknown operation is an error: {unknown:?}");
+    let bad_uri = read_as(&state, "file:///etc/passwd", Some(TENANT_A)).await;
+    assert!(bad_uri.is_err(), "a foreign URI is an error: {bad_uri:?}");
+
+    teardown(&admin).await;
+}
+
 /// #858 core: an MCP tool call must run on the caller's tenant executor.
 ///
 /// Pre-fix both calls return `DEFAULT-DATABASE`: the session captured the default
