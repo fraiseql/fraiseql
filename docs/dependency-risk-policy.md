@@ -32,9 +32,9 @@ A CVE is accepted only when **all** of the following are true:
 
 **`deny.toml` is the source of truth.** This table is its published rendering: edit
 `deny.toml` (and `.cargo/audit.toml`, which is kept in lockstep with it) first, then this
-table. `tools/check-advisory-policy-lockstep.sh` fails when the three files disagree on which
-advisories are accepted or on their deadlines, and `tools/check-advisory-paths.sh` fails when
-the **Exposure** column below disagrees with `cargo tree`.
+table. `tools/check-audit-lockstep.sh` fails when the three files disagree on which advisories
+are accepted or on their deadlines, and `tools/check-advisory-paths.sh` fails when the
+**Exposure** column below disagrees with `cargo tree`.
 
 The **Exposure** column is machine-readable, and is checked against the real dependency graph
 on every run of the Dagger `security` leg:
@@ -214,5 +214,5 @@ When adding a new `[[bans.skip]]` or `[[advisories.ignore]]` entry:
    from `cargo tree -i <crate>@<version> -e normal`** — not from what the upstream advisory
    or the previous entry says
 6. Run `cargo deny check` to confirm the entry resolves the warning, then
-   `bash tools/check-advisory-policy-lockstep.sh` and `bash tools/check-advisory-paths.sh`
+   `bash tools/check-audit-lockstep.sh` and `bash tools/check-advisory-paths.sh`
    to confirm the three files agree and the exposure claim is true
