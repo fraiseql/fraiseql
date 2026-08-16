@@ -40,4 +40,4 @@
 #1001  test-only: flight_e2e_test's "end-to-end DoGet" tests called no Flight RPC
 #1010  test infra: fraiseql-guard log-capture tests raced on process-global env
 #1103  CI: deny.toml advisory deadlines that would redden the required preflight check on a date; no shipped behaviour change
-#1128  CI: the Fuzz workflow named a target in the wrong crate, so the run was permanently red (12 of 13 legs were green — fail-fast is off); workflow wiring only, no shipped behaviour change
+#1134  release tooling: tools/release.sh did not update the doc status lines check-docs-version.sh enforces, so the release commit failed a required gate; no shipped behaviour change

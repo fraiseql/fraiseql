@@ -276,6 +276,40 @@ check "bump-deploy: values repository untouched" \
 check "bump-deploy: unrelated version-shaped value untouched" \
     "$(grep -c 'memory: 2.0.0Gi' "$WORK/values.yaml")" "1"
 
+# ── bump_doc_status_lines (#1134) ──────────────────────────────────────────────
+#
+# The fixture carries BOTH shapes check-docs-version.sh greps for and, crucially, a
+# HISTORICAL reference on the same page. That gate's own header says historical mentions
+# ("removed in vX.Y.Z") are legitimate; a helper that rewrote them would silently falsify
+# the record of when something was removed — and nothing downstream would ever say so.
+
+cat > "$WORK/value-proposition.md" <<'EOF'
+# Value proposition
+
+**Status**: v2.14.1 released
+
+MySQL support was removed in v2.15.0 and will not return.
+
+**FraiseQL** (v2.14.1 released) ships a production-ready core:
+EOF
+
+bump_doc_status_lines 2.16.0 "$WORK/value-proposition.md"
+
+check "bump-docs: **Status** line rewritten" \
+    "$(grep -c '^\*\*Status\*\*: v2.16.0 released$' "$WORK/value-proposition.md")" "1"
+check "bump-docs: parenthesised status form rewritten" \
+    "$(grep -c '(v2.16.0 released)' "$WORK/value-proposition.md")" "1"
+# The one that matters: a historical mention is not a status claim.
+check "bump-docs: historical 'removed in v2.15.0' untouched" \
+    "$(grep -c 'removed in v2.15.0' "$WORK/value-proposition.md")" "1"
+check "bump-docs: no stale released-version claim remains" \
+    "$(grep -c 'v2.14.1 released' "$WORK/value-proposition.md")" "0"
+
+# A file that does not exist is skipped, not a hard error: RELEASE_FILES and the helper's
+# argument list are maintained by hand and a rename should not abort a release mid-bump.
+bump_doc_status_lines 2.16.0 "$WORK/does-not-exist.md"
+check "bump-docs: a missing file is skipped, not fatal" "$?" "0"
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""
