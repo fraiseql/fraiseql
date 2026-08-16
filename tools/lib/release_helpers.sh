@@ -143,6 +143,33 @@ bump_ts_sdk_version() {
     sed -i -E "s/^export const version = \"[^\"]*\"/export const version = \"${version}\"/" "$index_ts"
 }
 
+# Bump the version strings in the shipped deployment artifacts: the Dockerfile's OCI
+# version label, the Helm chart's `version` + `appVersion` (lockstep, see Chart.yaml's
+# header), and values.yaml's `image.tag`.
+#
+# Without this, tools/release.sh bumps the crates and the SDKs and leaves the deploy
+# artifacts frozen — which is exactly what happened: the OCI label sat at 2.1.1 and the
+# chart at 2.1.1/2.1.0 while the product shipped 2.14.1, and `helm install` on the
+# defaults pulled `docker.io/library/fraiseql:2.8.0`, an image that does not exist
+# (#1129). tools/check-deploy-versions.sh is the gate that keeps this honest.
+#
+# ⚠ Every substitution is anchored. `Dockerfile:8` is `FROM rust:1.94.1-slim`, and a
+# blanket version-shaped rewrite would silently move the toolchain pin — a different
+# concern, owned by #1107. Likewise `appVersion:` must not be caught by the `version:`
+# pattern, which is why the chart edits anchor at the start of the line.
+#
+# Usage: bump_deploy_artifacts <version> <Dockerfile> <Chart.yaml> <values.yaml>
+bump_deploy_artifacts() {
+    local version="$1" dockerfile="$2" chart="$3" values="$4"
+    # OCI label only — keyed on the label name, never on a bare version shape.
+    sed -i -E "s|org\.opencontainers\.image\.version=\"[^\"]*\"|org.opencontainers.image.version=\"${version}\"|" "$dockerfile"
+    # Chart: `^version:` and `^appVersion:` are distinct anchors; appVersion keeps its quotes.
+    sed -i -E "s/^version: .*/version: ${version}/" "$chart"
+    sed -i -E "s/^appVersion: .*/appVersion: \"${version}\"/" "$chart"
+    # values.yaml: the indented `tag:` under `image:`. The file has exactly one.
+    sed -i -E "s/^( *)tag: \"[^\"]*\"/\1tag: \"${version}\"/" "$values"
+}
+
 # Honesty gate for the SDK publish jobs: refuse to publish when the SDK manifest
 # version does not match the release version being published. This is the exact
 # frozen state — the manifest stuck at 2.1.6 while v2.3.0–v2.6.0 tags were cut —

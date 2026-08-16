@@ -4098,6 +4098,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existed in this example (`orders`, `products`, `users` against fixtures creating
   `tb_order`, `tb_product`, `tb_user`); they now use the real names and join through the
   surrogate keys as the Trinity schema requires.
+- **The Helm chart's default image exists, and the deploy artifacts name the released
+  version (#1129).** `values.yaml` shipped `repository: fraiseql`, which resolves to
+  `docker.io/library/fraiseql` — the Docker Hub **official-images** namespace, which this
+  project does not and cannot publish to — so `helm install` on the shipped defaults pulled
+  nothing at all. It is now `ghcr.io/fraiseql/server`. Three version strings were also frozen
+  years behind the product because `tools/release.sh` bumped the crates and the SDKs and no
+  deployment artifact: the Dockerfile's `org.opencontainers.image.version` label (2.1.1), the
+  chart's `version`/`appVersion` (2.1.1/2.1.0) and `image.tag` (2.8.0), against a 2.14.1
+  release. `release.sh` now bumps all of them, `Chart.yaml` records that `version` and
+  `appVersion` move in lockstep — the convention that was never written down, which is how
+  they drifted apart — and `tools/check-deploy-versions.sh` fails in ShellGates if any of
+  them drifts again.
 - **These release notes are complete, and a gate keeps them that way (#1127).** 258 issues
   were closed by `Closes #N` since v2.14.1 and **48 appeared nowhere in this file** —
   including the entire secrets/auth/webhooks security wave above, whose bullets are

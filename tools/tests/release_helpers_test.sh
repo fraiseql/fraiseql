@@ -216,6 +216,66 @@ check "bump-ts: lockfile dependency version (zod 3.22.0) untouched" \
 check "bump-ts: index.ts version constant → 2.8.0 (L-ts-version)" \
     "$(grep -c '^export const version = "2.8.0"' "$WORK/index.ts")" "1"
 
+# ── bump_deploy_artifacts (#1129) ──────────────────────────────────────────────
+#
+# The fixtures carry the neighbouring version-shaped strings that a blanket rewrite
+# would eat: the Dockerfile's `FROM rust:1.94.1-slim` toolchain pin (#1107's subject,
+# not this helper's), the chart's `appVersion` sitting next to `version`, and a
+# resource limit in values.yaml that looks nothing like a tag but shares the file.
+
+cat > "$WORK/Dockerfile" <<'EOF'
+FROM --platform=$BUILDPLATFORM rust:1.94.1-slim AS builder
+
+FROM debian:bookworm-slim AS runtime
+
+LABEL org.opencontainers.image.version="2.1.1" \
+      org.opencontainers.image.vendor="FraiseQL"
+EOF
+
+cat > "$WORK/Chart.yaml" <<'EOF'
+apiVersion: v2
+name: fraiseql
+type: application
+version: 2.1.1
+appVersion: "2.1.0"
+EOF
+
+cat > "$WORK/values.yaml" <<'EOF'
+image:
+  repository: ghcr.io/fraiseql/server
+  pullPolicy: IfNotPresent
+  tag: "2.8.0"
+
+resources:
+  limits:
+    memory: 2.0.0Gi
+EOF
+
+bump_deploy_artifacts 2.15.0 "$WORK/Dockerfile" "$WORK/Chart.yaml" "$WORK/values.yaml"
+
+check "bump-deploy: OCI version label → 2.15.0" \
+    "$(grep -c 'org.opencontainers.image.version="2.15.0"' "$WORK/Dockerfile")" "1"
+# The one that matters: a version-shaped sed over the Dockerfile silently moves the
+# toolchain floor, and nothing downstream would say so until a build broke.
+check "bump-deploy: FROM rust:1.94.1-slim toolchain pin untouched" \
+    "$(grep -c 'rust:1.94.1-slim' "$WORK/Dockerfile")" "1"
+check "bump-deploy: chart version → 2.15.0" \
+    "$(grep -c '^version: 2.15.0$' "$WORK/Chart.yaml")" "1"
+check "bump-deploy: chart appVersion → \"2.15.0\" (quotes kept)" \
+    "$(grep -c '^appVersion: "2.15.0"$' "$WORK/Chart.yaml")" "1"
+# `version` and `appVersion` must remain two distinct lines. A substitution that
+# collapsed them (or matched one twice) would leave a count other than 1 each.
+check "bump-deploy: chart still has exactly one version: line" \
+    "$(grep -c '^version: ' "$WORK/Chart.yaml")" "1"
+check "bump-deploy: chart still has exactly one appVersion: line" \
+    "$(grep -c '^appVersion: ' "$WORK/Chart.yaml")" "1"
+check "bump-deploy: values image.tag → 2.15.0" \
+    "$(grep -c 'tag: "2.15.0"' "$WORK/values.yaml")" "1"
+check "bump-deploy: values repository untouched" \
+    "$(grep -c 'repository: ghcr.io/fraiseql/server' "$WORK/values.yaml")" "1"
+check "bump-deploy: unrelated version-shaped value untouched" \
+    "$(grep -c 'memory: 2.0.0Gi' "$WORK/values.yaml")" "1"
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""
