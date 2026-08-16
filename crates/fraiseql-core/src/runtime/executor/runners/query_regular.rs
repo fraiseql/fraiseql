@@ -315,6 +315,13 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None
         };
 
+        // Snapshot before the miss path does any work (#1079). A mutation that commits
+        // and invalidates while this request executes would otherwise be undone by the
+        // put at the end of this function, which would store a response computed from
+        // pre-mutation rows.
+        let response_cache_fence =
+            self.ctx.response_cache.as_ref().map(|rc| rc.invalidation_generation());
+
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
         {
@@ -658,7 +665,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             // same definition the row cache registers under (#761).
             let accessed = crate::cache::extract_accessed_views(&query_match.query_def);
             let cached = Arc::new(response);
-            let _ = rc.put(query_key, sec_hash, Arc::clone(&cached), accessed);
+            let _ =
+                rc.put(query_key, sec_hash, Arc::clone(&cached), accessed, response_cache_fence);
             return Ok(Arc::unwrap_or_clone(cached));
         }
 

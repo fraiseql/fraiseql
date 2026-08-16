@@ -77,7 +77,7 @@ fn profile_cache_put_get() {
     // 1000 put + get cycles
     for i in 0_u64..1000 {
         cache
-            .put(i, result.clone(), vec!["view_a".to_string()], None, Some("User"))
+            .put(i, result.clone(), vec!["view_a".to_string()], None, Some("User"), None)
             .unwrap();
     }
     for i in 0_u64..1000 {

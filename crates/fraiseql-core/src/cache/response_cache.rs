@@ -110,6 +110,14 @@ pub struct ResponseCache {
     hits:       AtomicU64,
     misses:     AtomicU64,
     next_epoch: AtomicU64,
+
+    /// Bumped by every invalidation, so a read that straddled one can tell (#1079).
+    ///
+    /// Same defect and same fence as `QueryResultCache`: registering the key before
+    /// `store.insert` makes it *visible* to a concurrent `invalidate_views`, but does not
+    /// stop the insert that follows. Whole GraphQL responses are stranded here, not just
+    /// row sets, so fixing only the row cache would leave the user-visible half live.
+    invalidation_generation: AtomicU64,
 }
 
 impl ResponseCache {
@@ -148,6 +156,7 @@ impl ResponseCache {
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             next_epoch: AtomicU64::new(0),
+            invalidation_generation: AtomicU64::new(0),
         }
     }
 
@@ -177,7 +186,21 @@ impl ResponseCache {
         }
     }
 
+    /// Snapshot of the invalidation generation, for fencing a cache write (#1079).
+    ///
+    /// Take this before the work whose result is being cached, and pass it to
+    /// [`put`](Self::put).
+    #[must_use]
+    pub fn invalidation_generation(&self) -> u64 {
+        self.invalidation_generation.load(Ordering::Acquire)
+    }
+
     /// Store a response in the cache.
+    ///
+    /// `fence` is a snapshot from [`invalidation_generation`](Self::invalidation_generation)
+    /// taken before the work that produced `response`. If an invalidation landed since,
+    /// the entry is discarded rather than stored — the caller keeps its response, it is
+    /// simply not cached. `None` stores unconditionally.
     ///
     /// # Errors
     ///
@@ -188,8 +211,14 @@ impl ResponseCache {
         security_hash: u64,
         response: Arc<Value>,
         accessed_views: Vec<String>,
+        fence: Option<u64>,
     ) -> Result<()> {
         if !self.enabled {
+            return Ok(());
+        }
+
+        // Cheap pre-check; the authoritative one is after registration (#1079).
+        if fence.is_some_and(|snapshot| snapshot != self.invalidation_generation()) {
             return Ok(());
         }
 
@@ -207,6 +236,18 @@ impl ResponseCache {
         let reference: IndexRef = (key, epoch);
         for view in &accessed_views {
             self.view_index.entry(view.clone()).or_default().insert(reference);
+        }
+
+        // The fence (#1079): authoritative check, after registration and before insert.
+        // Deregistration is symmetric with the eviction listener's, so no index row
+        // survives pointing at a key that was never stored.
+        if fence.is_some_and(|snapshot| snapshot != self.invalidation_generation()) {
+            for view in &accessed_views {
+                if let Some(keys) = self.view_index.get(view) {
+                    keys.remove(&reference);
+                }
+            }
+            return Ok(());
         }
 
         let entry = Arc::new(ResponseEntry {
@@ -227,6 +268,9 @@ impl ResponseCache {
     ///
     /// This method is infallible with the moka backend and always returns `Ok`.
     pub fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
+        // Bump before collecting keys (#1079) — the window may be too wide, never too narrow.
+        self.invalidation_generation.fetch_add(1, Ordering::Release);
+
         // Dedup by cache key: an entry mid-replacement is registered under two
         // epochs, and one reading several of `views` is registered once per view.
         let mut to_remove: std::collections::HashSet<(u64, u64)> = std::collections::HashSet::new();

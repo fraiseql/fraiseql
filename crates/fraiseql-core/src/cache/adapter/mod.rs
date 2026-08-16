@@ -316,6 +316,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # Ok(())
     /// # }
     /// ```
+    /// ⚠ A `0` TTL means the entry lives until a mutation invalidates it, so its
+    /// correctness rests entirely on invalidation being unmissable. That is what the
+    /// generation fence guarantees (#1079): a read whose database round trip straddled an
+    /// invalidation refuses to cache, instead of storing pre-mutation rows that — at TTL 0
+    /// — nothing would ever expire.
     #[must_use]
     pub fn with_view_ttl_overrides(mut self, overrides: HashMap<String, u64>) -> Self {
         self.cacheable_views = overrides.keys().cloned().collect();

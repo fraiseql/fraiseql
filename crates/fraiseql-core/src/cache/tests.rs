@@ -349,7 +349,7 @@ mod response_cache_tests {
         let response = Arc::new(serde_json::json!({"data": {"users": []}}));
 
         cache
-            .put(1, 0, response.clone(), vec!["v_user".to_string()])
+            .put(1, 0, response.clone(), vec!["v_user".to_string()], None)
             .expect("put should succeed");
         let result = cache.get(1, 0).expect("get should succeed");
         assert!(result.is_some());
@@ -366,10 +366,10 @@ mod response_cache_tests {
 
         // Same query key (1), different security hashes
         cache
-            .put(1, 100, admin_response.clone(), vec!["v_user".to_string()])
+            .put(1, 100, admin_response.clone(), vec!["v_user".to_string()], None)
             .expect("put admin");
         cache
-            .put(1, 200, user_response.clone(), vec!["v_user".to_string()])
+            .put(1, 200, user_response.clone(), vec!["v_user".to_string()], None)
             .expect("put user");
 
         let admin_result = cache.get(1, 100).expect("get admin").expect("admin hit");
@@ -385,10 +385,10 @@ mod response_cache_tests {
         let cache = ResponseCache::new(enabled_config());
 
         cache
-            .put(1, 0, Arc::new(serde_json::json!("r1")), vec!["v_user".to_string()])
+            .put(1, 0, Arc::new(serde_json::json!("r1")), vec!["v_user".to_string()], None)
             .expect("put 1");
         cache
-            .put(2, 0, Arc::new(serde_json::json!("r2")), vec!["v_post".to_string()])
+            .put(2, 0, Arc::new(serde_json::json!("r2")), vec!["v_post".to_string()], None)
             .expect("put 2");
 
         // Flush pending moka writes before invalidation
@@ -409,7 +409,9 @@ mod response_cache_tests {
         let cache = ResponseCache::new(ResponseCacheConfig::default());
         assert!(!cache.is_enabled());
 
-        cache.put(1, 0, Arc::new(serde_json::json!("r")), vec![]).expect("put disabled");
+        cache
+            .put(1, 0, Arc::new(serde_json::json!("r")), vec![], None)
+            .expect("put disabled");
         assert!(cache.get(1, 0).expect("get disabled").is_none());
     }
 
@@ -417,7 +419,7 @@ mod response_cache_tests {
     fn test_metrics() {
         let cache = ResponseCache::new(enabled_config());
 
-        cache.put(1, 0, Arc::new(serde_json::json!("r")), vec![]).expect("put");
+        cache.put(1, 0, Arc::new(serde_json::json!("r")), vec![], None).expect("put");
         cache.run_pending_tasks();
         let _ = cache.get(1, 0); // hit
         let _ = cache.get(2, 0); // miss
@@ -543,7 +545,7 @@ mod response_cache_tests {
     fn test_invalidate_empty_views_is_noop() {
         let cache = ResponseCache::new(enabled_config());
         cache
-            .put(1, 0, Arc::new(serde_json::json!("r")), vec!["v_user".to_string()])
+            .put(1, 0, Arc::new(serde_json::json!("r")), vec!["v_user".to_string()], None)
             .expect("put");
         cache.run_pending_tasks();
 
@@ -556,7 +558,7 @@ mod response_cache_tests {
     fn test_invalidate_nonexistent_view_is_noop() {
         let cache = ResponseCache::new(enabled_config());
         cache
-            .put(1, 0, Arc::new(serde_json::json!("r")), vec!["v_user".to_string()])
+            .put(1, 0, Arc::new(serde_json::json!("r")), vec!["v_user".to_string()], None)
             .expect("put");
         cache.run_pending_tasks();
 
@@ -573,13 +575,13 @@ mod response_cache_tests {
 
         // Same query, different users, same view
         cache
-            .put(1, 100, Arc::new(serde_json::json!("admin")), vec!["v_user".to_string()])
+            .put(1, 100, Arc::new(serde_json::json!("admin")), vec!["v_user".to_string()], None)
             .expect("put admin");
         cache
-            .put(1, 200, Arc::new(serde_json::json!("user")), vec!["v_user".to_string()])
+            .put(1, 200, Arc::new(serde_json::json!("user")), vec!["v_user".to_string()], None)
             .expect("put user");
         cache
-            .put(1, 0, Arc::new(serde_json::json!("anon")), vec!["v_user".to_string()])
+            .put(1, 0, Arc::new(serde_json::json!("anon")), vec!["v_user".to_string()], None)
             .expect("put anon");
         cache.run_pending_tasks();
 
@@ -598,13 +600,13 @@ mod response_cache_tests {
         let cache = ResponseCache::new(enabled_config());
 
         cache
-            .put(1, 0, Arc::new(serde_json::json!("users")), vec!["v_user".to_string()])
+            .put(1, 0, Arc::new(serde_json::json!("users")), vec!["v_user".to_string()], None)
             .expect("put users");
         cache
-            .put(2, 0, Arc::new(serde_json::json!("posts")), vec!["v_post".to_string()])
+            .put(2, 0, Arc::new(serde_json::json!("posts")), vec!["v_post".to_string()], None)
             .expect("put posts");
         cache
-            .put(3, 0, Arc::new(serde_json::json!("tags")), vec!["v_tag".to_string()])
+            .put(3, 0, Arc::new(serde_json::json!("tags")), vec!["v_tag".to_string()], None)
             .expect("put tags");
         cache.run_pending_tasks();
 
@@ -631,6 +633,7 @@ mod response_cache_tests {
                 0,
                 Arc::new(serde_json::json!("joined")),
                 vec!["v_user".to_string(), "v_post".to_string()],
+                None,
             )
             .expect("put");
         cache.run_pending_tasks();
@@ -652,10 +655,10 @@ mod response_cache_tests {
         let cache = ResponseCache::new(enabled_config());
 
         cache
-            .put(1, 0, Arc::new(serde_json::json!("response_1")), vec![])
+            .put(1, 0, Arc::new(serde_json::json!("response_1")), vec![], None)
             .expect("put q1");
         cache
-            .put(2, 0, Arc::new(serde_json::json!("response_2")), vec![])
+            .put(2, 0, Arc::new(serde_json::json!("response_2")), vec![], None)
             .expect("put q2");
         cache.run_pending_tasks();
 
@@ -677,6 +680,7 @@ mod response_cache_tests {
                     sec_hash,
                     Arc::new(serde_json::json!(format!("response_for_user_{sec_hash}"))),
                     vec![],
+                    None,
                 )
                 .expect("put");
         }
@@ -2242,7 +2246,7 @@ mod result_tests {
         let result = test_result();
 
         // Put
-        cache.put(1_u64, result, vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(1_u64, result, vec!["v_user".to_string()], None, None, None).unwrap();
 
         // Get
         let cached = cache.get(1_u64).unwrap();
@@ -2259,7 +2263,9 @@ mod result_tests {
     fn test_cache_hit_updates_hit_count() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         // First hit
         cache.get(1_u64).unwrap();
@@ -2284,7 +2290,9 @@ mod result_tests {
 
         let cache = QueryResultCache::new(config);
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         // Wait for expiry
         std::thread::sleep(std::time::Duration::from_secs(2));
@@ -2315,6 +2323,7 @@ mod result_tests {
                 vec!["v_ref".to_string()],
                 Some(1), // 1-second per-entry override
                 None,
+                None,
             )
             .unwrap();
 
@@ -2331,7 +2340,7 @@ mod result_tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put(1_u64, test_result(), vec!["v_live".to_string()], Some(0), None)
+            .put(1_u64, test_result(), vec!["v_live".to_string()], Some(0), None, None)
             .unwrap();
 
         let result = cache.get(1_u64).unwrap();
@@ -2348,7 +2357,9 @@ mod result_tests {
 
         let cache = QueryResultCache::new(config);
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         // Should still be valid
         let result = cache.get(1_u64).unwrap();
@@ -2370,9 +2381,15 @@ mod result_tests {
         let cache = QueryResultCache::new(config);
 
         // Add 3 entries (max is 2); moka will evict one
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
-        cache.put(2_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
-        cache.put(3_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
+        cache
+            .put(2_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
+        cache
+            .put(3_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         // Run pending tasks to flush evictions
         cache.run_pending_tasks();
@@ -2391,7 +2408,9 @@ mod result_tests {
         let cache = QueryResultCache::new(config);
 
         // Put should be no-op
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         // Get should return None
         assert!(cache.get(1_u64).unwrap().is_none(), "Cache disabled should always miss");
@@ -2408,8 +2427,12 @@ mod result_tests {
     fn test_invalidate_single_view() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
-        cache.put(2_u64, test_result(), vec!["v_post".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
+        cache
+            .put(2_u64, test_result(), vec!["v_post".to_string()], None, None, None)
+            .unwrap();
 
         // Invalidate v_user
         let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
@@ -2424,10 +2447,14 @@ mod result_tests {
     fn test_invalidate_multiple_views() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
-        cache.put(2_u64, test_result(), vec!["v_post".to_string()], None, None).unwrap();
         cache
-            .put(3_u64, test_result(), vec!["v_product".to_string()], None, None)
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
+        cache
+            .put(2_u64, test_result(), vec!["v_post".to_string()], None, None, None)
+            .unwrap();
+        cache
+            .put(3_u64, test_result(), vec!["v_product".to_string()], None, None, None)
             .unwrap();
 
         // Invalidate v_user and v_post
@@ -2453,6 +2480,7 @@ mod result_tests {
                 vec!["v_user".to_string(), "v_post".to_string()],
                 None,
                 None,
+                None,
             )
             .unwrap();
 
@@ -2467,7 +2495,9 @@ mod result_tests {
     fn test_invalidate_nonexistent_view() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         // Invalidate view that doesn't exist
         let invalidated = cache.invalidate_views(&[ViewName::from("v_nonexistent")]).unwrap();
@@ -2485,8 +2515,12 @@ mod result_tests {
     fn test_clear() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
-        cache.put(2_u64, test_result(), vec!["v_post".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
+        cache
+            .put(2_u64, test_result(), vec!["v_post".to_string()], None, None, None)
+            .unwrap();
 
         cache.clear().unwrap();
 
@@ -2512,7 +2546,9 @@ mod result_tests {
         cache.get(999_u64).unwrap();
 
         // Put
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         // Hit
         cache.get(1_u64).unwrap();
@@ -2597,10 +2633,24 @@ mod result_tests {
 
         // Cache User A and User B as separate entries
         cache
-            .put(1_u64, entity_result("uuid-a"), vec!["v_user".to_string()], None, Some("User"))
+            .put(
+                1_u64,
+                entity_result("uuid-a"),
+                vec!["v_user".to_string()],
+                None,
+                Some("User"),
+                None,
+            )
             .unwrap();
         cache
-            .put(2_u64, entity_result("uuid-b"), vec!["v_user".to_string()], None, Some("User"))
+            .put(
+                2_u64,
+                entity_result("uuid-b"),
+                vec!["v_user".to_string()],
+                None,
+                Some("User"),
+                None,
+            )
             .unwrap();
 
         // Invalidate User A — User B must remain
@@ -2616,7 +2666,14 @@ mod result_tests {
 
         // Cache a single-entity entry (entity_ref uses first row's id)
         cache
-            .put(1_u64, entity_result("uuid-a"), vec!["v_user".to_string()], None, Some("User"))
+            .put(
+                1_u64,
+                entity_result("uuid-a"),
+                vec!["v_user".to_string()],
+                None,
+                Some("User"),
+                None,
+            )
             .unwrap();
 
         // Invalidate by User A
@@ -2637,6 +2694,7 @@ mod result_tests {
                 vec!["v_user".to_string()],
                 None,
                 Some("User"),
+                None,
             )
             .unwrap();
         cache
@@ -2646,6 +2704,7 @@ mod result_tests {
                 vec!["v_post".to_string()],
                 None,
                 Some("Post"),
+                None,
             )
             .unwrap();
 
@@ -2661,7 +2720,14 @@ mod result_tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put(1_u64, entity_result("uuid-1"), vec!["v_user".to_string()], None, Some("User"))
+            .put(
+                1_u64,
+                entity_result("uuid-1"),
+                vec!["v_user".to_string()],
+                None,
+                Some("User"),
+                None,
+            )
             .unwrap();
 
         // Invalidating by uuid-1 should evict the entry
@@ -2681,6 +2747,7 @@ mod result_tests {
                 vec!["v_user".to_string()],
                 None,
                 None, // no entity type
+                None,
             )
             .unwrap();
 
@@ -2704,14 +2771,18 @@ mod result_tests {
     fn test_put_indexes_all_entities_in_list() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let rows = list_result(&["uuid-A", "uuid-B", "uuid-C"]);
-        cache.put(0xABC, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache
+            .put(0xABC, rows, vec!["v_user".to_string()], None, Some("User"), None)
+            .unwrap();
 
         let evicted_a = cache.invalidate_by_entity("User", "uuid-A").unwrap();
         assert_eq!(evicted_a, 1, "uuid-A must be indexed and evictable");
 
         // Re-insert to test uuid-C
         let rows2 = list_result(&["uuid-A", "uuid-B", "uuid-C"]);
-        cache.put(0xDEF, rows2, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache
+            .put(0xDEF, rows2, vec!["v_user".to_string()], None, Some("User"), None)
+            .unwrap();
         let evicted_c = cache.invalidate_by_entity("User", "uuid-C").unwrap();
         assert_eq!(evicted_c, 1, "uuid-C at position 2 must also be indexed");
     }
@@ -2720,7 +2791,9 @@ mod result_tests {
     fn test_update_evicts_list_query_via_non_first_entity() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let rows = list_result(&["uuid-A", "uuid-B"]);
-        cache.put(0x111, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache
+            .put(0x111, rows, vec!["v_user".to_string()], None, Some("User"), None)
+            .unwrap();
 
         // uuid-B is at position 1 — must still be evicted
         let evicted = cache.invalidate_by_entity("User", "uuid-B").unwrap();
@@ -2740,13 +2813,17 @@ mod result_tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         let empty: Vec<JsonbValue> = vec![];
-        cache.put(0x001, empty, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache
+            .put(0x001, empty, vec!["v_user".to_string()], None, Some("User"), None)
+            .unwrap();
         let single = vec![JsonbValue::new(serde_json::json!({"id": "uuid-X"}))];
         cache
-            .put(0x002, single, vec!["v_user".to_string()], None, Some("User"))
+            .put(0x002, single, vec!["v_user".to_string()], None, Some("User"), None)
             .unwrap();
         let list = list_result(&["uuid-A", "uuid-B"]);
-        cache.put(0x003, list, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache
+            .put(0x003, list, vec!["v_user".to_string()], None, Some("User"), None)
+            .unwrap();
 
         let evicted = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
         assert_eq!(evicted, 3, "zero-, one- and multi-row entries are all evicted");
@@ -2767,7 +2844,9 @@ mod result_tests {
     fn test_eviction_listener_cleans_all_entity_refs() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let rows = list_result(&["uuid-A", "uuid-B"]);
-        cache.put(0x001, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache
+            .put(0x001, rows, vec!["v_user".to_string()], None, Some("User"), None)
+            .unwrap();
 
         // Force eviction via invalidate_views
         cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
@@ -2797,7 +2876,7 @@ mod result_tests {
                 let cache_clone = cache.clone();
                 thread::spawn(move || {
                     cache_clone
-                        .put(key, test_result(), vec!["v_user".to_string()], None, None)
+                        .put(key, test_result(), vec!["v_user".to_string()], None, None, None)
                         .unwrap();
                     cache_clone.get(key).unwrap();
                 })
@@ -2834,7 +2913,9 @@ mod result_tests {
             JsonbValue::new(json!({"id": 1})),
             JsonbValue::new(json!({"id": 2})),
         ];
-        cache.put(1_u64, two_rows, vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, two_rows, vec!["v_user".to_string()], None, None, None)
+            .unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_none(),
             "multi-row result must not be cached when cache_list_queries=false"
@@ -2855,7 +2936,7 @@ mod result_tests {
 
         // One-row result: must be stored
         let one_row = vec![JsonbValue::new(json!({"id": 1}))];
-        cache.put(1_u64, one_row, vec!["v_user".to_string()], None, None).unwrap();
+        cache.put(1_u64, one_row, vec!["v_user".to_string()], None, None, None).unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_some(),
             "single-row result must be cached even when cache_list_queries=false"
@@ -2875,7 +2956,9 @@ mod result_tests {
         let cache = QueryResultCache::new(config);
 
         // A typical row serialises to far more than 10 bytes
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
         assert!(cache.get(1_u64).unwrap().is_none(), "oversized entry must be silently skipped");
     }
 
@@ -2891,7 +2974,9 @@ mod result_tests {
         };
         let cache = QueryResultCache::new(config);
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_some(),
             "small entry must be cached when within max_entry_bytes"
@@ -2910,7 +2995,9 @@ mod result_tests {
         };
         let cache = QueryResultCache::new(config);
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
         assert!(
             cache.get(1_u64).unwrap().is_none(),
             "entry must be skipped when max_total_bytes budget is already exhausted"
@@ -2934,7 +3021,7 @@ mod result_tests {
         // Insert many entries
         for i in 0_u64..200 {
             let view = if i % 2 == 0 { "v_user" } else { "v_post" };
-            cache.put(i, test_result(), vec![view.to_string()], None, None).unwrap();
+            cache.put(i, test_result(), vec![view.to_string()], None, None, None).unwrap();
         }
 
         // Invalidate v_user — should remove exactly 100 entries
@@ -2970,6 +3057,7 @@ mod result_tests {
                     vec!["v_user".to_string()],
                     None,
                     Some("User"),
+                    None,
                 )
                 .unwrap();
         }
@@ -2982,6 +3070,7 @@ mod result_tests {
                 vec!["v_user".to_string()],
                 None,
                 Some("User"),
+                None,
             )
             .unwrap();
 
@@ -3001,7 +3090,9 @@ mod result_tests {
         let cache = QueryResultCache::new(config);
 
         for i in 0_u64..200 {
-            cache.put(i, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+            cache
+                .put(i, test_result(), vec!["v_user".to_string()], None, None, None)
+                .unwrap();
         }
 
         cache.clear().unwrap();
@@ -3020,8 +3111,12 @@ mod result_tests {
     fn test_memory_bytes_tracked() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache.put(1_u64, test_result(), vec!["v".to_string()], None, None).unwrap();
-        cache.put(2_u64, test_result(), vec!["v".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v".to_string()], None, None, None)
+            .unwrap();
+        cache
+            .put(2_u64, test_result(), vec!["v".to_string()], None, None, None)
+            .unwrap();
 
         let before = cache.metrics().unwrap().memory_bytes;
         assert!(before > 0, "memory_bytes should be tracked");
@@ -3032,7 +3127,9 @@ mod result_tests {
     fn test_memory_bytes_decreases_on_clear() {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
-        cache.put(1_u64, test_result(), vec!["v_user".to_string()], None, None).unwrap();
+        cache
+            .put(1_u64, test_result(), vec!["v_user".to_string()], None, None, None)
+            .unwrap();
 
         let before = cache.metrics().unwrap().memory_bytes;
         assert!(before > 0);
@@ -3086,7 +3183,7 @@ mod result_tests {
         let key = 42_u64;
         let expected = test_result();
         cache
-            .put(key, expected.clone(), vec!["v_user".to_string()], None, None)
+            .put(key, expected.clone(), vec!["v_user".to_string()], None, None, None)
             .unwrap();
 
         // Single-threaded baseline.
@@ -3163,10 +3260,10 @@ mod eviction_lifecycle_tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put(42, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .put(42, one_row(), vec!["v_user".to_string()], Some(0), Some("User"), None)
             .unwrap();
         cache
-            .put(42, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .put(42, one_row(), vec!["v_user".to_string()], Some(0), Some("User"), None)
             .unwrap();
         cache.run_pending_tasks();
 
@@ -3187,10 +3284,10 @@ mod eviction_lifecycle_tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put(43, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .put(43, one_row(), vec!["v_user".to_string()], Some(0), Some("User"), None)
             .unwrap();
         cache
-            .put(43, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .put(43, one_row(), vec!["v_user".to_string()], Some(0), Some("User"), None)
             .unwrap();
         cache.run_pending_tasks();
 
@@ -3213,7 +3310,7 @@ mod eviction_lifecycle_tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put(44, one_row(), vec!["v_user".to_string()], Some(0), Some("User"))
+            .put(44, one_row(), vec!["v_user".to_string()], Some(0), Some("User"), None)
             .unwrap();
         cache.run_pending_tasks();
         assert_eq!(cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(), 1);
@@ -3243,8 +3340,8 @@ mod eviction_lifecycle_tests {
         });
         let body = Arc::new(json!({"data": {"users": []}}));
 
-        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()]).unwrap();
-        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()]).unwrap();
+        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()], None).unwrap();
+        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()], None).unwrap();
         cache.run_pending_tasks();
 
         assert_eq!(
@@ -3371,6 +3468,189 @@ mod response_cache_key_tests {
         assert_eq!(
             key_of("{ users { id name } }", None),
             key_of("{\n  users {\n    id\n    name\n  }\n}", None),
+        );
+    }
+}
+
+// ── invalidation_fence_tests ────────────────────────────────────────────────
+
+/// #1079: a cache write whose read straddled an invalidation must be discarded.
+///
+/// A read is `get` → miss → **await the database** → `put`. An invalidation landing
+/// inside that await evicts nothing — the key is not registered yet — and the `put` then
+/// stores rows fetched *before* the mutation committed. The client that just wrote sees
+/// its own write vanish on the next read.
+///
+/// #740's "register the key before inserting" note makes the key *visible* to a concurrent
+/// `invalidate_views`, but it does not fence the insert: an invalidation landing between
+/// registration and `store.insert` collects a key that is not in the store yet — a no-op —
+/// and the insert lands stale anyway. So the fence has to cover the insert itself.
+///
+/// These tests drive the interleaving **as a sequence, not a sleep**: the invalidation is
+/// performed between the snapshot and the put, exactly where the race puts it. A
+/// probabilistic version would be a flake in CI and a false green on a fast runner.
+mod invalidation_fence_tests {
+    use std::sync::Arc;
+
+    use fraiseql_db::ViewName;
+
+    use crate::cache::{
+        CacheConfig, QueryResultCache, ResponseCache, response_cache::ResponseCacheConfig,
+    };
+
+    fn row_cache() -> QueryResultCache {
+        QueryResultCache::new(CacheConfig::enabled())
+    }
+
+    fn rows() -> Vec<crate::db::types::JsonbValue> {
+        vec![crate::db::types::JsonbValue::new(
+            serde_json::json!({"id": "u-1", "n": "pre"}),
+        )]
+    }
+
+    /// The defect, in one sequence.
+    #[test]
+    fn a_read_that_straddles_an_invalidation_does_not_cache() {
+        let cache = row_cache();
+
+        // The read snapshots, then awaits the database…
+        let fence = cache.invalidation_generation();
+
+        // …and while it is awaiting, a mutation commits and invalidates. Nothing is
+        // evicted: this key is not in the reverse index yet.
+        let evicted = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+        assert_eq!(evicted, 0, "precondition: the racing invalidation evicts nothing");
+
+        // …then the read returns and stores its pre-mutation rows.
+        cache
+            .put(1_u64, rows(), vec!["v_user".to_string()], None, None, Some(fence))
+            .unwrap();
+
+        assert!(
+            cache.get(1_u64).unwrap().is_none(),
+            "a read whose round trip straddled an invalidation must not populate the cache — \
+             storing it re-caches pre-mutation rows and the client's own write disappears (#1079)"
+        );
+    }
+
+    /// The counterweight: with nothing invalidating, the write must still land.
+    ///
+    /// Without this, a fence that refused *every* write would satisfy the test above and
+    /// silently disable the cache.
+    #[test]
+    fn an_uncontended_read_still_caches() {
+        let cache = row_cache();
+        let fence = cache.invalidation_generation();
+
+        cache
+            .put(1_u64, rows(), vec!["v_user".to_string()], None, None, Some(fence))
+            .unwrap();
+
+        assert!(
+            cache.get(1_u64).unwrap().is_some(),
+            "an uncontended read must still be cached — the fence must not cost hit rate \
+             when nothing raced it"
+        );
+    }
+
+    /// A refused write must leave no index rows behind, or the next invalidation walks
+    /// references to a key that was never stored.
+    #[test]
+    fn a_fenced_out_write_deregisters_itself() {
+        let cache = row_cache();
+        let fence = cache.invalidation_generation();
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+        cache
+            .put(1_u64, rows(), vec!["v_user".to_string()], None, None, Some(fence))
+            .unwrap();
+
+        // If the refused write left its registration behind, this invalidation would
+        // report evicting an entry that does not exist.
+        let evicted = cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+        assert_eq!(
+            evicted, 0,
+            "a fenced-out write must deregister itself; a stale index row makes the next \
+             invalidation count a key that was never stored"
+        );
+    }
+
+    /// `invalidate_by_entity` and `clear` move the generation too — an entity-level
+    /// invalidation races a read exactly as a view-level one does.
+    #[test]
+    fn entity_invalidation_and_clear_both_move_the_generation() {
+        let cache = row_cache();
+
+        let before = cache.invalidation_generation();
+        cache.invalidate_by_entity("User", "u-1").unwrap();
+        assert_ne!(
+            cache.invalidation_generation(),
+            before,
+            "invalidate_by_entity must move the fence generation"
+        );
+
+        let before = cache.invalidation_generation();
+        cache.clear().unwrap();
+        assert_ne!(
+            cache.invalidation_generation(),
+            before,
+            "clear must move the fence generation — a read in flight across a clear must \
+             not repopulate it"
+        );
+    }
+
+    // ── the same defect, one layer up ───────────────────────────────────────
+    //
+    // The mutation runner invalidates both caches in the same block, so the identical
+    // window strands whole GraphQL responses, not just row sets. Fixing only the row
+    // cache would leave the user-visible half live.
+
+    fn response_cache() -> ResponseCache {
+        ResponseCache::new(ResponseCacheConfig {
+            enabled: true,
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn a_response_written_across_an_invalidation_is_discarded() {
+        let cache = response_cache();
+        let fence = cache.invalidation_generation();
+        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
+
+        cache
+            .put(
+                7,
+                0,
+                Arc::new(serde_json::json!({"data": {"user": {"name": "pre"}}})),
+                vec!["v_user".to_string()],
+                Some(fence),
+            )
+            .unwrap();
+
+        assert!(
+            cache.get(7, 0).unwrap().is_none(),
+            "a response computed from pre-mutation rows must not be cached (#1079)"
+        );
+    }
+
+    #[test]
+    fn an_uncontended_response_still_caches() {
+        let cache = response_cache();
+        let fence = cache.invalidation_generation();
+
+        cache
+            .put(
+                7,
+                0,
+                Arc::new(serde_json::json!({"data": {"user": {"name": "n"}}})),
+                vec!["v_user".to_string()],
+                Some(fence),
+            )
+            .unwrap();
+
+        assert!(
+            cache.get(7, 0).unwrap().is_some(),
+            "an uncontended response must still be cached"
         );
     }
 }
