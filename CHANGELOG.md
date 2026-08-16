@@ -4199,6 +4199,11 @@ disagreed, and the promise was the part that was wrong.
   It also caught a second silent omission: the "Verify all crates published" roll-up
   never checked `publish-guard`, so a failed `fraiseql-guard` publish was reported as a
   success.
+  ⚠ Consequence worth stating plainly: **`fraiseql-cdc-sinks` becomes installable for the
+  first time in this release.** It was announced in v2.9.0 as "a new, additive,
+  off-by-default crate" and has never been on crates.io in any release since — the
+  workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
+  since v2.14.1, was already in the publish list and is unaffected.
 
 ### Security
 
