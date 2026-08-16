@@ -7,7 +7,12 @@
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none
-//! **Parallelism:** safe
+//! **Parallelism:** safe — but only because every `FRAISEQL_ENV` mutation below goes
+//! through `temp_env`, whose internal mutex serialises them. This header claimed
+//! "safe" while two tests set and unset that process-global variable with bare
+//! `std::env::set_var`/`remove_var`, so one test's `remove_var` could land between
+//! the other's `set_var` and the `validate()` that reads it. Do not reintroduce a
+//! bare mutation here: it is invisible until it reddens a release gate at random.
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
@@ -57,27 +62,22 @@ fn test_playground_can_be_enabled() {
 fn test_production_mode_default() {
     // When FRAISEQL_ENV is not set, defaults to production mode.
     // When set to "development"/"dev", returns false.
-    let original = std::env::var("FRAISEQL_ENV").ok();
+    //
+    // Both states go through `temp_env`, whose internal mutex is the only thing
+    // serialising these mutations against the other FRAISEQL_ENV test in this binary.
+    temp_env::with_var_unset("FRAISEQL_ENV", || {
+        assert!(
+            ServerConfig::is_production_mode(),
+            "without FRAISEQL_ENV, must default to production mode"
+        );
+    });
 
-    // Simulate unset: production
-    std::env::remove_var("FRAISEQL_ENV");
-    assert!(
-        ServerConfig::is_production_mode(),
-        "without FRAISEQL_ENV, must default to production mode"
-    );
-
-    // Simulate development mode
-    std::env::set_var("FRAISEQL_ENV", "development");
-    assert!(
-        !ServerConfig::is_production_mode(),
-        "FRAISEQL_ENV=development must not be production mode"
-    );
-
-    // Restore original env state
-    match original {
-        Some(v) => std::env::set_var("FRAISEQL_ENV", v),
-        None => std::env::remove_var("FRAISEQL_ENV"),
-    }
+    temp_env::with_var("FRAISEQL_ENV", Some("development"), || {
+        assert!(
+            !ServerConfig::is_production_mode(),
+            "FRAISEQL_ENV=development must not be production mode"
+        );
+    });
 }
 
 // =============================================================================
@@ -134,24 +134,21 @@ fn test_cors_multiple_origins_passes_validation() {
 #[test]
 fn test_development_allows_playground_and_empty_cors() {
     // In development mode, playground=true with empty cors_origins must pass validation.
-    let original = std::env::var("FRAISEQL_ENV").ok();
-    std::env::set_var("FRAISEQL_ENV", "development");
+    //
+    // `validate()` reads FRAISEQL_ENV, so the read must happen INSIDE the closure that
+    // holds temp_env's lock — a set-then-validate pair outside it is what raced.
+    temp_env::with_var("FRAISEQL_ENV", Some("development"), || {
+        let config = ServerConfig {
+            playground_enabled: true,
+            cors_enabled: true,
+            cors_origins: vec![], // Empty origins are acceptable in development
+            ..ServerConfig::default()
+        };
 
-    let config = ServerConfig {
-        playground_enabled: true,
-        cors_enabled: true,
-        cors_origins: vec![], // Empty origins are acceptable in development
-        ..ServerConfig::default()
-    };
-
-    config.validate().unwrap_or_else(|e| {
-        panic!("in development mode, playground + empty cors_origins must pass validation: {e}")
+        config.validate().unwrap_or_else(|e| {
+            panic!("in development mode, playground + empty cors_origins must pass validation: {e}")
+        });
     });
-
-    match original {
-        Some(v) => std::env::set_var("FRAISEQL_ENV", v),
-        None => std::env::remove_var("FRAISEQL_ENV"),
-    }
 }
 
 // =============================================================================
