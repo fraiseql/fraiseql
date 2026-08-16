@@ -205,6 +205,7 @@ async fn mutation_invalidates_listed_views_in_cache() {
                 vec![view.clone()],
                 None,
                 None,
+                None,
             )
             .expect("pre-population must succeed");
         assert!(
@@ -256,6 +257,7 @@ async fn failed_mutation_does_not_invalidate_cache() {
                 key,
                 vec![JsonbValue::new(json!({"valid": true}))],
                 vec![view.clone()],
+                None,
                 None,
                 None,
             )

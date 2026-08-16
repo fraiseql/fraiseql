@@ -99,6 +99,12 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             return Ok(cached_arc);
         }
 
+        // Snapshot the invalidation generation BEFORE the round trip (#1079). A mutation
+        // that commits and invalidates while we await the database would otherwise evict
+        // nothing — this key is not in the reverse index yet — and the put below would
+        // store rows fetched before that mutation, undoing it in the cache.
+        let fence = self.cache.invalidation_generation();
+
         // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
         // The Vec contents are never copied — the cache and the caller share the
         // same allocation via Arc reference counting.
@@ -120,6 +126,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             self.accessed_views_for(view),
             ttl,
             entity_type.as_deref(),
+            Some(fence),
         )?;
 
         Ok(arc)
@@ -175,6 +182,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             return Ok(cached_arc);
         }
 
+        // Snapshot before the round trip — see the sibling path above (#1079).
+        let fence = self.cache.invalidation_generation();
+
         // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
         let arc = Arc::new(
             self.adapter
@@ -196,6 +206,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             self.accessed_views_for(view),
             ttl,
             entity_type.as_deref(),
+            Some(fence),
         )?;
 
         Ok(arc)

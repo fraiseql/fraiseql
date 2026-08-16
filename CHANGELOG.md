@@ -4098,6 +4098,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existed in this example (`orders`, `products`, `users` against fixtures creating
   `tb_order`, `tb_product`, `tb_user`); they now use the real names and join through the
   surrogate keys as the Trinity schema requires.
+- **A read that straddles a mutation can no longer undo it in the cache (#1079).** A cached
+  read is `get` → miss → **await the database** → `put`. A mutation that committed and
+  invalidated while a read was awaiting the database evicted nothing — the read's key is not
+  in the reverse index yet — and the read's `put` then stored rows fetched *before* the
+  mutation. The client that had just written saw its own write vanish on the next read, and
+  the entry survived until the next invalidation touching that view, a size eviction, a
+  schema reload or a restart. Registering the key before inserting (#740) made it *visible*
+  to a concurrent invalidation but did not fence the insert, so an invalidation landing
+  between registration and insert collected a key that was not stored yet and the insert
+  landed stale regardless. Both caches now carry a monotonic invalidation generation: the
+  read snapshots it before the round trip, and the write is discarded — silently, with its
+  index registrations removed — if the counter moved. A fenced-out read still returns its
+  rows to the caller; it is simply not cached, because turning a benign race into a request
+  failure would be worse than the staleness it prevents.
+  **Preconditions: the cache must have been explicitly enabled** (`CacheConfig::enabled` is
+  `false` by default) **and the view annotated** with `cache_ttl_seconds`; session-variable
+  reads bypass the cache entirely. The fix covers the row cache, the response cache — the
+  mutation runner invalidates both in the same block, so whole GraphQL responses were
+  stranded too — and the fact-table cache, which has the same shape.
+  **Breaking for library embedders:** `QueryResultCache::put` / `put_arc` and
+  `ResponseCache::put` take an additional trailing `fence: Option<u64>`. Pass
+  `Some(cache.invalidation_generation())` snapshotted before the work whose result is being
+  stored; `None` stores unconditionally and is only correct when the value cannot have raced
+  a mutation.
 - **The in-memory rate limiter evicts stale buckets, so `max_buckets` is a cap and not a
   lockout (#1080).** `InMemoryRateLimiter::cleanup()` and the `cleanup_interval_secs` knob both
   existed and the knob's documentation promised a background task — but **nothing ever called

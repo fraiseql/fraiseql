@@ -174,12 +174,14 @@ impl moka::Expiry<u64, Arc<CachedResult>> for CacheEntryExpiry {
 ///
 /// // Cache a result
 /// let result = vec![JsonbValue::new(json!({"id": 1, "name": "Alice"}))];
+/// let fence = cache.invalidation_generation(); // snapshot before the read (#1079)
 /// cache.put(
 ///     12345_u64,
 ///     result.clone(),
 ///     vec!["v_user".to_string()],
-///     None, // use global TTL
-///     None, // no entity type index
+///     None,        // use global TTL
+///     None,        // no entity type index
+///     Some(fence), // discard the write if an invalidation raced the read
 /// ).unwrap();
 ///
 /// // Retrieve from cache
@@ -224,6 +226,22 @@ pub struct QueryResultCache {
     /// Source of [`CachedResult::epoch`] values. Monotonic for the process
     /// lifetime; wrap-around at 2^64 puts is not reachable.
     next_epoch: AtomicU64,
+
+    /// Bumped by every invalidation, so a read that straddled one can tell (#1079).
+    ///
+    /// A read is `get` → miss → **await the database** → `put`. An invalidation landing
+    /// inside that await evicts nothing (the key is not in `view_index` yet) and the `put`
+    /// then stores rows fetched *before* the mutation committed — the client that just
+    /// wrote sees its own write vanish on the next read.
+    ///
+    /// The counter is **global**, not per view: a skipped cache write costs one uncached
+    /// read, whereas a stale entry costs correctness, and a per-view map would inherit
+    /// every lifetime question `view_index` already has. If a benchmark ever shows the
+    /// hit-rate loss matters, refine it then — with a measurement, not a guess.
+    ///
+    /// Distinct from [`next_epoch`](Self::next_epoch), which identifies one entry instance
+    /// so the eviction listener does not deregister a replacement (#740).
+    invalidation_generation: AtomicU64,
 }
 
 /// Cache metrics for monitoring.
@@ -344,7 +362,19 @@ impl QueryResultCache {
             view_index,
             entity_index,
             next_epoch: AtomicU64::new(0),
+            invalidation_generation: AtomicU64::new(0),
         }
+    }
+
+    /// Snapshot of the invalidation generation, for fencing a cache write (#1079).
+    ///
+    /// Take this **before** the database round trip and hand it to
+    /// [`put_arc`](Self::put_arc). If any invalidation lands while the read is in flight,
+    /// the counter moves and the write is refused — the rows are still returned to the
+    /// caller, they are simply not cached.
+    #[must_use]
+    pub fn invalidation_generation(&self) -> u64 {
+        self.invalidation_generation.load(Ordering::Acquire)
     }
 
     /// Returns whether caching is enabled.
@@ -402,10 +432,18 @@ impl QueryResultCache {
     /// * `accessed_views` - List of views accessed by this query
     /// * `ttl_override` - Per-entry TTL in seconds; `None` uses `CacheConfig::ttl_seconds`
     /// * `entity_type` - Optional GraphQL type name for entity-ID indexing
+    /// * `fence` - Generation snapshot from
+    ///   [`invalidation_generation`](Self::invalidation_generation), taken **before** the database
+    ///   round trip whose rows are being stored. `None` stores unconditionally, and is only correct
+    ///   when the value did not come from a read that could have raced a mutation (a test fixture,
+    ///   or a synchronous re-population).
     ///
     /// # Errors
     ///
     /// This method is infallible. The `Result` return type is kept for API compatibility.
+    /// A fenced-out write is **not** an error — the caller already has its rows; they are
+    /// simply not cached. Turning a benign race into a request failure would be worse than
+    /// the staleness this prevents.
     pub fn put_arc(
         &self,
         cache_key: u64,
@@ -413,8 +451,16 @@ impl QueryResultCache {
         accessed_views: Vec<String>,
         ttl_override: Option<u64>,
         entity_type: Option<&str>,
+        fence: Option<u64>,
     ) -> Result<()> {
         if !self.config.enabled {
+            return Ok(());
+        }
+
+        // Cheap pre-check: if an invalidation already landed, do no work at all. The
+        // authoritative check is after registration, below — this one only saves the
+        // serialisation and index churn in the common case.
+        if fence.is_some_and(|snapshot| snapshot != self.invalidation_generation()) {
             return Ok(());
         }
 
@@ -487,6 +533,37 @@ impl QueryResultCache {
                 .insert(reference);
         }
 
+        // ── The fence (#1079) ───────────────────────────────────────────────
+        //
+        // Authoritative check, AFTER registration and BEFORE `store.insert`. The
+        // pre-check at the top of this function is only an optimisation; this is the
+        // one that closes the window, because #740's "register before insert" makes the
+        // key *visible* to a concurrent `invalidate_views` but does not stop the insert
+        // that follows. An invalidation landing between the registrations above and the
+        // insert below collects a key that is not in the store yet — invalidating
+        // nothing — and the insert then lands stale.
+        //
+        // Deregistration is symmetric with the eviction listener's: the same
+        // `(cache_key, epoch)` reference, removed from the same two indexes, so no index
+        // row survives pointing at a key that was never stored. No moka call is made
+        // while a DashMap guard is held — the listener runs synchronously on the calling
+        // thread and re-enters `view_index`, which is why that rule exists.
+        if fence.is_some_and(|snapshot| snapshot != self.invalidation_generation()) {
+            for view in &accessed_views {
+                if let Some(keys) = self.view_index.get(view) {
+                    keys.remove(&reference);
+                }
+            }
+            for (et, id) in &*entity_refs {
+                if let Some(by_type) = self.entity_index.get(et) {
+                    if let Some(keys) = by_type.get(id) {
+                        keys.remove(&reference);
+                    }
+                }
+            }
+            return Ok(());
+        }
+
         let cached = CachedResult {
             result,
             accessed_views,
@@ -536,7 +613,8 @@ impl QueryResultCache {
     /// let cache = QueryResultCache::new(CacheConfig::default());
     ///
     /// let result = vec![JsonbValue::new(json!({"id": "uuid-1"}))];
-    /// cache.put(0xabc123, result, vec!["v_user".to_string()], None, Some("User"))?;
+    /// let fence = cache.invalidation_generation();
+    /// cache.put(0xabc123, result, vec!["v_user".to_string()], None, Some("User"), Some(fence))?;
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn put(
@@ -546,8 +624,9 @@ impl QueryResultCache {
         accessed_views: Vec<String>,
         ttl_override: Option<u64>,
         entity_type: Option<&str>,
+        fence: Option<u64>,
     ) -> Result<()> {
-        self.put_arc(cache_key, Arc::new(result), accessed_views, ttl_override, entity_type)
+        self.put_arc(cache_key, Arc::new(result), accessed_views, ttl_override, entity_type, fence)
     }
 
     /// Invalidate entries accessing specified views.
@@ -584,6 +663,12 @@ impl QueryResultCache {
         if !self.config.enabled {
             return Ok(0);
         }
+
+        // Bump BEFORE collecting keys (#1079). A read whose database round trip
+        // straddles this call must observe the move even if it snapshotted a moment
+        // ago — ordering the bump first means the window can only ever be too wide
+        // (a refused cache write), never too narrow (a stale entry).
+        self.invalidation_generation.fetch_add(1, Ordering::Release);
 
         // Collect keys first (releases DashMap guards) then invalidate.
         // Moka's eviction listener fires synchronously on the calling thread, so
@@ -639,6 +724,9 @@ impl QueryResultCache {
         if !self.config.enabled {
             return Ok(0);
         }
+
+        // Bump BEFORE collecting keys (#1079) — see invalidate_views.
+        self.invalidation_generation.fetch_add(1, Ordering::Release);
 
         // Short-circuit: if entity_type has no indexed entries, skip the DashMap
         // lookup entirely.  Covers cold-cache and write-heavy workloads where no
@@ -728,6 +816,8 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn clear(&self) -> Result<()> {
+        // Bump first (#1079): a read in flight across a clear must not repopulate it.
+        self.invalidation_generation.fetch_add(1, Ordering::Release);
         self.store.invalidate_all();
         // Reset indexes and memory counter synchronously — don't rely on the
         // async eviction listener to do this.

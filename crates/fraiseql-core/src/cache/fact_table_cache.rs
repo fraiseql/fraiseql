@@ -181,6 +181,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             return Ok(results);
         }
 
+        // Snapshot before the round trip (#1079): this path has the same
+        // get → miss → await → put shape as the row cache, so it strands the same way.
+        let fence = self.cache.invalidation_generation();
+
         // Cache miss - execute query
         let result = self.adapter.execute_raw_query(sql).await?;
 
@@ -196,6 +200,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             vec![table_name], // Track which fact table this query reads
             None,             // Fact-table queries use the global TTL
             None,             // No entity-type index for raw queries
+            Some(fence),
         )?;
 
         Ok(result)

@@ -46,7 +46,14 @@ fn make_result() -> Vec<JsonbValue> {
 /// Pre-populate the cache with `KEY_COUNT` entries.
 fn populate(cache: &QueryResultCache) {
     for i in 0..KEY_COUNT {
-        let _ = cache.put(i as u64, make_result(), vec!["users".to_string()], None, Some("users"));
+        let _ = cache.put(
+            i as u64,
+            make_result(),
+            vec!["users".to_string()],
+            None,
+            Some("users"),
+            None,
+        );
     }
 }
 
@@ -117,6 +124,7 @@ fn bench_cache_writes(c: &mut Criterion) {
                                         vec!["users".to_string()],
                                         None,
                                         Some("users"),
+                                        None,
                                     );
                                 }
                             })
@@ -162,6 +170,7 @@ fn bench_cache_mixed(c: &mut Criterion) {
                                     vec!["users".to_string()],
                                     None,
                                     Some("users"),
+                                    None,
                                 );
                             } else {
                                 let _ = c.get((i % KEY_COUNT) as u64);
@@ -203,6 +212,7 @@ fn bench_cache_latency(c: &mut Criterion) {
                 vec!["users".to_string()],
                 None,
                 Some("users"),
+                None,
             );
         });
     });
