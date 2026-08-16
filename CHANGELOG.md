@@ -4187,6 +4187,14 @@ disagreed, and the promise was the part that was wrong.
   fraiseql-server` fails outright with ``no matching package named `fraiseql-cdc-sinks`
   found``, taking `fraiseql-cli` and the `fraiseql` umbrella with it — three of eighteen
   crates, discovered only after the tag exists.
+  ⚠ It would have failed **mid-sequence, as a partial publish**, not before the first
+  upload. `cargo` reports only the *first* unsatisfiable requirement, and at the release
+  floors that is `fraiseql-arrow = "^2.15.0"` — a sibling the tolerance forgives — so
+  `validate-release`'s dry-run never names `fraiseql-cdc-sinks` and goes green. Tiers 1
+  through 6.5 then publish **14 of the 18 crates irreversibly**, and Tier 7 is the first
+  step that fails. Re-running the job cannot fix it: `release.yml` runs from the tag, and
+  the repair is a workflow change. This is the v2.5.0 partial-publish class the tier
+  waits were written for, reached by a different route.
   The pre-tag gate was structurally unable to see it. `dry_run_failure_is_tolerable`
   forgives an unresolved sibling when that sibling appears in the crate list it was
   handed, and `legacyPublishOrder` contained it — so the dry-run went green on the
