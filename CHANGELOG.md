@@ -4839,6 +4839,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   acceptances contradict — with the two arguments an acceptance may actually make: **absence**
   from the build, or **usage** that never reaches the defect. The acceptances themselves are
   unchanged; there is no fixed `rsa` release either way.
+- **Two more advisory acceptances stop resting on dependency paths that do not exist
+  (#1137).** Checking the other seven acceptances the way #1110 was checked found the same
+  defect twice more, and in both cases the false sentence was the load-bearing one.
+  RUSTSEC-2025-0134 was accepted as "DEV-dependency only (fraiseql-wire test deps / bollard)
+  — no production runtime exposure", but `rustls-pemfile@2.2.0` is a direct `[dependencies]`
+  entry of `fraiseql-wire` and reaches `fraiseql-server` in the default build.
+  RUSTSEC-2026-0204 was accepted as "transitive via rayon (criterion dev-deps)", but
+  `crossbeam-epoch@0.9.18` arrives via `moka` → `fraiseql-core`, the result cache. Both
+  acceptances still stand — one is a deprecated-crate maintenance advisory with no exploit
+  path, the other triggers only on Debug-formatting an invalid pointer, which `moka` does not
+  do — but they now stand on stated grounds that are true. Nothing had caught them because
+  `check-audit-lockstep.sh` compares advisory **ids** and both files carried the same wrong
+  story.
 - **`lru` 0.18.2 clears RUSTSEC-2026-0253 (#1095).** `LruCache::pop()` was not panic-safe: a
   panicking key `Drop` skipped `detach()` and left a dangling pointer in the LRU list for the
   next eviction to walk. Both FraiseQL call sites — `validation::rate_limiting` and
