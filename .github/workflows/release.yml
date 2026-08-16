@@ -52,6 +52,19 @@ jobs:
           fi
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          # The changelog gate below resolves its base from the newest v* tag that
+          # is not the tag being validated, and reads `Closes #N` across the whole
+          # release range. A shallow, tagless checkout gives it an empty range and
+          # a vacuous pass (#1127).
+          fetch-depth: 0
+
+      # A tag cannot be cut on an incomplete changelog. 48 issues closed since
+      # v2.14.1 — including an entire security wave of production fail-closed boot
+      # changes — were absent from CHANGELOG.md when this release was scoped, and
+      # nothing in the pipeline noticed (#1127).
+      - name: Changelog documents every issue closed since the last release
+        run: bash tools/check-changelog-issues.sh
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable

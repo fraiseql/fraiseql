@@ -1,0 +1,42 @@
+# Issues that close without a CHANGELOG.md entry.
+#
+# Format: `#N  <why it is not user-facing>`. A bare number is rejected by
+# tools/check-changelog-issues.sh — an exemption without a stated reason cannot be
+# reviewed or pruned, and that is how an allowlist nobody reads absorbs the next
+# real omission.
+#
+# The bar: Keep a Changelog documents what a user or operator of the released
+# artifact can observe. CI plumbing, test-only commits, refactors with no
+# behaviour change, and fixes to test rigs are not that. If in doubt, document it
+# — an over-full changelog costs a reader a line; an under-full one cost this
+# project an entire undocumented security wave (#1127).
+#
+# ⚠ Exempting an issue that IS documented is also a failure. Remove the line
+# instead of leaving both.
+
+#732   refactor only: decomposed execute_graphql_request (~580 lines) into named steps; no behaviour change
+#879   CI: the Dagger test leg hard-failed on PoolTimedOut where it should skip; test-rig behaviour
+#880   CI: the integration leg could validate stale target-cache artifacts; build-hygiene canary
+#884   test-only: adds a workspace-scoped guard for the idempotency-token property already fixed under #900
+#895   test-only: 15 comment-only #[test] bodies that asserted nothing given real assertions
+#898   test-only: pins the rate-limiter Redis boot refusal already shipped under #770/#777
+#902   test-only: pins a multi-root list-of-objects argument shape already fixed under #719
+#907   test-only: every changed path is #[cfg(test)] — tests pin the SSRF-bypass decision instead of mutating process env; production behaviour unchanged
+#908   CI: no Dagger leg ran any fraiseql-arrow test; leg wiring only
+#930   SDK test infra: F# test classes raced on the global SchemaRegistry
+#936   test infra: pipeline_e2e_test clobbered the shared v_user fixture, reddening unrelated tests
+#942   test infra: changelog_handlers lib tests depended on ambient core.tb_entity_change_log
+#960   CI: cascade_rls_against_db self-skipped in every leg — the proof never ran
+#968   test infra: postgres_column_decode_test fixtures lacked drop-first, so re-runs failed
+#971   CI: re-test the Deno suite inside the Dagger sandbox; leg configuration only
+#981   test infra: an inbound-email tracking test time-bombed on a fixture clock
+#982   test infra: a changelog tail test depended on another crate's tests for provisioning
+#986   CI/hooks: check-snapshot-pairing was an orphan gate running in no CI leg
+#987   hooks: pre-commit clippy/fmt argument order made the command malformed
+#988   CI: pre-commit.ci actionlint/shellcheck findings across workflow files
+#992   CI: ~70 server test binaries executed in no leg; leg wiring only
+#996   test infra: the `test` schema fixtures had two owners re-seeding each other
+#997   test rig: the local TLS Postgres was never seeded with v_test_entity
+#1001  test-only: flight_e2e_test's "end-to-end DoGet" tests called no Flight RPC
+#1010  test infra: fraiseql-guard log-capture tests raced on process-global env
+#1103  CI: deny.toml advisory deadlines that would redden the required preflight check on a date; no shipped behaviour change

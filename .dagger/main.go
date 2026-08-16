@@ -246,6 +246,12 @@ func (m *FraiseqlCi) ShellGates(
 		"make lint-gate-core",
 		"make test-release-tooling",
 		"make test-deadline-gate",
+		// The changelog gate's SELF-TEST only. The gate itself needs real git
+		// history and would pass vacuously here — this function ignores `.git`
+		// and runs `git init -q .` below, so `Closes #N` over the release range
+		// returns nothing. The gate runs in changelog-check.yml and in
+		// release.yml's validate-release, both with fetch-depth: 0 (#1127).
+		"make test-changelog-gate",
 		"bash tools/check-test-imports.sh",
 		"bash tools/check-route-syntax.sh",
 		"bash tools/check-guard-parity.sh",

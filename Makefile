@@ -451,6 +451,15 @@ test-release-tooling:
 test-deadline-gate:
 	@bash tools/tests/check_deadlines_test.sh
 
+# Unit tests for the changelog-completeness gate (#1127). The gate ITSELF cannot
+# run in ShellGates — it needs real git history, and `.dagger/main.go` ignores
+# `.git` and runs `git init -q .` in the container, so it would find zero
+# `Closes #N` and pass vacuously. This self-test builds its own fixture
+# repositories in a temp dir, so it belongs here alongside test-deadline-gate.
+.PHONY: test-changelog-gate
+test-changelog-gate:
+	@bash tools/tests/changelog_gate_test.sh
+
 # Gate: ensure no axum 0.7-style `:param` captures slip back into `.route()` calls.
 # Issue #316 prevention — see `tools/check-route-syntax.sh` for the load-bearing multi-line awk.
 .PHONY: lint-routes
@@ -551,7 +560,7 @@ lint-sdk-dead-surface:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
