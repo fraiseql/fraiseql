@@ -4098,6 +4098,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existed in this example (`orders`, `products`, `users` against fixtures creating
   `tb_order`, `tb_product`, `tb_user`); they now use the real names and join through the
   surrogate keys as the Trinity schema requires.
+- **These release notes are complete, and a gate keeps them that way (#1127).** 258 issues
+  were closed by `Closes #N` since v2.14.1 and **48 appeared nowhere in this file** —
+  including the entire secrets/auth/webhooks security wave above, whose bullets are
+  production fail-closed boot changes an operator needs before upgrading. Nothing had ever
+  checked: `changelog-check.yml` lost its `pull_request` trigger in the Dagger migration and
+  sat `workflow_dispatch:`-only, so no push and no PR ran a completeness check.
+  `tools/check-changelog-issues.sh` now fails when an issue closed since the last release is
+  neither documented nor listed — with a stated reason — in
+  `tools/changelog-exempt-issues.txt`, fails when an exemption names an issue that *is*
+  documented, and enforces one heading per type in the newest section. It runs on push and
+  on pull request, and blocks `release.yml`'s `validate-release`, so a tag cannot be cut on
+  an incomplete changelog.
 
 ### Security
 

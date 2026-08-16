@@ -1,33 +1,35 @@
 name: Changelog Check
 
-# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). pull_request trigger
-# stripped; workflow_dispatch retained as porting spec. See .phases/dagger-adoption/.
+# Revived 2026-08-16 (#1127). This workflow sat `workflow_dispatch:`-only from the
+# 2026-05-31 Dagger migration onwards, so no push and no pull request ever checked
+# changelog completeness — and 48 issues closed since v2.14.1, including an entire
+# security wave of production fail-closed boot changes, went undocumented.
+#
+# It lives here rather than in a Dagger leg because the check needs REAL GIT HISTORY:
+# `.dagger/main.go` declares `+ignore=[".git"]` on Preflight/ShellGates and runs
+# `git init -q .` in the container, where the gate would find zero `Closes #N` and
+# pass vacuously. Hence `fetch-depth: 0` below. The gate's self-test — which builds
+# fixture repositories in a temp dir and needs no history — does run in ShellGates,
+# as `make test-changelog-gate`.
 on:
+  push:
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   changelog-check:
-    name: Changelog Up-to-Date
+    name: Changelog Completeness
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
+          # Full history AND tags: the gate resolves its base from the newest v*
+          # tag, and a shallow clone has neither the tag nor the commits it needs.
           fetch-depth: 0
 
-      - name: Install git-cliff
-        uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e  # v2
-        with:
-          tool: git-cliff
-
-      - name: Check for unreleased changes
-        run: |
-          UNRELEASED=$(git cliff --unreleased --strip header)
-          if [ -z "$UNRELEASED" ]; then
-            echo "No unreleased changelog entries found"
-            exit 0
-          fi
-          # Check that CHANGELOG.md contains recent changes
-          if ! grep -q "Unreleased\|$(date +%Y-%m)" CHANGELOG.md; then
-            echo "::warning::CHANGELOG.md may not be up to date — run 'make changelog' to preview entries"
-          fi
+      - name: Every issue closed since the last release is documented
+        run: bash tools/check-changelog-issues.sh
