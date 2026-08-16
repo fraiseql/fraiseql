@@ -4098,6 +4098,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existed in this example (`orders`, `products`, `users` against fixtures creating
   `tb_order`, `tb_product`, `tb_user`); they now use the real names and join through the
   surrogate keys as the Trinity schema requires.
+- **The in-memory rate limiter evicts stale buckets, so `max_buckets` is a cap and not a
+  lockout (#1080).** `InMemoryRateLimiter::cleanup()` and the `cleanup_interval_secs` knob both
+  existed and the knob's documentation promised a background task — but **nothing ever called
+  it**: the server spawned tickers for PKCE state, the local-auth sweeps and session-state
+  eviction, and none for the rate limiter. Once a bucket map reached `max_buckets` (default
+  100 000) every previously-unseen key was denied, and nothing could free a slot, so the denial
+  lasted for the life of the process and only a restart cleared it. Because `ip_buckets` grows
+  only on requests with no decodable JWT subject, the clients locked out were exactly the *new
+  unauthenticated* ones — every login and registration attempt — while already-bucketed and
+  authenticated traffic kept working. The server now spawns the sweep at the configured
+  cadence, owned by its `JoinSet` so graceful shutdown awaits it, and skips it entirely for a
+  Redis-backed limiter, which expires its own keys.
+  **Precondition: rate limiting must have been explicitly enabled** — with no `[rate_limiting]`
+  table, no compiled `security.rate_limiting` and no override, no limiter is constructed and no
+  middleware is mounted, so default deployments were never affected.
+  ⚠ Eviction bounds how long a full map refuses new clients; it does not bound how cheaply the
+  map can be filled, since `X-Tenant-ID` is folded into the bucket key unvalidated (#1143).
 - **The Helm chart's default image exists, and the deploy artifacts name the released
   version (#1129).** `values.yaml` shipped `repository: fraiseql`, which resolves to
   `docker.io/library/fraiseql` — the Docker Hub **official-images** namespace, which this

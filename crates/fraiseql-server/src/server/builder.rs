@@ -813,6 +813,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             &mut tasks,
         );
 
+        // Spawn the in-memory rate-limiter bucket sweep (#1080).
+        //
+        // ⚠ Deliberately NOT `#[cfg(feature = "auth")]` like its three neighbours above.
+        // Rate limiting is not auth-gated — `routing/middleware.rs` mounts it whenever a
+        // limiter resolves — so inheriting that attribute by copy-paste would leave the
+        // sweep absent from exactly the builds that can still fill a bucket map.
+        Self::spawn_rate_limit_cleanup(rate_limiter.as_ref(), &mut tasks);
+
         Ok(Self {
             config,
             executor,
@@ -916,6 +924,48 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 }
             });
         }
+    }
+
+    /// Spawn the in-memory rate limiter's stale-bucket sweep onto the server's
+    /// [`JoinSet`](tokio::task::JoinSet), so graceful shutdown awaits it (#1080).
+    ///
+    /// `InMemoryRateLimiter::cleanup()` and the `cleanup_interval_secs` knob both existed;
+    /// what did not exist was any caller. Once `ip_buckets` reached `max_buckets` the
+    /// capacity branch denied every previously-unseen key, and nothing could ever free a
+    /// slot — so `max_buckets` was not a cap but a permanent lockout of new unauthenticated
+    /// clients, cleared only by a restart. The knob's own documentation promised this task.
+    ///
+    /// Cadence comes from `cleanup_interval_secs` rather than a hardcoded 300: the operator
+    /// configured a number and the docs said it was used. A zero is floored to one second —
+    /// `tokio::time::interval` panics on a zero period, and spinning would be worse than
+    /// either.
+    ///
+    /// **Skipped for a distributed limiter.** Redis expires its own keys via `PEXPIRE`, and
+    /// `RateLimiter::cleanup()`'s Redis arm is a deliberate no-op — a ticker there would
+    /// wake forever to do nothing.
+    fn spawn_rate_limit_cleanup(
+        rate_limiter: Option<&Arc<crate::middleware::RateLimiter>>,
+        tasks: &mut tokio::task::JoinSet<()>,
+    ) {
+        use std::time::Duration;
+
+        use tokio::time::MissedTickBehavior;
+
+        let Some(limiter) = rate_limiter else { return };
+        if limiter.is_distributed() {
+            return;
+        }
+
+        let period = Duration::from_secs(limiter.config().cleanup_interval_secs.max(1));
+        let limiter = Arc::clone(limiter);
+        tasks.spawn(async move {
+            let mut ticker = tokio::time::interval(period);
+            ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            loop {
+                ticker.tick().await;
+                limiter.cleanup().await;
+            }
+        });
     }
 
     /// Spawn the `[auth.local]` MFA/OTP expiry sweeps onto the server's
