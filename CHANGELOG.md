@@ -1507,6 +1507,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bucket name becomes the first segment of every object key, so a bucket carrying one of
   FraiseQL's own namespaces would put caller objects inside the resumable-upload staging area
   or the render cache. The server refuses such a section at boot.
+- **A configured Redis backend that is unavailable refuses to boot in production (#770,
+  #777).** Token revocation, PKCE login state and rate limiting each fell back to per-process
+  in-memory state when the configured Redis URL was malformed, unreachable, or its Cargo
+  feature was not compiled in — a silently absent service wearing a healthy startup log. An
+  operator who configured Redis asked for state shared across replicas: N replicas revoked N
+  separate token sets and enforced N times the rate limit. All three now fail boot with an
+  error naming the config key, the cause and the consequence. `FRAISEQL_ENV=development`
+  downgrades it to a warning; the only sanctioned fallback is the explicit one — remove the
+  Redis URL and accept per-process state.
+- **`[security.token_revocation] backend = "env"` is gone (#770).** It was an undocumented
+  alias for `"memory"`, so a deployment that wrote it got per-process revocation while its
+  configuration read as deliberate. The accepted values are `"memory"`, `"redis"` and
+  `"postgres"`; anything else is refused at boot, by name.
+- **`FRAISEQL_SECRETS_BACKEND` selects a backend instead of being ignored (#856).** Every
+  value built the **environment** backend, so a deployment that set
+  `FRAISEQL_SECRETS_BACKEND=vault` read its secrets from environment variables and logged a
+  healthy start. It now accepts exactly `env`, `file` and `vault`, refuses an unknown value
+  by name, and refuses to boot when the selected backend's own settings are missing:
+  `FRAISEQL_SECRETS_FILE_PATH` for `file`, and `VAULT_ADDR` plus either `VAULT_TOKEN` or
+  `VAULT_ROLE_ID` + `VAULT_SECRET_ID` for `vault`.
+- **Vault `tls_verify = false` is refused in production, and `SecretsBackend` returns a
+  zeroizing `Secret` (#726, #727).** `VAULT_TLS_VERIFY=false` disables certificate
+  verification on the channel carrying every secret, and is now accepted only outside
+  production. `get_secret` and `get_secret_with_expiry` return `Secret` rather than `String`
+  — redacted `Debug`/`Display`, zeroized on drop — so out-of-tree backends and callers must
+  update their signatures. `FRAISEQL_VAULT_ALLOWED_HOSTS` replaces the all-or-nothing SSRF
+  bypass with an exact-host allowlist.
+- **Inbound webhook routes that cannot verify a signature are refused at boot (#781, #787).**
+  `webhook_routes_check` rejects an unknown `provider`, and rejects a provider that needs the
+  deployment's public URL when `public_url` is unset. A route whose `secret_env` is unset is
+  refused in production; in development it is skipped rather than mounted, so the path
+  answers 404 instead of accepting unverified deliveries.
+- **`PostgresSessionStore` refuses to mint a token it cannot sign (#753).** With no RS256 key
+  configured, `generate_access_token` signed each HS256 token with a fresh random key that
+  was a stack local — dropped on return, never stored, never shared with any validator. Every
+  token minted by `auth_callback`, the multi-provider callback and `saml_acs` was a dead blob
+  that 401'd on the next request, so the shipped social-login flow produced logins that
+  "succeeded" and then failed on every API call. It now returns `AuthError::ConfigError`, and
+  `create_session` mints before the INSERT so the fail-loud path leaves no orphan session row.
+  `PostgresSessionStore::new` is documented as the no-signing constructor; use
+  `with_hs256_secret` for HMAC mode with a persistent secret shared with the validating side.
 
 ### Added
 
@@ -3989,6 +4030,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same session variables as the read it describes. The trait default still counts rows
   in memory — correct, and the only option for an adapter that cannot push the count down —
   so this is a performance fix on PostgreSQL, not a behaviour change.
+- **Genuine webhook deliveries are no longer rejected 401 (#781, #787).** The Lemon Squeezy
+  verifier compared a 64-character hex digest against a 44-character Base64 string, so every
+  genuine delivery failed; it compares hex, which is what the provider sends. Stripe sends
+  one `v1` signature per active signing secret and the old parse kept only the last, so
+  during a secret rotation a delivery whose matching signature was not last was rejected for
+  the whole rotation window; the delivery is genuine when any candidate matches, each still
+  compared in constant time. The route also threads the provider's timestamp header and the
+  configured `public_url` into the Slack, Discord, SendGrid and Twilio verifiers, which need
+  them and previously received neither. A 500 from a route no longer names the secret's
+  environment variable.
+- **Vault AppRole tokens are renewed (#726).** `renew_token` took `&mut self` and was
+  therefore unreachable through the `Arc<dyn SecretsBackend>` the manager holds, so an
+  AppRole token expired at its TTL and every subsequent secret read failed. It takes `&self`,
+  and `create_secrets_manager` spawns a renewal loop — proven against a real Vault, surviving
+  past the token TTL.
+- **CLI and environment rate-limit overrides outrank the compiled schema (#774).** Overrides
+  were merged into `rate_limiting` on arrival, erasing which fields the operator had actually
+  set, so the compiled schema shadowed them and `FRAISEQL_RATE_LIMITING_ENABLED=false` did
+  nothing. They are recorded separately and applied per field over the winner, so the
+  implemented precedence matches the documented one.
+- **A custom CA file whose certificates rustls rejects is an error (#887).** `load_custom_ca`
+  counted the `Item::X509Certificate` entries the PEM reader yielded and discarded the
+  `(added, ignored)` result of `add_parsable_certificates`. The reader only base64-decodes
+  the armour — rustls decides whether the DER is usable — so a file of valid PEM armour
+  around unparsable DER returned `Ok` with an **empty** `RootCertStore`. Nothing was trusted,
+  every server certificate was rejected, and the operator debugged the server rather than the
+  CA file they configured, which was reported nowhere. The count comes from `added`, and the
+  error names the path.
+- **PostgreSQL errors carry PostgreSQL's own message (#888).** `tokio_postgres::Error`'s
+  `Display` for a server-side failure is the literal string `db error`; the half that names
+  the relation, the column or the constraint lives on the `DbError` behind `as_db_error()`,
+  which no query path read. `Query execution failed: db error` with `sql_state: Some("42P01")`
+  left the operator to look up the SQLSTATE and then guess which relation was missing. A
+  `pg_detail` helper is routed through all 50 `map_err` sites in the adapter, introspector,
+  relay and query-stats paths.
+- **`--features rest,export-xlsx` compiles without `export-csv` (#920).** The XLSX writer
+  imported `guard_formula_injection` from `streaming::csv`, whose module is gated on
+  `export-csv`, and the two features are independently selectable — so a spreadsheet-export
+  build that excluded CSV failed with `E0432`, and the only workaround was enabling the
+  response format the operator had deliberately excluded. The guard and its sentinels moved
+  to `streaming/mod.rs` under either feature, and two feature-matrix combos now build each
+  writer alone so a cross-module import in either direction reddens CI.
+- **Service accounts reach their seam under `[auth_hs256]` (#934).** A service account
+  presents its secret on `x-api-key` and carries no bearer, but the HS256 middleware is
+  attached as a `route_layer` and ran first, 401'ing the request before the handler's seam
+  was reached. Service accounts worked under `[auth]` and were unreachable under
+  `[auth_hs256]`, so a daemon using the documented seam could not call an HS256-protected
+  endpoint. The layer defers to the handler only when there is no `Authorization` header
+  **and** the presented secret resolves to a declared account — deliberately narrower than an
+  unconditional pass-through, which would answer 200 to a request carrying no credentials.
+- **Flight GraphQL executes through the policy seam (#954).** The `do_get` GraphQL path and
+  the `do_exchange` `Query` arm both need a `QueryExecutor`, and nothing in `fraiseql-server`
+  ever attached one, so the shipped binary refused every Flight GraphQL request with "no
+  executor configured". That refusal was accidental rather than a policy: indistinguishable
+  from an unimplemented transport, and it would have disappeared the moment anyone attached a
+  bare executor — creating the one transport that skips tenant resolution, the
+  suspended-tenant gate, per-tenant concurrency/RPS/cost quotas and trusted-documents mode.
+  `PolicyGatedExecutor` runs the same chokepoints as the HTTP handler, in the same order,
+  calling the same functions.
+- **The `saga-basic` federation example runs on PostgreSQL (#940).** It still provisioned a
+  MySQL 8.0 service and pointed two subgraphs at `mysql://` URLs three phases after MySQL
+  support was removed and `mysql://` became a loud boot refusal — and because its subgraphs
+  are Python simulations it still came up, demonstrating in running form a topology the
+  engine explicitly refuses. It now runs one PostgreSQL instance with three databases, so no
+  transaction can span the stores. Its three handlers also queried tables that have never
+  existed in this example (`orders`, `products`, `users` against fixtures creating
+  `tb_order`, `tb_product`, `tb_user`); they now use the real names and join through the
+  surrogate keys as the Trinity schema requires.
 
 ### Security
 
@@ -4653,6 +4762,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the raw JSON at **both** deserialization sites — the JSON workflow and the TOML /
   multi-file merger — because guarding only one would have left every `--schema-dir` user
   with the original silent drop.
+
+- **Webhook replay protection is keyed on signed material (#751).** `extract_event_id`
+  derived the dedup / idempotency key from the `webhook-id` or `x-github-delivery` **request
+  header**, and no supported provider signs headers — every verifier covers the body only
+  (`HMAC(body)`, Stripe `HMAC(t.body)`, Paddle `HMAC(ts:body)`). That put the entire replay
+  defence under the control of whoever sent the HTTP request: one captured, genuinely signed
+  delivery replayed with a fresh header value passed signature verification, claimed a fresh
+  key in `webhooks.tb_inbound_delivery` and re-fired `after:ingest` — once per replay, and
+  indefinitely for providers without timestamp freshness. The function no longer takes
+  headers at all, so header-independence is a type-level property rather than a behaviour a
+  later edit could regress. The key is the payload's top-level `id`, else a SHA-256 hash of
+  the raw body — `DefaultHasher`'s output is explicitly not stable across Rust releases, and
+  this key is persisted, so a toolchain bump would have reset every stored key and let every
+  historical delivery replay once. `extract_event_type` now prefers the signed payload's
+  `type` over the `x-github-event` header.
+- **TOTP verification is attempt-limited (#752).** `verify_challenge` removed the challenge
+  only on the success paths, so a wrong code left the token valid for its full 5-minute TTL
+  with no attempt counter. With ±1 step tolerance a 6-digit TOTP has 3 valid codes in 10^6,
+  and `/auth/v1/mfa/verify` is mounted with no rate-limit layer — enough to guess a victim's
+  code and mint a full session. A challenge is now consumed after 5 wrong codes, and a
+  per-user sliding-window budget allows 10 failures per 900 seconds so that re-minting a
+  challenge cannot reset the cap; `unenroll` accepts the same secrets and shares the budget.
+  A lockout answers `429 Too Many Requests` with `Retry-After` instead of a generic 422/500.
+- **Email ingest deduplicates per mailbox and folds a content digest (#775).** Every polled
+  mailbox shared one spine dedup namespace keyed `email`, on the sender-chosen `Message-ID`:
+  a message addressed to two configured mailboxes was ingested — and routed — for only
+  whichever poller won, and a sender could pre-claim a `Message-ID` to suppress a later
+  genuine message. `IngestSource::Email` carries the mailbox that received the message, so
+  the key is `email:<mailbox>`, and the dedup key folds a digest of the content.
+- **Field-authorization policies see argument values, not variable markers (#903).**
+  `field_arguments_json` built the policy's `arguments` input with `value_json::decode` and
+  no variable substitution, so an argument written `ssn(mask: $level)` reached the authorizer
+  as `{"$var": "level"}`. A policy of the form `arguments.mask == "full"` therefore never
+  matched and silently took its `otherwise` branch — for every client that passes arguments
+  as variables, which is every generated client. The authorization decision was made on data
+  nobody sent. Both the query and mutation paths now resolve through
+  `value_json::decode_resolved` against the request's variables, as every other reader of the
+  seam already did.
+- **A failed single-use `DELETE` now fails the verification (#984).** `PgOtpStore::verify_otp`
+  and `PgMfaStore::verify_challenge` established their single-use guarantee with a `DELETE`,
+  then discarded its result and returned `Ok`. A transient database failure landing on that
+  one statement — a statement timeout, a failover, a dropped connection — left the OTP code
+  re-verifiable until expiry and the MFA challenge token replayable with any current-window
+  code for the rest of its TTL, while the caller was told the credential had been consumed.
+  The consume closures return `Result<()>` and every call site propagates.
+- **Auth hardening across PKCE, OTP and proxy handling (#737).** The PKCE capacity gate
+  reserves its slot atomically instead of checking and then inserting; the state-encryption
+  key is zeroized on drop; OTP comparison is constant-time; `X-Forwarded-For` parsing takes
+  the rightmost non-proxy hop rather than a client-controlled leftmost entry; `RedisStateStore`
+  returns the real stored expiry and `InMemoryStateStore` enforces expiry.
+- **`lru` 0.18.2 clears RUSTSEC-2026-0253 (#1095).** `LruCache::pop()` was not panic-safe: a
+  panicking key `Drop` skipped `detach()` and left a dangling pointer in the LRU list for the
+  next eviction to walk. Both FraiseQL call sites — `validation::rate_limiting` and
+  federation's `query_plan_cache` — key on `String`, whose `Drop` cannot panic, so the
+  trigger was never reachable here; the lockfile bump clears the advisory outright, with no
+  `deny.toml` exception.
 
 ## [2.14.1] - 2026-07-24
 
