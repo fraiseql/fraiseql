@@ -23,9 +23,12 @@ ignore = [
   # upstream fix exists either way) but must be re-argued on the real path.
   # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status and resolve #1110.
   "RUSTSEC-2023-0071",
-  # rustls-pemfile: unmaintained; blocked on upstream bollard migration to rustls-pem.
-  # DEV-dependency only (fraiseql-wire test deps / bollard) — no production runtime exposure.
-  # deadline: 2026-10-01 — matches deny.toml; re-check bollard release cadence at the next sweep.
+  # rustls-pemfile: deprecated in favour of rustls-pki-types' own PEM support.
+  # ⚠ CORRECTED 2026-08-16 (#1137): the "DEV-dependency only (fraiseql-wire test deps /
+  # bollard) — no production runtime exposure" grounds recorded here and in deny.toml were
+  # false. rustls-pemfile 2.2.0 is a direct [dependencies] entry of fraiseql-wire and reaches
+  # fraiseql-server in the DEFAULT build. Accepted as a maintenance risk, not on absence.
+  # deadline: 2026-10-01 — matches deny.toml; migrate fraiseql-wire off rustls-pemfile.
   "RUSTSEC-2025-0134",
   # rustls-webpki name-constraint bugs; transitive via aws-smithy-http-client (rustls 0.21);
   # opt-in aws-s3 and cdc-kinesis features only, absent from the default build.
@@ -42,7 +45,9 @@ ignore = [
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
   # crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer deref; only on Debug-formatting an
-  # invalid Atomic/Shared pointer (never done). Transitive via rayon (criterion dev-deps).
+  # invalid Atomic/Shared pointer (never done).
+  # ⚠ CORRECTED 2026-08-16 (#1137): "transitive via rayon (criterion dev-deps)" was false —
+  # it arrives via moka 0.12 -> fraiseql-core in the DEFAULT build. Accepted on usage.
   # deadline: 2026-10-01 — matches deny.toml.
   "RUSTSEC-2026-0204"
 ]

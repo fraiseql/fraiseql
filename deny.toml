@@ -30,13 +30,20 @@ ignore = [
   # but it must be re-argued on the real path rather than re-approved on this text.
   # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status and resolve #1110.
   {id = "RUSTSEC-2023-0071", reason = "No fixed rsa release. Recorded mysql-feature justification is stale — real path is jsonwebtoken in the default build; under review in #1110. Deadline 2026-10-01."},
-  # rustls-pemfile: blocked on upstream bollard migration from pem 0.x to rustls-pem.
-  # Re-evaluated 2026-07-02: rustls-pemfile 2.2.0 is a DEV-dependency only (fraiseql-wire
-  # test deps / bollard test infra) — no production runtime exposure; low-severity
-  # deprecated/unmaintained-crate advisory. bollard 0.20 still pins pem 0.x upstream.
-  # deadline: 2026-10-01 — re-check bollard release cadence at the next dep sweep; drop
-  # bollard or migrate off rustls-pemfile if still blocked.
-  {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile deprecated-crate advisory; DEV-dependency only (fraiseql-wire test deps / bollard), no production exposure; deadline 2026-10-01"},
+  # rustls-pemfile: deprecated in favour of rustls-pki-types' own PEM support.
+  # ⚠ CORRECTED 2026-08-16 (#1137). The recorded grounds — "DEV-dependency only (fraiseql-wire
+  # test deps / bollard test infra), no production runtime exposure" — were FALSE:
+  # rustls-pemfile 2.2.0 is a direct `[dependencies]` entry of fraiseql-wire
+  # (crates/fraiseql-wire/Cargo.toml:37) and an optional one of fraiseql-db, so
+  # `cargo tree -i rustls-pemfile -e normal` (normal edges, DEFAULT features) resolves it
+  # through to fraiseql-server. bollard is not on that path at all.
+  # The acceptance still stands, on different grounds: this is a deprecated/unmaintained-crate
+  # advisory, not an exploitable defect, so being in the build is a maintenance risk rather
+  # than an attack path. The real resolution path is FraiseQL's own — move fraiseql-wire's PEM
+  # parsing to rustls-pki-types — not bollard's upstream migration.
+  # deadline: 2026-10-01 — migrate fraiseql-wire off rustls-pemfile, or re-accept with the
+  # maintenance risk stated.
+  {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile deprecated-crate advisory (maintenance risk, not an exploitable defect). IN THE DEFAULT BUILD via fraiseql-wire's direct dependency — the previous dev-only justification was false, corrected in #1137. Deadline 2026-10-01."},
   # rustls-webpki name-constraint bugs; transitive via aws-smithy-http-client (rustls 0.21).
   # Affects the OPT-IN aws-* features only — `aws-s3` (fraiseql-storage/fraiseql-server) and,
   # since #975, `cdc-kinesis` (fraiseql-cdc-sinks). Neither is in the default build, so there is
@@ -93,7 +100,16 @@ ignore = [
   # quick-xml (validating SAML parsing) or dropping samael.
   {id = "RUSTSEC-2026-0194", reason = "quick-xml quadratic duplicate-attribute-name check (DoS); transitive via samael (auth-saml opt-in only); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-01."},
   {id = "RUSTSEC-2026-0195", reason = "quick-xml unbounded namespace-declaration allocation in NsReader (memory-exhaustion DoS); same cause/path as RUSTSEC-2026-0194 (samael, auth-saml opt-in). Deadline 2026-10-01."},
-  {id = "RUSTSEC-2026-0204", reason = "crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer dereference; only triggers when Debug/Pointer-formatting an invalid Atomic/Shared pointer, which FraiseQL never does. Transitive via rayon (criterion dev-deps). Deadline 2026-10-01."}
+  # crossbeam-epoch 0.9.18: fmt::Pointer dereferences an invalid Atomic/Shared.
+  # ⚠ CORRECTED 2026-08-16 (#1137). The recorded path — "transitive via rayon (criterion
+  # dev-deps)" — was FALSE: `cargo tree -i crossbeam-epoch@0.9.18 -e normal` on DEFAULT
+  # features resolves it through moka 0.12 → fraiseql-core, the result cache. It is in the
+  # shipped binary. rayon/criterion may also pull it, but they are not why it is there.
+  # The acceptance stands on USAGE, which is what always actually carried it: reaching the
+  # defect requires Debug/Pointer-formatting an invalid Atomic/Shared, which moka does not do
+  # and FraiseQL does not do.
+  # deadline: 2026-10-01 — re-check moka's dependency range for a fixed crossbeam-epoch.
+  {id = "RUSTSEC-2026-0204", reason = "crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer dereference; only triggers when Debug/Pointer-formatting an invalid Atomic/Shared pointer, which moka and FraiseQL never do. IN THE DEFAULT BUILD via moka -> fraiseql-core — the previous rayon/criterion dev-dep path was false, corrected in #1137. Deadline 2026-10-01."}
 ]
 unmaintained = "workspace"
 
