@@ -34,14 +34,22 @@ impl SchemaConverter {
 
         Self::validate_vector_distance_fields(&intermediate.name, &fields)?;
 
-        // Owned types bind their relation on the query that returns them, so the
-        // type-level source is normally empty. An owner-split `extend type`
-        // federation entity carries a type-level `sql_source` (it has no local
-        // backing query) which the `_entities` resolver uses as its fallback
-        // relation (#507); its fields project from the standard `data` jsonb
-        // column — symmetric with the query path, whose `jsonb_column` also
-        // defaults to `data`. Regular types keep both empty (byte-identical
-        // compiled output, and the optimizer's projection-hint heuristic stays off).
+        // A type-level `sql_source` becomes the `_entities` resolver's fallback relation
+        // when no query supplies one (#507).
+        //
+        // ⚠ Do NOT read this as "only owner-split entities carry one". It is whatever the
+        // authoring SDK emitted, and the Python SDK synthesizes `v_{snake_case(name)}` for
+        // **every non-embedded type** (`sdks/official/fraiseql-python/.../registry.py`), so
+        // a plainly-owned Python-authored type arrives here with a type-level source too.
+        // The earlier "owned types are normally empty" wording described the hand-written
+        // TOML path only, and reading it as a general locality guarantee is what let the
+        // `_entities` path be treated as reachable by owner-split entities alone (#1068,
+        // whose role gate is enforced from the type in `enforce_entities_authz`).
+        //
+        // Fields project from the standard `data` jsonb column — symmetric with the query
+        // path, whose `jsonb_column` also defaults to `data`. A type with no source keeps
+        // both empty (byte-identical compiled output, and the optimizer's projection-hint
+        // heuristic stays off).
         let type_sql_source = intermediate.sql_source.unwrap_or_default();
         let type_jsonb_column = if type_sql_source.is_empty() {
             String::new()
