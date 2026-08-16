@@ -262,6 +262,13 @@ func (m *FraiseqlCi) ShellGates(
 		// Every fuzz.yml matrix row must name a target that exists in the crate it
 		// names. One-directional: targets on disk need not be in the matrix (#1128).
 		"bash tools/check-fuzz-targets.sh",
+		// Every publishable crate is published by release.yml, in the order this
+		// file's legacyPublishOrder dry-runs and self-tests. fraiseql-cdc-sinks
+		// (#382) was in the workspace and in legacyPublishOrder but in neither the
+		// publish steps nor the CRATES lists; as an OPTIONAL dependency of
+		// fraiseql-server it was tolerated by the pre-tag dry-run and fatal to the
+		// real publish. Nothing compared the two lists before this gate.
+		"python3 tools/check-publish-parity.py",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",

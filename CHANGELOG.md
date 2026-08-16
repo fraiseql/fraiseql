@@ -4177,6 +4177,28 @@ disagreed, and the promise was the part that was wrong.
   documented, and enforces one heading per type in the newest section. It runs on push and
   on pull request, and blocks `release.yml`'s `validate-release`, so a tag cannot be cut on
   an incomplete changelog.
+- **`release.yml` publishes every crate the workspace has, and a gate keeps its list and
+  the pre-tag gate's list identical.** `fraiseql-cdc-sinks` entered the workspace with the
+  outbound-CDC work (#382) and became an **optional** dependency of `fraiseql-server`
+  *after* v2.14.1. It reached `.dagger/release.go`'s `legacyPublishOrder` — what
+  `make release-validate` dry-runs and topologically self-tests — but never reached
+  `release.yml`, which is what actually publishes. An optional dependency still has to
+  resolve on crates.io, so this was not one skipped crate: `cargo publish -p
+  fraiseql-server` fails outright with ``no matching package named `fraiseql-cdc-sinks`
+  found``, taking `fraiseql-cli` and the `fraiseql` umbrella with it — three of eighteen
+  crates, discovered only after the tag exists.
+  The pre-tag gate was structurally unable to see it. `dry_run_failure_is_tolerable`
+  forgives an unresolved sibling when that sibling appears in the crate list it was
+  handed, and `legacyPublishOrder` contained it — so the dry-run went green on the
+  promise that the ordered publish would ship it first, a promise `release.yml` did not
+  make. Nothing compared the two lists. `tools/check-publish-parity.py` (ShellGates →
+  the required preflight check) now fails unless every publishable workspace crate
+  appears in `legacyPublishOrder`, in release.yml's publish steps **in the same order**,
+  in every `CRATES=` list, and behind an index wait — the order equality being what
+  carries `PublishOrderSelftest`'s topological proof onto the job that publishes.
+  It also caught a second silent omission: the "Verify all crates published" roll-up
+  never checked `publish-guard`, so a failed `fraiseql-guard` publish was reported as a
+  success.
 
 ### Security
 

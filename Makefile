@@ -442,6 +442,7 @@ lint-tests-layout:
 test-release-tooling:
 	@bash tools/tests/release_helpers_test.sh
 	@bash tools/tests/dry_run_tolerance_test.sh
+	@bash tools/tests/publish_parity_test.sh
 
 # Unit tests for the advisory-deadline gate. Its boundary behaviour is worth
 # pinning: an off-by-one is a day on which every open branch is blocked by a
@@ -514,6 +515,17 @@ lint-deploy-versions:
 lint-fuzz-targets:
 	@bash tools/check-fuzz-targets.sh
 
+# Gate: every publishable workspace crate is published by release.yml, in the same
+# order .dagger/release.go dry-runs and topologically self-tests. fraiseql-cdc-sinks
+# (#382) reached the workspace and legacyPublishOrder but never reached release.yml;
+# because it is an OPTIONAL dependency of fraiseql-server, the pre-tag dry-run
+# tolerated the gap (its tolerance forgives a sibling that is in the list it was
+# handed) while the real publish could not resolve it at all. Nothing compared the
+# two lists until this gate.
+.PHONY: lint-publish-parity
+lint-publish-parity:
+	@python3 tools/check-publish-parity.py
+
 # Gate: pin the set of production files that READ TypeDefinition.internal (#665), so a
 # property-named flag cannot silently grow new consumers. See tools/check-internal-flag-sites.sh.
 .PHONY: lint-internal-flag
@@ -578,7 +590,7 @@ lint-sdk-dead-surface:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

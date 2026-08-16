@@ -86,6 +86,7 @@ jobs:
           # Plain (uncoloured) cargo output so the log greps below match reliably.
           export CARGO_TERM_COLOR=never
           CRATES="fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
+                  fraiseql-cdc-sinks \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
                   fraiseql-functions fraiseql-server fraiseql-cli fraiseql"
@@ -537,6 +538,27 @@ jobs:
       - name: Wait for crates.io indexing (Tier 1)
         run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire
 
+      # Tier 1.5: Depends on fraiseql-guard (Tier 1), and nothing else.
+      #
+      # fraiseql-server carries this crate as an *optional* dependency behind its
+      # `cdc-outbound` feature (#382, added after v2.14.1). An optional dependency
+      # still has to resolve on crates.io at publish time, so leaving it out of this
+      # job does not merely skip it — it fails the fraiseql-server publish outright
+      # with "no matching package named `fraiseql-cdc-sinks` found", taking
+      # fraiseql-cli and the fraiseql umbrella down with it.
+      - name: Publish fraiseql-cdc-sinks
+        id: publish-cdc-sinks
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-cdc-sinks/$VERSION")" = "200" ]; then
+            echo "fraiseql-cdc-sinks $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-cdc-sinks --token ${{ secrets.CARGO_TOKEN }}
+          fi
+
+      - name: Wait for crates.io indexing (Tier 1.5)
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-cdc-sinks
+
       # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
       - name: Publish fraiseql-db
         id: publish-db
@@ -699,10 +721,12 @@ jobs:
         run: |
           FAILED=0
           for step_outcome in \
+            "${{ steps.publish-guard.outcome }}" \
             "${{ steps.publish-error.outcome }}" \
             "${{ steps.publish-auth.outcome }}" \
             "${{ steps.publish-webhooks.outcome }}" \
             "${{ steps.publish-wire.outcome }}" \
+            "${{ steps.publish-cdc-sinks.outcome }}" \
             "${{ steps.publish-db.outcome }}" \
             "${{ steps.publish-storage.outcome }}" \
             "${{ steps.publish-federation.outcome }}" \
@@ -736,6 +760,7 @@ jobs:
           [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-auth" >> "$GITHUB_STEP_SUMMARY"
           [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-webhooks" >> "$GITHUB_STEP_SUMMARY"
           [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-wire" >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.publish-cdc-sinks.outcome }}" = "success" ] && echo "- ✅ fraiseql-cdc-sinks" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-cdc-sinks" >> "$GITHUB_STEP_SUMMARY"
           [ "${{ steps.publish-db.outcome }}" = "success" ] && echo "- ✅ fraiseql-db" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-db" >> "$GITHUB_STEP_SUMMARY"
           [ "${{ steps.publish-storage.outcome }}" = "success" ] && echo "- ✅ fraiseql-storage" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-storage" >> "$GITHUB_STEP_SUMMARY"
           [ "${{ steps.publish-federation.outcome }}" = "success" ] && echo "- ✅ fraiseql-federation" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ fraiseql-federation" >> "$GITHUB_STEP_SUMMARY"
@@ -851,6 +876,7 @@ jobs:
           # list in the validate-release "Dry-run publish" step. The old step checked
           # only `fraiseql` (1 of 16) and soft-passed a miss as "indexing in progress".
           CRATES="fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
+                  fraiseql-cdc-sinks \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
                   fraiseql-functions fraiseql-server fraiseql-cli fraiseql"
