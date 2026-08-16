@@ -9,11 +9,34 @@
 #![allow(clippy::missing_errors_doc)] // Reason: test helpers
 #![allow(missing_docs)] // Reason: test code
 #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::panic)] // Reason: a test helper that cannot answer must fail loudly, not return a plausible 0
 
 use super::{
     middleware_fn::{extract_jwt_subject, extract_real_ip},
     *,
 };
+
+/// Live bucket counts, for the eviction assertions below (#1080).
+///
+/// The maps are `pub(super)` on `InMemoryRateLimiter`, and this module sits inside
+/// `rate_limit`, so the sweep's effect can be observed directly rather than inferred from
+/// behaviour. A Redis limiter has no local map — these are only meaningful in-memory, so
+/// they panic rather than silently answering 0 and letting a test pass on the wrong backend.
+fn ip_bucket_count(limiter: &RateLimiter) -> usize {
+    match limiter {
+        RateLimiter::InMemory(rl) => rl.ip_buckets.len(),
+        #[cfg(feature = "redis-rate-limiting")]
+        RateLimiter::Redis(_) => panic!("bucket counts are in-memory only"),
+    }
+}
+
+fn tenant_bucket_count(limiter: &RateLimiter) -> usize {
+    match limiter {
+        RateLimiter::InMemory(rl) => rl.tenant_buckets.len(),
+        #[cfg(feature = "redis-rate-limiting")]
+        RateLimiter::Redis(_) => panic!("bucket counts are in-memory only"),
+    }
+}
 
 // ── token_bucket_tests ──────────────────────────────────────────────────────
 
@@ -452,13 +475,58 @@ async fn test_rate_limiter_remaining() {
     assert!(second.remaining < first.remaining, "remaining must decrease per request");
 }
 
+/// `cleanup()` must actually evict, not merely return.
+///
+/// This test used to call `cleanup()` and assert nothing at all — it would have passed
+/// against a `cleanup()` with an empty body, which is very nearly the state the server
+/// shipped in: the function was correct and had no caller (#1080). A sweep is only worth
+/// spawning if it removes something, so the assertion is on the map.
+///
+/// Staleness threshold is `burst_size / rps_per_ip` seconds, so 1/1000 here — a bucket is
+/// stale almost immediately, and the sleep only has to outlast a millisecond.
 #[tokio::test]
-async fn test_rate_limiter_cleanup() {
-    let config = RateLimitConfig::default();
+async fn cleanup_evicts_a_stale_ip_bucket() {
+    let config = RateLimitConfig {
+        rps_per_ip: 1000,
+        burst_size: 1,
+        ..RateLimitConfig::default()
+    };
+    let limiter = RateLimiter::new(config);
+
+    limiter.check_ip_limit("127.0.0.1", None).await;
+    assert_eq!(ip_bucket_count(&limiter), 1, "precondition: the request must mint a bucket");
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    limiter.cleanup().await;
+
+    assert_eq!(
+        ip_bucket_count(&limiter),
+        0,
+        "cleanup must evict a bucket idle for longer than its refill window"
+    );
+}
+
+/// The counterweight: a bucket that is NOT stale must survive.
+///
+/// Without this, a `cleanup()` that simply cleared every map would satisfy the test above
+/// — and would silently reset every client's budget on each sweep.
+#[tokio::test]
+async fn cleanup_keeps_a_fresh_ip_bucket() {
+    let config = RateLimitConfig {
+        rps_per_ip: 1,
+        burst_size: 600,
+        ..RateLimitConfig::default()
+    };
     let limiter = RateLimiter::new(config);
 
     limiter.check_ip_limit("127.0.0.1", None).await;
     limiter.cleanup().await;
+
+    assert_eq!(
+        ip_bucket_count(&limiter),
+        1,
+        "a bucket well inside its 600s refill window must not be evicted"
+    );
 }
 
 #[test]
@@ -899,13 +967,31 @@ async fn test_tenant_rate_limit_independent_buckets() {
     assert!(limiter.check_tenant_limit("tenant-b", 1, 1).await.allowed);
 }
 
+/// Tenant buckets are swept on the IP threshold too — asserted, not assumed.
+///
+/// The previous version of this test was named `..._does_not_panic` and did exactly that:
+/// it called `cleanup()` and checked nothing. Honest about its own weakness, but it left
+/// the tenant map's participation in the sweep unpinned.
 #[tokio::test]
-async fn test_tenant_rate_limit_cleanup_does_not_panic() {
-    let config = RateLimitConfig::default();
+async fn cleanup_evicts_a_stale_tenant_bucket() {
+    let config = RateLimitConfig {
+        rps_per_ip: 1000,
+        burst_size: 1,
+        ..RateLimitConfig::default()
+    };
     let limiter = RateLimiter::new(config);
 
     limiter.check_tenant_limit("tenant-abc", 10, 10).await;
+    assert_eq!(tenant_bucket_count(&limiter), 1, "precondition: the check must mint a bucket");
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     limiter.cleanup().await;
+
+    assert_eq!(
+        tenant_bucket_count(&limiter),
+        0,
+        "cleanup must evict a stale tenant bucket, not only IP and user buckets"
+    );
 }
 
 #[cfg(feature = "redis-rate-limiting")]

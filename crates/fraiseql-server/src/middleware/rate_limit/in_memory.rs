@@ -273,7 +273,14 @@ impl InMemoryRateLimiter {
         }
     }
 
-    /// Evict stale in-memory buckets (called by background cleanup task).
+    /// Evict stale in-memory buckets.
+    ///
+    /// Called by the sweep `Server::spawn_rate_limit_cleanup` puts on the server's
+    /// `JoinSet` at `cleanup_interval_secs` (#1080). That parenthetical used to say
+    /// "(called by background cleanup task)" while **no such task existed** — the
+    /// function was correct, complete, and reachable only from tests, so `max_buckets`
+    /// was a permanent lockout rather than a cap. It is true now; if the spawn is ever
+    /// removed, this sentence is the thing to delete with it.
     ///
     /// A bucket is stale once it has been idle for longer than the time required
     /// to fully refill from empty (`burst_size / rps_per_ip`).  At that point the

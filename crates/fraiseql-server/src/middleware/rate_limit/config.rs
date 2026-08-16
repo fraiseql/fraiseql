@@ -62,8 +62,14 @@ pub struct RateLimitConfig {
     /// When any of the three tracking maps (`ip_buckets`, `user_buckets`,
     /// `path_ip_buckets`) reaches this limit, requests arriving from a
     /// previously-unseen key are **denied** until stale entries are evicted by
-    /// the background cleanup task.  This prevents unbounded memory growth
-    /// under a flood of spoofed or unique source IPs.
+    /// the background cleanup task (`Server::spawn_rate_limit_cleanup`, running at
+    /// `cleanup_interval_secs`).  This prevents unbounded memory growth under a flood of
+    /// spoofed or unique source IPs.
+    ///
+    /// ⚠ Until #1080 that cleanup task did not exist, so the denial was permanent for the
+    /// life of the process.  Eviction bounds how long a full map refuses new clients; it
+    /// does **not** bound how cheaply the map can be filled — `X-Tenant-ID` is folded into
+    /// the bucket key unvalidated, so one client can still mint keys at will (#1143).
     ///
     /// Defaults to `100_000`.  At ~200 bytes per bucket, this cap allows up to
     /// ~20 `MiB` of tracking state per map before enforcement kicks in.
