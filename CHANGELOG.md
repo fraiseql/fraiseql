@@ -4824,6 +4824,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key is zeroized on drop; OTP comparison is constant-time; `X-Forwarded-For` parsing takes
   the rightmost non-proxy hop rather than a client-controlled leftmost entry; `RedisStateStore`
   returns the real stored expiry and `InMemoryStateStore` enforces expiry.
+- **The published dependency-risk policy describes this tree (#1110).**
+  `docs/dependency-risk-policy.md` asserted that `rsa` reached FraiseQL only through
+  `sqlx-mysql`, "lockfile-only; never compiled". `sqlx-mysql` left the tree with #374 —
+  `cargo tree -i sqlx-mysql --all-features` prints nothing — and `rsa@0.9.10` is in the
+  **default** build via `jsonwebtoken` 10.4, where `generate_rs256_token`
+  (`session_postgres.rs:175`) signs access tokens with an RSA **private** key: an
+  attacker-triggerable private-key operation, which is the shape the Marvin Attack targets.
+  `deny.toml` was corrected on 2026-08-13; the document users actually read was not. The
+  policy now also publishes **all eight** accepted advisories rather than four, carries the
+  deadlines `deny.toml` carries (three were stale, and two of those read as already lapsed),
+  states that `deny.toml` is the source of truth, and replaces the acceptance criterion
+  "the vulnerable code path is not reachable in default configurations" — which three current
+  acceptances contradict — with the two arguments an acceptance may actually make: **absence**
+  from the build, or **usage** that never reaches the defect. The acceptances themselves are
+  unchanged; there is no fixed `rsa` release either way.
 - **`lru` 0.18.2 clears RUSTSEC-2026-0253 (#1095).** `LruCache::pop()` was not panic-safe: a
   panicking key `Drop` skipped `detach()` and left a dangling pointer in the LRU list for the
   next eviction to walk. Both FraiseQL call sites — `validation::rate_limiting` and
