@@ -2,12 +2,30 @@
 
 All notable changes to FraiseQL are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+**Versioning — read this before upgrading.** FraiseQL uses
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) *numbering*, but does **not** offer
+SemVer's compatibility guarantee. Breaking changes ship in minor releases, documented under
+`### Breaking`; they are not deferred to a major. That section is the upgrade contract — a minor
+bump is not a signal that nothing broke.
+
+This file previously said the project "adheres to Semantic Versioning" while shipping releases
+whose `### Breaking` sections ran to well over a hundred entries. The number and the promise
+disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
 ### Breaking
+
+- **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
+  `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
+  `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is
+  being stored; `None` stores unconditionally and is only correct when the value cannot have
+  raced a mutation — a fixture, or a synchronous re-population. This is a parameter rather
+  than a second "fenced" method on purpose: an unfenced overload left in place is a fail-open
+  default that every future caller can reach for by accident. See `### Fixed` for the race it
+  closes.
 
 - **`fraiseql_core::schema::BUILTIN_SCALARS` is now the compiler's own table, and the
   list it replaces is gone (#959).** It was `&[&str]`; it is now
@@ -4116,12 +4134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `false` by default) **and the view annotated** with `cache_ttl_seconds`; session-variable
   reads bypass the cache entirely. The fix covers the row cache, the response cache — the
   mutation runner invalidates both in the same block, so whole GraphQL responses were
-  stranded too — and the fact-table cache, which has the same shape.
-  **Breaking for library embedders:** `QueryResultCache::put` / `put_arc` and
-  `ResponseCache::put` take an additional trailing `fence: Option<u64>`. Pass
-  `Some(cache.invalidation_generation())` snapshotted before the work whose result is being
-  stored; `None` stores unconditionally and is only correct when the value cannot have raced
-  a mutation.
+  stranded too — and the fact-table cache, which has the same shape. The API change this
+  required is under `### Breaking`.
 - **The in-memory rate limiter evicts stale buckets, so `max_buckets` is a cap and not a
   lockout (#1080).** `InMemoryRateLimiter::cleanup()` and the `cleanup_interval_secs` knob both
   existed and the knob's documentation promised a background task — but **nothing ever called
@@ -4915,6 +4929,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   federation's `query_plan_cache` — key on `String`, whose `Drop` cannot panic, so the
   trigger was never reachable here; the lockfile bump clears the advisory outright, with no
   `deny.toml` exception.
+
+
+### Known issues
+
+Shipped knowingly, with preconditions, so an operator can decide rather than discover. Every
+number below is open at the time of this release.
+
+- **Twelve HIGH-severity findings from the 2026-08-09 audit remain unfixed**: #1065 #1066
+  #1067 #1071 #1072 #1073 #1074 #1075 #1076 #1077 #1078 #1082. ⚠ They are **provisionally
+  ranked**: their severity rests on the audit's own text and has not been re-verified against
+  source. That caveat is not boilerplate — of the findings this release *did* act on, one
+  (#1068) turned out to be **already fixed**, and two others' stated impact was wrong in the
+  issue body. Treat the list as a place to look, not as a verified account.
+- **`examples/` largely does not build or run** — #1050 #1051 #1052 #1053 #1054 #1071 #1072
+  #1073 #1074. The 2026-08-09 pass was the first audit to examine `examples/` at all. Nothing
+  in the shipped crates depends on them, but a reader following an example may not get a
+  working result.
+- **A cluster of CI gates cannot fail** — among them #1071–#1075 (an `examples/ci` check whose
+  exit code is never set, a `check-test-imports.sh` whose BRE escapes turn literal parens into
+  a capture group, a health gate that reads "unhealthy" as healthy, a Dockerfile hiding a
+  compile failure behind `|| true`) and #1082 (`check-suite-coverage` is blind to a file-level
+  `#![cfg(feature)]`, so a suite can run **zero** tests and read green). This release fixed
+  three gates of the same family (#1127, #1128, #1129) and added four more; the cluster above
+  is not yet done.
+- **Rate-limiter bucket exhaustion is still cheap to cause (#1143).** #1080's fix means a full
+  bucket map recovers instead of locking out new clients permanently — it does **not** stop one
+  unauthenticated client from filling the map: `X-Tenant-ID` is folded into the bucket key
+  without validation and the JWT `sub` is decoded without signature verification, both before
+  the request is rejected downstream. Affects deployments that enabled rate limiting.
+- **A queryless federation entity cannot declare tenant scoping (#1142).** Its `requires_role`
+  *is* enforced; there is simply nowhere to declare `inject_params`, and the author gets no
+  signal. DB-native RLS still scopes rows.
+- **Eight of the eleven official SDKs are not versioned with this release (#1130)** — C#, Dart,
+  Elixir, F#, Go, Java, PHP and Ruby remain at 2.1.6, because `tools/release.sh` bumps only the
+  Rust, Python and TypeScript manifests. Only those three are released here.
+- **Config-loader fuzzing has a shorter evidence window than the rest (#1128).** The scheduled
+  libFuzzer matrix named `toml_config` in the wrong crate, so that one target never built. ⚠ The
+  other **12 of 13 targets were green every week** — `fail-fast: false` meant the broken row
+  never aborted them — so this is one target's missing coverage plus a permanently-red run that
+  could not have reported a *second* leg breaking. Fixed in this release; the matrix is green
+  end to end for the first time in its visible history.
+
+**Gaps this release states rather than omits:**
+
+- **No performance comparison accompanies this release.** The benchmark harness's trustworthy
+  load generator is still outstanding, and the previous Python one understated results by 2–3×,
+  so republishing it would be worse than publishing nothing.
+- **`release-smoke.yml` cannot run before a `release/*` branch or tag exists.** Its absence in
+  the pre-cut checks is not a green result; it runs at the cut.
 
 ## [2.14.1] - 2026-07-24
 

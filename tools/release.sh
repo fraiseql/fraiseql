@@ -112,6 +112,14 @@ bump_deploy_artifacts "$VERSION" \
     deploy/kubernetes/helm/fraiseql/values.yaml
 echo "      Bumped Dockerfile label + Helm chart/values."
 
+# Rewrite the docs' `vX.Y.Z released` status lines. tools/check-docs-version.sh enforces
+# them and runs in ShellGates → the REQUIRED preflight check, so without this the release
+# commit turns that gate red and the release branch cannot pass CI (#1134).
+bump_doc_status_lines "$VERSION" \
+    docs/value-proposition.md \
+    docs/architecture/overview.md
+echo "      Bumped docs status lines."
+
 echo "      Done."
 
 # ── Step 2: Update CHANGELOG.md ───────────────────────────────────────────────
@@ -175,6 +183,8 @@ RELEASE_FILES=(
     Dockerfile
     deploy/kubernetes/helm/fraiseql/Chart.yaml
     deploy/kubernetes/helm/fraiseql/values.yaml
+    docs/value-proposition.md
+    docs/architecture/overview.md
     "$CHANGELOG"
     "$README"
 )

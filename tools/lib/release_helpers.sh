@@ -170,6 +170,37 @@ bump_deploy_artifacts() {
     sed -i -E "s/^( *)tag: \"[^\"]*\"/\1tag: \"${version}\"/" "$values"
 }
 
+# Rewrite the `vX.Y.Z released` status lines in docs/ that tools/check-docs-version.sh
+# enforces.
+#
+# Without this, `make release VERSION=<n>` bumps Cargo.toml and leaves those lines naming
+# the PREVIOUS release — and check-docs-version.sh runs in ShellGates, which is part of the
+# REQUIRED preflight check. So the release commit itself turned a required gate red, and the
+# release branch could not pass CI until someone edited four files by hand (#1134). The gate
+# had been green for a year only because docs and Cargo.toml had only ever been edited
+# together by hand; the first automated bump is what broke it.
+#
+# ⚠ Deliberately narrow. check-docs-version.sh's own header says HISTORICAL references
+# ("removed in v2.15.0") are legitimate and must not be rewritten — only the two *status*
+# shapes it greps for:
+#
+#     **Status**: v2.14.1 released                 →  `vX.Y.Z released`
+#     **FraiseQL** (v2.14.1 released) ships …      →  `(vX.Y.Z released)`
+#
+# Both reduce to the same token, so one substitution covers them; what matters is that it is
+# anchored on the word `released` and not on a bare version shape.
+#
+# Usage: bump_doc_status_lines <version> <file...>
+bump_doc_status_lines() {
+    local version="$1"
+    shift
+    local f
+    for f in "$@"; do
+        [ -f "$f" ] || continue
+        sed -i -E "s/v[0-9]+\.[0-9]+\.[0-9]+ released/v${version} released/g" "$f"
+    done
+}
+
 # Honesty gate for the SDK publish jobs: refuse to publish when the SDK manifest
 # version does not match the release version being published. This is the exact
 # frozen state — the manifest stuck at 2.1.6 while v2.3.0–v2.6.0 tags were cut —
