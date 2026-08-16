@@ -4851,7 +4851,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path, the other triggers only on Debug-formatting an invalid pointer, which `moka` does not
   do — but they now stand on stated grounds that are true. Nothing had caught them because
   `check-audit-lockstep.sh` compares advisory **ids** and both files carried the same wrong
-  story.
+  story. Two gates now do: that script is extended to compare the **published policy** as a
+  third file, on ids *and* deadlines, and a new `tools/check-advisory-paths.sh` checks each
+  row's `default-build` / `feature-gated:<f>` / `not-compiled` claim against `cargo tree` in
+  the Dagger `security` leg — so an acceptance can no longer be carried by a dependency path
+  that does not exist.
 - **`lru` 0.18.2 clears RUSTSEC-2026-0253 (#1095).** `LruCache::pop()` was not panic-safe: a
   panicking key `Drop` skipped `detach()` and left a dangling pointer in the LRU list for the
   next eviction to walk. Both FraiseQL call sites — `validation::rate_limiting` and

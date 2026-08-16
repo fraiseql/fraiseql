@@ -45,6 +45,7 @@ func (m *FraiseqlCi) Security(
 	}{
 		{"compliance", m.Compliance},
 		{"crypto-providers", m.CryptoProviders},
+		{"advisory-paths", m.AdvisoryPaths},
 		{"cargo-deny", m.CargoDeny},
 		{"cargo-audit", m.CargoAudit},
 	}
@@ -111,6 +112,33 @@ func (m *FraiseqlCi) CryptoProviders(
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "tools/check-crypto-providers.sh"}).
+		Stdout(ctx)
+}
+
+// AdvisoryPaths runs tools/check-advisory-paths.sh: every accepted advisory in
+// docs/dependency-risk-policy.md declares how the vulnerable crate is reached
+// (default-build / feature-gated:<f> / not-compiled), and the gate checks that claim
+// against `cargo tree` rather than trusting the prose.
+//
+// This exists because three of the eight acceptances were carried by sentences the
+// dependency graph contradicts — RUSTSEC-2023-0071 named `sqlx-mysql`, removed with
+// #374 (#1110); RUSTSEC-2025-0134 claimed dev-dependency-only; RUSTSEC-2026-0204
+// claimed criterion dev-deps (#1137). check-audit-lockstep.sh compares advisory IDS
+// and both machine-read files carried the same wrong story, and `cargo deny` has no
+// opinion about whether a `reason` string is true.
+//
+// It lives here rather than in ShellGates because it needs cargo. Like
+// CryptoProviders it runs on denyBase — `cargo tree` needs only `cargo metadata`
+// (cargo on PATH plus the warm registry cache); nothing compiles.
+func (m *FraiseqlCi) AdvisoryPaths(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.denyBase().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"bash", "tools/check-advisory-paths.sh"}).
 		Stdout(ctx)
 }
 
