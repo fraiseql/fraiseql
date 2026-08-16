@@ -496,6 +496,15 @@ lint-empty-tests:
 lint-deploy-security:
 	@bash tools/check-deploy-security.sh
 
+# Gate: the Dockerfile's OCI version label, the Helm chart's version/appVersion and
+# values.yaml's image.tag must equal the workspace version, and the chart's default
+# image must be one this project publishes. They sat at 2.1.1 / 2.1.0 / 2.8.0 against a
+# 2.14.1 product, and `repository: fraiseql` resolved to an image that does not exist
+# (#1129) — tools/release.sh now bumps them, and this is what says so.
+.PHONY: lint-deploy-versions
+lint-deploy-versions:
+	@bash tools/check-deploy-versions.sh
+
 # Gate: pin the set of production files that READ TypeDefinition.internal (#665), so a
 # property-named flag cannot silently grow new consumers. See tools/check-internal-flag-sites.sh.
 .PHONY: lint-internal-flag
@@ -560,7 +569,7 @@ lint-sdk-dead-surface:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

@@ -4,10 +4,17 @@
 
 # Image configuration
 image:
-  repository: fraiseql
+  # Must be an image this project publishes. `fraiseql` alone resolved to
+  # docker.io/library/fraiseql — the Docker Hub official-images namespace — so the
+  # shipped defaults pulled nothing at all (#1129). The Docker Hub mirror is
+  # `fraiseql/server`; tools/check-deploy-versions.sh accepts either.
+  repository: ghcr.io/fraiseql/server
   pullPolicy: IfNotPresent
-  # Pinned for reproducible deploys (never "latest"). Bump on upgrade.
-  tag: "2.8.0"
+  # Pinned for reproducible deploys (never "latest"), and bumped by tools/release.sh —
+  # not by remembering. It sat three releases stale because the comment below asked for
+  # a manual step nobody had a reason to take. tools/check-deploy-versions.sh (ShellGates)
+  # fails if it drifts from the workspace version again.
+  tag: "2.14.1"
 
 imagePullSecrets: []
 nameOverride: ""

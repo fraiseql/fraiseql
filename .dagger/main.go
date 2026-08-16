@@ -256,6 +256,9 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-route-syntax.sh",
 		"bash tools/check-guard-parity.sh",
 		"bash tools/check-deploy-security.sh",
+		// Deploy artifacts must name the version being released, and the chart's
+		// default image must be one this project publishes (#1129).
+		"bash tools/check-deploy-versions.sh",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",

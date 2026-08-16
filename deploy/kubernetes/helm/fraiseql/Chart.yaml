@@ -2,8 +2,14 @@ apiVersion: v2
 name: fraiseql
 description: FraiseQL GraphQL execution engine
 type: application
-version: 2.1.1
-appVersion: "2.1.0"
+# CONVENTION (#1129): `version` (the chart's own packaging version) and `appVersion`
+# (the application it deploys) move in LOCKSTEP with the FraiseQL release, both set by
+# tools/release.sh. The alternative — moving the chart version only when the templates
+# change — is defensible, but it was never written down, which is how these two drifted
+# apart to 2.1.1 / 2.1.0 while the product shipped 2.14.1 and nobody could tell whether
+# that was deliberate. tools/check-deploy-versions.sh enforces the lockstep.
+version: 2.14.1
+appVersion: "2.14.1"
 keywords:
   - graphql
   - database

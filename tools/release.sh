@@ -101,6 +101,17 @@ bump_ts_sdk_version "$VERSION" \
     sdks/official/fraiseql-typescript/src/index.ts
 echo "      Bumped Python + TypeScript SDK manifests."
 
+# Bump the shipped deployment artifacts too. Until #1129 nothing here touched them,
+# so the Dockerfile's OCI label sat at 2.1.1 and the Helm chart at 2.1.1/2.1.0 while
+# the product shipped 2.14.1. tools/check-deploy-versions.sh (ShellGates) fails the
+# moment they drift again — including immediately after this script runs, if this
+# call is ever removed.
+bump_deploy_artifacts "$VERSION" \
+    Dockerfile \
+    deploy/kubernetes/helm/fraiseql/Chart.yaml \
+    deploy/kubernetes/helm/fraiseql/values.yaml
+echo "      Bumped Dockerfile label + Helm chart/values."
+
 echo "      Done."
 
 # ── Step 2: Update CHANGELOG.md ───────────────────────────────────────────────
@@ -161,6 +172,9 @@ RELEASE_FILES=(
     sdks/official/fraiseql-typescript/package.json
     sdks/official/fraiseql-typescript/package-lock.json
     sdks/official/fraiseql-typescript/src/index.ts
+    Dockerfile
+    deploy/kubernetes/helm/fraiseql/Chart.yaml
+    deploy/kubernetes/helm/fraiseql/values.yaml
     "$CHANGELOG"
     "$README"
 )
