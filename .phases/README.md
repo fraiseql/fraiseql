@@ -1,69 +1,73 @@
-# FraiseQL .phases/
+# FraiseQL `.phases/`
 
-## ⭐ Active program (as of 2026-07-27)
+Phase plans for this repository, in the phased-TDD format described in
+`~/.claude/CLAUDE.md`.
 
-[2026-07-27-open-issue-remediation/](2026-07-27-open-issue-remediation/) — **every one of the
-203 open GitHub issues**, assigned to exactly one of 32 phases across 8 waves, targeting
-v2.14.2 (security patch) → v2.19.0+. 158 of the 203 came from the three audit passes.
-Start at its [README](2026-07-27-open-issue-remediation/README.md); the full mapping is in
-[ISSUE-INDEX.md](2026-07-27-open-issue-remediation/ISSUE-INDEX.md) and the ordering
-rationale in [TRIAGE.md](2026-07-27-open-issue-remediation/TRIAGE.md). Five user-owned gates
-(G1–G5) are listed in the README.
-
-The trains below predate it; their remaining work is folded into the program's Wave 7.
+**This file is the only tracked one in `.phases/`** — the directory is gitignored, so the
+plans live on the machine that wrote them and only the code they produce reaches git history.
+That is why this index is worth keeping accurate: it is the sole in-repo record of what is
+running.
 
 ---
 
-**Active train (as of 2026-07-01):**
-[v2.11.0-saga-full-roundtrip/](v2.11.0-saga-full-roundtrip/) — closes the round-trip
-half of the #429 saga umbrella (compensation → recovery → coordinator →
-remote-dispatch → finalize). Phases 01–04 are **merged** (dev `176de7ece`); only
-**Phase 05 (Finalize)** remains — it keeps `unstable-saga` gated and adds a
-`# Stability` docs section (promotion is deferred to the hardening train below).
+## ⭐ Active — v2.15.0 Release Program (2026-08-16)
 
-**Queued behind it** (all written, `Not Started`):
-- [v2.14.0-saga-hardening/](v2.14.0-saga-hardening/) — the remaining saga work that
-  v2.11.0 deferred, laid out as 7 phases ending in the `unstable-saga` → stable
-  promotion: remote-mutation-name persistence → remote HTTP compensation → `@requires`
-  pre-fetch → concurrency-safe recovery (`SKIP LOCKED`) → transport hardening (mTLS) →
-  strategies + observability → finalize/promote. (Numbered v2.14.0 as the natural
-  successor to the two trains below; re-prioritise earlier if a consumer needs
-  distributed sagas in production.)
-- [v2.12.0-cdc-and-observer-transports/](v2.12.0-cdc-and-observer-transports/) — Kafka +
-  Kinesis sinks (#382) + observer transports + server auto-mount (#428)
-- [v2.13.0-ai-native/](v2.13.0-ai-native/) — actor model / vector similarity DSL /
-  session-state / MCP resources / Python helpers (renumbered off its dead v2.10.0 label —
-  the v2.10.0 slot shipped as the AX cluster #484–#488)
+[2026-08-16-v2.15.0-release/](2026-08-16-v2.15.0-release/) — take `dev` from `c1608e6cd` to a
+tagged, published release, and nothing else. Ten phases: two blockers in the *release record*
+(a changelog that omits 48 closed issues including a whole security wave; a published
+dependency-risk policy whose justification is false against the tree), three optional HIGH
+fixes, the version decision, and the cut.
 
-**Shipped since the release-train era:** v2.9.0 (auth foundation + make-it-real cluster +
-CDC first slice), v2.10.0 (AX feedback cluster #484–#488). The old
-[2026-05-31-release-train/](2026-05-31-release-train/) master orchestration is complete;
-its remaining follow-ups are the three plans above.
+Two decisions belonged to the human and were asked in
+[P00](2026-08-16-v2.15.0-release/phase-00-baseline-decisions-and-filings.md). Both are now
+answered, and recorded there: **V — 2.15.0**, with the changelog's SemVer-adherence sentence
+reworded in P08 so the release ships one claim rather than two against 158 `### Breaking`
+bullets; **H — all three HIGHs hold**, so P05 (#1080), P06 (#1079) and P07 (#1068) all run
+and the release notes carry no HIGH as a known issue. Start at its
+[README](2026-08-16-v2.15.0-release/README.md).
 
-## Archive
+P00 also filed the eight findings the readiness pass had surfaced but deliberately not fixed,
+as **#1127–#1134**.
 
-Completed campaigns moved to [_archive/](_archive/).
+Supporting documents at this level:
 
-## Shipped (previously-deferred, now merged to dev)
+- [RELEASE-READINESS-2.15.0.md](RELEASE-READINESS-2.15.0.md) — the 2026-08-16 verification
+  pass on `c1608e6cd`: what is green, what the blockers are, what was deliberately not run.
+  **Plan from it; do not redo it.**
+- [BACKLOG-2026-08-16.md](BACKLOG-2026-08-16.md) — the 101 open issues, the traps, the gate
+  list, the rig. Current.
+- [NEXT-AGENT-PROMPT.md](NEXT-AGENT-PROMPT.md) — the live handoff.
 
-- [federation-docs-170/](federation-docs-170/) — issue #170 merged via PR #403
-- [freebsd-148/](freebsd-148/) — issue #148 merged via PR #402
+## Not in the release program — decided separately
 
-(Superseded sprint: [2026-05-20-sprint/](2026-05-20-sprint/).)
+- **The 101-issue backlog** (48 audit pass 4 · 47 the last program's rule-6 residue ·
+  6 deferrals). Needs a triage decision, not a phase. Analysis in
+  [BACKLOG-2026-08-16.md](BACKLOG-2026-08-16.md).
+- **G5 — schema-intelligence epic #963/#965**, cross-repo, prerequisite #995.
+- **Deferrals #428 #444 #626 #633**, dispositions commented on each issue.
+
+## Closed programs
+
+| Program | Outcome |
+|---|---|
+| [_archive/2026-08-06-open-finding-remediation/](_archive/2026-08-06-open-finding-remediation/) | **Closed 2026-08-16.** 86 issues → 22 phases; 80 shut. The 6 remaining are exactly the deliberate deferrals. Its §5 is the wave-by-wave record of what each phase cost. |
+| [_archive/2026-07-27-open-issue-remediation/](_archive/2026-07-27-open-issue-remediation/) | **Closed 2026-08-06**, PR #885 merged at `f6f51fa25`. 203 issues → 158 closed on merge + 36 in-phase + 4 deferred. Retrospective: *execution coverage must be a checked artifact*. |
+
+Everything the 2026-05-31 release train and the v2.11–v2.14 trains queued has **shipped**;
+those directories are history, not plans. Completed campaigns live in
+[_archive/](_archive/) and are never modified after archiving.
 
 ## Audit handoffs
 
-- [2026-07-25-audit-pass3/](2026-07-25-audit-pass3/) — framework-wide bug-hunting audit.
-  Pass 1 → issues #715–#738, pass 2 → #739–#788. **Pass 3 not started**: the next-agent
-  prompt, the reusable review-workflow script, and the dedup issue-map are checked in there
-  (force-added past the gitignore) so another terminal can carry it on.
+- [2026-07-25-audit-pass3/](2026-07-25-audit-pass3/) — passes 1–3 (issues #715–#788), the
+  reusable review-workflow script and the dedup issue-map, force-added past the gitignore.
+- Pass 4 (2026-08-09, 210 agents, triple adversarial refutation → #1028–#1080) lives at
+  `_archive/2026-08-06-open-finding-remediation/audit-pass-4/`. ⚠ It is **gitignored and
+  local-only**, and the 53 issue bodies cite that path **without** the `_archive/` segment —
+  it moved when the program was archived.
 
 ## Convention
 
-- `.phases/<date>-sprint/` — active sprint dirs (one per planning cycle)
-- `.phases/_archive/<campaign>/` — completed campaigns; never modified after archive
-- Each campaign subdir has its own README + phase files
-
-See `~/.claude/CLAUDE.md` for the phased-TDD methodology this directory implements.
-
-Note: this directory is gitignored. The plans live locally only; only the code they produce ends up in git history.
+- `.phases/<date>-<name>/` — one directory per program, with its own README + phase files.
+- `.phases/_archive/<campaign>/` — completed campaigns; never modified after archive.
+- One user-owned decision per gate, surfaced in a phase file and answered in writing there.
