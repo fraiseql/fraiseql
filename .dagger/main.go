@@ -259,6 +259,9 @@ func (m *FraiseqlCi) ShellGates(
 		// Deploy artifacts must name the version being released, and the chart's
 		// default image must be one this project publishes (#1129).
 		"bash tools/check-deploy-versions.sh",
+		// Every fuzz.yml matrix row must name a target that exists in the crate it
+		// names. One-directional: targets on disk need not be in the matrix (#1128).
+		"bash tools/check-fuzz-targets.sh",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",

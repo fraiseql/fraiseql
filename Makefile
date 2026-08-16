@@ -505,6 +505,15 @@ lint-deploy-security:
 lint-deploy-versions:
 	@bash tools/check-deploy-versions.sh
 
+# Gate: fuzz.yml's matrix may only name targets that exist in the crate it names.
+# `{crate: fraiseql-core, target: toml_config}` named a target that had MOVED to
+# fraiseql-server, so `cargo fuzz build` failed and every scheduled run was red from at
+# least 2026-05-17 (#1128). One-directional by design — 14 of the 26 targets in the tree
+# are deliberately outside the curated "#441 minimum" matrix.
+.PHONY: lint-fuzz-targets
+lint-fuzz-targets:
+	@bash tools/check-fuzz-targets.sh
+
 # Gate: pin the set of production files that READ TypeDefinition.internal (#665), so a
 # property-named flag cannot silently grow new consumers. See tools/check-internal-flag-sites.sh.
 .PHONY: lint-internal-flag
@@ -569,7 +578,7 @@ lint-sdk-dead-surface:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

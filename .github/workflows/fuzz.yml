@@ -61,7 +61,6 @@ jobs:
           - { crate: fraiseql-core,       target: graphql_parser }
           - { crate: fraiseql-core,       target: complexity }
           - { crate: fraiseql-core,       target: schema_deser }
-          - { crate: fraiseql-core,       target: toml_config }
           - { crate: fraiseql-core,       target: value_json_seam }
           - { crate: fraiseql-wire,       target: protocol_decode }
           - { crate: fraiseql-wire,       target: json_validate }
@@ -71,6 +70,13 @@ jobs:
           - { crate: fraiseql-db,         target: projection_generator }
           - { crate: fraiseql-federation, target: subgraph_response }
           - { crate: fraiseql-server,     target: graphql_request }
+          # Lives in fraiseql-server, not fraiseql-core: `5a4a8f86b` (#909) deleted
+          # fraiseql_core::config::FraiseQLConfig — the TOML tree nothing read — and its
+          # fuzz target with it, while the target fuzzing the config loader that IS live
+          # stayed here. The matrix kept naming the old crate, so every scheduled run was
+          # red from at least 2026-05-17 until #1128. tools/check-fuzz-targets.sh now
+          # fails on a row whose target is not in the crate it names.
+          - { crate: fraiseql-server,     target: toml_config }
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # pinned; toolchain comes from the input below
