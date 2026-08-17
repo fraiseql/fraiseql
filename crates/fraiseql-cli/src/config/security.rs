@@ -213,7 +213,14 @@ pub struct StateEncryptionConfig {
 impl Default for StateEncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled:   true,
+            // Off unless the operator asks for it, matching
+            // `fraiseql_core::schema::StateEncryptionConfig` (#1151). This field is not an
+            // `Option` and the enclosing `SecurityConfig` carries `#[serde(default)]`, so an
+            // absent `[security.state_encryption]` table lands here and is lowered verbatim
+            // into the compiled artifact. Defaulting it on therefore enabled a control the
+            // operator never chose, and the server refuses to boot when the key env var is
+            // unset — a hard upgrade failure for every project that never opted in.
+            enabled:   false,
             algorithm: "chacha20-poly1305".to_string(),
         }
     }

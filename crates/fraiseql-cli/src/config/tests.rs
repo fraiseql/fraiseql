@@ -471,14 +471,70 @@ ssl_mode = "require"
 mod security_tests {
     use super::super::security::*;
 
+    /// #1151 — a project that never mentions `[fraiseql.security.state_encryption]` must not
+    /// compile an artifact declaring it enabled.
+    ///
+    /// This struct's `state_encryption` field is **not** an `Option` and the struct carries
+    /// `#[serde(default)]`, so an absent table becomes `StateEncryptionConfig::default()`. When
+    /// that default was `enabled: true`, `to_json()` lowered `enabled: true` into the compiled
+    /// artifact, and the server refused to boot:
+    ///
+    /// ```text
+    /// Error: Configuration error: state_encryption enabled but key env var
+    /// 'STATE_ENCRYPTION_KEY' failed: env var STATE_ENCRYPTION_KEY not set
+    /// ```
+    ///
+    /// The value had been `true` since before 2.14, but the compiled key was emitted as
+    /// `stateEncryption` while the runtime read `state_encryption`, so nothing ever read it.
+    /// Fixing that casing (#893/#977/#983) turned a silent no-op into a hard boot failure — so
+    /// the assertion that matters is on the **lowered artifact**, not just the struct field.
+    #[test]
+    fn state_encryption_is_off_unless_the_operator_asks_for_it() {
+        let lowered = SecurityConfig::default().to_json();
+        let enabled = lowered
+            .get("state_encryption")
+            .and_then(|se| se.get("enabled"))
+            .and_then(serde_json::Value::as_bool);
+
+        assert_ne!(
+            enabled,
+            Some(true),
+            "a config that never mentions state_encryption compiled an artifact enabling it; \
+             the server then refuses to boot without STATE_ENCRYPTION_KEY (#1151). Lowered: {lowered}"
+        );
+    }
+
+    /// #1151 — the two structs named `StateEncryptionConfig` must agree on the default.
+    ///
+    /// `fraiseql-core`'s is the documented contract ("off unless asked for"); this crate's is the
+    /// one that reaches the artifact. They disagreed silently, which is what made the divergence
+    /// survive: each looked correct on its own.
+    #[test]
+    fn state_encryption_default_agrees_with_fraiseql_core() {
+        assert_eq!(
+            StateEncryptionConfig::default().enabled,
+            fraiseql_core::schema::StateEncryptionConfig::default().enabled,
+            "fraiseql-cli and fraiseql-core disagree on the state_encryption default; the cli's \
+             is the one compiled into the artifact (#1151)"
+        );
+    }
+
     #[test]
     fn test_default_security_config() {
         let config = SecurityConfig::default();
         assert!(config.audit_logging.enabled);
         assert!(config.error_sanitization.enabled);
         assert!(config.rate_limiting.enabled);
-        assert!(config.state_encryption.enabled);
         assert!(config.constant_time.enabled);
+        // state_encryption is deliberately NOT in the on-by-default list. This test used to
+        // assert it was, which is how the divergence from fraiseql-core survived review: the
+        // wrong default had a test pinning it in place (#1151). The controls above are inert
+        // without further configuration; state encryption is not — enabling it demands a key,
+        // and demanding a key the operator never configured stops the server from booting.
+        assert!(
+            !config.state_encryption.enabled,
+            "state encryption must stay off until asked for — see #1151"
+        );
     }
 
     /// #983 — the four `[fraiseql.security.error_sanitization]` keys that reached no
