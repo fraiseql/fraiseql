@@ -5013,6 +5013,20 @@ number below is open at the time of this release.
   so republishing it would be worse than publishing nothing.
 - **`release-smoke.yml` cannot run before a `release/*` branch or tag exists.** Its absence in
   the pre-cut checks is not a green result; it runs at the cut.
+- **The breaking surface, measured rather than asserted.** `cargo semver-checks` against the
+  v2.14.1 baseline reports **12 of 16 comparable crates require a new major version, over 104
+  failed major checks**: `fraiseql-server` (17), `fraiseql-db` (16), `fraiseql-cli` (13),
+  `fraiseql-core` (12), `fraiseql-auth` (11), `fraiseql-observers` (10), `fraiseql-federation`
+  (7), `fraiseql-functions` (7), `fraiseql-storage` (5), `fraiseql-wire` (4), `fraiseql-arrow`
+  (1), `fraiseql` (1). Only `fraiseql-codegen`, `fraiseql-error`, `fraiseql-secrets` and
+  `fraiseql-webhooks` are clean. This is the concrete meaning of the versioning note at the top
+  of this file: the number says minor, the surface says major, and `### Breaking` is the
+  contract. Upgrade by reading that section, not by trusting the version bump.
+- **That measurement needed the release's two new crates excluded to run at all.**
+  `cargo semver-checks` aborts the entire workspace run when any member has no baseline —
+  ``package `fraiseql-guard` not found`` — rather than skipping it. `fraiseql-guard` and
+  `fraiseql-cdc-sinks` did not exist at v2.14.1, so `semver.yml` cannot report on any release
+  that adds a crate, and the surface of those two is unmeasured here.
 
 ## [2.14.1] - 2026-07-24
 
