@@ -100,7 +100,7 @@ removed and why.
 
 ```toml
 [dependencies]
-fraiseql = { version = "2.8", features = ["server"] }
+fraiseql = { version = "2.15.0", features = ["server"] }
 ```
 
 **Schema authoring:**
