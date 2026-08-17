@@ -4998,9 +4998,17 @@ number below is open at the time of this release.
 - **A queryless federation entity cannot declare tenant scoping (#1142).** Its `requires_role`
   *is* enforced; there is simply nowhere to declare `inject_params`, and the author gets no
   signal. DB-native RLS still scopes rows.
-- **Eight of the eleven official SDKs are not versioned with this release (#1130)** — C#, Dart,
+- **Nine of the eleven official SDKs are not published by this release (#1130).** C#, Dart,
   Elixir, F#, Go, Java, PHP and Ruby remain at 2.1.6, because `tools/release.sh` bumps only the
-  Rust, Python and TypeScript manifests. Only those three are released here.
+  Rust, Python and TypeScript manifests. **Only Python (PyPI) and TypeScript (npm) are actually
+  published**: `release.yml`'s `publish-python` job and `npm-publish.yml` are the two that fire
+  on a `v*` tag.
+  ⚠ **The Rust SDK is bumped to 2.15.0 and published nowhere.** `rust-sdk.yml`'s publish job is
+  gated on a `refs/tags/rust-sdk/v*` ref, which this release does not create;
+  `rust-sdk-client.yml` has no publish job at all; and `fraiseql-client` has never existed on
+  crates.io at any version. So the manifest bump is inert — the mirror image of the H30 defect
+  where manifests stayed frozen while publish jobs ran. Do not read `sdks/official/fraiseql-rust`
+  being at 2.15.0 as meaning a 2.15.0 Rust SDK is installable; it is not.
 - **Config-loader fuzzing has a shorter evidence window than the rest (#1128).** The scheduled
   libFuzzer matrix named `toml_config` in the wrong crate, so that one target never built. ⚠ The
   other **12 of 13 targets were green every week** — `fail-fast: false` meant the broken row
