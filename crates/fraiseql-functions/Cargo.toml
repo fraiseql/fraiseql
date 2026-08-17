@@ -59,7 +59,7 @@ host-live = ["fraiseql-core", "fraiseql-db", "sqlparser", "reqwest"]
 host-storage = ["fraiseql-storage"]
 
 [dependencies.wasmtime]
-version = "46"
+version = "47"
 optional = true
 features = ["component-model"]
 
