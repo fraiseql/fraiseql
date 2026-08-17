@@ -16,6 +16,8 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-08-17
+
 ### Breaking
 
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /

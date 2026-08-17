@@ -14,7 +14,7 @@ image:
   # not by remembering. It sat three releases stale because the comment below asked for
   # a manual step nobody had a reason to take. tools/check-deploy-versions.sh (ShellGates)
   # fails if it drifts from the workspace version again.
-  tag: "2.14.1"
+  tag: "2.15.0"
 
 imagePullSecrets: []
 nameOverride: ""
