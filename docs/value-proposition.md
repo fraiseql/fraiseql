@@ -1,6 +1,6 @@
 # FraiseQL Value Proposition
 
-**Status**: v2.14.1 released
+**Status**: v2.15.0 released
 **Maturity**: The core engine is production-ready. Some enterprise features are experimental or not yet implemented — see the per-feature notes under [Feature Tiers](#feature-tiers).
 **Last Updated**: June 22, 2026
 
@@ -404,7 +404,7 @@ This enables:
 
 ## Maturity & Production Readiness
 
-**FraiseQL** (v2.14.1 released) ships a production-ready core:
+**FraiseQL** (v2.15.0 released) ships a production-ready core:
 
 - Comprehensive test coverage across unit, integration, and E2E scenarios
 - Zero unsafe code blocks (`unsafe_code = "forbid"` workspace-wide)

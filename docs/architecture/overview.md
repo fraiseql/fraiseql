@@ -2,7 +2,7 @@
 
 **Last Updated**: August 2, 2026
 **Architecture**: Layered Optionality with Feature Gates
-**Status**: v2.14.1 released (core production-ready; some enterprise features experimental — see notes)
+**Status**: v2.15.0 released (core production-ready; some enterprise features experimental — see notes)
 
 ---
 
@@ -839,7 +839,7 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 ---
 
-**Architecture Status**: Core production-ready (v2.14.1 released)
+**Architecture Status**: Core production-ready (v2.15.0 released)
 **Last Updated**: August 2, 2026 (Enterprise features: secrets, auth, RBAC available; field-level at-rest encryption not implemented)
 **Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
