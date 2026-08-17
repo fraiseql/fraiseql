@@ -447,7 +447,11 @@ pub(super) fn pkce_state_encryption_check(
                 "  To fix, enable state encryption:\n",
                 "    [security.state_encryption]\n",
                 "    enabled = true\n",
-                "    # 32-byte key supplied via FRAISEQL_STATE_ENCRYPTION_KEY\n\n",
+                // The reader is `fraiseql_auth::state_encryption`, which resolves
+                // `key_env` and falls back to STATE_ENCRYPTION_KEY — never the
+                // FRAISEQL_-prefixed name this message used to print (#1151).
+                "    # 32-byte hex key supplied via STATE_ENCRYPTION_KEY\n",
+                "    # (or set key_env to name a different variable)\n\n",
                 "  For local development only:\n",
                 "    Set FRAISEQL_ENV=development to downgrade this to a warning.",
             )

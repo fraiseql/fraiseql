@@ -2804,6 +2804,41 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`state_encryption` no longer defaults on, so a project that never asked for it still
+  boots (#1151).** `fraiseql-cli`'s `StateEncryptionConfig::default()` was `enabled: true`
+  while `fraiseql-core`'s — the documented contract, "off unless asked for" — was `false`.
+  The cli's is the one that reaches the compiled artifact. Because the field is not an
+  `Option` and its enclosing `SecurityConfig` carries `#[serde(default)]`, a config with no
+  `[fraiseql.security.state_encryption]` table compiled an artifact **declaring the control
+  enabled**, and the server then refused to start:
+
+  ```text
+  Error: Configuration error: state_encryption enabled but key env var
+  'STATE_ENCRYPTION_KEY' failed: env var STATE_ENCRYPTION_KEY not set
+  ```
+
+  The value had been `true` since well before 2.14: it simply never reached a reader,
+  because the compiled key was emitted as `stateEncryption` while the runtime read
+  `state_encryption`. Fixing that casing (#893/#977/#983) is correct and stays — but it
+  converted a silent no-op into a hard boot failure for every deployment that never opted
+  in. **This was found by a beta tester against `release/2.15.0` before the tag; it would
+  have shipped otherwise.**
+
+  Scope, measured rather than assumed: the two compile workflows use different structs, and
+  only one was affected. `fraiseql compile fraiseql.toml` (top-level tables) emitted
+  `state_encryption: null` throughout and never had the defect. `fraiseql compile
+  schema.json` with a `fraiseql.toml` in the working directory — the path the Python and
+  TypeScript SDKs feed, since they emit `schema.json` — is the one that lowered
+  `enabled: true`.
+
+  Also fixed: the PKCE boot error told operators to supply the key via
+  `FRAISEQL_STATE_ENCRYPTION_KEY`, a name nothing reads. The reader resolves `key_env`,
+  defaulting to `STATE_ENCRYPTION_KEY`, and the message now says so.
+
+  ⚠ A test asserted the wrong default (`assert!(config.state_encryption.enabled)`), which is
+  how the divergence survived review — the defect had a test holding it in place. That
+  assertion is inverted, and two regression tests were added: one on the **lowered artifact**
+  rather than the struct field, and one pinning the cli default equal to `fraiseql-core`'s.
 - **The generated TypeScript and Python clients type a half-precision or sparse vector
   field (#959).** Both renderers learned `Vector` and `BitVector` when those landed and
   not `HalfVector` or `SparseVector`, which fell through a wildcard arm to `unknown` /
