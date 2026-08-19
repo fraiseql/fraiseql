@@ -472,6 +472,44 @@ impl QueryDefinition {
 
         args
     }
+
+    /// The argument names a client document may write on this field
+    /// (GraphQL § 5.4.1), for [`validate_argument_names`].
+    ///
+    /// [`graphql_arguments`](Self::graphql_arguments) is what introspection
+    /// *publishes*; this is what the runtime actually *reads*, which is wider in
+    /// two places:
+    ///
+    /// * A relay connection's cursor window (`first`/`after`/`last`/`before`) is owned by each
+    ///   renderer's relay path rather than by `auto_params`, and the relay runner also reads
+    ///   `where`/`orderBy` from the merged argument map when the matching auto-param is on.
+    /// * `nearest` (#386, #959) is a runtime-only similarity-search argument. Accepting it here is
+    ///   what lets its own diagnostics — not eligible on relay, needs a list query, unknown metric,
+    ///   wrong dimension — be what the client sees, instead of a blanket "unknown argument". It is
+    ///   refused on a count sibling, which never reads it.
+    ///
+    /// [`validate_argument_names`]: crate::runtime::validate_argument_names
+    #[must_use]
+    pub fn accepted_argument_names(&self) -> Vec<String> {
+        let mut names: Vec<String> =
+            self.graphql_arguments().into_iter().map(|arg| arg.name).collect();
+
+        if self.relay {
+            names.extend(["first", "after", "last", "before"].map(String::from));
+            if self.auto_params.has_where && !names.iter().any(|n| n == "where") {
+                names.push("where".to_string());
+            }
+            if self.auto_params.has_order_by && !names.iter().any(|n| n == "orderBy") {
+                names.push("orderBy".to_string());
+            }
+        }
+
+        if !self.returns_count {
+            names.push("nearest".to_string());
+        }
+
+        names
+    }
 }
 
 impl Default for QueryDefinition {

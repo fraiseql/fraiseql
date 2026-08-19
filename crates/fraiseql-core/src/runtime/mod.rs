@@ -47,6 +47,8 @@
 mod aggregate_parser;
 mod aggregate_projector;
 pub mod aggregation;
+/// Argument-name validation for a root field (GraphQL § 5.4.1).
+mod argument_validation;
 pub mod cascade;
 mod executor;
 pub mod executor_adapter;
@@ -74,6 +76,7 @@ use std::sync::Arc;
 pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
+pub use argument_validation::validate_argument_names;
 pub use executor::{
     Executor,
     JsonRowStream,

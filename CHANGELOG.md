@@ -20,6 +20,33 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An argument the field does not declare is refused instead of ignored, on queries and
+  mutations alike (#1154).** GraphQL § 5.4.1 makes it a validation error; the server accepted
+  it, dropped it, and answered normally. Only *declared* arguments become WHERE conditions and
+  only the auto-wired names reach the pagination paths, so `orders(contractId: "x")` against a
+  query that does not declare `contractId` returned **every row** under a 200 with no `errors`
+  array. That reads as a filtering bug in the server and is very hard to trace back to the
+  argument that vanished. On a mutation the same drop bound the write without it, and reported
+  success.
+
+  Undeclared *fields* were already refused (#939), so validation ran — it just did not cover
+  argument names, which left the server more permissive than the schema its own introspection
+  publishes: a spec-compliant client-side validator rejected queries this server answered.
+
+  The response is now
+  `Validation error: Unknown argument 'contractId' on field 'Query.orders'.`, with a "did you
+  mean" hint when a close accepted name exists, since a renamed or mistyped argument is the
+  common case. **Breaking for exactly the clients that are silently getting wrong results
+  today**; a client sending an argument the schema does not have now learns that it never
+  applied.
+
+  The accepted set is what the runtime reads, which is slightly wider than what introspection
+  publishes: a relay connection's `first`/`after`/`last`/`before` (plus `where`/`orderBy` when
+  `auto_params` enables them), and the runtime-only `nearest` similarity-search argument, which
+  is accepted by name so its own diagnostics reach the client rather than a blanket "unknown
+  argument". Arguments on **nested** fields are unchanged: no object-type field declares
+  arguments, so they remain inert.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is
@@ -2803,6 +2830,11 @@ disagreed, and the promise was the part that was wrong.
   archived onto issue #687 before removal.
 
 ### Fixed
+
+- **An undeclared argument no longer returns an unfiltered result set (#1154).** See
+  `### Breaking`: the fix is a behaviour change for every client currently sending an argument
+  the schema does not declare, which is the population getting wrong answers today. Found by a
+  beta tester against 2.14.0 and `release/2.15.0` before the tag.
 
 - **`state_encryption` no longer defaults on, so a project that never asked for it still
   boots (#1151).** `fraiseql-cli`'s `StateEncryptionConfig::default()` was `enabled: true`

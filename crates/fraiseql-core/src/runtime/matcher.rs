@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::{
     error::{FraiseQLError, Result},
     graphql::{FieldSelection, ParsedQuery, parse_query, selection_set},
+    runtime::argument_validation,
     schema::{CompiledSchema, QueryDefinition},
 };
 
@@ -247,6 +248,22 @@ impl QueryMatcher {
                     &root.nested_fields,
                 )?;
             }
+        }
+
+        // 5c. #1154: the arguments written on the root field must be defined on it
+        //     (GraphQL § 5.4.1). An undeclared argument used to be dropped —
+        //     only declared arguments become WHERE conditions and only the
+        //     auto-wired names reach the pagination paths — so a client filter
+        //     the schema no longer carries returned the *unfiltered* set under a
+        //     200. Unlike 5b this applies to relay and count queries too: their
+        //     argument surfaces differ from a plain list query's, and
+        //     `accepted_argument_names` is what encodes each one.
+        if let Some(root) = final_selections.first() {
+            argument_validation::validate_argument_names(
+                &format!("Query.{}", self.schema.display_name(&query_def.name)),
+                &query_def.accepted_argument_names(),
+                &root.arguments,
+            )?;
         }
 
         // 6. Extract field names for backward compatibility

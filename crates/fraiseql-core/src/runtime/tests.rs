@@ -1788,6 +1788,187 @@ mod matcher_tests {
         );
     }
 
+    // ── § 5.4.1 argument names (#1154) ───────────────────────────────────────
+    //
+    // An argument the field does not declare must be refused. It used to be
+    // dropped: only declared arguments become WHERE conditions, so a filter the
+    // schema no longer carries returned the *unfiltered* set under a 200.
+
+    /// The reported shape: a query declaring no arguments, handed one anyway.
+    #[test]
+    fn undeclared_root_argument_is_rejected() {
+        let matcher = QueryMatcher::new(test_schema());
+
+        let err = matcher
+            .match_query(r#"{ users(contractId: "x") { id } }"#, None)
+            .expect_err("an argument the query does not declare must not execute");
+
+        let FraiseQLError::Validation { message, .. } = &err else {
+            panic!("expected Validation, got: {err:?}");
+        };
+        assert!(
+            message.contains("Unknown argument 'contractId'") && message.contains("Query.users"),
+            "message must name the argument and the field: {message}"
+        );
+    }
+
+    /// The unfiltered-result path is the same for a nonsense name and type.
+    #[test]
+    fn undeclared_root_argument_of_any_type_is_rejected() {
+        let matcher = QueryMatcher::new(test_schema());
+
+        let err = matcher
+            .match_query("{ users(totallyBogusArgument: 42) { id } }", None)
+            .expect_err("an undeclared argument must not execute");
+
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. }
+                if message.contains("totallyBogusArgument")),
+            "got: {err:?}"
+        );
+    }
+
+    /// A declared argument still works — this is a gap in argument-*name*
+    /// validation, not arguments being refused wholesale.
+    #[test]
+    fn declared_root_argument_is_accepted() {
+        let mut schema = test_schema();
+        schema.queries[0].arguments = vec![crate::schema::ArgumentDefinition::optional(
+            "contractId",
+            crate::schema::FieldType::String,
+        )];
+        let matcher = QueryMatcher::new(schema);
+
+        let matched = matcher
+            .match_query(r#"{ users(contractId: "x") { id } }"#, None)
+            .expect("a declared argument must be accepted");
+        assert_eq!(
+            matched.arguments.get("contractId").and_then(serde_json::Value::as_str),
+            Some("x")
+        );
+    }
+
+    /// The auto-wired names are not in `arguments`, but introspection publishes
+    /// them and the runtime reads them, so they must validate.
+    #[test]
+    fn auto_param_arguments_are_accepted_when_enabled() {
+        let mut schema = test_schema();
+        schema.queries[0].auto_params = crate::schema::AutoParams::all();
+        let matcher = QueryMatcher::new(schema);
+
+        matcher
+            .match_query(r"{ users(where: {}, orderBy: {}, limit: 1, offset: 2) { id } }", None)
+            .expect("auto-wired arguments must be accepted when auto_params enables them");
+    }
+
+    /// …and refused when they are not, which is the same silent-drop bug: with
+    /// `has_limit` off nothing reads `limit`, so the client's page size vanished.
+    #[test]
+    fn auto_param_argument_is_rejected_when_disabled() {
+        let matcher = QueryMatcher::new(test_schema()); // AutoParams::default(): all off
+
+        let err = matcher
+            .match_query("{ users(limit: 1) { id } }", None)
+            .expect_err("`limit` is not accepted by a query whose auto_params disable it");
+
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. }
+                if message.contains("Unknown argument 'limit'")),
+            "got: {err:?}"
+        );
+    }
+
+    /// A near-miss is the common case — a renamed or mistyped argument — so the
+    /// message points at the name that works.
+    #[test]
+    fn undeclared_argument_suggests_a_close_accepted_name() {
+        let mut schema = test_schema();
+        schema.queries[0].auto_params = crate::schema::AutoParams::all();
+        let matcher = QueryMatcher::new(schema);
+
+        let err = matcher
+            .match_query("{ users(limitt: 1) { id } }", None)
+            .expect_err("a mistyped argument must not execute");
+
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. }
+                if message.contains("Did you mean 'limit'")),
+            "got: {err:?}"
+        );
+    }
+
+    /// The relay cursor window is owned by the relay renderer rather than by
+    /// `auto_params`, so it has to be accepted from the relay branch.
+    #[test]
+    fn relay_cursor_arguments_are_accepted() {
+        let mut schema = test_schema();
+        schema.queries[0].relay = true;
+        schema.queries[0].auto_params = crate::schema::AutoParams::all();
+        let matcher = QueryMatcher::new(schema);
+
+        matcher
+            .match_query(
+                r#"{ users(first: 2, after: "NDI=", where: {}, orderBy: {}) { edges { node { id } } } }"#,
+                None,
+            )
+            .expect("relay pagination arguments must be accepted");
+    }
+
+    /// A relay connection has no `limit`: the runner never reads one, so a client
+    /// paginating with it got a default-sized page instead of the one it asked for.
+    #[test]
+    fn relay_query_rejects_offset_pagination_arguments() {
+        let mut schema = test_schema();
+        schema.queries[0].relay = true;
+        let matcher = QueryMatcher::new(schema);
+
+        let err = matcher
+            .match_query("{ users(limit: 5) { edges { node { id } } } }", None)
+            .expect_err("`limit` is not part of a relay connection's argument surface");
+
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. }
+                if message.contains("Unknown argument 'limit'")),
+            "got: {err:?}"
+        );
+    }
+
+    /// `nearest` (#386) is read at runtime but never rendered as a declared
+    /// argument. Accepting it here is what lets its own diagnostics reach the
+    /// client instead of a blanket "unknown argument".
+    #[test]
+    fn nearest_reaches_its_own_diagnostics() {
+        let matcher = QueryMatcher::new(test_schema());
+
+        matcher
+            .match_query(r"{ users(nearest: {vector: [0.1], k: 1}) { id } }", None)
+            .expect("`nearest` must reach the similarity-search path, not be refused by name");
+    }
+
+    /// An alias does not change which field the arguments are checked against.
+    #[test]
+    fn undeclared_argument_is_rejected_under_an_alias() {
+        let matcher = QueryMatcher::new(test_schema());
+
+        let err = matcher
+            .match_query("{ people: users(bogus: 1) { id } }", None)
+            .expect_err("an alias must not smuggle an undeclared argument through");
+
+        assert!(matches!(&err, FraiseQLError::Validation { .. }), "got: {err:?}");
+    }
+
+    /// Variables are a different namespace: the matcher merges the whole
+    /// `variables` object into the argument map and the auto-param paths read it
+    /// from there, so an unreferenced variable is not an argument on a field.
+    #[test]
+    fn unreferenced_variables_are_not_argument_names() {
+        let matcher = QueryMatcher::new(test_schema());
+
+        matcher
+            .match_query("{ users { id } }", Some(&serde_json::json!({ "contractId": "x" })))
+            .expect("a request variable is not an argument written on the field");
+    }
+
     #[test]
     fn test_extract_arguments_none() {
         let _schema = test_schema();

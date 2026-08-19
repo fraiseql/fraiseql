@@ -3367,14 +3367,19 @@ mod response_cache_key_tests {
     use crate::{
         cache::generate_response_cache_key,
         runtime::QueryMatcher,
-        schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
+        schema::{
+            AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
+        },
     };
 
     fn schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
-        schema
-            .queries
-            .push(QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user"));
+        let mut users =
+            QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user");
+        // These operations paginate, and since #1154 an argument the query does
+        // not accept is a validation error rather than a silently dropped one.
+        users.auto_params = AutoParams::all();
+        schema.queries.push(users);
         let mut user = TypeDefinition::new("User", "v_user");
         user.fields = vec![
             FieldDefinition::new("id", FieldType::Int),

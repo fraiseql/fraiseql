@@ -1302,6 +1302,52 @@ mod mutation {
         assert_eq!(captured[1], "bob@example.com", "nested $e must resolve, got {:?}", captured[1]);
     }
 
+    /// #1154 — an argument the mutation does not declare must be refused rather
+    /// than dropped. Binding is positional over `mutation_def.arguments`, so an
+    /// undeclared argument never reached the SQL function: the write ran without
+    /// it and reported success.
+    #[tokio::test]
+    async fn undeclared_mutation_argument_is_rejected() {
+        let schema = schema_with_insert_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let doc = r#"mutation { create_user(input: { name: "Bob", email: "b@x.tld" },
+                                            dryRun: true) { id } }"#;
+        let err = executor
+            .execute(doc, None)
+            .await
+            .expect_err("an argument the mutation does not declare must not execute");
+
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. }
+                if message.contains("Unknown argument 'dryRun'")
+                    && message.contains("Mutation.create_user")),
+            "message must name the argument and the field: {err:?}"
+        );
+        assert!(
+            adapter_ref.args().is_empty(),
+            "the write must not run at all, got args: {:?}",
+            adapter_ref.args()
+        );
+    }
+
+    /// The declared argument still binds — this refuses unknown *names*, not
+    /// arguments.
+    #[tokio::test]
+    async fn declared_mutation_argument_is_accepted() {
+        let schema = schema_with_insert_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let doc = r#"mutation { create_user(input: { name: "Bob", email: "b@x.tld" }) { id } }"#;
+        executor.execute(doc, None).await.unwrap();
+
+        assert_eq!(adapter_ref.args().len(), 2, "the declared input must still bind positionally");
+    }
+
     /// #400 — On the Insert/Custom flatten path, a field whose type is a nested
     /// input object is passed as one positional JSONB arg. Its *keys* must be
     /// recased to canonical names too (recursing into nested objects/lists), or a

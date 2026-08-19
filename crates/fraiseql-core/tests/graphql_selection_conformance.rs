@@ -749,6 +749,66 @@ async fn a_masked_field_is_not_reported_as_undeclared() {
     assert!(response["data"]["users"][0]["secret"].is_null(), "{response}");
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// B4. Undeclared arguments are validation errors — #1154
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// GraphQL § 5.4.1 (Argument Names): every argument provided to a field must be
+// defined on it. The same silent-drop meta-pattern as B3, one axis over: only
+// *declared* arguments become WHERE conditions and only the auto-wired names
+// reach the pagination paths, so `users(contractId: "x")` against a query that
+// does not declare `contractId` returned **every row** under a 200 with no
+// `errors` array — a filter that reads as applied and was not.
+
+/// The issue's repro: an argument the query does not declare.
+#[tokio::test]
+async fn an_undeclared_root_argument_is_a_validation_error() {
+    let (exec, adapter) = executor();
+    let err = exec
+        .execute(r#"{ users(contractId: "x") { id } }"#, None)
+        .await
+        .expect_err("an argument the field does not define is an invalid document");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("contractId") && msg.contains("Query.users"),
+        "the error must name the argument and the field it is not on, got: {msg}"
+    );
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an invalid document must not execute — the database was queried anyway"
+    );
+}
+
+/// The same rule on the write path, where the drop bound the SQL function
+/// without the argument and still reported success.
+#[tokio::test]
+async fn an_undeclared_mutation_argument_is_a_validation_error() {
+    let (exec, _) = mutation_executor();
+    let err = exec
+        .execute(
+            r#"mutation { createUser(email: "a@b.com", name: "A", dryRun: true) { id } }"#,
+            None,
+        )
+        .await
+        .expect_err("an argument the mutation does not define is an invalid document");
+
+    assert!(
+        err.to_string().contains("dryRun"),
+        "the error must name the argument, got: {err}"
+    );
+}
+
+/// Control: the auto-wired arguments a query *does* accept still execute. A
+/// validator that rejects a legitimate filter is worse than the bug it fixes.
+#[tokio::test]
+async fn declared_and_auto_wired_arguments_still_execute() {
+    let (exec, _) = ordering_executor();
+    exec.execute(r#"{ users(where: {name: {eq: "Alice"}}) { id } }"#, None)
+        .await
+        .expect("`where` is accepted when auto_params declares it");
+}
+
 /// Control: every declared field still executes. A validator that rejects a
 /// legitimate query is worse than the bug it fixes.
 #[tokio::test]
@@ -888,6 +948,20 @@ fn ordering_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
     (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
 }
 
+/// [`ordering_executor`] whose queries also declare a `filter` argument, for the
+/// case that pins an argument *value* shape rather than an argument name.
+fn filter_arg_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+    let mut schema = user_schema();
+    for q in &mut schema.queries {
+        q.auto_params.has_order_by = true;
+        q.auto_params.has_where = true;
+        q.arguments
+            .push(fraiseql_core::schema::ArgumentDefinition::optional("filter", FieldType::Json));
+    }
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
+}
+
 #[tokio::test]
 async fn multi_root_list_of_objects_argument_reaches_the_adapter() {
     let (exec, adapter) = ordering_executor();
@@ -974,7 +1048,10 @@ async fn multi_root_list_of_scalars_argument_still_works() {
 async fn multi_root_list_of_nested_objects_argument_runs() {
     // The issue's second reported shape — `filter: [{name: {eq: "a"}}]` — so the
     // case is pinned to the list-of-objects *shape* rather than to `orderBy`.
-    let (exec, _) = ordering_executor();
+    // `filter` is a name the schema does not otherwise carry, so the fixture
+    // declares it: since #1154 an undeclared argument is a validation error, and
+    // this case is about the value surviving re-serialization, not the name.
+    let (exec, _) = filter_arg_executor();
     let response = exec
         .execute(r#"{ a: users(filter: [{name: {eq: "Alice"}}]) { id } b: users { id } }"#, None)
         .await

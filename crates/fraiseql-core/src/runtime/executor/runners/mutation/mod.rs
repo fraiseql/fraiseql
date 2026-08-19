@@ -893,6 +893,20 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         security_ctx,
     )?;
 
+    // 1d. #1154: the arguments written on the mutation field must be defined on
+    //      it (GraphQL § 5.4.1). Step 3 below binds positionally from
+    //      `mutation_def.arguments`, so an undeclared argument was dropped and
+    //      the write ran without it — the silent failure the query path had, on
+    //      the surface where it costs the most. `inject_params` are deliberately
+    //      *not* accepted: they are sourced server-side from the caller's claims
+    //      and the schema documents them as not exposed as GraphQL arguments, so
+    //      a client naming one is writing an argument the field does not have.
+    crate::runtime::validate_argument_names(
+        &format!("Mutation.{}", ctx.schema.display_name(&mutation_def.name)),
+        &mutation_def.arguments.iter().map(|arg| arg.name.clone()).collect::<Vec<_>>(),
+        inline_arguments,
+    )?;
+
     // 2. Require a sql_source (PostgreSQL function name).
     //
     // Fall back to the operation's table field when sql_source is absent.
