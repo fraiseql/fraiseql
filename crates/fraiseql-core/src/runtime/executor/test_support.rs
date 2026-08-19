@@ -378,7 +378,11 @@ pub fn test_schema() -> CompiledSchema {
         arguments:           Vec::new(),
         sql_source:          Some("v_user".to_string()),
         description:         None,
-        auto_params:         AutoParams::default(),
+        // The fixtures built on this schema paginate and filter (`users(limit: 100)`),
+        // and since #1154 an argument the query does not accept is a validation error
+        // rather than a silently dropped one — so the fixture has to declare the
+        // auto-wired surface it is exercised through.
+        auto_params:         AutoParams::all(),
         deprecation:         None,
         jsonb_column:        "data".to_string(),
         relay:               false,
