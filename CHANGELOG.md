@@ -195,6 +195,29 @@ disagreed, and the promise was the part that was wrong.
   executes — and the charset check stays in front of it, since the allowlist is
   defence-in-depth (#794), never a replacement.
 
+- **`ID`/`UUID` equality is no longer case-sensitive text equality.**
+  `{"id":{"eq":"0000000a-…-b"}}` matched; the same UUID upper-cased returned **zero rows** for
+  the same row. `ID`, `UUID` and `String` all mapped to the same "compare as text" hint, and
+  the comparison runs against the JSONB text rendering, which PostgreSQL emits lower-case. The
+  result was a well-formed empty list — indistinguishable from "no rows matched", and it cost
+  a real debugging session where the empty result read as missing seed data.
+
+  An `eq`/`neq`/`in`/`nin` against an identity field whose literal is a UUID now compares
+  against both renderings (`= ANY(ARRAY[…])`, `<> ALL(ARRAY[…])`). **No SQL cast is emitted.**
+  That is the load-bearing detail: `(data->>'id')::uuid` is evaluated *per row*, so on a table
+  where any row's identity is not a UUID it would raise SQLSTATE 22P02 for every query — and
+  `ID` is documented as intentionally spanning uuid / integer / text keys
+  (`docs/adr/0017-entity-identity-contract.md`), with in-repo fixtures holding `'user-1'` and
+  a BIGINT primary key. Only the *literal* is inspected, so no knowledge of the column's type
+  is required and nothing can raise.
+
+  Three things deliberately unchanged: an **already-canonical** literal generates byte-identical
+  SQL (so plans and indexes are unaffected); a **non-UUID** identity value such as `'user-1'`
+  takes the unchanged text path, because case-folding an opaque key would be the same
+  silent-wrong-answer bug in the opposite direction; and **`ORDER BY` is untouched** — sorting
+  identities as text is correct, and a cast there would both retype the sort and raise on
+  non-UUID rows. Range operators (`gt`/`lt`/…) on identity fields also keep text ordering.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is

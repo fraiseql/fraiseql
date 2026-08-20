@@ -39,6 +39,20 @@ pub enum ScalarFieldType {
     Date,
     /// Wall-clock time (`::time`).
     Time,
+    /// Identity comparison (`ID`/`UUID`) — **no cast**.
+    ///
+    /// Renders exactly like [`Self::Text`]; the variant exists to mark *which*
+    /// fields are identities, not to introduce a cast. `cast_type_name` returns
+    /// `None` for it deliberately.
+    ///
+    /// Casting would be the obvious repair and is the wrong one:
+    /// `(data->>'id')::uuid` is evaluated **per row**, so one row holding a
+    /// non-UUID identity raises SQLSTATE 22P02 for every query — and `ID` is
+    /// documented as intentionally spanning uuid / integer / text keys
+    /// (`docs/adr/0017-entity-identity-contract.md`), with fixtures holding
+    /// `'user-1'` and a BIGINT pk. Equality is instead made case-insensitive at
+    /// the *literal*, which needs no knowledge of the column's type.
+    Uuid,
 }
 
 /// ORDER BY clause with optional type and native column information.

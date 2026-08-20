@@ -52,6 +52,10 @@ impl SqlDialect for PostgresDialect {
             ScalarFieldType::DateTime => Some("timestamptz"),
             ScalarFieldType::Date => Some("date"),
             ScalarFieldType::Time => Some("time"),
+            // Deliberately uncast — see `ScalarFieldType::Uuid`. A `::uuid` cast
+            // on the left-hand side is evaluated per row and would raise 22P02
+            // on any row whose identity is not a UUID.
+            ScalarFieldType::Uuid => None,
         }
     }
 

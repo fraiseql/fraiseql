@@ -198,7 +198,15 @@ const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> ScalarFie
 /// `FieldType::Id` cannot be assumed UUID-backed: it *intentionally* spans
 /// uuid / integer / text keys.
 const fn field_type_to_where_type(ft: &crate::schema::FieldType) -> ScalarFieldType {
-    scalar_cast_hint(ft)
+    use crate::schema::FieldType as FT;
+    match ft {
+        // Identity fields compare case-insensitively over the two renderings of
+        // a UUID. `ScalarFieldType::Uuid` emits **no cast** — it marks the
+        // comparison semantics, not a SQL type. The ORDER BY sibling keeps
+        // `Text`, which is why the two were split before this landed.
+        FT::Id | FT::Uuid => ScalarFieldType::Uuid,
+        _ => scalar_cast_hint(ft),
+    }
 }
 
 /// The shared type→cast mapping both jobs start from.
@@ -425,14 +433,27 @@ mod cast_hint_characterisation {
     /// split is deliberately behaviour-preserving. This test is the record of
     /// that: when a repair makes them diverge, **this test is what fails**, and
     /// the divergence has to be written down rather than discovered.
+    /// The WHERE and ORDER BY hints **have** diverged, and only for identities.
+    ///
+    /// This test was written to fail when the split stopped being cosmetic, so
+    /// the divergence had to be written down rather than discovered. It has now
+    /// fired once, for exactly `ID` and `UUID`: the filter compares them
+    /// case-insensitively while the sort keeps text ordering, which is correct
+    /// today and must not change.
     #[test]
-    fn the_where_and_order_by_cast_hints_have_not_diverged() {
+    fn the_where_and_order_by_cast_hints_diverge_only_for_identity_fields() {
         for ft in representative_field_types() {
-            assert_eq!(
-                field_type_to_where_type(&ft),
-                field_type_to_order_by_type(&ft),
-                "cast hints diverged for {ft:?} — intended? then update this characterisation"
-            );
+            let where_ty = field_type_to_where_type(&ft);
+            let order_ty = field_type_to_order_by_type(&ft);
+            if matches!(ft, FT::Id | FT::Uuid) {
+                assert_eq!(where_ty, ScalarFieldType::Uuid, "identity filters compare as identity");
+                assert_eq!(order_ty, ScalarFieldType::Text, "identity sorts stay text ordering");
+            } else {
+                assert_eq!(
+                    where_ty, order_ty,
+                    "only identities may diverge; {ft:?} did — intended? then update this"
+                );
+            }
         }
     }
 
@@ -447,10 +468,18 @@ mod cast_hint_characterisation {
     /// Named as a decision, not an accident: see
     /// `docs/adr/0017-entity-identity-contract.md` for why `FieldType::Id`
     /// cannot simply be cast — it intentionally spans uuid / integer / text keys.
+    /// Was `id_equality_is_case_sensitive_text_equality` — the defect, pinned
+    /// where it is decided. It is now fixed: identity fields carry their own
+    /// comparison semantics rather than sharing `Text` with strings.
     #[test]
-    fn id_equality_is_case_sensitive_text_equality() {
-        assert_eq!(field_type_to_where_type(&FT::Id), ScalarFieldType::Text);
-        assert_eq!(field_type_to_where_type(&FT::Uuid), ScalarFieldType::Text);
+    fn identity_fields_compare_as_identities_not_as_text() {
+        assert_eq!(field_type_to_where_type(&FT::Id), ScalarFieldType::Uuid);
+        assert_eq!(field_type_to_where_type(&FT::Uuid), ScalarFieldType::Uuid);
+        assert_ne!(
+            field_type_to_where_type(&FT::String),
+            ScalarFieldType::Uuid,
+            "a plain string that happens to hold a UUID must keep text semantics"
+        );
     }
 
     /// The sort side is **correct today** and must stay byte-identical through
