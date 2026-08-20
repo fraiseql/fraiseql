@@ -5,6 +5,7 @@ use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::parse_query,
+    runtime::{collect_variable_references, validate_variable_uses},
 };
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -61,6 +62,26 @@ impl<A: DatabaseAdapter> Executor<A> {
             message:  e.to_string(),
             location: "query".to_string(),
         })?;
+
+        // GraphQL § 5.8.3: every variable used must be defined by the operation.
+        //
+        // Placed here, immediately after the parse and *before* the routing
+        // branches, because this is the only point every operation type shares
+        // while the AST still exists: `classify_query_with_parse` returns the
+        // parsed query only for `Regular`, so a check in `execute_dispatch`
+        // would have nothing to validate for a mutation, aggregate, window,
+        // node or federation document.
+        //
+        // Not in `QueryMatcher::match_query`: `field_selection_to_query`
+        // re-serialises each root of a multi-root query into a synthetic
+        // single-root string that carries no variable *definitions* while
+        // faithfully re-emitting `$name` references, so a check there would
+        // reject every multi-root query that uses a variable.
+        validate_variable_uses(
+            parsed.operation_name.as_deref(),
+            &parsed.variables.iter().map(|v| v.name.clone()).collect::<Vec<_>>(),
+            &collect_variable_references(&parsed)?,
+        )?;
 
         let root_field = &parsed.root_field;
 

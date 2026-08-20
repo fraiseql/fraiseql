@@ -822,6 +822,204 @@ async fn declared_fields_still_execute() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// B5. Undefined variable references are validation errors — § 5.8.3
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// GraphQL § 5.8.3 (All Variable Uses Defined): every variable used within an
+// operation must be defined by that operation. The same silent-drop meta-pattern
+// as B3 and B4, one axis further out — and the most damaging of the three,
+// because it removes a *filter* or a *bound* rather than a projection.
+//
+// `resolve_inline_arg` resolves a whole-argument variable by looking its name up
+// in the request's variables map and dropping the argument when absent. That is
+// correct for a **declared** variable the caller chose not to supply, and
+// silently destructive for one that was never declared: `users(offset: $nope)`
+// returned every row, `where: $nope` returned the whole table.
+//
+// The boundary: this rule is about *definitions*, never about supplied *values*.
+// The declared-but-unsupplied control below is what keeps that distinction honest.
+
+/// `users` with pagination auto-params, so `limit`/`offset` are argument names
+/// the query genuinely accepts and a rejection can only come from the variable.
+fn paginating_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+    let mut schema = user_schema();
+    for q in &mut schema.queries {
+        q.auto_params.has_limit = true;
+        q.auto_params.has_offset = true;
+        q.auto_params.has_where = true;
+    }
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
+}
+
+/// The issue's repro: an offset that silently vanished, returning every row.
+#[tokio::test]
+async fn an_undefined_variable_reference_is_a_validation_error() {
+    let (exec, adapter) = paginating_executor();
+    let err = exec
+        .execute("query Q { users(offset: $neverDeclared) { id } }", None)
+        .await
+        .expect_err("referencing a variable the operation does not define is invalid");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("$neverDeclared") && msg.contains("operation 'Q'"),
+        "the error must name the variable and the operation, got: {msg}"
+    );
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an invalid document must not execute — the database was queried anyway"
+    );
+}
+
+/// The nastiest shape: the dropped argument is the *filter*, so the response is
+/// the whole table under a 200.
+#[tokio::test]
+async fn an_undefined_variable_in_where_is_a_validation_error() {
+    let (exec, adapter) = paginating_executor();
+    let err = exec
+        .execute("query Q { users(where: $neverDeclared) { id } }", None)
+        .await
+        .expect_err("a dropped `where` widens the result set — it must not execute");
+    assert!(err.to_string().contains("$neverDeclared"), "got: {err}");
+    assert!(adapter.recorded_projections().is_empty(), "must not execute");
+}
+
+/// Nested inside an input object, where the reference is least visible.
+#[tokio::test]
+async fn an_undefined_variable_nested_in_an_object_is_a_validation_error() {
+    let (exec, _) = paginating_executor();
+    let err = exec
+        .execute("query Q { users(where: {name: {eq: $nope}}) { id } }", None)
+        .await
+        .expect_err("a nested reference is a reference");
+    assert!(err.to_string().contains("$nope"), "got: {err}");
+}
+
+/// Directive arguments carry references too, and a dropped `@skip` condition
+/// silently changes which fields come back.
+#[tokio::test]
+async fn an_undefined_variable_in_a_directive_is_a_validation_error() {
+    let (exec, _) = paginating_executor();
+    let err = exec
+        .execute("query Q { users { id name @skip(if: $nope) } }", None)
+        .await
+        .expect_err("a directive argument is a variable use");
+    assert!(err.to_string().contains("$nope"), "got: {err}");
+}
+
+/// The write path: a mutation root argument.
+#[tokio::test]
+async fn an_undefined_variable_in_a_mutation_is_a_validation_error() {
+    let (exec, _) = mutation_executor();
+    let err = exec
+        .execute(r#"mutation M { createUser(email: "a@b.com", name: $nope) { id } }"#, None)
+        .await
+        .expect_err("a mutation root argument is a variable use");
+    assert!(err.to_string().contains("$nope"), "got: {err}");
+}
+
+/// **The ordering property.** GATE-1 (depth/complexity/size) used to run before
+/// classification, so `limit: $undeclared` — whose dropped bound is exactly what
+/// makes a query expensive — reported a *cost* error that never mentioned the
+/// variable. The § 5.8.3 check is deliberately hoisted above GATE-1 so the
+/// actionable error wins.
+///
+/// `max_depth: 1` makes GATE-1 reject *any* document here, so if the ordering
+/// regressed this test sees the depth error instead of the variable.
+#[tokio::test]
+async fn the_variable_error_wins_over_the_gate1_error() {
+    let mut schema = user_schema();
+    for q in &mut schema.queries {
+        q.auto_params.has_limit = true;
+    }
+    let config = fraiseql_core::runtime::RuntimeConfig {
+        query_validation: Some(fraiseql_core::security::QueryValidatorConfig {
+            max_depth:      1,
+            max_complexity: 1,
+            max_size_bytes: 16,
+            max_aliases:    1,
+        }),
+        ..Default::default()
+    };
+    let adapter = Arc::new(RecordingAdapter::new());
+    let exec = Executor::with_config_and_relay(schema, Arc::clone(&adapter), config);
+
+    let err = exec
+        .execute("query Q { users(limit: $undeclared) { id name profile { tier } } }", None)
+        .await
+        .expect_err("the document is invalid on both counts");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("$undeclared"),
+        "the variable error must win over the GATE-1 cost/depth error, got: {msg}"
+    );
+    assert!(adapter.recorded_projections().is_empty(), "must not execute");
+}
+
+/// **Control — the boundary.** A variable that *is* defined but is simply not
+/// supplied still drops its argument. That is spec-correct and deliberate: it is
+/// what lets `limit: $limit` fall back to the query's compiled default instead
+/// of forcing `LIMIT NULL`.
+#[tokio::test]
+async fn a_declared_but_unsupplied_variable_still_executes() {
+    let (exec, _) = paginating_executor();
+    let response = exec
+        .execute("query Q($o: Int) { users(offset: $o) { id name } }", None)
+        .await
+        .expect("a declared variable with no value supplied is valid — it drops the argument");
+    assert_eq!(response["data"]["users"][0]["name"], "Alice", "{response}");
+}
+
+/// **Control — the multi-root trap.** `field_selection_to_query` re-serialises
+/// each root into a synthetic single-root string carrying no variable
+/// *definitions* while preserving `$name` references. A § 5.8.3 check placed in
+/// the matcher would see zero definitions and reject this document.
+#[tokio::test]
+async fn a_multi_root_query_using_a_declared_variable_still_executes() {
+    let (exec, _) = paginating_executor();
+    let response = exec
+        .execute(
+            "query Q($n: Int) { a: users(limit: $n) { id } b: users { id } }",
+            Some(&json!({"n": 5})),
+        )
+        .await
+        .expect("a multi-root query using a declared variable must run");
+    assert!(response["data"].get("a").is_some(), "first root missing: {response}");
+    assert!(response["data"].get("b").is_some(), "second root missing: {response}");
+}
+
+/// **Control — fragment reachability.** A variable referenced only inside a
+/// reachable fragment counts as used, and the fragment's references are scored
+/// against the operation that spreads it.
+#[tokio::test]
+async fn a_variable_referenced_only_inside_a_fragment_still_executes() {
+    let (exec, _) = paginating_executor();
+    exec.execute(
+        "query Q($w: JSON) { users(where: $w) { id ...F } } fragment F on User { name }",
+        None,
+    )
+    .await
+    .expect("a declared variable used through a fragment is valid");
+}
+
+/// **Control — an undefined reference *inside* a reachable fragment is still
+/// caught.** The reachability walk must find it, not merely tolerate fragments.
+#[tokio::test]
+async fn an_undefined_variable_inside_a_reachable_fragment_is_a_validation_error() {
+    let (exec, _) = paginating_executor();
+    let err = exec
+        .execute(
+            "query Q { users { id ...F } } fragment F on User { name @skip(if: $nope) }",
+            None,
+        )
+        .await
+        .expect_err("a reachable fragment's references belong to the operation");
+    assert!(err.to_string().contains("$nope"), "got: {err}");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // B2. `__typename` on a nested object — #912
 // ══════════════════════════════════════════════════════════════════════════════
 //

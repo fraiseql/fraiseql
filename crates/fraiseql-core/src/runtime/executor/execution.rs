@@ -143,16 +143,28 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        // GATE 1: query-structure validation (DoS protection for direct embedders).
-        // Runs on BOTH the anonymous and authenticated paths (L-gate1-skip).
-        self.run_gate1(query, variables)?;
-
         // 1. Classify query type — also returns the ParsedQuery for Regular
-        // queries so we do not parse the same string twice.
+        // queries so we do not parse the same string twice. Classification also
+        // enforces GraphQL § 5.8.3 (every variable used must be defined).
         //
         // The parse result is memoised in `parse_cache` (keyed by xxHash64 of
         // the query string) so repeated identical queries skip re-parsing — on
-        // both the anonymous and authenticated paths (L-parse-cache).
+        // both the anonymous and authenticated paths (L-parse-cache). Only the
+        // `Ok` pair is cached, so a document rejected by § 5.8.3 is re-checked
+        // rather than serving a cached verdict; and because validity of a
+        // *definition* is a property of the document alone — never of this
+        // request's variable *values* — caching the accepted verdict is sound.
+        //
+        // This runs BEFORE GATE-1, deliberately. GATE-1 scores cost, and a
+        // document whose `limit: $undeclared` was silently dropped becomes
+        // unbounded and trips the complexity ceiling — so with GATE-1 first the
+        // client receives an error about *cost* that never mentions the
+        // variable, which is harder to debug than no error at all. Reordering a
+        // DoS gate exposes no new surface here: `parse_query` goes through
+        // `complexity::parse_graphql_document`, the same panic-guarded seam
+        // GATE-1 itself parses with (`validate_with_variables`, and
+        // `parse_graphql_document` again for `max_operation_cost`), so the
+        // parser sees nothing it was not already going to see.
         let cache_key = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
         let (query_type, maybe_parsed) = if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
             arc.as_ref().clone()
@@ -161,6 +173,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             self.ctx.parse_cache.insert(cache_key, Arc::new(pair.clone()));
             pair
         };
+
+        // GATE 1: query-structure validation (DoS protection for direct embedders).
+        // Runs on BOTH the anonymous and authenticated paths (L-gate1-skip).
+        self.run_gate1(query, variables)?;
 
         // 1b. Operation-level authorization (#422). Runs before single- AND
         //     multi-root dispatch so a deny short-circuits the parallel pipeline.

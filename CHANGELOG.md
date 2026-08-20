@@ -47,6 +47,39 @@ disagreed, and the promise was the part that was wrong.
   argument". Arguments on **nested** fields are unchanged: no object-type field declares
   arguments, so they remain inert.
 
+- **A document referencing a variable it never defines is refused instead of silently losing
+  the argument (GraphQL § 5.8.3).** The same silent-drop failure as #1154, one axis further
+  out, and the most damaging of the family: it removes a *filter* or a *bound* rather than a
+  projection. A whole-argument variable is resolved by looking its name up in the request's
+  variables map and dropping the argument when absent — correct for a **declared** variable
+  the caller chose not to supply, and destructive for one that was never declared. So
+  `query Q { orders(offset: $neverDeclared) { reference } }` returned **every** row, and
+  `where: $neverDeclared` returned the whole table, both under a 200 with no `errors` array.
+  With `limit:` it was worse: the dropped bound made the query unbounded, which tripped the
+  complexity ceiling, so the client got an error about *cost* that never mentioned the
+  variable.
+
+  The response is now
+  `Validation error: Variable '$neverDeclared' is not defined by operation 'Q'.`, with a "did
+  you mean" hint when a close declared name exists — a variable typo is exactly what this
+  catches. References are collected from whole arguments, values nested in objects and lists,
+  directive arguments (`@skip`/`@include`/`@stream`), nested field arguments, and mutation
+  root arguments. **Breaking for exactly the clients that are silently getting unfiltered or
+  unpaginated results today.**
+
+  Two boundaries were deliberately *not* crossed. A variable that **is** declared but simply
+  not supplied still drops its argument — that is spec-correct and load-bearing, since it is
+  what lets `limit: $limit` fall back to the query's compiled default instead of forcing
+  `LIMIT NULL`. And in a multi-operation document only the fragments transitively reachable
+  from the executed operation are walked, so a second operation's fragments — which
+  legitimately reference *that* operation's variables — are never scored against this one.
+
+  The check runs at classification, which is the one point every operation type shares while
+  the AST still exists, and it is ordered **before** the depth/complexity gate on purpose: the
+  variable error is the actionable one, and the cost error was a symptom of the very argument
+  that went missing. Parsing before that gate exposes no new surface — the gate already parses
+  the same document through the same panic-guarded seam.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is
