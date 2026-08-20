@@ -87,27 +87,37 @@ disagreed, and the promise was the part that was wrong.
   introspection publishes, declared enums, and declared input objects. List and non-null
   wrappers are structural, so `[ID!]!` resolves as `ID`.
 
-  Two deliberate limits. The accepted scalar list is **derived from the introspection
+  Three deliberate limits. The accepted scalar list is **derived from the introspection
   response**, not hand-copied — it publishes `JSON`, while the *authoring* table
   `BUILTIN_SCALARS` spells the same scalar `Json`, and a client writes what introspection told
-  it; resolving against the authoring table would have rejected `$w: JSON`. And the rule
+  it; resolving against the authoring table would have rejected `$w: JSON`. The rule
   **fails open** when a schema carries no enums *and* no input objects: that means the
   compiler emitted no input-type information, which is not the same as declaring those names
-  absent. Consequently `Vector`/`BitVector`/`HalfVector`/`SparseVector` are correctly *not*
-  acceptable variable types — they exist in the authoring table but introspection never
-  publishes them as scalars.
+  absent. And a type the schema **declares** is accepted even when introspection does not
+  publish it as a scalar — notably the pgvector family
+  (`Vector`/`BitVector`/`HalfVector`/`SparseVector`), whose fields introspect as `JSON` or
+  `[Float!]!`. A hand-authored or externally-generated document does not need introspection to
+  know a type the schema declares, so `query Q($v: Vector)` against a schema with a `Vector` keeps
+  working. A schema declaring no vector anywhere still refuses the name: acceptance follows
+  from *this* schema declaring something of that type, never from membership of a global list.
 
 - **A variable that is declared and never used is refused (GraphQL § 5.8.4).**
   `query Q($unused: Int) { orders(limit: 1) { reference } }` is now
   `Validation error: Variable '$unused' is never used in operation 'Q'.`
 
-  **Read this one differently from the other two.** § 5.8.3 and § 5.8.4 both reject documents
-  that used to be accepted, but § 5.8.3 was fixing a **wrong answer** — silently dropped
-  filters and bounds — whereas a document with an unused variable definition executes and
-  answers **correctly** today. Nothing is dropped, nothing is wrong. The spec is unambiguous
-  that it is invalid, but the shape it outlaws is a real one: a single document shared across
-  call sites and sent with a superset of variable definitions. If you ship that pattern, this
-  is the entry that breaks you, and the fix is to trim each operation's definitions to what it
+  **Read this one differently from the other two.** § 5.8.3 was fixing a **wrong answer** —
+  silently dropped filters and bounds — whereas a document with an unused variable definition
+  executes and answers **correctly** today. Nothing is dropped, nothing is wrong.
+
+  What settles it is not the spec text but the ecosystem: **`graphql-js` has enforced § 5.8.4
+  for years, and so does every other major GraphQL implementation.** A client sending superset
+  variable definitions is already rejected by every other server it talks to. So the pattern is
+  not really in the wild — what is in the wild is code written specifically against FraiseQL's
+  leniency, which is a much smaller and far more addressable population than "everyone using
+  shared documents". This change aligns FraiseQL with every other implementation rather than
+  inventing a restriction.
+
+  If you have such a document, the fix is to trim each operation's definitions to what it
   references. A variable referenced only inside a reachable fragment **does** count as used.
 
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /

@@ -17,9 +17,13 @@
 //! | § 5.8.4 | `$unused` defined, never referenced | clients that work and answer **correctly** today |
 //!
 //! § 5.8.4 is the only rule here with no correctness payoff: nothing is silently
-//! dropped and no answer is wrong. It outlaws a real client shape — one document
-//! reused across call sites, sent with a superset of variable definitions. The
-//! spec is unambiguous that this is invalid; the CHANGELOG says so plainly.
+//! dropped and no answer is wrong. What justifies it is not the spec text but the
+//! ecosystem — `graphql-js` has enforced § 5.8.4 for years, as does every other
+//! major implementation, so a client sending superset variable definitions is
+//! already refused by every other server it talks to. The population this breaks
+//! is not "everyone reusing documents"; it is code written specifically against
+//! FraiseQL's leniency. This aligns with every other implementation rather than
+//! inventing a restriction.
 //!
 //! Before this, an undefined reference was dropped on the floor along with the
 //! argument that carried it. [`QueryMatcher::resolve_inline_arg`] resolves a
@@ -201,7 +205,7 @@ pub fn validate_variable_types(
         let known = scalars.iter().any(|s| s == type_name)
             || schema.find_enum(type_name).is_some()
             || schema.find_input_type(type_name).is_some()
-            || custom_scalar_is_declared(schema, type_name);
+            || schema_declares_type_name(schema, type_name);
         if known {
             continue;
         }
@@ -258,13 +262,61 @@ fn innermost_type_name(name: &str) -> &str {
     inner
 }
 
-/// Whether any declared field uses `name` as a custom scalar.
-fn custom_scalar_is_declared(schema: &crate::schema::CompiledSchema, name: &str) -> bool {
-    schema.types.iter().any(|t| {
-        t.fields
+/// Whether the schema itself declares `name` as a type — in **field or argument
+/// position** — even though introspection does not publish it as a scalar.
+///
+/// This is the #939 principle applied properly: reject what the schema
+/// positively says is not there, not merely what introspection happens to
+/// advertise. The published-scalar list is the set a client can *learn* names
+/// from; it is not the set of names that are legitimate. A hand-authored or
+/// externally-generated document does not need introspection to know a type the
+/// schema declares.
+///
+/// The concrete case this exists for is the pgvector family.
+/// `Vector`/`BitVector`/`HalfVector`/`SparseVector` are in the **authoring**
+/// table but are never published as `SCALAR` types — a vector field's
+/// introspection `type_ref` is `JSON` or `[Float!]!`. Resolving § 5.8.2 against
+/// the published list alone would therefore refuse `query Q($v: Vector)` against
+/// a schema that declares a `Vector`, turning a working query into an error.
+///
+/// The distinction that keeps this from collapsing into "union the two tables":
+/// a name is accepted because **this schema declares something of that type**,
+/// not because the name exists in some global list. A schema with no vector
+/// anywhere still refuses `$v: Vector`.
+fn schema_declares_type_name(schema: &crate::schema::CompiledSchema, name: &str) -> bool {
+    let matches_type = |ft: &crate::schema::FieldType| declared_type_name(ft) == Some(name);
+
+    schema
+        .types
+        .iter()
+        .any(|t| t.fields.iter().any(|f| matches_type(&f.field_type)))
+        || schema
+            .queries
             .iter()
-            .any(|f| matches!(&f.field_type, crate::schema::FieldType::Scalar(s) if s == name))
-    })
+            .any(|q| q.arguments.iter().any(|a| matches_type(&a.arg_type)))
+        || schema
+            .mutations
+            .iter()
+            .any(|m| m.arguments.iter().any(|a| matches_type(&a.arg_type)))
+}
+
+/// The name an author writes for `ft` in `schema.json`.
+///
+/// [`FieldType::type_name`] covers only the composite variants, and
+/// [`FieldType::to_graphql_string`] gives the *published* spelling — which for a
+/// vector is `[Float!]!`, not a name at all. The authoring table is the only
+/// place the scalar variants carry their written names, so it is the reverse
+/// lookup used here.
+fn declared_type_name(ft: &crate::schema::FieldType) -> Option<&str> {
+    if let Some(name) = ft.type_name() {
+        return Some(name);
+    }
+    if let crate::schema::FieldType::Scalar(name) = ft {
+        return Some(name);
+    }
+    crate::schema::BUILTIN_SCALARS
+        .iter()
+        .find_map(|(name, builtin)| (builtin == ft).then_some(*name))
 }
 
 /// Check that every variable the operation defines is also used by it
@@ -748,11 +800,47 @@ mod tests {
         .expect("a declared input object is an input type");
     }
 
+    /// **The other half of the vector pair.** A schema that *declares* something
+    /// of a vector type accepts that name as a variable type, even though
+    /// introspection never publishes it as a `SCALAR` (a vector field's
+    /// `type_ref` is `JSON` or `[Float!]!`).
+    ///
+    /// Resolving § 5.8.2 against the published list alone would refuse
+    /// `query Q($v: Vector)` against a schema that has a `Vector` — turning a
+    /// working hand-authored or externally-generated query into an error. The
+    /// published list is the set a client can *learn* names from; it is not the
+    /// set of names that are legitimate.
+    #[test]
+    fn a_vector_type_the_schema_declares_is_an_acceptable_variable_type() {
+        use crate::schema::{FieldDefinition, FieldType, TypeDefinition};
+
+        for (name, field_type) in [
+            ("Vector", FieldType::Vector),
+            ("BitVector", FieldType::BitVector),
+            ("HalfVector", FieldType::HalfVector),
+            ("SparseVector", FieldType::SparseVector),
+        ] {
+            let mut schema = schema_with_input_types();
+            let mut doc = TypeDefinition::new("Doc", "v_doc");
+            doc.fields.push(FieldDefinition::new("embedding", field_type));
+            schema.types.push(doc);
+
+            let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
+            let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source));
+            assert!(
+                result.is_ok(),
+                "'{name}' is declared by this schema, so refusing it would break a working \
+                 query: {result:?}"
+            );
+        }
+    }
+
     /// `Vector`/`BitVector`/`HalfVector`/`SparseVector` live in the *authoring*
-    /// table but are **not** published as scalars — a vector field's
-    /// introspection `type_ref` is `JSON` or `[Float!]!`. They are therefore
-    /// correctly not acceptable variable type names, and this pins it so a
-    /// future author does not "fix" § 5.8.2 by unioning the two tables.
+    /// table but are **not** published as scalars. A schema that declares no
+    /// vector anywhere therefore still refuses them — which is what keeps the
+    /// rule above from collapsing into "union the two tables": a name is
+    /// accepted because *this* schema declares something of that type, never
+    /// because the name exists in some global list.
     #[test]
     fn authoring_only_scalars_are_not_acceptable_variable_types() {
         let schema = schema_with_input_types();
