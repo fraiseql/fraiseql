@@ -494,6 +494,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                         &query_match.query_def.native_columns,
                     )
                 })
+                .transpose()?
         } else {
             None
         };
@@ -874,6 +875,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                         &query_match.query_def.native_columns,
                     )
                 })
+                .transpose()?
         } else {
             None
         };
@@ -1153,7 +1155,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     &query_match.query_def.return_type,
                     &query_match.query_def.native_columns,
                 )
-            });
+            })
+            .transpose()?;
 
         // `nearest` similarity search (#386) — same lowering as the two
         // GraphQL runners above, so the direct path cannot drift (#739's class).

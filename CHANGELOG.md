@@ -150,6 +150,26 @@ disagreed, and the promise was the part that was wrong.
   relation filter on a scalar field is never legitimate. The same shape on a **relation**
   field is the documented nested-filter form and still works.
 
+- **`orderBy` naming a field the type does not declare is refused instead of sorting nothing.**
+  An unknown sort key kept the default field type and lowered to a JSONB extraction of a key
+  that is not there — all-NULL, which orders nothing. The client received rows in whatever
+  order the plan happened to produce, with no signal that its sort had been discarded:
+  `orderBy: [{field: "totallyBogusField", direction: "DESC"}]` returned the same natural order
+  as no `orderBy` at all.
+
+  `Validation error: Cannot sort by 'totallyBogusField' on type 'Order'. Did you mean 'reference'?`
+
+  A key is refused only when it is **neither** a declared field on the type **nor** a native
+  column. That second half is load-bearing: `enrich_order_by_clauses` routes a native column
+  straight to a real column three lines below the check, so a sort key can be legitimate
+  without being a declared type field, and a naive "must be a type field" rule would break
+  those deployments. As elsewhere in this family, the rule **fails open** when the schema
+  cannot adjudicate — an unknown type, or one carrying no fields.
+
+  Enforced on every surface that sorts: the list runner, the relay connection runner, and the
+  REST sort parameter, each proved by its own test rather than by the observation that they
+  reach the same function.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is

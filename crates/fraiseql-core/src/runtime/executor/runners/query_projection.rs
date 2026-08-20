@@ -223,14 +223,45 @@ const fn scalar_cast_hint(ft: &crate::schema::FieldType) -> ScalarFieldType {
 /// to determine the correct `ScalarFieldType` (so the SQL generator emits a
 /// typed cast), and checks `native_columns` for a direct column mapping (so the
 /// SQL generator can bypass JSONB extraction entirely).
+///
+/// # Sorting by a field that does not exist
+///
+/// An unknown sort key used to keep `ScalarFieldType`'s default and lower to a
+/// JSONB extraction of a key that is not there — all-NULL, which orders nothing.
+/// The client received rows in whatever order the plan happened to produce, with
+/// no signal that its sort had been discarded.
+///
+/// A key is now refused when it is **neither** a declared field on the type
+/// **nor** a native column — the second half matters, because the statement
+/// below this one routes a native column straight to a real column, so a sort
+/// key can be legitimate without being a declared type field.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the field and the type. Only
+/// when the schema can adjudicate: an unknown type, or one carrying no fields,
+/// passes unchanged (#939).
 pub fn enrich_order_by_clauses(
     mut clauses: Vec<OrderByClause>,
     schema: &CompiledSchema,
     return_type: &str,
     native_columns: &std::collections::HashMap<String, String>,
-) -> Vec<OrderByClause> {
+) -> crate::error::Result<Vec<OrderByClause>> {
     let type_def = schema.find_type(return_type);
+    // The schema can adjudicate only when the type was found *and* carries
+    // fields. Both absences produce "no field list", and rejecting on an absence
+    // of evidence is what #939 forbids.
+    let can_adjudicate = type_def.is_some_and(|td| !td.fields.is_empty());
+
     for clause in &mut clauses {
+        if can_adjudicate {
+            let declared = type_def.is_some_and(|td| td.find_field(&clause.field).is_some());
+            let native = native_columns.contains_key(&clause.storage_key());
+            if !declared && !native {
+                return Err(unknown_sort_field(&clause.field, return_type, type_def));
+            }
+        }
+
         // Look up the field type from the schema definition.
         if let Some(td) = type_def {
             if let Some(field_def) = td.find_field(&clause.field) {
@@ -245,7 +276,28 @@ pub fn enrich_order_by_clauses(
             clause.native_column = Some(storage_key);
         }
     }
-    clauses
+    Ok(clauses)
+}
+
+/// The error for a sort key that is neither a declared field nor a native column.
+fn unknown_sort_field(
+    field: &str,
+    return_type: &str,
+    type_def: Option<&crate::schema::TypeDefinition>,
+) -> crate::error::FraiseQLError {
+    let candidates: Vec<&str> =
+        type_def.map_or_else(Vec::new, |td| td.fields.iter().map(|f| f.name.as_str()).collect());
+    let subject = format!("Cannot sort by '{field}' on type '{return_type}'.");
+    let message = match super::super::super::suggest_similar(field, &candidates).as_slice() {
+        [s] => format!("{subject} Did you mean '{s}'?"),
+        [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
+        [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),
+        _ => subject,
+    };
+    crate::error::FraiseQLError::Validation {
+        message,
+        path: Some(format!("orderBy.{field}")),
+    }
 }
 
 /// Return `true` if `field_name` appears in `selections`, including inside inline
@@ -419,5 +471,110 @@ mod cast_hint_characterisation {
         assert_eq!(field_type_to_order_by_type(&FT::Int), ScalarFieldType::Integer);
         assert_eq!(field_type_to_order_by_type(&FT::Decimal), ScalarFieldType::Numeric);
         assert_eq!(field_type_to_order_by_type(&FT::DateTime), ScalarFieldType::DateTime);
+    }
+}
+
+#[cfg(test)]
+mod order_by_validation {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::{
+        db::OrderByClause,
+        schema::{FieldDefinition, FieldType, TypeDefinition},
+    };
+
+    fn schema_with_order() -> CompiledSchema {
+        let mut schema = CompiledSchema::default();
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields.push(FieldDefinition::new("reference", FieldType::String));
+        order.fields.push(FieldDefinition::new("total", FieldType::Decimal));
+        schema.types.push(order);
+        schema
+    }
+
+    fn clause(field: &str) -> Vec<OrderByClause> {
+        vec![OrderByClause::new(
+            field.to_string(),
+            crate::db::OrderDirection::Asc,
+        )]
+    }
+
+    #[test]
+    fn an_unknown_sort_field_is_refused() {
+        let err = enrich_order_by_clauses(
+            clause("totallyBogusField"),
+            &schema_with_order(),
+            "Order",
+            &HashMap::new(),
+        )
+        .expect_err("an unknown sort key silently ordered nothing");
+        let msg = err.to_string();
+        assert!(msg.contains("totallyBogusField"), "must name the field: {msg}");
+        assert!(msg.contains("Order"), "must name the type: {msg}");
+    }
+
+    #[test]
+    fn a_near_miss_sort_field_gets_a_did_you_mean_hint() {
+        let err = enrich_order_by_clauses(
+            clause("referense"),
+            &schema_with_order(),
+            "Order",
+            &HashMap::new(),
+        )
+        .expect_err("a typo must be refused");
+        assert!(err.to_string().contains("Did you mean 'reference'?"), "got: {err}");
+    }
+
+    #[test]
+    fn a_declared_sort_field_passes_and_keeps_its_cast() {
+        let enriched = enrich_order_by_clauses(
+            clause("total"),
+            &schema_with_order(),
+            "Order",
+            &HashMap::new(),
+        )
+        .expect("a declared field is a legitimate sort key");
+        assert_eq!(
+            enriched[0].field_type,
+            ScalarFieldType::Numeric,
+            "the declared type must still drive the cast"
+        );
+    }
+
+    /// A sort key can be legitimate **without** being a declared type field: the
+    /// statement right below the check routes a native column to a real column.
+    /// Rejecting on "not a type field" alone would break those deployments.
+    #[test]
+    fn a_native_column_that_is_not_a_type_field_passes() {
+        let mut native = HashMap::new();
+        native.insert("pk_order".to_string(), "int4".to_string());
+        let enriched =
+            enrich_order_by_clauses(clause("pk_order"), &schema_with_order(), "Order", &native)
+                .expect("a native column is a legitimate sort key");
+        assert_eq!(
+            enriched[0].native_column.as_deref(),
+            Some("pk_order"),
+            "the native mapping must still be applied"
+        );
+    }
+
+    #[test]
+    fn an_unknown_type_cannot_adjudicate_and_passes() {
+        enrich_order_by_clauses(
+            clause("anything"),
+            &schema_with_order(),
+            "NoSuchType",
+            &HashMap::new(),
+        )
+        .expect("no type information — a rejection cannot be justified");
+    }
+
+    #[test]
+    fn a_type_with_no_fields_cannot_adjudicate_and_passes() {
+        let mut schema = CompiledSchema::default();
+        schema.types.push(TypeDefinition::new("Order", "v_order"));
+        enrich_order_by_clauses(clause("anything"), &schema, "Order", &HashMap::new())
+            .expect("an empty field list is absence of evidence, not evidence of absence");
     }
 }

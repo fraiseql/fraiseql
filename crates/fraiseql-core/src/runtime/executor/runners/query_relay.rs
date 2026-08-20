@@ -297,6 +297,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                         &query_def.native_columns,
                     )
                 })
+                .transpose()?
         } else {
             None
         };
