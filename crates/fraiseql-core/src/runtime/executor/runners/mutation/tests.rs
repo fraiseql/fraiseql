@@ -1290,7 +1290,11 @@ mod mutation {
 
         let vars = serde_json::json!({ "n": "Bob", "e": "bob@example.com" });
         executor
-            .execute("mutation { create_user(input: { name: $n, email: $e }) { id } }", Some(&vars))
+            .execute(
+                "mutation M($n: String!, $e: String!) { \
+                 create_user(input: { name: $n, email: $e }) { id } }",
+                Some(&vars),
+            )
             .await
             .unwrap();
 
