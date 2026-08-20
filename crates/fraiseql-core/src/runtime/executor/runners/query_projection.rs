@@ -124,7 +124,7 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> SharedFi
             .map(|f| {
                 (
                     crate::utils::to_snake_case(f.name.as_str()),
-                    field_type_to_order_by_type(&f.field_type),
+                    field_type_to_where_type(&f.field_type),
                 )
             })
             .collect(),
@@ -137,6 +137,39 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> SharedFi
 /// (strings, UUIDs, enums) or for composite/container types where a cast
 /// would be meaningless.
 const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> ScalarFieldType {
+    scalar_cast_hint(ft)
+}
+
+/// Map a schema [`FieldType`] to the WHERE comparison cast hint.
+///
+/// **Currently byte-identical to [`field_type_to_order_by_type`], deliberately
+/// so — this is a decoupling, not a behaviour change.** The two were one
+/// function serving two jobs, and that shared identity is what makes the `ID`
+/// equality defect (F4) dangerous to fix: the natural repair is to cast a
+/// UUID-backed field, but `cast_type_name` is read by *both* the WHERE
+/// generator and the ORDER BY renderer (`dialect/trait_def.rs`, pinned by
+/// `dialect/capability/tests.rs`), so changing the filter cast silently retypes
+/// sorting too.
+///
+/// Splitting them first means whichever repair is chosen touches one job. The
+/// sort behaviour is correct today and must stay byte-identical; the filter
+/// behaviour is the one under review.
+///
+/// # The defect this exists to make fixable
+///
+/// `ID`/`UUID` land on [`ScalarFieldType::Text`], so equality is case-sensitive
+/// text equality against the JSONB rendering — which PostgreSQL emits
+/// lower-case. `{"id":{"eq":"0000000a-…-b"}}` matches; the same UUID
+/// upper-cased returns **zero rows**, which is indistinguishable from "no rows
+/// matched". See `docs/adr/0017-entity-identity-contract.md` for why
+/// `FieldType::Id` cannot be assumed UUID-backed: it *intentionally* spans
+/// uuid / integer / text keys.
+const fn field_type_to_where_type(ft: &crate::schema::FieldType) -> ScalarFieldType {
+    scalar_cast_hint(ft)
+}
+
+/// The shared type→cast mapping both jobs start from.
+const fn scalar_cast_hint(ft: &crate::schema::FieldType) -> ScalarFieldType {
     use crate::schema::FieldType as FT;
     match ft {
         FT::Int => ScalarFieldType::Integer,
@@ -277,5 +310,81 @@ pub fn merge_computed_fields(typed: &mut Vec<ProjectionField>, computed: Vec<Pro
         } else {
             typed.push(field);
         }
+    }
+}
+
+#[cfg(test)]
+mod cast_hint_characterisation {
+    use super::*;
+    use crate::schema::FieldType as FT;
+
+    /// Every `FieldType` that reaches either cast-hint mapping, so the pinning
+    /// below cannot quietly stop covering a variant.
+    fn representative_field_types() -> Vec<FT> {
+        vec![
+            FT::String,
+            FT::Int,
+            FT::Float,
+            FT::Boolean,
+            FT::Id,
+            FT::DateTime,
+            FT::Date,
+            FT::Time,
+            FT::Json,
+            FT::Uuid,
+            FT::Decimal,
+        ]
+    }
+
+    /// The WHERE and ORDER BY hints were one function until this split, and the
+    /// split is deliberately behaviour-preserving. This test is the record of
+    /// that: when a repair makes them diverge, **this test is what fails**, and
+    /// the divergence has to be written down rather than discovered.
+    #[test]
+    fn the_where_and_order_by_cast_hints_have_not_diverged() {
+        for ft in representative_field_types() {
+            assert_eq!(
+                field_type_to_where_type(&ft),
+                field_type_to_order_by_type(&ft),
+                "cast hints diverged for {ft:?} — intended? then update this characterisation"
+            );
+        }
+    }
+
+    /// The root cause of F4, pinned where it is decided rather than where it is
+    /// observed.
+    ///
+    /// `ID` and `UUID` map to `Text`, so a filter compares the JSONB text
+    /// rendering — which PostgreSQL emits lower-case. The consequence is that
+    /// `{"id":{"eq":"0000000A-…"}}` returns **zero rows** for a row that exists,
+    /// and zero rows is indistinguishable from "nothing matched".
+    ///
+    /// Named as a decision, not an accident: see
+    /// `docs/adr/0017-entity-identity-contract.md` for why `FieldType::Id`
+    /// cannot simply be cast — it intentionally spans uuid / integer / text keys.
+    #[test]
+    fn id_equality_is_case_sensitive_text_equality() {
+        assert_eq!(field_type_to_where_type(&FT::Id), ScalarFieldType::Text);
+        assert_eq!(field_type_to_where_type(&FT::Uuid), ScalarFieldType::Text);
+    }
+
+    /// The sort side is **correct today** and must stay byte-identical through
+    /// any F4 repair: UUIDs sort correctly as text, and a `::uuid` cast in
+    /// ORDER BY would both retype the sort and error on any row whose `id` is
+    /// not a valid UUID.
+    #[test]
+    fn identity_fields_sort_as_text_and_that_is_correct() {
+        assert_eq!(field_type_to_order_by_type(&FT::Id), ScalarFieldType::Text);
+        assert_eq!(field_type_to_order_by_type(&FT::Uuid), ScalarFieldType::Text);
+    }
+
+    #[test]
+    fn strongly_typed_scalars_keep_their_casts_on_both_sides() {
+        assert_eq!(field_type_to_where_type(&FT::Int), ScalarFieldType::Integer);
+        assert_eq!(field_type_to_where_type(&FT::Decimal), ScalarFieldType::Numeric);
+        assert_eq!(field_type_to_where_type(&FT::DateTime), ScalarFieldType::DateTime);
+        assert_eq!(field_type_to_order_by_type(&FT::Int), ScalarFieldType::Integer);
+        assert_eq!(field_type_to_order_by_type(&FT::Decimal), ScalarFieldType::Numeric);
+        assert_eq!(field_type_to_order_by_type(&FT::DateTime), ScalarFieldType::DateTime);
     }
 }
