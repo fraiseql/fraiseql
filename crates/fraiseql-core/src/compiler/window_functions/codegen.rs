@@ -5,6 +5,15 @@ use super::{
 };
 use crate::compiler::window_allowlist::WindowAllowlist;
 
+/// The output aliases visible to an **in-window** clause: none.
+///
+/// A window function's `OVER (…)` runs before any window column exists, so it
+/// cannot order by — or read — a sibling's alias. Only the final ORDER BY sees
+/// them. Naming the empty set makes that asymmetry explicit at each call site
+/// rather than leaving it implicit in an argument that happens to be empty.
+static NO_OUTPUT_ALIASES: std::sync::LazyLock<std::collections::HashSet<String>> =
+    std::sync::LazyLock::new(std::collections::HashSet::new);
+
 // =============================================================================
 // WindowPlanner - Converts high-level WindowRequest to WindowExecutionPlan
 // =============================================================================
@@ -71,7 +80,18 @@ impl WindowPlanner {
         let windows = Self::convert_window_functions(&request.windows, metadata, &allowlist)?;
 
         // Convert final ORDER BY to SQL expressions
-        let order_by = Self::convert_order_by(&request.order_by, metadata)?;
+        // The FINAL ORDER BY runs *after* the window functions, so every window
+        // and select alias is a real output column at that point and must be
+        // accepted (#1014). The in-window ORDER BY inside `OVER (…)` runs
+        // *before* they exist, so it gets the allowlist alone.
+        let output_aliases: std::collections::HashSet<String> = request
+            .windows
+            .iter()
+            .map(|w| w.alias.clone())
+            .chain(request.select.iter().map(|c| c.alias().to_string()))
+            .collect();
+        let order_by =
+            Self::convert_order_by(&request.order_by, metadata, &allowlist, &output_aliases)?;
 
         Ok(WindowExecutionPlan {
             // Use the resolved name, not the request's — belt and braces with the check above.
@@ -175,7 +195,7 @@ impl WindowPlanner {
         Self::validate_alias(&request.alias)?;
 
         // Convert function spec to function type
-        let function = Self::convert_function_spec(&request.function, metadata)?;
+        let function = Self::convert_function_spec(&request.function, metadata, allowlist)?;
 
         // Convert PARTITION BY columns to SQL expressions
         let partition_by = request
@@ -188,7 +208,7 @@ impl WindowPlanner {
         let order_by = request
             .order_by
             .iter()
-            .map(|o| Self::convert_window_order_by(o, metadata))
+            .map(|o| Self::convert_window_order_by(o, metadata, allowlist, &NO_OUTPUT_ALIASES))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(WindowFunction {
@@ -204,6 +224,7 @@ impl WindowPlanner {
     fn convert_function_spec(
         spec: &WindowFunctionSpec,
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
     ) -> Result<WindowFunctionType> {
         match spec {
             // Ranking functions - no field conversion needed
@@ -220,7 +241,8 @@ impl WindowPlanner {
                 offset,
                 default,
             } => {
-                let sql_field = Self::resolve_field_to_sql(field, metadata)?;
+                let sql_field =
+                    Self::resolve_field_to_sql(field, metadata, allowlist, &NO_OUTPUT_ALIASES)?;
                 Ok(WindowFunctionType::Lag {
                     field:   sql_field,
                     offset:  *offset,
@@ -232,7 +254,8 @@ impl WindowPlanner {
                 offset,
                 default,
             } => {
-                let sql_field = Self::resolve_field_to_sql(field, metadata)?;
+                let sql_field =
+                    Self::resolve_field_to_sql(field, metadata, allowlist, &NO_OUTPUT_ALIASES)?;
                 Ok(WindowFunctionType::Lead {
                     field:   sql_field,
                     offset:  *offset,
@@ -240,15 +263,18 @@ impl WindowPlanner {
                 })
             },
             WindowFunctionSpec::FirstValue { field } => {
-                let sql_field = Self::resolve_field_to_sql(field, metadata)?;
+                let sql_field =
+                    Self::resolve_field_to_sql(field, metadata, allowlist, &NO_OUTPUT_ALIASES)?;
                 Ok(WindowFunctionType::FirstValue { field: sql_field })
             },
             WindowFunctionSpec::LastValue { field } => {
-                let sql_field = Self::resolve_field_to_sql(field, metadata)?;
+                let sql_field =
+                    Self::resolve_field_to_sql(field, metadata, allowlist, &NO_OUTPUT_ALIASES)?;
                 Ok(WindowFunctionType::LastValue { field: sql_field })
             },
             WindowFunctionSpec::NthValue { field, n } => {
-                let sql_field = Self::resolve_field_to_sql(field, metadata)?;
+                let sql_field =
+                    Self::resolve_field_to_sql(field, metadata, allowlist, &NO_OUTPUT_ALIASES)?;
                 Ok(WindowFunctionType::NthValue {
                     field: sql_field,
                     n:     *n,
@@ -270,7 +296,8 @@ impl WindowPlanner {
             },
             WindowFunctionSpec::RunningCount => Ok(WindowFunctionType::Count { field: None }),
             WindowFunctionSpec::RunningCountField { field } => {
-                let sql_field = Self::resolve_field_to_sql(field, metadata)?;
+                let sql_field =
+                    Self::resolve_field_to_sql(field, metadata, allowlist, &NO_OUTPUT_ALIASES)?;
                 Ok(WindowFunctionType::Count {
                     field: Some(sql_field),
                 })
@@ -338,8 +365,10 @@ impl WindowPlanner {
     fn convert_window_order_by(
         order: &WindowOrderBy,
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
+        output_aliases: &std::collections::HashSet<String>,
     ) -> Result<OrderByClause> {
-        let field = Self::resolve_field_to_sql(&order.field, metadata)?;
+        let field = Self::resolve_field_to_sql(&order.field, metadata, allowlist, output_aliases)?;
         Ok(OrderByClause::new(field, order.direction))
     }
 
@@ -347,8 +376,13 @@ impl WindowPlanner {
     fn convert_order_by(
         orders: &[WindowOrderBy],
         metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
+        output_aliases: &std::collections::HashSet<String>,
     ) -> Result<Vec<OrderByClause>> {
-        orders.iter().map(|o| Self::convert_window_order_by(o, metadata)).collect()
+        orders
+            .iter()
+            .map(|o| Self::convert_window_order_by(o, metadata, allowlist, output_aliases))
+            .collect()
     }
 
     /// Resolve a semantic field name to its SQL expression.
@@ -359,7 +393,12 @@ impl WindowPlanner {
     /// 3. Treat as a dimension path (JSONB extraction) — only if the name is a valid GraphQL
     ///    identifier (`[_A-Za-z][_0-9A-Za-z]*`), to prevent SQL injection via the single-quoted key
     ///    in `data->>'field'` expressions.
-    fn resolve_field_to_sql(field: &str, metadata: &FactTableMetadata) -> Result<String> {
+    fn resolve_field_to_sql(
+        field: &str,
+        metadata: &FactTableMetadata,
+        allowlist: &WindowAllowlist,
+        output_aliases: &std::collections::HashSet<String>,
+    ) -> Result<String> {
         // Check if it's a measure
         if metadata.measures.iter().any(|m| m.name == field) {
             return Ok(field.to_string());
@@ -370,10 +409,31 @@ impl WindowPlanner {
             return Ok(field.to_string());
         }
 
+        // A window or select alias — a real output column by the time the FINAL
+        // ORDER BY runs, and the whole ask of #1014. `output_aliases` is empty
+        // for the in-window clause, so a window function cannot order by its own
+        // sibling's alias inside `OVER (…)`, where the column does not yet exist.
+        //
+        // Emitted bare (`rank`), not as `dimensions->>'rank'` — which is NULL,
+        // which is what silently sorted nothing.
+        if output_aliases.contains(field) {
+            // Already vetted by `validate_alias` when the alias was accepted;
+            // re-checked here so this branch cannot become a new injection seam
+            // if the two ever drift.
+            Self::validate_alias(field)?;
+            return Ok(field.to_string());
+        }
+
         // Validate identifier before embedding in JSONB extraction expression.
         // Without this check, a field like "x'; DROP TABLE t; --" would produce
         // `data->>'x'; DROP TABLE t; --'`, breaking the SQL structure.
         Self::validate_field_identifier(field)?;
+
+        // Schema allowlist (#794/#1014): defence-in-depth *on top of* the charset
+        // check above, never a replacement for it. A no-op when the schema
+        // declares no fact-table metadata, which is the same "cannot adjudicate
+        // → pass" semantics the rest of this family uses.
+        allowlist.validate(field, "order by")?;
 
         // Dimension path
         Ok(format!("{}->>'{}'", metadata.dimensions.name, field))
