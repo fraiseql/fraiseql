@@ -33,7 +33,7 @@ use fraiseql_db::{
     ScalarFieldType, WhereClause,
     postgres::PostgresAdapter,
     traits::DatabaseAdapter,
-    where_clause::{FieldTypeMap, SharedFieldTypes},
+    where_clause::{FieldTypeMap, SharedFieldTypes, WhereFieldSchema},
 };
 use serde_json::{Value, json};
 
@@ -84,8 +84,11 @@ impl Rig {
     /// Run one `where:` argument through the live path — schema-typed parse,
     /// SQL generation, execution — and return the matching `id`s in order.
     async fn ids_matching(&self, where_json: &Value) -> Result<Vec<i64>, String> {
-        let clause = WhereClause::from_graphql_json(where_json, &self.types)
-            .map_err(|e| format!("parse failed: {e}"))?;
+        let clause = WhereClause::from_graphql_json(
+            where_json,
+            &WhereFieldSchema::casts_only(Arc::clone(&self.types)),
+        )
+        .map_err(|e| format!("parse failed: {e}"))?;
         let rows = self
             .adapter
             .execute_where_query(VIEW, Some(&clause), None, None, None)
@@ -526,7 +529,11 @@ async fn wire_generator_output_is_valid_postgresql() {
 
     let mut failures = Vec::new();
     for (name, filter) in cases {
-        let clause = WhereClause::from_graphql_json(filter, &rig.types).expect("parses");
+        let clause = WhereClause::from_graphql_json(
+            filter,
+            &WhereFieldSchema::casts_only(Arc::clone(&rig.types)),
+        )
+        .expect("parses");
         let predicate = match fraiseql_db::where_sql_generator::WhereSqlGenerator::to_sql(&clause) {
             Ok(sql) => sql,
             Err(e) => {

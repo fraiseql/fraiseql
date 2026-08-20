@@ -1138,6 +1138,135 @@ async fn a_variable_used_only_through_a_fragment_is_not_unused() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// B6. Unknown `where` keys are validation errors
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// The nastiest member of the family. An undeclared *argument* (#1154)
+// over-fetches, which is visibly wrong; an undeclared *field* (#939) renders a
+// blank column. An undeclared `where` **key** returns `[]` — indistinguishable
+// from "no rows matched". One rename, or one camelCase slip, turns every query
+// into a silent empty result that reads as real data.
+//
+// The rule lives at `WhereClause::from_graphql_json`, the chokepoint where the
+// read resolves, **not** at the GraphQL document entry. REST does not go through
+// `execute_dispatch`: it builds a `QueryMatch` from URL parameters and calls
+// `execute_query_direct`. A gate on the document entry alone would serve
+// unvalidated filters over REST — which is exactly #966, where a gate on the
+// GraphQL entry points alone served every restricted row over REST. Hence the
+// REST case below is a required assertion, not a nice-to-have.
+
+#[tokio::test]
+async fn an_undeclared_where_key_is_a_validation_error() {
+    let (exec, adapter) = ordering_executor();
+    let err = exec
+        .execute(r#"{ users(where: {bogusKey: {eq: "Alice"}}) { id } }"#, None)
+        .await
+        .expect_err("a `where` key the type does not declare must not return []");
+
+    let msg = err.to_string();
+    assert!(msg.contains("bogusKey"), "the error must name the key, got: {msg}");
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an invalid document must not execute — the database was queried anyway"
+    );
+}
+
+/// **Control** — the same query with the declared key still filters.
+#[tokio::test]
+async fn a_declared_where_key_still_executes() {
+    let (exec, _) = ordering_executor();
+    exec.execute(r#"{ users(where: {name: {eq: "Alice"}}) { id } }"#, None)
+        .await
+        .expect("a declared key is a legitimate filter");
+}
+
+/// **Control** — `_and`/`_or`/`_not` are combinators, not field names.
+#[tokio::test]
+async fn where_combinators_are_not_treated_as_field_names() {
+    let (exec, _) = ordering_executor();
+    exec.execute(
+        r#"{ users(where: {_and: [{name: {eq: "Alice"}}, {_not: {email: {eq: "x"}}}]}) { id } }"#,
+        None,
+    )
+    .await
+    .expect("combinators must not be adjudicated as fields");
+}
+
+/// **The #966 assertion.** REST resolves a `QueryMatch` from URL parameters and
+/// calls `execute_query_direct`, never touching `execute_dispatch`. This proves
+/// by test — not by reading — that the same filter is refused there.
+#[tokio::test]
+async fn the_rest_filter_surface_enforces_the_same_rule() {
+    use fraiseql_core::runtime::QueryMatch;
+
+    let (exec, adapter) = ordering_executor();
+    let query_def = exec
+        .schema()
+        .queries
+        .iter()
+        .find(|q| q.name == "users")
+        .expect("fixture declares `users`")
+        .clone();
+
+    // The shape the REST transport builds: no GraphQL document behind it.
+    let mut arguments = std::collections::HashMap::new();
+    arguments.insert("where".to_string(), json!({ "bogusKey": { "eq": "Alice" } }));
+    let rest_match = QueryMatch {
+        query_def,
+        fields: vec!["id".to_string()],
+        selections: vec![],
+        arguments,
+        operation_name: None,
+        parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
+    };
+
+    let err = exec
+        .execute_query_direct(&rest_match, None, None)
+        .await
+        .expect_err("REST must refuse the same undeclared `where` key as /graphql");
+    assert!(err.to_string().contains("bogusKey"), "got: {err}");
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "REST must not query the database for an invalid filter"
+    );
+}
+
+/// **Control for the REST path** — a declared key still reaches the adapter, so
+/// the assertion above is not passing because REST is broken generally.
+#[tokio::test]
+async fn the_rest_filter_surface_still_serves_a_declared_key() {
+    use fraiseql_core::runtime::QueryMatch;
+
+    let (exec, adapter) = ordering_executor();
+    let query_def = exec
+        .schema()
+        .queries
+        .iter()
+        .find(|q| q.name == "users")
+        .expect("fixture declares `users`")
+        .clone();
+
+    let mut arguments = std::collections::HashMap::new();
+    arguments.insert("where".to_string(), json!({ "name": { "eq": "Alice" } }));
+    let rest_match = QueryMatch {
+        query_def,
+        fields: vec!["id".to_string()],
+        selections: vec![],
+        arguments,
+        operation_name: None,
+        parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
+    };
+
+    exec.execute_query_direct(&rest_match, None, None)
+        .await
+        .expect("a declared key must still serve over REST");
+    assert!(
+        !adapter.recorded_projections().is_empty(),
+        "the declared-key control must actually reach the database"
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // B2. `__typename` on a nested object — #912
 // ══════════════════════════════════════════════════════════════════════════════
 //

@@ -66,6 +66,93 @@ impl FromIterator<(String, ScalarFieldType)> for FieldTypeMap {
 /// [`WhereClause::Typed`]: crate::WhereClause::Typed
 pub type SharedFieldTypes = Arc<FieldTypeMap>;
 
+/// What the schema knows about one top-level `where` key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WhereFieldInfo {
+    /// The name as the schema declares it, used for "did you mean" hints
+    /// because that is the spelling a client writes.
+    pub declared_name: String,
+    /// Whether the field's declared type is composite — i.e. whether
+    /// `{field: {sub: {eq: …}}}` is a legitimate nested relation filter rather
+    /// than a scalar field handed a bogus operator.
+    pub is_relation:   bool,
+}
+
+/// The `where` keys a type declares, alongside their casts.
+///
+/// # Why this is not just [`FieldTypeMap`]
+///
+/// `FieldTypeMap` cannot distinguish *"this type has no fields"* from *"this
+/// type was not found"* — both produce an empty map, and the generator reads
+/// empty as *"no type information, skip the casts"*. Reusing it as an allowlist
+/// would therefore fail **open** on a missing type, or — if inverted — fail
+/// **closed** on every schema with no field metadata.
+///
+/// So the "cannot adjudicate" state is a distinct value here (`known: None`)
+/// rather than a property of an empty collection. Every consumer has to name
+/// that branch explicitly.
+#[derive(Debug, Clone, Default)]
+pub struct WhereFieldSchema {
+    /// Declared casts, keyed by dotted snake_case path.
+    casts: SharedFieldTypes,
+    /// Declared top-level keys, by snake_case name.
+    ///
+    /// `None` means the schema could not adjudicate — the type was not found,
+    /// or it carries no field metadata. It does **not** mean "no keys".
+    known: Option<Arc<HashMap<String, WhereFieldInfo>>>,
+}
+
+impl WhereFieldSchema {
+    /// A schema that cannot adjudicate field names: casts only, no allowlist.
+    ///
+    /// This is the honest constructor for a caller that has type information but
+    /// no type *definition* — fuzzers, benchmarks, and the wire path.
+    #[must_use]
+    pub const fn casts_only(casts: SharedFieldTypes) -> Self {
+        Self { casts, known: None }
+    }
+
+    /// A schema that can adjudicate: these are the declared top-level keys.
+    #[must_use]
+    pub fn with_known_keys(
+        casts: SharedFieldTypes,
+        known: HashMap<String, WhereFieldInfo>,
+    ) -> Self {
+        Self {
+            casts,
+            known: Some(Arc::new(known)),
+        }
+    }
+
+    /// The declared casts.
+    #[must_use]
+    pub const fn casts(&self) -> &SharedFieldTypes {
+        &self.casts
+    }
+
+    /// What the schema knows about `snake_key`, or `None` when it cannot
+    /// adjudicate **or** the key is undeclared — use [`Self::can_adjudicate`] to
+    /// tell those apart.
+    #[must_use]
+    pub fn lookup(&self, snake_key: &str) -> Option<&WhereFieldInfo> {
+        self.known.as_ref()?.get(snake_key)
+    }
+
+    /// Whether the schema carries enough information to reject an unknown key.
+    #[must_use]
+    pub const fn can_adjudicate(&self) -> bool {
+        self.known.is_some()
+    }
+
+    /// Declared names, for "did you mean" hints.
+    #[must_use]
+    pub fn declared_names(&self) -> Vec<&str> {
+        self.known
+            .as_ref()
+            .map_or_else(Vec::new, |k| k.values().map(|i| i.declared_name.as_str()).collect())
+    }
+}
+
 /// Resolve the SQL type a comparison against `path` must be made in.
 ///
 /// The declared type wins whenever the compiled schema names the field: it is

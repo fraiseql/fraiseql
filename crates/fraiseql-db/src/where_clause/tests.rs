@@ -3,10 +3,12 @@ use serde_json::json;
 
 use super::*;
 
-/// A field-type map that declares nothing, so these tests exercise the
-/// value-shape fallback rather than a schema lookup.
-fn untyped() -> SharedFieldTypes {
-    SharedFieldTypes::default()
+/// A schema that declares nothing and **cannot adjudicate** field names, so
+/// these tests exercise the value-shape fallback rather than a schema lookup —
+/// and are unaffected by the unknown-key rule, which only fires when the schema
+/// carries a field list.
+fn untyped() -> WhereFieldSchema {
+    WhereFieldSchema::default()
 }
 
 #[test]
@@ -559,4 +561,173 @@ fn test_from_graphql_json_accepts_valid_identifiers_after_boundary_check() {
     });
     let result = WhereClause::from_graphql_json(&json, &untyped());
     assert!(result.is_ok(), "valid identifiers must still parse: {result:?}");
+}
+
+// ── Unknown `where` keys are refused when the schema can adjudicate ───────────
+//
+// An undeclared *argument* over-fetches, which is visibly wrong. An undeclared
+// `where` **key** returns `[]`, which is indistinguishable from "no rows
+// matched" — a renamed field turns every query into a silent empty result that
+// reads as real data.
+
+/// A schema that declares `reference` and `status` as scalars and `machine` as a
+/// relation, so the unknown-key rule has something to adjudicate against.
+fn adjudicating() -> WhereFieldSchema {
+    use std::collections::HashMap;
+
+    let casts = SharedFieldTypes::default();
+    let mut known = HashMap::new();
+    for (name, is_relation) in [("reference", false), ("status", false), ("machine", true)] {
+        known.insert(
+            name.to_string(),
+            WhereFieldInfo {
+                declared_name: name.to_string(),
+                is_relation,
+            },
+        );
+    }
+    WhereFieldSchema::with_known_keys(casts, known)
+}
+
+#[test]
+fn an_undeclared_where_key_is_refused() {
+    let err =
+        WhereClause::from_graphql_json(&json!({ "bogusKey": { "eq": "ORD-1" } }), &adjudicating())
+            .expect_err("a key the type does not declare must not silently return []");
+    let msg = err.to_string();
+    assert!(msg.contains("bogusKey"), "the error must name the key: {msg}");
+}
+
+#[test]
+fn a_near_miss_where_key_gets_a_did_you_mean_hint() {
+    let err =
+        WhereClause::from_graphql_json(&json!({ "referense": { "eq": "x" } }), &adjudicating())
+            .expect_err("a typo must be refused");
+    assert!(
+        err.to_string().contains("Did you mean 'reference'?"),
+        "a where-key typo is one edit from the name that works: {err}"
+    );
+}
+
+#[test]
+fn a_declared_where_key_passes() {
+    WhereClause::from_graphql_json(&json!({ "reference": { "eq": "ORD-1" } }), &adjudicating())
+        .expect("a declared key is a legitimate filter");
+}
+
+/// camelCase and snake_case are the same key — the parser snake_cases before
+/// building the path, so the rule must normalise both sides or it rejects a
+/// spelling the runtime accepts.
+#[test]
+fn a_declared_key_written_in_either_case_passes() {
+    let mut known = std::collections::HashMap::new();
+    known.insert(
+        "created_at".to_string(),
+        WhereFieldInfo {
+            declared_name: "createdAt".to_string(),
+            is_relation:   false,
+        },
+    );
+    let schema = WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known);
+
+    for key in ["createdAt", "created_at"] {
+        WhereClause::from_graphql_json(&json!({ key: { "eq": "2026-01-01" } }), &schema)
+            .unwrap_or_else(|e| panic!("'{key}' must be accepted: {e}"));
+    }
+}
+
+#[test]
+fn logical_combinators_are_not_field_names_at_any_depth() {
+    WhereClause::from_graphql_json(
+        &json!({
+            "_and": [
+                { "reference": { "eq": "ORD-1" } },
+                { "_or": [
+                    { "status": { "eq": "OPEN" } },
+                    { "_not": { "reference": { "eq": "ORD-2" } } }
+                ] }
+            ]
+        }),
+        &adjudicating(),
+    )
+    .expect("_and/_or/_not are combinators, not fields, however deeply nested");
+}
+
+#[test]
+fn an_undeclared_key_inside_a_combinator_is_still_refused() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "_and": [ { "bogusKey": { "eq": "x" } } ] }),
+        &adjudicating(),
+    )
+    .expect_err("a combinator does not launder an undeclared key");
+    assert!(err.to_string().contains("bogusKey"), "got: {err}");
+}
+
+/// A nested relation path resolves its *second* segment against the relation's
+/// own type, for which the compiled schema carries no field map. Only the top
+/// level is adjudicated, so the nested segment passes.
+#[test]
+fn a_nested_relation_path_passes_and_only_its_root_is_adjudicated() {
+    WhereClause::from_graphql_json(
+        &json!({ "machine": { "id": { "eq": "m-1" } } }),
+        &adjudicating(),
+    )
+    .expect("`machine` is declared and `id` is on machine's type, which is not mapped here");
+}
+
+#[test]
+fn a_nested_relation_path_with_an_undeclared_root_is_refused() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "bogusRelation": { "id": { "eq": "m-1" } } }),
+        &adjudicating(),
+    )
+    .expect_err("the root of a nested path is adjudicated like any other key");
+    assert!(err.to_string().contains("bogusRelation"), "got: {err}");
+}
+
+/// The findings doc's F2c control claimed "operators ARE validated". That holds
+/// only for **scalar** values: with an *object* value an unknown operator fell
+/// into the nested-relation arm and became the path `reference.notAnOperator`,
+/// which matched nothing and returned `[]` with no error.
+#[test]
+fn an_unknown_operator_with_an_object_value_on_a_scalar_field_is_refused() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "reference": { "notAnOperator": { "eq": "ORD-1" } } }),
+        &adjudicating(),
+    )
+    .expect_err("a nested filter on a scalar field is never legitimate");
+    let msg = err.to_string();
+    assert!(msg.contains("notAnOperator"), "the error must name the operator: {msg}");
+    assert!(msg.contains("scalar"), "the error must say why: {msg}");
+}
+
+/// The control for the case above: the same shape on a **relation** field is a
+/// legitimate nested filter and must keep working.
+#[test]
+fn an_object_value_on_a_relation_field_is_a_nested_filter_not_an_error() {
+    WhereClause::from_graphql_json(
+        &json!({ "machine": { "serialNumber": { "eq": "SN-1" } } }),
+        &adjudicating(),
+    )
+    .expect("an object value on a relation field is the nested-filter shape");
+}
+
+/// Unchanged: an unknown operator with a **scalar** value was already refused,
+/// and that error must not be replaced by the field-name error.
+#[test]
+fn an_unknown_operator_with_a_scalar_value_still_reports_the_operator() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "reference": { "notAnOperator": "x" } }),
+        &adjudicating(),
+    )
+    .expect_err("unknown operators were already refused");
+    assert!(err.to_string().contains("notAnOperator"), "got: {err}");
+}
+
+/// Fail open: a schema that cannot adjudicate accepts any key, because a
+/// rejection cannot be justified from an absence of evidence (#939).
+#[test]
+fn an_unadjudicable_schema_accepts_an_unknown_key() {
+    WhereClause::from_graphql_json(&json!({ "bogusKey": { "eq": "x" } }), &untyped())
+        .expect("no field information — a rejection cannot be justified");
 }

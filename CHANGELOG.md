@@ -120,6 +120,36 @@ disagreed, and the promise was the part that was wrong.
   If you have such a document, the fix is to trim each operation's definitions to what it
   references. A variable referenced only inside a reachable fragment **does** count as used.
 
+- **A `where` key the type does not declare is refused instead of silently matching nothing.**
+  The nastiest member of this family. An undeclared *argument* over-fetches, which is visibly
+  wrong; an undeclared *field* renders a blank column. An undeclared `where` **key** returned
+  `[]` — indistinguishable from "no rows matched". `parse_where_object` checked a key for
+  identifier *shape* only (the #833 SQL-injection boundary) and then snake_cased it into a
+  JSONB path that could not match, so one renamed field turned every query into a silent empty
+  result that read as real data.
+
+  `Validation error: Unknown field 'bogusKey' in where clause. Did you mean 'reference'?`
+
+  **The rule is enforced where the read resolves, not at the GraphQL document entry** —
+  `WhereClause::from_graphql_json`, which the REST filter surface and `/graphql` both call.
+  REST builds a `QueryMatch` from URL parameters and calls `execute_query_direct`, never
+  touching the document path, so a gate at the entry point would have left REST serving
+  unvalidated filters. That is #966 exactly, and it is why the REST case is a test rather than
+  an assumption.
+
+  Scope, decided from the code and stated so upgraders can predict it:
+  - `_and`/`_or`/`_not` are combinators, not field names, at every nesting depth.
+  - **Only the top level is adjudicated.** A nested relation path (`{machine: {id: …}}`) resolves its second segment against *machine's* type, for which the compiled schema carries no field map — rejecting there would be guessing. The root of the path is adjudicated like any other key.
+  - The rule **fails open** when the schema cannot adjudicate: the type is not found, or it carries no fields. Those two used to be indistinguishable (both produced an empty map, read as "skip the casts"); "cannot adjudicate" is now a distinct state rather than an empty collection, so the allowlist cannot fail open on a missing type or closed on a schema without field metadata.
+
+- **An unknown `where` operator with an *object* value on a scalar field is now refused.**
+  Operators were only half-validated: with a *scalar* value an unknown operator errored, but
+  with an **object** value it fell through to the nested-relation branch, so
+  `{"reference": {"notAnOperator": {"eq": "ORD-1"}}}` built the path
+  `reference.notAnOperator`, matched nothing, and returned `[]` with no error. A nested
+  relation filter on a scalar field is never legitimate. The same shape on a **relation**
+  field is the documented nested-filter form and still works.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is
