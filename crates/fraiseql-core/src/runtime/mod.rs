@@ -110,7 +110,10 @@ pub use subscription::{
     WebhookPayload, extract_rls_conditions, protocol,
 };
 pub use tenant_enforcer::TenantEnforcer;
-pub use variable_validation::{collect_variable_references, validate_variable_uses};
+pub use variable_validation::{
+    collect_variable_references, validate_variable_types, validate_variable_uses,
+    validate_variables_used,
+};
 
 /// Result of a bulk REST operation (collection-level PATCH/DELETE).
 #[derive(Debug, Clone)]

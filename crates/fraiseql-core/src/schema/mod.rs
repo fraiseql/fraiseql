@@ -94,6 +94,7 @@ pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,
     IntrospectionType, IntrospectionTypeRef, IntrospectionValidationRule, TypeKind,
+    published_scalar_names,
 };
 pub use observer_types::{ObserverDefinition, RetryConfig};
 pub use scalar_types::{RICH_SCALARS, is_known_scalar};
