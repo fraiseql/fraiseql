@@ -95,12 +95,17 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Introspection (highest priority): `__schema` or `__type`.
         // These are meta-fields defined by the GraphQL spec — always a root query.
+        //
+        // The AST travels with introspection so the dispatch can project the
+        // pre-built response onto the client's selection set (§ 6.3). It is
+        // memoised in the parse cache alongside the classification, so carrying
+        // it costs one clone per distinct query string, not one per request.
         if root_field == "__schema" {
-            return Ok((QueryType::IntrospectionSchema, None));
+            return Ok((QueryType::IntrospectionSchema, Some(parsed)));
         }
         if root_field == "__type" {
             let type_name = extract_root_string_arg(&parsed, "name");
-            return Ok((QueryType::IntrospectionType(type_name.unwrap_or_default()), None));
+            return Ok((QueryType::IntrospectionType(type_name.unwrap_or_default()), Some(parsed)));
         }
 
         // Root `__typename` meta-field (GraphQL spec §"Type Name Introspection"):

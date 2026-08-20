@@ -122,6 +122,51 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(())
     }
 
+    /// Project a pre-built introspection response onto the client's selection
+    /// set (GraphQL § 6.3), memoised by the shape of that selection set.
+    ///
+    /// `memo_root` keys the cache and must distinguish responses that differ for
+    /// reasons other than the selection set — hence the type name is folded into
+    /// it for `__type`.
+    ///
+    /// Falls back to the unprojected response when there is no AST or no root
+    /// selection to project against: over-delivering is the previous behaviour,
+    /// and is strictly better than answering with nothing.
+    fn project_introspection(
+        &self,
+        memo_root: &str,
+        built: &Arc<serde_json::Value>,
+        parsed: Option<&crate::graphql::ParsedQuery>,
+    ) -> serde_json::Value {
+        use support::introspection_projection as projection;
+
+        let Some(parsed) = parsed else {
+            return built.as_ref().clone();
+        };
+        // The root field carries the selections; fragments and directives are
+        // resolved first so a spread projects like an inline selection.
+        let Some(root) = parsed.selections.first() else {
+            return built.as_ref().clone();
+        };
+        let Ok(selections) =
+            crate::graphql::selection_set::resolve(&root.nested_fields, &parsed.fragments)
+        else {
+            return built.as_ref().clone();
+        };
+        if selections.is_empty() {
+            return built.as_ref().clone();
+        }
+
+        let root_field = root.name.clone();
+        let key = projection::selection_shape_hash(memo_root, &selections);
+        if let Some(hit) = self.ctx.introspection_projections.get(&key) {
+            return hit.as_ref().clone();
+        }
+        let projected = Arc::new(projection::project_response(built, &root_field, &selections));
+        self.ctx.introspection_projections.insert(key, Arc::clone(&projected));
+        projected.as_ref().clone()
+    }
+
     /// Unified query dispatch for both the anonymous and authenticated entry
     /// points (H19). `security_context` is `None` for anonymous requests and
     /// `Some` for authenticated ones; it threads through GATE-1, the parse
@@ -238,12 +283,19 @@ impl<A: DatabaseAdapter> Executor<A> {
                 })
             },
             QueryType::IntrospectionSchema => {
-                // Return pre-built __schema response (zero-cost at runtime)
-                Ok(self.ctx.introspection.schema_response.as_ref().clone())
+                let built = Arc::clone(&self.ctx.introspection.schema_response);
+                Ok(self.project_introspection("__schema", &built, maybe_parsed.as_ref()))
             },
             QueryType::IntrospectionType(type_name) => {
-                // Return pre-built __type response (zero-cost at runtime)
-                Ok(self.ctx.introspection.get_type_response(&type_name))
+                let built = Arc::new(self.ctx.introspection.get_type_response(&type_name));
+                // The type name is part of the memo key: two `__type` queries
+                // with the same selection set but different `name` arguments
+                // project different values.
+                Ok(self.project_introspection(
+                    &format!("__type\u{1}{type_name}"),
+                    &built,
+                    maybe_parsed.as_ref(),
+                ))
             },
             QueryType::Mutation { roots } => {
                 self.execute_mutation_roots(&roots, variables, security_context).await

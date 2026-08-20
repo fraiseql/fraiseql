@@ -84,6 +84,11 @@ fn resolve_gate1(
 /// not duplicated.
 const PARSE_CACHE_CAPACITY: u64 = 1_024;
 
+/// Distinct introspection selection-set shapes to memoise.
+///
+/// Small on purpose: the realistic population is one shape per client tool.
+const INTROSPECTION_PROJECTION_CAPACITY: u64 = 64;
+
 /// Query executor - executes compiled GraphQL queries.
 ///
 /// This is the main entry point for runtime query execution.
@@ -205,6 +210,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             node_type_index,
             gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
+            introspection_projections: MokaCache::new(INTROSPECTION_PROJECTION_CAPACITY),
             response_cache: None,
         });
 
@@ -502,6 +508,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             node_type_index,
             gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
+            introspection_projections: MokaCache::new(INTROSPECTION_PROJECTION_CAPACITY),
             response_cache: None,
         });
 

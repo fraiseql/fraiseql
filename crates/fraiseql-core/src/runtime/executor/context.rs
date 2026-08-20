@@ -68,6 +68,22 @@ pub(super) struct ExecutorContext<A: DatabaseAdapter> {
     /// Parsed GraphQL AST cache, keyed by xxHash64 of the query string.
     pub(super) parse_cache: MokaCache<u64, Arc<(QueryType, Option<ParsedQuery>)>>,
 
+    /// Projected introspection responses, keyed by a hash of the normalised
+    /// selection set (#F7).
+    ///
+    /// `__schema` must follow the client's selection set (GraphQL § 6.3), which
+    /// the pre-built response could not do. Projecting per request would trade
+    /// away the "zero-cost at runtime" property the canned response existed for
+    /// — except that projection is a **pure function of the selection set**, and
+    /// the space of introspection selection sets seen in the wild is tiny and
+    /// repetitive: `GraphiQL` sends one canonical query, Apollo sends one, each
+    /// codegen tool sends one, and they do not vary between page loads. Memoised
+    /// by shape, it is a table lookup again after the first hit.
+    ///
+    /// Stores the projected `Value` behind an `Arc` so a hit is an O(1)
+    /// ref-count bump, matching how the unprojected response was served.
+    pub(super) introspection_projections: MokaCache<u64, Arc<serde_json::Value>>,
+
     /// Optional executor-level response cache.
     pub(super) response_cache: Option<Arc<crate::cache::ResponseCache>>,
 }
