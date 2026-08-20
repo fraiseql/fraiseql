@@ -2726,3 +2726,193 @@ mod aggregation_tests {
             .unwrap_or_else(|e| panic!("any path should be accepted when paths empty: {e}"));
     }
 }
+
+/// #1014 — the two ORDER BY conversions on the window path need *different*
+/// allowlists, and getting them the same way round is the whole point.
+///
+/// | Clause | Runs | Accepts |
+/// |---|---|---|
+/// | in-window, inside `OVER (…)` | before the window functions produce anything | measures, filter columns, dimension paths |
+/// | the final ORDER BY | after the window functions | the above **plus** every window and select alias |
+mod window_order_by_allowlist_tests {
+    use crate::compiler::{
+        aggregation::OrderDirection,
+        fact_table::{
+            DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+        },
+        window_functions::{
+            WindowFunctionRequest, WindowFunctionSpec, WindowOrderBy, WindowPlanner, WindowRequest,
+            WindowSelectColumn,
+        },
+    };
+
+    fn metadata() -> FactTableMetadata {
+        FactTableMetadata {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
+                name:     "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions:               DimensionColumn {
+                name:  "dimensions".to_string(),
+                paths: vec![DimensionPath {
+                    name:      "category".to_string(),
+                    json_path: "dimensions->>'category'".to_string(),
+                    data_type: "text".to_string(),
+                }],
+            },
+            denormalized_filters:     vec![FilterColumn {
+                name:     "occurred_at".to_string(),
+                sql_type: SqlType::Timestamp,
+                indexed:  true,
+            }],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
+        }
+    }
+
+    /// A request with one `rank()` window aliased `rank`, one selected measure
+    /// aliased `total`, and a caller-chosen final ORDER BY.
+    fn request_ordering_by(field: &str) -> WindowRequest {
+        WindowRequest {
+            table_name:   "tf_sales".to_string(),
+            select:       vec![WindowSelectColumn::Measure {
+                name:  "revenue".to_string(),
+                alias: "total".to_string(),
+            }],
+            windows:      vec![WindowFunctionRequest {
+                function:     WindowFunctionSpec::Rank,
+                alias:        "rank".to_string(),
+                partition_by: vec![],
+                order_by:     vec![],
+                frame:        None,
+            }],
+            where_clause: None,
+            order_by:     vec![WindowOrderBy {
+                field:     field.to_string(),
+                direction: OrderDirection::Desc,
+            }],
+            limit:        None,
+            offset:       None,
+        }
+    }
+
+    /// **#1014's literal ask.** The final ORDER BY runs after the window
+    /// functions, so `rank` is a real output column and must be emitted bare.
+    /// Asserting on the generated expression rather than on absence of an error
+    /// is load-bearing: before this, the clause "succeeded" as
+    /// `dimensions->>'rank'`, which is NULL, which sorted nothing.
+    #[test]
+    fn the_final_order_by_accepts_a_window_alias_and_emits_it_bare() {
+        let plan = WindowPlanner::plan(request_ordering_by("rank"), &metadata())
+            .expect("ordering by a window alias is #1014's ask");
+        assert_eq!(
+            plan.order_by[0].field, "rank",
+            "a window alias must be a bare column, not a JSONB dimension read"
+        );
+    }
+
+    #[test]
+    fn the_final_order_by_accepts_a_select_alias_and_emits_it_bare() {
+        let plan = WindowPlanner::plan(request_ordering_by("total"), &metadata())
+            .expect("ordering by a select alias must work");
+        assert_eq!(plan.order_by[0].field, "total");
+    }
+
+    #[test]
+    fn the_final_order_by_still_accepts_a_measure_and_a_filter_column() {
+        for (field, expected) in [("revenue", "revenue"), ("occurred_at", "occurred_at")] {
+            let plan = WindowPlanner::plan(request_ordering_by(field), &metadata())
+                .unwrap_or_else(|e| panic!("'{field}' must remain a valid sort key: {e}"));
+            assert_eq!(plan.order_by[0].field, expected);
+        }
+    }
+
+    #[test]
+    fn the_final_order_by_still_accepts_a_dimension_path() {
+        let plan = WindowPlanner::plan(request_ordering_by("category"), &metadata())
+            .expect("a declared dimension is a valid sort key");
+        assert_eq!(plan.order_by[0].field, "dimensions->>'category'");
+    }
+
+    /// The generalisation beyond #1014: a name that is neither a schema field
+    /// nor an output alias used to become `dimensions->>'nope'` — NULL, sorting
+    /// nothing, silently.
+    #[test]
+    fn the_final_order_by_refuses_a_name_that_is_neither_field_nor_alias() {
+        let err = WindowPlanner::plan(request_ordering_by("totallyBogusField"), &metadata())
+            .expect_err("an unknown sort key must not silently sort nothing");
+        assert!(
+            err.to_string().contains("totallyBogusField"),
+            "the error must name the field: {err}"
+        );
+    }
+
+    /// The asymmetry that is the whole phase: inside `OVER (…)` the window
+    /// columns do not exist yet, so a window function cannot order by its own
+    /// sibling's alias.
+    #[test]
+    fn the_in_window_order_by_refuses_a_window_alias() {
+        let mut request = request_ordering_by("revenue");
+        request.windows[0].order_by = vec![WindowOrderBy {
+            field:     "rank".to_string(),
+            direction: OrderDirection::Desc,
+        }];
+        let err = WindowPlanner::plan(request, &metadata())
+            .expect_err("`rank` is not a column inside the OVER(...) that produces it");
+        assert!(err.to_string().contains("rank"), "got: {err}");
+    }
+
+    #[test]
+    fn the_in_window_order_by_still_accepts_a_measure_and_a_dimension() {
+        for field in ["revenue", "occurred_at", "category"] {
+            let mut request = request_ordering_by("revenue");
+            request.windows[0].order_by = vec![WindowOrderBy {
+                field:     field.to_string(),
+                direction: OrderDirection::Desc,
+            }];
+            WindowPlanner::plan(request, &metadata())
+                .unwrap_or_else(|e| panic!("'{field}' is valid inside OVER(...): {e}"));
+        }
+    }
+
+    #[test]
+    fn the_in_window_order_by_refuses_an_unknown_name() {
+        let mut request = request_ordering_by("revenue");
+        request.windows[0].order_by = vec![WindowOrderBy {
+            field:     "totallyBogusField".to_string(),
+            direction: OrderDirection::Desc,
+        }];
+        WindowPlanner::plan(request, &metadata())
+            .expect_err("an unknown in-window sort key must be refused");
+    }
+
+    /// **Control** — empty metadata declares no schema constraints, so the
+    /// allowlist is a no-op and both paths still execute. That "cannot
+    /// adjudicate → pass" property is inherited from `WindowAllowlist::validate`
+    /// and is what keeps this from breaking schemas with no fact-table metadata.
+    #[test]
+    fn empty_metadata_cannot_adjudicate_and_still_executes() {
+        let empty = FactTableMetadata {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
+                name:  "dimensions".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
+        };
+        let mut request = request_ordering_by("anythingAtAll");
+        request.select = vec![];
+        request.windows = vec![];
+        WindowPlanner::plan(request, &empty)
+            .expect("no schema constraints declared — a rejection cannot be justified");
+    }
+}

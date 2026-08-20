@@ -170,6 +170,31 @@ disagreed, and the promise was the part that was wrong.
   REST sort parameter, each proved by its own test rather than by the observation that they
   reach the same function.
 
+- **A window query's final `orderBy` can sort by a window alias, and an unknown sort key is
+  refused (#1014).** `WindowAllowlist` already built the right set — measures, denormalised
+  filter columns, and dimension paths — and was already threaded into select columns,
+  PARTITION BY and dimension paths for #794. **Both** order-by conversions were missed, so a
+  final `orderBy` on `rank` or `running_total` became `dimensions->>'rank'`, which is NULL,
+  which sorted nothing.
+
+  The two clauses need *different* sets, and this is the substance of the fix:
+
+  | Clause | Runs | Accepts |
+  |---|---|---|
+  | in-window, inside `OVER (…)` | before the window functions produce anything | measures, filter columns, dimension paths |
+  | the final `ORDER BY` | after the window functions | the above **plus** every window and select alias |
+
+  So `orderBy: [{field: "rank"}]` on a window query now sorts by the rank column, while a
+  window function still cannot order by its own sibling's alias inside `OVER (…)`, where that
+  column does not yet exist. Window-function operand fields (`lag`, `lead`, `firstValue`, …)
+  are also allowlist-checked now, which they were not before.
+
+  Generalisation beyond #1014: a sort key that is neither a schema field nor an output alias
+  is now a validation error rather than a silent NULL sort. The allowlist remains a no-op when
+  the schema declares no fact-table metadata, so a schema that cannot adjudicate still
+  executes — and the charset check stays in front of it, since the allowlist is
+  defence-in-depth (#794), never a replacement.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is
