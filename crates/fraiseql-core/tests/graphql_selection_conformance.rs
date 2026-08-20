@@ -1267,6 +1267,131 @@ async fn the_rest_filter_surface_still_serves_a_declared_key() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// B7. Unknown `orderBy` fields are validation errors
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// An unknown sort key kept `ScalarFieldType`'s default and lowered to a JSONB
+// extraction of a key that is not there — all-NULL, which orders nothing. The
+// client got rows in whatever order the plan happened to produce, with no signal
+// that its sort had been discarded.
+//
+// `enrich_order_by_clauses` is one function on four call sites: the list runner
+// (three of them) and the relay runner. Both are covered below, because "they
+// reach the same function" is exactly the kind of assumption #966 punished.
+
+#[tokio::test]
+async fn an_unknown_order_by_field_is_a_validation_error() {
+    let (exec, adapter) = ordering_executor();
+    let err = exec
+        .execute(r#"{ users(orderBy: [{field: "totallyBogusField"}]) { id } }"#, None)
+        .await
+        .expect_err("sorting by a field the type does not declare must not silently do nothing");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("totallyBogusField") && msg.contains("User"),
+        "the error must name the field and the type, got: {msg}"
+    );
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an invalid document must not execute — the database was queried anyway"
+    );
+}
+
+/// **Control** — a declared field still sorts, and the sort still reaches the
+/// adapter. Asserting only "no error" would pass against a rule that dropped the
+/// clause entirely, which is the very defect being fixed.
+#[tokio::test]
+async fn a_declared_order_by_field_still_sorts() {
+    let (exec, adapter) = ordering_executor();
+    exec.execute(r#"{ users(orderBy: [{field: "name", direction: "DESC"}]) { id } }"#, None)
+        .await
+        .expect("a declared field is a legitimate sort key");
+    let applied = adapter.recorded_order_bys();
+    assert!(
+        applied.iter().flatten().any(|o| o.contains("name")),
+        "the sort must reach the adapter, not merely parse: {applied:?}"
+    );
+}
+
+/// [`ordering_executor`] whose `users` query is a **relay connection**, so the
+/// relay runner is exercised rather than the list runner.
+fn relay_ordering_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+    let mut schema = user_schema();
+    for q in &mut schema.queries {
+        q.auto_params.has_order_by = true;
+        q.auto_params.has_where = true;
+        q.relay = true;
+        q.relay_cursor_column = Some("pk_user".to_string());
+    }
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
+}
+
+/// The relay connection is a **different runner** reaching the same function.
+#[tokio::test]
+async fn the_relay_path_refuses_an_unknown_order_by_field() {
+    let (exec, _) = relay_ordering_executor();
+    let err = exec
+        .execute(
+            r#"{ users(first: 2, orderBy: [{field: "totallyBogusField"}]) { edges { node { id } } } }"#,
+            None,
+        )
+        .await
+        .expect_err("the relay runner must enforce the same rule as the list runner");
+    assert!(err.to_string().contains("totallyBogusField"), "got: {err}");
+}
+
+/// **Control** — the relay path still sorts by a declared field.
+#[tokio::test]
+async fn the_relay_path_still_sorts_by_a_declared_field() {
+    let (exec, _) = relay_ordering_executor();
+    exec.execute(
+        r#"{ users(first: 2, orderBy: [{field: "name", direction: "DESC"}]) { edges { node { id } } } }"#,
+        None,
+    )
+    .await
+    .expect("a declared field must still sort on the relay path");
+}
+
+/// The REST sort surface, which reaches the runners through
+/// `execute_query_direct` rather than the document path.
+#[tokio::test]
+async fn the_rest_sort_surface_enforces_the_same_rule() {
+    use fraiseql_core::runtime::QueryMatch;
+
+    let (exec, adapter) = ordering_executor();
+    let query_def = exec
+        .schema()
+        .queries
+        .iter()
+        .find(|q| q.name == "users")
+        .expect("fixture declares `users`")
+        .clone();
+
+    let mut arguments = std::collections::HashMap::new();
+    arguments.insert("orderBy".to_string(), json!([{ "field": "totallyBogusField" }]));
+    let rest_match = QueryMatch {
+        query_def,
+        fields: vec!["id".to_string()],
+        selections: vec![],
+        arguments,
+        operation_name: None,
+        parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
+    };
+
+    let err = exec
+        .execute_query_direct(&rest_match, None, None)
+        .await
+        .expect_err("REST must refuse the same unknown sort key as /graphql");
+    assert!(err.to_string().contains("totallyBogusField"), "got: {err}");
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "REST must not query the database for an invalid sort"
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // B2. `__typename` on a nested object — #912
 // ══════════════════════════════════════════════════════════════════════════════
 //

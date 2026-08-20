@@ -1650,9 +1650,8 @@ mod matcher_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use std::collections::HashMap;
 
-    use indexmap::IndexMap;
-
     use fraiseql_db::utils::levenshtein;
+    use indexmap::IndexMap;
 
     use crate::{
         error::FraiseQLError,
