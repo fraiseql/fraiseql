@@ -7,8 +7,30 @@ use fraiseql_error::{FraiseQLError, Result};
 use super::counter::ParamCounter;
 use crate::{
     dialect::SqlDialect,
+    types::sql_hints::ScalarFieldType,
     where_clause::{FieldTypeMap, WhereClause, WhereOperator, field_types::operand_type},
 };
+
+/// The two renderings of `value` as a UUID — as the client wrote it, and the
+/// canonical lower-case form — or `None` when they would be identical or the
+/// value is not a hyphenated UUID.
+///
+/// Returning `None` for an already-canonical literal is what keeps the common
+/// path byte-identical: the generated SQL only grows the `ANY(ARRAY[…])` form
+/// when the client actually sent a differently-cased UUID.
+///
+/// The hyphenated-shape check matters. `Uuid::parse_str` also accepts braced,
+/// URN and simple forms, and rewriting one of those to canonical would change
+/// what the filter compares rather than merely its case — so only inputs that
+/// differ from canonical **by case alone** are treated as case variants.
+fn uuid_case_variants(value: &serde_json::Value) -> Option<(String, String)> {
+    let raw = value.as_str()?;
+    let canonical = uuid::Uuid::parse_str(raw).ok()?.hyphenated().to_string();
+    if raw == canonical || !raw.eq_ignore_ascii_case(&canonical) {
+        return None;
+    }
+    Some((raw.to_string(), canonical))
+}
 
 /// Escape LIKE metacharacters (`%`, `_`, `\`) in a user-supplied string so
 /// that it is treated as a literal substring inside a LIKE/ILIKE pattern.
@@ -538,6 +560,32 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 };
                 let ty = operand_type(types, path, value);
                 let lhs = self.dialect.cast_expr_as(&field_expr, ty);
+
+                // Identity equality is case-insensitive over the two renderings
+                // of the same UUID (#F4). PostgreSQL emits `uuid` lower-case, so
+                // an upper-cased literal compared as text matched **zero rows**
+                // for a row that exists — a well-formed empty list, which is
+                // indistinguishable from "nothing matched".
+                //
+                // Only the *literal* is inspected, never the column, so this
+                // needs no knowledge of the backing type and cannot raise on a
+                // row holding a non-UUID identity. When the literal is already
+                // canonical the SQL is byte-identical to before.
+                if matches!(ty, ScalarFieldType::Uuid)
+                    && matches!(operator, WhereOperator::Eq | WhereOperator::Neq)
+                {
+                    if let Some((as_given, lowered)) = uuid_case_variants(value) {
+                        let a = self.push_param(params, serde_json::Value::String(as_given));
+                        let b = self.push_param(params, serde_json::Value::String(lowered));
+                        let quantifier = if matches!(operator, WhereOperator::Eq) {
+                            "ANY"
+                        } else {
+                            "ALL"
+                        };
+                        return Ok(format!("{lhs} {op} {quantifier}(ARRAY[{a}, {b}])"));
+                    }
+                }
+
                 let p = self.push_param(params, value.clone());
                 let rhs = self.dialect.cast_param_as(&p, ty);
                 Ok(format!("{lhs} {op} {rhs}"))
@@ -559,9 +607,19 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 let lhs = self.dialect.cast_expr_as(&field_expr, ty);
                 let placeholders: Vec<_> = arr
                     .iter()
-                    .map(|v| {
+                    .flat_map(|v| {
+                        // Same identity rule as `eq`, per element: a UUID
+                        // literal contributes both of its renderings.
+                        if matches!(ty, ScalarFieldType::Uuid) {
+                            if let Some((as_given, lowered)) = uuid_case_variants(v) {
+                                let a =
+                                    self.push_param(params, serde_json::Value::String(as_given));
+                                let b = self.push_param(params, serde_json::Value::String(lowered));
+                                return vec![a, b];
+                            }
+                        }
                         let p = self.push_param(params, v.clone());
-                        self.dialect.cast_param_as(&p, ty).into_owned()
+                        vec![self.dialect.cast_param_as(&p, ty).into_owned()]
                     })
                     .collect();
                 let in_list = placeholders.join(", ");

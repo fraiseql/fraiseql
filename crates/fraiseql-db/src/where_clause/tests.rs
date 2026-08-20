@@ -731,3 +731,124 @@ fn an_unadjudicable_schema_accepts_an_unknown_key() {
     WhereClause::from_graphql_json(&json!({ "bogusKey": { "eq": "x" } }), &untyped())
         .expect("no field information — a rejection cannot be justified");
 }
+
+// ── Identity equality is case-insensitive (F4) ────────────────────────────────
+//
+// `Order.id` is declared `ID` and backed by a `uuid` column, but the comparison
+// happens against the JSONB *text* rendering, which PostgreSQL emits lower-case.
+// So the same UUID upper-cased returned **zero rows** for a row that exists — a
+// well-formed empty list, indistinguishable from "nothing matched". It cost a
+// real downstream debugging session, where the empty result read as missing seed
+// data.
+//
+// The repair inspects the *literal*, never the column: no cast is emitted, so a
+// row holding a non-UUID identity (`ID` intentionally spans uuid / integer /
+// text keys) cannot raise SQLSTATE 22P02.
+
+mod identity_equality {
+    use serde_json::json;
+
+    use crate::{
+        ScalarFieldType, WhereClause, WhereOperator,
+        dialect::PostgresDialect,
+        where_clause::{FieldTypeMap, SharedFieldTypes},
+        where_generator::generic::GenericWhereGenerator,
+    };
+
+    const LOWER: &str = "0000000a-0000-0000-0000-00000000000b";
+    const UPPER: &str = "0000000A-0000-0000-0000-00000000000B";
+
+    fn identity_types() -> SharedFieldTypes {
+        std::sync::Arc::new(FieldTypeMap::from_pairs([
+            ("id", ScalarFieldType::Uuid),
+            ("reference", ScalarFieldType::Text),
+        ]))
+    }
+
+    fn sql_for(field: &str, operator: WhereOperator, value: serde_json::Value) -> String {
+        let clause = WhereClause::Field {
+            path: vec![field.to_string()],
+            operator,
+            value,
+        }
+        .typed(identity_types());
+        GenericWhereGenerator::new(PostgresDialect)
+            .generate(&clause)
+            .expect("generates")
+            .0
+    }
+
+    /// The repro. An upper-cased UUID must match the same row as its lower-cased
+    /// form, which means comparing against both renderings.
+    #[test]
+    fn an_upper_cased_uuid_compares_against_both_renderings() {
+        let sql = sql_for("id", WhereOperator::Eq, json!(UPPER));
+        assert!(sql.contains("ANY(ARRAY["), "must compare against both forms: {sql}");
+    }
+
+    /// **No cast.** This is the property that makes the fix safe on a table whose
+    /// `id` holds `'user-1'`: `(data->>'id')::uuid` would be evaluated per row
+    /// and raise 22P02 for every query.
+    #[test]
+    fn identity_comparison_emits_no_cast() {
+        let sql = sql_for("id", WhereOperator::Eq, json!(UPPER));
+        assert!(!sql.contains("::uuid"), "a per-row cast would raise on non-UUID ids: {sql}");
+    }
+
+    /// The common path stays byte-identical: an already-canonical literal needs
+    /// no second form, so the SQL — and its query plan — do not change.
+    #[test]
+    fn an_already_canonical_uuid_generates_the_same_sql_as_before() {
+        let sql = sql_for("id", WhereOperator::Eq, json!(LOWER));
+        assert!(!sql.contains("ANY(ARRAY["), "no widening needed for a canonical literal: {sql}");
+        assert!(sql.contains('='), "still a plain equality: {sql}");
+    }
+
+    /// `neq` is the negation, so it must exclude **both** renderings.
+    #[test]
+    fn neq_excludes_both_renderings() {
+        let sql = sql_for("id", WhereOperator::Neq, json!(UPPER));
+        assert!(sql.contains("ALL(ARRAY["), "neq must exclude both forms: {sql}");
+    }
+
+    #[test]
+    fn in_expands_each_uuid_element_to_both_renderings() {
+        let clause = WhereClause::Field {
+            path:     vec!["id".to_string()],
+            operator: WhereOperator::In,
+            value:    json!([UPPER]),
+        }
+        .typed(identity_types());
+        let (sql, params) = GenericWhereGenerator::new(PostgresDialect)
+            .generate(&clause)
+            .expect("generates");
+        assert_eq!(params.len(), 2, "one UUID element contributes both forms: {sql}");
+    }
+
+    /// **Control** — a value that is not a UUID takes the unchanged text path.
+    /// `ID` legitimately holds `'user-1'` in the federation fixtures, and
+    /// case-folding an opaque key would be the same silent-wrong-answer bug in
+    /// the opposite direction.
+    #[test]
+    fn a_non_uuid_identity_value_is_compared_as_plain_text() {
+        let sql = sql_for("id", WhereOperator::Eq, json!("user-1"));
+        assert!(!sql.contains("ANY(ARRAY["), "an opaque key must not be case-folded: {sql}");
+    }
+
+    /// **Control** — a plain string field that happens to hold a UUID keeps text
+    /// semantics, because two differently-cased values there are genuinely
+    /// distinct.
+    #[test]
+    fn a_text_field_holding_a_uuid_is_not_case_folded() {
+        let sql = sql_for("reference", WhereOperator::Eq, json!(UPPER));
+        assert!(!sql.contains("ANY(ARRAY["), "only identity fields fold case: {sql}");
+    }
+
+    /// **Control** — a braced or URN UUID differs from canonical by more than
+    /// case, so rewriting it would change what is compared, not merely its case.
+    #[test]
+    fn a_non_hyphenated_uuid_form_is_left_alone() {
+        let sql = sql_for("id", WhereOperator::Eq, json!("{0000000a-0000-0000-0000-00000000000b}"));
+        assert!(!sql.contains("ANY(ARRAY["), "only case-only differences are folded: {sql}");
+    }
+}
