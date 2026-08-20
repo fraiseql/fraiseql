@@ -192,3 +192,69 @@ pub fn validate_graphql_identifier(field: &str, context: &str) -> fraiseql_error
 
 #[cfg(test)]
 mod tests;
+
+// ── Name suggestions ──────────────────────────────────────────────────────────
+//
+// Lives here rather than in `fraiseql-core` because both crates need it and
+// `fraiseql-core` depends on `fraiseql-db`, not the other way round: the WHERE
+// parser suggests field names, and the runtime suggests argument and variable
+// names. `fraiseql_core::runtime::suggest_similar` re-exports this one, so the
+// two cannot drift.
+
+/// Return candidates from `haystack` whose edit distance to `needle` is ≤ 2.
+///
+/// Uses a simple iterative Levenshtein implementation with a `2 * threshold`
+/// early-exit so cost stays proportional to the length of the candidates rather
+/// than `O(n * m)` for every comparison. At most three suggestions are returned,
+/// ordered by increasing edit distance.
+#[must_use]
+pub fn suggest_similar<'a>(needle: &str, haystack: &[&'a str]) -> Vec<&'a str> {
+    const MAX_DISTANCE: usize = 2;
+    const MAX_SUGGESTIONS: usize = 3;
+
+    let mut ranked: Vec<(usize, &str)> = haystack
+        .iter()
+        .filter_map(|&candidate| {
+            let d = levenshtein(needle, candidate);
+            if d <= MAX_DISTANCE {
+                Some((d, candidate))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    ranked.sort_unstable_by_key(|&(d, _)| d);
+    ranked.into_iter().take(MAX_SUGGESTIONS).map(|(_, s)| s).collect()
+}
+
+/// Compute the Levenshtein edit distance between two strings.
+#[must_use]
+pub fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let m = a.len();
+    let n = b.len();
+
+    // Early exit: length difference alone exceeds threshold.
+    if m.abs_diff(n) > 2 {
+        return m.abs_diff(n);
+    }
+
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0usize; n + 1];
+
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            curr[j] = if a[i - 1] == b[j - 1] {
+                prev[j - 1]
+            } else {
+                1 + prev[j - 1].min(prev[j]).min(curr[j - 1])
+            };
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[n]
+}

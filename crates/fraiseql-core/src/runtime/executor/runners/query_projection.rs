@@ -7,8 +7,9 @@ use std::sync::Arc;
 
 use crate::{
     db::{
-        OrderByClause, ProjectionField, ScalarFieldType, projection_generator::FieldKind,
-        where_clause::SharedFieldTypes,
+        OrderByClause, ProjectionField, ScalarFieldType,
+        projection_generator::FieldKind,
+        where_clause::{SharedFieldTypes, WhereFieldInfo, WhereFieldSchema},
     },
     graphql::FieldSelection,
     schema::CompiledSchema,
@@ -112,12 +113,26 @@ pub fn build_typed_projection_fields(
 ///
 /// Only the top level is mapped. A nested relation path (`machine.id`) has no
 /// entry, and the generator falls back to the JSON value's shape.
+///
+/// # Adjudication
+///
+/// The returned [`WhereFieldSchema`] distinguishes *"this type declares these
+/// keys"* from *"the schema could not tell us"*. A type that is **not found**,
+/// or one that carries **no fields**, yields a carrier that cannot adjudicate —
+/// so an unknown `where` key passes rather than being rejected on an absence of
+/// evidence (#939). Encoding that as a distinct state, rather than as an empty
+/// map, is what stops the allowlist failing open on a missing type or failing
+/// closed on every schema without field metadata.
 #[must_use]
-pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> SharedFieldTypes {
+pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> WhereFieldSchema {
     let Some(type_def) = schema.find_type(return_type) else {
-        return SharedFieldTypes::default();
+        return WhereFieldSchema::default();
     };
-    Arc::new(
+    if type_def.fields.is_empty() {
+        return WhereFieldSchema::default();
+    }
+
+    let casts: SharedFieldTypes = Arc::new(
         type_def
             .fields
             .iter()
@@ -128,7 +143,25 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> SharedFi
                 )
             })
             .collect(),
-    )
+    );
+
+    let known = type_def
+        .fields
+        .iter()
+        .map(|f| {
+            (
+                crate::utils::to_snake_case(f.name.as_str()),
+                WhereFieldInfo {
+                    declared_name: f.name.to_string(),
+                    // A composite field is a relation, so `{field: {sub: …}}` is
+                    // a legitimate nested filter on it; on a scalar it is not.
+                    is_relation:   !f.field_type.is_scalar(),
+                },
+            )
+        })
+        .collect();
+
+    WhereFieldSchema::with_known_keys(casts, known)
 }
 
 /// Map a schema [`FieldType`] to the ORDER BY cast hint.

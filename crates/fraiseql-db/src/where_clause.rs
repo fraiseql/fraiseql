@@ -9,7 +9,7 @@ use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
 pub use self::{
-    field_types::{FieldTypeMap, SharedFieldTypes},
+    field_types::{FieldTypeMap, SharedFieldTypes, WhereFieldInfo, WhereFieldSchema},
     operator_table::{OperatorCategory, WHERE_OPERATORS, WhereOperatorSpec, operator_spec},
 };
 use crate::utils::to_snake_case;
@@ -187,8 +187,9 @@ impl WhereClause {
     ///
     /// Cannot panic: the internal `.expect("checked len == 1")` is only reached
     /// after verifying `conditions.len() == 1`.
-    pub fn from_graphql_json(value: &serde_json::Value, types: &SharedFieldTypes) -> Result<Self> {
-        let parsed = Self::parse_where_object(value, &[])?;
+    pub fn from_graphql_json(value: &serde_json::Value, schema: &WhereFieldSchema) -> Result<Self> {
+        let parsed = Self::parse_where_object(value, &[], schema, 0)?;
+        let types = schema.casts();
         Ok(if types.is_empty() {
             parsed
         } else {
@@ -207,7 +208,12 @@ impl WhereClause {
     /// The multi-segment path is then handled by `GenericWhereGenerator`, which
     /// checks `IndexedColumnsCache` for `machine__id` (native column with index)
     /// and falls back to JSONB extraction (`data->'machine'->>'id'`).
-    fn parse_where_object(value: &serde_json::Value, path_prefix: &[String]) -> Result<Self> {
+    fn parse_where_object(
+        value: &serde_json::Value,
+        path_prefix: &[String],
+        schema: &WhereFieldSchema,
+        depth: usize,
+    ) -> Result<Self> {
         let Some(obj) = value.as_object() else {
             return Err(FraiseQLError::Validation {
                 message: "where clause must be a JSON object".to_string(),
@@ -224,8 +230,10 @@ impl WhereClause {
                         message: "_and must be an array".to_string(),
                         path:    None,
                     })?;
-                    let sub: Result<Vec<Self>> =
-                        arr.iter().map(|v| Self::parse_where_object(v, path_prefix)).collect();
+                    let sub: Result<Vec<Self>> = arr
+                        .iter()
+                        .map(|v| Self::parse_where_object(v, path_prefix, schema, depth))
+                        .collect();
                     conditions.push(Self::And(sub?));
                 },
                 "_or" => {
@@ -233,12 +241,14 @@ impl WhereClause {
                         message: "_or must be an array".to_string(),
                         path:    None,
                     })?;
-                    let sub: Result<Vec<Self>> =
-                        arr.iter().map(|v| Self::parse_where_object(v, path_prefix)).collect();
+                    let sub: Result<Vec<Self>> = arr
+                        .iter()
+                        .map(|v| Self::parse_where_object(v, path_prefix, schema, depth))
+                        .collect();
                     conditions.push(Self::Or(sub?));
                 },
                 "_not" => {
-                    let sub = Self::parse_where_object(val, path_prefix)?;
+                    let sub = Self::parse_where_object(val, path_prefix, schema, depth)?;
                     conditions.push(Self::Not(Box::new(sub)));
                 },
                 field_name => {
@@ -248,6 +258,17 @@ impl WhereClause {
                     // enforces. Rejecting here covers every dialect and every
                     // downstream consumer.
                     crate::utils::validate_graphql_identifier(field_name, "where")?;
+
+                    // Only the top level is adjudicated (`depth == 0`). A nested
+                    // relation path such as `{machine: {id: …}}` resolves `id`
+                    // against *machine's* type, and the compiled schema carries
+                    // no field map for that level — so rejecting there would be
+                    // guessing. See the module header.
+                    let snake = to_snake_case(field_name);
+                    if depth == 0 && schema.can_adjudicate() && schema.lookup(&snake).is_none() {
+                        return Err(unknown_where_field(field_name, schema));
+                    }
+
                     let ops = val.as_object().ok_or_else(|| FraiseQLError::Validation {
                         message: format!(
                             "where field '{field_name}' must be an object of {{operator: value}}"
@@ -255,7 +276,7 @@ impl WhereClause {
                         path:    None,
                     })?;
                     let mut field_path = path_prefix.to_vec();
-                    field_path.push(to_snake_case(field_name));
+                    field_path.push(snake);
 
                     for (op_str, op_val) in ops {
                         match WhereOperator::from_str(op_str) {
@@ -270,8 +291,39 @@ impl WhereClause {
                                 // Nested relation/object filter: recurse with extended path.
                                 // e.g., { machine: { id: { eq: "..." } } }
                                 //   → path_prefix=["machine"], key="id", value={ eq: "..." }
+                                //
+                                // …but only when the field is actually a
+                                // relation. On a *scalar* field this arm was
+                                // reinterpreting an unknown operator as a
+                                // relation filter, so
+                                // `{"reference": {"notAnOperator": {"eq": "x"}}}`
+                                // built the path `reference.notAnOperator`,
+                                // matched nothing, and returned `[]` with no
+                                // error — while the same bogus operator with a
+                                // *scalar* value was correctly refused. A nested
+                                // relation filter on a scalar field is never
+                                // legitimate.
+                                if depth == 0
+                                    && schema
+                                        .lookup(&field_path[0])
+                                        .is_some_and(|info| !info.is_relation)
+                                {
+                                    return Err(FraiseQLError::Validation {
+                                        message: format!(
+                                            "Unknown WHERE operator '{op_str}' on field \
+                                             '{field_name}'. '{field_name}' is a scalar field, so \
+                                             it cannot take a nested filter."
+                                        ),
+                                        path:    None,
+                                    });
+                                }
                                 let nested_json = serde_json::json!({ op_str: op_val });
-                                let nested = Self::parse_where_object(&nested_json, &field_path)?;
+                                let nested = Self::parse_where_object(
+                                    &nested_json,
+                                    &field_path,
+                                    schema,
+                                    depth + 1,
+                                )?;
                                 conditions.push(nested);
                             },
                             Err(e) => return Err(e),
@@ -287,6 +339,26 @@ impl WhereClause {
         } else {
             Ok(Self::And(conditions))
         }
+    }
+}
+
+/// The error for a `where` key the type does not declare.
+///
+/// Mirrors the shape of the unknown-operator error already in this file, plus a
+/// "did you mean" hint: a `where` key is most often a rename or a
+/// camelCase/snake_case slip, and both are one edit from the name that works.
+fn unknown_where_field(field_name: &str, schema: &WhereFieldSchema) -> FraiseQLError {
+    let candidates = schema.declared_names();
+    let subject = format!("Unknown field '{field_name}' in where clause.");
+    let message = match crate::utils::suggest_similar(field_name, &candidates).as_slice() {
+        [s] => format!("{subject} Did you mean '{s}'?"),
+        [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
+        [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),
+        _ => subject,
+    };
+    FraiseQLError::Validation {
+        message,
+        path: Some(format!("where.{field_name}")),
     }
 }
 

@@ -1652,6 +1652,8 @@ mod matcher_tests {
 
     use indexmap::IndexMap;
 
+    use fraiseql_db::utils::levenshtein;
+
     use crate::{
         error::FraiseQLError,
         runtime::matcher::*,
