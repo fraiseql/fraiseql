@@ -218,6 +218,31 @@ disagreed, and the promise was the part that was wrong.
   identities as text is correct, and a cast there would both retype the sort and raise on
   non-UUID rows. Range operators (`gt`/`lt`/…) on identity fields also keep text ordering.
 
+- **`__schema` and `__type` follow the selection set (GraphQL § 6.3).**
+  `{ __schema { queryType { name } } }` used to return `description`, `directives`, `queryType`
+  **and** `types`, and `{ __schema { types { name } } }` returned every type with
+  `description`, `fields`, `interfaces` and `kind`. The response was built once at startup and
+  served verbatim.
+
+  This is the only change in the family with no *wrong* answer — the response was a superset,
+  never a plausible-but-false result. It is still worth fixing: over-delivery is harmless only
+  if every consumer tolerates unknown fields, and a strict typed deserialiser, or tooling that
+  *diffs* introspection results, is a real failure. More structurally, a pre-built blob makes
+  field- or type-level introspection filtering — hiding internal types, or a
+  partial-introspection mode for semi-trusted clients — impossible, because the filter has
+  nowhere to live.
+
+  **The zero-cost property is kept.** Projection is a pure function of the selection set, and
+  the space of introspection selection sets in the wild is small and repetitive: `GraphiQL`
+  sends one canonical query, Apollo sends one, each codegen tool sends one, and they do not
+  vary between page loads. The projected value is memoised by a hash of the normalised
+  selection set, so a repeated shape is an `Arc` clone from a table — the same cost as serving
+  the canned response — and only the first request of each shape does work. The pre-built
+  response remains the source; it is projected on the way out, never rebuilt.
+
+  Aliases are honoured, lists are projected element-wise, and a selection naming something the
+  response does not carry is omitted rather than fabricated as `null`.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is

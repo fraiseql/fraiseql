@@ -1392,6 +1392,161 @@ async fn the_rest_sort_surface_enforces_the_same_rule() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// B8. Introspection follows the selection set — § 6.3
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// `__schema` and `__type` returned a response built once at startup, so
+// `{ __schema { queryType { name } } }` came back with `description`,
+// `directives`, `queryType` **and** `types`.
+//
+// This is the only member of the family with no *wrong* answer — the response is
+// a superset, never a plausible-but-false result. It is still worth fixing:
+// over-delivery is harmless only if every consumer tolerates unknown fields (a
+// strict typed deserialiser, or tooling that diffs introspection results, does
+// not), and a pre-built blob makes field- or type-level introspection filtering
+// structurally impossible, because the filter has nowhere to live.
+
+#[tokio::test]
+async fn schema_introspection_returns_only_the_selected_fields() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ __schema { queryType { name } } }", None)
+        .await
+        .expect("introspection must run");
+
+    let schema = &response["data"]["__schema"];
+    assert!(
+        schema.get("queryType").is_some(),
+        "the selected field must be present: {response}"
+    );
+    for unselected in ["types", "directives", "description", "mutationType"] {
+        assert!(
+            schema.get(unselected).is_none(),
+            "'{unselected}' was not selected but came back: {response}"
+        );
+    }
+}
+
+/// One level further down: the projection is recursive, asserted by **exact key
+/// set** rather than by the absence of particular keys. An absence assertion
+/// passes trivially against a value that never carried the key, which is how a
+/// projection test ends up green with no projection running.
+#[tokio::test]
+async fn nested_introspection_selections_are_projected() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ __schema { types { name kind } } }", None)
+        .await
+        .expect("introspection must run");
+    let types = response["data"]["__schema"]["types"]
+        .as_array()
+        .unwrap_or_else(|| panic!("types must be a list: {response}"));
+    for t in types {
+        let obj = t.as_object().unwrap_or_else(|| panic!("each type is an object: {response}"));
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["kind", "name"], "exactly the selected keys: {response}");
+    }
+}
+
+/// A list is projected element-wise — a selection set applies to every member.
+#[tokio::test]
+async fn a_list_of_types_is_projected_element_wise() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ __schema { types { name } } }", None)
+        .await
+        .expect("introspection must run");
+    let types = response["data"]["__schema"]["types"]
+        .as_array()
+        .unwrap_or_else(|| panic!("types must be a list: {response}"));
+    assert!(!types.is_empty(), "the fixture schema has types: {response}");
+    for t in types {
+        assert!(t.get("name").is_some(), "{response}");
+        assert!(t.get("fields").is_none(), "`fields` was not selected: {response}");
+        assert!(t.get("kind").is_none(), "`kind` was not selected: {response}");
+    }
+}
+
+/// Introspection fields are selectable with aliases like any others.
+#[tokio::test]
+async fn introspection_selections_honour_aliases() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ __schema { root: queryType { title: name } } }", None)
+        .await
+        .expect("introspection must run");
+    let schema = &response["data"]["__schema"];
+    assert!(schema.get("root").is_some(), "alias must name the key: {response}");
+    assert!(
+        schema.get("queryType").is_none(),
+        "the source name must not also appear: {response}"
+    );
+    assert!(schema["root"].get("title").is_some(), "nested alias: {response}");
+}
+
+/// `__type` projects the same way.
+#[tokio::test]
+async fn type_introspection_returns_only_the_selected_fields() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute(r#"{ __type(name: "User") { name } }"#, None)
+        .await
+        .expect("introspection must run");
+    let ty = &response["data"]["__type"];
+    assert!(ty.get("name").is_some(), "{response}");
+    assert!(ty.get("fields").is_none(), "`fields` was not selected: {response}");
+}
+
+/// **The property that makes this affordable.** Projection is a pure function of
+/// the selection set, so a repeated shape is served from the memo rather than
+/// re-projected — the canned response's zero-cost claim survives, while the spec
+/// deviation does not.
+#[tokio::test]
+async fn a_repeated_introspection_shape_is_served_from_the_memo() {
+    let (exec, _) = executor();
+    let doc = "{ __schema { queryType { name } } }";
+    let first = exec.execute(doc, None).await.expect("first run");
+    let second = exec.execute(doc, None).await.expect("memoised run");
+    assert_eq!(first, second, "a memo hit must be byte-identical to the projection it caches");
+    // …and both must actually be projected, so this cannot pass by both runs
+    // returning the same unprojected blob.
+    assert!(
+        second["data"]["__schema"].get("types").is_none(),
+        "the memoised value must be the projection, not the canned response: {second}"
+    );
+}
+
+/// Two different shapes must not share a memo slot.
+#[tokio::test]
+async fn two_introspection_shapes_do_not_collide_in_the_memo() {
+    let (exec, _) = executor();
+    let a = exec
+        .execute("{ __schema { queryType { name } } }", None)
+        .await
+        .expect("shape A");
+    let b = exec.execute("{ __schema { types { name } } }", None).await.expect("shape B");
+    assert!(a["data"]["__schema"].get("queryType").is_some(), "{a}");
+    assert!(a["data"]["__schema"].get("types").is_none(), "{a}");
+    assert!(b["data"]["__schema"].get("types").is_some(), "{b}");
+    assert!(b["data"]["__schema"].get("queryType").is_none(), "{b}");
+}
+
+/// Two `__type` queries differing only in their `name` argument project
+/// different values, so the type name must participate in the memo key.
+#[tokio::test]
+async fn two_type_introspections_with_the_same_shape_do_not_collide() {
+    let (exec, _) = executor();
+    let user = exec.execute(r#"{ __type(name: "User") { name } }"#, None).await.expect("User");
+    let profile = exec
+        .execute(r#"{ __type(name: "Profile") { name } }"#, None)
+        .await
+        .expect("Profile");
+    assert_eq!(user["data"]["__type"]["name"], "User", "{user}");
+    assert_eq!(profile["data"]["__type"]["name"], "Profile", "{profile}");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // B2. `__typename` on a nested object — #912
 // ══════════════════════════════════════════════════════════════════════════════
 //

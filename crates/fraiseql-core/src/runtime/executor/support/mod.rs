@@ -8,6 +8,7 @@ pub(super) mod classify;
 pub(super) mod explain;
 #[cfg(feature = "federation")]
 pub(super) mod federation;
+pub(super) mod introspection_projection;
 pub mod pipeline;
 pub(super) mod planning;
 pub(super) mod relay;
