@@ -80,6 +80,36 @@ disagreed, and the promise was the part that was wrong.
   that went missing. Parsing before that gate exposes no new surface — the gate already parses
   the same document through the same panic-guarded seam.
 
+- **A variable declared with a type the schema does not publish is refused (GraphQL
+  § 5.8.2).** `query Q($w: NoSuchTypeAtAll) { orders(where: $w, limit: 1) }` executed
+  normally; nothing resolved a variable's declared type name against anything. The name now
+  resolves against the surface a client can actually learn names from: the scalars
+  introspection publishes, declared enums, and declared input objects. List and non-null
+  wrappers are structural, so `[ID!]!` resolves as `ID`.
+
+  Two deliberate limits. The accepted scalar list is **derived from the introspection
+  response**, not hand-copied — it publishes `JSON`, while the *authoring* table
+  `BUILTIN_SCALARS` spells the same scalar `Json`, and a client writes what introspection told
+  it; resolving against the authoring table would have rejected `$w: JSON`. And the rule
+  **fails open** when a schema carries no enums *and* no input objects: that means the
+  compiler emitted no input-type information, which is not the same as declaring those names
+  absent. Consequently `Vector`/`BitVector`/`HalfVector`/`SparseVector` are correctly *not*
+  acceptable variable types — they exist in the authoring table but introspection never
+  publishes them as scalars.
+
+- **A variable that is declared and never used is refused (GraphQL § 5.8.4).**
+  `query Q($unused: Int) { orders(limit: 1) { reference } }` is now
+  `Validation error: Variable '$unused' is never used in operation 'Q'.`
+
+  **Read this one differently from the other two.** § 5.8.3 and § 5.8.4 both reject documents
+  that used to be accepted, but § 5.8.3 was fixing a **wrong answer** — silently dropped
+  filters and bounds — whereas a document with an unused variable definition executes and
+  answers **correctly** today. Nothing is dropped, nothing is wrong. The spec is unambiguous
+  that it is invalid, but the shape it outlaws is a real one: a single document shared across
+  call sites and sent with a superset of variable definitions. If you ship that pattern, this
+  is the entry that breaks you, and the fix is to trim each operation's definitions to what it
+  references. A variable referenced only inside a reachable fragment **does** count as used.
+
 - **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
   `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
   `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is

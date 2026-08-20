@@ -5,7 +5,10 @@ use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::parse_query,
-    runtime::{collect_variable_references, validate_variable_uses},
+    runtime::{
+        collect_variable_references, validate_variable_types, validate_variable_uses,
+        validate_variables_used,
+    },
 };
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -63,7 +66,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             location: "query".to_string(),
         })?;
 
-        // GraphQL § 5.8.3: every variable used must be defined by the operation.
+        // GraphQL § 5.8.3 / § 5.8.2 / § 5.8.4 — variable definitions.
         //
         // Placed here, immediately after the parse and *before* the routing
         // branches, because this is the only point every operation type shares
@@ -77,11 +80,16 @@ impl<A: DatabaseAdapter> Executor<A> {
         // single-root string that carries no variable *definitions* while
         // faithfully re-emitting `$name` references, so a check there would
         // reject every multi-root query that uses a variable.
-        validate_variable_uses(
-            parsed.operation_name.as_deref(),
-            &parsed.variables.iter().map(|v| v.name.clone()).collect::<Vec<_>>(),
-            &collect_variable_references(&parsed)?,
-        )?;
+        let operation_name = parsed.operation_name.as_deref();
+        let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
+        let referenced = collect_variable_references(&parsed)?;
+
+        // Ordered most-useful-first: when a document has more than one of these
+        // problems, an undefined *reference* is the one that changed the answer,
+        // so it is the one worth reporting.
+        validate_variable_uses(operation_name, &defined, &referenced)?;
+        validate_variable_types(&self.ctx.schema, operation_name, &parsed.variables)?;
+        validate_variables_used(operation_name, &defined, &referenced)?;
 
         let root_field = &parsed.root_field;
 

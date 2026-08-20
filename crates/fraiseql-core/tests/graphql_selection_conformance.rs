@@ -1019,6 +1019,124 @@ async fn an_undefined_variable_inside_a_reachable_fragment_is_a_validation_error
     assert!(err.to_string().contains("$nope"), "got: {err}");
 }
 
+// ── B5b. § 5.8.2 (variable types) and § 5.8.4 (unused definitions) ────────────
+//
+// Both are separate rules from § 5.8.3 above, with inverted risk profiles.
+// § 5.8.2 depends on resolving against the *published* type surface — get that
+// wrong and you reject `$w: JSON`, which is the spelling introspection itself
+// tells clients to write. § 5.8.4 rejects documents that execute and answer
+// **correctly** today: one document reused across call sites, sent with a
+// superset of variable definitions, is a real client shape.
+
+/// [`paginating_executor`] whose schema also declares an enum and an input
+/// object, so § 5.8.2 has the input-type information it needs to adjudicate.
+/// Without either, the rule deliberately fails open.
+fn typed_variable_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+    use fraiseql_core::schema::{
+        EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
+    };
+
+    let mut schema = user_schema();
+    for q in &mut schema.queries {
+        q.auto_params.has_where = true;
+        q.auto_params.has_limit = true;
+    }
+    schema
+        .enums
+        .push(EnumDefinition::new("UserStatus").with_value(EnumValueDefinition::new("ACTIVE")));
+    schema.input_types.push(
+        InputObjectDefinition::new("UserFilter")
+            .with_field(InputFieldDefinition::new("name", "String")),
+    );
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
+}
+
+/// § 5.8.2: a type name the schema does not publish.
+#[tokio::test]
+async fn a_variable_typed_with_an_unpublished_name_is_a_validation_error() {
+    let (exec, adapter) = typed_variable_executor();
+    let err = exec
+        .execute("query Q($w: NoSuchTypeAtAll) { users(where: $w, limit: 1) { id } }", None)
+        .await
+        .expect_err("a variable typed with a name the schema does not publish is invalid");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("NoSuchTypeAtAll") && msg.contains("$w"),
+        "the error must name the type and the variable, got: {msg}"
+    );
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an invalid document must not execute — the database was queried anyway"
+    );
+}
+
+/// **Control — the `JSON`/`Json` landmine.** The authoring table spells this
+/// `"Json"`; introspection publishes `"JSON"`. A client writes what
+/// introspection told it, so resolving § 5.8.2 against the authoring table would
+/// reject the spelling the server advertises.
+#[tokio::test]
+async fn the_json_spelling_introspection_publishes_is_accepted() {
+    let (exec, _) = typed_variable_executor();
+    exec.execute("query Q($w: JSON) { users(where: $w, limit: 1) { id } }", None)
+        .await
+        .expect("`JSON` is what introspection publishes and what a client writes");
+}
+
+/// **Control** — a declared enum, a declared input object, and a wrapped
+/// built-in all resolve.
+#[tokio::test]
+async fn declared_input_types_are_accepted_as_variable_types() {
+    let (exec, _) = typed_variable_executor();
+    for doc in [
+        "query Q($s: UserStatus) { users(where: $s, limit: 1) { id } }",
+        "query Q($f: UserFilter) { users(where: $f, limit: 1) { id } }",
+        "query Q($ids: [ID!]!) { users(where: $ids, limit: 1) { id } }",
+    ] {
+        exec.execute(doc, None).await.unwrap_or_else(|e| panic!("{doc} must run: {e}"));
+    }
+}
+
+/// § 5.8.4: a definition that is never referenced.
+#[tokio::test]
+async fn an_unused_variable_definition_is_a_validation_error() {
+    let (exec, adapter) = typed_variable_executor();
+    let err = exec
+        .execute("query Q($unused: Int) { users(limit: 1) { id } }", None)
+        .await
+        .expect_err("a variable defined and never used is invalid");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("$unused") && msg.contains("never used"),
+        "the error must name the unused variable, got: {msg}"
+    );
+    assert!(adapter.recorded_projections().is_empty(), "must not execute");
+}
+
+/// **Control** — a variable referenced only inside a reachable fragment counts
+/// as used. Missing the fragment walk turns § 5.8.4 into a false-rejection
+/// machine on any document with fragments.
+#[tokio::test]
+async fn a_variable_used_only_through_a_fragment_is_not_unused() {
+    let (exec, _) = typed_variable_executor();
+    exec.execute(
+        "query Q($w: JSON) { users(limit: 1) { id ...F } } \
+         fragment F on User { name @skip(if: $skip) } ",
+        None,
+    )
+    .await
+    .expect_err("$skip is undefined — this document is caught by § 5.8.3, not § 5.8.4");
+
+    exec.execute(
+        "query Q($w: JSON) { users(where: $w, limit: 1) { id ...F } } fragment F on User { name }",
+        None,
+    )
+    .await
+    .expect("a variable used in the operation body is used");
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // B2. `__typename` on a nested object — #912
 // ══════════════════════════════════════════════════════════════════════════════

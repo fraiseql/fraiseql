@@ -20,6 +20,27 @@ use super::{
 // Built-in scalar types
 // =============================================================================
 
+/// The scalar type names introspection **publishes to clients** — and therefore
+/// the names a client may legitimately write in a variable definition
+/// (GraphQL § 5.8.2).
+///
+/// Derived from `builtin_scalars` rather than hand-listed, deliberately: the
+/// two spellings of JSON in this tree are a live trap. The **authoring** table
+/// `schema::BUILTIN_SCALARS` spells it `"Json"` (what an author writes in
+/// `schema.json`), while everything client-facing publishes `"JSON"` — here,
+/// `FieldType::to_graphql_string`, and the `type_ref` on every `where`
+/// argument. A client writes what introspection told it, so § 5.8.2 must
+/// resolve against *this* list; resolving against the authoring table would
+/// reject `query Q($w: JSON)`, which is exactly what introspection instructs
+/// clients to send.
+///
+/// A hand-copied list is how `BUILTIN_SCALARS` and its predecessor drifted
+/// apart in the first place (#959).
+#[must_use]
+pub fn published_scalar_names() -> Vec<String> {
+    builtin_scalars().into_iter().filter_map(|t| t.name).collect()
+}
+
 /// Return `IntrospectionType` nodes for all built-in GraphQL scalars.
 pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
     vec![

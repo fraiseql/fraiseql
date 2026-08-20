@@ -1,9 +1,25 @@
-//! Variable-definition validation for the executed operation.
+//! Variable-definition validation for the executed operation — GraphQL § 5.8.2,
+//! § 5.8.3 and § 5.8.4.
 //!
-//! GraphQL § 5.8.3 (All Variable Uses Defined): *"Every variable used within an
-//! operation must be defined by that operation."* A document that references
-//! `$x` without defining it is **invalid**, and an invalid document must not
-//! execute.
+//! The load-bearing one is **§ 5.8.3 (All Variable Uses Defined)**: *"Every
+//! variable used within an operation must be defined by that operation."* A
+//! document that references `$x` without defining it is **invalid**, and an
+//! invalid document must not execute.
+//!
+//! Its two siblings share this module because they share the reference walker,
+//! but they do **not** share its risk profile, and the difference matters to
+//! anyone deciding whether to upgrade:
+//!
+//! | Rule | What it catches | What breaks |
+//! |---|---|---|
+//! | § 5.8.3 | `$x` used, never defined | clients getting **wrong answers** today |
+//! | § 5.8.2 | `$w: NoSuchTypeAtAll` | clients whose declared type name is not published |
+//! | § 5.8.4 | `$unused` defined, never referenced | clients that work and answer **correctly** today |
+//!
+//! § 5.8.4 is the only rule here with no correctness payoff: nothing is silently
+//! dropped and no answer is wrong. It outlaws a real client shape — one document
+//! reused across call sites, sent with a superset of variable definitions. The
+//! spec is unambiguous that this is invalid; the CHANGELOG says so plainly.
 //!
 //! Before this, an undefined reference was dropped on the floor along with the
 //! argument that carried it. [`QueryMatcher::resolve_inline_arg`] resolves a
@@ -50,11 +66,12 @@
 //!   walked, so a second operation's fragments — which legitimately reference *that* operation's
 //!   variables — are never scored against this one. Scanning `parsed.fragments` wholesale would
 //!   reject a valid document.
-//! * **Unused *definitions*.** § 5.8.4 is a separate rule with an inverted risk profile: it rejects
-//!   documents that execute and answer *correctly* today.
-//! * **Variable *types*.** § 5.8.2 (the type names a definition may use) is likewise separate.
-//! * **Argument values, coercion and input-object shape.** Checked further down; this rule is about
-//!   names alone.
+//! * **Variable types, when the schema cannot adjudicate them.** § 5.8.2 resolves a declared type
+//!   name against the *published* surface, and a schema carrying no enums and no input objects at
+//!   all is treated as "the compiler emitted no input-type information" rather than "these names do
+//!   not exist". See [`validate_variable_types`].
+//! * **Argument values, coercion and input-object shape.** Checked further down; these rules are
+//!   about names alone.
 //! * **References nested deeper than [`value_json::MAX_DEPTH`].** The parser refuses to build
 //!   anything deeper, so a deeper reference cannot exist; the cap keeps the walk off an unbounded
 //!   stack rather than trading away coverage.
@@ -131,6 +148,156 @@ pub fn validate_variable_uses(
             [a, b] => format!("{subject} Did you mean '${a}' or '${b}'?"),
             [a, b, c, ..] => format!("{subject} Did you mean '${a}', '${b}', or '${c}'?"),
             _ => subject,
+        };
+
+        return Err(FraiseQLError::Validation {
+            message,
+            path: Some(match operation_name {
+                Some(op) => format!("{op}.${name}"),
+                None => format!("${name}"),
+            }),
+        });
+    }
+
+    Ok(())
+}
+
+/// Check that every variable definition names a type the schema publishes as an
+/// input type (GraphQL § 5.8.2).
+///
+/// Resolves the **innermost** type name — the list and non-null wrappers are
+/// structural — against the three sources a client can legitimately learn a name
+/// from: the scalars introspection publishes
+/// ([`published_scalar_names`](crate::schema::published_scalar_names)), declared
+/// enums, and declared input objects. Custom scalars named by a declared field
+/// are also accepted: introspection does not publish them as `SCALAR` types, but
+/// the schema does not positively say they are absent either.
+///
+/// # What this does not reject
+///
+/// **A schema carrying no enums *and* no input objects is not adjudicated.**
+/// That shape means the compiler emitted no input-type information, not that the
+/// schema genuinely has none, and a rejection cannot be justified from an absence
+/// of evidence — the #939 principle in
+/// [`crate::graphql::validate_selection_set`].
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the first unknown type name.
+pub fn validate_variable_types(
+    schema: &crate::schema::CompiledSchema,
+    operation_name: Option<&str>,
+    definitions: &[crate::graphql::types::VariableDefinition],
+) -> Result<()> {
+    // Cannot adjudicate: no input-type information was emitted at all.
+    if schema.enums.is_empty() && schema.input_types.is_empty() {
+        return Ok(());
+    }
+
+    let scalars = crate::schema::published_scalar_names();
+
+    for def in definitions {
+        let type_name = innermost_type_name(&def.var_type.name);
+        let known = scalars.iter().any(|s| s == type_name)
+            || schema.find_enum(type_name).is_some()
+            || schema.find_input_type(type_name).is_some()
+            || custom_scalar_is_declared(schema, type_name);
+        if known {
+            continue;
+        }
+
+        let subject = match operation_name {
+            Some(op) => format!(
+                "Variable '${}' of operation '{op}' declares unknown type '{type_name}'.",
+                def.name
+            ),
+            None => {
+                format!("Variable '${}' declares unknown type '{type_name}'.", def.name)
+            },
+        };
+        let candidates: Vec<&str> = scalars
+            .iter()
+            .map(String::as_str)
+            .chain(schema.enums.iter().map(|e| e.name.as_str()))
+            .chain(schema.input_types.iter().map(|i| i.name.as_str()))
+            .collect();
+        let message = match super::suggest_similar(type_name, &candidates).as_slice() {
+            [s] => format!("{subject} Did you mean '{s}'?"),
+            [a, b] => format!("{subject} Did you mean '{a}' or '{b}'?"),
+            [a, b, c, ..] => format!("{subject} Did you mean '{a}', '{b}', or '{c}'?"),
+            _ => subject,
+        };
+
+        return Err(FraiseQLError::Validation {
+            message,
+            path: Some(match operation_name {
+                Some(op) => format!("{op}.${}", def.name),
+                None => format!("${}", def.name),
+            }),
+        });
+    }
+
+    Ok(())
+}
+
+/// Strip the list wrappers a parsed variable type carries in its *name*.
+///
+/// `GraphQLType` records list-ness twice and inconsistently: `parse_graphql_type`
+/// sets `list: true` **and** rewrites the name to `"[Inner]"`, while a non-null
+/// wrapper only flips `nullable` and leaves the name alone. So `[ID!]!` arrives
+/// as `name: "[ID]"`, not `name: "ID"` with flags.
+///
+/// § 5.8.2 is a rule about the *named* type, so the wrappers are peeled off
+/// before resolution — and the innermost name is what the error reports, since
+/// `'[ID]'` is not a name a client could look up.
+fn innermost_type_name(name: &str) -> &str {
+    let mut inner = name;
+    while let Some(stripped) = inner.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        inner = stripped;
+    }
+    inner
+}
+
+/// Whether any declared field uses `name` as a custom scalar.
+fn custom_scalar_is_declared(schema: &crate::schema::CompiledSchema, name: &str) -> bool {
+    schema.types.iter().any(|t| {
+        t.fields
+            .iter()
+            .any(|f| matches!(&f.field_type, crate::schema::FieldType::Scalar(s) if s == name))
+    })
+}
+
+/// Check that every variable the operation defines is also used by it
+/// (GraphQL § 5.8.4).
+///
+/// The inverse of [`validate_variable_uses`], over the same reference set — which
+/// means it inherits the fragment-reachability walk. That is load-bearing rather
+/// than incidental: a variable referenced **only** inside a reachable fragment
+/// *is* used, and a rule that missed that traversal would reject any document
+/// whose variables are consumed through fragments.
+///
+/// Unlike § 5.8.3, this rejects documents that execute and answer **correctly**
+/// today — a document reused across call sites and sent with a superset of
+/// variable definitions is a real client shape. The spec is unambiguous that it
+/// is invalid, but it is the one rule in this module with no correctness payoff.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the first unused definition, in
+/// declaration order.
+pub fn validate_variables_used(
+    operation_name: Option<&str>,
+    defined: &[String],
+    referenced: &[String],
+) -> Result<()> {
+    for name in defined {
+        if referenced.iter().any(|r| r == name) {
+            continue;
+        }
+
+        let message = match operation_name {
+            Some(op) => format!("Variable '${name}' is never used in operation '{op}'."),
+            None => format!("Variable '${name}' is never used in the operation."),
         };
 
         return Err(FraiseQLError::Validation {
@@ -483,5 +650,171 @@ mod tests {
                       fragment F on Order { items(first: $n) { id } }";
         validate_variable_uses(Some("Q"), &defined(source), &references(source))
             .expect("a fragment reference to a declared variable is valid");
+    }
+
+    // ---- § 5.8.2: a variable's type must be one the schema publishes ----
+
+    /// A schema carrying an enum and an input object, so § 5.8.2 has enough
+    /// information to adjudicate. `OrderStatus` and `OrderFilter` are the
+    /// declared names; everything else must resolve against the published
+    /// scalars.
+    fn schema_with_input_types() -> crate::schema::CompiledSchema {
+        use crate::schema::{
+            CompiledSchema, EnumDefinition, EnumValueDefinition, InputFieldDefinition,
+            InputObjectDefinition,
+        };
+
+        let mut schema = CompiledSchema::default();
+        schema
+            .enums
+            .push(EnumDefinition::new("OrderStatus").with_value(EnumValueDefinition::new("OPEN")));
+        schema.input_types.push(
+            InputObjectDefinition::new("OrderFilter")
+                .with_field(InputFieldDefinition::new("reference", "String")),
+        );
+        schema
+    }
+
+    fn var_defs(source: &str) -> Vec<crate::graphql::types::VariableDefinition> {
+        parse_query(source).expect("query parses").variables
+    }
+
+    #[test]
+    fn a_variable_typed_with_an_unpublished_name_is_a_validation_error() {
+        let err = validate_variable_types(
+            &schema_with_input_types(),
+            Some("Q"),
+            &var_defs("query Q($w: NoSuchTypeAtAll) { orders(where: $w) { id } }"),
+        )
+        .expect_err("a type name the schema does not publish must be refused");
+        let message = err.to_string();
+        assert!(message.contains("NoSuchTypeAtAll"), "message was: {message}");
+        assert!(message.contains("$w"), "message was: {message}");
+    }
+
+    /// **The landmine.** `BUILTIN_SCALARS` — the *authoring* table — spells this
+    /// `"Json"`. Introspection publishes `"JSON"`, and a client writes what
+    /// introspection told it. Resolving § 5.8.2 against the authoring table
+    /// would reject the spelling the server itself advertises.
+    #[test]
+    fn json_is_accepted_with_the_spelling_introspection_publishes() {
+        validate_variable_types(
+            &schema_with_input_types(),
+            Some("Q"),
+            &var_defs("query Q($w: JSON) { orders(where: $w) { id } }"),
+        )
+        .expect("`JSON` is what introspection publishes and what a client writes");
+    }
+
+    /// Iterated from the source list rather than hand-copied, so a scalar added
+    /// to the published surface cannot silently fall out of the accepted set.
+    #[test]
+    fn every_published_scalar_is_accepted_as_a_variable_type() {
+        let schema = schema_with_input_types();
+        for name in crate::schema::published_scalar_names() {
+            let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
+            let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source));
+            assert!(result.is_ok(), "published scalar '{name}' must be accepted: {result:?}");
+        }
+    }
+
+    #[test]
+    fn list_and_non_null_wrappers_are_structural_and_unwrapped() {
+        let schema = schema_with_input_types();
+        for source in [
+            "query Q($ids: [ID!]!) { orders(where: $ids) { id } }",
+            "query Q($ids: [ID]) { orders(where: $ids) { id } }",
+            "query Q($id: ID!) { orders(where: $id) { id } }",
+        ] {
+            let result = validate_variable_types(&schema, Some("Q"), &var_defs(source));
+            assert!(result.is_ok(), "wrappers are structural, not names: {source}: {result:?}");
+        }
+    }
+
+    #[test]
+    fn a_declared_enum_and_input_object_are_accepted() {
+        let schema = schema_with_input_types();
+        validate_variable_types(
+            &schema,
+            Some("Q"),
+            &var_defs("query Q($s: OrderStatus) { orders(where: $s) { id } }"),
+        )
+        .expect("a declared enum is an input type");
+        validate_variable_types(
+            &schema,
+            Some("Q"),
+            &var_defs("query Q($f: OrderFilter) { orders(where: $f) { id } }"),
+        )
+        .expect("a declared input object is an input type");
+    }
+
+    /// `Vector`/`BitVector`/`HalfVector`/`SparseVector` live in the *authoring*
+    /// table but are **not** published as scalars — a vector field's
+    /// introspection `type_ref` is `JSON` or `[Float!]!`. They are therefore
+    /// correctly not acceptable variable type names, and this pins it so a
+    /// future author does not "fix" § 5.8.2 by unioning the two tables.
+    #[test]
+    fn authoring_only_scalars_are_not_acceptable_variable_types() {
+        let schema = schema_with_input_types();
+        for name in ["Vector", "BitVector", "HalfVector", "SparseVector"] {
+            let source = format!("query Q($v: {name}) {{ orders(where: $v) {{ id }} }}");
+            let result = validate_variable_types(&schema, Some("Q"), &var_defs(&source));
+            assert!(
+                result.is_err(),
+                "'{name}' is in the authoring table but is not published as a scalar, so it is \
+                 not a name a client can write: {result:?}"
+            );
+        }
+    }
+
+    /// Fail open: a schema with no enums *and* no input objects carries no
+    /// input-type information, which is not the same as declaring that these
+    /// names do not exist.
+    #[test]
+    fn a_schema_that_cannot_adjudicate_accepts_any_type_name() {
+        validate_variable_types(
+            &crate::schema::CompiledSchema::default(),
+            Some("Q"),
+            &var_defs("query Q($w: NoSuchTypeAtAll) { orders(where: $w) { id } }"),
+        )
+        .expect("no input-type information emitted — a rejection cannot be justified");
+    }
+
+    // ---- § 5.8.4: a defined variable must be used ----
+
+    #[test]
+    fn an_unused_definition_is_a_validation_error() {
+        let source = "query Q($unused: Int) { orders(limit: 1) { reference } }";
+        let err = validate_variables_used(Some("Q"), &defined(source), &references(source))
+            .expect_err("a definition that is never referenced must be refused");
+        let message = err.to_string();
+        assert!(message.contains("$unused"), "message was: {message}");
+        assert!(message.contains("never used"), "message was: {message}");
+    }
+
+    #[test]
+    fn a_used_definition_passes() {
+        let source = "query Q($o: Int) { orders(offset: $o) { reference } }";
+        validate_variables_used(Some("Q"), &defined(source), &references(source))
+            .expect("a referenced definition is used");
+    }
+
+    /// The fragment-reachability walk in reverse. Missing this traversal turns
+    /// § 5.8.4 into a false-rejection machine on any document using fragments.
+    #[test]
+    fn a_variable_used_only_inside_a_reachable_fragment_counts_as_used() {
+        let source = "query Q($n: Int) { orders { ...F } } \
+                      fragment F on Order { items(first: $n) { id } }";
+        validate_variables_used(Some("Q"), &defined(source), &references(source))
+            .expect("a fragment reference is a use");
+    }
+
+    /// A declared-and-referenced-but-unsupplied variable is still *used* — this
+    /// rule never reads the request's variable values either.
+    #[test]
+    fn a_declared_but_unsupplied_variable_is_still_used() {
+        let source = "query Q($o: Int) { orders(offset: $o) { reference } }";
+        validate_variables_used(Some("Q"), &defined(source), &references(source))
+            .expect("use is about references, not supplied values");
     }
 }

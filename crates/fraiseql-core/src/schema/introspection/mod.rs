@@ -32,6 +32,7 @@ mod types;
 
 // Re-export the complete public API (unchanged from the old flat module).
 pub use schema_builder::{IntrospectionBuilder, IntrospectionResponses};
+pub use type_resolver::published_scalar_names;
 pub use types::{
     DirectiveLocation, IntrospectionDirective, IntrospectionEnumValue, IntrospectionField,
     IntrospectionInputValue, IntrospectionSchema, IntrospectionType, IntrospectionTypeRef,
