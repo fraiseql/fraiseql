@@ -2294,7 +2294,7 @@ disagreed, and the promise was the part that was wrong.
   serving one would give the query the opposite of what it asked for through a different door.
   `replica` opts out of the read-your-writes pin, for reads that have declared they are not
   what the pin exists to protect. FraiseQL defines and enforces the shape; an authoring
-  language emits it (`SpecQL`'s `@reads_from(...)`, evoludigit/specql#13). Replica *topology*
+  language emits it — a `@reads_from(...)` directive is one spelling. Replica *topology*
   stays out of the compiled artifact — URLs are server configuration and secrets.
 
   Probing also closes the gap the one-shot boot health check structurally cannot see: a
