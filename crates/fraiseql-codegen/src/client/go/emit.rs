@@ -318,7 +318,7 @@ pub(super) fn queries(ctx: &Ctx) -> String {
 fn emit_query(out: &mut String, ctx: &Ctx, q: &QueryDefinition) {
     // Render the auto-wired `where`/`orderBy`/`limit`/`offset` arguments derived
     // from `auto_params` so the generated query can paginate and filter.
-    let arguments = q.graphql_arguments();
+    let arguments = q.graphql_arguments(ctx.schema);
     let op = build_operation(&arguments, q.relay);
     let selection = selection_for_return(ctx, &q.return_type, q.relay);
     let document = common::render_document("query", &q.name, &op.gql, &selection);

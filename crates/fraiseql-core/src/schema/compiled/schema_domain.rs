@@ -470,7 +470,7 @@ impl CompiledSchema {
                         "  {}",
                         render_operation_field(
                             &q.name,
-                            &q.graphql_arguments(),
+                            &q.graphql_arguments(self),
                             &q.return_type,
                             q.returns_list,
                             q.nullable,
@@ -557,7 +557,7 @@ impl CompiledSchema {
             // Walk the *rendered* arguments so any scalar synthesized for an
             // `auto_params` query (notably `JSON` for `where`/`orderBy`) is
             // declared — `render_operation_field` renders this same list.
-            for arg in &query.graphql_arguments() {
+            for arg in &query.graphql_arguments(self) {
                 add(&arg.arg_type.to_string(), &mut referenced);
             }
             add(&query.return_type, &mut referenced);

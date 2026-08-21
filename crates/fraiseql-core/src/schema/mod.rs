@@ -46,6 +46,7 @@ mod changelog;
 mod compiled;
 mod config_types;
 mod dependency_graph;
+pub mod derived_inputs;
 pub mod domain_types;
 mod field_type;
 mod graphql_type_defs;

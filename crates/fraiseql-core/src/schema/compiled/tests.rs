@@ -1195,8 +1195,11 @@ fn raw_schema_renders_auto_params_as_arguments() {
         sdl.contains("events(where: JSON, orderBy: JSON, limit: Int): [Event!]!"),
         "auto_params must render as arguments:\n{sdl}"
     );
-    // `where`/`orderBy` are typed as the `JSON` scalar, which must be declared so the
-    // SDL is type-complete for gateway composition.
+    // `Event` carries no fields, so nothing is derivable and `where`/`orderBy`
+    // fall back to the `JSON` scalar — which must then be declared so the SDL is
+    // type-complete for gateway composition. See
+    // `raw_schema_renders_the_derived_filter_types_as_input_blocks` for the
+    // other half, where the schema *can* adjudicate.
     assert!(sdl.contains("scalar JSON"), "JSON scalar must be declared:\n{sdl}");
     // `has_offset` is false → no `offset` argument leaks in.
     assert!(!sdl.contains("offset"), "disabled auto_param must not appear:\n{sdl}");
@@ -1209,15 +1212,20 @@ fn raw_schema_renders_auto_params_as_arguments() {
 fn graphql_arguments_synthesizes_and_dedups_auto_params() {
     use crate::schema::{ArgumentDefinition, AutoParams, FieldType};
 
+    // This schema declares no types, so nothing is derivable and the auto-wired
+    // shapes fall back to `JSON` — the argument *names* are what this test is
+    // about.
+    let schema = CompiledSchema::default();
+
     // No auto_params → arguments unchanged.
     let plain = QueryDefinition::new("user", "User");
-    assert!(plain.graphql_arguments().is_empty());
+    assert!(plain.graphql_arguments(&schema).is_empty());
 
     // Explicit arg of the same name wins — no duplicate synthesized.
     let mut q = QueryDefinition::new("users", "User").returning_list();
     q.arguments = vec![ArgumentDefinition::optional("limit", FieldType::Int)];
     q.auto_params = AutoParams::all();
-    let args = q.graphql_arguments();
+    let args = q.graphql_arguments(&schema);
     let names: Vec<&str> = args.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(names, vec!["limit", "where", "orderBy", "offset"], "no duplicate `limit`");
 
@@ -1225,7 +1233,7 @@ fn graphql_arguments_synthesizes_and_dedups_auto_params() {
     let mut relay = QueryDefinition::new("posts", "Post").returning_list();
     relay.relay = true;
     relay.auto_params = AutoParams::all();
-    assert!(relay.graphql_arguments().is_empty(), "relay queries are untouched");
+    assert!(relay.graphql_arguments(&schema).is_empty(), "relay queries are untouched");
 }
 
 #[cfg(feature = "federation")]
@@ -1588,4 +1596,225 @@ fn internal_flag_omitted_when_false() {
     let back: TypeDefinition = serde_json::from_str(&json).unwrap();
     assert!(!back.internal, "omitted key deserializes back to false");
     assert_eq!(ty, back);
+}
+
+// =============================================================================
+// The derived filter/sort surface (§ 5.8.2, #1154)
+// =============================================================================
+
+/// A schema whose `where`/`orderBy` surface is derivable: one entity with
+/// fields, one query that filters and sorts it.
+fn schema_with_a_filterable_query() -> CompiledSchema {
+    use crate::schema::{AutoParams, FieldDefinition, FieldType};
+
+    let mut schema = CompiledSchema::default();
+    let mut order = TypeDefinition::new("Order", "v_order");
+    order.fields.push(FieldDefinition::new("reference", FieldType::String));
+    order.fields.push(FieldDefinition::new("total", FieldType::Int));
+    schema.types.push(order);
+
+    let mut orders = QueryDefinition::new("orders", "Order");
+    orders.returns_list = true;
+    orders.auto_params = AutoParams::all();
+    schema.queries.push(orders);
+    schema
+}
+
+#[test]
+fn build_indexes_materialises_the_derived_filter_surface() {
+    let mut schema = schema_with_a_filterable_query();
+    assert!(schema.find_input_type("OrderWhereInput").is_none(), "not yet derived");
+
+    schema.build_indexes();
+
+    assert!(
+        schema.find_input_type("OrderWhereInput").is_some(),
+        "`where` needs a type to name"
+    );
+    assert!(schema.find_input_type("OrderOrderByInput").is_some(), "`orderBy` needs one too");
+    assert!(schema.find_input_type("StringFilter").is_some(), "and so does each leaf");
+    assert!(schema.find_enum("SortDirection").is_some(), "the sort surface names an enum");
+}
+
+/// `build_indexes` is the documented "rebuild derived state" hook and is called
+/// again after any direct mutation, so deriving twice must not double the
+/// surface.
+#[test]
+fn build_indexes_is_idempotent() {
+    let mut schema = schema_with_a_filterable_query();
+    schema.build_indexes();
+    let after_first = schema.input_types.len();
+    let enums_after_first = schema.enums.len();
+
+    schema.build_indexes();
+
+    assert_eq!(schema.input_types.len(), after_first, "a second pass duplicated input types");
+    assert_eq!(schema.enums.len(), enums_after_first, "a second pass duplicated enums");
+}
+
+#[test]
+fn graphql_arguments_types_where_and_order_by_against_the_derived_surface() {
+    use crate::schema::FieldType;
+
+    let mut schema = schema_with_a_filterable_query();
+    schema.build_indexes();
+    let args = schema.queries[0].graphql_arguments(&schema);
+
+    let arg = |name: &str| args.iter().find(|a| a.name == name).expect("argument present");
+    assert_eq!(arg("where").arg_type, FieldType::Input("OrderWhereInput".to_string()));
+    assert_eq!(
+        arg("orderBy").arg_type,
+        FieldType::List(Box::new(FieldType::Input("OrderOrderByInput".to_string()))),
+        "the engine parses `[{{field, direction}}]`, so the published type is a list"
+    );
+    // Untouched: these were never dynamic shapes.
+    assert_eq!(arg("limit").arg_type, FieldType::Int);
+    assert_eq!(arg("offset").arg_type, FieldType::Int);
+}
+
+/// The rule that makes the surface impossible to dangle: an argument is typed
+/// **iff** the schema carries the type it would name. A return type the schema
+/// cannot adjudicate derives nothing, so the argument stays `JSON` rather than
+/// naming a type nothing defines.
+#[test]
+fn an_auto_wired_argument_stays_json_when_no_type_backs_the_name() {
+    use crate::schema::{AutoParams, FieldType};
+
+    let mut schema = CompiledSchema::default();
+    let mut ghosts = QueryDefinition::new("ghosts", "Ghost");
+    ghosts.returns_list = true;
+    ghosts.auto_params = AutoParams::all();
+    schema.queries.push(ghosts);
+    schema.build_indexes();
+
+    let args = schema.queries[0].graphql_arguments(&schema);
+    let arg = |name: &str| args.iter().find(|a| a.name == name).expect("argument present");
+    assert_eq!(arg("where").arg_type, FieldType::Json, "no `GhostWhereInput` exists to name");
+    assert_eq!(arg("orderBy").arg_type, FieldType::Json);
+}
+
+/// The invariant stated once and checked over the whole schema: every named
+/// input type any query publishes is a type the schema defines.
+#[test]
+fn every_published_argument_type_resolves_against_the_schema() {
+    let mut schema = schema_with_a_filterable_query();
+    schema.build_indexes();
+
+    let mut checked = 0_usize;
+    for query in &schema.queries {
+        for arg in query.graphql_arguments(&schema) {
+            let mut ty = &arg.arg_type;
+            while let crate::schema::FieldType::List(inner) = ty {
+                ty = inner;
+            }
+            if let crate::schema::FieldType::Input(name) = ty {
+                assert!(
+                    schema.find_input_type(name).is_some(),
+                    "query `{}` publishes `{name}`, which the schema does not define",
+                    query.name
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 0, "the walk found no input-typed arguments, so it proved nothing");
+}
+
+/// Every input field of every derived type must name something the schema
+/// defines — a scalar, an enum, or another input type. A dangling reference
+/// here is what turns a published filter surface into a fiction.
+#[test]
+fn every_derived_input_field_names_a_type_the_schema_carries() {
+    let mut schema = schema_with_a_filterable_query();
+    schema.build_indexes();
+
+    let published = crate::schema::published_scalar_names();
+    for input_type in &schema.input_types {
+        for field in &input_type.fields {
+            let leaf = field.field_type.trim_start_matches('[').trim_end_matches(['!', ']']);
+            assert!(
+                published.iter().any(|s| s == leaf)
+                    || schema.find_enum(leaf).is_some()
+                    || schema.find_input_type(leaf).is_some(),
+                "`{}.{}` names `{leaf}`, which the schema does not define",
+                input_type.name,
+                field.name
+            );
+        }
+    }
+}
+
+/// The other half of `raw_schema_renders_auto_params_as_arguments`: when the
+/// schema *can* adjudicate the return type, the federation SDL declares the
+/// derived types as `input` blocks and references them from the arguments.
+///
+/// `referenced_scalars` excludes anything in `input_types`, so getting this
+/// wrong shows up as `scalar OrderWhereInput` — a gateway would compose a
+/// subgraph whose filter argument is an opaque scalar.
+#[test]
+fn raw_schema_renders_the_derived_filter_types_as_input_blocks() {
+    let mut schema = schema_with_a_filterable_query();
+    schema.build_indexes();
+
+    let sdl = schema.raw_schema();
+
+    assert!(
+        sdl.contains("orders(where: OrderWhereInput, orderBy: [OrderOrderByInput], "),
+        "the arguments must reference the derived types:\n{sdl}"
+    );
+    assert!(
+        sdl.contains("input OrderWhereInput {"),
+        "the filter type must be declared:\n{sdl}"
+    );
+    assert!(sdl.contains("input OrderOrderByInput {"), "the sort item too:\n{sdl}");
+    assert!(sdl.contains("input StringFilter {"), "and each leaf filter:\n{sdl}");
+    assert!(sdl.contains("enum SortDirection {"), "and the direction enum:\n{sdl}");
+    assert!(
+        !sdl.contains("scalar OrderWhereInput"),
+        "a derived input type must never be declared as a bare scalar:\n{sdl}"
+    );
+}
+
+/// § 5.8.2 end-to-end over the real load path: the name a client writes is the
+/// name the schema now carries, so a document that was refused before this
+/// release validates, and a typo is still refused with a hint.
+#[test]
+fn the_derived_filter_types_are_acceptable_variable_types() {
+    use crate::{graphql::parse_query, runtime::validate_variable_types};
+
+    let mut schema = schema_with_a_filterable_query();
+    schema.build_indexes();
+
+    let var_defs = |source: &str| parse_query(source).expect("query parses").variables;
+
+    validate_variable_types(
+        &schema,
+        Some("Q"),
+        &var_defs("query Q($w: OrderWhereInput) { orders(where: $w) { reference } }"),
+    )
+    .expect("the schema publishes `OrderWhereInput`, so a client may write it");
+
+    validate_variable_types(
+        &schema,
+        Some("Q"),
+        &var_defs("query Q($o: [OrderOrderByInput!]) { orders(orderBy: $o) { reference } }"),
+    )
+    .expect("and `OrderOrderByInput`, list-wrapped");
+
+    validate_variable_types(
+        &schema,
+        Some("Q"),
+        &var_defs("query Q($d: SortDirection) { orders(orderBy: [{field: \"x\", direction: $d}]) { reference } }"),
+    )
+    .expect("and the direction enum");
+
+    let err = validate_variable_types(
+        &schema,
+        Some("Q"),
+        &var_defs("query Q($w: OrdrWhereInput) { orders(where: $w) { reference } }"),
+    )
+    .expect_err("a name the schema does not carry is still refused");
+    let message = err.to_string();
+    assert!(message.contains("OrdrWhereInput"), "message was: {message}");
+    assert!(message.contains("Did you mean 'OrderWhereInput'?"), "message was: {message}");
 }

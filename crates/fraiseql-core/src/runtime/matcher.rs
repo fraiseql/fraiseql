@@ -284,7 +284,7 @@ impl QueryMatcher {
         if let Some(root) = final_selections.first() {
             argument_validation::validate_argument_names(
                 &format!("Query.{}", self.schema.display_name(&query_def.name)),
-                &query_def.accepted_argument_names(),
+                &query_def.accepted_argument_names(&self.schema),
                 &root.arguments,
             )?;
         }

@@ -20,6 +20,49 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`where` and `orderBy` are no longer typed as the `JSON` scalar (#1154).** They now publish
+  `{Entity}WhereInput` and `[{Entity}OrderByInput]` — the conventional names clients already
+  write, and which until now resolved against nothing. A document declaring
+  `$where: OrderWhereInput` was therefore refused by § 5.8.2 while being correct in every other
+  respect: in one consumer that was **60 test failures**, all from names the schema's own
+  convention implies but its introspection never carried.
+
+  The types are derived from the compiled schema at load and published everywhere the argument
+  list is rendered — introspection, the federation `_service` SDL, and the Go/TypeScript/Python/
+  Rust client emitters, which now generate a filter argument their users can typecheck instead
+  of an opaque blob.
+
+  ```graphql
+  input OrderWhereInput {
+    reference: StringFilter
+    total: IntFilter
+    customer: CustomerWhereInput      # single relations nest
+    _and: [OrderWhereInput!]
+    _or: [OrderWhereInput!]
+    _not: OrderWhereInput             # typed, not JSON
+  }
+  input OrderOrderByInput { field: String!, direction: SortDirection = ASC }
+  enum SortDirection { ASC DESC }
+  ```
+
+  Four things to check before upgrading:
+
+  1. **The combinators are `_and`/`_or`/`_not`.** v1 emitted `AND`/`OR`/`NOT`; this engine's WHERE parser matches the underscored spelling and nothing else, so publishing v1's would advertise three fields no request can execute. `_not` is typed rather than left `JSON` as v1 left it.
+  2. **`orderBy` publishes the list form only.** `[{field, direction}]` is what the engine's array branch parses. The object form (`{name: "DESC"}`) keeps executing but has no expression in the published type — its key order is not something a JSON object can promise.
+  3. **Per-scalar filters are stricter than the engine**, which restricts no operator by field type: `IntFilter` carries no `icontains`, an enum filter no `LIKE`. The fulltext, network and ltree families are not bucketed onto any leaf at all, because a declared field type cannot say whether the column behind it is a `tsvector`, an `inet` or an `ltree` — advertising them would repeat #869. All of them remain **executable**; nothing coerces a query argument's value against its declared input type today, so this constrains clients that validate locally against introspection (graphql-codegen, Apollo), not clients that send the value.
+  4. **A schema that cannot adjudicate a return type keeps `JSON`.** An argument is typed if and only if the schema carries the type it would name, so nothing can publish a dangling reference. A name the author already declared is never derived over.
+
+  A list field gets a list filter rather than a nested entity filter, deliberately: the engine
+  lowers `{lines: {sku: {eq: …}}}` to `data->'lines'->>'sku'`, which cannot index into an array
+  and so matches nothing, silently.
+
+- **Input-object fields introspect as real type references (#1154).** An input field's type is
+  stored as a string and was published as a single `SCALAR` named after the whole string, so
+  `[OrderWhereInput!]` introspected as a scalar type called `"[OrderWhereInput!]"` — a name no
+  client can look up. List and non-null wrappers now become `LIST`/`NON_NULL` nodes and the leaf
+  resolves to `ENUM`, `INPUT_OBJECT` or `SCALAR` against the schema. This also corrects every
+  hand-authored mutation input with a list or nested-input field.
+
 - **An argument the field does not declare is refused instead of ignored, on queries and
   mutations alike (#1154).** GraphQL § 5.4.1 makes it a validation error; the server accepted
   it, dropped it, and answered normally. Only *declared* arguments become WHERE conditions and

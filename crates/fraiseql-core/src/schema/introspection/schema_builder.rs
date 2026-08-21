@@ -48,7 +48,7 @@ impl IntrospectionBuilder {
 
         // Add input object types
         for input_def in &schema.input_types {
-            types.push(build_input_object_type(input_def));
+            types.push(build_input_object_type(input_def, schema));
         }
 
         // Add interface types
@@ -246,7 +246,7 @@ fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> Intros
     // arguments derived from `auto_params` so introspection matches the `_service`
     // SDL and generated clients.
     let args: Vec<IntrospectionInputValue> =
-        query.graphql_arguments().iter().map(build_arg_input_value).collect();
+        query.graphql_arguments(schema).iter().map(build_arg_input_value).collect();
 
     IntrospectionField {
         name: schema.display_name(&query.name),
@@ -282,7 +282,7 @@ fn build_count_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> 
     // pagination auto-params, because a total that shrank with the page would not
     // be the total.
     let args: Vec<IntrospectionInputValue> =
-        query.graphql_arguments().iter().map(build_arg_input_value).collect();
+        query.graphql_arguments(schema).iter().map(build_arg_input_value).collect();
 
     IntrospectionField {
         name: schema.display_name(&query.name),

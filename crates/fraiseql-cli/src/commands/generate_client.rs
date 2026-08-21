@@ -48,7 +48,12 @@ pub fn run(
 
     let raw = std::fs::read_to_string(&schema_path)
         .with_context(|| format!("Failed to read compiled schema {}", schema_path.display()))?;
-    let schema: CompiledSchema = serde_json::from_str(&raw).with_context(|| {
+    // `from_json`, not a bare `serde_json::from_str`: deserialization alone
+    // leaves the schema's derived state unbuilt, and a generated client needs
+    // the filter/sort input surface `where`/`orderBy` are typed against (#1154).
+    // Without it the client compiles against `JSON` and its user gets no
+    // typechecking on a filter — the exact gap this release closes.
+    let schema: CompiledSchema = CompiledSchema::from_json(&raw, false).with_context(|| {
         format!("Failed to parse {} as a compiled schema", schema_path.display())
     })?;
 

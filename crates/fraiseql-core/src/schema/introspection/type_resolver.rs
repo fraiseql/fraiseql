@@ -9,7 +9,7 @@ use super::{
         CompiledSchema, EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
         UnionDefinition,
     },
-    field_resolver::{build_field, build_validation_rule, type_ref},
+    field_resolver::{build_field, build_validation_rule, type_ref_with_kind},
     types::{
         IntrospectionEnumValue, IntrospectionInputValue, IntrospectionType, IntrospectionTypeRef,
         TypeKind,
@@ -156,20 +156,71 @@ pub(super) fn build_enum_type(enum_def: &EnumDefinition) -> IntrospectionType {
     }
 }
 
+/// Parse a written GraphQL type — `[Foo!]!`, `Foo`, `[Foo]` — into the
+/// `LIST`/`NON_NULL`/named reference chain introspection publishes.
+///
+/// The leaf's `kind` is resolved against the schema: a declared enum is `ENUM`,
+/// a declared input object is `INPUT_OBJECT`, and anything else is `SCALAR`.
+/// Falling back to `SCALAR` is the honest answer for a name the schema does not
+/// define — the derived filter surface declares every type it names, and a name
+/// that resolves to nothing is a defect in the *schema*, not something this
+/// should paper over by guessing a kind.
+fn input_type_ref(written: &str, schema: &CompiledSchema) -> IntrospectionType {
+    let written = written.trim();
+
+    let wrap = |kind: TypeKind, inner: IntrospectionType| IntrospectionType {
+        kind,
+        name: None,
+        description: None,
+        fields: None,
+        interfaces: None,
+        possible_types: None,
+        enum_values: None,
+        input_fields: None,
+        of_type: Some(Box::new(inner)),
+        specified_by_u_r_l: None,
+    };
+
+    if let Some(inner) = written.strip_suffix('!') {
+        return wrap(TypeKind::NonNull, input_type_ref(inner, schema));
+    }
+    if let Some(inner) = written.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        return wrap(TypeKind::List, input_type_ref(inner, schema));
+    }
+
+    let kind = if schema.find_enum(written).is_some() {
+        TypeKind::Enum
+    } else if schema.find_input_type(written).is_some() {
+        TypeKind::InputObject
+    } else {
+        TypeKind::Scalar
+    };
+    type_ref_with_kind(written, kind)
+}
+
 /// Build `__Type` for an input object definition.
-pub(super) fn build_input_object_type(input_def: &InputObjectDefinition) -> IntrospectionType {
+pub(super) fn build_input_object_type(
+    input_def: &InputObjectDefinition,
+    schema: &CompiledSchema,
+) -> IntrospectionType {
     let input_fields = input_def
         .fields
         .iter()
         .map(|f| {
             let validation_rules = f.validation_rules.iter().map(build_validation_rule).collect();
 
-            // Named type reference, with any trailing `!` stripped so the type
-            // *name* is clean — the non-null signal is carried by the NON_NULL
-            // wrapper (driven by `f.nullable`, #414), not the name. The inner
-            // kind (Scalar vs Enum/InputObject) and list-element nullability are
-            // not yet reconstructed from the string type — tracked as follow-ups.
-            let named = type_ref(f.field_type.trim_end_matches('!'));
+            // An input field's type is stored as a *string*, so the reference has
+            // to be reconstructed from it: the list and non-null wrappers become
+            // LIST/NON_NULL nodes and the leaf name is resolved against the
+            // schema for its kind. Publishing the whole string as one SCALAR name
+            // advertised types like `"[OrderWhereInput!]"` — a name no client can
+            // look up, and one that collapses a generated client's filter
+            // argument into an opaque scalar.
+            //
+            // The field's own trailing `!` is dropped rather than read: `nullable`
+            // is what carries requiredness (#414), and a filter operator field can
+            // legitimately be optional while its type string is non-null.
+            let named = input_type_ref(f.field_type.trim_end_matches('!'), schema);
             let input_type = if f.nullable {
                 named
             } else {
