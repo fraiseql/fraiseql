@@ -583,6 +583,9 @@ fn adjudicating() -> WhereFieldSchema {
             WhereFieldInfo {
                 declared_name: name.to_string(),
                 is_relation,
+                // Deliberately unnamed: this schema knows its own keys and
+                // nothing about what `machine` points at.
+                relation_type: None,
             },
         );
     }
@@ -626,6 +629,7 @@ fn a_declared_key_written_in_either_case_passes() {
         WhereFieldInfo {
             declared_name: "createdAt".to_string(),
             is_relation:   false,
+            relation_type: None,
         },
     );
     let schema = WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known);
@@ -663,16 +667,167 @@ fn an_undeclared_key_inside_a_combinator_is_still_refused() {
     assert!(err.to_string().contains("bogusKey"), "got: {err}");
 }
 
-/// A nested relation path resolves its *second* segment against the relation's
-/// own type, for which the compiled schema carries no field map. Only the top
-/// level is adjudicated, so the nested segment passes.
+/// **Fail-open, pinned.** A caller that knows its entry type's keys but cannot
+/// name what `machine` points at leaves the nested level unadjudicated — the
+/// #939 rule, and what every level did before the derived filter surface made
+/// the target type nameable. `adjudicating()` is deliberately built with
+/// `with_known_keys`, so this is the no-relation-map path.
 #[test]
-fn a_nested_relation_path_passes_and_only_its_root_is_adjudicated() {
+fn a_nested_path_passes_when_the_schema_cannot_name_the_relations_type() {
     WhereClause::from_graphql_json(
-        &json!({ "machine": { "id": { "eq": "m-1" } } }),
+        &json!({ "machine": { "anything": { "eq": "m-1" } } }),
         &adjudicating(),
     )
-    .expect("`machine` is declared and `id` is on machine's type, which is not mapped here");
+    .expect("machine's type is not mapped here, so rejecting its keys would be guessing");
+}
+
+/// A schema that *can* name what each relation points at, and carries that
+/// type's keys — the shape `where_field_types` builds from a compiled schema.
+///
+/// `Order.machine: Machine`, `Machine.model: Model`, so a predicate can descend
+/// two levels and every level has an answer.
+fn adjudicating_nested() -> WhereFieldSchema {
+    use std::{collections::HashMap, sync::Arc};
+
+    use super::field_types::RelationFieldMaps;
+
+    // Keys are snake_case (the parser snake_cases before looking up) while
+    // `declared_name` keeps the spelling a client writes — the same split
+    // `where_field_types` builds, and what makes a nested hint readable.
+    let info = |name: &str, is_relation: bool, target: Option<&str>| {
+        (
+            crate::utils::to_snake_case(name),
+            WhereFieldInfo {
+                declared_name: name.to_string(),
+                is_relation,
+                relation_type: target.map(ToString::to_string),
+            },
+        )
+    };
+
+    let root: HashMap<String, WhereFieldInfo> = [
+        info("reference", false, None),
+        info("machine", true, Some("Machine")),
+        // A relation whose target this schema does not carry: still a relation,
+        // but its level cannot be adjudicated.
+        info("supplier", true, Some("Supplier")),
+    ]
+    .into_iter()
+    .collect();
+
+    let machine: HashMap<String, WhereFieldInfo> = [
+        info("serialNumber", false, None),
+        info("model", true, Some("Model")),
+    ]
+    .into_iter()
+    .collect();
+    let model: HashMap<String, WhereFieldInfo> =
+        std::iter::once(info("name", false, None)).collect();
+
+    let relations: RelationFieldMaps = Arc::new(
+        [
+            ("Machine".to_string(), Arc::new(machine)),
+            ("Model".to_string(), Arc::new(model)),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    WhereFieldSchema::with_relations(SharedFieldTypes::default(), root, relations)
+}
+
+/// The defect this closes: a nested key the relation's type does not declare
+/// used to lower to `data->'machine'->>'bogus'`, match nothing, and return an
+/// empty list under a 200. The published `MachineWhereInput` says that key is
+/// not there, so the runtime must say so too.
+#[test]
+fn a_nested_key_the_relations_type_does_not_declare_is_refused() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "machine": { "bogusKey": { "eq": "x" } } }),
+        &adjudicating_nested(),
+    )
+    .expect_err("a nested key must not silently return []");
+    let msg = err.to_string();
+    assert!(msg.contains("bogusKey"), "the error must name the key: {msg}");
+}
+
+/// The hint comes from the level the key was written at, not from the root — a
+/// root-level candidate list is worse than none for a nested typo.
+#[test]
+fn a_nested_near_miss_is_hinted_against_the_relations_own_keys() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "machine": { "serialNumbr": { "eq": "x" } } }),
+        &adjudicating_nested(),
+    )
+    .expect_err("a nested typo must be refused");
+    assert!(
+        err.to_string().contains("Did you mean 'serialNumber'?"),
+        "the candidates must be the relation's keys: {err}"
+    );
+}
+
+#[test]
+fn a_nested_key_the_relations_type_declares_passes() {
+    WhereClause::from_graphql_json(
+        &json!({ "machine": { "serialNumber": { "eq": "SN-1" } } }),
+        &adjudicating_nested(),
+    )
+    .expect("`serialNumber` is declared on Machine");
+}
+
+/// Adjudication follows the path, not a fixed depth: the third segment is
+/// scored against `Model`.
+#[test]
+fn adjudication_follows_the_path_to_the_third_level() {
+    WhereClause::from_graphql_json(
+        &json!({ "machine": { "model": { "name": { "eq": "LaserJet" } } } }),
+        &adjudicating_nested(),
+    )
+    .expect("Machine.model is a relation to Model, which declares `name`");
+
+    let err = WhereClause::from_graphql_json(
+        &json!({ "machine": { "model": { "bogus": { "eq": "x" } } } }),
+        &adjudicating_nested(),
+    )
+    .expect_err("a key Model does not declare must be refused at depth 3");
+    assert!(err.to_string().contains("bogus"), "got: {err}");
+}
+
+/// A relation the schema names but carries no keys for is the fail-open case
+/// again — one branch of the surface being unadjudicable must not make its
+/// siblings unadjudicable, nor make it refuse.
+#[test]
+fn a_relation_whose_target_keys_are_absent_leaves_that_branch_open() {
+    WhereClause::from_graphql_json(
+        &json!({ "supplier": { "whatever": { "eq": "x" } } }),
+        &adjudicating_nested(),
+    )
+    .expect("Supplier's keys are not carried, so its level is not adjudicated");
+
+    let err = WhereClause::from_graphql_json(
+        &json!({ "machine": { "bogusKey": { "eq": "x" } } }),
+        &adjudicating_nested(),
+    )
+    .expect_err("the sibling branch that *is* mapped still adjudicates");
+    assert!(err.to_string().contains("bogusKey"), "got: {err}");
+}
+
+/// A combinator inside a nested level keeps that level's keys, rather than
+/// resetting to the root's.
+#[test]
+fn a_combinator_inside_a_nested_level_keeps_that_levels_keys() {
+    WhereClause::from_graphql_json(
+        &json!({ "machine": { "_or": [ { "serialNumber": { "eq": "SN-1" } } ] } }),
+        &adjudicating_nested(),
+    )
+    .expect("`serialNumber` is Machine's key, and `_or` does not change level");
+
+    let err = WhereClause::from_graphql_json(
+        &json!({ "machine": { "_or": [ { "reference": { "eq": "x" } } ] } }),
+        &adjudicating_nested(),
+    )
+    .expect_err("`reference` is the *root* type's key, not Machine's");
+    assert!(err.to_string().contains("reference"), "got: {err}");
 }
 
 #[test]

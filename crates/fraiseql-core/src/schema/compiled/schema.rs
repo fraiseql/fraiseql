@@ -322,6 +322,15 @@ pub struct CompiledSchema {
     /// direct mutation of `self.subscriptions`.
     #[serde(skip)]
     pub subscription_index: HashMap<String, usize>,
+
+    /// The `where` keys of every type a nested predicate can descend into.
+    ///
+    /// A nested `where` level is adjudicated against the *target* type's keys —
+    /// `{machine: {bogus: {eq: …}}}` is refused because `MachineWhereInput` has
+    /// no `bogus`, rather than lowering to a JSON path that matches nothing.
+    /// Built at construction time by `build_indexes()`; not serialized.
+    #[serde(skip)]
+    pub where_relation_fields: fraiseql_db::where_clause::RelationFieldMaps,
 }
 
 impl PartialEq for CompiledSchema {

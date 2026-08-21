@@ -66,17 +66,36 @@ impl FromIterator<(String, ScalarFieldType)> for FieldTypeMap {
 /// [`WhereClause::Typed`]: crate::WhereClause::Typed
 pub type SharedFieldTypes = Arc<FieldTypeMap>;
 
-/// What the schema knows about one top-level `where` key.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// What the schema knows about one `where` key.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WhereFieldInfo {
     /// The name as the schema declares it, used for "did you mean" hints
     /// because that is the spelling a client writes.
     pub declared_name: String,
-    /// Whether the field's declared type is composite — i.e. whether
-    /// `{field: {sub: {eq: …}}}` is a legitimate nested relation filter rather
-    /// than a scalar field handed a bogus operator.
+    /// Whether `{field: {sub: {eq: …}}}` is a legitimate nested relation filter
+    /// on this field rather than a scalar handed a bogus operator.
+    ///
+    /// This is the same question the published `{Entity}WhereInput` answers by
+    /// giving the field a nested filter type instead of an operator bag, and it
+    /// must be answered the same way: a field is a relation exactly when the
+    /// derived surface publishes a nested `WhereInput` for it.
     pub is_relation:   bool,
+    /// The declared type a nested predicate on this field filters, when the
+    /// schema can name it.
+    ///
+    /// `None` on a scalar, and on a relation whose target the caller could not
+    /// resolve — the nested level is then unadjudicated rather than refused.
+    pub relation_type: Option<String>,
 }
+
+/// The declared `where` keys of every type a nested predicate can descend into,
+/// by declared type name.
+///
+/// Prebuilt once per compiled schema rather than per request: a nested level is
+/// adjudicated against the *target* type's keys, and rebuilding the reachable
+/// closure on every query would put a map-per-type allocation in front of every
+/// filter.
+pub type RelationFieldMaps = Arc<HashMap<String, Arc<HashMap<String, WhereFieldInfo>>>>;
 
 /// The `where` keys a type declares, alongside their casts.
 ///
@@ -94,12 +113,19 @@ pub struct WhereFieldInfo {
 #[derive(Debug, Clone, Default)]
 pub struct WhereFieldSchema {
     /// Declared casts, keyed by dotted snake_case path.
-    casts: SharedFieldTypes,
+    casts:     SharedFieldTypes,
     /// Declared top-level keys, by snake_case name.
     ///
     /// `None` means the schema could not adjudicate — the type was not found,
     /// or it carries no field metadata. It does **not** mean "no keys".
-    known: Option<Arc<HashMap<String, WhereFieldInfo>>>,
+    known:     Option<Arc<HashMap<String, WhereFieldInfo>>>,
+    /// Keys of every type a nested predicate can descend into.
+    ///
+    /// Empty is the honest default for a caller that knows the entry type but
+    /// nothing beyond it — the nested levels then pass unadjudicated, which is
+    /// what this did at every depth before the derived filter surface made the
+    /// target type nameable.
+    relations: RelationFieldMaps,
 }
 
 impl WhereFieldSchema {
@@ -108,11 +134,19 @@ impl WhereFieldSchema {
     /// This is the honest constructor for a caller that has type information but
     /// no type *definition* — fuzzers, benchmarks, and the wire path.
     #[must_use]
-    pub const fn casts_only(casts: SharedFieldTypes) -> Self {
-        Self { casts, known: None }
+    pub fn casts_only(casts: SharedFieldTypes) -> Self {
+        Self {
+            casts,
+            known: None,
+            relations: RelationFieldMaps::default(),
+        }
     }
 
-    /// A schema that can adjudicate: these are the declared top-level keys.
+    /// A schema that can adjudicate its **top level** and nothing below it.
+    ///
+    /// For callers that know the entry type's keys but cannot name what a
+    /// relation points at. See [`with_relations`](Self::with_relations) for the
+    /// compiled-schema path.
     #[must_use]
     pub fn with_known_keys(
         casts: SharedFieldTypes,
@@ -121,6 +155,25 @@ impl WhereFieldSchema {
         Self {
             casts,
             known: Some(Arc::new(known)),
+            relations: RelationFieldMaps::default(),
+        }
+    }
+
+    /// A schema that can adjudicate every level a nested predicate reaches.
+    ///
+    /// `relations` maps a declared type name to that type's `where` keys, so a
+    /// key at depth *n* is scored against the type the path actually arrived at
+    /// rather than passed through unchecked.
+    #[must_use]
+    pub fn with_relations(
+        casts: SharedFieldTypes,
+        known: HashMap<String, WhereFieldInfo>,
+        relations: RelationFieldMaps,
+    ) -> Self {
+        Self {
+            casts,
+            known: Some(Arc::new(known)),
+            relations,
         }
     }
 
@@ -150,6 +203,19 @@ impl WhereFieldSchema {
         self.known
             .as_ref()
             .map_or_else(Vec::new, |k| k.values().map(|i| i.declared_name.as_str()).collect())
+    }
+
+    /// The entry level a `where` object is parsed against.
+    #[must_use]
+    pub fn root_level(&self) -> Option<&HashMap<String, WhereFieldInfo>> {
+        self.known.as_deref()
+    }
+
+    /// The level a nested predicate on a field of type `type_name` descends
+    /// into, or `None` when this schema carries no keys for it.
+    #[must_use]
+    pub fn level_of(&self, type_name: &str) -> Option<&HashMap<String, WhereFieldInfo>> {
+        self.relations.get(type_name).map(Arc::as_ref)
     }
 }
 

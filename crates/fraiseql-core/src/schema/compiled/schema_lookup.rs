@@ -49,6 +49,7 @@ impl CompiledSchema {
         let derived = crate::schema::derived_inputs::derive(self);
         self.input_types.extend(derived.input_types);
         self.enums.extend(derived.enums);
+        self.where_relation_fields = crate::schema::derived_inputs::relation_field_maps(self);
 
         let camel = matches!(self.naming_convention, NamingConvention::CamelCase);
 
