@@ -264,10 +264,19 @@ fn emit_input(out: &mut String, input: &InputObjectDefinition) {
 
 pub(super) fn queries(ctx: &Ctx) -> String {
     let schema = ctx.schema;
+    // Collect the referenced names from the arguments the emitter actually
+    // *renders* — `graphql_arguments`, not `q.arguments`. The auto-wired
+    // `where`/`orderBy` are absent from `q.arguments` by design, and since
+    // #1154 they are named input types rather than `JSON`, so collecting from
+    // the narrower list emits a document that references a type it never
+    // imports and the generated client does not compile.
+    let rendered: Vec<Vec<ArgumentDefinition>> =
+        schema.queries.iter().map(|q| q.graphql_arguments(schema)).collect();
+
     let mut refs: BTreeSet<&str> = BTreeSet::new();
-    for q in &schema.queries {
+    for (q, arguments) in schema.queries.iter().zip(&rendered) {
         refs.insert(&q.return_type);
-        for arg in &q.arguments {
+        for arg in arguments {
             if let Some(name) = referenced_named_type(&arg.arg_type) {
                 refs.insert(name);
             }

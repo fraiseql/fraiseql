@@ -30,7 +30,9 @@ disagreed, and the promise was the part that was wrong.
   The types are derived from the compiled schema at load and published everywhere the argument
   list is rendered — introspection, the federation `_service` SDL, and the Go/TypeScript/Python/
   Rust client emitters, which now generate a filter argument their users can typecheck instead
-  of an opaque blob.
+  of an opaque blob. The three emitters that write per-module imports collect the names they
+  reference from the argument list they *render* rather than from `arguments`, since the
+  auto-wired pair is absent from the latter by design.
 
   ```graphql
   input OrderWhereInput {
