@@ -473,7 +473,7 @@ fn operator_description(op: &str) -> String {
 /// The entity a nested `where` predicate on a field of this type filters, if the
 /// published surface gives that field a nested filter at all.
 ///
-/// This is the runtime's half of the same question [`derive`] answers when it
+/// This is the runtime's half of the same question [`derive()`] answers when it
 /// gives a field `{Target}WhereInput` instead of an operator bag, and it is
 /// deliberately the *same* function: `WhereClause::from_graphql_json` decides
 /// whether `{field: {sub: …}}` is a legitimate nested predicate, and if it
