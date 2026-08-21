@@ -119,11 +119,11 @@ ignore = [
   # 0.3 series (`cargo update -p h2@0.3.27 --precise 0.3.28` answers "no matching package named
   # h2"), and aws-smithy-http-client 1.3.0 pins hyper 0.14, which pins h2 0.3.
   # ⚠ THIS ADVISORY MATCHED TWO INSTANCES, RESOLVED DIFFERENTLY. Only ONE is accepted here.
-  #   * h2 0.4.15 — was in the DEFAULT build via hyper 1.10 ← axum ← fraiseql-server, i.e. the
-  #     GraphQL listener itself (`axum::serve`, server/lifecycle.rs:883, serves HTTP/2 by prior
-  #     knowledge), where the DoS is remotely triggerable by any client that can connect.
-  #     FIXED, not accepted: bumped to 0.4.16 in this same change.
-  #   * h2 0.3.27 — the acceptance below. Opt-in aws-* only.
+  # * h2 0.4.15 — was in the DEFAULT build via hyper 1.10 ← axum ← fraiseql-server, i.e. the
+  # GraphQL listener itself (`axum::serve`, server/lifecycle.rs:883, serves HTTP/2 by prior
+  # knowledge), where the DoS is remotely triggerable by any client that can connect.
+  # FIXED, not accepted: bumped to 0.4.16 in this same change.
+  # * h2 0.3.27 — the acceptance below. Opt-in aws-* only.
   # Verified feature-gated by construction, not asserted: `cargo tree -i h2@0.3.27 -e normal`
   # → "did not match any packages"; the same query with `--features fraiseql-server/aws-s3`
   # resolves it through aws-smithy-http-client → aws-config.
