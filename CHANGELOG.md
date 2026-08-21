@@ -30,9 +30,11 @@ disagreed, and the promise was the part that was wrong.
   The types are derived from the compiled schema at load and published everywhere the argument
   list is rendered — introspection, the federation `_service` SDL, and the Go/TypeScript/Python/
   Rust client emitters, which now generate a filter argument their users can typecheck instead
-  of an opaque blob. The three emitters that write per-module imports collect the names they
-  reference from the argument list they *render* rather than from `arguments`, since the
-  auto-wired pair is absent from the latter by design.
+  of an opaque blob. Two emitter defects fell out of this and are fixed here: the three
+  emitters that write per-module imports now collect the names they reference from the argument
+  list they *render* (the auto-wired pair is absent from `arguments` by design), and the Rust
+  emitter boxes a by-value input field that closes a cycle — `_not: OrderWhereInput` makes a
+  Rust struct infinitely sized, which no hand-authored input in this schema had ever done.
 
   ```graphql
   input OrderWhereInput {
