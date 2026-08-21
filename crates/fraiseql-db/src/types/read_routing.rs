@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 /// # The contract
 ///
 /// FraiseQL defines and enforces this shape; an authoring language emits it.
-/// `SpecQL`'s `@reads_from(...)` directive (evoludigit/specql#13) is one spelling
+/// A `@reads_from(...)` directive is one spelling
 /// of it, and the spelling is that project's to choose — what is fixed here is
 /// what the runtime can actually guarantee, which is exactly these three
 /// answers. Replica **topology** deliberately stays out: URLs are server

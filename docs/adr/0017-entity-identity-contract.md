@@ -108,11 +108,11 @@ and `--json` output, so any residual rejection is self-diagnosing.
   unaffected. Confirmed against a real 64-entity schema whose SDK emitted `id: String`
   on every type. Notably, several SDKs' existing tests *encoded* the bug (C#/F#/Java
   asserted `id → "String"`) and were corrected.
-- **SpecQL (a separate authoring source) already works via the backstop.** SpecQL
-  maps a `uuid` column to GraphQL `UUID` (`gql_type_mapper`), and the Trinity id is
-  `uuid`-typed — so it emits `id: UUID`, which the compiler's `UUID → ID`
-  canonicalization handles. No SpecQL change is required for conformance; emitting
-  `id: ID` directly for the identity column would be an optional honesty improvement.
+- **A column-driven authoring source already works via the backstop.** An authoring
+  layer that maps a `uuid` column to GraphQL `UUID` emits `id: UUID` for the
+  `uuid`-typed Trinity id, which the compiler's `UUID → ID` canonicalization handles.
+  No change is required of such a source for conformance; emitting `id: ID` directly
+  for the identity column would be an optional honesty improvement.
 - **A type can declare itself a non-entity (#687).** `@fraiseql.type(embedded=True)` marks an
   embedded value object — no independent identity, always nested under a parent (e.g. a `Money`
   amount on an `Order`) — which emits no `sql_source` and is exempt from this contract: no

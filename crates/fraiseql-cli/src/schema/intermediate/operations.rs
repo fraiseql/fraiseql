@@ -353,7 +353,7 @@ pub struct IntermediateQuery {
     /// `max_lag_ms`.
     ///
     /// FraiseQL defines the shape and enforces it; an authoring language emits
-    /// it. `SpecQL`'s `@reads_from(...)` (evoludigit/specql#13) is one spelling.
+    /// it — a `@reads_from(...)` directive is one spelling.
     #[serde(default, skip_serializing_if = "ReadRouting::is_default")]
     pub read_routing: ReadRouting,
 

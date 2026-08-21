@@ -484,6 +484,13 @@ lint-suite-coverage:
 lint-snapshot-pairing:
 	@bash tools/check-snapshot-pairing.sh
 
+# Gate: a local red suite must be a *classified* red suite. Without a reachable
+# Postgres ~80 tests fail, and "known-red plus grep for your own error strings"
+# is how the eighty-first — a real regression — gets waved through.
+.PHONY: test-baseline
+test-baseline:
+	@bash tools/check-test-baseline.sh
+
 # Gate: no #[test] whose body is only comments — write the assertion or delete
 # the test (#895; the #748 empty-test class).
 .PHONY: lint-empty-tests

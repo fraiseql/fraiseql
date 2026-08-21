@@ -78,8 +78,8 @@ for freshness nobody needs is waste worth naming. It still falls back to the
 primary when no replica qualifies — refusing to answer would turn a capacity
 preference into an outage.
 
-FraiseQL defines and enforces this shape; an authoring language emits it. SpecQL's
-`@reads_from(...)` directive (evoludigit/specql#13) is one spelling of it. Replica
+FraiseQL defines and enforces this shape; an authoring language emits it — a
+`@reads_from(...)` directive is one spelling of it. Replica
 **topology** deliberately stays out of the compiled artifact — URLs are server
 configuration and secrets, not schema.
 

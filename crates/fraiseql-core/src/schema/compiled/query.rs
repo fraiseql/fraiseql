@@ -159,7 +159,7 @@ pub struct QueryDefinition {
     /// sizing them for the common case silently serves the strict one stale.
     ///
     /// FraiseQL defines and enforces this shape; an authoring language emits it —
-    /// `SpecQL`'s `@reads_from(...)` (evoludigit/specql#13) is one spelling of it.
+    /// A `@reads_from(...)` directive is one spelling of it.
     /// Replica **topology** deliberately stays out of the compiled artifact: URLs
     /// are server configuration and secrets.
     ///
