@@ -36,6 +36,17 @@ table. `tools/check-audit-lockstep.sh` fails when the three files disagree on wh
 are accepted or on their deadlines, and `tools/check-advisory-paths.sh` fails when the
 **Exposure** column below disagrees with `cargo tree`.
 
+⚠ **An ignore in `deny.toml` can be broader than the row it implements.** cargo-deny cannot
+scope an advisory ignore to one crate version: `[advisories] ignore` accepts only `id` and
+`reason`, and a `crate = "…"` key there is a *yanked-crate* ignore that suppresses no
+vulnerability at all. So when one advisory matches two resolved versions of a crate and only
+one of them is acceptable, ignoring it by id silences both. Where that happens, the
+default-build half must be pinned by `tools/check-default-build-minimums.sh`, which fails when
+a crate in the default build falls below a declared floor. RUSTSEC-2026-0258 is the case on
+record: `h2@0.3.27` is accepted below, while `h2` under hyper/axum is held at ≥ 0.4.16 by that
+gate — verified load-bearing, since restoring 0.4.15 leaves `cargo deny check advisories`
+reporting `advisories ok` and only the floor gate red.
+
 The **Exposure** column is machine-readable, and is checked against the real dependency graph
 on every run of the Dagger `security` leg:
 
@@ -60,6 +71,7 @@ version**: two versions of the same crate can coexist, and an unqualified spec i
 | RUSTSEC-2026-0194 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Quadratic run time checking a start tag for duplicate attribute names. SAML SP only, opt-in; `samael` pins `quick-xml` 0.37.5 and no fix is in range | 2026-10-01 |
 | RUSTSEC-2026-0195 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Unbounded namespace-declaration allocation in `NsReader`. Same path and same upstream block as RUSTSEC-2026-0194 | 2026-10-01 |
 | RUSTSEC-2026-0204 | `crossbeam-epoch@0.9.18` | `moka` 0.12 → `fraiseql-core` | `default-build` | Invalid-pointer dereference reachable only when `fmt::Pointer` Debug-formats an invalid `Atomic`/`Shared`, which `moka` does not do. Accepted on usage grounds, not on absence from the build | 2026-10-01 |
+| RUSTSEC-2026-0258 | `h2@0.3.27` | `aws-smithy-http-client` (hyper 0.14) → `aws-config` | `feature-gated:aws-s3` | Unbounded empty-DATA-frame queueing (DoS). No fix exists in the 0.3 series and `aws-smithy-http-client` pins hyper 0.14. **The default build is not affected** — its `h2` was bumped to 0.4.16 rather than accepted, so this acceptance is scoped to `h2@0.3.27` in `deny.toml`. Blocked on the same aws-stack migration as RUSTSEC-2026-0098 (#1111) | 2026-12-01 |
 
 ⚠ Three of these rows were corrected on 2026-08-16 after being checked against `cargo tree`
 rather than trusted: RUSTSEC-2023-0071 claimed `sqlx-mysql` (gone since #374, and `rsa` in
@@ -168,6 +180,41 @@ invalid pointer, which `moka` does not do and FraiseQL does not do.
 
 **Review action by 2026-10-01**: re-check `moka`'s dependency range for a fixed
 `crossbeam-epoch`.
+
+### RUSTSEC-2026-0258 (h2 unbounded empty DATA frames)
+
+**Root cause**: `h2` accepts and queues empty DATA frames without limit, so a peer can drive
+memory growth on an HTTP/2 connection — a remote DoS wherever the affected `h2` terminates
+untrusted connections.
+
+**This advisory matched two instances, and they were resolved differently.**
+
+`h2@0.4.15` was in the **default build**, via `hyper 1.10 ← axum ← fraiseql-server`. That is the
+GraphQL listener itself: `axum::serve` (`server/lifecycle.rs:883`) serves HTTP/2 by prior
+knowledge, so the defect was reachable by any client that could open a connection. It was
+**fixed, not accepted** — `cargo update -p h2@0.4.15 --precise 0.4.16`.
+
+`h2@0.3.27` is the acceptance recorded above. It is reached only through
+`aws-smithy-http-client 1.3.0`, which pins hyper 0.14, which pins the 0.3 series — where no
+fixed release exists (the advisory's remedy is `>= 0.4.16`, and `--precise 0.3.28` resolves to
+"no matching package named `h2`"). Exposure is `feature-gated:aws-s3`, established by
+construction rather than asserted: `cargo tree -i h2@0.3.27 -e normal` reports "did not match
+any packages", while the same query under `--features fraiseql-server/aws-s3` resolves it.
+
+**Why the scoping matters**: an unscoped `{id = …}` ignore would have silenced the default-build
+path too, including a future regression that reintroduces a vulnerable `h2` under hyper.
+`deny.toml` therefore pins the acceptance to `h2@0.3.27`. `.cargo/audit.toml` cannot express
+that — cargo-audit ignores by advisory id alone — so `cargo deny` is the authoritative gate for
+this row.
+
+**Residual risk**: an operator who opts into `aws-s3` or `cdc-kinesis` runs an HTTP/2 client
+against AWS endpoints. Triggering the defect requires that endpoint to be hostile or
+impersonated; it is not reachable by a FraiseQL client.
+
+**Blocked on**: the aws-* stack moving off hyper 0.14 — the same migration that holds
+RUSTSEC-2026-0098/-0099/-0104 (#1111).
+
+**Review action by 2026-12-01**: re-check whether `aws-smithy-http-client` has reached hyper 1.x.
 
 ## Dependency Upgrade Policy
 
