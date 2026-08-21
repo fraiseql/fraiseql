@@ -44,7 +44,12 @@
 //! stricter published type refuses nothing at execution — it constrains clients
 //! that validate locally against introspection.
 
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
+
+use fraiseql_db::where_clause::{RelationFieldMaps, WhereFieldInfo};
 
 use super::{
     CompiledSchema, EnumDefinition, EnumValueDefinition, FieldType, InputFieldDefinition,
@@ -463,6 +468,68 @@ fn operand_type(op: &str, operand: &str) -> String {
 fn operator_description(op: &str) -> String {
     fraiseql_db::where_clause::operator_spec(op)
         .map_or_else(|| format!("`{op}`"), |spec| format!("`{op}` — SQL `{}`.", spec.sql_op))
+}
+
+/// The entity a nested `where` predicate on a field of this type filters, if the
+/// published surface gives that field a nested filter at all.
+///
+/// This is the runtime's half of the same question [`derive`] answers when it
+/// gives a field `{Target}WhereInput` instead of an operator bag, and it is
+/// deliberately the *same* function: `WhereClause::from_graphql_json` decides
+/// whether `{field: {sub: …}}` is a legitimate nested predicate, and if it
+/// decided differently from the published type the schema would advertise a
+/// filter the engine refuses, or accept one the schema says is not there.
+///
+/// `None` for a scalar, an enum, an opaque leaf, and for a **list** — the engine
+/// lowers a nested predicate on a list to a JSON path that cannot index into an
+/// array, so it matches nothing, silently.
+#[must_use]
+pub fn nested_filter_entity(schema: &CompiledSchema, field_type: &FieldType) -> Option<String> {
+    match classify(schema, field_type) {
+        Slot::Relation(name) => Some(name),
+        Slot::Leaf(_) | Slot::Unfilterable => None,
+    }
+}
+
+/// The `where` keys of every type a nested predicate can descend into, keyed by
+/// declared type name.
+///
+/// Built once per compiled schema and carried on it, because a nested level is
+/// adjudicated against the *target* type's keys and rebuilding the closure per
+/// request would put a map-per-type allocation in front of every filter.
+#[must_use]
+pub fn relation_field_maps(schema: &CompiledSchema) -> RelationFieldMaps {
+    Arc::new(
+        schema
+            .types
+            .iter()
+            .filter(|t| !t.fields.is_empty())
+            .map(|t| (t.name.to_string(), Arc::new(where_keys_of(schema, t))))
+            .collect(),
+    )
+}
+
+/// The `where` keys one type declares, in the shape the parser adjudicates
+/// against.
+pub(crate) fn where_keys_of(
+    schema: &CompiledSchema,
+    type_def: &super::TypeDefinition,
+) -> HashMap<String, WhereFieldInfo> {
+    type_def
+        .fields
+        .iter()
+        .map(|f| {
+            let relation_type = nested_filter_entity(schema, &f.field_type);
+            (
+                crate::utils::to_snake_case(f.name.as_str()),
+                WhereFieldInfo {
+                    declared_name: f.name.to_string(),
+                    is_relation: relation_type.is_some(),
+                    relation_type,
+                },
+            )
+        })
+        .collect()
 }
 
 /// The filter slot a field of `field_type` occupies.

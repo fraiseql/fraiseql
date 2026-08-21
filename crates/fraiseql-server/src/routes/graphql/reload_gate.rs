@@ -81,6 +81,9 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         query_index: _,
         mutation_index: _,
         subscription_index: _,
+        // Derived from `types` by `build_indexes`, so it follows the executor
+        // swap exactly as `types` does.
+        where_relation_fields: _,
         // Compile-time only: its effect is already baked into `queries`, which is
         // hot, so a change on its own is inert rather than half-applied.
         hierarchies_config: _,

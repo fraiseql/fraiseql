@@ -9,7 +9,7 @@ use crate::{
     db::{
         OrderByClause, ProjectionField, ScalarFieldType,
         projection_generator::FieldKind,
-        where_clause::{SharedFieldTypes, WhereFieldInfo, WhereFieldSchema},
+        where_clause::{SharedFieldTypes, WhereFieldSchema},
     },
     graphql::FieldSelection,
     schema::CompiledSchema,
@@ -145,23 +145,14 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> WhereFie
             .collect(),
     );
 
-    let known = type_def
-        .fields
-        .iter()
-        .map(|f| {
-            (
-                crate::utils::to_snake_case(f.name.as_str()),
-                WhereFieldInfo {
-                    declared_name: f.name.to_string(),
-                    // A composite field is a relation, so `{field: {sub: …}}` is
-                    // a legitimate nested filter on it; on a scalar it is not.
-                    is_relation:   !f.field_type.is_scalar(),
-                },
-            )
-        })
-        .collect();
+    // Whether `{field: {sub: …}}` is a legitimate nested predicate is decided by
+    // the same function that decides whether the published `{Entity}WhereInput`
+    // gives that field a nested filter type. Answering it twice is how a schema
+    // ends up advertising a filter the engine refuses — or accepting one the
+    // schema says is not there.
+    let known = crate::schema::derived_inputs::where_keys_of(schema, type_def);
 
-    WhereFieldSchema::with_known_keys(casts, known)
+    WhereFieldSchema::with_relations(casts, known, Arc::clone(&schema.where_relation_fields))
 }
 
 /// Map a schema [`FieldType`] to the ORDER BY cast hint.

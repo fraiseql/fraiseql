@@ -3,13 +3,15 @@
 pub mod field_types;
 pub mod operator_table;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
 pub use self::{
-    field_types::{FieldTypeMap, SharedFieldTypes, WhereFieldInfo, WhereFieldSchema},
+    field_types::{
+        FieldTypeMap, RelationFieldMaps, SharedFieldTypes, WhereFieldInfo, WhereFieldSchema,
+    },
     operator_table::{OperatorCategory, WHERE_OPERATORS, WhereOperatorSpec, operator_spec},
 };
 use crate::utils::to_snake_case;
@@ -188,7 +190,7 @@ impl WhereClause {
     /// Cannot panic: the internal `.expect("checked len == 1")` is only reached
     /// after verifying `conditions.len() == 1`.
     pub fn from_graphql_json(value: &serde_json::Value, schema: &WhereFieldSchema) -> Result<Self> {
-        let parsed = Self::parse_where_object(value, &[], schema, 0)?;
+        let parsed = Self::parse_where_object(value, &[], schema, schema.root_level())?;
         let types = schema.casts();
         Ok(if types.is_empty() {
             parsed
@@ -208,11 +210,15 @@ impl WhereClause {
     /// The multi-segment path is then handled by `GenericWhereGenerator`, which
     /// checks `IndexedColumnsCache` for `machine__id` (native column with index)
     /// and falls back to JSONB extraction (`data->'machine'->>'id'`).
+    ///
+    /// `level` is the set of keys legal *at this depth* — the entry type's at the
+    /// top, and the relation target's below it. `None` means the schema cannot
+    /// adjudicate here, and every key passes (#939).
     fn parse_where_object(
         value: &serde_json::Value,
         path_prefix: &[String],
         schema: &WhereFieldSchema,
-        depth: usize,
+        level: Option<&HashMap<String, WhereFieldInfo>>,
     ) -> Result<Self> {
         let Some(obj) = value.as_object() else {
             return Err(FraiseQLError::Validation {
@@ -232,7 +238,7 @@ impl WhereClause {
                     })?;
                     let sub: Result<Vec<Self>> = arr
                         .iter()
-                        .map(|v| Self::parse_where_object(v, path_prefix, schema, depth))
+                        .map(|v| Self::parse_where_object(v, path_prefix, schema, level))
                         .collect();
                     conditions.push(Self::And(sub?));
                 },
@@ -243,12 +249,12 @@ impl WhereClause {
                     })?;
                     let sub: Result<Vec<Self>> = arr
                         .iter()
-                        .map(|v| Self::parse_where_object(v, path_prefix, schema, depth))
+                        .map(|v| Self::parse_where_object(v, path_prefix, schema, level))
                         .collect();
                     conditions.push(Self::Or(sub?));
                 },
                 "_not" => {
-                    let sub = Self::parse_where_object(val, path_prefix, schema, depth)?;
+                    let sub = Self::parse_where_object(val, path_prefix, schema, level)?;
                     conditions.push(Self::Not(Box::new(sub)));
                 },
                 field_name => {
@@ -259,14 +265,17 @@ impl WhereClause {
                     // downstream consumer.
                     crate::utils::validate_graphql_identifier(field_name, "where")?;
 
-                    // Only the top level is adjudicated (`depth == 0`). A nested
-                    // relation path such as `{machine: {id: …}}` resolves `id`
-                    // against *machine's* type, and the compiled schema carries
-                    // no field map for that level — so rejecting there would be
-                    // guessing. See the module header.
+                    // Every level the schema can name is adjudicated. A nested
+                    // path such as `{machine: {id: …}}` resolves `id` against
+                    // *machine's* type, which the compiled schema now names —
+                    // and which the published `MachineWhereInput` already
+                    // promises. A level the schema cannot name passes, because
+                    // rejecting there would be guessing (#939).
                     let snake = to_snake_case(field_name);
-                    if depth == 0 && schema.can_adjudicate() && schema.lookup(&snake).is_none() {
-                        return Err(unknown_where_field(field_name, schema));
+                    if let Some(level) = level {
+                        if !level.contains_key(&snake) {
+                            return Err(unknown_where_field(field_name, level));
+                        }
                     }
 
                     let ops = val.as_object().ok_or_else(|| FraiseQLError::Validation {
@@ -276,7 +285,31 @@ impl WhereClause {
                         path:    None,
                     })?;
                     let mut field_path = path_prefix.to_vec();
-                    field_path.push(snake);
+                    field_path.push(snake.clone());
+
+                    // A field the schema calls a relation carries a whole nested
+                    // predicate, not an operator map — which is exactly what the
+                    // published `{Target}WhereInput` on it says. Descending
+                    // wholesale is what makes `_and`/`_or`/`_not` work inside it:
+                    // the key-at-a-time path below only recognises a combinator
+                    // when its value is an object, and `_and`/`_or` take arrays,
+                    // so `{machine: {_or: […]}}` failed with
+                    // "Unknown WHERE operator: _or" while the type advertised it.
+                    if let Some(info) = level.and_then(|l| l.get(&snake)) {
+                        if info.is_relation {
+                            let nested_level = info
+                                .relation_type
+                                .as_deref()
+                                .and_then(|target| schema.level_of(target));
+                            conditions.push(Self::parse_where_object(
+                                val,
+                                &field_path,
+                                schema,
+                                nested_level,
+                            )?);
+                            continue;
+                        }
+                    }
 
                     for (op_str, op_val) in ops {
                         match WhereOperator::from_str(op_str) {
@@ -303,10 +336,9 @@ impl WhereClause {
                                 // *scalar* value was correctly refused. A nested
                                 // relation filter on a scalar field is never
                                 // legitimate.
-                                if depth == 0
-                                    && schema
-                                        .lookup(&field_path[0])
-                                        .is_some_and(|info| !info.is_relation)
+                                if level
+                                    .and_then(|l| l.get(&snake))
+                                    .is_some_and(|info| !info.is_relation)
                                 {
                                     return Err(FraiseQLError::Validation {
                                         message: format!(
@@ -318,11 +350,19 @@ impl WhereClause {
                                     });
                                 }
                                 let nested_json = serde_json::json!({ op_str: op_val });
+                                // The level below is the relation target's own
+                                // keys. `None` when the field is a relation the
+                                // caller could not resolve — then, as before,
+                                // the nested level is not adjudicated.
+                                let nested_level = level
+                                    .and_then(|l| l.get(&snake))
+                                    .and_then(|info| info.relation_type.as_deref())
+                                    .and_then(|target| schema.level_of(target));
                                 let nested = Self::parse_where_object(
                                     &nested_json,
                                     &field_path,
                                     schema,
-                                    depth + 1,
+                                    nested_level,
                                 )?;
                                 conditions.push(nested);
                             },
@@ -347,8 +387,8 @@ impl WhereClause {
 /// Mirrors the shape of the unknown-operator error already in this file, plus a
 /// "did you mean" hint: a `where` key is most often a rename or a
 /// camelCase/snake_case slip, and both are one edit from the name that works.
-fn unknown_where_field(field_name: &str, schema: &WhereFieldSchema) -> FraiseQLError {
-    let candidates = schema.declared_names();
+fn unknown_where_field(field_name: &str, level: &HashMap<String, WhereFieldInfo>) -> FraiseQLError {
+    let candidates: Vec<&str> = level.values().map(|i| i.declared_name.as_str()).collect();
     let subject = format!("Unknown field '{field_name}' in where clause.");
     let message = match crate::utils::suggest_similar(field_name, &candidates).as_slice() {
         [s] => format!("{subject} Did you mean '{s}'?"),

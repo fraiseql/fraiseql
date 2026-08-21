@@ -56,6 +56,23 @@ disagreed, and the promise was the part that was wrong.
   lowers `{lines: {sku: {eq: …}}}` to `data->'lines'->>'sku'`, which cannot index into an array
   and so matches nothing, silently.
 
+- **A nested `where` key the relation's type does not declare is refused instead of matching
+  nothing (#1154).** Only the *top* level was adjudicated, because the compiled schema carried
+  no field map for a relation's own type. So `{machine: {bogusField: {eq: "x"}}}` lowered to
+  `data->'machine'->>'bogusField'`, matched no row, and returned `[]` under a 200 — the same
+  silent-wrong-answer shape the top-level rule closed, one level further out, and now flatly
+  contradicted by the `MachineWhereInput` the schema publishes.
+
+  Every level a path reaches is now scored against the type it actually arrived at, to any
+  depth, and the "did you mean" candidates come from *that* level rather than the root. A
+  relation whose target type the schema does not carry stays unadjudicated, as before — this
+  rejects what the schema positively contradicts, never an absence of evidence.
+
+  Two consequences worth checking:
+
+  - **`_and`/`_or`/`_not` now work inside a nested relation.** `{machine: {_or: […]}}` failed with `Unknown WHERE operator: _or`, because a nested object was parsed key-at-a-time and a combinator's value is an array. A relation field now carries a whole nested predicate, which is what its published type says.
+  - **What counts as a relation is now the same question the published type answers.** A field is a relation exactly when `{Entity}WhereInput` gives it a nested filter — so a nested predicate on a **list** field (`{lines: {sku: {eq: …}}}`, which the engine lowered to a JSON path that cannot index into an array) and on an `Object` type nothing declares (`{placedAt: {…}}`) are now refused rather than silently matching nothing.
+
 - **Input-object fields introspect as real type references (#1154).** An input field's type is
   stored as a string and was published as a single `SCALAR` named after the whole string, so
   `[OrderWhereInput!]` introspected as a scalar type called `"[OrderWhereInput!]"` — a name no

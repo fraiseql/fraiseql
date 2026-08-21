@@ -422,3 +422,77 @@ fn the_advertised_operator_set_is_exactly_the_bucketed_set() {
         );
     }
 }
+
+// ---- Cycle 3: the published surface and the runtime answer the same question ----
+
+/// A field gets a nested filter in the published type **iff** the runtime treats
+/// a nested predicate on it as legitimate. Answering that twice is how a schema
+/// ends up advertising a filter the engine refuses, or accepting one the schema
+/// says is not there — so both read [`nested_filter_entity`].
+#[test]
+fn the_published_nesting_and_the_runtime_relation_flag_agree_field_by_field() {
+    let schema = schema();
+    let d = derived(&schema);
+    let order = input(&d, "OrderWhereInput");
+    let keys = where_keys_of(&schema, schema.find_type("Order").expect("Order is declared"));
+
+    let mut checked = 0_usize;
+    for f in &order.fields {
+        if matches!(f.name.as_str(), "_and" | "_or" | "_not") {
+            continue;
+        }
+        let info = keys
+            .get(&crate::utils::to_snake_case(&f.name))
+            .unwrap_or_else(|| panic!("`{}` published but absent from the runtime keys", f.name));
+        let published_as_relation = f.field_type.ends_with("WhereInput");
+        assert_eq!(
+            published_as_relation,
+            info.is_relation,
+            "`{}` publishes `{}` but the runtime calls it {}a relation",
+            f.name,
+            f.field_type,
+            if info.is_relation { "" } else { "not " }
+        );
+        if published_as_relation {
+            assert_eq!(
+                info.relation_type.as_deref().map(where_input_type_name),
+                Some(f.field_type.clone()),
+                "`{}` must descend into the type it publishes",
+                f.name
+            );
+        }
+        checked += 1;
+    }
+    assert!(checked > 0, "the walk compared nothing, so it proved nothing");
+}
+
+/// The two shapes that are *not* relations, stated directly: a list of entities
+/// (the engine's JSON path cannot index into an array) and an `Object` no type
+/// declares (an opaque leaf).
+#[test]
+fn a_list_of_entities_and_an_unresolved_object_are_not_relations() {
+    let schema = schema();
+    let keys = where_keys_of(&schema, schema.find_type("Order").expect("Order is declared"));
+
+    assert!(
+        !keys["lines"].is_relation,
+        "a list of entities takes a list filter, not a predicate"
+    );
+    assert!(!keys["placed_at"].is_relation, "`datetime` is declared by no type");
+    assert!(keys["customer"].is_relation, "a single declared relation still is one");
+    assert_eq!(keys["customer"].relation_type.as_deref(), Some("Customer"));
+}
+
+#[test]
+fn the_relation_field_maps_cover_every_type_that_declares_fields() {
+    let schema = schema();
+    let maps = relation_field_maps(&schema);
+    for name in ["Order", "Customer", "OrderLine"] {
+        assert!(maps.contains_key(name), "`{name}` declares fields, so its keys must be carried");
+    }
+    assert_eq!(
+        maps["Customer"].get("primary_order").and_then(|i| i.relation_type.as_deref()),
+        Some("Order"),
+        "the map must carry the target type, or a nested level cannot be resolved"
+    );
+}
