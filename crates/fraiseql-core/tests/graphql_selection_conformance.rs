@@ -2019,3 +2019,165 @@ async fn fragment_contributed_fields_keep_their_document_position() {
         "a spread contributes its fields at the position it appears: {response}"
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// B9. `operationName` selects the operation — § 6.1 GetOperation
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// The severest member of this family. #1154 drops an argument; § 5.8.3 drops a
+// variable; this one runs **a different operation than the one the client
+// asked for** and answers HTTP 200 with a body that is perfectly well-formed
+// for the operation it chose. There is nothing in the response to notice.
+//
+// `parse_query` took the document's first operation and ignored the request's
+// `operationName` entirely ("ignore multiple operations for now"). All three
+// § 6.1 outcomes were therefore the same outcome: the first operation.
+
+/// Two operations that are distinguishable **in the response**, so a test can
+/// tell which one actually ran rather than only that something did.
+const TWO_OPERATIONS: &str = "query A { users { id } } query B { users { name } }";
+
+#[tokio::test]
+async fn operation_name_selects_the_named_operation() {
+    let (exec, _) = executor();
+
+    let a = exec
+        .execute_operation(TWO_OPERATIONS, None, Some("A"))
+        .await
+        .expect("operation A is in the document");
+    assert_eq!(user_keys(&a), vec!["id"], "naming A must run A: {a}");
+
+    let b = exec
+        .execute_operation(TWO_OPERATIONS, None, Some("B"))
+        .await
+        .expect("operation B is in the document");
+    assert_eq!(
+        user_keys(&b),
+        vec!["name"],
+        "naming B must run B — running A here is the defect this test exists for: {b}"
+    );
+}
+
+/// The parse cache is keyed by the document; without the operation name folded
+/// into that key, the first request's operation is served to every later
+/// request naming a different one — the defect, cached, on one shared executor.
+#[tokio::test]
+async fn the_parse_cache_discriminates_by_operation_name() {
+    let (exec, _) = executor();
+
+    // Same executor, same document, A first so it is the entry the cache holds.
+    let first = exec.execute_operation(TWO_OPERATIONS, None, Some("A")).await.expect("A runs");
+    let second = exec.execute_operation(TWO_OPERATIONS, None, Some("B")).await.expect("B runs");
+
+    assert_eq!(user_keys(&first), vec!["id"]);
+    assert_eq!(
+        user_keys(&second),
+        vec!["name"],
+        "the cached classification for A must not be served to B: {second}"
+    );
+}
+
+#[tokio::test]
+async fn naming_an_operation_the_document_does_not_define_is_an_error() {
+    let (exec, adapter) = executor();
+    let err = exec
+        .execute_operation(TWO_OPERATIONS, None, Some("NoSuchOperation"))
+        .await
+        .expect_err("§ 6.1: the named operation must exist");
+
+    let msg = err.to_string();
+    assert!(msg.contains("NoSuchOperation"), "the error must name the operation, got: {msg}");
+    assert!(
+        matches!(err, fraiseql_core::error::FraiseQLError::Validation { .. }),
+        "the document parses — naming a missing operation is a validation error, not a parse \
+         error: {err:?}"
+    );
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an unresolvable operation name must not execute the first operation instead"
+    );
+}
+
+#[tokio::test]
+async fn a_multi_operation_document_with_no_operation_name_is_an_error() {
+    let (exec, adapter) = executor();
+    let err = exec
+        .execute_operation(TWO_OPERATIONS, None, None)
+        .await
+        .expect_err("§ 6.1: several operations and no name is ambiguous");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("operationName"),
+        "the error must say what the client has to supply, got: {msg}"
+    );
+    assert!(
+        matches!(err, fraiseql_core::error::FraiseQLError::Validation { .. }),
+        "an ambiguous request is a validation error, not a parse error: {err:?}"
+    );
+    assert!(
+        adapter.recorded_projections().is_empty(),
+        "an ambiguous request must not execute"
+    );
+}
+
+/// **Control** — the overwhelmingly common shape must be untouched: one
+/// operation, no name supplied. A § 6.1 implementation that rejects this
+/// rejects nearly every request ever sent.
+#[tokio::test]
+async fn a_lone_operation_needs_no_operation_name() {
+    let (exec, _) = executor();
+
+    for doc in ["query Only { users { id } }", "{ users { id } }"] {
+        let response = exec
+            .execute_operation(doc, None, None)
+            .await
+            .unwrap_or_else(|e| panic!("{doc} defines one operation and must run: {e}"));
+        assert_eq!(user_keys(&response), vec!["id"], "{doc}: {response}");
+    }
+}
+
+/// **Control** — an empty `operationName` is how clients that always populate
+/// the field spell "unnamed". Treating it as a name looks for an operation
+/// called `""` and fails every such request.
+#[tokio::test]
+async fn an_empty_operation_name_means_no_name() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute_operation("query Only { users { id } }", None, Some(""))
+        .await
+        .expect("an empty operationName is absent, not a name to resolve");
+    assert_eq!(user_keys(&response), vec!["id"], "{response}");
+}
+
+/// **Control** — naming the single operation of a one-operation document is
+/// valid and must select it, not fall through to "there is only one anyway".
+#[tokio::test]
+async fn naming_the_only_operation_selects_it() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute_operation("query Only { users { name } }", None, Some("Only"))
+        .await
+        .expect("naming the only operation is valid");
+    assert_eq!(user_keys(&response), vec!["name"], "{response}");
+}
+
+/// A document whose operations are a query and a mutation is the shape that
+/// makes this dangerous: selecting the wrong one does not merely read the wrong
+/// fields, it performs a write the client did not ask for — or skips one it did.
+#[tokio::test]
+async fn operation_selection_distinguishes_a_query_from_a_mutation() {
+    let (exec, adapter) = executor();
+    // The mutation is written **first** on purpose: selecting `Read` has to skip
+    // it. With the document the other way round, taking the first operation
+    // would satisfy this test by accident.
+    let doc = "mutation Write { createUser(input: {}) { id } } query Read { users { id } }";
+
+    let read = exec.execute_operation(doc, None, Some("Read")).await.expect("Read is a query");
+    assert_eq!(user_keys(&read), vec!["id"], "{read}");
+    assert!(
+        adapter.recorded_function_calls().is_empty(),
+        "selecting the query must not call the mutation's function: {:?}",
+        adapter.recorded_function_calls()
+    );
+}

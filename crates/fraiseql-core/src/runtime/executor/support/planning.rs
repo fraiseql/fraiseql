@@ -21,7 +21,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<ExplainPlan> {
-        let query_type = self.classify_query(query)?;
+        // Planning is a single-document explain surface with no request context,
+        // so the document must be unambiguous (GraphQL § 6.1).
+        let query_type = self.classify_query(query, None)?;
 
         match query_type {
             QueryType::Regular => {

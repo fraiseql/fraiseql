@@ -120,7 +120,10 @@ pub use directive_evaluator::{
 };
 pub use fragment_resolver::{FragmentError, FragmentResolver};
 pub use fragments::FragmentGraph;
-pub use parser::parse_query;
+pub use parser::{
+    operation_selection_error, parse_query, parse_query_with_operation_name,
+    parse_selected_operation,
+};
 pub use require_permission_directive::RequirePermissionDirective;
 pub use selection_set::SelectionError;
 pub use selection_validation::validate_selection_set;

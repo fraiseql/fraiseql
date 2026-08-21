@@ -236,6 +236,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
+        operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
         // 1. Validate security context (check expiration, etc.)
         if security_context.is_expired() {
@@ -245,8 +246,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             });
         }
 
-        // 2. Match query to compiled template
-        let query_match = self.ctx.matcher.match_query(query, variables)?;
+        // 2. Match query to compiled template — for the operation the request selected, not the
+        //    document's first one (§ 6.1).
+        let query_match =
+            self.ctx
+                .matcher
+                .match_query_with_operation_name(query, variables, operation_name)?;
 
         // 2b. Enforce requires_role — return "not found" (not "forbidden") to prevent enumeration
         if let Some(ref required_role) = query_match.query_def.requires_role {
@@ -707,10 +712,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
+        operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
         match security_context {
-            Some(ctx) => self.execute_regular_query_with_security(query, variables, ctx).await,
-            None => self.execute_regular_query(query, variables).await,
+            Some(ctx) => {
+                self.execute_regular_query_with_security(query, variables, ctx, operation_name)
+                    .await
+            },
+            None => self.execute_regular_query(query, variables, operation_name).await,
         }
     }
 
@@ -725,9 +734,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
+        operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
-        // 1. Match query to compiled template
-        let query_match = self.ctx.matcher.match_query(query, variables)?;
+        // 1. Match query to compiled template — for the operation the request selected, not the
+        //    document's first one (§ 6.1).
+        let query_match =
+            self.ctx
+                .matcher
+                .match_query_with_operation_name(query, variables, operation_name)?;
 
         // Guard: role-restricted queries are invisible to unauthenticated users
         if query_match.query_def.requires_role.is_some() {

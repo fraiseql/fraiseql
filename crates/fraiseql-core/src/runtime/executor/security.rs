@@ -207,7 +207,36 @@ impl<A: DatabaseAdapter> Executor<A> {
         // runner are threaded with `Some(security_context)` in `execute_dispatch`,
         // so this path cannot drift from the anonymous one (H19, L-gate1-skip,
         // L-parse-cache). The timeout wrapper is shared via `execute_with_timeout`.
-        self.execute_with_timeout(query, variables, Some(security_context)).await
+        self.execute_with_timeout(query, variables, Some(security_context), None).await
+    }
+
+    /// Authenticated execution that selects the operation named by
+    /// `operation_name` (GraphQL § 6.1 *`GetOperation`*).
+    ///
+    /// [`execute_with_security`](Self::execute_with_security) is this with
+    /// `None`, which requires the document to define exactly one operation.
+    /// Every HTTP request carries an `operationName` field, so the server path
+    /// uses this entry point.
+    ///
+    /// # Errors
+    ///
+    /// - [`FraiseQLError::Parse`] — the document does not parse, names an operation that does not
+    ///   exist, or defines several operations while `operation_name` is `None`.
+    /// - Any error returned by [`execute_with_security`](Self::execute_with_security).
+    pub async fn execute_operation_with_security(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+        operation_name: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        self.execute_with_timeout(
+            query,
+            variables,
+            Some(security_context),
+            super::execution::normalize_operation_name(operation_name),
+        )
+        .await
     }
 
     /// Check if a specific field can be accessed with given scopes.

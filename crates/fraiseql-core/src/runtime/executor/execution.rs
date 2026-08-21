@@ -34,7 +34,33 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         // Anonymous entry: no principal. GATE-1, the parse cache, multi-root
         // fan-out, and dispatch all live in the shared `execute_dispatch`.
-        self.execute_with_timeout(query, variables, None).await
+        //
+        // No operation name: the document must define exactly one operation
+        // (GraphQL § 6.1). Callers that carry an `operationName` — every HTTP
+        // request does — must use [`execute_operation`](Self::execute_operation)
+        // instead, or a two-operation document silently runs the first one.
+        self.execute_with_timeout(query, variables, None, None).await
+    }
+
+    /// Execute a document, selecting the operation named by `operation_name`
+    /// (GraphQL § 6.1 *`GetOperation`*).
+    ///
+    /// [`execute`](Self::execute) is this with `None`, which requires the
+    /// document to define exactly one operation.
+    ///
+    /// # Errors
+    ///
+    /// - [`FraiseQLError::Parse`] — the document does not parse, names an operation that does not
+    ///   exist, or defines several operations while `operation_name` is `None`.
+    /// - Any error returned by [`execute`](Self::execute).
+    pub async fn execute_operation(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        operation_name: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        self.execute_with_timeout(query, variables, None, normalize_operation_name(operation_name))
+            .await
     }
 
     /// Apply the configured query timeout (if any) around `execute_dispatch`.
@@ -52,12 +78,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
+        operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
         if self.ctx.config.query_timeout_ms > 0 {
             let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
             tokio::time::timeout(
                 timeout_duration,
-                self.execute_dispatch(query, variables, security_context),
+                self.execute_dispatch(query, variables, security_context, operation_name),
             )
             .await
             .map_err(|_| {
@@ -69,7 +96,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 }
             })?
         } else {
-            self.execute_dispatch(query, variables, security_context).await
+            self.execute_dispatch(query, variables, security_context, operation_name).await
         }
     }
 
@@ -187,6 +214,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
+        operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
         // 1. Classify query type — also returns the ParsedQuery for Regular
         // queries so we do not parse the same string twice. Classification also
@@ -210,11 +238,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // GATE-1 itself parses with (`validate_with_variables`, and
         // `parse_graphql_document` again for `max_operation_cost`), so the
         // parser sees nothing it was not already going to see.
-        let cache_key = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
+        let cache_key = parse_cache_key(query, operation_name);
         let (query_type, maybe_parsed) = if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
             arc.as_ref().clone()
         } else {
-            let pair = self.classify_query_with_parse(query)?;
+            let pair = self.classify_query_with_parse(query, operation_name)?;
             self.ctx.parse_cache.insert(cache_key, Arc::new(pair.clone()));
             pair
         };
@@ -254,7 +282,12 @@ impl<A: DatabaseAdapter> Executor<A> {
                     return Ok(serde_json::json!({ "data": data }));
                 }
                 self.query_runner()
-                    .execute_regular_query_maybe_security(query, variables, security_context)
+                    .execute_regular_query_maybe_security(
+                        query,
+                        variables,
+                        security_context,
+                        operation_name,
+                    )
                     .await
             },
             QueryType::Aggregate(query_name) => {
@@ -383,7 +416,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         self.run_gate1(query, variables)?;
 
         // 2. Classify query type
-        let query_type = self.classify_query(query)?;
+        let query_type = self.classify_query(query, None)?;
 
         // 3. Validate field access if filter is configured
         if let Some(ref filter) = self.ctx.config.field_filter {
@@ -397,7 +430,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         //    (step 3) has already run for Regular queries; all other query types (introspection,
         //    aggregate, federation, …) are routed correctly via execute_dispatch without
         //    duplication. Scope-based filtering is not RLS, so no SecurityContext is threaded.
-        self.execute_dispatch(query, variables, None).await
+        self.execute_dispatch(query, variables, None, None).await
     }
 
     /// Execute a mutation operation's root fields serially, in document order.
@@ -493,5 +526,30 @@ impl<A: DatabaseAdapter> Executor<A> {
             response.insert("errors".to_string(), serde_json::Value::Array(errors));
         }
         Ok(serde_json::Value::Object(response))
+    }
+}
+
+/// Treat an empty `operationName` as absent.
+///
+/// Clients that always populate the field send `""` for an unnamed operation.
+/// Left as `Some("")` it would match no operation and turn every such request
+/// into an `UnknownOperation` error.
+pub(super) fn normalize_operation_name(operation_name: Option<&str>) -> Option<&str> {
+    operation_name.filter(|name| !name.is_empty())
+}
+
+/// Parse-cache key for a document **and the operation selected within it**.
+///
+/// The operation name is part of the key, not decoration. The cached value is a
+/// `(QueryType, Option<ParsedQuery>)` pair describing *one selected operation*,
+/// so keying on the document alone would serve the first request's operation to
+/// every later request naming a different one — the § 6.1 defect, made
+/// permanent by the cache and invisible to the request that triggers it.
+fn parse_cache_key(query: &str, operation_name: Option<&str>) -> u64 {
+    let document = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
+    match operation_name {
+        None => document,
+        // Seeded with the document hash so the pair is mixed, not concatenated.
+        Some(name) => xxhash_rust::xxh3::xxh3_64_with_seed(name.as_bytes(), document),
     }
 }

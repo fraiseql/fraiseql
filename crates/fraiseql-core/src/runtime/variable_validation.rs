@@ -483,6 +483,14 @@ mod tests {
         collect_variable_references(&parsed).expect("walk succeeds")
     }
 
+    /// [`references`] for a document with more than one operation, where the
+    /// caller must say which one is executing (GraphQL § 6.1).
+    fn references_of(source: &str, operation_name: &str) -> Vec<String> {
+        let parsed = crate::graphql::parse_query_with_operation_name(source, Some(operation_name))
+            .expect("query parses");
+        collect_variable_references(&parsed).expect("walk succeeds")
+    }
+
     fn defined(source: &str) -> Vec<String> {
         parse_query(source)
             .expect("query parses")
@@ -604,11 +612,14 @@ mod tests {
     /// walker that has stopped working.
     #[test]
     fn an_unreachable_fragment_contributes_no_references() {
+        // `One` is named explicitly: the document has two operations, so which
+        // one executes is the request's choice, not the parser's (§ 6.1).
         assert_eq!(
-            references(
+            references_of(
                 "query One($own: Int) { orders(limit: $own) { reference } } \
                  query Two($t: Int) { orders(limit: $t) { ...F } } \
-                 fragment F on Order { items(first: $unreachable) { id } }"
+                 fragment F on Order { items(first: $unreachable) { id } }",
+                "One"
             ),
             ["own"],
             "only the executed operation's own reference should be collected"

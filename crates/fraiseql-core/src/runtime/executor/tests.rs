@@ -251,7 +251,7 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r"{ __schema { types { name } } }";
-        assert_eq!(executor.classify_query(query).unwrap(), QueryType::IntrospectionSchema);
+        assert_eq!(executor.classify_query(query, None).unwrap(), QueryType::IntrospectionSchema);
     }
 
     #[test]
@@ -262,7 +262,7 @@ mod classify {
 
         let query = r#"{ __type(name: "User") { fields { name } } }"#;
         assert_eq!(
-            executor.classify_query(query).unwrap(),
+            executor.classify_query(query, None).unwrap(),
             QueryType::IntrospectionType("User".to_string()),
         );
     }
@@ -274,7 +274,7 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r"{ __typename }";
-        match executor.classify_query(query).unwrap() {
+        match executor.classify_query(query, None).unwrap() {
             QueryType::TypeName {
                 selection,
                 operation_type,
@@ -294,7 +294,7 @@ mod classify {
 
         // The response key is the alias when one is provided.
         let query = r"{ ping: __typename }";
-        match executor.classify_query(query).unwrap() {
+        match executor.classify_query(query, None).unwrap() {
             QueryType::TypeName {
                 selection,
                 operation_type,
@@ -315,7 +315,7 @@ mod classify {
         // `mutation { __typename }` resolves to the Mutation root type — the
         // classifier branch must precede the mutation branch.
         let query = r"mutation { __typename }";
-        match executor.classify_query(query).unwrap() {
+        match executor.classify_query(query, None).unwrap() {
             QueryType::TypeName {
                 selection,
                 operation_type,
@@ -336,7 +336,7 @@ mod classify {
         // A field whose name merely begins with "__typename" must NOT be treated
         // as the meta-field — exact match only (mirrors the node substring guard).
         let query = r"{ __typenameExtra }";
-        assert_eq!(executor.classify_query(query).unwrap(), QueryType::Regular);
+        assert_eq!(executor.classify_query(query, None).unwrap(), QueryType::Regular);
     }
 
     #[test]
@@ -346,7 +346,10 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name } } }"#;
-        assert!(matches!(executor.classify_query(query).unwrap(), QueryType::NodeQuery { .. }));
+        assert!(matches!(
+            executor.classify_query(query, None).unwrap(),
+            QueryType::NodeQuery { .. }
+        ));
     }
 
     #[test]
@@ -356,7 +359,10 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r"query GetNode($id: ID!) { node(id: $id) { id } }";
-        assert!(matches!(executor.classify_query(query).unwrap(), QueryType::NodeQuery { .. }));
+        assert!(matches!(
+            executor.classify_query(query, None).unwrap(),
+            QueryType::NodeQuery { .. }
+        ));
     }
 
     #[test]
@@ -366,7 +372,7 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name email } } }"#;
-        let qt = executor.classify_query(query).unwrap();
+        let qt = executor.classify_query(query, None).unwrap();
         match qt {
             QueryType::NodeQuery { selections } => {
                 let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
@@ -383,7 +389,7 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r"query GetNode($id: ID!) { node(id: $id) { id name } }";
-        let qt = executor.classify_query(query).unwrap();
+        let qt = executor.classify_query(query, None).unwrap();
         match qt {
             QueryType::NodeQuery { selections } => {
                 let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
@@ -401,7 +407,7 @@ mod classify {
 
         // "nodeCounts" contains "node(" as a substring — must NOT match
         let query = r#"{ nodeCounts(id: "x") { total } }"#;
-        assert_eq!(executor.classify_query(query).unwrap(), QueryType::Regular);
+        assert_eq!(executor.classify_query(query, None).unwrap(), QueryType::Regular);
     }
 
     #[test]
@@ -413,14 +419,14 @@ mod classify {
         // Standard double-quoted argument
         let q = r#"{ __type(name: "User") { name } }"#;
         assert_eq!(
-            executor.classify_query(q).unwrap(),
+            executor.classify_query(q, None).unwrap(),
             QueryType::IntrospectionType("User".to_string()),
         );
 
         // No space after colon
         let q2 = r#"{ __type(name:"Query") { name } }"#;
         assert_eq!(
-            executor.classify_query(q2).unwrap(),
+            executor.classify_query(q2, None).unwrap(),
             QueryType::IntrospectionType("Query".to_string()),
         );
     }
@@ -433,7 +439,7 @@ mod classify {
 
         // __schema appears in a comment — should classify as Regular, not introspection.
         let q = "{ users { id } } # compare against __schema response";
-        assert_eq!(executor.classify_query(q).unwrap(), QueryType::Regular);
+        assert_eq!(executor.classify_query(q, None).unwrap(), QueryType::Regular);
     }
 
     #[test]
@@ -444,7 +450,7 @@ mod classify {
 
         // "_service" appears as a string argument — must NOT route to federation.
         let q = r#"{ search(query: "_service_name") { id } }"#;
-        assert_eq!(executor.classify_query(q).unwrap(), QueryType::Regular);
+        assert_eq!(executor.classify_query(q, None).unwrap(), QueryType::Regular);
     }
 
     #[test]
@@ -456,7 +462,7 @@ mod classify {
         // "_entities" used as an alias — the actual field is "users", not _entities.
         // Must NOT route to federation.
         let q = r"{ _entities: users { id } }";
-        assert_eq!(executor.classify_query(q).unwrap(), QueryType::Regular);
+        assert_eq!(executor.classify_query(q, None).unwrap(), QueryType::Regular);
     }
 
     #[test]
@@ -467,7 +473,7 @@ mod classify {
 
         let q = r"{ _service { sdl } }";
         assert_eq!(
-            executor.classify_query(q).unwrap(),
+            executor.classify_query(q, None).unwrap(),
             QueryType::Federation("_service".to_string()),
         );
     }
@@ -480,7 +486,7 @@ mod classify {
 
         let q = r#"{ _entities(representations: [{ __typename: "User", id: "1" }]) { ... on User { name } } }"#;
         assert_eq!(
-            executor.classify_query(q).unwrap(),
+            executor.classify_query(q, None).unwrap(),
             QueryType::Federation("_entities".to_string()),
         );
     }

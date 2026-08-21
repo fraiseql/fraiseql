@@ -3,8 +3,8 @@
 use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
-    error::{FraiseQLError, Result},
-    graphql::parse_query,
+    error::Result,
+    graphql::{operation_selection_error, parse_query_with_operation_name},
     runtime::{
         collect_variable_references, validate_variable_types, validate_variable_uses,
         validate_variables_used,
@@ -40,8 +40,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// // __schema       → Introspection
     /// // _entities      → Federation
     /// ```
-    pub(in crate::runtime::executor) fn classify_query(&self, query: &str) -> Result<QueryType> {
-        self.classify_query_with_parse(query).map(|(qt, _)| qt)
+    pub(in crate::runtime::executor) fn classify_query(
+        &self,
+        query: &str,
+        operation_name: Option<&str>,
+    ) -> Result<QueryType> {
+        self.classify_query_with_parse(query, operation_name).map(|(qt, _)| qt)
     }
 
     /// Classify a query and simultaneously return the parsed AST for `Regular`
@@ -56,15 +60,18 @@ impl<A: DatabaseAdapter> Executor<A> {
     pub(in crate::runtime::executor) fn classify_query_with_parse(
         &self,
         query: &str,
+        operation_name: Option<&str>,
     ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
         // Parse the query once; the AST is the canonical source of truth.
         // Substring scans on the raw string produce false-positives on aliases,
         // comments, and string argument values (e.g. `{ search(q: "_service") }`
         // would be mis-routed as a federation query by a text scan).
-        let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message:  e.to_string(),
-            location: "query".to_string(),
-        })?;
+        //
+        // GraphQL § 6.1 — the request selects which operation runs. Passing the
+        // name here rather than taking the document's first operation is what
+        // keeps a two-operation document from answering with the wrong one.
+        let parsed = parse_query_with_operation_name(query, operation_name)
+            .map_err(|e| operation_selection_error(&e))?;
 
         // GraphQL § 5.8.3 / § 5.8.2 / § 5.8.4 — variable definitions.
         //
