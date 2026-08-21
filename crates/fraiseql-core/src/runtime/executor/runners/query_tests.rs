@@ -343,6 +343,87 @@ mod rls_composition {
         schema
     }
 
+    /// The same schema, plus a `User` type that actually declares fields — so
+    /// `where_field_types` can adjudicate. Without a type the level is `None`
+    /// and every key fails open (#939), which would make a spelling test pass
+    /// for the wrong reason.
+    fn schema_with_inject_params_and_user_type(
+        inject_params: IndexMap<String, InjectedParamSource>,
+    ) -> CompiledSchema {
+        use crate::schema::{FieldDefinition, FieldType, TypeDefinition};
+
+        let mut schema = schema_with_inject_params(inject_params);
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::parse("ID")),
+            FieldDefinition::new("createdAt", FieldType::parse("DateTime")),
+        ];
+        schema.types.push(user);
+        schema
+    }
+
+    /// **Tenant isolation is not a client-input concern — pinned.**
+    ///
+    /// Tightening `where` to the declared spelling binds at the client-input
+    /// boundary only. Injected params never cross it: `inject_param_where_clause`
+    /// builds a `WhereClause` value straight from the configured column, so the
+    /// tenant predicate cannot be refused by a rule about how a *client* spelled
+    /// a key — even though the injected column here is `tenant_id`, precisely the
+    /// `snake_case` shape the rule now rejects from a client.
+    ///
+    /// Both halves matter. If the rule ever reached injected params, the tenant
+    /// condition would vanish from the composed clause and rows would leak; this
+    /// asserts it is still there. And a refused client key must fail **closed** —
+    /// no query reaching the adapter — rather than fall back to an unfiltered read.
+    #[tokio::test]
+    async fn tenancy_survives_the_where_spelling_rule_and_a_refusal_fails_closed() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+
+        // 1. The declared spelling composes with the injected tenant predicate.
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::with_config(
+            schema_with_inject_params_and_user_type(inject.clone()),
+            adapter.clone(),
+            RuntimeConfig::default(),
+        );
+        let ctx = tenant_security_context();
+        let vars = serde_json::json!({ "where": { "createdAt": { "eq": "2026-01-01" } } });
+        executor
+            .execute_with_security("{ users { id } }", Some(&vars), &ctx)
+            .await
+            .expect("`createdAt` is the declared spelling and must execute");
+
+        let composed = adapter.captured_where().expect("a filtered, tenant-scoped read has a WHERE");
+        let rendered = format!("{composed:?}");
+        assert!(
+            rendered.contains("tenant_id"),
+            "the injected tenant predicate must survive the spelling rule: {rendered}"
+        );
+        assert!(
+            rendered.contains("created_at"),
+            "and the user filter must still lower to its storage path: {rendered}"
+        );
+
+        // 2. The storage spelling is refused, and nothing reaches the database.
+        let adapter2 = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor2 = Executor::with_config(
+            schema_with_inject_params_and_user_type(inject),
+            adapter2.clone(),
+            RuntimeConfig::default(),
+        );
+        let bad = serde_json::json!({ "where": { "created_at": { "eq": "2026-01-01" } } });
+        let err = executor2
+            .execute_with_security("{ users { id } }", Some(&bad), &ctx)
+            .await
+            .expect_err("the storage spelling is not part of the published filter input");
+        assert!(err.to_string().contains("createdAt"), "the error names the spelling that works: {err}");
+        assert!(
+            adapter2.captured_where().is_none(),
+            "a refused filter must fail closed, never fall through to an unfiltered read"
+        );
+    }
+
     fn tenant_security_context() -> SecurityContext {
         SecurityContext {
             user_id:          "user-42".into(),

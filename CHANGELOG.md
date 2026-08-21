@@ -60,6 +60,48 @@ disagreed, and the promise was the part that was wrong.
   lowers `{lines: {sku: {eq: …}}}` to `data->'lines'->>'sku'`, which cannot index into an array
   and so matches nothing, silently.
 
+- **`where` accepts only the field names the schema declares.** Until now the parser
+  snake_cased an incoming key and asked only whether *that* was a known storage key, so
+  `where: {createdAt: …}` and `where: {created_at: …}` both worked. `{Entity}WhereInput`
+  publishes `createdAt` alone, so the second spelling was the runtime honouring a key the
+  published input type does not declare — the same defect class as the rest of this release,
+  and an asymmetry with `orderBy`, which already answered `Cannot sort by 'created_at'. Did you
+  mean 'createdAt'?`. The two surfaces now agree.
+
+  ```graphql
+  where: { createdAt:  { eq: "2026-01-01" } }   # unchanged
+  where: { created_at: { eq: "2026-01-01" } }   # now refused, naming createdAt
+  ```
+
+  **The rule is "equals the declared name", not "must be camelCase".** A schema that declares
+  `created_at` publishes `created_at`, and that spelling keeps working — a schema authored in
+  snake_case is unaffected by this entry.
+
+  **Native columns are not affected, and there is no carve-out here.** `orderBy` needs one
+  because it accepts a key that is *either* a declared field *or* a native column. `where`
+  never did: its allowlist is built from the return type's declared fields alone, so a native
+  column that is not also a declared field was already refused before this change, and one that
+  *is* declared stays filterable under its declared name. Nothing that filtered yesterday stops
+  filtering except the storage spelling of a declared field.
+
+  Two properties are preserved deliberately. The lowering to storage is untouched — the parser
+  still snake_cases to build the SQL path, and `FieldTypeMap` is still keyed by the dotted
+  storage path, because that is what the generator reads. And a level the schema cannot
+  adjudicate — an unknown type, or one carrying no fields — still accepts every key (#939);
+  tightening a spelling is not a licence to refuse where there is no evidence.
+
+  Injected and RLS predicates are unaffected by construction: they are built as `WhereClause`
+  values directly and never pass through the client-input parser, so a tenant filter on a
+  `tenant_id` column keeps composing exactly as before. There is a test pinning both halves —
+  that the tenant predicate survives, and that a refused client key fails **closed** rather than
+  falling through to an unfiltered read.
+
+  One internal caller had to be corrected for this: REST's nested-resource embedding built its
+  parent-scoping predicate from `[[relationships]]`, whose `foreign_key`/`referenced_key` are
+  SQL **column** names (`fk_user`). Handing those to the parser would have made the server
+  refuse its own join predicate. It now resolves the column to the target type's declared field
+  name first, the same way full-text search already keyed off the declared name.
+
 - **`/ws` validates subscription documents (#1154).** The WebSocket surface reached neither
   `execute_dispatch` nor `classify_query`, so it validated *nothing*: a subscription referencing
   a variable it never defined was accepted, and the argument carrying that variable was silently
