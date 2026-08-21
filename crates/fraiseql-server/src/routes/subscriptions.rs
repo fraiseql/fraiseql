@@ -41,6 +41,7 @@ use axum::{
     response::IntoResponse,
 };
 use fraiseql_core::{
+    graphql::ParsedQuery,
     runtime::{
         SubscriptionId, SubscriptionManager, SubscriptionPayload,
         protocol::{
@@ -127,6 +128,15 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub type LiveSubscriptionPolicies =
     Arc<dyn Fn() -> Arc<HashMap<String, SubscriptionPolicy>> + Send + Sync>;
 
+/// Reads the **current** compiled schema, so document validation on `/ws`
+/// follows a hot-reload the way the query plane does.
+///
+/// Installed at mount from the reload-aware executor `ArcSwap`, mirroring
+/// [`LiveSubscriptionPolicies`]. `None` in harnesses that mount no schema: the
+/// two schema-free variable rules still run, and § 5.8.2 is skipped rather than
+/// guessed.
+pub type LiveSchema = Arc<dyn Fn() -> Arc<CompiledSchema> + Send + Sync>;
+
 /// State for subscription `WebSocket` handler.
 #[derive(Clone)]
 pub struct SubscriptionState {
@@ -173,6 +183,8 @@ pub struct SubscriptionState {
     /// not wire a live source keep. Already-connected subscriptions are handled by
     /// [`policy_reload`](Self::policy_reload) (layer-2).
     pub live_subscription_policies: Option<LiveSubscriptionPolicies>,
+    /// Reads the current compiled schema for § 5.8.2 on the `/ws` surface.
+    pub live_schema: Option<LiveSchema>,
     /// Enriched-identity resolver (#539). When set, the connection's `SecurityContext`
     /// is enriched at subscribe time (only for policy-declaring subscriptions) so the
     /// `fraiseql.enriched.*` owner field is server-resolved, never client-asserted.
@@ -227,6 +239,7 @@ impl SubscriptionState {
             tenant_status_source: None,
             subscription_policies: Arc::new(HashMap::new()),
             live_subscription_policies: None,
+            live_schema: None,
             #[cfg(feature = "auth")]
             identity_resolver: None,
             service_account_authenticator: None,
@@ -301,6 +314,14 @@ impl SubscriptionState {
         live: Option<LiveSubscriptionPolicies>,
     ) -> Self {
         self.live_subscription_policies = live;
+        self
+    }
+
+    /// Install the live compiled-schema source, so § 5.8.2 on `/ws` resolves a
+    /// variable's declared type against the schema that is actually serving.
+    #[must_use]
+    pub fn with_live_schema(mut self, live: Option<LiveSchema>) -> Self {
+        self.live_schema = live;
         self
     }
 
@@ -1146,22 +1167,34 @@ async fn handle_client_message(
 
             // Extract the root field from the query: the name to resolve, and the
             // key the client asked its data under (#906).
-            let Some(SubscriptionRoot {
+            // Parse and select the subscription operation, then validate its
+            // variable definitions (§ 5.8.x) before anything is established.
+            // `/ws` reaches neither `execute_dispatch` nor `classify_query`, so
+            // this is the only place the rules the `/graphql` surface enforces
+            // can be applied to a subscription.
+            let document = extract_subscription_root(&payload.query).and_then(|(root, parsed)| {
+                let schema = state.live_schema.as_ref().map(|f| f());
+                validate_subscription_variables(&parsed, schema.as_deref())?;
+                Ok(root)
+            });
+            let SubscriptionRoot {
                 name: subscription_name,
                 response_key,
-            }) = extract_subscription_root(&payload.query)
-            else {
-                let error = ServerMessage::error(
-                    &op_id,
-                    vec![GraphQLError::with_code(
-                        "Could not parse subscription query",
-                        "PARSE_ERROR",
-                    )],
-                );
-                if let Err(e) = send_server_message(codec, sender, error).await {
-                    debug!(connection_id = %connection_id, error = %e, "Could not send parse error to client");
-                }
-                return Ok(());
+            } = match document {
+                Ok(root) => root,
+                Err(refusal) => {
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(
+                            refusal.message().to_string(),
+                            refusal.code(),
+                        )],
+                    );
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send document error to client");
+                    }
+                    return Ok(());
+                },
             };
 
             // Call lifecycle on_subscribe hook
@@ -1567,40 +1600,160 @@ pub(crate) struct SubscriptionRoot {
 /// took the first identifier inside the selection set as the name, which for
 /// `order: orderCreated` is the *alias* (#906).
 ///
-/// Returns `None` for unparseable documents, documents with no subscription
-/// operation, and — explicitly — subscriptions with multiple root fields or
-/// multiple subscription operations: the runtime serves exactly one root per
-/// connection operation, and silently dropping the second field would be a
-/// silent-loss bug.
-pub(crate) fn extract_subscription_root(query: &str) -> Option<SubscriptionRoot> {
+/// Returns a *parse* error for unparseable documents, documents with no
+/// subscription operation, and — explicitly — subscriptions with multiple root
+/// fields or multiple subscription operations: the runtime serves exactly one
+/// root per connection operation, and silently dropping the second field would
+/// be a silent-loss bug.
+///
+/// The returned [`ParsedQuery`] is the **selected subscription operation**, so a
+/// caller can validate the operation that will actually run. Reaching for
+/// `parse_query` instead would take the document's *first* operation: on a
+/// document mixing `query Q {…}` with `subscription S {…}` that validates `Q`
+/// and leaves `S` unchecked — a fix with the same shape as the bug.
+///
+/// # Errors
+///
+/// [`SubscriptionDocumentError::Parse`] in every case above. Variable-definition
+/// validation is [`validate_subscription_variables`]'s job and reports
+/// [`SubscriptionDocumentError::Validation`], because a client reading
+/// `PARSE_ERROR` for a well-formed document with a bad variable goes looking for
+/// a syntax error that is not there.
+pub(crate) fn extract_subscription_root(
+    query: &str,
+) -> Result<(SubscriptionRoot, ParsedQuery), SubscriptionDocumentError> {
     use graphql_parser::query::{Definition, OperationDefinition, Selection};
+
+    let parse_err = |msg: &str| {
+        SubscriptionDocumentError::Parse(format!("Could not parse subscription: {msg}"))
+    };
 
     // Through the guarded seam: the parser can panic on a client-controlled
     // document (#976), and this path runs on the WebSocket handshake.
-    let doc = fraiseql_core::graphql::complexity::parse_graphql_document(query).ok()?;
+    let doc = fraiseql_core::graphql::complexity::parse_graphql_document(query)
+        .map_err(|e| parse_err(&e.to_string()))?;
 
     let mut sub_ops = doc.definitions.iter().filter_map(|def| match def {
         Definition::Operation(OperationDefinition::Subscription(sub)) => Some(sub),
         _ => None,
     });
-    let sub = sub_ops.next()?;
+    let sub = sub_ops
+        .next()
+        .ok_or_else(|| parse_err("no subscription operation in document"))?;
     if sub_ops.next().is_some() {
-        return None;
+        return Err(parse_err(
+            "more than one subscription operation; one connection operation serves exactly one",
+        ));
     }
 
     let mut root_fields = sub.selection_set.items.iter().filter_map(|sel| match sel {
         Selection::Field(field) => Some(field),
         _ => None,
     });
-    let first = root_fields.next()?;
+    let first = root_fields.next().ok_or_else(|| parse_err("subscription has no root field"))?;
     if root_fields.next().is_some() {
-        return None;
+        return Err(parse_err(
+            "more than one root field; one connection operation serves exactly one",
+        ));
     }
 
-    Some(SubscriptionRoot {
+    let root = SubscriptionRoot {
         name:         first.name.clone(),
         response_key: first.alias.clone().unwrap_or_else(|| first.name.clone()),
-    })
+    };
+
+    // The operation is already selected, so this builds the AST for *it* rather
+    // than re-selecting from the document.
+    let parsed = fraiseql_core::graphql::parse_selected_operation(
+        &OperationDefinition::Subscription(sub.clone()),
+        &doc,
+        query,
+    )
+    .map_err(|e| parse_err(&e.to_string()))?;
+
+    Ok((root, parsed))
+}
+
+/// Why a subscription document was refused, and therefore which GraphQL-WS error
+/// code the client sees.
+///
+/// The split is the point: collapsing both into `PARSE_ERROR` — which is what
+/// this path did for every failure — sends a client hunting for a syntax error
+/// in a document that parses perfectly well.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SubscriptionDocumentError {
+    /// Malformed GraphQL, or a document shape one connection operation cannot serve.
+    Parse(String),
+    /// A well-formed document the schema refuses (GraphQL § 5.8.x).
+    Validation(String),
+}
+
+impl SubscriptionDocumentError {
+    /// The GraphQL-WS error code for this failure.
+    pub(crate) const fn code(&self) -> &'static str {
+        match self {
+            Self::Parse(_) => "PARSE_ERROR",
+            Self::Validation(_) => "VALIDATION_ERROR",
+        }
+    }
+
+    /// The message shown to the client.
+    pub(crate) fn message(&self) -> &str {
+        match self {
+            Self::Parse(m) | Self::Validation(m) => m,
+        }
+    }
+}
+
+/// Validate a subscription operation's variable definitions — GraphQL § 5.8.3,
+/// § 5.8.2 and § 5.8.4.
+///
+/// `/ws` reaches neither `execute_dispatch` nor `classify_query`, so until this
+/// existed a subscription referencing a variable it never defined was accepted
+/// and the argument carrying it was silently dropped — the same silent-loss the
+/// `/graphql` surface stopped doing in this release. A release headlined
+/// "documents are validated" cannot ship a surface that does not.
+///
+/// Run in the same order as `classify.rs`: an undefined *reference* is the one
+/// that changed the answer, so it is the one worth reporting first.
+///
+/// # Scope
+///
+/// **Variables only.** The other document rules bind at argument resolution,
+/// which this path never reaches — whether subscription *filters* need the same
+/// treatment is a separate audit, filed rather than folded in.
+///
+/// `schema` is `None` for a caller that mounts no compiled schema; § 5.8.2 —
+/// the only rule of the three that needs one — is then skipped, and the other
+/// two still run.
+///
+/// # Errors
+///
+/// [`SubscriptionDocumentError::Validation`] naming the offending variable.
+pub(crate) fn validate_subscription_variables(
+    parsed: &ParsedQuery,
+    schema: Option<&CompiledSchema>,
+) -> Result<(), SubscriptionDocumentError> {
+    use fraiseql_core::runtime::{
+        collect_variable_references, validate_variable_types, validate_variable_uses,
+        validate_variables_used,
+    };
+
+    let fail = |e: fraiseql_core::error::FraiseQLError| {
+        SubscriptionDocumentError::Validation(e.to_string())
+    };
+
+    let operation_name = parsed.operation_name.as_deref();
+    let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
+    let referenced = collect_variable_references(parsed).map_err(fail)?;
+
+    validate_variable_uses(operation_name, &defined, &referenced).map_err(fail)?;
+    if let Some(schema) = schema {
+        validate_variable_types(schema, operation_name, &parsed.variables).map_err(fail)?;
+    }
+    validate_variables_used(operation_name, &defined, &referenced).map_err(fail)?;
+
+    Ok(())
 }
 
 #[cfg(test)]

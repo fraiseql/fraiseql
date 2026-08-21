@@ -5,7 +5,7 @@
 //! Host-domain resolution — rather than the former `None, None, false` call that
 //! silently dropped all three.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Reason: test code.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -369,5 +369,188 @@ mod create_next_message_tests {
             payload["data"].get("orderUpdated").is_none(),
             "the subscription's own name must not appear when an alias was given: {payload}"
         );
+    }
+}
+
+// =============================================================================
+// Document validation on `/ws` (#1154)
+// =============================================================================
+
+mod document_validation {
+    use fraiseql_core::schema::{
+        AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition,
+        SubscriptionDefinition, TypeDefinition,
+    };
+
+    use super::super::{
+        SubscriptionDocumentError, extract_subscription_root, validate_subscription_variables,
+    };
+
+    /// A schema that can adjudicate § 5.8.2: it carries input-type information,
+    /// so an unknown type name is a positive contradiction rather than an
+    /// absence of evidence.
+    fn schema() -> CompiledSchema {
+        let mut schema = CompiledSchema::default();
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields.push(FieldDefinition::new("id", FieldType::Id));
+        order.fields.push(FieldDefinition::new("status", FieldType::String));
+        schema.types.push(order);
+
+        let mut orders = QueryDefinition::new("orders", "Order");
+        orders.returns_list = true;
+        orders.auto_params = AutoParams::all();
+        schema.queries.push(orders);
+
+        schema.subscriptions.push(SubscriptionDefinition::new("orderUpdated", "Order"));
+        schema.build_indexes();
+        schema
+    }
+
+    /// Refuse a document and return `(code, message)`.
+    fn refuse(query: &str) -> (&'static str, String) {
+        let schema = schema();
+        let err = extract_subscription_root(query)
+            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema)))
+            .expect_err("this document must be refused");
+        (err.code(), err.message().to_string())
+    }
+
+    fn accept(query: &str) {
+        let schema = schema();
+        extract_subscription_root(query)
+            .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema)))
+            .unwrap_or_else(|e| panic!("this document must be accepted: {}", e.message()));
+    }
+
+    /// § 5.8.3 — the load-bearing one. Before this, `/ws` accepted the
+    /// subscription and the argument carrying `$nope` was silently dropped.
+    #[test]
+    fn a_variable_the_subscription_never_defines_is_refused_as_a_validation_error() {
+        let (code, message) = refuse("subscription S { orderUpdated(id: $nope) { id } }");
+        assert_eq!(code, "VALIDATION_ERROR", "a well-formed document is not a parse failure");
+        assert!(message.contains("$nope"), "message was: {message}");
+    }
+
+    /// § 5.8.2.
+    #[test]
+    fn a_variable_typed_with_a_name_the_schema_does_not_publish_is_refused() {
+        let (code, message) =
+            refuse("subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }");
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(message.contains("NoSuchTypeAtAll"), "message was: {message}");
+    }
+
+    /// § 5.8.4.
+    #[test]
+    fn a_variable_the_subscription_never_uses_is_refused() {
+        let (code, message) = refuse("subscription S($unused: ID) { orderUpdated { id } }");
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(message.contains("$unused"), "message was: {message}");
+    }
+
+    #[test]
+    fn a_valid_subscription_still_establishes() {
+        accept("subscription S($id: ID) { orderUpdated(id: $id) { id status } }");
+        accept("subscription { orderUpdated { id } }");
+    }
+
+    /// **The scope guard.** `extract_subscription_root` selects the *subscription*
+    /// operation. Reaching for `parse_query` would take the document's first
+    /// operation and validate `Q` — leaving `S`, the one that runs, unchecked.
+    #[test]
+    fn the_subscription_operation_is_validated_not_the_documents_first_operation() {
+        let (code, message) = refuse(
+            "query Q($ok: ID) { orders(limit: 1) { id } } \
+             subscription S { orderUpdated(id: $neverDefined) { id } }",
+        );
+        assert_eq!(code, "VALIDATION_ERROR");
+        assert!(
+            message.contains("$neverDefined"),
+            "the *subscription*'s variable must be the one reported: {message}"
+        );
+    }
+
+    /// The structural guards keep reporting a **parse** error: a document one
+    /// connection operation cannot serve is not a schema disagreement.
+    #[test]
+    fn the_multi_operation_and_multi_root_guards_stay_parse_errors() {
+        for query in [
+            "subscription A { orderUpdated { id } } subscription B { orderUpdated { id } }",
+            "subscription S { orderUpdated { id } orderDeleted { id } }",
+            "query Q { orders { id } }",
+            "subscription S { orderUpdated { id }",
+        ] {
+            let schema = schema();
+            let err = extract_subscription_root(query)
+                .and_then(|(_, parsed)| validate_subscription_variables(&parsed, Some(&schema)))
+                .expect_err("must be refused");
+            assert_eq!(err.code(), "PARSE_ERROR", "for: {query}");
+        }
+    }
+
+    /// Fail-open where the schema is absent: the two schema-free rules still
+    /// run, and § 5.8.2 — which needs a published surface to contradict — does
+    /// not guess.
+    #[test]
+    fn without_a_schema_the_two_schema_free_rules_still_run() {
+        let (_, parsed) = extract_subscription_root(
+            "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
+        )
+        .expect("parses");
+        validate_subscription_variables(&parsed, None)
+            .expect("§ 5.8.2 cannot be adjudicated without a schema");
+
+        let (_, parsed) =
+            extract_subscription_root("subscription S { orderUpdated(id: $nope) { id } }")
+                .expect("parses");
+        assert!(
+            matches!(
+                validate_subscription_variables(&parsed, None),
+                Err(SubscriptionDocumentError::Validation(_))
+            ),
+            "§ 5.8.3 needs no schema, so it must still run"
+        );
+    }
+
+    /// **The test that matters.** The two surfaces must refuse the same document
+    /// with the same message — a client that moves a document from `/graphql` to
+    /// `/ws` should not discover a different set of rules.
+    #[test]
+    fn graphql_and_ws_refuse_the_same_document_with_the_same_message() {
+        use fraiseql_core::{
+            graphql::parse_query,
+            runtime::{
+                collect_variable_references, validate_variable_types, validate_variable_uses,
+                validate_variables_used,
+            },
+        };
+
+        let schema = schema();
+        // One document per rule, written as a subscription so both surfaces see
+        // the identical operation.
+        for document in [
+            "subscription S { orderUpdated(id: $nope) { id } }",
+            "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
+            "subscription S($unused: ID) { orderUpdated { id } }",
+        ] {
+            // What `/graphql` would say, through the same validators
+            // `classify_query_with_parse` runs, in the same order.
+            let parsed = parse_query(document).expect("parses");
+            let operation_name = parsed.operation_name.as_deref();
+            let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
+            let referenced = collect_variable_references(&parsed).expect("walk succeeds");
+            let http = validate_variable_uses(operation_name, &defined, &referenced)
+                .and_then(|()| validate_variable_types(&schema, operation_name, &parsed.variables))
+                .and_then(|()| validate_variables_used(operation_name, &defined, &referenced))
+                .expect_err("the /graphql surface refuses this document");
+
+            let (code, ws) = refuse(document);
+            assert_eq!(code, "VALIDATION_ERROR", "for: {document}");
+            assert_eq!(
+                ws,
+                http.to_string(),
+                "the two surfaces must refuse `{document}` identically"
+            );
+        }
     }
 }
