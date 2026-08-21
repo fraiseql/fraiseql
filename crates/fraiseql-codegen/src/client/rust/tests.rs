@@ -376,3 +376,72 @@ fn casing_helpers_follow_rust_conventions() {
     // `SELF` pascal-cases onto the reserved `Self`.
     assert_eq!(pascal_case("SELF"), "Self_");
 }
+
+/// A GraphQL input object may reference itself — the derived filter surface puts
+/// `_not: OrderWhereInput` on every entity filter (#1154). A Rust struct that
+/// holds itself **by value** is infinitely sized, and the generated crate fails
+/// to compile with `E0072`, which is what reached CI.
+///
+/// A `Vec<T>` field is already an indirection, so `_and`/`_or` need no box; only
+/// the bare reference does.
+#[test]
+fn a_self_referential_input_field_is_boxed_but_a_list_of_them_is_not() {
+    let mut schema = CompiledSchema::new();
+    schema.input_types.push(
+        InputObjectDefinition::new("OrderWhereInput")
+            .with_field(InputFieldDefinition::new("reference", "StringFilter"))
+            .with_field(InputFieldDefinition::new("_and", "[OrderWhereInput!]"))
+            .with_field(InputFieldDefinition::new("_not", "OrderWhereInput")),
+    );
+    schema.input_types.push(
+        InputObjectDefinition::new("StringFilter")
+            .with_field(InputFieldDefinition::new("eq", "String")),
+    );
+
+    let files = generate(&schema).expect("generation succeeds");
+    let inputs = files
+        .iter()
+        .find(|(p, _)| p.ends_with("inputs.rs"))
+        .map(|(_, body)| body.clone())
+        .expect("inputs.rs is emitted");
+
+    assert!(
+        inputs.contains("Option<Box<OrderWhereInput>>"),
+        "the self-reference must be boxed or the struct is infinitely sized:\n{inputs}"
+    );
+    assert!(
+        inputs.contains("Option<Vec<OrderWhereInput>>"),
+        "a list is already an indirection and must not be boxed:\n{inputs}"
+    );
+    // A field that cannot reach back to its container stays unboxed — boxing
+    // everything would be correct but needlessly awkward to use.
+    assert!(
+        inputs.contains("Option<StringFilter>"),
+        "a non-cyclic input reference must stay unboxed:\n{inputs}"
+    );
+}
+
+/// Mutual recursion closes the same cycle one hop further out, which a
+/// self-reference check alone would miss.
+#[test]
+fn a_mutually_recursive_input_pair_is_boxed_on_both_sides() {
+    let mut schema = CompiledSchema::new();
+    schema.input_types.push(
+        InputObjectDefinition::new("OrderWhereInput")
+            .with_field(InputFieldDefinition::new("customer", "CustomerWhereInput")),
+    );
+    schema.input_types.push(
+        InputObjectDefinition::new("CustomerWhereInput")
+            .with_field(InputFieldDefinition::new("primaryOrder", "OrderWhereInput")),
+    );
+
+    let files = generate(&schema).expect("generation succeeds");
+    let inputs = files
+        .iter()
+        .find(|(p, _)| p.ends_with("inputs.rs"))
+        .map(|(_, body)| body.clone())
+        .expect("inputs.rs is emitted");
+
+    assert!(inputs.contains("Option<Box<CustomerWhereInput>>"), "got:\n{inputs}");
+    assert!(inputs.contains("Option<Box<OrderWhereInput>>"), "got:\n{inputs}");
+}

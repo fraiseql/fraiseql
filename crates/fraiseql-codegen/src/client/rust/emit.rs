@@ -306,13 +306,51 @@ pub(super) fn inputs(ctx: &Ctx) -> String {
         out.push('\n');
     }
     for input in &schema.input_types {
-        emit_input(&mut out, input);
+        emit_input(&mut out, schema, input);
         out.push('\n');
     }
     finish(out)
 }
 
-fn emit_input(out: &mut String, input: &InputObjectDefinition) {
+/// Whether a chain of **by-value** input-object fields leads from `from` back to
+/// `target` — i.e. whether a Rust struct for `target` that holds a `from` by
+/// value would be infinitely sized.
+///
+/// A `Vec<…>` field is already an indirection and terminates the chain, so only
+/// bare named references are followed. GraphQL input objects are legitimately
+/// recursive — the derived filter surface has `_not: OrderWhereInput` on every
+/// entity filter (#1154) — and Rust needs a `Box` exactly where such a cycle
+/// closes.
+fn reaches_by_value(schema: &CompiledSchema, from: &str, target: &str) -> bool {
+    fn walk<'a>(
+        schema: &'a CompiledSchema,
+        from: &'a str,
+        target: &str,
+        seen: &mut BTreeSet<&'a str>,
+    ) -> bool {
+        if from == target {
+            return true;
+        }
+        if !seen.insert(from) {
+            return false;
+        }
+        let Some(def) = schema.input_types.iter().find(|i| i.name == from) else {
+            return false;
+        };
+        def.fields.iter().any(|f| {
+            // A list is already an indirection; it cannot make the parent
+            // infinite, so the chain stops there. What remains is a bare name,
+            // which is the string itself minus the non-null marker — no
+            // allocation, and it borrows from the schema so the walk can carry it.
+            let written = f.field_type.trim().trim_end_matches('!').trim_end();
+            !written.starts_with('[') && walk(schema, written, target, seen)
+        })
+    }
+
+    walk(schema, from, target, &mut BTreeSet::new())
+}
+
+fn emit_input(out: &mut String, schema: &CompiledSchema, input: &InputObjectDefinition) {
     push_doc(out, input.description.as_deref());
     let fields: Vec<RsField> = input
         .fields
@@ -320,11 +358,22 @@ fn emit_input(out: &mut String, input: &InputObjectDefinition) {
         .map(|field| {
             let parsed = parse_input_type(&field.field_type);
             let name = rs_ident(&field.name);
+            // Box a by-value reference that closes a cycle back to this struct,
+            // or the type is infinitely sized and the generated crate does not
+            // compile (E0072).
+            let rs = if !parsed.rs.starts_with("Vec<")
+                && schema.input_types.iter().any(|i| i.name == parsed.rs)
+                && reaches_by_value(schema, &parsed.rs, &input.name)
+            {
+                format!("Box<{}>", parsed.rs)
+            } else {
+                parsed.rs
+            };
             let (rs_type, extra) = if parsed.required {
-                (parsed.rs, String::new())
+                (rs, String::new())
             } else {
                 (
-                    format!("Option<{}>", parsed.rs),
+                    format!("Option<{rs}>"),
                     "default, skip_serializing_if = \"Option::is_none\"".to_string(),
                 )
             };
