@@ -635,8 +635,11 @@ fn declared_camel_case() -> WhereFieldSchema {
 
 #[test]
 fn a_declared_key_passes_under_the_spelling_the_schema_declares() {
-    WhereClause::from_graphql_json(&json!({ "createdAt": { "eq": "2026-01-01" } }), &declared_camel_case())
-        .expect("`createdAt` is the published spelling");
+    WhereClause::from_graphql_json(
+        &json!({ "createdAt": { "eq": "2026-01-01" } }),
+        &declared_camel_case(),
+    )
+    .expect("`createdAt` is the published spelling");
 }
 
 /// **The 2.15.0 change.** Until now the parser `snake_case`d the key and then

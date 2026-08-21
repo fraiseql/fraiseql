@@ -394,7 +394,8 @@ mod rls_composition {
             .await
             .expect("`createdAt` is the declared spelling and must execute");
 
-        let composed = adapter.captured_where().expect("a filtered, tenant-scoped read has a WHERE");
+        let composed =
+            adapter.captured_where().expect("a filtered, tenant-scoped read has a WHERE");
         let rendered = format!("{composed:?}");
         assert!(
             rendered.contains("tenant_id"),
@@ -417,7 +418,10 @@ mod rls_composition {
             .execute_with_security("{ users { id } }", Some(&bad), &ctx)
             .await
             .expect_err("the storage spelling is not part of the published filter input");
-        assert!(err.to_string().contains("createdAt"), "the error names the spelling that works: {err}");
+        assert!(
+            err.to_string().contains("createdAt"),
+            "the error names the spelling that works: {err}"
+        );
         assert!(
             adapter2.captured_where().is_none(),
             "a refused filter must fail closed, never fall through to an unfiltered read"
