@@ -553,10 +553,16 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     #[cfg(feature = "functions-runtime")]
     let dispatch_caller = security_context.clone();
     // Error propagation is deferred so the circuit-breaker outcome is recorded first.
+    // GraphQL § 6.1 — the request's `operationName` selects which operation runs.
+    // Before this was threaded, a document carrying two operations always ran the
+    // first one, whatever the client named.
+    let operation_name = request.operation_name.as_deref();
     let exec_result = if let Some(sec_ctx) = security_context {
-        executor.execute_with_security(&query, variables.as_ref(), &sec_ctx).await
+        executor
+            .execute_operation_with_security(&query, variables.as_ref(), &sec_ctx, operation_name)
+            .await
     } else {
-        executor.execute(&query, variables.as_ref()).await
+        executor.execute_operation(&query, variables.as_ref(), operation_name).await
     };
 
     // Record circuit breaker outcome for federation entity queries

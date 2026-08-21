@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::{
     error::{FraiseQLError, Result},
-    graphql::{FieldSelection, ParsedQuery, parse_query, selection_set},
+    graphql::{FieldSelection, ParsedQuery, parse_query_with_operation_name, selection_set},
     runtime::argument_validation,
     schema::{CompiledSchema, QueryDefinition},
 };
@@ -174,11 +174,34 @@ impl QueryMatcher {
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<QueryMatch> {
+        self.match_query_with_operation_name(query, variables, None)
+    }
+
+    /// Match a document against the compiled schema, selecting the operation
+    /// named by `operation_name` (GraphQL § 6.1).
+    ///
+    /// [`match_query`](Self::match_query) is this with `None`, which requires
+    /// the document to define exactly one operation.
+    ///
+    /// The executor threads the request's name here as well as into
+    /// classification: this function re-parses the document, so leaving it to
+    /// take the first operation would classify one operation and then match a
+    /// different one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Parse`] if the document does not parse, names
+    /// no such operation, or is ambiguous; [`FraiseQLError::NotFound`] if the
+    /// root field matches no compiled query.
+    pub fn match_query_with_operation_name(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        operation_name: Option<&str>,
+    ) -> Result<QueryMatch> {
         // 1. Parse GraphQL query using proper parser
-        let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message:  e.to_string(),
-            location: "query".to_string(),
-        })?;
+        let parsed = parse_query_with_operation_name(query, operation_name)
+            .map_err(|e| crate::graphql::operation_selection_error(&e))?;
 
         // 2. Build the variables map once. The same map is used for `@skip`/`@include` directive
         //    evaluation (by reference) and then moved onto the returned `QueryMatch` as

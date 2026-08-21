@@ -227,10 +227,18 @@ impl<A: DatabaseAdapter> Executor<A> {
             .iter()
             .zip(dispatched.iter())
             .map(|(runner, (_, _, query))| {
+                // `None`, deliberately: `field_selection_to_query` re-serialises
+                // each root into a *synthetic* single-root anonymous document.
+                // The request's `operationName` names an operation in the
+                // client's document, which this string is not — passing it here
+                // would look for that name in a document that has no named
+                // operation at all and fail every multi-root request. Operation
+                // selection already happened upstream, in classification.
                 runner.execute_regular_query_maybe_security(
                     query.as_str(),
                     variables,
                     security_context,
+                    None,
                 )
             })
             .collect();

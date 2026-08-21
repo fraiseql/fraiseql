@@ -44,7 +44,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    graphql::{ParsedQuery, parse_query},
+    graphql::ParsedQuery,
     security::errors::{Result, SecurityError},
 };
 
@@ -263,10 +263,32 @@ impl IntrospectionEnforcer {
     /// executor/handler, and the enforcer must not fail-open into a 500 or
     /// double-report the error.
     pub(crate) fn is_introspection_query(&self, query: &str) -> bool {
-        match parse_query(query) {
-            Ok(parsed) => self.is_introspection(&parsed),
-            Err(_) => false,
-        }
+        // Every operation in the document, not just the one that would execute.
+        //
+        // This gate runs before the request's `operationName` has selected
+        // anything, so it cannot know which operation will run. Resolving one
+        // operation here and asking only about that one would let
+        // `query Decoy { users { id } } query Peek { __schema { … } }` pass the
+        // policy and then execute `Peek` — introspection served from a server
+        // that has it disabled. Any introspection operation anywhere in the
+        // document makes the whole document subject to the policy.
+        let Ok(doc) = crate::graphql::parse_graphql_document(query) else {
+            // Unparseable: reported as *not* introspection. The malformed input
+            // is rejected on the normal parse path in the executor/handler, and
+            // the enforcer must not fail-open into a 500 or double-report.
+            return false;
+        };
+
+        doc.definitions
+            .iter()
+            .filter_map(|def| match def {
+                graphql_parser::query::Definition::Operation(op) => Some(op),
+                graphql_parser::query::Definition::Fragment(_) => None,
+            })
+            .any(|op| {
+                crate::graphql::parse_selected_operation(op, &doc, query)
+                    .is_ok_and(|parsed| self.is_introspection(&parsed))
+            })
     }
 
     /// Scan an already-parsed query's root selection set for the configured

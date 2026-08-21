@@ -2181,6 +2181,36 @@ mod introspection_enforcer_tests {
         assert!(!enforcer.is_introspection_query("{ user { __typename } }"));
     }
 
+    /// The enforcer runs before `operationName` has selected anything, so it
+    /// must judge the whole document. A decoy first operation would otherwise
+    /// carry an introspection operation past a `Disabled` policy, which the
+    /// request then selects by name.
+    #[test]
+    fn introspection_in_any_operation_is_detected() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        let decoy = "query Decoy { users { id } } query Peek { __schema { types { name } } }";
+
+        assert!(
+            enforcer.is_introspection_query(decoy),
+            "an introspection operation anywhere in the document is introspection"
+        );
+        enforcer
+            .validate_query(decoy, None)
+            .expect_err("a disabled policy must refuse the document that carries `Peek`");
+    }
+
+    /// **Control** — a document of several operations with no introspection in
+    /// any of them stays allowed. A gate that answered "introspection" for every
+    /// multi-operation document would block ordinary batched documents.
+    #[test]
+    fn a_multi_operation_document_without_introspection_is_allowed() {
+        let enforcer = IntrospectionEnforcer::disabled();
+        let doc = "query A { users { id } } query B { orders { id } }";
+
+        assert!(!enforcer.is_introspection_query(doc));
+        enforcer.validate_query(doc, None).expect("no introspection anywhere — allowed");
+    }
+
     #[test]
     fn test_aliased_typename_is_not_introspection() {
         let enforcer = IntrospectionEnforcer::disabled();

@@ -33,8 +33,8 @@ use axum::response::Response;
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     graphql::{
-        defer, parse_query, selection_set, selection_set::variables_map, stream_split,
-        types::FieldSelection, value_json,
+        defer, parse_query_with_operation_name, selection_set, selection_set::variables_map,
+        stream_split, types::FieldSelection, value_json,
     },
     runtime::QueryMatcher,
     security::SecurityContext,
@@ -84,9 +84,15 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
         Box::pin(stages::authenticate(&state, &headers, security_context)).await?;
     let query = Box::pin(stages::resolve_query_body(&state, &mut request)).await?;
 
-    let plan = plan_stream(&state, &query, request.variables.as_ref())?;
-    let defer_plan = plan_defer(&query, request.variables.as_ref());
-    let nested_stream_plan = plan_nested_stream(&query, request.variables.as_ref());
+    // § 6.1 — the streaming surface must plan the same operation the buffered
+    // one would execute. Planning the document's first operation while the
+    // executor runs the named one is how two surfaces disagree about the same
+    // request.
+    let operation_name = request.operation_name.clone();
+    let op = operation_name.as_deref();
+    let plan = plan_stream(&state, &query, request.variables.as_ref(), op)?;
+    let defer_plan = plan_defer(&query, request.variables.as_ref(), op);
+    let nested_stream_plan = plan_nested_stream(&query, request.variables.as_ref(), op);
 
     if plan.is_some() && defer_plan.is_some() {
         return Err(ErrorResponse::from_error(GraphQLError::new(
@@ -207,10 +213,16 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
     let initial_requested =
         remaining_budget.map_or(plan.initial_count, |left| plan.initial_count.min(left));
     let initial_vars = batch_variables(&base_variables, initial_requested, start_offset);
-    let first =
-        run_batch(&state, tenant_key.as_deref(), &query, &initial_vars, security_context.as_ref())
-            .await
-            .map_err(ErrorResponse::from_error)?;
+    let first = run_batch(
+        &state,
+        tenant_key.as_deref(),
+        &query,
+        &initial_vars,
+        security_context.as_ref(),
+        op,
+    )
+    .await
+    .map_err(ErrorResponse::from_error)?;
 
     let initial_rows = extract_items(&first, &plan.response_key).map_or(0, <[Value]>::len) as u64;
     let delivered = already_delivered + initial_rows;
@@ -245,6 +257,7 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
     let unfold_state = BatchState {
         state: state.clone(),
         query,
+        operation_name,
         base_variables,
         security_context,
         auth_guard,
@@ -279,8 +292,12 @@ pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Syn
 /// `selection_set` helpers the executor uses, so the tree the split walks is the tree
 /// the response was built from. A document that does not parse takes the buffered
 /// path, which produces the canonical parse error — same rule as `plan_stream`.
-fn plan_defer(query: &str, variables: Option<&Value>) -> Option<Vec<FieldSelection>> {
-    let parsed = parse_query(query).ok()?;
+fn plan_defer(
+    query: &str,
+    variables: Option<&Value>,
+    operation_name: Option<&str>,
+) -> Option<Vec<FieldSelection>> {
+    let parsed = parse_query_with_operation_name(query, operation_name).ok()?;
     let vars = variables_map(variables);
     let effective =
         selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars).ok()?;
@@ -295,8 +312,12 @@ fn plan_defer(query: &str, variables: Option<&Value>) -> Option<Vec<FieldSelecti
 /// already holds, not a second query. See
 /// [`fraiseql_core::graphql::stream_split`] for why a nested list cannot be paged
 /// the way a root one can.
-fn plan_nested_stream(query: &str, variables: Option<&Value>) -> Option<Vec<FieldSelection>> {
-    let parsed = parse_query(query).ok()?;
+fn plan_nested_stream(
+    query: &str,
+    variables: Option<&Value>,
+    operation_name: Option<&str>,
+) -> Option<Vec<FieldSelection>> {
+    let parsed = parse_query_with_operation_name(query, operation_name).ok()?;
     let vars = variables_map(variables);
     let effective =
         selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars).ok()?;
@@ -455,6 +476,9 @@ enum Phase {
 struct BatchState<A: DatabaseAdapter + Clone + Send + Sync + 'static> {
     state:            AppState<A>,
     query:            String,
+    /// The operation the request selected — every continuation batch must run
+    /// the same one the first batch did (§ 6.1).
+    operation_name:   Option<String>,
     base_variables:   serde_json::Map<String, Value>,
     security_context: Option<SecurityContext>,
     /// Re-checked before every continuation batch (#958).
@@ -527,6 +551,7 @@ async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
                 &st.query,
                 &vars,
                 st.security_context.as_ref(),
+                st.operation_name.as_deref(),
             )
             .await;
             st.batches += 1;
@@ -596,15 +621,18 @@ async fn run_batch<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     query: &str,
     variables: &Value,
     security_context: Option<&SecurityContext>,
+    operation_name: Option<&str>,
 ) -> Result<Value, GraphQLError> {
     let dispatch = tenant_dispatch::dispatch_to_tenant(state, tenant_key)
         .map_err(|e| super::tenant_dispatch_error(&e))?;
     let executor = &dispatch.executor;
 
     let result = if let Some(ctx) = security_context {
-        executor.execute_with_security(query, Some(variables), ctx).await
+        executor
+            .execute_operation_with_security(query, Some(variables), ctx, operation_name)
+            .await
     } else {
-        executor.execute(query, Some(variables)).await
+        executor.execute_operation(query, Some(variables), operation_name).await
     };
 
     #[allow(unused_mut)]
@@ -665,6 +693,7 @@ fn plan_stream<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: &AppState<A>,
     query: &str,
     variables: Option<&Value>,
+    operation_name: Option<&str>,
 ) -> Result<Option<StreamPlan>, ErrorResponse> {
     let bad_request = |msg: &str| {
         ErrorResponse::from_error(GraphQLError::new(
@@ -674,7 +703,7 @@ fn plan_stream<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     };
 
     // Cheap pre-scan: no @stream anywhere → single-result mode, no matcher build.
-    let Ok(parsed) = parse_query(query) else {
+    let Ok(parsed) = parse_query_with_operation_name(query, operation_name) else {
         // Malformed documents take the buffered path, which produces the
         // canonical parse error the client expects.
         return Ok(None);
