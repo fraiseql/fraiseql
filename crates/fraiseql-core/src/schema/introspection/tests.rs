@@ -1068,3 +1068,70 @@ fn test_filter_inaccessible_no_federation_returns_all_fields() {
     let fields = type_resp.pointer("/data/__type/fields").unwrap().as_array().unwrap();
     assert_eq!(fields.len(), 3, "All fields should be returned");
 }
+
+// =============================================================================
+// Input-field type references (#1154)
+// =============================================================================
+
+/// An input field's type is stored as a **string**, so introspection has to
+/// reconstruct the reference from it. Rendering the whole string as one SCALAR
+/// name publishes a type called `"[OrderWhereInput!]"` — a name no client can
+/// look up, and one that turns a generated client's filter argument into an
+/// opaque scalar.
+///
+/// This matters most for the derived filter surface, whose combinators are
+/// exactly this shape.
+#[test]
+fn an_input_field_type_string_is_parsed_into_wrappers_and_a_resolved_leaf() {
+    use crate::schema::{
+        CompiledSchema, EnumDefinition, EnumValueDefinition, InputFieldDefinition,
+        InputObjectDefinition,
+    };
+
+    let mut schema = CompiledSchema::new();
+    schema
+        .enums
+        .push(EnumDefinition::new("SortDirection").with_value(EnumValueDefinition::new("ASC")));
+    schema.input_types.push(
+        InputObjectDefinition::new("OrderWhereInput")
+            .with_field(InputFieldDefinition::new("_and", "[OrderWhereInput!]"))
+            .with_field(InputFieldDefinition::new("_not", "OrderWhereInput"))
+            .with_field(InputFieldDefinition::new("direction", "SortDirection"))
+            .with_field(InputFieldDefinition::new("reference", "String"))
+            .with_field(InputFieldDefinition::new("field", "String").with_nullable(false)),
+    );
+
+    let introspection = IntrospectionBuilder::build(&schema);
+    let where_input = introspection
+        .types
+        .iter()
+        .find(|t| t.name.as_deref() == Some("OrderWhereInput"))
+        .expect("the input object is published");
+    let fields = where_input.input_fields.as_ref().expect("an input object has input fields");
+    let field =
+        |name: &str| &fields.iter().find(|f| f.name == name).expect("field present").input_type;
+
+    // `[OrderWhereInput!]` → LIST of NON_NULL of INPUT_OBJECT.
+    let and = field("_and");
+    assert_eq!(and.kind, TypeKind::List, "a list type must publish as LIST, not as a name");
+    let inner = and.of_type.as_ref().expect("a LIST wraps something");
+    assert_eq!(inner.kind, TypeKind::NonNull);
+    let leaf = inner.of_type.as_ref().expect("a NON_NULL wraps something");
+    assert_eq!(leaf.kind, TypeKind::InputObject);
+    assert_eq!(leaf.name.as_deref(), Some("OrderWhereInput"));
+
+    // A bare input-object reference resolves to its kind, not to SCALAR.
+    assert_eq!(field("_not").kind, TypeKind::InputObject);
+    // A declared enum resolves to ENUM.
+    assert_eq!(field("direction").kind, TypeKind::Enum);
+    // A scalar stays a scalar.
+    assert_eq!(field("reference").kind, TypeKind::Scalar);
+    assert_eq!(field("reference").name.as_deref(), Some("String"));
+    // `nullable: false` still drives the outer NON_NULL wrapper (#414).
+    let required = field("field");
+    assert_eq!(required.kind, TypeKind::NonNull);
+    assert_eq!(
+        required.of_type.as_ref().expect("NON_NULL wraps something").name.as_deref(),
+        Some("String")
+    );
+}

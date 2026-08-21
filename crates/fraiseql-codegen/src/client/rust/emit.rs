@@ -357,7 +357,7 @@ pub(super) fn queries(ctx: &Ctx) -> String {
         if q.relay {
             refs.insert("Connection");
         }
-        operations.push(build_operation(&q.graphql_arguments(), q.relay));
+        operations.push(build_operation(&q.graphql_arguments(schema), q.relay));
     }
 
     let mut out = String::new();

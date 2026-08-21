@@ -100,7 +100,17 @@ fn test_v2_0_schema_enums_accessible() {
         CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
             .expect("schema must load");
 
-    assert_eq!(schema.enums.len(), 1, "fixture has 1 enum: UserRole");
+    // The fixture declares one enum. Loading also *derives* `SortDirection`,
+    // because the fixture's queries enable `orderBy` (#1154) — so this asserts
+    // the authored enum survived rather than counting the whole list, which
+    // would be a count of the derivation and not of the fixture.
+    let authored: Vec<&str> = schema
+        .enums
+        .iter()
+        .map(|e| e.name.as_str())
+        .filter(|name| *name != fraiseql_core::schema::derived_inputs::SORT_DIRECTION_ENUM)
+        .collect();
+    assert_eq!(authored, ["UserRole"], "fixture has 1 authored enum: UserRole");
     assert!(schema.find_enum("UserRole").is_some(), "UserRole enum must be findable");
     let role = schema.find_enum("UserRole").unwrap();
     assert_eq!(role.values.len(), 3, "UserRole has 3 values: ADMIN, EDITOR, VIEWER");

@@ -3440,7 +3440,9 @@ fn count_sibling_inherits_the_lists_restrictions() {
     assert!(!count.auto_params.has_order_by, "ordering cannot change a count");
     assert!(!count.relay);
 
-    let args = count.graphql_arguments();
+    // A bare schema: this test is about which argument *names* survive on a
+    // count sibling, so the auto-wired shapes stay `JSON` and nothing is derived.
+    let args = count.graphql_arguments(&fraiseql_core::schema::CompiledSchema::default());
     let arg_names: Vec<&str> = args.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(arg_names, vec!["where"], "the exposed surface is `where` alone");
 }

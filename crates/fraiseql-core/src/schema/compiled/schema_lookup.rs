@@ -15,11 +15,41 @@ use crate::schema::{
 };
 
 impl CompiledSchema {
-    /// Build O(1) lookup indexes for queries, mutations, and subscriptions.
+    /// Build the schema's derived state: O(1) operation lookup indexes, and the
+    /// filter/sort input surface `where`/`orderBy` are typed against.
     ///
     /// Called automatically by `from_json()`. Must be called manually after any
     /// direct mutation of `self.queries`, `self.mutations`, or `self.subscriptions`.
+    ///
+    /// # The derived filter surface
+    ///
+    /// [`derived_inputs::derive`] emits `{Entity}WhereInput`,
+    /// `{Entity}OrderByInput` and their leaf filters; they are appended to
+    /// `input_types`/`enums` so introspection, the federation SDL, § 5.8.2 and
+    /// the client emitters all read one materialised surface rather than four
+    /// re-derivations of it. Nothing is overwritten — a name the author declared
+    /// is never derived over — which is also what makes a second call inert.
+    ///
+    /// They are deliberately *not* part of the compiled artifact. The `where`
+    /// and `orderBy` arguments themselves are synthesized at read time from
+    /// [`auto_params`](crate::schema::QueryDefinition::auto_params) rather than
+    /// stored; their types follow the same rule, so a schema compiled by an
+    /// older CLI gains the surface on load and the artifact's content hash does
+    /// not move.
+    ///
+    /// A bare `serde_json::from_str::<CompiledSchema>` skips this, as it always
+    /// has for the operation indexes. The consequence is a *degraded* surface,
+    /// never a wrong one: `graphql_arguments` types an argument only when the
+    /// schema carries the type, so a schema that was never built falls back to
+    /// `JSON` rather than naming something undefined. Load through
+    /// [`from_json`](Self::from_json) to get the typed surface.
+    ///
+    /// [`derived_inputs::derive`]: crate::schema::derived_inputs::derive
     pub fn build_indexes(&mut self) {
+        let derived = crate::schema::derived_inputs::derive(self);
+        self.input_types.extend(derived.input_types);
+        self.enums.extend(derived.enums);
+
         let camel = matches!(self.naming_convention, NamingConvention::CamelCase);
 
         self.query_index = self

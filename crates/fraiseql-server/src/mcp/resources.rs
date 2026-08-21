@@ -164,7 +164,7 @@ pub fn schema_to_prompts(schema: &CompiledSchema, config: &McpConfig) -> Vec<Pro
         .into_iter()
         .map(|(display, op)| {
             let arguments: Vec<PromptArgument> = op
-                .arguments()
+                .arguments(schema)
                 .into_iter()
                 .map(|arg| {
                     let mut a = PromptArgument::new(arg.name.clone()).with_required(!arg.nullable);

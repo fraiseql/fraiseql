@@ -139,7 +139,7 @@ pub(crate) fn build_operation(
     let operation = super::tools::resolve_tool(tool_name, schema, config)
         .ok_or_else(|| format!("Unknown tool: {tool_name}"))?;
 
-    let declared = operation.arguments();
+    let declared = operation.arguments(schema);
     let supplied = arguments.filter(|args| !args.is_empty());
 
     let mut variable_defs = Vec::new();

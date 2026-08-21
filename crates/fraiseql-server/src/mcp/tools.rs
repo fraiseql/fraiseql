@@ -49,10 +49,15 @@ impl ExposedOperation<'_> {
     /// [`auto_params`](fraiseql_core::schema::QueryDefinition::auto_params), which
     /// the runtime reads straight off the argument map and which are therefore not
     /// present in `arguments`.
+    ///
+    /// `schema` is what types the auto-wired arguments: `where`/`orderBy` are
+    /// published as the derived `{Entity}WhereInput`/`[{Entity}OrderByInput!]`
+    /// when the schema carries them, so the JSON Schema an agent reads describes
+    /// the filter shape rather than an opaque `JSON` blob.
     #[must_use]
-    pub fn arguments(&self) -> Vec<ArgumentDefinition> {
+    pub fn arguments(&self, schema: &CompiledSchema) -> Vec<ArgumentDefinition> {
         match self {
-            Self::Query(q) => q.graphql_arguments(),
+            Self::Query(q) => q.graphql_arguments(schema),
             Self::Mutation(m) => m.arguments.clone(),
         }
     }
@@ -138,7 +143,7 @@ pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool>
     exposed_operations(schema, config)
         .into_iter()
         .map(|(display, op)| match op {
-            ExposedOperation::Query(q) => query_to_tool(q, &display),
+            ExposedOperation::Query(q) => query_to_tool(q, &display, schema),
             ExposedOperation::Mutation(m) => mutation_to_tool(m, &display),
         })
         .collect()
@@ -163,13 +168,13 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 /// incoming call against — so `where`/`orderBy`/`limit`/`offset` are advertised
 /// exactly when `auto_params` makes them acceptable, and an argument the tool
 /// advertises is always an argument the tool accepts.
-fn query_to_tool(query: &QueryDefinition, display_name: &str) -> Tool {
+fn query_to_tool(query: &QueryDefinition, display_name: &str, schema: &CompiledSchema) -> Tool {
     let description = query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
 
     let mut tool = Tool::new(
         Cow::Owned(display_name.to_string()),
         Cow::Owned(description),
-        Arc::new(arguments_to_json_schema(&ExposedOperation::Query(query).arguments())),
+        Arc::new(arguments_to_json_schema(&ExposedOperation::Query(query).arguments(schema))),
     );
     // MCP behaviour hints (#376): a query never modifies the database, and its
     // world is the schema's own database — closed, not the open web.

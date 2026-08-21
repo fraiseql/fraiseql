@@ -425,9 +425,23 @@ impl QueryDefinition {
     /// materialises them so every consumer that renders from the argument list can
     /// surface — and a generated client can actually pass — them.
     ///
-    /// `where`/`orderBy` carry dynamic, per-field shapes, so they are typed as the
-    /// `JSON` scalar; the runtime parses the raw value via
-    /// `WhereClause::from_graphql_json` / `OrderByClause::from_graphql_json`.
+    /// `where`/`orderBy` are typed against the derived filter surface —
+    /// `{Entity}WhereInput` and `[{Entity}OrderByInput!]` — when `schema` carries
+    /// those types, and fall back to the `JSON` scalar when it does not. Either
+    /// way the runtime parses the raw value via `WhereClause::from_graphql_json`
+    /// / `OrderByClause::from_graphql_json`; the type is what clients see, not
+    /// what the executor reads.
+    ///
+    /// # Why this takes a schema
+    ///
+    /// The published type of an auto-wired argument is a property of the schema,
+    /// not of the query alone: [`derived_inputs::derive`] emits
+    /// `{Entity}WhereInput` only for a return type whose fields the schema can
+    /// adjudicate, and skips any name the author already declared. Reading the
+    /// answer from the same place that produced it is what makes a dangling type
+    /// reference unrepresentable — the argument is typed **iff** the type exists.
+    /// A cached answer on `QueryDefinition` would let a caller publish the name
+    /// without the schema that justifies it.
     ///
     /// An explicit argument always wins: if the query already declares an argument
     /// of the same name it is left untouched and no duplicate is synthesized.
@@ -435,8 +449,13 @@ impl QueryDefinition {
     /// Relay connection queries are returned unchanged — their pagination surface
     /// (`first`/`after`/`last`/`before`) is owned by each renderer's dedicated
     /// relay path, not by `auto_params`.
+    ///
+    /// [`derived_inputs::derive`]: crate::schema::derived_inputs::derive
     #[must_use]
-    pub fn graphql_arguments(&self) -> Vec<ArgumentDefinition> {
+    pub fn graphql_arguments(
+        &self,
+        schema: &super::schema::CompiledSchema,
+    ) -> Vec<ArgumentDefinition> {
         let mut args = self.arguments.clone();
         if self.relay {
             return args;
@@ -446,16 +465,21 @@ impl QueryDefinition {
         let ap = &self.auto_params;
 
         if ap.has_where && !declared("where") {
-            args.push(ArgumentDefinition::optional("where", FieldType::Json).with_description(
-                "Filter predicate: a nested object of `{ field: { operator: value } }`, \
-                 combined with `_and`/`_or`/`_not`.",
-            ));
+            args.push(
+                ArgumentDefinition::optional("where", self.where_argument_type(schema))
+                    .with_description(
+                        "Filter predicate: a nested object of `{ field: { operator: value } }`, \
+                         combined with `_and`/`_or`/`_not`.",
+                    ),
+            );
         }
         if ap.has_order_by && !declared("orderBy") {
-            args.push(ArgumentDefinition::optional("orderBy", FieldType::Json).with_description(
-                "Sort order: `{ field: \"ASC\" | \"DESC\" }` or \
-                     `[{ field, direction }]`.",
-            ));
+            args.push(
+                ArgumentDefinition::optional("orderBy", self.order_by_argument_type(schema))
+                    .with_description(
+                        "Sort order: a list of `{ field, direction }` keys, applied in order.",
+                    ),
+            );
         }
         if ap.has_limit && !declared("limit") {
             args.push(
@@ -471,6 +495,38 @@ impl QueryDefinition {
         }
 
         args
+    }
+
+    /// The type `where` publishes: the derived `{Entity}WhereInput` when the
+    /// schema carries it, `JSON` when it does not.
+    ///
+    /// The fallback is not a degraded mode to be fixed later — it is the honest
+    /// answer for a schema whose return type carries no field list, where a
+    /// derived input object would positively forbid every key the engine still
+    /// accepts.
+    fn where_argument_type(&self, schema: &super::schema::CompiledSchema) -> FieldType {
+        let name = crate::schema::derived_inputs::where_input_type_name(&self.return_type);
+        if schema.find_input_type(&name).is_some() {
+            FieldType::Input(name)
+        } else {
+            FieldType::Json
+        }
+    }
+
+    /// The type `orderBy` publishes: `[{Entity}OrderByInput!]` when the schema
+    /// carries the item type, `JSON` when it does not.
+    ///
+    /// A list, because `OrderByClause::from_graphql_json`'s array branch is what
+    /// takes `{field, direction}` items and applies them in order. The object
+    /// branch (`{name: "DESC"}`) keeps executing but has no expression in this
+    /// type — its key order is not something a JSON object can promise.
+    fn order_by_argument_type(&self, schema: &super::schema::CompiledSchema) -> FieldType {
+        let name = crate::schema::derived_inputs::order_by_input_type_name(&self.return_type);
+        if schema.find_input_type(&name).is_some() {
+            FieldType::List(Box::new(FieldType::Input(name)))
+        } else {
+            FieldType::Json
+        }
     }
 
     /// The argument names a client document may write on this field
@@ -490,9 +546,9 @@ impl QueryDefinition {
     ///
     /// [`validate_argument_names`]: crate::runtime::validate_argument_names
     #[must_use]
-    pub fn accepted_argument_names(&self) -> Vec<String> {
+    pub fn accepted_argument_names(&self, schema: &super::schema::CompiledSchema) -> Vec<String> {
         let mut names: Vec<String> =
-            self.graphql_arguments().into_iter().map(|arg| arg.name).collect();
+            self.graphql_arguments(schema).into_iter().map(|arg| arg.name).collect();
 
         if self.relay {
             names.extend(["first", "after", "last", "before"].map(String::from));

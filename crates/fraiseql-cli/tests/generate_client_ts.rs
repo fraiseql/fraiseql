@@ -123,10 +123,14 @@ fn generate_client_typescript_surfaces_auto_params_arguments() {
         .success();
 
     let queries = std::fs::read_to_string(out.join("queries.ts")).unwrap();
-    // The auto-wired parameters become GraphQL variables and are forwarded to the field.
+    // The auto-wired parameters become GraphQL variables and are forwarded to the
+    // field — typed against the derived filter surface (#1154), not as opaque
+    // `JSON`, so a generated client can express a filter its user can typecheck.
     assert!(
-        queries.contains("query events($where: JSON, $orderBy: JSON, $limit: Int)"),
-        "auto_params must become query variables:\n{queries}"
+        queries.contains(
+            "query events($where: EventWhereInput, $orderBy: [EventOrderByInput], $limit: Int)"
+        ),
+        "auto_params must become typed query variables:\n{queries}"
     );
     assert!(
         queries.contains("events(where: $where, orderBy: $orderBy, limit: $limit)"),
@@ -136,6 +140,22 @@ fn generate_client_typescript_surfaces_auto_params_arguments() {
     assert!(queries.contains("orderBy?:"), "function must accept orderBy:\n{queries}");
     // `has_offset` is false → `offset` must not leak into the generated artifact.
     assert!(!queries.contains("offset"), "disabled auto_param must not appear:\n{queries}");
+
+    // And the types the document names are actually emitted, or the generated
+    // client would not compile.
+    let inputs = std::fs::read_to_string(out.join("inputs.ts"))
+        .expect("the derived filter types must be emitted as an inputs module");
+    for declared in [
+        "EventWhereInput",
+        "EventOrderByInput",
+        "StringFilter",
+        "IDFilter",
+    ] {
+        assert!(
+            inputs.contains(&format!("export interface {declared}")),
+            "`{declared}` is named by the query document but never defined:\n{inputs}"
+        );
+    }
 }
 
 #[test]
