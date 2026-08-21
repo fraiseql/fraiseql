@@ -5,8 +5,54 @@
 use fraiseql_core::schema::{Cardinality, Relationship};
 
 use super::executor::{
-    extract_join_key, extract_query_data, find_list_query_for_type, set_empty_embedding,
+    declared_filter_key, extract_join_key, extract_query_data, find_list_query_for_type,
+    set_empty_embedding,
 };
+
+mod join_predicate_spelling {
+    use fraiseql_core::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
+
+    use super::declared_filter_key;
+
+    fn schema_declaring(type_name: &str, fields: &[&str]) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        let mut td = TypeDefinition::new(type_name, "v_post");
+        td.fields = fields
+            .iter()
+            .map(|f| FieldDefinition::new(*f, FieldType::parse("ID")))
+            .collect();
+        schema.types.push(td);
+        schema
+    }
+
+    /// **The collision this exists to prevent.** `[[relationships]]` names SQL
+    /// columns (`fk_user`), but since 2.15.0 `where` accepts only the declared
+    /// spelling. Handing the raw column to the parser would make the server
+    /// refuse its own parent-scoping predicate, and every embedded list would
+    /// come back empty — or worse, unscoped.
+    #[test]
+    fn a_storage_column_is_translated_to_the_declared_spelling() {
+        let schema = schema_declaring("Post", &["id", "fkUser"]);
+        assert_eq!(declared_filter_key(&schema, "Post", "fk_user"), "fkUser");
+    }
+
+    /// A schema that declares the column as-written keeps it — the rule is
+    /// "use what is declared", not "`camelCase` everything".
+    #[test]
+    fn a_column_the_schema_declares_verbatim_is_unchanged() {
+        let schema = schema_declaring("Post", &["id", "fk_user"]);
+        assert_eq!(declared_filter_key(&schema, "Post", "fk_user"), "fk_user");
+    }
+
+    /// Fail-open: an unknown type, or one declaring nothing that matches, is
+    /// passed through rather than guessed at (#939).
+    #[test]
+    fn an_unnameable_target_passes_the_column_through() {
+        let schema = schema_declaring("Post", &["id"]);
+        assert_eq!(declared_filter_key(&schema, "Post", "fk_user"), "fk_user");
+        assert_eq!(declared_filter_key(&schema, "Nonexistent", "fk_user"), "fk_user");
+    }
+}
 
 #[test]
 fn extract_join_key_one_to_many() {

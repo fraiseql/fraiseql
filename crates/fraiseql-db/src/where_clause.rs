@@ -271,10 +271,29 @@ impl WhereClause {
                     // and which the published `MachineWhereInput` already
                     // promises. A level the schema cannot name passes, because
                     // rejecting there would be guessing (#939).
+                    // The lookup normalises to the storage key, because that is
+                    // what `FieldTypeMap` is keyed by and what the path below
+                    // lowers to. The *acceptance* does not: a key is legal only
+                    // under the spelling the schema declares, which is the one
+                    // the published `{Entity}WhereInput` carries. Accepting the
+                    // storage spelling as well would mean honouring keys the
+                    // published input type does not declare — the defect class
+                    // this release closes, and the asymmetry `orderBy` never had.
+                    //
+                    // The rule is "equals `declared_name`", not "is camelCase":
+                    // a schema that declares `ip_address` keeps working under
+                    // that spelling, because that is what it publishes.
                     let snake = to_snake_case(field_name);
                     if let Some(level) = level {
-                        if !level.contains_key(&snake) {
-                            return Err(unknown_where_field(field_name, level));
+                        match level.get(&snake) {
+                            Some(info) if info.declared_name == field_name => {},
+                            Some(info) => {
+                                return Err(undeclared_where_spelling(
+                                    field_name,
+                                    &info.declared_name,
+                                ));
+                            },
+                            None => return Err(unknown_where_field(field_name, level)),
                         }
                     }
 
@@ -379,6 +398,25 @@ impl WhereClause {
         } else {
             Ok(Self::And(conditions))
         }
+    }
+}
+
+/// The error for a `where` key that names a real field by a spelling the schema
+/// does not declare — in practice the `snake_case` storage key, which this engine
+/// accepted alongside the declared name until 2.15.0.
+///
+/// Named exactly rather than hinted: the client wrote a key that *resolves*, so
+/// "did you mean" fuzzy matching would be answering a question we already know
+/// the answer to. This is also the whole migration instruction for the change,
+/// so it is worth stating outright.
+fn undeclared_where_spelling(field_name: &str, declared: &str) -> FraiseQLError {
+    FraiseQLError::Validation {
+        message: format!(
+            "Unknown field '{field_name}' in where clause. Use '{declared}', the name this \
+             schema declares — the underlying storage spelling is not part of the published \
+             filter input."
+        ),
+        path:    Some(format!("where.{field_name}")),
     }
 }
 

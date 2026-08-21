@@ -19,6 +19,40 @@ pub(super) struct EmbedCtx<'a, A: DatabaseAdapter> {
     pub security_context: Option<&'a SecurityContext>,
 }
 
+/// The spelling a `where` key must use when filtering `target_type`.
+///
+/// A relationship's `foreign_key`/`referenced_key` are SQL **column** names
+/// (`fk_author`, per `[[relationships]]` in `fraiseql.toml`), but the join
+/// predicate they build is handed to the same `where` parser a client's filter
+/// goes through — and since 2.15.0 that parser accepts only the name the schema
+/// *declares*. Under `naming_convention = "camelCase"` the declared name is
+/// `fkAuthor`, so passing the raw column through would make the server refuse
+/// its own parent-scoping predicate and collapse every embedded list.
+///
+/// This is the same rule `build_fts_where_clause` already follows by keying off
+/// `f.name`: anything the server composes into `where` speaks the published
+/// surface, and the lowering back to storage happens once, inside the parser.
+///
+/// Falls back to the column as written when the schema cannot name the type or
+/// declares no field matching it — that level is unadjudicated anyway (#939),
+/// so passing it through is strictly better than inventing a spelling.
+pub(super) fn declared_filter_key(
+    schema: &CompiledSchema,
+    target_type: &str,
+    column: &str,
+) -> String {
+    let storage = fraiseql_core::utils::to_snake_case(column);
+    schema
+        .find_type(target_type)
+        .and_then(|td| {
+            td.fields
+                .iter()
+                .find(|f| fraiseql_core::utils::to_snake_case(f.name.as_str()) == storage)
+                .map(|f| f.name.to_string())
+        })
+        .unwrap_or_else(|| column.to_string())
+}
+
 /// Embed related resources into each row of a parent array.
 pub(super) async fn embed_into_rows<A: DatabaseAdapter>(
     ctx: &EmbedCtx<'_, A>,
@@ -63,7 +97,10 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
     };
 
     let mut join_predicate = serde_json::Map::new();
-    join_predicate.insert(filter_field.clone(), serde_json::json!({ "eq": parent_key_value }));
+    join_predicate.insert(
+        declared_filter_key(ctx.schema, &rel.target_type, filter_field),
+        serde_json::json!({ "eq": parent_key_value }),
+    );
 
     // #863: compose the parent scoping and the client filter with `_and` instead of
     // merging the filter *over* the predicate. The old code seeded the map with the join
@@ -225,7 +262,10 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
     };
 
     let mut where_obj = serde_json::Map::new();
-    where_obj.insert(filter_field.clone(), serde_json::json!({ "eq": parent_key_value }));
+    where_obj.insert(
+        declared_filter_key(schema, &rel.target_type, filter_field),
+        serde_json::json!({ "eq": parent_key_value }),
+    );
     let where_clause = serde_json::Value::Object(where_obj);
 
     let target_query = find_list_query_for_type(schema, &rel.target_type);

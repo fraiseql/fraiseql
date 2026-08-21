@@ -618,11 +618,9 @@ fn a_declared_where_key_passes() {
         .expect("a declared key is a legitimate filter");
 }
 
-/// camelCase and snake_case are the same key — the parser snake_cases before
-/// building the path, so the rule must normalise both sides or it rejects a
-/// spelling the runtime accepts.
-#[test]
-fn a_declared_key_written_in_either_case_passes() {
+/// A schema declaring one `camelCase` scalar, so the declared spelling and the
+/// storage key differ and the rule has something to discriminate.
+fn declared_camel_case() -> WhereFieldSchema {
     let mut known = std::collections::HashMap::new();
     known.insert(
         "created_at".to_string(),
@@ -632,12 +630,71 @@ fn a_declared_key_written_in_either_case_passes() {
             relation_type: None,
         },
     );
+    WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known)
+}
+
+#[test]
+fn a_declared_key_passes_under_the_spelling_the_schema_declares() {
+    WhereClause::from_graphql_json(&json!({ "createdAt": { "eq": "2026-01-01" } }), &declared_camel_case())
+        .expect("`createdAt` is the published spelling");
+}
+
+/// **The 2.15.0 change.** Until now the parser `snake_case`d the key and then
+/// asked only whether *that* was a known storage key, so `created_at` and
+/// `createdAt` were both accepted. But `{Entity}WhereInput` publishes
+/// `createdAt` alone: accepting the storage spelling meant the runtime honoured
+/// a key the published input type does not declare, which is the same defect
+/// class as a document naming a type that does not exist. `orderBy` already
+/// refused it; `where` now agrees.
+///
+/// The lookup still normalises — `FieldTypeMap` is keyed by the storage path by
+/// design, and this rule deliberately does not re-key it.
+#[test]
+fn the_storage_spelling_of_a_declared_key_is_refused() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "created_at": { "eq": "2026-01-01" } }),
+        &declared_camel_case(),
+    )
+    .expect_err("the storage spelling is not part of the published filter input");
+    let msg = err.to_string();
+    assert!(msg.contains("created_at"), "the error must name the key written: {msg}");
+    assert!(
+        msg.contains("createdAt"),
+        "and must name the spelling that works, since that is the whole migration: {msg}"
+    );
+}
+
+/// The rule is "equals the declared name", **not** "is `camelCase`". A schema is
+/// free to declare a `snake_case` field, and then that spelling is the published
+/// one and must keep working — otherwise this change would break every schema
+/// authored in snake_case rather than tightening anything.
+#[test]
+fn a_field_the_schema_declares_in_snake_case_still_passes() {
+    let mut known = std::collections::HashMap::new();
+    known.insert(
+        "ip_address".to_string(),
+        WhereFieldInfo {
+            declared_name: "ip_address".to_string(),
+            is_relation:   false,
+            relation_type: None,
+        },
+    );
     let schema = WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known);
 
-    for key in ["createdAt", "created_at"] {
-        WhereClause::from_graphql_json(&json!({ key: { "eq": "2026-01-01" } }), &schema)
-            .unwrap_or_else(|e| panic!("'{key}' must be accepted: {e}"));
-    }
+    WhereClause::from_graphql_json(&json!({ "ip_address": { "eq": "10.0.0.1" } }), &schema)
+        .expect("`ip_address` is what this schema publishes, so it is the legal spelling");
+}
+
+/// **Fail-open, pinned.** A level the schema cannot adjudicate accepts every
+/// key, and that must not change here: tightening a spelling rule is not a
+/// licence to start refusing where there is no evidence (#939).
+#[test]
+fn an_unadjudicable_level_still_accepts_the_storage_spelling() {
+    WhereClause::from_graphql_json(
+        &json!({ "machine": { "serial_number": { "eq": "SN-1" } } }),
+        &adjudicating(),
+    )
+    .expect("machine's type is not mapped here, so its keys are not adjudicated at all");
 }
 
 #[test]
@@ -773,6 +830,33 @@ fn a_nested_key_the_relations_type_declares_passes() {
         &adjudicating_nested(),
     )
     .expect("`serialNumber` is declared on Machine");
+}
+
+/// The spelling rule binds at every level the schema can adjudicate, not just
+/// the root — `MachineWhereInput` publishes `serialNumber`, so the nested level
+/// owes the same answer as the root does.
+#[test]
+fn the_storage_spelling_is_refused_at_a_nested_level_too() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "machine": { "serial_number": { "eq": "SN-1" } } }),
+        &adjudicating_nested(),
+    )
+    .expect_err("`serial_number` is not what MachineWhereInput declares");
+    let msg = err.to_string();
+    assert!(msg.contains("serial_number"), "must name the key written: {msg}");
+    assert!(msg.contains("serialNumber"), "must name the spelling that works: {msg}");
+}
+
+/// A combinator does not launder the storage spelling, exactly as it does not
+/// launder an undeclared key.
+#[test]
+fn a_combinator_does_not_launder_the_storage_spelling() {
+    let err = WhereClause::from_graphql_json(
+        &json!({ "machine": { "_or": [ { "serial_number": { "eq": "SN-1" } } ] } }),
+        &adjudicating_nested(),
+    )
+    .expect_err("`_or` does not change which spellings Machine publishes");
+    assert!(err.to_string().contains("serial_number"), "got: {err}");
 }
 
 /// Adjudication follows the path, not a fixed depth: the third segment is
