@@ -865,12 +865,12 @@ mod subscriptions_tests {
 
     /// The field name the schema lookup is given.
     fn extract_subscription_name(query: &str) -> Option<String> {
-        extract_subscription_root(query).map(|r| r.name)
+        extract_subscription_root(query).ok().map(|(root, _)| root.name)
     }
 
     /// The key the delivered payload must be under.
     fn extract_response_key(query: &str) -> Option<String> {
-        extract_subscription_root(query).map(|r| r.response_key)
+        extract_subscription_root(query).ok().map(|(root, _)| root.response_key)
     }
 
     /// #906: an alias renames only the response key — the field the runtime

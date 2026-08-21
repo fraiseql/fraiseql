@@ -56,6 +56,33 @@ disagreed, and the promise was the part that was wrong.
   lowers `{lines: {sku: {eq: …}}}` to `data->'lines'->>'sku'`, which cannot index into an array
   and so matches nothing, silently.
 
+- **`/ws` validates subscription documents (#1154).** The WebSocket surface reached neither
+  `execute_dispatch` nor `classify_query`, so it validated *nothing*: a subscription referencing
+  a variable it never defined was accepted, and the argument carrying that variable was silently
+  dropped — the same silent-loss the `/graphql` surface stops doing in this release, on the one
+  surface that had no rule at all. A release headlined "documents are validated" cannot ship a
+  surface that does not.
+
+  GraphQL § 5.8.3, § 5.8.2 and § 5.8.4 now run at subscribe time, in the same order and with the
+  same messages as `/graphql` — a test asserts the two surfaces refuse the same document
+  identically, because a client moving a document between them should not discover a different
+  set of rules. § 5.8.2 resolves against the schema that is actually serving, so a hot-reload
+  applies on the next subscribe.
+
+  **Scope: variables only.** The other document rules bind at argument resolution, which this
+  path never reaches. Whether subscription *filters* need the same treatment is a separate audit.
+
+  The document is also **validated against the subscription operation**, not the document's
+  first: on a document mixing `query Q {…}` with `subscription S {…}`, validating `Q` and
+  leaving `S` unchecked would have been a fix with the same shape as the bug.
+
+- **A subscription refused for a schema reason reports `VALIDATION_ERROR`, not `PARSE_ERROR`
+  (#1154).** Every failure on this path collapsed into `PARSE_ERROR` with the single message
+  `Could not parse subscription query`, which sends a client hunting for a syntax error in a
+  document that parses perfectly well. Malformed GraphQL — and the two structural guards, more
+  than one subscription operation and more than one root field — still report `PARSE_ERROR`, now
+  saying which of the three it was.
+
 - **A nested `where` key the relation's type does not declare is refused instead of matching
   nothing (#1154).** Only the *top* level was adjudicated, because the compiled schema carried
   no field map for a relation's own type. So `{machine: {bogusField: {eq: "x"}}}` lowered to

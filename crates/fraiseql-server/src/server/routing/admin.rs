@@ -280,6 +280,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 ))
             });
 
+        let schema_swap = state.executor.clone();
+        let live_schema: crate::routes::subscriptions::LiveSchema =
+            Arc::new(move || Arc::new(schema_swap.load().schema().clone()));
+
         #[allow(unused_mut)]
         // Reason: `mut` is needed when the federation/auth features are enabled
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
@@ -292,6 +296,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_subscription_policies(subscription_policies)
             // #611: read live policies per new subscription so a hot-reload applies promptly.
             .with_live_subscription_policies(Some(live_subscription_policies))
+            // #1154: validate a subscription document's variable definitions against
+            // the schema that is actually serving, so § 5.8.2 on /ws follows a
+            // hot-reload exactly as the policies above do.
+            .with_live_schema(Some(live_schema))
             // #611 (layer 2): notify already-connected subscriptions on hot-reload so
             // they re-derive against the new policies or are terminated fail-closed.
             .with_policy_reload(Some(state.subscribe_policy_reload()))
