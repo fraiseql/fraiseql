@@ -13,6 +13,10 @@
 # Re-evaluate by: 2026-10-01
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
 # Re-evaluate by: 2026-12-01 — migrate off graphql-parser if still blocked.
+# - h2 0.3      — hyper 0.14 (aws-smithy-http-client) pins it; RUSTSEC-2026-0258 has no 0.3-series
+# fix, so this rides the same aws-stack blocker as rustls 0.21. The default build's h2 is 0.4.16
+# and is NOT affected — the acceptance is scoped to h2@0.3.27 only.
+# Re-evaluate by: 2026-12-01
 #
 # See docs/dependency-risk-policy.md for the full acceptance policy.
 
@@ -109,7 +113,34 @@ ignore = [
   # defect requires Debug/Pointer-formatting an invalid Atomic/Shared, which moka does not do
   # and FraiseQL does not do.
   # deadline: 2026-10-01 — re-check moka's dependency range for a fixed crossbeam-epoch.
-  {id = "RUSTSEC-2026-0204", reason = "crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer dereference; only triggers when Debug/Pointer-formatting an invalid Atomic/Shared pointer, which moka and FraiseQL never do. IN THE DEFAULT BUILD via moka -> fraiseql-core — the previous rayon/criterion dev-dep path was false, corrected in #1137. Deadline 2026-10-01."}
+  {id = "RUSTSEC-2026-0204", reason = "crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer dereference; only triggers when Debug/Pointer-formatting an invalid Atomic/Shared pointer, which moka and FraiseQL never do. IN THE DEFAULT BUILD via moka -> fraiseql-core — the previous rayon/criterion dev-dep path was false, corrected in #1137. Deadline 2026-10-01."},
+  # h2 0.3.27: unbounded queueing of empty DATA frames → memory-exhaustion DoS
+  # (GHSA-q83h-524g-xf6h). The advisory's only remedy is h2 >= 0.4.16; there is NO fix in the
+  # 0.3 series (`cargo update -p h2@0.3.27 --precise 0.3.28` answers "no matching package named
+  # h2"), and aws-smithy-http-client 1.3.0 pins hyper 0.14, which pins h2 0.3.
+  # ⚠ THIS ADVISORY MATCHED TWO INSTANCES, RESOLVED DIFFERENTLY. Only ONE is accepted here.
+  #   * h2 0.4.15 — was in the DEFAULT build via hyper 1.10 ← axum ← fraiseql-server, i.e. the
+  #     GraphQL listener itself (`axum::serve`, server/lifecycle.rs:883, serves HTTP/2 by prior
+  #     knowledge), where the DoS is remotely triggerable by any client that can connect.
+  #     FIXED, not accepted: bumped to 0.4.16 in this same change.
+  #   * h2 0.3.27 — the acceptance below. Opt-in aws-* only.
+  # Verified feature-gated by construction, not asserted: `cargo tree -i h2@0.3.27 -e normal`
+  # → "did not match any packages"; the same query with `--features fraiseql-server/aws-s3`
+  # resolves it through aws-smithy-http-client → aws-config.
+  #
+  # ⚠⚠ THE IGNORE BELOW IS BROADER THAN THE DECISION IT IMPLEMENTS, AND IT IS COMPENSATED
+  # ELSEWHERE. The intent was to accept h2@0.3.27 ONLY, leaving the hyper/axum path gated so a
+  # future regression that drags a vulnerable h2 back into the default build would still fail
+  # CI. cargo-deny 0.19 cannot express that: `[advisories] ignore` accepts only `id` and
+  # `reason` (a `crate = "…"` key there means a YANKED-crate ignore and does not suppress a
+  # vulnerability at all — verified, it left `advisories FAILED`). So this entry silences the
+  # advisory workspace-wide, and the default-build half is enforced instead by
+  # tools/check-default-build-minimums.sh, which fails if the default build's h2 is older than
+  # 0.4.16. If you remove that gate, this acceptance silently widens to the whole workspace.
+  #
+  # deadline: 2026-12-01 — shares the aws-stack date above; the blocker is the same one that
+  # holds RUSTSEC-2026-0098/-0099/-0104, namely the aws-* stack moving off hyper 0.14 (#1111).
+  {id = "RUSTSEC-2026-0258", reason = "h2 unbounded empty DATA frames (DoS). Accepted for h2 0.3.27 ONLY — no fix exists in the 0.3 series and aws-smithy-http-client pins hyper 0.14; opt-in aws-s3/cdc-kinesis, absent from the default build. The default build's h2 was bumped to 0.4.16 rather than accepted, and tools/check-default-build-minimums.sh keeps it there because cargo-deny cannot scope an ignore to one crate version. Deadline 2026-12-01."}
 ]
 unmaintained = "workspace"
 

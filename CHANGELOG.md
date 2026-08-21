@@ -4571,6 +4571,31 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **The HTTP/2 stack is patched against unbounded empty DATA frames (RUSTSEC-2026-0258).**
+  `h2` accepted and queued empty DATA frames without limit, letting a peer drive memory growth
+  on an open connection. The advisory matched two instances of `h2` in this workspace, and they
+  are resolved differently — the distinction is the point.
+
+  The default build's `h2` was **bumped 0.4.15 → 0.4.16**. That one is reached through
+  `hyper 1.10 ← axum ← fraiseql-server`: the GraphQL listener itself, which `axum::serve` serves
+  over HTTP/2 by prior knowledge. It is remotely reachable by any client that can open a
+  connection, so it is fixed, not accepted.
+
+  The second instance, `h2 0.3.27`, is reached only through `aws-smithy-http-client`, which pins
+  hyper 0.14 and so the 0.3 series — where no fixed release exists, the advisory's only remedy
+  being `>= 0.4.16`. It is absent from the default build (`aws-s3` and `cdc-kinesis` are opt-in,
+  established by `cargo tree` rather than asserted) and is accepted in `deny.toml` with a
+  2026-12-01 deadline, blocked on the same aws-stack migration as the rustls-0.21 acceptances.
+
+  ⚠ cargo-deny cannot scope an advisory ignore to one crate version — `[advisories] ignore`
+  accepts only `id` and `reason`, and a `crate` key there is a *yanked-crate* ignore that
+  suppresses no vulnerability — so accepting the 0.3.27 instance necessarily silences the
+  advisory workspace-wide. `tools/check-default-build-minimums.sh` is new and closes exactly
+  that gap: it fails when a crate in the default build falls below a declared floor, and holds
+  `h2` at `>= 0.4.16`. It is verified load-bearing rather than assumed — with 0.4.15 restored,
+  `cargo deny check advisories` reports `advisories ok` and this gate is the only one that goes
+  red.
+
 - **Token revocation is now enforced under `[auth_hs256]`, not only under `[auth]` (#1112).**
   `[security.token_revocation]` is a compiled-schema setting that says nothing about the auth
   mode, and Studio's `POST /admin/v1/users/{id}/revoke` — "revoke all of a user's active

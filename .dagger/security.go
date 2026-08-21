@@ -46,6 +46,7 @@ func (m *FraiseqlCi) Security(
 		{"compliance", m.Compliance},
 		{"crypto-providers", m.CryptoProviders},
 		{"advisory-paths", m.AdvisoryPaths},
+		{"default-build-minimums", m.DefaultBuildMinimums},
 		{"cargo-deny", m.CargoDeny},
 		{"cargo-audit", m.CargoAudit},
 	}
@@ -139,6 +140,35 @@ func (m *FraiseqlCi) AdvisoryPaths(
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "tools/check-advisory-paths.sh"}).
+		Stdout(ctx)
+}
+
+// DefaultBuildMinimums runs tools/check-default-build-minimums.sh: crates in the
+// DEFAULT build must not fall below a version floor we have committed to.
+//
+// This exists because cargo-deny cannot scope an advisory ignore to one crate
+// version — `[advisories] ignore` takes only `id` and `reason`, and a `crate = "…"`
+// key there is a yanked-crate ignore that suppresses no vulnerability. So when one
+// advisory matches two instances of a crate and only one is acceptable, ignoring it
+// by id silences both.
+//
+// RUSTSEC-2026-0258 is that case: h2 0.3.27 (opt-in aws-*, no fix in the 0.3 series)
+// is accepted in deny.toml, while h2 0.4.15 was in the default build under
+// hyper/axum — the GraphQL listener, where the DoS is remotely triggerable — and was
+// bumped to 0.4.16 instead. Verified: with 0.4.15 restored, `cargo deny check
+// advisories` reports "advisories ok" and only this gate fails.
+//
+// Runs on denyBase like CryptoProviders and AdvisoryPaths — `cargo tree` needs only
+// `cargo metadata` (cargo on PATH plus the warm registry cache); nothing compiles.
+func (m *FraiseqlCi) DefaultBuildMinimums(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.denyBase().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"bash", "tools/check-default-build-minimums.sh"}).
 		Stdout(ctx)
 }
 
