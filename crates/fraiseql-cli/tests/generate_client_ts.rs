@@ -2,7 +2,7 @@
 //!
 //! The compiled-schema fixture is embedded inline so it is not subject to the
 //! repo-wide `*.compiled.json` gitignore rule.
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
 use std::path::Path;
 
@@ -140,6 +140,26 @@ fn generate_client_typescript_surfaces_auto_params_arguments() {
     assert!(queries.contains("orderBy?:"), "function must accept orderBy:\n{queries}");
     // `has_offset` is false → `offset` must not leak into the generated artifact.
     assert!(!queries.contains("offset"), "disabled auto_param must not appear:\n{queries}");
+
+    // The document names those types, so `queries.ts` must *import* them —
+    // collecting the referenced names from `q.arguments` instead of from the
+    // rendered argument list emitted `queries.ts` referencing a type it never
+    // imported, and `tsc --strict` refused it with TS2304.
+    assert!(
+        queries.contains("EventWhereInput") && queries.contains("EventOrderByInput"),
+        "the query function must name the derived types:\n{queries}"
+    );
+    let import_line = queries
+        .lines()
+        .find(|l| l.starts_with("import") && l.contains("./inputs"))
+        .unwrap_or_else(|| panic!("queries.ts imports nothing from ./inputs:\n{queries}"));
+    for named in ["EventWhereInput", "EventOrderByInput"] {
+        assert!(
+            import_line.contains(named),
+            "`{named}` is used but not imported — the generated client will not compile: \
+             {import_line}"
+        );
+    }
 
     // And the types the document names are actually emitted, or the generated
     // client would not compile.
