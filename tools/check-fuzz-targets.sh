@@ -83,7 +83,45 @@ if [ "$checked" -eq 0 ]; then
   exit 1
 fi
 
+# ── The fuzz budget must fit inside the job timeout ──────────────────────────────────
+#
+# #1141: `timeout-minutes: 30` with a per-target budget of 1800s meant the fuzz step
+# alone consumed the entire job cap, before `cargo install cargo-fuzz` and a nightly
+# build of the harness. Every dispatched leg built successfully and was then cancelled
+# with the fuzzer still running — and `cancelled` reads like somebody pressed stop, not
+# like a misconfiguration, so it went unexamined.
+#
+# BUILD_HEADROOM_SECS is what the install + cold nightly build has been observed to need.
+# The relationship is arithmetic in one file, so it is checkable rather than a comment
+# that goes stale the next time either number moves.
+BUILD_HEADROOM_SECS="${FUZZ_BUILD_HEADROOM_SECS:-1500}"
+
+timeout_min="$(sed -nE 's/^[[:space:]]*timeout-minutes:[[:space:]]*([0-9]+).*/\1/p' "$workflow" | head -1)"
+dispatch_budget="$(sed -nE 's/^[[:space:]]*default:[[:space:]]*"([0-9]+)".*/\1/p' "$workflow" | head -1)"
+schedule_budget="$(sed -nE "s/.*max_total_time[[:space:]]*\|\|[[:space:]]*'([0-9]+)'.*/\1/p" "$workflow" | head -1)"
+
+if [ -z "$timeout_min" ] || [ -z "$dispatch_budget" ] || [ -z "$schedule_budget" ]; then
+  echo "ERROR: could not read timeout-minutes / the dispatch default / the schedule default" >&2
+  echo "       from ${workflow} — the shape changed and this check went blind." >&2
+  exit 1
+fi
+
+timeout_secs=$((timeout_min * 60))
+for pair in "workflow_dispatch:${dispatch_budget}" "schedule:${schedule_budget}"; do
+  trigger="${pair%%:*}"
+  budget="${pair##*:}"
+  if [ $((budget + BUILD_HEADROOM_SECS)) -gt "$timeout_secs" ]; then
+    echo "ERROR: the ${trigger} fuzz budget cannot finish inside the job timeout."
+    echo "       budget ${budget}s + ${BUILD_HEADROOM_SECS}s of install/build headroom"
+    echo "       = $((budget + BUILD_HEADROOM_SECS))s > timeout-minutes ${timeout_min} (${timeout_secs}s)."
+    echo "       Every leg would be CANCELLED mid-fuzz, which reads as somebody pressing stop."
+    echo "       Raise timeout-minutes, or lower the budget."
+    status=1
+  fi
+done
+
 if [ "$status" -eq 0 ]; then
-  echo "OK: all ${checked} fuzz matrix targets exist in the crate they name."
+  echo "OK: all ${checked} fuzz matrix targets exist in the crate they name;"
+  echo "    dispatch ${dispatch_budget}s and scheduled ${schedule_budget}s both fit in ${timeout_min}m."
 fi
 exit "$status"

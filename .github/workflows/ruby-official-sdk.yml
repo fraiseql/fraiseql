@@ -1,0 +1,73 @@
+name: Ruby SDK (official)
+
+# There are TWO Ruby SDKs in this repo, and until #1119 only the community one was
+# gated. `ruby-sdk.yml` watches `sdks/community/fraiseql-ruby/**`; this file watches
+# `sdks/official/fraiseql-ruby/**` — the copy the cross-SDK conformance suite drives
+# and the one `sdks/official/README.md`'s support matrix lists. Its unit tests ran
+# nowhere at all: `sdk-conformance.yml` compiles what the SDK *authors*, which is a
+# real gate but a different one, and no workflow ran `test/`.
+#
+# Test-only on purpose. The community gem (`fraiseql-ruby`) is the one with a publish
+# job; whether the official gem (`fraiseql`) should also be pushed to RubyGems, and
+# which of the two survives, is the open question #1119 raised and did not settle.
+# Wiring a publish job here would answer it by accident.
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'sdks/official/fraiseql-ruby/**'
+      - '.github/workflows/ruby-official-sdk.yml'
+  pull_request:
+    paths:
+      - 'sdks/official/fraiseql-ruby/**'
+      - '.github/workflows/ruby-official-sdk.yml'
+
+jobs:
+  test:
+    name: Ruby ${{ matrix.ruby-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sdks/official/fraiseql-ruby
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The gemspec's floor is 3.1; the support matrix in sdks/official/README.md
+        # advertises 3.2+.
+        ruby-version: ['3.2', '3.3']
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Ruby ${{ matrix.ruby-version }}
+        uses: ruby/setup-ruby@97ecb7b512899eb71ab1bf2310a624c6f1589ac6  # v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+
+      # No Gemfile here, unlike the community copy: this SDK depends on nothing but
+      # the standard library, and its tests on minitest alone.
+      - name: Install minitest
+        run: gem install minitest --no-document
+
+      - name: Run tests
+        # `test/test_helper.rb` requires `minitest/autorun`, so requiring every test
+        # file is enough to run them. Loud when the glob matches nothing — an empty
+        # run is the false green this workflow exists to prevent.
+        run: |
+          shopt -s nullglob
+          files=(test/*_test.rb)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::no test/*_test.rb files found — the suite would pass vacuously"
+            exit 1
+          fi
+          echo "Running ${#files[@]} test file(s): ${files[*]}"
+          ruby -Ilib -Itest -e 'ARGV.each { |f| require File.expand_path(f) }' "${files[@]}"
+
+      - name: Gemspec is loadable
+        # `gem build` evaluates the gemspec, which `require_relative`s lib/fraiseql/version.
+        # #853 was a LoadError nobody saw because nothing loaded the entry point.
+        run: gem build ./fraiseql.gemspec

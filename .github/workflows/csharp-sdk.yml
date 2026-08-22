@@ -2,7 +2,11 @@ name: C# SDK
 
 on:
   push:
-    branches: [dev, main]
+    # Every branch, not just [dev, main] (#1119). Post-merge-only means the SDK's own
+    # test suite first runs after the change has already landed on the trunk, which is
+    # the wrong end of the merge. Publishing is driven by `release: published` below,
+    # so nothing here depends on the branch restriction.
+    branches: ['**']
     paths:
       - 'sdks/official/fraiseql-csharp/**'
       - '.github/workflows/csharp-sdk.yml'

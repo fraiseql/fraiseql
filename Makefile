@@ -612,6 +612,14 @@ lint-feature-chains:
 lint-crate-sizes:
 	@bash tools/check-crate-sizes.sh
 
+# Gate: every official SDK is gated by a workflow that runs on a BRANCH push. Four of
+# the eleven were not — two declared `tags` with no `branches` (which suppresses every
+# branch push), one was post-merge-only, and the official Ruby SDK's tests ran nowhere
+# because the workflow named for it watches the community copy (#1119).
+.PHONY: lint-sdk-workflows
+lint-sdk-workflows:
+	@python3 tools/check-sdk-workflow-coverage.py
+
 # Gate: `make preflight` must run everything the Dagger ShellGates leg runs, or
 # its "Safe to push" line is false. Two lists maintained by hand in two files
 # drift silently, and did twice (#1135).
@@ -642,7 +650,7 @@ test-imports-gate:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-imports-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-imports-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

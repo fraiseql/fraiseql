@@ -2,8 +2,16 @@ name: Elixir SDK
 
 on:
   push:
+    # `branches` is load-bearing (#1119). GitHub ANDs the ref filter with the path
+    # filter, so with `tags` present and `branches` absent a push to a branch matched
+    # no ref pattern at all: `mix credo`, `mix test` and `mix dialyzer` ran only on an
+    # `elixir-sdk/v*` tag — which is to say, at release time or never. `tags` itself
+    # must stay: the `publish` job below is gated on it.
+    branches:
+      - '**'
     paths:
       - 'sdks/official/fraiseql-elixir/**'
+      - '.github/workflows/elixir-sdk.yml'
     tags:
       - 'elixir-sdk/v*'
   pull_request:

@@ -2,8 +2,15 @@ name: F# SDK
 
 on:
   push:
+    # `branches` is load-bearing (#1119). GitHub ANDs the ref filter with the path
+    # filter, so with `tags` present and `branches` absent a push to a branch matched
+    # no ref pattern at all and this SDK's tests ran only on a `fsharp-sdk/v*` tag.
+    # `tags` itself must stay: the `publish` job below is gated on it.
+    branches:
+      - '**'
     paths:
       - 'sdks/official/fraiseql-fsharp/**'
+      - '.github/workflows/fsharp-sdk.yml'
     tags:
       - 'fsharp-sdk/v*'
   pull_request:

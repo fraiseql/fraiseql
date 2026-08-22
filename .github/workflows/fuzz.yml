@@ -24,7 +24,12 @@ on:
       max_total_time:
         description: "Per-target fuzz time budget, in seconds"
         required: false
-        default: "1800"
+        # A dispatch is a VERIFICATION run — "does my fuzz change work?" — so its budget
+        # is short by default and raised deliberately. It used to default to 1800, which
+        # is the entire job cap, so every dispatched leg was cancelled before the fuzzer
+        # produced a result and `cancelled` reads like somebody hit stop (#1141). The
+        # scheduled campaign keeps its own, longer budget via the `||` below.
+        default: "300"
   schedule:
     - cron: "0 4 * * 0"   # Sundays 04:00 UTC
 
@@ -47,7 +52,14 @@ jobs:
   fuzz:
     name: Fuzz ${{ matrix.crate }} / ${{ matrix.target }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Covers `cargo install cargo-fuzz` + a nightly build of the crate and its harness +
+    # the fuzz budget. At 30 this did not fit a COLD cache: on a branch with no warm
+    # sccache, every one of the 13 legs built successfully and was then cancelled with the
+    # fuzzer still running (#1141). Scheduled runs on `dev` fit only because the cache is
+    # warm there. This is a cap, not a duration — the scheduled campaign still finishes in
+    # roughly build + 15 minutes, so raising it costs nothing when nothing is wrong.
+    # tools/check-fuzz-targets.sh asserts the budget still fits inside it.
+    timeout-minutes: 60
     permissions:
       contents: read
       issues: write        # report-finding opens an issue on a crash

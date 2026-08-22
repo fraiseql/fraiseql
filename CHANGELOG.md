@@ -4611,6 +4611,46 @@ disagreed, and the promise was the part that was wrong.
   workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
   since v2.14.1, was already in the publish list and is unaffected.
 
+- **Four official SDKs' own CI gates now run on a branch push (#1119).** Pushing a branch that
+  changed all eleven official SDKs started seven SDK workflows. Four did not run at all:
+
+  - `elixir-sdk.yml` and `fsharp-sdk.yml` declared `push:` with `paths` **and** `tags` and no
+    `branches`. GitHub ANDs the ref filter with the path filter, so with `tags` present and
+    `branches` absent a push to a branch matched no ref pattern at all — `mix credo`,
+    `mix test` and `mix dialyzer` ran only on an `elixir-sdk/v*` tag, which is to say at
+    release time or never. `branches: ['**']` is added beside the existing filter; `tags`
+    stays, because each file's `publish` job is gated on it.
+  - `csharp-sdk.yml` restricted `push` to `[dev, main]`, so the SDK's test suite first ran
+    *after* the change had landed on the trunk. Publishing is driven by `release: published`,
+    so nothing depended on the restriction.
+  - `ruby-sdk.yml` gates `sdks/community/fraiseql-ruby/`. There are two Ruby SDKs, and the
+    **official** one — the copy the cross-SDK conformance suite drives and the support matrix
+    lists — had its unit tests running nowhere. It now has `ruby-official-sdk.yml`. Test-only
+    on purpose: whether the official gem should also be pushed to RubyGems, and which of the
+    two copies survives, is a question this does not answer by accident.
+
+  `sdk-conformance.yml` does run on every push and is a real gate, so an SDK could not
+  silently stop producing a valid schema — but it compiles what each SDK *authors*, which is
+  a different check from running its suite. None of the above was visible from a green checks
+  list. `tools/check-sdk-workflow-coverage.py` (preflight + ShellGates) now fails unless every
+  directory under `sdks/official/` is named by a workflow whose `on.push` can match a branch,
+  so a twelfth SDK cannot arrive ungated and an existing one cannot lose its trigger quietly.
+
+- **A dispatched fuzz run can now finish (#1141).** `fuzz.yml` capped each job at
+  `timeout-minutes: 30` while the `workflow_dispatch` budget defaulted to 1800s — the entire
+  cap — before `cargo install cargo-fuzz` and a nightly build of the harness had even started.
+  On a cold-cache branch every one of the 13 legs built successfully and was then **cancelled**
+  mid-fuzz, and `cancelled` reads like somebody pressed stop rather than like a
+  misconfiguration. That made `workflow_dispatch` — the documented way to verify a fuzz change
+  before merging it — unusable on exactly the branches you would use it on.
+
+  The cap is now 60 minutes (a cap, not a duration: the scheduled campaign still finishes in
+  about build + 15 minutes, so this costs nothing when nothing is wrong) and the dispatch
+  default is 300s, since a dispatch is a verification run and a long budget should be asked
+  for. The scheduled campaign keeps 900s. `tools/check-fuzz-targets.sh` — which already gates
+  this workflow — now also asserts that both budgets plus the observed install/build headroom
+  fit inside the timeout, so the arithmetic is checked rather than commented.
+
 - **The orphaned lint harness is gone, and the crate-size budget it hid is now enforced
   (#1055, #990).** `tools/lint.sh` presented itself as the repo's lint bundle. No Makefile
   target, no Dagger function and no workflow ever invoked it — its own header pointed at a

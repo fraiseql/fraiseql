@@ -335,6 +335,11 @@ func (m *FraiseqlCi) ShellGates(
 		// nowhere while four crates went over budget and five acquired no budget
 		// row — and Cargo.toml claimed all along that CI enforced it (#1055/#990).
 		"bash tools/check-crate-sizes.sh",
+		// Every official SDK must be gated by a workflow that runs on a branch push.
+		// Four of eleven were not: two declared `tags` with no `branches`, which
+		// suppresses every branch push; one was post-merge-only; and the official
+		// Ruby SDK's tests ran nowhere at all (#1119).
+		"python3 tools/check-sdk-workflow-coverage.py",
 		// This list and the Makefile's `preflight:` target are two hand-maintained
 		// copies of one thing, so they drift, and `make preflight` says "Safe to
 		// push" over the difference. It had drifted twice when this landed (#1135).
