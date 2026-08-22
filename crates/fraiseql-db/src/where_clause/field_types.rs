@@ -42,6 +42,24 @@ impl FieldTypeMap {
         self.0.get(&path.join(".")).copied()
     }
 
+    /// This map, plus the casts discovered while parsing a nested predicate.
+    ///
+    /// The entry type's own casts are built once per query from the compiled
+    /// schema; nested paths are only knowable once the parser has walked them
+    /// (#1157), so they are folded in here rather than pre-computed. An existing
+    /// entry wins: the entry type's map is the authority for its own keys, and
+    /// the parser never records a top-level path.
+    #[must_use]
+    pub fn with_paths<I>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = (String, ScalarFieldType)>,
+    {
+        for (path, cast) in paths {
+            self.0.entry(path).or_insert(cast);
+        }
+        self
+    }
+
     /// `true` when no field carries a declared type.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -86,6 +104,25 @@ pub struct WhereFieldInfo {
     /// `None` on a scalar, and on a relation whose target the caller could not
     /// resolve — the nested level is then unadjudicated rather than refused.
     pub relation_type: Option<String>,
+    /// The declared cast for a comparison against this field, when the caller
+    /// can name one (#1157).
+    ///
+    /// A JSON extraction is always `text`, so a comparison needs to be told what
+    /// the field really is. At the top level that came from
+    /// [`FieldTypeMap`]; one level down there was no entry at all, and the
+    /// generator inferred from the shape of the supplied JSON value. Inference is
+    /// right whenever the JSON type matches the SQL type and wrong whenever a
+    /// JSON *string* denotes something else — an instant, a date, a UUID. A
+    /// timestamp filter then compares text, and `2024-01-01T10:00:00+02:00`
+    /// (08:00Z) sorts *after* `2024-01-01T09:00:00Z` while being *before* it.
+    ///
+    /// Carrying it here rather than pre-computing every dotted path is what keeps
+    /// a relation cycle from making the path set unbounded: the parser records
+    /// only the paths it actually walks.
+    ///
+    /// `None` means the caller has keys but no type information — the level is
+    /// then typed exactly as it was before, by value shape.
+    pub cast:          Option<ScalarFieldType>,
 }
 
 /// The declared `where` keys of every type a nested predicate can descend into,

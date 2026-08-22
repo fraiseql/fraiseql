@@ -14,7 +14,7 @@ pub use self::{
     },
     operator_table::{OperatorCategory, WHERE_OPERATORS, WhereOperatorSpec, operator_spec},
 };
-use crate::utils::to_snake_case;
+use crate::{types::sql_hints::ScalarFieldType, utils::to_snake_case};
 
 /// WHERE clause abstract syntax tree.
 ///
@@ -190,13 +190,25 @@ impl WhereClause {
     /// Cannot panic: the internal `.expect("checked len == 1")` is only reached
     /// after verifying `conditions.len() == 1`.
     pub fn from_graphql_json(value: &serde_json::Value, schema: &WhereFieldSchema) -> Result<Self> {
-        let parsed = Self::parse_where_object(value, &[], schema, schema.root_level())?;
+        // Casts discovered while descending, keyed by the dotted path actually
+        // walked (#1157). `WhereFieldSchema::casts()` covers the entry type only;
+        // a nested path such as `customer.signed_up_at` has no entry there, and
+        // the generator would otherwise infer the type from the shape of the
+        // supplied JSON value — right for a number, wrong for a string that
+        // denotes an instant, a date or a UUID.
+        //
+        // Collected during the descent rather than enumerated up front because a
+        // relation cycle (`Order → Customer → Order`) makes the set of dotted
+        // paths unbounded. The query's own depth bounds this one.
+        let mut discovered = Vec::new();
+        let parsed =
+            Self::parse_where_object(value, &[], schema, schema.root_level(), &mut discovered)?;
+
         let types = schema.casts();
-        Ok(if types.is_empty() {
-            parsed
-        } else {
-            parsed.typed(Arc::clone(types))
-        })
+        if types.is_empty() && discovered.is_empty() {
+            return Ok(parsed);
+        }
+        Ok(parsed.typed(Arc::new(types.as_ref().clone().with_paths(discovered))))
     }
 
     /// Recursive WHERE parser that builds multi-segment paths for nested objects.
@@ -214,11 +226,16 @@ impl WhereClause {
     /// `level` is the set of keys legal *at this depth* — the entry type's at the
     /// top, and the relation target's below it. `None` means the schema cannot
     /// adjudicate here, and every key passes (#939).
+    ///
+    /// `discovered` accumulates `(dotted path, cast)` for every comparison the
+    /// descent reaches, which is how a nested path gets a declared type without
+    /// enumerating the (possibly cyclic) closure of paths up front (#1157).
     fn parse_where_object(
         value: &serde_json::Value,
         path_prefix: &[String],
         schema: &WhereFieldSchema,
         level: Option<&HashMap<String, WhereFieldInfo>>,
+        discovered: &mut Vec<(String, ScalarFieldType)>,
     ) -> Result<Self> {
         let Some(obj) = value.as_object() else {
             return Err(FraiseQLError::Validation {
@@ -238,7 +255,9 @@ impl WhereClause {
                     })?;
                     let sub: Result<Vec<Self>> = arr
                         .iter()
-                        .map(|v| Self::parse_where_object(v, path_prefix, schema, level))
+                        .map(|v| {
+                            Self::parse_where_object(v, path_prefix, schema, level, discovered)
+                        })
                         .collect();
                     conditions.push(Self::And(sub?));
                 },
@@ -249,12 +268,15 @@ impl WhereClause {
                     })?;
                     let sub: Result<Vec<Self>> = arr
                         .iter()
-                        .map(|v| Self::parse_where_object(v, path_prefix, schema, level))
+                        .map(|v| {
+                            Self::parse_where_object(v, path_prefix, schema, level, discovered)
+                        })
                         .collect();
                     conditions.push(Self::Or(sub?));
                 },
                 "_not" => {
-                    let sub = Self::parse_where_object(val, path_prefix, schema, level)?;
+                    let sub =
+                        Self::parse_where_object(val, path_prefix, schema, level, discovered)?;
                     conditions.push(Self::Not(Box::new(sub)));
                 },
                 field_name => {
@@ -325,8 +347,20 @@ impl WhereClause {
                                 &field_path,
                                 schema,
                                 nested_level,
+                                discovered,
                             )?);
                             continue;
+                        }
+                    }
+
+                    // #1157: a comparison below the entry type has no entry in
+                    // `WhereFieldSchema::casts()`, so record the one this level
+                    // declares against the path actually walked. Top-level paths
+                    // are already covered and are skipped rather than re-asserted,
+                    // so this can never contradict the entry type's own map.
+                    if !path_prefix.is_empty() {
+                        if let Some(cast) = level.and_then(|l| l.get(&snake)).and_then(|i| i.cast) {
+                            discovered.push((field_path.join("."), cast));
                         }
                     }
 
@@ -382,6 +416,7 @@ impl WhereClause {
                                     &field_path,
                                     schema,
                                     nested_level,
+                                    discovered,
                                 )?;
                                 conditions.push(nested);
                             },

@@ -586,6 +586,7 @@ fn adjudicating() -> WhereFieldSchema {
                 // Deliberately unnamed: this schema knows its own keys and
                 // nothing about what `machine` points at.
                 relation_type: None,
+                cast: None,
             },
         );
     }
@@ -628,6 +629,7 @@ fn declared_camel_case() -> WhereFieldSchema {
             declared_name: "createdAt".to_string(),
             is_relation:   false,
             relation_type: None,
+            cast:          None,
         },
     );
     WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known)
@@ -680,6 +682,7 @@ fn a_field_the_schema_declares_in_snake_case_still_passes() {
             declared_name: "ip_address".to_string(),
             is_relation:   false,
             relation_type: None,
+            cast:          None,
         },
     );
     let schema = WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known);
@@ -761,6 +764,7 @@ fn adjudicating_nested() -> WhereFieldSchema {
                 declared_name: name.to_string(),
                 is_relation,
                 relation_type: target.map(ToString::to_string),
+                cast: None,
             },
         )
     };

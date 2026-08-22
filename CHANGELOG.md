@@ -3244,6 +3244,35 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A nested `where` comparison gets its declared cast (#1157).** `where_field_types` mapped
+  only the entry type's own fields, and said so: "Only the top level is mapped. A nested
+  relation path (`machine.id`) has no entry, and the generator falls back to the JSON value's
+  shape." `FieldTypeMap::get` has always resolved a dotted path — the lookup side was ready and
+  nothing populated it.
+
+  `WhereFieldInfo` now carries the declared cast at every level, and the parser records the
+  dotted path it actually walked. Resolving *during the descent* rather than enumerating paths
+  up front is what keeps a relation cycle (`Order → Customer → Order`) from making the path set
+  unbounded: it is bounded by the query's own depth instead. The cast is computed by the same
+  function that types a top-level key, re-exported rather than duplicated — two mappings would
+  drift, and the drift would be a filter returning the wrong rows.
+
+  **The defect is narrower than the issue describes, and the measurement is worth recording.**
+  The issue predicts that both the #798 class (a hard SQL error) and the #800 class
+  (`in: [19.9]` silently missing a stored `19.90`) recur one level down. Neither reproduces:
+  against a real database, nested `in` and `eq` already agree, and a nested numeric range is
+  already correct. Value-shape inference is right whenever the JSON type matches the SQL type.
+  It is wrong when a JSON **string** denotes something else — an instant, a date, a UUID. A
+  nested timestamp filter therefore compared text, and `2024-01-01T10:00:00+02:00` (08:00Z)
+  sorts *after* `2024-01-01T09:00:00Z` while being *before* it: `gte` returned a row that is
+  outside the range, silently.
+
+  That is also why the regression suite executes SQL against PostgreSQL rather than comparing
+  generated strings, and why its fixture is built so that **text ordering and typed ordering
+  disagree**. A fixture of uniform `Z`-suffixed timestamps and round numbers passes with or
+  without the cast — the first version of this suite did, on all four cases, which is exactly
+  how a missing cast reads as working code.
+
 - **`__schema` no longer advertises names that resolve to nothing (#1156).** A field typed
   `Object(T)` where no type declares `T` introspected as an `OBJECT` reference to an undefined
   type, so a client walking `__schema.types` to look `T` up found no node at all. This is not a

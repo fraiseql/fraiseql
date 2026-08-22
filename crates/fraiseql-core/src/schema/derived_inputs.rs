@@ -526,6 +526,9 @@ pub(crate) fn where_keys_of(
                     declared_name: f.name.to_string(),
                     is_relation: relation_type.is_some(),
                     relation_type,
+                    // #1157: the cast travels with the key, so a nested path can
+                    // be typed at the level the parser reaches it.
+                    cast: Some(crate::runtime::field_type_to_where_type(&f.field_type)),
                 },
             )
         })

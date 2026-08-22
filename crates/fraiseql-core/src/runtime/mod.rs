@@ -79,6 +79,7 @@ pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use argument_validation::validate_argument_names;
+pub(crate) use executor::field_type_to_where_type;
 pub use executor::{
     Executor,
     JsonRowStream,

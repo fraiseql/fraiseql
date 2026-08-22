@@ -185,6 +185,12 @@ pub type JsonRowStream =
 mod execution;
 mod mutation;
 mod runners;
+
+/// One definition of "what cast does a comparison against this field need",
+/// re-exported to the schema layer so `where_keys_of` types a nested key with the
+/// same function that types a top-level one (#1157). Two mappings would drift, and
+/// the drift would be silent: a filter that returns the wrong rows.
+pub use runners::query_projection::field_type_to_where_type;
 pub mod security;
 mod support;
 

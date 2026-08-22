@@ -111,8 +111,13 @@ pub fn build_typed_projection_fields(
 /// did, which is why every date, UUID and string range filter was a hard SQL
 /// error (#798) and `in: [19.9]` silently missed rows `eq: 19.9` matched (#800).
 ///
-/// Only the top level is mapped. A nested relation path (`machine.id`) has no
-/// entry, and the generator falls back to the JSON value's shape.
+/// Only the top level is mapped **here**. A nested relation path
+/// (`machine.installed_at`) gets its cast during the parse descent instead
+/// (#1157): `WhereFieldInfo` carries the declared cast at every level, and the
+/// parser records the dotted path it actually walked. Resolving per level
+/// rather than enumerating paths up front is what keeps a relation cycle
+/// (`Order → Customer → Order`) from making the path set unbounded — the set
+/// is bounded by the query's own depth.
 ///
 /// # Adjudication
 ///
@@ -188,7 +193,7 @@ const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> ScalarFie
 /// matched". See `docs/adr/0017-entity-identity-contract.md` for why
 /// `FieldType::Id` cannot be assumed UUID-backed: it *intentionally* spans
 /// uuid / integer / text keys.
-const fn field_type_to_where_type(ft: &crate::schema::FieldType) -> ScalarFieldType {
+pub const fn field_type_to_where_type(ft: &crate::schema::FieldType) -> ScalarFieldType {
     use crate::schema::FieldType as FT;
     match ft {
         // Identity fields compare case-insensitively over the two renderings of
