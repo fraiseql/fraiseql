@@ -157,6 +157,84 @@ fn convert_threads_type_level_sql_source_into_compiled() {
     );
 }
 
+// ── #1142 type-level inject_params threading (queryless entity scoping) ──────
+
+#[test]
+fn intermediate_type_reads_type_level_inject_params_in_both_shapes() {
+    // The same two shapes the operation-level key accepts (#806): nested, which every
+    // SDK emits, and flat, which is pleasanter to hand-author.
+    let nested = r#"{ "name": "Organization", "fields": [],
+        "inject_params": {"tenant_id": {"source": "jwt", "claim": "org_id"}} }"#;
+    let t: IntermediateType = serde_json::from_str(nested).unwrap();
+    assert_eq!(t.inject_params.get("tenant_id").map(String::as_str), Some("jwt:org_id"));
+
+    let flat = r#"{ "name": "Organization", "fields": [],
+        "inject_params": {"tenant_id": "jwt:org_id"} }"#;
+    let t: IntermediateType = serde_json::from_str(flat).unwrap();
+    assert_eq!(t.inject_params.get("tenant_id").map(String::as_str), Some("jwt:org_id"));
+}
+
+#[test]
+fn intermediate_type_inject_params_defaults_empty() {
+    let json = r#"{ "name": "User", "fields": [] }"#;
+    let t: IntermediateType = serde_json::from_str(json).unwrap();
+    assert!(t.inject_params.is_empty(), "absent inject_params defaults to empty");
+}
+
+#[test]
+fn convert_threads_type_level_inject_params_into_compiled() {
+    // The #1142 shape: an entity whose relation rides on the type-level sql_source and
+    // which no query returns, so the type is the only place its scoping can live.
+    let intermediate = IntermediateSchema {
+        types: vec![IntermediateType {
+            name: "Organization".to_string(),
+            sql_source: Some("v_organization".to_string()),
+            inject_params: std::iter::once(("tenant_id".to_string(), "jwt:org_id".to_string()))
+                .collect(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("convert");
+    assert_eq!(
+        compiled.types[0].inject_params.get("tenant_id"),
+        Some(&fraiseql_core::schema::InjectedParamSource::Jwt("org_id".to_string())),
+        "type-level inject_params threads through to the compiled type"
+    );
+}
+
+#[test]
+fn a_type_level_inject_source_with_an_unknown_prefix_is_refused() {
+    // Same refusal as the operation path: an unparseable source must not compile to a
+    // type with no scoping at all, which is exactly the silent-empty-map failure #806
+    // was filed for.
+    let intermediate = IntermediateSchema {
+        types: vec![IntermediateType {
+            name: "Organization".to_string(),
+            sql_source: Some("v_organization".to_string()),
+            inject_params: std::iter::once(("tenant_id".to_string(), "header:x-org".to_string()))
+                .collect(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let err =
+        SchemaConverter::convert(intermediate).expect_err("an unknown prefix must not compile");
+    // `{:#}` renders the whole anyhow chain; `to_string()` shows only the outermost
+    // context ("Failed to convert types"), which would pass for any conversion failure.
+    let chain = format!("{err:#}");
+    assert!(
+        chain.contains("Unknown inject source prefix"),
+        "the refusal must name the unsupported prefix: {chain}"
+    );
+    assert!(
+        chain.contains("Organization") && chain.contains("tenant_id"),
+        "the refusal must locate the bad source at its type and column: {chain}"
+    );
+}
+
 #[test]
 fn test_convert_minimal_schema() {
     let intermediate = IntermediateSchema {
@@ -416,6 +494,7 @@ fn test_convert_type_with_fields() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -540,6 +619,7 @@ fn test_convert_query_with_arguments() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -632,6 +712,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -713,6 +794,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -826,6 +908,7 @@ fn test_convert_field_with_deprecated_directive() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1261,6 +1344,7 @@ fn test_convert_type_implements_interface() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1353,6 +1437,7 @@ fn test_validate_unknown_interface() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1426,6 +1511,7 @@ fn test_validate_missing_interface_field() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1513,6 +1599,7 @@ fn test_convert_union() {
                 embedded:               false,
                 subscribable_tables:    None,
                 subscribable_pre_image: false,
+                inject_params:          indexmap::IndexMap::new(),
             },
             IntermediateType {
                 name:                   "Post".to_string(),
@@ -1539,6 +1626,7 @@ fn test_convert_union() {
                 embedded:               false,
                 subscribable_tables:    None,
                 subscribable_pre_image: false,
+                inject_params:          indexmap::IndexMap::new(),
             },
         ],
         enums:             vec![],
@@ -1660,6 +1748,7 @@ fn test_convert_field_requires_scope() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1798,6 +1887,7 @@ mod tenancy_tests {
             embedded: false,
             subscribable_tables: None,
             subscribable_pre_image: false,
+            inject_params: indexmap::IndexMap::new(),
         }
     }
 
@@ -2572,6 +2662,75 @@ mod tenancy_tests {
             vec![],
         );
         validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+    }
+
+    // ── #1142: a @tenant_id type no operation returns ───────────────────
+    //
+    // Auto-injection reaches queries and mutations. A federation entity resolved only
+    // through `_entities` has neither, so the annotation had nothing to be lowered onto
+    // and the compile succeeded with the type unscoped on that path — the same hole as
+    // a hand-written `inject_params`, reached through the primary tenancy surface.
+
+    #[test]
+    fn a_tenant_annotated_type_no_operation_returns_scopes_itself() {
+        let mut schema = make_schema(
+            vec![IntermediateType {
+                sql_source: Some("v_organization".to_string()),
+                ..make_type("Organization", vec![make_tenant_id_field("tenant_id")])
+            }],
+            vec![],
+            vec![],
+        );
+        validate_tenant_annotations(&mut schema, "org_id").unwrap();
+        assert_eq!(
+            schema.types[0].inject_params.get("tenant_id").map(String::as_str),
+            Some("jwt:org_id"),
+            "a @tenant_id type with no operation to carry the scoping must carry it itself"
+        );
+    }
+
+    /// Control: the type-level declaration is for the shape that has nowhere else. A type
+    /// a query returns keeps its scoping on the query, so the compiled artefact does not
+    /// grow a second copy of every tenancy annotation.
+    #[test]
+    fn a_tenant_annotated_type_a_query_returns_is_left_to_its_query() {
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
+            vec![make_query("getUser", "User")],
+            vec![],
+        );
+        validate_tenant_annotations(&mut schema, "org_id").unwrap();
+        assert_eq!(
+            schema.queries[0].inject.get("tenant_id").map(String::as_str),
+            Some("jwt:org_id"),
+            "the query still carries it"
+        );
+        assert!(
+            schema.types[0].inject_params.is_empty(),
+            "the type does not duplicate a declaration its query already carries"
+        );
+    }
+
+    /// The operation path errors when an explicit inject omits the annotated field rather
+    /// than silently scoping nothing. The type path owes the author the same refusal.
+    #[test]
+    fn error_when_type_inject_overridden_without_tenant() {
+        let mut schema = make_schema(
+            vec![IntermediateType {
+                sql_source: Some("v_organization".to_string()),
+                inject_params: std::iter::once(("owner_id".to_string(), "jwt:sub".to_string()))
+                    .collect(),
+                ..make_type("Organization", vec![make_tenant_id_field("tenant_id")])
+            }],
+            vec![],
+            vec![],
+        );
+        let err = validate_tenant_annotations(&mut schema, "org_id").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("Organization") && msg.contains("tenant_id"),
+            "the refusal must name the type and the field it lacks: {msg}"
+        );
     }
 }
 

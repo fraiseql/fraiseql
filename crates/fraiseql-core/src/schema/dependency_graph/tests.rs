@@ -25,6 +25,7 @@ fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
     }
 }
@@ -437,6 +438,7 @@ fn test_interface_dependencies() {
             internal:            false,
             embedded:            false,
             relationships:       vec![],
+            inject_params:       indexmap::IndexMap::new(),
             subscription_policy: None,
         }],
         interfaces: vec![InterfaceDefinition {

@@ -237,6 +237,7 @@ fn test_deprecated_field_introspection() {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),
@@ -496,6 +497,7 @@ fn test_interface_introspection() {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),
@@ -516,6 +518,7 @@ fn test_interface_introspection() {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),
@@ -584,6 +587,7 @@ fn test_type_implements_interface() {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
         fields:              vec![
             FieldDefinition::new("id", FieldType::Id),

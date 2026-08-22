@@ -639,6 +639,7 @@ mod compile_tests {
                 internal:            false,
                 embedded:            false,
                 relationships:       vec![],
+                inject_params:       indexmap::IndexMap::new(),
                 subscription_policy: None,
             }],
             ..Default::default()

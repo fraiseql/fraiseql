@@ -135,6 +135,15 @@ Client → mutation { createOrder(...) }
 
 ## Security Notes
 
+- **Scoping an entity no query returns**: `_entities` reaches types that no root query
+  returns (an owner-split `extend type … @key`, and every non-embedded type for
+  SDK-synthesized sources). Such a type has no operation to carry `inject_params`, so it
+  declares tenant/owner scoping on **itself** (#1142) — see
+  [intermediate-schema.md](intermediate-schema.md#scoping-an-entity-no-query-returns-1142).
+  Both `_entities` consumers read it behind the backing query: the gate that refuses an
+  anonymous caller for a scoped type, and the per-row predicate builder. A type and its
+  query declaring one column from two different sources is refused at load. `requires_role`
+  has been read from the type since #1030.
 - **SSRF protection**: `http_resolver.rs` and `mutation_http_client.rs` use
   `reqwest::Url::parse()` + private-IP rejection. IPv6 brackets are stripped before
   `IpAddr::parse()` to prevent bypass via `[::1]` notation.

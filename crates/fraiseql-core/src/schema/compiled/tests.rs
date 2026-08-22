@@ -376,6 +376,7 @@ fn make_type_def(name: &str) -> TypeDefinition {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
     }
 }
@@ -439,6 +440,99 @@ fn from_json_builds_query_index() {
     let schema = CompiledSchema::from_json(json, false).unwrap();
     assert!(schema.query_index.contains_key("users"));
     assert_eq!(schema.query_index["users"], 0);
+}
+
+// ---------------------------------------------------------------------------
+// #1142: type-level inject_params
+// ---------------------------------------------------------------------------
+
+/// A query and its return type may both scope the same column — but not from two
+/// different sources. The `_entities` path merges the two declarations, and a merge
+/// that picked a winner would silently enforce one of a contradictory pair while the
+/// author believes the other holds.
+#[test]
+fn a_query_and_its_type_disagreeing_on_an_inject_column_is_refused_at_load() {
+    let json = r#"{
+        "types": [{
+            "name":"User","sql_source":"v_user","fields":[],
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"org_id"}}
+        }],
+        "queries": [{
+            "name":"users","return_type":"User","sql_source":"v_user",
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"}}
+        }],
+        "mutations": [],
+        "subscriptions": []
+    }"#;
+    let err = CompiledSchema::from_json(json, false).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("tenant_id"), "the message must name the column, got: {msg}");
+    assert!(msg.contains("User"), "the message must name the type, got: {msg}");
+    assert!(msg.contains("users"), "the message must name the query, got: {msg}");
+}
+
+/// Control: the same column from the *same* source is the redundant-but-consistent
+/// case, and must load — otherwise the check would refuse every schema that states its
+/// scoping in both places.
+#[test]
+fn a_query_and_its_type_agreeing_on_an_inject_column_loads() {
+    let json = r#"{
+        "types": [{
+            "name":"User","sql_source":"v_user","fields":[],
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"}}
+        }],
+        "queries": [{
+            "name":"users","return_type":"User","sql_source":"v_user",
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"}}
+        }],
+        "mutations": [],
+        "subscriptions": []
+    }"#;
+    let schema = CompiledSchema::from_json(json, false).unwrap();
+    assert_eq!(schema.types[0].inject_params.len(), 1);
+}
+
+/// Control: declaring a column the query does not is the *point* of the field — the
+/// two sets merge. Only a same-column disagreement is a contradiction.
+#[test]
+fn a_type_scoping_a_column_its_query_does_not_loads() {
+    let json = r#"{
+        "types": [{
+            "name":"User","sql_source":"v_user","fields":[],
+            "inject_params": {"owner_id": {"source":"jwt","claim":"sub"}}
+        }],
+        "queries": [{
+            "name":"users","return_type":"User","sql_source":"v_user",
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"}}
+        }],
+        "mutations": [],
+        "subscriptions": []
+    }"#;
+    let schema = CompiledSchema::from_json(json, false).unwrap();
+    assert_eq!(schema.types[0].inject_params.len(), 1);
+    assert_eq!(schema.queries[0].inject_params.len(), 1);
+}
+
+/// The queryless shape #1142 exists for: the declaration survives a load/serialize
+/// round trip with no backing query to carry it.
+#[test]
+fn a_queryless_type_carries_its_inject_params_through_a_round_trip() {
+    let json = r#"{
+        "types": [{
+            "name":"User","sql_source":"v_user","fields":[],
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"}}
+        }],
+        "queries": [],
+        "mutations": [],
+        "subscriptions": []
+    }"#;
+    let schema = CompiledSchema::from_json(json, false).unwrap();
+    let reloaded = CompiledSchema::from_json(&schema.to_json().unwrap(), false).unwrap();
+    assert_eq!(
+        reloaded.types[0].inject_params.get("tenant_id"),
+        Some(&crate::schema::InjectedParamSource::Jwt("tenant_id".to_string())),
+        "the type's scoping must survive the compiled artefact it is written to"
+    );
 }
 
 #[test]

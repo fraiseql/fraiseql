@@ -343,6 +343,7 @@ fn synth_type(name: &str, fields: Vec<FieldDefinition>, desc: &str) -> TypeDefin
         internal: false,
         embedded: false,
         relationships: Vec::new(),
+        inject_params: indexmap::IndexMap::new(),
         subscription_policy: None,
     }
 }

@@ -180,13 +180,16 @@ impl CompiledSchema {
     ///
     /// Today it lowers each type's `requires_role` onto the operations that return
     /// it (#677) and refuses a schema whose role declarations the runtime cannot
-    /// honour.
+    /// honour, then refuses one whose type-level and query-level scoping declarations
+    /// contradict each other (#1142).
     ///
     /// # Errors
     ///
     /// Returns [`FraiseQLError::Validation`] when a role-gated type is declared in a
     /// shape no execution path can enforce — see
-    /// [`CompiledSchema::type_role_violations`].
+    /// [`CompiledSchema::type_role_violations`] — or when a type and its backing query
+    /// scope the same column from different sources, see
+    /// [`CompiledSchema::type_inject_violations`].
     fn finish_load(&mut self) -> std::result::Result<(), FraiseQLError> {
         self.propagate_type_roles();
         let violations = self.type_role_violations();
@@ -197,6 +200,16 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("security.requires_role".to_string()),
+            });
+        }
+        let violations = self.type_inject_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "type-level `inject_params` cannot be enforced as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("security.inject_params".to_string()),
             });
         }
         Ok(())

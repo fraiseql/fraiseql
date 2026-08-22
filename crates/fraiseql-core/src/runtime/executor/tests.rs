@@ -562,6 +562,35 @@ mod entities_authz {
         schema
     }
 
+    /// #1142: the same `User` entity with **no backing query** — reachable only through
+    /// `_entities`, its relation riding on the type-level `sql_source` (#507). Scoping is
+    /// declared on the type, the only place it can live for this shape.
+    fn entities_queryless_user_schema(
+        inject_params: IndexMap<String, InjectedParamSource>,
+    ) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.federation = Some(FederationConfig {
+            enabled: true,
+            version: Some("v2".to_string()),
+            entities: vec![FederationEntity {
+                name: "User".to_string(),
+                key_fields: vec!["id".to_string()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::String),
+                FieldDefinition::new("name", FieldType::String),
+            ];
+            t.inject_params = inject_params;
+            t
+        });
+        schema
+    }
+
     /// `{ _entities(representations: ...) { ... on User { id name } } }`
     fn entities_query() -> &'static str {
         r#"{ _entities(representations: [{ __typename: "User", id: "1" }]) { ... on User { id name } } }"#
@@ -730,6 +759,81 @@ mod entities_authz {
             params.get(1),
             Some(&serde_json::json!("tenant-abc")),
             "the caller's tenant id must bind to $2 (offset past the IN clause), got: {params:?}"
+        );
+    }
+
+    // ── #1142: a queryless federation entity can declare its own scoping ────
+    //
+    // `inject_params` lived only on an operation, so an entity no query returns — relation
+    // supplied by the type-level `sql_source` (#507) — had nowhere to declare tenant
+    // scoping. `requires_role` was already honoured from the type (#1030); scoping was
+    // not, and the author got no signal that the annotation covered nothing on this path.
+    // Both `_entities` consumers now read the type's declaration behind the backing query.
+
+    #[tokio::test]
+    async fn entities_type_level_inject_anonymous_fails_closed_for_a_queryless_entity() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = entities_queryless_user_schema(inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = representations();
+        let err = executor.execute(entities_query(), Some(&vars)).await.unwrap_err();
+        assert!(
+            is_authz(&err),
+            "a tenant-scoped queryless entity must refuse an anonymous _entities read, got: {err}"
+        );
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    /// Positive control: the refusal above must come from the *declaration*, not from
+    /// queryless entities being refused wholesale.
+    #[tokio::test]
+    async fn entities_queryless_without_inject_still_resolves_anonymously() {
+        let schema = entities_queryless_user_schema(IndexMap::new());
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let vars = representations();
+        let result = executor.execute(entities_query(), Some(&vars)).await.unwrap();
+        assert!(result["data"].get("_entities").is_some());
+        assert!(
+            adapter.captured_aggregate_sql().is_some(),
+            "an unscoped queryless entity must still reach the resolver"
+        );
+    }
+
+    #[tokio::test]
+    async fn entities_type_level_inject_authenticated_composes_tenant_filter() {
+        // The declaration must reach the *second* consumer too: giving it a home and a deny
+        // gate, but no per-row predicate, would refuse anonymous callers and then serve every
+        // tenant's rows to an authenticated one.
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let schema = entities_queryless_user_schema(inject);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = ctx_with_roles(&["viewer"]); // tenant_id = "tenant-abc"
+        let vars = representations();
+        let result = executor
+            .execute_with_security(entities_query(), Some(&vars), &ctx)
+            .await
+            .unwrap();
+        assert!(result["data"].get("_entities").is_some());
+
+        let sql = adapter.captured_aggregate_sql().expect("resolver must run");
+        assert!(
+            sql.contains("tenant_id"),
+            "a queryless entity's type-level scoping must compose the per-row predicate, got: \
+             {sql}"
+        );
+        let params = adapter.captured_aggregate_params().unwrap_or_default();
+        assert_eq!(
+            params.get(1),
+            Some(&serde_json::json!("tenant-abc")),
+            "the caller's tenant id must bind past the IN clause, got: {params:?}"
         );
     }
 

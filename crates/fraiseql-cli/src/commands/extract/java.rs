@@ -43,6 +43,7 @@ impl SchemaExtractor for JavaExtractor {
                 embedded: false,
                 subscribable_tables: None,
                 subscribable_pre_image: false,
+                inject_params: indexmap::IndexMap::new(),
             });
         }
 

@@ -1,10 +1,12 @@
 //! GraphQL named type definitions: object types, enums, input objects, interfaces, and unions.
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use super::{
     domain_types::{SqlSource, TypeName},
     field_type::{DeprecationInfo, FieldDefinition},
+    security_config::InjectedParamSource,
 };
 pub use crate::types::SqlProjectionHint;
 use crate::validation::ValidationRule;
@@ -34,6 +36,7 @@ use crate::validation::ValidationRule;
 ///     sql_projection_hint: None,
 ///     implements: vec![],
 ///     requires_role: None,
+///     inject_params: Default::default(),
 ///     is_error: false,
 ///     relay: false,
 ///     internal: false,
@@ -79,6 +82,30 @@ pub struct TypeDefinition {
     /// the type nor its associated queries — preventing role enumeration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// Tenant/owner scoping declared on the type itself (#1142).
+    ///
+    /// Keys are SQL column names, values say where to source the runtime value —
+    /// the same shape as
+    /// [`QueryDefinition::inject_params`](super::compiled::QueryDefinition::inject_params).
+    ///
+    /// This exists for the read that has **no backing query to carry the declaration**: a
+    /// federation entity reachable only through `_entities`, whose relation rides on the
+    /// type-level `sql_source` (#507). Before this field, such a type could declare
+    /// `requires_role` (honoured, #1030) but had nowhere to declare tenant scoping, so its
+    /// author's tenancy annotation silently covered nothing on that path.
+    ///
+    /// Both `_entities` consumers read it as a fallback behind the backing query, mirroring
+    /// the relation fallback in
+    /// [`entity_sources()`](super::CompiledSchema::entity_sources): the deny gate refuses an
+    /// anonymous caller for a scoped type, and the per-row filter composes the equality
+    /// predicate. Where a query *and* its return type both declare a column, load-time
+    /// validation refuses a schema whose two declarations disagree
+    /// ([`type_inject_violations`](super::CompiledSchema::type_inject_violations)) — so at
+    /// most one source is ever in play for a given column, and a merge can never silently
+    /// pick a winner.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub inject_params: IndexMap<String, InjectedParamSource>,
 
     /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
     ///
@@ -168,6 +195,7 @@ impl TypeDefinition {
             sql_projection_hint: None,
             implements:          Vec::new(),
             requires_role:       None,
+            inject_params:       IndexMap::new(),
             is_error:            false,
             relay:               false,
             internal:            false,
@@ -181,6 +209,21 @@ impl TypeDefinition {
     #[must_use]
     pub fn with_subscription_policy(mut self, policy: super::SubscriptionPolicy) -> Self {
         self.subscription_policy = Some(policy);
+        self
+    }
+
+    /// Declare a type-level injected scoping parameter (#1142).
+    ///
+    /// `column` is the SQL column the predicate is built on; `source` says where the
+    /// runtime value comes from. See
+    /// [`inject_params`](Self::inject_params) for when this is consulted.
+    #[must_use]
+    pub fn with_inject_param(
+        mut self,
+        column: impl Into<String>,
+        source: InjectedParamSource,
+    ) -> Self {
+        self.inject_params.insert(column.into(), source);
         self
     }
 

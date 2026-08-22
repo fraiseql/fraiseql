@@ -5,7 +5,10 @@
 //! 2. For each query/mutation referencing such a type:
 //!    - If `inject` is empty → auto-adds `{ <field>: jwt:<tenant_claim> }`.
 //!    - If `inject` is non-empty but missing the annotated field → compile error.
-//! 3. When no types have `@tenant_id` annotations → warning.
+//! 3. For each annotated type **no query returns** — a federation entity reached only through
+//!    `_entities`, which has no operation to lower the annotation onto (#1142) — the same two rules
+//!    applied to the type's own `inject_params`.
+//! 4. When no types have `@tenant_id` annotations → warning.
 
 use std::collections::{HashMap, HashSet};
 
@@ -128,6 +131,46 @@ pub fn validate_tenant_annotations(
                         inject_source,
                     );
                 }
+            }
+        }
+    }
+
+    // #1142: a type that no *query* returns has no operation for the annotation to be
+    // lowered onto. The federation `_entities` path reads such a type's own
+    // `inject_params` instead, so auto-inject there on the same terms — a `@tenant_id`
+    // annotation then means the same thing for an entity resolved through federation as
+    // for one behind a query.
+    //
+    // Deliberately restricted to the queryless shape: `_entities` consults the backing
+    // query first, so a type a query returns is already scoped, and injecting anyway
+    // would grow every tenancy-annotated schema a redundant second copy of each
+    // declaration. Mutations do not count — entity resolution never reads one, so a type
+    // returned only by a mutation still needs its own declaration.
+    let queried_types: HashSet<String> =
+        schema.queries.iter().map(|q| q.return_type.clone()).collect();
+    for typ in &mut schema.types {
+        if queried_types.contains(&typ.name) {
+            continue;
+        }
+        let Some(fields) = index.fields_for_type(&typ.name) else {
+            continue;
+        };
+        for field_name in fields {
+            let inject_source = format!("jwt:{tenant_claim}");
+            if typ.inject_params.is_empty() {
+                typ.inject_params.insert(field_name.clone(), inject_source);
+            } else if !typ.inject_params.contains_key(field_name) {
+                bail!(
+                    "Type '{}' is @tenant_id-annotated on field '{}' and no query returns \
+                     it, so its scoping has to live on the type — but its explicit \
+                     inject_params lack '{}'. Add `inject_params.{} = \"{}\"`, or remove \
+                     the explicit inject_params to use auto-injection.",
+                    typ.name,
+                    field_name,
+                    field_name,
+                    field_name,
+                    inject_source,
+                );
             }
         }
     }

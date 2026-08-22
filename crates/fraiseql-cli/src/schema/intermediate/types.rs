@@ -2,6 +2,7 @@
 //! `IntermediateEnumValue`, `IntermediateScalar`, `IntermediateDeprecation`.
 
 use fraiseql_core::validation::ValidationRule;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use super::fragments::IntermediateAppliedDirective;
@@ -50,6 +51,25 @@ pub struct IntermediateType {
     /// `__schema` introspection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// Tenant/owner scoping declared on the type itself (#1142).
+    ///
+    /// The counterpart to [`sql_source`](Self::sql_source) above: a type carrying one is
+    /// an entity the `_entities` resolver reaches with no query behind it, so there is no
+    /// operation to carry `inject_params`. Before this key, such a type could declare
+    /// `requires_role` — honoured from the type since #1030 — but had nowhere to declare
+    /// tenant scoping, and the compile succeeded with the annotation covering nothing.
+    ///
+    /// Accepts the same two value shapes as the operation-level key (#806) and threads
+    /// through to `TypeDefinition.inject_params`, where both `_entities` consumers read it
+    /// behind the backing query. A type and its query declaring the same column from
+    /// different sources is refused when the compiled schema loads.
+    #[serde(
+        default,
+        with = "super::operations::inject_params_serde",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
+    pub inject_params: IndexMap<String, String>,
 
     /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

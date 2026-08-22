@@ -160,6 +160,7 @@ fn mutation_error_type() -> TypeDefinition {
         internal:            false,
         embedded:            false,
         relationships:       Vec::new(),
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
     }
 }

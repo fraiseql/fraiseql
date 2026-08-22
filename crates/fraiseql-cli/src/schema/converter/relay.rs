@@ -119,6 +119,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
             internal:            false,
             embedded:            false,
             relationships:       Vec::new(),
+            inject_params:       indexmap::IndexMap::new(),
             subscription_policy: None,
         };
         schema.types.push(page_info);
@@ -187,6 +188,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
                 internal:            false,
                 embedded:            false,
                 relationships:       Vec::new(),
+                inject_params:       indexmap::IndexMap::new(),
                 subscription_policy: None,
             });
         }
@@ -228,6 +230,7 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) -> anyhow::Result<
                 internal:            false,
                 embedded:            false,
                 relationships:       Vec::new(),
+                inject_params:       indexmap::IndexMap::new(),
                 subscription_policy: None,
             });
         }

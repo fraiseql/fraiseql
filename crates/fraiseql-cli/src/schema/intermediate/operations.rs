@@ -26,7 +26,7 @@ use super::types::IntermediateDeprecation;
 ///
 /// Serialization always emits the nested form, so a round-tripped intermediate schema is
 /// byte-comparable with SDK output.
-mod inject_params_serde {
+pub(super) mod inject_params_serde {
     use indexmap::IndexMap;
     use serde::{
         Deserialize, Deserializer, Serializer,

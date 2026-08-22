@@ -5309,6 +5309,41 @@ disagreed, and the promise was the part that was wrong.
   `RateLimitingSecurityConfig` has no field for it at all — so that is a schema-seam addition
   rather than a wiring change.
 
+- **A federation entity that no query returns can declare its own tenant/owner scoping
+  (#1142).** `inject_params` — the mechanism that carries scoping into a read — lived only on
+  an operation. An entity reachable only through `_entities`, with its relation supplied by
+  the type-level `sql_source`, has no operation to carry it, so there was nowhere to declare
+  tenant scoping at all. Its `requires_role` half *is* honoured from the type (#1030), which
+  is what made the gap easy to miss: the surrounding annotation looked like it covered the
+  entity, and on that path the tenancy half covered nothing — with no compile-time or
+  load-time signal. Deployments that scope tenants in the database kept their scoping
+  throughout; DB-native `current_setting()` RLS was unaffected. This was the declarative layer
+  quietly covering less than its author believed, not an authorization bypass.
+
+  `TypeDefinition.inject_params` gives the declaration a home, threaded TOML → CLI → core →
+  runtime. Both `_entities` consumers read it, which matters more than it looks: giving the
+  declaration a home and a deny gate but no per-row predicate would have refused anonymous
+  callers and then served *every* tenant's rows to an authenticated one. So the gate that
+  fails closed for an anonymous caller and the builder that composes the columnar
+  `"tenant_id" = $N` predicate both consult it — each behind the backing query, leaving
+  query-backed entities untouched.
+
+  Two rules keep the merge honest:
+
+  - A type and its backing query may declare the same column, but only from the same source.
+    Two different sources for one column is refused when the compiled schema loads, naming the
+    query, the type, the column and both sources — the treatment a conflicting `requires_role`
+    pair already gets. Merging could otherwise pick a winner silently.
+  - Under `[fraiseql.tenancy] mode = "row"`, a `@tenant_id`-annotated type that no query
+    returns now has the scoping auto-injected onto the type. Auto-injection previously reached
+    queries and mutations only, so the *primary* tenancy surface had the same hole as a
+    hand-written declaration. A type a query returns is deliberately left alone.
+
+  The compiled artefact gains an optional `inject_params` on types. It is empty by default and
+  omitted from the output when empty, so a schema that declares no type-level scoping compiles
+  to the same bytes as before. A `@tenant_id` type that no query returns does compile
+  differently now — it gains the declaration it was missing, which is the point.
+
 - **`error_sanitization` now reaches the database errors a client can actually trigger, on
   GraphQL and REST alike (#1153).** The sanitizer replaced a message only for
   `InternalServerError` and `DatabaseError`. #413 reclassifies SQLSTATE class 22 as

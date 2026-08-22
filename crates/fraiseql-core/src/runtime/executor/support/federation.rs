@@ -2,10 +2,13 @@
 
 use std::sync::Arc;
 
+use indexmap::IndexMap;
+
 use super::super::Executor;
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
+    schema::InjectedParamSource,
     security::SecurityContext,
 };
 
@@ -382,10 +385,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
 
             // inject_params (tenant/owner scoping): fail closed for anonymous callers —
-            // the resolver cannot apply the per-row filter. A queryless entity declares
-            // no inject params (it has nowhere to); its session variables are still
-            // applied, so DB-native `current_setting()` RLS covers it.
-            if qdef.is_some_and(|q| !q.inject_params.is_empty()) && security_context.is_none() {
+            // the resolver cannot apply the per-row filter. #1142: a queryless entity
+            // declares its scoping on the type, so the effective set merges both.
+            if !self.effective_inject_params(&rep.typename).is_empty() && security_context.is_none()
+            {
                 return Err(entities_authz_denied(&format!(
                     "type '{}' is tenant/owner-scoped but the _entities request is unauthenticated",
                     rep.typename
@@ -394,6 +397,36 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         Ok(())
+    }
+
+    /// The tenant/owner scoping in force for one entity type on the `_entities` path.
+    ///
+    /// The backing query's `inject_params`, plus the type's own
+    /// ([`TypeDefinition::inject_params`](crate::schema::TypeDefinition::inject_params),
+    /// #1142) for any column the query does not declare. An entity that no query returns —
+    /// its relation supplied by the type-level `sql_source` (#507) — has only the type's,
+    /// which before #1142 it had nowhere to declare at all.
+    ///
+    /// Load-time validation
+    /// ([`type_inject_violations`](crate::schema::CompiledSchema::type_inject_violations))
+    /// refuses a schema whose query and type declare the same column from *different*
+    /// sources, so this merge never silently picks a winner between two contradictory
+    /// declarations — at most one source is ever in play for a given column.
+    fn effective_inject_params(&self, typename: &str) -> IndexMap<String, InjectedParamSource> {
+        let mut params = self
+            .ctx
+            .schema
+            .queries
+            .iter()
+            .find(|q| q.return_type == typename && q.sql_source.is_some())
+            .map(|q| q.inject_params.clone())
+            .unwrap_or_default();
+        if let Some(t) = self.ctx.schema.types.iter().find(|t| t.name.as_str() == typename) {
+            for (column, source) in &t.inject_params {
+                params.entry(column.clone()).or_insert_with(|| source.clone());
+            }
+        }
+        params
     }
 
     /// Build the per-typename per-row enforcement predicates for the `_entities`
@@ -430,25 +463,27 @@ impl<A: DatabaseAdapter> Executor<A> {
             if filters.contains_key(&rep.typename) {
                 continue;
             }
-            let Some(qdef) = self
+            // #1142: a queryless entity has no `QueryDefinition` to source either the
+            // scoping or the column types from. Its scoping rides on the type; its
+            // `pg_cast` stays empty, exactly as it already does for a query-backed column
+            // absent from `native_columns` — the predicate targets a real column, so
+            // PostgreSQL infers the parameter's type from it.
+            let qdef = self
                 .ctx
                 .schema
                 .queries
                 .iter()
-                .find(|q| q.return_type == rep.typename && q.sql_source.is_some())
-            else {
-                continue;
-            };
-            if qdef.inject_params.is_empty() {
+                .find(|q| q.return_type == rep.typename && q.sql_source.is_some());
+            let inject_params = self.effective_inject_params(&rep.typename);
+            if inject_params.is_empty() {
                 continue;
             }
 
-            let mut conditions: Vec<WhereClause> = Vec::with_capacity(qdef.inject_params.len());
-            for (col, source) in &qdef.inject_params {
+            let mut conditions: Vec<WhereClause> = Vec::with_capacity(inject_params.len());
+            for (col, source) in &inject_params {
                 let value = super::super::resolve_inject_value(col, source, sc)?;
                 let pg_cast = qdef
-                    .native_columns
-                    .get(col)
+                    .and_then(|q| q.native_columns.get(col))
                     .map(|t| crate::runtime::native_columns::pg_type_to_cast(t).to_string())
                     .unwrap_or_default();
                 conditions.push(WhereClause::NativeField {

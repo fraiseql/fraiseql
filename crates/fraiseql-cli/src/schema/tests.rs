@@ -184,6 +184,7 @@ mod database_validator_tests {
             internal:            false,
             embedded:            false,
             relationships:       Vec::new(),
+            inject_params:       indexmap::IndexMap::new(),
             subscription_policy: None,
         }
     }
@@ -1912,6 +1913,7 @@ mod optimizer_tests {
                 internal:            false,
                 embedded:            false,
                 relationships:       Vec::new(),
+                inject_params:       indexmap::IndexMap::new(),
                 subscription_policy: None,
             }],
             enums: vec![],
@@ -1975,6 +1977,7 @@ mod optimizer_tests {
                 internal:            false,
                 embedded:            false,
                 relationships:       Vec::new(),
+                inject_params:       indexmap::IndexMap::new(),
                 subscription_policy: None,
             }],
             enums: vec![],
@@ -2048,6 +2051,7 @@ mod optimizer_tests {
                 internal:            false,
                 embedded:            false,
                 relationships:       Vec::new(),
+                inject_params:       indexmap::IndexMap::new(),
                 subscription_policy: None,
             }],
             enums: vec![],

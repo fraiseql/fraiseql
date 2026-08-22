@@ -65,6 +65,7 @@ fn test_detect_duplicate_query_names() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         queries: vec![
             IntermediateQuery {
@@ -138,6 +139,7 @@ fn test_warning_for_query_without_sql_source() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         queries: vec![IntermediateQuery {
             requires_actor:    Vec::new(),
@@ -191,6 +193,7 @@ fn test_valid_observer() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
@@ -264,6 +267,7 @@ fn test_observer_with_invalid_event() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
@@ -306,6 +310,7 @@ fn test_observer_with_invalid_action_type() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
@@ -348,6 +353,7 @@ fn test_observer_with_invalid_retry_config() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         observers: Some(vec![IntermediateObserver {
             name:      "onOrderCreated".to_string(),
@@ -386,6 +392,7 @@ fn test_query_injection_in_sql_source_rejected() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         queries: vec![IntermediateQuery {
             requires_actor:    Vec::new(),
@@ -434,6 +441,7 @@ fn test_query_schema_qualified_sql_source_passes() {
             embedded:               false,
             subscribable_tables:    None,
             subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
         }],
         queries: vec![IntermediateQuery {
             requires_actor:    Vec::new(),

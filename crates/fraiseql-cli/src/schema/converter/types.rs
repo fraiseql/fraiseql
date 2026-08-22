@@ -57,6 +57,20 @@ impl SchemaConverter {
             "data".to_string()
         };
 
+        // Type-level scoping for the entity no query returns (#1142). Parsed with the same
+        // function as the operation path, so an unsupported source is refused here too
+        // rather than compiling to a type that declares scoping and carries none.
+        let type_name = intermediate.name.clone();
+        let inject_params = intermediate
+            .inject_params
+            .into_iter()
+            .map(|(column, source)| {
+                let parsed = Self::parse_inject_source(&source)
+                    .with_context(|| format!("Type '{type_name}': inject param '{column}'"))?;
+                Ok((column, parsed))
+            })
+            .collect::<Result<indexmap::IndexMap<_, _>>>()?;
+
         Ok(TypeDefinition {
             name: intermediate.name.into(),
             fields,
@@ -71,6 +85,7 @@ impl SchemaConverter {
             embedded: intermediate.embedded,
             internal: false,
             relationships: Vec::new(),
+            inject_params,
             subscription_policy: None,
         })
     }

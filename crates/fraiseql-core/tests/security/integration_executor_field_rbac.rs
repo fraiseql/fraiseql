@@ -125,6 +125,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
     }
 }

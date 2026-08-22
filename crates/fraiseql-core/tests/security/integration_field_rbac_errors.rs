@@ -140,6 +140,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         internal:            false,
         embedded:            false,
         relationships:       vec![],
+        inject_params:       indexmap::IndexMap::new(),
         subscription_policy: None,
     };
 

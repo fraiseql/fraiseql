@@ -107,12 +107,36 @@ A GraphQL object type (e.g. `User`, `Post`).
 | `implements` | `string[]` | no | Interface names this type implements |
 | `requires_role` | `string?` | no | Role required for introspection/access |
 | `sql_source` | `string?` | no | Backing view; normally bound on the *query*, needed here only for an owner-split federation entity |
+| `inject_params` | `{[col]: source}` | no | Tenant/owner scoping for an entity **no query returns** (#1142). Same value shapes as the operation-level key. Consulted only on the `_entities` path, behind the backing query; see below |
 | `is_error` | `bool` | no | `true` if tagged with `@fraiseql.error` |
 | `is_input` | `bool` | no | `true` to declare a GraphQL **input** object; the compiler moves it into `input_types` and refuses `sql_source`/`relay`/`is_error`/`requires_role`/`implements` alongside it |
 | `relay` | `bool` | no | `true` if this type implements Relay `Node`. Load-bearing: it synthesizes the `Node` interface and the `Edge`/`Connection`/`PageInfo` types |
 | `embedded` | `bool` | no | `true` for a value object with no independent identity (#687) |
 | `subscribable_tables` | `string[]?` | no | Base tables whose external writes feed this type's subscriptions (#366) |
 | `subscribable_pre_image` | `bool` | no | Whether those capture triggers also record the pre-image |
+
+#### Scoping an entity no query returns (#1142)
+
+Tenant/owner scoping normally rides on the operation: a query declares `inject_params`, and
+every read through it carries the predicate. A federation entity resolved only through
+`_entities` — its relation supplied by the type-level `sql_source` above — has no such
+operation, so before this key its author could declare `requires_role` (honoured from the
+type) but had nowhere to declare tenant scoping. The compile succeeded and the annotation
+covered nothing on that path.
+
+Declaring `inject_params` on the type closes that. Both `_entities` consumers read it —
+the gate that refuses an anonymous caller, and the builder that composes the per-row
+`"tenant_id" = $N` predicate — each *behind* the backing query, so a query-backed entity is
+unaffected.
+
+Two rules follow from the merge:
+
+- A type and its backing query may declare the same column, but only from the **same**
+  source. Two different sources for one column is refused when the compiled schema loads,
+  naming the query, the type, the column and both sources.
+- With `[fraiseql.tenancy] mode = "row"`, a `@tenant_id`-annotated type that **no query
+  returns** has the scoping auto-injected onto the type, exactly as a query would get it.
+  A type a query returns is left alone — the query already carries it.
 
 ### `IntermediateField`
 
