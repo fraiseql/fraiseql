@@ -82,6 +82,11 @@ impl AuthMiddleware {
     /// expired, or does not match the expected issuer/audience.
     /// Returns `AuthError::KeyError` if the public key cannot be used for
     /// verification.
+    // Reason: the awaitable signature is this crate's seam for key material that
+    // has to be fetched — `jwks::JwksCache` refreshes over the network. Only the
+    // static-public-key path resolves without I/O, and narrowing the signature to
+    // it would have to be widened again by the first JWKS-backed validator.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn validate_token(&self, token: &str) -> Result<Claims> {
         self.validator.validate(token, &self.public_key)
     }

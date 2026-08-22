@@ -160,6 +160,9 @@ impl DatabaseAdapter for RelayMockAdapter {
 
 impl SupportsMutations for RelayMockAdapter {}
 
+// Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
+// A mock that answers from a fixture still has to present the awaited signature.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl RelayDatabaseAdapter for RelayMockAdapter {
     /// Keyset pagination with optional filter, sort, and totalCount.
     ///
@@ -475,7 +478,10 @@ async fn node_lookup_inherits_the_backing_querys_actor_allow_list() {
 async fn test_node_query_invalid_id_returns_error() {
     let exec = executor();
     let result = exec
-        .execute("query($id: ID!) { node(id: $id) { id } }", Some(&json!({"id": "not-valid-base64!!!"})))
+        .execute(
+            "query($id: ID!) { node(id: $id) { id } }",
+            Some(&json!({"id": "not-valid-base64!!!"})),
+        )
         .await;
 
     assert!(result.is_err(), "invalid node ID should return an error");
@@ -850,6 +856,9 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
 
 impl SupportsMutations for UuidRelayMockAdapter {}
 
+// Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
+// A mock that answers from a fixture still has to present the awaited signature.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl RelayDatabaseAdapter for UuidRelayMockAdapter {
     async fn execute_relay_page(
         &self,
@@ -1264,6 +1273,9 @@ mod relay_security {
 
     impl SupportsMutations for RecordingRelayAdapter {}
 
+    // Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
+    // A mock that answers from a fixture still has to present the awaited signature.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     impl RelayDatabaseAdapter for RecordingRelayAdapter {
         async fn execute_relay_page(
             &self,

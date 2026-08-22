@@ -393,17 +393,15 @@ impl FederationCircuitBreakerManager {
     /// feature without explanation.
     #[must_use]
     pub fn from_schema_json(federation_json: &serde_json::Value) -> Option<Arc<Self>> {
-        let cb_json: CircuitBreakerJson = match federation_json.get("circuit_breaker") {
-            None => return None,
-            Some(v) => match serde_json::from_value(v.clone()) {
-                Ok(j) => j,
-                Err(e) => {
-                    warn!(
-                        error = %e,
-                        "circuit_breaker config present but malformed — circuit breaker disabled"
-                    );
-                    return None;
-                },
+        let raw = federation_json.get("circuit_breaker")?;
+        let cb_json: CircuitBreakerJson = match serde_json::from_value(raw.clone()) {
+            Ok(j) => j,
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    "circuit_breaker config present but malformed — circuit breaker disabled"
+                );
+                return None;
             },
         };
 

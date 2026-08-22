@@ -99,7 +99,7 @@ async fn test_get_schema_for_observer_events() {
         let schema =
             arrow::ipc::root_as_message(&schema_result.schema).expect("Failed to decode schema");
         // Just verify we can decode it - detailed schema checks in unit tests
-        assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
+        assert_eq!(schema.header_type(), arrow::ipc::MessageHeader::Schema);
     })
     .await;
 }

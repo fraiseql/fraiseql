@@ -132,10 +132,14 @@ impl logging::Host for StoreData {
     }
 }
 
+// Reason: the `Host` traits are generated from the WIT world by wasmtime and are
+// async by construction. The signature is not ours to narrow, whatever any one
+// method's body ends up doing.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl context::Host for StoreData {
     async fn get_event_payload(&mut self) -> String {
         self.get_event_payload_json()
-            .unwrap_or_else(|e| format!("{{\"error\": \"{e}\"}}",))
+            .unwrap_or_else(|e| format!("{{\"error\": \"{e}\"}}"))
     }
 
     async fn get_auth_context(&mut self) -> Result<String, String> {

@@ -107,6 +107,9 @@ struct Rig {
 }
 
 impl Rig {
+    // Reason: builds the request rather than sending it, but sits alongside the rig's
+    // awaited helpers so every call site reads the same way.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn scim(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         self.client
             .request(method, format!("{}{path}", self.base))

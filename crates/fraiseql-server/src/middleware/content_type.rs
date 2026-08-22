@@ -21,6 +21,10 @@ use axum::{
 ///
 /// Returns a `415 Unsupported Media Type` response if the POST request does not carry a JSON
 /// `Content-Type`.
+// Reason: the `Err` variant IS the protocol's rejection value — it is returned to
+// the client verbatim. Boxing it to shrink the `Result` would add an allocation
+// on every rejection and force each `?` site to unbox what it is about to return.
+#[allow(clippy::result_large_err)]
 pub async fn require_json_content_type(
     req: Request<Body>,
     next: Next,

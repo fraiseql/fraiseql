@@ -563,7 +563,7 @@ mod debug_redaction_tests {
             !debug_output.contains(SECRET_REFRESH),
             "refresh_token leaked in Debug output: {debug_output}",
         );
-        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}",);
+        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}");
         // The non-sensitive fields should still be present for diagnosability.
         assert!(debug_output.contains("Bearer"));
         assert!(debug_output.contains("3600"));
@@ -601,7 +601,7 @@ mod debug_redaction_tests {
             !debug_output.contains(SECRET_ACCESS),
             "access_token leaked in Debug output: {debug_output}",
         );
-        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}",);
+        assert!(debug_output.contains("redacted"), "redaction marker missing: {debug_output}");
         assert!(debug_output.contains("Bearer"));
         assert!(debug_output.contains("1800"));
     }

@@ -267,7 +267,9 @@ impl PostgresAdvisoryLease {
     /// # Errors
     ///
     /// This function currently always returns `Ok`.
-    #[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
+    // Reason: trait/interface requires async signature. Beta splits this into a
+    // second lint name; both are named so the site survives the toolchain bump.
+    #[allow(unknown_lints, clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn time_remaining_ms(&self) -> Result<u64> {
         Ok(u64::MAX)
     }

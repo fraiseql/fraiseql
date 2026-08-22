@@ -330,7 +330,7 @@ pub fn apply_crop(img: &DynamicImage, spec: CropSpec, gravity: Gravity) -> Resul
         CropSpec::BBox { x, y, w, h } => {
             if x.saturating_add(w) > sw || y.saturating_add(h) > sh {
                 return Err(reject(
-                    format!("crop box {x},{y},{w},{h} lies outside the {sw}x{sh} source",),
+                    format!("crop box {x},{y},{w},{h} lies outside the {sw}x{sh} source"),
                     "crop",
                 ));
             }

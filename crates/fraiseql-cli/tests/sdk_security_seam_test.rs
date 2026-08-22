@@ -153,7 +153,7 @@ fn the_legacy_inject_key_is_refused_not_ignored() {
 
     let err = compile(&raw).expect_err("the legacy `inject` key must not compile silently");
 
-    assert!(err.contains("inject_params"), "the error must name the key to use, got: {err}",);
+    assert!(err.contains("inject_params"), "the error must name the key to use, got: {err}");
 }
 
 /// A malformed source string must be rejected, not silently carried.

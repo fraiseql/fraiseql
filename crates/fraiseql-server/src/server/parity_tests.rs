@@ -106,6 +106,9 @@ impl DatabaseAdapter for NoopRelayAdapter {
 
 impl SupportsMutations for NoopRelayAdapter {}
 
+// Reason: `RelayDatabaseAdapter` is async because real adapters query a database;
+// a no-op adapter used to construct a server still implements it.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl RelayDatabaseAdapter for NoopRelayAdapter {
     #[allow(clippy::too_many_arguments)] // Reason: mirrors the trait's full cursor/filter/sort signature
     async fn execute_relay_page(

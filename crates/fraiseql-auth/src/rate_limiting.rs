@@ -504,8 +504,7 @@ impl<C: Clock> KeyedRateLimiter<C> {
 /// This is a documentation-only reminder; it does not change runtime behaviour.
 pub fn warn_if_single_node_rate_limiting() {
     let should_warn = std::env::var("FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-        .unwrap_or(false);
+        .is_ok_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
     let has_backend = std::env::var("FRAISEQL_RATE_LIMIT_BACKEND").is_ok();
     if should_warn && !has_backend {
         tracing::warn!(

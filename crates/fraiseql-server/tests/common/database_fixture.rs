@@ -70,6 +70,9 @@ impl DatabaseFixture {
     }
 
     /// Check if database connection is available
+    // Reason: the fixture's other setup steps await; a placeholder connection check
+    // that stopped being awaitable would have to change back the moment it dials.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn check_connection(&self) -> Result<(), Box<dyn std::error::Error>> {
         // This would check if the database is available
         // For now, this is a placeholder - actual implementation depends on the database driver

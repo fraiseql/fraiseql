@@ -515,6 +515,9 @@ impl<A: DatabaseAdapter> AppState<A> {
     /// format version, a field marked for at-rest encryption (H12), a
     /// multi-tenant schema that cannot isolate its tenants under caching (#758),
     /// or boot-frozen configuration drift that requires a restart.
+    // Reason: one step of the awaited hot-reload sequence — `begin_reload` and the
+    // validation either side of it do I/O. The swap itself is a pointer store.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn swap_in_schema(
         &self,
         schema: CompiledSchema,

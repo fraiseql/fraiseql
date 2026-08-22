@@ -121,6 +121,10 @@ pub mod mocks {
     }
 
     impl SecretProvider for MockSecretProvider {
+        // Reason: a test double must keep the shape of the trait it stands in
+        // for; making this one synchronous would stop it exercising the `.await`
+        // its callers perform against a real provider.
+        #[allow(unknown_lints, clippy::unused_async_trait_impl)]
         async fn get_secret(&self, name: &str) -> Result<String> {
             self.secrets
                 .get(name)

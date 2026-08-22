@@ -86,7 +86,11 @@ impl MultiListenerCoordinator {
     ///
     /// This function currently always returns `Ok`; the `Result` return type is
     /// reserved for future validation.
-    #[allow(clippy::unused_async)] // Reason: trait/interface requires async signature
+    // Reason: trait/interface requires async signature — registration is bookkeeping
+    // today, but sits on the coordinator's awaited surface next to the calls that do
+    // talk to Postgres. Beta splits this into a second lint name; both are named so
+    // the site survives the toolchain bump.
+    #[allow(unknown_lints, clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn register_listener(&self, listener_id: String) -> Result<()> {
         let handle = Arc::new(ListenerHandle {
             listener_id:    listener_id.clone(),

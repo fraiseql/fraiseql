@@ -928,6 +928,10 @@ where
 // ---------------------------------------------------------------------------
 
 /// Read and parse a JSON request body.
+// Reason: the `Err` variant IS the protocol's rejection value — it is returned to
+// the client verbatim. Boxing it to shrink the `Result` would add an allocation
+// on every rejection and force each `?` site to unbox what it is about to return.
+#[allow(clippy::result_large_err)]
 async fn read_json_body(body: Body) -> Result<serde_json::Value, Response> {
     let Ok(bytes) = axum::body::to_bytes(body, 1_048_576).await else {
         return Err(error_response(

@@ -267,7 +267,7 @@ pub fn slowest(samples: &[ChangeLogSample], limit: usize) -> Vec<SlowSample> {
             })
         })
         .collect();
-    rows.sort_by(|a, b| b.duration_ms.cmp(&a.duration_ms));
+    rows.sort_by_key(|row| core::cmp::Reverse(row.duration_ms));
     rows.truncate(limit);
     rows
 }

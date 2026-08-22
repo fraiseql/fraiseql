@@ -52,14 +52,14 @@ use crate::{
 /// Default bound on how long after `created_at` a writing transaction may
 /// commit and still be caught by the cheap per-tick enqueue scan. Rows that
 /// commit later than this are only picked up by the periodic full sweep.
-const DEFAULT_COMMIT_LAG_WINDOW: Duration = Duration::from_secs(15 * 60);
+const DEFAULT_COMMIT_LAG_WINDOW: Duration = Duration::from_mins(15);
 
 /// Default tick period of the full recovery sweep (first tick always sweeps).
 const DEFAULT_SWEEP_EVERY: u64 = 256;
 
 /// Default claim lease: rows a dead worker left `in_flight` become claimable
 /// again after this long.
-const DEFAULT_LEASE: Duration = Duration::from_secs(10 * 60);
+const DEFAULT_LEASE: Duration = Duration::from_mins(10);
 
 /// Idempotent enqueue: materialise a `pending` tracking row for every new,
 /// matching outbox row visible in the recent window. An anti-join against the

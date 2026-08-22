@@ -3183,6 +3183,45 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The workspace is clean under `cargo +beta clippy`, so the next toolchain promotion is a
+  toolchain change and nothing else (#1163).** `clippy::pedantic` is `deny` workspace-wide, so
+  every beta finding becomes an error the day beta ships. The issue listed six. The real
+  figure was **around 150**, summed over ten measurement rounds — `cargo clippy` stops at the
+  first failing crate, so one run can only report the crates nothing else blocks, and the
+  original measurement saw what `fraiseql-auth` and `fraiseql-webhooks` reported and nothing
+  behind them. Sweeping with `--keep-going` and re-running to a fixed point was the only way
+  to learn the total, and the largest single round reported 56.
+
+  The bulk is `unused_async_trait_impl`, resolved at **49** annotation sites, and
+  `result_large_err` at **8**. The rest are mechanical: redundant `base64::Engine as _`
+  imports, `duration_suboptimal_units` (four sites #1121's sweep could not see, for the same
+  first-failing-crate reason), `map_unwrap_or`, `assert!`-with-equality, trailing commas,
+  `useless_format`, `sort_by_key`, `is_none_or`, `question_mark`, and a collapsible match arm.
+
+  The `unused_async_trait_impl` findings are **not** removed `async` keywords. Each site keeps
+  its signature under a scoped `#[allow]` with a stated reason, because in every case the
+  awaited signature is the contract and the body is the exception: `SecretProvider` is async
+  for the Vault and rotation backends it exists to serve, and both in-tree impls are a fixed
+  map and a mock; `PkceStateStore::cleanup_expired` is paired with an explicit
+  `cleanup_expired_sync` for callers that are not async; the storage backends' `presigned_url`
+  and `list` are awaited by `StorageBackend`'s enum dispatcher on **every** arm, so the
+  not-yet-implemented ones cannot narrow; the wasm `Host` traits are generated from the WIT
+  world and are async by construction. Dropping `async` would have been a breaking change that
+  the first real implementation reverses. Allows are placed on the `impl` block where a whole
+  block is affected, rather than repeated per method.
+
+  Likewise the `result_large_err` sites: the `Err` variant there **is** the protocol's
+  rejection value — an `axum::Response`, a `CallToolResult`, a `tonic` response — returned to
+  the client verbatim. Boxing it would add an allocation per rejection and force each `?` site
+  to unbox what it is about to return.
+
+  ⚠ Every new allow names `unknown_lints` alongside the lint:
+  `#[allow(unknown_lints, clippy::unused_async_trait_impl)]`. The lint does not exist on the
+  pinned toolchain, and without that the sweep that makes beta green makes **stable** red.
+
+  Verified clean on both: `cargo clippy` and `cargo +beta clippy`, each
+  `--workspace --all-targets --all-features --keep-going -- -D warnings`, exit 0.
+
 - **The suite-coverage gate reads GitHub Actions too, so four exemptions became checks
   (#1120).** The gate discovered what runs by parsing `.dagger/main.go` and nothing else. The
   four `fraiseql-codegen::client_*_consumer` suites shell out to language toolchains and the

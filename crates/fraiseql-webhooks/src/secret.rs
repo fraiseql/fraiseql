@@ -36,6 +36,10 @@ impl StaticSecretProvider {
 }
 
 impl SecretProvider for StaticSecretProvider {
+    // Reason: `SecretProvider` is async for the rotation and Vault backends it
+    // exists to serve — see this module's header. A fixed in-memory map is the
+    // degenerate implementation, not evidence the trait should be synchronous.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn get_secret(&self, name: &str) -> Result<String> {
         self.secrets
             .get(name)

@@ -32,6 +32,11 @@ struct ParityHost {
     event: EventPayload,
 }
 
+// Reason: `HostContext` is async because the live implementation performs I/O —
+// GraphQL queries, HTTP calls, secret lookups. Impls whose methods refuse or
+// answer from memory still have to present the awaited signature the trait
+// defines and every guest call site uses.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl crate::HostContext for ParityHost {
     async fn query(
         &self,

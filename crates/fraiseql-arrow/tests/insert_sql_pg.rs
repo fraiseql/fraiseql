@@ -195,7 +195,7 @@ async fn generated_insert_executes_and_round_trips_every_type() {
         "c_i8", "c_i16", "c_i32", "c_i64", "c_u8", "c_u16", "c_u32", "c_text", "c_large",
     ] {
         assert!(
-            r.try_get::<Option<String>, _>(col).map(|v| v.is_none()).unwrap_or(true),
+            r.try_get::<Option<String>, _>(col).map_or(true, |v| v.is_none()),
             "column {col} must be NULL in the all-NULL row"
         );
     }

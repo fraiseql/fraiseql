@@ -38,6 +38,9 @@ struct StubCursorStore {
     snapshot: CursorSnapshot,
 }
 
+// Reason: an in-memory stub of a store whose real implementation is a database
+// round-trip.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl SourceCursorStore for StubCursorStore {
     async fn load(&self, _source: &str) -> ObsResult<CursorSnapshot> {
         Ok(self.snapshot.clone())
@@ -70,6 +73,8 @@ impl Source for StubPullSource {
     }
 }
 
+// Reason: a stub of a source whose real implementations poll IMAP and HTTP.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl PullSource for StubPullSource {
     async fn poll(&self, _ctx: &PullContext) -> std::result::Result<PullBatch, IngestError> {
         self.poll_result.clone()
@@ -97,6 +102,8 @@ impl StubIngestSink {
     }
 }
 
+// Reason: a stub of a sink whose real implementation writes to Postgres.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl IngestSink for StubIngestSink {
     async fn ingest(
         &self,

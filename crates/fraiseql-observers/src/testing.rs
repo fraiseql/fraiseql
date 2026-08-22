@@ -139,6 +139,9 @@ pub mod mocks {
     }
 
     impl EventSource for MockEventSource {
+        // Reason: a test double must keep the shape of the async trait it stands in for;
+        // a real EventSource awaits its transport.
+        #[allow(unknown_lints, clippy::unused_async_trait_impl)]
         async fn next_event(&mut self) -> Option<EntityEvent> {
             self.events.lock().unwrap().pop_front()
         }
@@ -189,6 +192,9 @@ pub mod mocks {
     }
 
     impl ActionExecutor for MockActionExecutor {
+        // Reason: as above — a mock executor that stopped being async would no longer
+        // exercise the `.await` its callers perform against the real one.
+        #[allow(unknown_lints, clippy::unused_async_trait_impl)]
         async fn execute(
             &self,
             _event: &EntityEvent,

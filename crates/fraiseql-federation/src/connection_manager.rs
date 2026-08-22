@@ -192,6 +192,10 @@ impl ConnectionManager {
     /// connection strategy is not yet production-ready; enable the feature only
     /// in development or testing environments.
     #[cfg(feature = "unstable")]
+    // Reason: creating a remote connection is I/O by contract; only the cache-hit
+    // path short-circuits without awaiting. A synchronous signature would have to
+    // be widened again by the first adapter that dials on construction.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn get_or_create_connection(
         &self,
         config: RemoteDatabaseConfig,

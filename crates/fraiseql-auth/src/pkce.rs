@@ -546,6 +546,10 @@ impl PkceStateStore {
     /// No-op for the Redis backend — Redis TTL handles expiry automatically.
     /// Call from a background task on a fixed interval for the in-memory
     /// backend to reclaim memory and free capacity below `MAX_PKCE_ENTRIES`.
+    // Reason: deliberately awaitable, and paired with `cleanup_expired_sync` for
+    // callers that are not. The Redis arm is a no-op only because Redis expires
+    // its own keys; a backend that had to issue the sweep would await here.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn cleanup_expired(&self) {
         match self {
             Self::InMemory(s) => s.cleanup_expired_sync(),

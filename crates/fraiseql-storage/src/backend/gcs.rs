@@ -648,6 +648,10 @@ impl GcsBackend {
     ///
     /// Returns `FraiseQLError::File(FileError::NotImplemented)` as V4 signing
     /// is not yet implemented.
+    // Reason: `StorageBackend`'s enum dispatcher awaits this method on EVERY
+    // backend arm, so the signature is fixed by the surface, not by this body.
+    // V4 signed URLs are not implemented yet; the S3 arm does await.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         // GCS V4 signed URLs require the service account private key and a
         // complex canonical-request construction.  This is planned but not yet
@@ -664,6 +668,10 @@ impl GcsBackend {
     ///
     /// Returns `FraiseQLError::File(FileError::NotImplemented)` since list
     /// is not yet implemented for GCS.
+    // Reason: `StorageBackend`'s enum dispatcher awaits this method on EVERY
+    // backend arm, so the signature is fixed by the surface, not by this body.
+    // listing is not implemented yet; the S3 and local arms do await.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn list(
         &self,
         _prefix: &str,

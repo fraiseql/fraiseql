@@ -66,6 +66,9 @@ impl CdcSink for StubSink {
         self.config.matches(ev)
     }
 
+    // Reason: a stub sink for the drain tests; `CdcSink` is async because real sinks
+    // (Kafka, Kinesis, webhooks) publish over the network.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn publish(&self, ev: &ChangeEvent) -> PublishOutcome {
         let mode = *self.mode.lock().unwrap();
         match mode {
@@ -264,6 +267,9 @@ impl CdcSink for SelectiveSink {
         self.config.matches(ev)
     }
 
+    // Reason: a stub sink for the drain tests; `CdcSink` is async because real sinks
+    // (Kafka, Kinesis, webhooks) publish over the network.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn publish(&self, ev: &ChangeEvent) -> PublishOutcome {
         if self.fail_seqs.lock().unwrap().contains(&ev.seq) {
             return PublishOutcome::Transient("stub ack timeout".to_owned());

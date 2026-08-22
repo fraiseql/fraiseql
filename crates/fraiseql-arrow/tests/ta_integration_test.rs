@@ -110,7 +110,7 @@ async fn test_get_schema_for_ta_orders() {
         // Decode and verify schema structure
         let schema =
             root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_orders");
-        assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
+        assert_eq!(schema.header_type(), arrow::ipc::MessageHeader::Schema);
 
         // Verify schema fields match ta_orders definition
         if schema.header_type() == arrow::ipc::MessageHeader::Schema {
@@ -158,7 +158,7 @@ async fn test_get_schema_for_ta_users() {
         // Decode and verify schema structure
         let schema =
             root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_users");
-        assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
+        assert_eq!(schema.header_type(), arrow::ipc::MessageHeader::Schema);
 
         println!("ta_users schema successfully retrieved and decoded");
     })

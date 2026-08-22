@@ -383,7 +383,7 @@ fn csv_null_becomes_empty_cell() {
     let body = render_csv(&rows, &cols, b',', false);
     let s = String::from_utf8(body).unwrap();
     // Empty cell between the comma and the line break.
-    assert!(s.lines().nth(1) == Some("1,"));
+    assert_eq!(s.lines().nth(1), Some("1,"));
 }
 
 #[test]
@@ -393,7 +393,7 @@ fn csv_missing_field_becomes_empty_cell() {
     let cols = vec!["id".to_string(), "name".to_string()];
     let body = render_csv(&rows, &cols, b',', false);
     let s = String::from_utf8(body).unwrap();
-    assert!(s.lines().nth(1) == Some("1,"));
+    assert_eq!(s.lines().nth(1), Some("1,"));
 }
 
 #[test]

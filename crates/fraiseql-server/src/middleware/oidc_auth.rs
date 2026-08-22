@@ -151,6 +151,10 @@ fn revocation_rejected_response(rejection: &TokenRejection) -> Response {
 /// They had independent code before #1112, and only one of them checked anything — so
 /// `[security.token_revocation]`, which is auth-mode independent, was silently inert
 /// under `[auth_hs256]` while Studio's "revoke all sessions" reported success.
+// Reason: the `Err` variant IS the protocol's rejection value — it is returned to
+// the client verbatim. Boxing it to shrink the `Result` would add an allocation
+// on every rejection and force each `?` site to unbox what it is about to return.
+#[allow(clippy::result_large_err)]
 pub(crate) async fn check_revocation(
     revocation: Option<&Arc<TokenRevocationManager>>,
     user: &AuthenticatedUser,
@@ -359,6 +363,10 @@ fn extract_bearer_or_cookie(headers: &axum::http::HeaderMap) -> TokenExtraction 
 /// plane; honouring it on the admin plane is exactly the H5 bypass this layer closes
 /// (an admin router silently un-authed whenever a deployment runs with optional data
 /// auth).
+// Reason: the `Err` variant IS the protocol's rejection value — it is returned to
+// the client verbatim. Boxing it to shrink the `Result` would add an allocation
+// on every rejection and force each `?` site to unbox what it is about to return.
+#[allow(clippy::result_large_err)]
 async fn authenticate_required(
     auth_state: &OidcAuthState,
     request: &mut Request<Body>,

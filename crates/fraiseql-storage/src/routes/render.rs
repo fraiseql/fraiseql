@@ -154,6 +154,11 @@ fn validation_response(error: &fraiseql_error::FraiseQLError) -> Response {
 ///
 /// Text watermarks need the bucket's `watermark_font`; a bucket without one
 /// refuses by name rather than rendering in some substitute typeface.
+// Reason: on this path a rejection IS an `axum::Response` — every `Err` here is
+// returned to the client verbatim. Boxing it to shrink the variant would add an
+// allocation per rejection and force each `?` site to unbox something it is about
+// to return anyway.
+#[allow(clippy::result_large_err)]
 async fn resolve_watermark(
     state: &StorageState,
     bucket: &crate::config::BucketConfig,

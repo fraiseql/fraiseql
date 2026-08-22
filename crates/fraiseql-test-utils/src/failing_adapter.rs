@@ -436,6 +436,9 @@ impl DatabaseAdapter for FailingAdapter {
 impl SupportsMutations for FailingAdapter {}
 
 impl RelayDatabaseAdapter for FailingAdapter {
+    // Reason: this adapter exists to fail fast without touching a database; the trait
+    // it implements is async because real adapters are.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn execute_relay_page<'a>(
         &'a self,
         view: &'a str,

@@ -225,6 +225,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// configuration is otherwise invalid. In development such a selection is
     /// downgraded to a warning and the runtime falls back to PostgreSQL.
     #[cfg(feature = "observers")]
+    // Reason: one of the `init_*` family the boot sequence awaits uniformly; the
+    // other members connect to their transports.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub(super) async fn init_observer_runtime(
         config: &ServerConfig,
         pool: Option<&sqlx::PgPool>,

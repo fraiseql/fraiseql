@@ -321,7 +321,7 @@ impl JwksCache {
 impl std::fmt::Debug for JwksCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Reason: poisoned lock during Debug formatting → degrade gracefully to 0.
-        let key_count = self.keys.read().map(|k| k.len()).unwrap_or(0);
+        let key_count = self.keys.read().map_or(0, |k| k.len());
         f.debug_struct("JwksCache")
             .field("jwks_uri", &self.jwks_uri)
             .field("ttl", &self.ttl)

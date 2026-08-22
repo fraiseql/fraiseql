@@ -201,6 +201,9 @@ impl DatabaseAdapter for RecordingAdapter {
 
 impl SupportsMutations for RecordingAdapter {}
 
+// Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
+// A mock that answers from a fixture still has to present the awaited signature.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl RelayDatabaseAdapter for RecordingAdapter {
     async fn execute_relay_page(
         &self,

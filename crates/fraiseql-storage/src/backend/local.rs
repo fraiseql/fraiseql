@@ -390,6 +390,10 @@ impl LocalBackend {
     ///
     /// Returns `FraiseQLError::File(FileError::Unsupported)` because presigned URLs
     /// are not supported by the local backend.
+    // Reason: `StorageBackend`'s enum dispatcher awaits this method on EVERY
+    // backend arm, so the signature is fixed by the surface, not by this body.
+    // local storage refuses presigned URLs outright; the S3 arm does await.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         Err(FraiseQLError::File(FileError::Unsupported {
             message: "Presigned URLs are not supported for local storage".to_string(),

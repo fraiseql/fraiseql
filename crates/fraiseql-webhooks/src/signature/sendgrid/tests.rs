@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use base64::{Engine as _, engine::general_purpose};
+use base64::engine::general_purpose;
 
 use super::*;
 

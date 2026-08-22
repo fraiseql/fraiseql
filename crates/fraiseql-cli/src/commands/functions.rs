@@ -402,6 +402,9 @@ impl RecordingHost {
     }
 }
 
+// Reason: `HostContext` is async because the live implementation performs I/O; a
+// recording host used to dry-run a function still presents the awaited signature.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl HostContext for RecordingHost {
     async fn query(
         &self,

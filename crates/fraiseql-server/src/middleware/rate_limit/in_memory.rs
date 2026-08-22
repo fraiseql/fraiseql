@@ -32,6 +32,10 @@ pub struct InMemoryRateLimiter {
     pub(super) tenant_buckets:  Arc<DashMap<String, TokenBucket>>,
 }
 
+// Reason: mirrors the Redis-backed limiter's awaited surface so the call sites
+// in `middleware_fn` are backend-agnostic. In-memory buckets resolve without
+// I/O; the distributed backend does not.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl InMemoryRateLimiter {
     /// Create new in-memory rate limiter.
     pub(super) fn new(config: RateLimitConfig) -> Self {

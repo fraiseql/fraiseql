@@ -246,6 +246,9 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// # Errors
     ///
     /// Always returns [`fraiseql_error::FraiseQLError::Internal`].
+    // Reason: part of the executor's awaitable mutation surface, alongside the
+    // variants that do dial a subgraph. Callers dispatch across all of them.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn execute_extended_mutation(
         &self,
         typename: &str,

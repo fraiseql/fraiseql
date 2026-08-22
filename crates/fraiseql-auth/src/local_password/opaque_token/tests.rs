@@ -1,6 +1,6 @@
 //! Unit tests for the selector + verifier opaque-token codec (no database).
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 use super::*;
 use crate::error::AuthError;

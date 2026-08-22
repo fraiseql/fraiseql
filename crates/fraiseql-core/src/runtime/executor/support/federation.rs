@@ -35,6 +35,9 @@ impl<A: DatabaseAdapter> Executor<A> {
     }
 
     /// Execute _service query returning federation SDL.
+    // Reason: one arm of the awaited `_service`/`_entities` dispatch above; SDL
+    // generation happens to be in-memory while entity resolution is not.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn execute_service_query(&self) -> Result<serde_json::Value> {
         // Get federation metadata from schema
         let fed_metadata =

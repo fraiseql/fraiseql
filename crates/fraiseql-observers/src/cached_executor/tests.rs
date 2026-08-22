@@ -30,6 +30,9 @@ impl TestExecutor {
     }
 }
 
+// Reason: `ActionExecutor` is async because real executors dispatch over the
+// network; a test executor recording calls in memory still implements it.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl ActionExecutor for TestExecutor {
     async fn execute(&self, _event: &EntityEvent, _action: &ActionConfig) -> Result<ActionResult> {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

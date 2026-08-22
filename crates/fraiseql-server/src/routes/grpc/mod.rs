@@ -379,6 +379,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
     /// The caller pre-extracts `auth_header` and `request_id` from the HTTP
     /// request *before* any `.await`, so that `http::Request<TonicBody>` (which
     /// is not `Sync`) need not be held across the token-validation await point.
+    // Reason: the `Err` variant IS the protocol's rejection value — it is returned to
+    // the client verbatim. Boxing it to shrink the `Result` would add an allocation
+    // on every rejection and force each `?` site to unbox what it is about to return.
+    #[allow(clippy::result_large_err)]
     async fn authenticate(
         &self,
         auth_header: Option<String>,

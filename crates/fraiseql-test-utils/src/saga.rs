@@ -127,6 +127,9 @@ pub struct TestSagaExecutor {
     fail_step:         Option<usize>,
 }
 
+// Reason: mirrors the real saga executor's awaited surface; the test executor
+// resolves without I/O only because it is a test executor.
+#[allow(unknown_lints, clippy::unused_async_trait_impl)]
 impl TestSagaExecutor {
     /// Create a new test saga executor
     #[must_use]

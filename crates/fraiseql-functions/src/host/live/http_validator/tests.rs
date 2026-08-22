@@ -231,8 +231,8 @@ async fn test_built_client_disables_redirects() {
 
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(std::time::Duration::from_millis(5000))
-        .timeout(std::time::Duration::from_millis(30000))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .unwrap();
 

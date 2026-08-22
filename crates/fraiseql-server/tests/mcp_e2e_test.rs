@@ -127,7 +127,7 @@ fn mcp_e2e_server_info_and_capabilities() {
 
     // Server should advertise tool capabilities
     let caps = info.capabilities;
-    assert!(caps.tools.is_some(), "Server should advertise tools capability",);
+    assert!(caps.tools.is_some(), "Server should advertise tools capability");
 }
 
 // ===========================================================================
@@ -142,7 +142,7 @@ fn mcp_e2e_tool_listing_from_schema() {
     let tool_list = tools::schema_to_tools(&schema, &config);
 
     // Should have at least 2 tools: users (query) + createUser (mutation)
-    assert!(tool_list.len() >= 2, "Expected at least 2 tools, got {}", tool_list.len(),);
+    assert!(tool_list.len() >= 2, "Expected at least 2 tools, got {}", tool_list.len());
 
     // Verify the `users` query tool
     let users_tool = tool_list.iter().find(|t| t.name == "users").expect("users tool not found");
@@ -159,7 +159,7 @@ fn mcp_e2e_tool_listing_from_schema() {
     let required = users_tool.input_schema.get("required");
     if let Some(req) = required {
         let arr = req.as_array().unwrap();
-        assert!(!arr.iter().any(|v| v.as_str() == Some("limit")), "limit should not be required",);
+        assert!(!arr.iter().any(|v| v.as_str() == Some("limit")), "limit should not be required");
     }
 
     // Verify the `createUser` mutation tool
@@ -304,10 +304,10 @@ async fn mcp_e2e_tool_call_undeclared_argument_name() {
     )
     .await;
 
-    assert_eq!(result.is_error, Some(true), "Expected is_error for injection attempt",);
+    assert_eq!(result.is_error, Some(true), "Expected is_error for injection attempt");
 
     let text = format!("{:?}", result.content);
-    assert!(text.contains("Unknown argument"), "Expected injection rejection: {text}",);
+    assert!(text.contains("Unknown argument"), "Expected injection rejection: {text}");
 }
 
 /// Calling a mutation tool also works through the executor.

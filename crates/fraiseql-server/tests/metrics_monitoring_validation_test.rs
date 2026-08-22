@@ -258,10 +258,8 @@ mod metrics_monitoring_tests {
                         pool_depth.store(current + 1, Ordering::Relaxed);
                     }
                 },
-                "release" => {
-                    if current > 0 {
-                        pool_depth.store(current - 1, Ordering::Relaxed);
-                    }
+                "release" if current > 0 => {
+                    pool_depth.store(current - 1, Ordering::Relaxed);
                 },
                 _ => {},
             }

@@ -293,6 +293,10 @@ impl SagaRecoveryManager {
     /// manager.stop_background_loop().await?;
     /// // Loop stops after current iteration
     /// ```
+    // Reason: the paired half of `start_background_loop`; both are awaited by the
+    // same lifecycle callers, and stopping is a flag flip only because the loop
+    // observes it rather than being joined here.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn stop_background_loop(&self) -> SagaStoreResult<()> {
         if self
             .running
@@ -499,6 +503,9 @@ impl SagaRecoveryManager {
     /// # Errors
     ///
     /// Returns [`SagaStoreError::Database`] if the loop is already running.
+    // Reason: spawns the recovery loop rather than awaiting it, but is part of the
+    // awaited lifecycle surface — see `stop_background_loop`.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn start_background_loop<A>(
         self: Arc<Self>,
         executor: Arc<FederationMutationExecutor<A>>,

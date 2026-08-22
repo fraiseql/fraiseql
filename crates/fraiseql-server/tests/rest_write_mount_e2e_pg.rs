@@ -85,19 +85,17 @@ async fn seed(adapter: &PostgresAdapter) {
         // created it — which is green until the run order changes or the volume is reset,
         // and is not a property CI can depend on. `make db-reset` reproduces the failure
         // exactly (SQLSTATE 3F000, invalid_schema_name).
-        format!("CREATE SCHEMA IF NOT EXISTS app"),
-        format!(
-            "DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',\
+        "CREATE SCHEMA IF NOT EXISTS app".to_string(),
+        "DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',\
          'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',\
          'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"
-        ),
-        format!(
-            "DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed \
+            .to_string(),
+        "DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed \
          BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status \
          SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB, \
          updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB); \
          EXCEPTION WHEN duplicate_object THEN NULL; END $$"
-        ),
+            .to_string(),
         format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"),
         format!("CREATE SCHEMA {SCHEMA}"),
         format!(

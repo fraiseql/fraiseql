@@ -20,6 +20,9 @@ mod concurrent_tests {
     #[derive(Clone)]
     struct TestExecutor;
 
+    // Reason: `ActionExecutor` is async because real executors dispatch over the
+    // network; a test executor recording calls in memory still implements it.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     impl ActionExecutor for TestExecutor {
         async fn execute(
             &self,
@@ -97,6 +100,9 @@ mod concurrent_tests {
     #[derive(Clone)]
     struct FailingExecutor;
 
+    // Reason: `ActionExecutor` is async because real executors dispatch over the
+    // network; a test executor recording calls in memory still implements it.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     impl ActionExecutor for FailingExecutor {
         async fn execute(
             &self,

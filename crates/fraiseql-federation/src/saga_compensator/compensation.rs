@@ -68,7 +68,7 @@ pub(super) fn compensation_order(steps: &[SagaStep]) -> Vec<&SagaStep> {
     let mut completed: Vec<&SagaStep> =
         steps.iter().filter(|step| step.state == StepState::Completed).collect();
     // Reverse execution order: undo the most recently completed step first.
-    completed.sort_by(|a, b| b.order.cmp(&a.order));
+    completed.sort_by_key(|step| core::cmp::Reverse(step.order));
     completed
 }
 

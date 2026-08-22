@@ -66,7 +66,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
 
             // Check @key presence
             let keys = fed_type.get("keys").and_then(|v| v.as_array());
-            if keys.is_none() || keys.is_some_and(|k| k.is_empty()) {
+            if keys.is_none_or(|k| k.is_empty()) {
                 errors.push(format!("Type '{name}' has no @key directive"));
             }
 
@@ -74,7 +74,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
             if let Some(keys) = keys {
                 for key in keys {
                     let fields = key.get("fields").and_then(|v| v.as_array());
-                    if fields.is_none() || fields.is_some_and(|f| f.is_empty()) {
+                    if fields.is_none_or(|f| f.is_empty()) {
                         errors.push(format!("Type '{name}' has @key with no fields"));
                     }
 

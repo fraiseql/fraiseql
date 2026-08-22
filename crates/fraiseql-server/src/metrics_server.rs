@@ -388,7 +388,7 @@ impl OperationMetricsRegistry {
         );
         for (name, _, _, error_count, _) in &entries {
             let _ =
-                writeln!(out, "fraiseql_query_errors_total{{operation=\"{name}\"}} {error_count}",);
+                writeln!(out, "fraiseql_query_errors_total{{operation=\"{name}\"}} {error_count}");
         }
 
         out

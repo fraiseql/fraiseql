@@ -615,6 +615,10 @@ async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 /// Execute one batch through the SAME executor entry points the buffered
 /// transport uses — GATE-1, authorization, RLS session variables and the result
 /// cache all re-apply per batch. No second execution path.
+// Reason: the `Err` variant IS the protocol's rejection value — it is returned to
+// the client verbatim. Boxing it to shrink the `Result` would add an allocation
+// on every rejection and force each `?` site to unbox what it is about to return.
+#[allow(clippy::result_large_err)]
 async fn run_batch<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: &AppState<A>,
     tenant_key: Option<&str>,

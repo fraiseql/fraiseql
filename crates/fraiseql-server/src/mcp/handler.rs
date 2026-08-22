@@ -190,6 +190,10 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     ///   `require_auth` demand a context.
     /// - `Ok(Some(ctx))` — the token validated successfully.
     /// - `Err(result)` — a token was present but invalid or expired.
+    // Reason: the `Err` variant IS the protocol's rejection value — it is returned to
+    // the client verbatim. Boxing it to shrink the `Result` would add an allocation
+    // on every rejection and force each `?` site to unbox what it is about to return.
+    #[allow(clippy::result_large_err)]
     async fn authenticate(
         &self,
         token: Option<String>,

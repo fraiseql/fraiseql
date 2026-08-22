@@ -81,6 +81,9 @@ mod database_validator_tests {
         }
     }
 
+    // Reason: `DatabaseIntrospector` is async because the real one queries the catalog;
+    // a mock answering from a fixture still implements it.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     impl DatabaseIntrospector for MockIntrospector {
         async fn list_fact_tables(&self) -> fraiseql_core::Result<Vec<String>> {
             Ok(Vec::new())

@@ -686,6 +686,10 @@ impl AzureBackend {
     ///
     /// Returns `FraiseQLError::File(FileError::NotImplemented)` as SAS token
     /// generation is not yet implemented.
+    // Reason: `StorageBackend`'s enum dispatcher awaits this method on EVERY
+    // backend arm, so the signature is fixed by the surface, not by this body.
+    // SAS-token signing is not implemented yet; the S3 arm does await.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         // Azure presigned access uses SAS (Shared Access Signature) tokens,
         // which require HMAC signing of the resource path, permissions, and
@@ -704,6 +708,10 @@ impl AzureBackend {
     ///
     /// Returns `FraiseQLError::File(FileError::NotImplemented)` since list
     /// is not yet implemented for Azure Blob.
+    // Reason: `StorageBackend`'s enum dispatcher awaits this method on EVERY
+    // backend arm, so the signature is fixed by the surface, not by this body.
+    // listing is not implemented yet; the S3 and local arms do await.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn list(
         &self,
         _prefix: &str,

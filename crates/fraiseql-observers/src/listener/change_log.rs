@@ -138,7 +138,7 @@ pub struct ChangeLogListenerConfig {
 /// Default bound on how long after `created_at` a writing transaction may commit
 /// and still be caught by the cheap per-poll scan. Matches the cdc drain's
 /// window (#797), which solves the identical ordering problem.
-const DEFAULT_COMMIT_LAG_WINDOW: Duration = Duration::from_secs(15 * 60);
+const DEFAULT_COMMIT_LAG_WINDOW: Duration = Duration::from_mins(15);
 
 /// Default poll period of the full recovery sweep (the first poll always sweeps).
 const DEFAULT_SWEEP_EVERY: u64 = 256;
