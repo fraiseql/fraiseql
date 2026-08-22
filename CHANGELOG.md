@@ -4611,6 +4611,41 @@ disagreed, and the promise was the part that was wrong.
   workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
   since v2.14.1, was already in the publish list and is unaffected.
 
+- **The orphaned lint harness is gone, and the crate-size budget it hid is now enforced
+  (#1055, #990).** `tools/lint.sh` presented itself as the repo's lint bundle. No Makefile
+  target, no Dagger function and no workflow ever invoked it — its own header pointed at a
+  `make lint` that does not exist, and `git log -S` shows it was never wired at any point.
+  Run on clean trunk it reported three failures, all defects of the script rather than of the
+  repo: a stale `ASYNC_TRAIT_LIMIT` of 160 against the authoritative 197, a
+  `dep-gate-federation-server` check that matched the words "already established in
+  `fraiseql-server`" in a doc comment, and the crate-size budget.
+
+  Six of its nine checks were stale duplicates of gates that do run as `make lint-*` targets,
+  so deleting it loses nothing there — and a duplicate carrying a drifted limit is worse than
+  no duplicate, since it fails on trunk and trains the reader to ignore it. Of the three
+  checks unique to it:
+
+  - **`crate-sizes` is kept and wired** into `preflight` and the ShellGates leg. `Cargo.toml`
+    had claimed for its whole life that the budget was "enforced by tools/check-crate-sizes.sh
+    in CI"; it was enforced nowhere, and the table had stopped describing the workspace in
+    *both* directions. Four crates were over budget — `fraiseql-server` by 91% (105 420 against
+    55 000) — and five crates had no budget row at all and were silently skipped, three of them
+    above 16 000 lines. Budgets are re-baselined at roughly 20% above current, every crate has
+    one, and a crate with a `src/` directory and no row is now a failure rather than a skip, so
+    the next crate cannot arrive unmeasured. Stated honestly, this is a runaway-growth ratchet,
+    not the "must be split before merging" mandate the old comment claimed and nothing ever
+    performed. The dead `.remediation_2/batches/batch-5-crate-split.md` pointer is removed.
+  - **`sql-helpers-sync` becomes a Rust test.** It compared the canonical
+    `sql/helpers/mutation_response.sql` against the copy `fraiseql-cli` embeds with
+    `include_str!`. The two are identical today, so this was a latent anti-drift hole rather
+    than a live failure — but its sibling contract already had exactly this guard as a real
+    test (`changelog_contract_matches_observers_migration`), which is why the shell copy was
+    the only coverage for this one. It now lives beside it as
+    `mutation_response_matches_canonical_copy`.
+  - **`dep-gate-federation-server` is dropped.** A `fraiseql-federation` → `fraiseql-server`
+    dependency is a cargo cycle the compiler rejects in every leg that builds, so the grep
+    could only ever produce false positives — which is what it did.
+
 - **preflight now compiles the default feature set, which no gate in it ever did (#1101).**
   Every Rust gate in the required preflight check is `--all-features`: `clippy`, `rustdoc`,
   and the local `make` mirror of both. `--all-features` cannot, by construction, compile a

@@ -1,15 +1,36 @@
 #!/usr/bin/env bash
-# check-crate-sizes.sh — Fail if any workspace crate exceeds its line-count budget.
+# check-crate-sizes.sh — Fail if any workspace crate exceeds its line-count budget,
+# or has no budget at all.
 #
 # Budget values are read from [workspace.metadata.crate-size-budget] in the
 # root Cargo.toml. Lines are counted across all *.rs files under each crate's
-# src/ directory.
+# src/ directory — which includes unit-test modules (`src/**/tests.rs`), so the
+# number is the size of the crate's source tree, not of its production code alone.
+#
+# ⚠ THIS GATE RAN NOWHERE UNTIL #1055/#990. Its only caller was `tools/lint.sh`, a
+# harness with no Makefile target, no Dagger function and no workflow — while
+# Cargo.toml claimed the budget was "enforced by tools/check-crate-sizes.sh in CI".
+# Unrun, it drifted into being useless in both directions at once:
+#
+#   - four crates were OVER budget, one of them by 91% (fraiseql-server, 105420 vs
+#     55000), so running it would have failed on clean trunk; and
+#   - five crates (codegen, federation, functions, storage, fraiseql) had no budget
+#     row at all and were silently skipped — including three above 16k lines.
+#
+# Both are fixed: budgets are re-baselined at today's sizes plus room, and a crate
+# with a `src/` directory and no budget row is now a FAILURE rather than a skip, so
+# the next crate cannot arrive unmeasured.
+#
+# What this gate is, stated honestly: a runaway-growth ratchet, not a split mandate.
+# The original comment said crates over budget "must be split before merging", which
+# nothing has ever done. Raising a budget is a one-line edit with a comment saying
+# why — the same shape as the async-trait and errors-doc ratchets in the Makefile.
 #
 # Usage:
 #   tools/check-crate-sizes.sh              # check all crates
 #   tools/check-crate-sizes.sh fraiseql-core # check a single crate
 #
-# Exit code: 0 if all crates are within budget, 1 if any crate is over.
+# Exit code: 0 if all crates are within budget, 1 if any crate is over or unbudgeted.
 #
 # Requires: bash 4+, awk, wc, grep
 
@@ -82,7 +103,8 @@ while IFS='=' read -r name budget; do
     if [[ "$lines" -gt "$budget" ]]; then
         printf "%-30s %10d %10d %10s\n" "$name" "$lines" "$budget" "❌ OVER"
         echo "  → $name exceeds budget by $((lines - budget)) lines ($lines > $budget)"
-        echo "  → Consider splitting this crate. See .remediation_2/batches/batch-5-crate-split.md"
+        echo "  → Split the crate, or raise its budget in [workspace.metadata.crate-size-budget]"
+        echo "    with a comment saying why the growth is expected."
         failures=$((failures + 1))
     elif [[ "$lines" -gt $((budget * 85 / 100)) ]]; then
         # Warn at 85% of budget
@@ -93,17 +115,44 @@ while IFS='=' read -r name budget; do
     fi
 done < <(parse_budgets)
 
+# Fail-closed the other way: a crate on disk with no budget row is not "fine", it is
+# unmeasured. Five crates sat in that state while the gate was unrun, three of them
+# over 16k lines. Skipping them silently is how the table stopped describing the
+# workspace (#1055).
+unbudgeted=()
+if [[ -z "$filter_crate" ]]; then
+    budgeted="$(parse_budgets | sed 's/=.*//')"
+    for dir in "$REPO_ROOT"/crates/*/; do
+        name="$(basename "$dir")"
+        [[ -d "$dir/src" ]] || continue
+        if ! printf '%s\n' "$budgeted" | grep -qxF "$name"; then
+            unbudgeted+=("$name")
+        fi
+    done
+fi
+
 echo ""
 if [[ "$checked" -eq 0 ]]; then
     echo "No budgets found in Cargo.toml [workspace.metadata.crate-size-budget]"
     exit 1
 fi
 
+if [[ "${#unbudgeted[@]}" -gt 0 ]]; then
+    echo "❌ ${#unbudgeted[@]} crate(s) have a src/ directory but no size budget:"
+    for name in "${unbudgeted[@]}"; do
+        lines="$(count_lines "$REPO_ROOT/crates/$name/src")"
+        printf "     %-28s %s lines\n" "$name" "${lines:-0}"
+    done
+    echo "   Add a row to [workspace.metadata.crate-size-budget] in Cargo.toml."
+    failures=$((failures + ${#unbudgeted[@]}))
+fi
+
 if [[ "$failures" -gt 0 ]]; then
-    echo "❌ $failures crate(s) exceed their size budget."
+    echo ""
+    echo "❌ $failures crate size problem(s)."
     echo "   To update a budget, edit [workspace.metadata.crate-size-budget] in Cargo.toml"
     echo "   and add a comment explaining why the increase is justified."
     exit 1
 fi
 
-echo "✅ All $checked crate(s) are within budget."
+echo "✅ All $checked crate(s) are within budget, and every crate has one."

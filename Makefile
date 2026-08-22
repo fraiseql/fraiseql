@@ -604,6 +604,14 @@ lint-sdk-dead-surface:
 lint-feature-chains:
 	@bash tools/check-feature-chains.sh
 
+# Gate: a runaway-growth ratchet on each crate's src/ line count, and a check that
+# every crate HAS a budget. Ran in no leg at all until #1055/#990 — its only caller
+# was the orphaned tools/lint.sh — by which time four crates were over budget and
+# five had no budget row.
+.PHONY: lint-crate-sizes
+lint-crate-sizes:
+	@bash tools/check-crate-sizes.sh
+
 # Gate: `make preflight` must run everything the Dagger ShellGates leg runs, or
 # its "Safe to push" line is false. Two lists maintained by hand in two files
 # drift silently, and did twice (#1135).
@@ -634,7 +642,7 @@ test-imports-gate:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-imports-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-imports-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

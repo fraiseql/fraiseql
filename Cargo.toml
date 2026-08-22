@@ -362,22 +362,38 @@ unused_imports = "warn"
 unused_variables = "warn"
 
 # ---------------------------------------------------------------------------
-# Crate size budgets — enforced by tools/check-crate-sizes.sh in CI.
-# Limits are set at ~50% above current size for small crates. Crates that
-# exceed their budget must be split before merging.
+# Crate size budgets — enforced by tools/check-crate-sizes.sh, which runs in the
+# `preflight` make target and the Dagger ShellGates leg (the required check).
+#
+# ⚠ That sentence was false until #1055/#990. The gate's only caller was
+# `tools/lint.sh`, which no Makefile target, Dagger function or workflow invoked,
+# so this table went unread for long enough to stop describing the workspace:
+# four crates were over budget (fraiseql-server by 91%) and five had no row at
+# all. Both directions now fail, so neither can recur silently.
+#
+# What this is: a runaway-growth ratchet, not a split mandate. Lines are counted
+# across every *.rs under the crate's src/, which includes unit-test modules.
+# Budgets were re-baselined 2026-08-22 at roughly 20% above the then-current size
+# — enough room for ordinary work, little enough that a crate cannot double
+# unnoticed. Raising one is a one-line edit; add a comment saying why.
 # ---------------------------------------------------------------------------
 [workspace.metadata.crate-size-budget]
+fraiseql = 2_000
 fraiseql-arrow = 15_000
-fraiseql-auth = 25_000
+fraiseql-auth = 48_000  # re-baselined #1055 (was 25_000, actual 39_201)
 fraiseql-cdc-sinks = 10_000
-fraiseql-cli = 40_000
-fraiseql-core = 110_000  # post-split budget; fraiseql-db extracted (CS-3)
+fraiseql-cli = 58_000  # re-baselined #1055 (was 40_000, actual 48_681)
+fraiseql-codegen = 8_000  # first budget; the crate predates #1055 and had none
+fraiseql-core = 145_000  # re-baselined #1055 (was 110_000, actual 122_165)
 fraiseql-db = 25_000
 fraiseql-error = 5_000
+fraiseql-federation = 22_000  # first budget; the crate predates #1055 and had none
+fraiseql-functions = 23_000  # first budget; the crate predates #1055 and had none
 fraiseql-guard = 5_000
 fraiseql-observers = 45_000
 fraiseql-secrets = 20_000
-fraiseql-server = 55_000
+fraiseql-server = 125_000  # re-baselined #1055 (was 55_000, actual 105_420)
+fraiseql-storage = 20_000  # first budget; the crate predates #1055 and had none
 fraiseql-test-support = 5_000
 fraiseql-test-utils = 5_000
 fraiseql-webhooks = 10_000

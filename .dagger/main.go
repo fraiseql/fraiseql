@@ -330,6 +330,11 @@ func (m *FraiseqlCi) ShellGates(
 		// unreported for as long as it was there. A gate that is red and unrun is worth
 		// less than no gate — it trains the next reader to assume the surface is checked.
 		"bash tools/check-feature-chains.sh",
+		// A per-crate runaway-growth ratchet, and a check that every crate has a
+		// budget at all. Its only caller was the orphaned tools/lint.sh, so it ran
+		// nowhere while four crates went over budget and five acquired no budget
+		// row — and Cargo.toml claimed all along that CI enforced it (#1055/#990).
+		"bash tools/check-crate-sizes.sh",
 		// This list and the Makefile's `preflight:` target are two hand-maintained
 		// copies of one thing, so they drift, and `make preflight` says "Safe to
 		// push" over the difference. It had drifted twice when this landed (#1135).

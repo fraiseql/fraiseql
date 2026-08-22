@@ -29,6 +29,29 @@ fn mutation_response_sql_content_exists() {
     assert!(MUTATION_RESPONSE_SQL.contains("fraiseql.mutation_err"));
 }
 
+/// Anti-drift guard for the *other* vendored SQL helper. `sql/helpers/mutation_response.sql`
+/// at the repo root is the canonical copy; `crates/fraiseql-cli/sql/helpers/mutation_response.sql`
+/// is what `include_str!` embeds into the binary. Nothing compared them in a leg that runs:
+/// the only check lived in `tools/lint.sh`, an orphaned harness no CI leg and no Makefile
+/// target ever invoked (#1055/#990), so the two could diverge silently and `fraiseql setup`
+/// would install SQL that no longer matched the file the repo presents as canonical.
+///
+/// Its sibling — [`changelog_contract_matches_observers_migration`] — already had exactly this
+/// guard as a Rust test. This one did not, which is the whole reason the shell check was the
+/// only coverage.
+#[test]
+fn mutation_response_matches_canonical_copy() {
+    let canonical_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../sql/helpers/mutation_response.sql");
+    let canonical = std::fs::read_to_string(&canonical_path)
+        .unwrap_or_else(|e| panic!("read {}: {e}", canonical_path.display()));
+    assert_eq!(
+        MUTATION_RESPONSE_SQL, canonical,
+        "the CLI's embedded mutation_response.sql drifted from the canonical \
+         sql/helpers/mutation_response.sql — re-copy it"
+    );
+}
+
 #[test]
 fn changelog_contract_sql_content_exists() {
     // The vendored contract installs the table the mutation outbox writes (#569).
