@@ -1,7 +1,7 @@
 //! Database adapter trait definitions.
 //!
 //! The main [`DatabaseAdapter`] trait lives in this file. Supporting types
-//! (`RelayPageResult`, `DatabaseCapabilities`, enums, type aliases) are in
+//! (`RelayPageResult`, enums, type aliases) are in
 //! the `adapter_types` submodule.
 
 mod adapter_types;
@@ -373,7 +373,6 @@ impl<'a> ChangeLogWrite<'a> {
 ///
 /// - `WhereClause` — AST for parameterized WHERE clauses
 /// - `RelayDatabaseAdapter` — Optional trait for keyset pagination
-/// - `DatabaseCapabilities` — Feature detection for the adapter
 /// - [Performance Guide](https://docs.fraiseql.rs/performance/database-adapters.md)
 // POLICY: `#[async_trait]` placement for `DatabaseAdapter`
 //
@@ -912,18 +911,6 @@ pub trait DatabaseAdapter: Send + Sync {
     /// Returns `FraiseQLError` if the underlying cache cannot be cleared.
     async fn clear_result_cache(&self) -> Result<Option<usize>> {
         Ok(None)
-    }
-
-    /// Get database capabilities.
-    ///
-    /// Returns information about what features this database supports,
-    /// including collation strategies and limitations.
-    ///
-    /// # Returns
-    ///
-    /// `DatabaseCapabilities` describing supported features.
-    fn capabilities(&self) -> DatabaseCapabilities {
-        DatabaseCapabilities::from_database_type(self.database_type())
     }
 
     /// Run the database's `EXPLAIN` on a SQL statement without executing it.

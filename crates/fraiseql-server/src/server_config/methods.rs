@@ -44,7 +44,11 @@ const REMOVED_SECTIONS: &[(&str, &str)] = &[
         "cache",
         "`cache_enabled` (query result cache), `apq_enabled` (persisted queries)",
     ),
-    ("collation", "nothing — locale-aware collation was never wired to a config key"),
+    (
+        "collation",
+        "nothing — locale-aware collation was never wired to a config key, and the \
+         unreachable mapper behind it was removed in #1009",
+    ),
 ];
 
 /// Append a build-feature hint to a config parse error for every compiled-out

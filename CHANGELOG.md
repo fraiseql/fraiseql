@@ -3154,6 +3154,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Removed
 
+- **`fraiseql-db`'s collation modules and `DatabaseCapabilities` (#1009).**
+  `collation_config` (`CollationConfig`, `DatabaseCollationOverrides`,
+  `InvalidLocaleStrategy`, `PostgresCollationConfig`) and `collation` (`CollationMapper`,
+  `CollationCapabilities`) were public API with no consumer anywhere in the workspace outside
+  their own tests and one benchmark. `CollationMapper::new` was called only from
+  `benches/sql_generation_bench.rs`; no SQL generation path consulted it, so an `ORDER BY` on
+  a text column was emitted without a `COLLATE` clause regardless of any locale configured.
+  The server's own removed-section ledger already recorded collation as "never wired to a
+  config key" — this removes the surface that made it look otherwise.
+
+  `DatabaseCapabilities` goes with them rather than surviving as a husk: all of it was
+  collation (`supports_locale_collation`, `requires_custom_collation`,
+  `recommended_collation`, `collation_strategy()`), the `DatabaseAdapter::capabilities()`
+  default that built it had **zero callers**, and what remained after removing the collation
+  fields was a one-field struct restating `DatabaseAdapter::database_type()`.
+
+  Locale-aware `ORDER BY` is a real feature and this is not a decision against it — it is a
+  decision against advertising it. A capability flag that reads `supports_locale_collation:
+  true` while nothing applies a collation is worse than no flag: it tells a user who
+  configures a locale that they have got one. Reinstating this means writing the consumer
+  first.
+
 - **Two TypeScript examples that imported a module the package has never had (#925).**
   `comprehensive-example.ts` imported `../src/views` and `ddl_generation_example.ts`
   imported `@fraiseql/views`; no such module exists in the package or on npm, so neither

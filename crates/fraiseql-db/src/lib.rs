@@ -7,8 +7,7 @@
 //! - SQL Server (enterprise)
 //!
 //! It also provides the shared DB-level types used by the compilation and
-//! execution layers: collation configuration, SQL hint types, and extended
-//! filter operators.
+//! execution layers: SQL hint types and extended filter operators.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -36,7 +35,6 @@ pub type Result<T> = std::result::Result<T, fraiseql_error::FraiseQLError>;
 
 // New modules (types extracted from fraiseql-core)
 pub mod changelog;
-pub mod collation_config;
 pub mod dialect;
 pub mod introspector;
 pub mod types;
@@ -48,7 +46,6 @@ pub mod where_generator;
 pub mod utils;
 
 // DB adapter modules (from the old db/ directory)
-pub mod collation;
 pub mod identifier;
 pub mod order_by;
 pub mod path_escape;
@@ -72,10 +69,6 @@ pub use changelog::{
     CDC_MEDIATED_ON, CDC_MEDIATED_VAR, CLOCK_TIMESTAMP_DIRECTIVE, DURATION_CALC_VERSION,
     STARTED_AT_VAR, duration_ms_sql,
 };
-pub use collation::{CollationCapabilities, CollationMapper};
-pub use collation_config::{
-    CollationConfig, DatabaseCollationOverrides, InvalidLocaleStrategy, PostgresCollationConfig,
-};
 pub use dialect::{PostgresDialect, SqlDialect, UnsupportedOperator};
 #[cfg(feature = "wire-backend")]
 pub use fraiseql_wire_adapter::FraiseWireAdapter;
@@ -86,9 +79,9 @@ pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{FieldKind, PostgresProjectionGenerator, ProjectionField};
 pub use traits::{
     AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite,
-    ColumnRowStream, CursorValue, DatabaseAdapter, DatabaseCapabilities, DirectMutationContext,
-    DirectMutationOp, JsonbRowStream, MutationStrategy, ProjectionRequest, RelayDatabaseAdapter,
-    RelayPageResult, ResultCacheStats, SupportsMutations,
+    ColumnRowStream, CursorValue, DatabaseAdapter, DirectMutationContext, DirectMutationOp,
+    JsonbRowStream, MutationStrategy, ProjectionRequest, RelayDatabaseAdapter, RelayPageResult,
+    ResultCacheStats, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

@@ -8,7 +8,6 @@ Database abstraction layer for FraiseQL v2. This crate provides runtime SQL gene
 - Runtime SQL generation tailored to each backend's dialect
 - Connection pooling with configurable bounds
 - Database introspection for schema discovery
-- Collation configuration per database backend
 - Rich filter operators for advanced query predicates
 
 ## Cargo Features

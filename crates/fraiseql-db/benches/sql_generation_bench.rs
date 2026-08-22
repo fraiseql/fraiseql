@@ -8,16 +8,14 @@
 //! - WHERE clause SQL generation (WhereSqlGenerator — raw string path)
 //! - GenericWhereGenerator parameterized SQL across all four dialects
 //! - Projection/SELECT generation (PostgreSQL)
-//! - Collation mapping across database types
 //! - `WhereClause::from_graphql_json` parsing
 
 use std::sync::Arc;
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_db::{
-    CollationConfig, CollationMapper, DatabaseType, GenericWhereGenerator,
-    PostgresProjectionGenerator, WhereClause, WhereOperator, WhereSqlGenerator,
-    dialect::PostgresDialect,
+    GenericWhereGenerator, PostgresProjectionGenerator, WhereClause, WhereOperator,
+    WhereSqlGenerator, dialect::PostgresDialect,
 };
 use serde_json::json;
 
@@ -229,27 +227,6 @@ fn projection_benchmarks(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
-// Collation mapping benchmarks
-// ---------------------------------------------------------------------------
-
-fn collation_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("collation_mapping");
-
-    let config = CollationConfig::default();
-
-    let db_types = [("postgres", DatabaseType::PostgreSQL)];
-
-    for (name, db_type) in &db_types {
-        group.bench_with_input(BenchmarkId::from_parameter(name), db_type, |b, &dt| {
-            let mapper = CollationMapper::new(config.clone(), dt);
-            b.iter(|| mapper.map_locale(black_box("fr-FR")).unwrap());
-        });
-    }
-
-    group.finish();
-}
-
-// ---------------------------------------------------------------------------
 // Criterion harness
 // ---------------------------------------------------------------------------
 
@@ -258,7 +235,6 @@ criterion_group!(
     where_sql_generator_benchmarks,
     generic_where_generator_benchmarks,
     where_clause_parsing_benchmarks,
-    projection_benchmarks,
-    collation_benchmarks
+    projection_benchmarks
 );
 criterion_main!(benches);

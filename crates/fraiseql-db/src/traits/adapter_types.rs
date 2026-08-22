@@ -11,7 +11,7 @@ use futures::Stream;
 use super::DatabaseAdapter;
 use crate::{
     types::{
-        ColumnValue, DatabaseType, JsonbValue,
+        ColumnValue, JsonbValue,
         sql_hints::{OrderByClause, SqlProjectionHint},
     },
     where_clause::WhereClause,
@@ -78,48 +78,6 @@ pub struct ResultCacheStats {
     pub ttl_seconds:   u64,
     /// Configured entry ceiling.
     pub max_entries:   usize,
-}
-
-/// Database capabilities and feature support.
-///
-/// Describes what features a database backend supports, allowing the runtime
-/// to adapt behavior based on database limitations.
-#[derive(Debug, Clone, Copy)]
-pub struct DatabaseCapabilities {
-    /// Database type.
-    pub database_type: DatabaseType,
-
-    /// Supports locale-specific collations.
-    pub supports_locale_collation: bool,
-
-    /// Requires custom collation registration.
-    pub requires_custom_collation: bool,
-
-    /// Recommended collation provider.
-    pub recommended_collation: Option<&'static str>,
-}
-
-impl DatabaseCapabilities {
-    /// Create capabilities from database type.
-    #[must_use]
-    pub const fn from_database_type(db_type: DatabaseType) -> Self {
-        match db_type {
-            DatabaseType::PostgreSQL => Self {
-                database_type:             db_type,
-                supports_locale_collation: true,
-                requires_custom_collation: false,
-                recommended_collation:     Some("icu"),
-            },
-        }
-    }
-
-    /// Get collation strategy description.
-    #[must_use]
-    pub const fn collation_strategy(&self) -> &'static str {
-        match self.database_type {
-            DatabaseType::PostgreSQL => "ICU collations (locale-specific)",
-        }
-    }
 }
 
 /// Strategy used by an adapter for executing mutations.
