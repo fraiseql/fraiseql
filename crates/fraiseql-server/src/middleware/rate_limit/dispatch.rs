@@ -101,20 +101,29 @@ impl RateLimiter {
     }
 
     /// Check whether a request from `ip` is within the global IP rate limit.
+    ///
+    /// The `tenant_id` parameter was removed in #1143. It was taken raw from an
+    /// `X-Tenant-ID` header and folded into the in-memory key, so a caller varying it
+    /// got a fresh full bucket per request — the limit did not limit. The Redis
+    /// backend never accepted it, so the two disagreed about what a bucket was.
     #[doc(hidden)] // Internal-pub: invoked by rate_limit_middleware; downstream configures rate limiting via TOML, not by calling this directly.
-    pub async fn check_ip_limit(&self, ip: &str, tenant_id: Option<&str>) -> CheckResult {
+    pub async fn check_ip_limit(&self, ip: &str) -> CheckResult {
         match self {
-            Self::InMemory(rl) => rl.check_ip_limit(ip, tenant_id).await,
+            Self::InMemory(rl) => rl.check_ip_limit(ip).await,
             #[cfg(feature = "redis-rate-limiting")]
             Self::Redis(rl) => rl.check_ip_limit(ip).await,
         }
     }
 
     /// Check whether a request from `user_id` is within the per-user limit.
+    ///
+    /// `user_id` must be a **verified** identity — see
+    /// [`InMemoryRateLimiter::check_user_limit`]. The HTTP middleware no longer calls
+    /// this; gRPC does, after authenticating.
     #[doc(hidden)] // Internal-pub: invoked by rate_limit_middleware; downstream configures rate limiting via TOML, not by calling this directly.
-    pub async fn check_user_limit(&self, user_id: &str, tenant_id: Option<&str>) -> CheckResult {
+    pub async fn check_user_limit(&self, user_id: &str) -> CheckResult {
         match self {
-            Self::InMemory(rl) => rl.check_user_limit(user_id, tenant_id).await,
+            Self::InMemory(rl) => rl.check_user_limit(user_id).await,
             #[cfg(feature = "redis-rate-limiting")]
             Self::Redis(rl) => rl.check_user_limit(user_id).await,
         }

@@ -104,3 +104,32 @@ impl PathRateLimit {
         .collect()
     }
 }
+
+/// Normalise a candidate client address into a rate-limit bucket key.
+///
+/// Returns `None` when `candidate` does not parse as an IP address, so the caller can
+/// fall back to the peer address rather than keying on it.
+///
+/// Two properties, both required for the key space to be bounded by something the
+/// caller cannot inflate (#1143):
+///
+/// 1. **A proxy header is not an address until it parses as one.** `X-Real-IP` and
+///    `X-Forwarded-For` are client-supplied strings; a trusted proxy forwards them, it does not
+///    validate them. Returning the raw string made every distinct value a distinct bucket — the
+///    `X-Tenant-ID` amplification again, one header over.
+/// 2. **`IPv6` collapses to its /64 prefix.** A single routine `IPv6` allocation *is* a /64, so
+///    keying on the full /128 would let one ordinary customer mint 2^64 buckets. Bounding the
+///    tenant and subject while leaving this open would close the front door and leave the side door
+///    ajar. `IPv4` is keyed whole: a /32 is one host.
+pub(super) fn normalise_ip_key(candidate: &str) -> Option<String> {
+    use std::net::IpAddr;
+
+    match candidate.trim().parse::<IpAddr>().ok()? {
+        IpAddr::V4(v4) => Some(v4.to_string()),
+        IpAddr::V6(v6) => {
+            let mut octets = v6.octets();
+            octets[8..].fill(0);
+            Some(format!("{}/64", std::net::Ipv6Addr::from(octets)))
+        },
+    }
+}

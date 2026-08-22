@@ -5257,6 +5257,58 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **The rate limiter's bucket keys are derived only from facts a caller cannot forge, and a
+  full bucket map no longer refuses strangers (#1143).**
+
+  #1143 was filed as an amplification issue: one client could mint 100 000 buckets and fill
+  the map. Measuring it found something sharper — **the per-IP rate limit did not limit.**
+  `check_ip_limit` folded `X-Tenant-ID` into the key, taken raw from the header, and a fresh
+  key is a fresh *full* bucket. Against `rps_per_ip = 1, burst = 1`, from a single IP, with no
+  authentication: **50 of 50 requests allowed**. The per-user path was the same through an
+  unverified JWT `sub`. (The per-path auth-endpoint buckets were never affected — they key on
+  `(path, ip)` — so brute-force protection on the auth endpoints held throughout.)
+
+  A rate limiter's key space must be bounded by something the caller cannot inflate; capacity
+  caps and eviction are compensation for the absence of that property, not substitutes for it.
+  So:
+
+  - **The tenant is gone from the keys**, and from the `check_ip_limit` / `check_user_limit`
+    signatures — the attack is now unrepresentable rather than merely untested. The Redis
+    backend already keyed on the IP alone, so this also removes a silent disagreement between
+    the two backends about what a bucket is.
+  - **`extract_jwt_subject` is deleted.** It base64-decoded a JWT payload and read `sub`
+    without checking the signature. The HTTP middleware buckets on IP; gRPC keeps its
+    per-user limit because it authenticates first. The per-user allowance on HTTP is not so
+    much lost as revealed never to have existed — it was available to anyone who sent a
+    JWT-shaped string. Restoring it needs a verified identity at that layer, tracked
+    separately.
+  - **Addresses are normalised before they become keys.** A proxy forwards `X-Forwarded-For`,
+    it does not validate it, so an unparseable value now falls back to the peer instead of
+    becoming its own bucket. IPv6 collapses to its /64 prefix: a routine allocation *is* a
+    /64, so keying on the full /128 left one customer able to mint 2^64 buckets — the same
+    amplification through a side door. Verified by reverting the collapse alone: 200 of 200
+    requests allowed.
+  - **A full map evicts instead of denying.** Refusing an unseen key is a denial of service
+    against strangers, and `ip_buckets` only grows on requests that have no bucket yet — so
+    the strangers are exactly the unauthenticated ones: every login and registration attempt.
+    Eviction picks the least-recently-used of a small sample rather than maintaining an exact
+    LRU, which would need an intrusive list behind a mutex and would serialise the request hot
+    path that `DashMap` exists to keep parallel. It is close to free: a bucket idle longer than
+    its refill window has already refilled to full, which is the same criterion #1080's sweep
+    uses, so the sampled-oldest is approximately the already-full.
+
+    Three existing tests asserted the opposite — that a full map *denies* an unseen key. They
+    pinned the denial of service as intended behaviour and have been inverted rather than
+    deleted, each with the reason recorded.
+
+  Eviction is only safe *because* the key space is now bounded: with an attacker-inflatable
+  key it would have been a cheap way to flush other clients' buckets and reset one's own. The
+  two halves are one fix, and neither should be shipped without the other.
+
+  Not addressed here, and filed separately: `max_buckets` is still not configurable, and
+  `RateLimitingSecurityConfig` has no field for it at all — so that is a schema-seam addition
+  rather than a wiring change.
+
 - **`error_sanitization` now reaches the database errors a client can actually trigger, on
   GraphQL and REST alike (#1153).** The sanitizer replaced a message only for
   `InternalServerError` and `DatabaseError`. #413 reclassifies SQLSTATE class 22 as

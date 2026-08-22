@@ -17,7 +17,11 @@ use axum::{
 };
 use tracing::warn;
 
-use super::{config::RateLimitConfig, dispatch::RateLimiter, key::is_private_or_loopback};
+use super::{
+    config::RateLimitConfig,
+    dispatch::RateLimiter,
+    key::{is_private_or_loopback, normalise_ip_key},
+};
 
 /// Rate limit middleware response.
 ///
@@ -92,11 +96,15 @@ pub(super) fn extract_real_ip(
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            return real_ip.to_string();
+            if let Some(key) = normalise_ip_key(real_ip) {
+                return key;
+            }
         }
         if let Some(xff) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
             if let Some(first) = xff.split(',').next().map(str::trim).filter(|s| !s.is_empty()) {
-                return first.to_string();
+                if let Some(key) = normalise_ip_key(first) {
+                    return key;
+                }
             }
         }
     } else if is_private_or_loopback(addr.ip())
@@ -110,23 +118,9 @@ pub(super) fn extract_real_ip(
              unless you set `trust_proxy_headers = true` in [security.rate_limiting]."
         );
     }
-    addr.ip().to_string()
-}
-
-/// Decode a JWT bearer token's payload section and extract the `sub` claim
-/// without performing cryptographic signature verification.
-///
-/// Signature verification is intentionally omitted: rate limiting is a
-/// best-effort control that degrades gracefully — an invalid or forged JWT
-/// simply returns `None`, falling back to IP-based limiting.  Verified
-/// identity is handled by the auth middleware upstream.
-pub(super) fn extract_jwt_subject(authorization: &str) -> Option<String> {
-    use base64::Engine as _;
-    let token = authorization.strip_prefix("Bearer ")?;
-    let payload_b64 = token.split('.').nth(1)?;
-    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
-    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
-    json.get("sub").and_then(|v| v.as_str()).map(String::from)
+    // The peer address always parses; `normalise_ip_key` still applies the IPv6 /64
+    // collapse, so a direct IPv6 client cannot mint a bucket per address either.
+    normalise_ip_key(&addr.ip().to_string()).unwrap_or_else(|| addr.ip().to_string())
 }
 
 /// Rate limiting middleware for GraphQL requests.
@@ -162,19 +156,21 @@ pub async fn rate_limit_middleware(
     );
     let path = req.uri().path().to_string();
 
-    // Extract JWT subject for per-user limiting (no signature verification needed here).
-    let user_id = req
-        .headers()
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(extract_jwt_subject);
-
-    // Extract tenant for tenant-aware limiting.
-    let tenant_id = req
-        .headers()
-        .get("X-Tenant-ID")
-        .and_then(|v| v.to_str().ok())
-        .map(str::to_string);
+    // #1143: neither a JWT `sub` nor `X-Tenant-ID` is read here any more.
+    //
+    // Both were folded into bucket keys without validation — the subject came from
+    // `extract_jwt_subject`, which base64-decoded the payload and never checked the
+    // signature, and the tenant came straight off the header. A fresh key is a fresh
+    // *full* bucket, so varying either one did not merely grow the map: it handed the
+    // caller an unlimited budget. Measured: 50 of 50 requests allowed against
+    // `rps_per_ip = 1, burst = 1`, from one IP, unauthenticated.
+    //
+    // Every HTTP request therefore buckets on its IP, which is infrastructure-derived
+    // and cannot be inflated by the caller. The per-user allowance is not lost so much
+    // as revealed never to have existed: it was available to anyone who sent a
+    // JWT-shaped string, which is not authentication. Restoring it needs a *verified*
+    // identity at this layer, which no middleware here has — tracked separately.
+    // gRPC keeps its per-user limit because it authenticates first.
 
     // ── Per-path limit (strictest, always enforced) ───────────────────────
     let path_result = limiter.check_path_limit(&path, &ip).await;
@@ -185,21 +181,11 @@ pub async fn rate_limit_middleware(
         });
     }
 
-    // ── Per-user or per-IP limit ──────────────────────────────────────────
-    let limit_result = if let Some(ref uid) = user_id {
-        // Authenticated: apply the higher per-user bucket.
-        limiter.check_user_limit(uid, tenant_id.as_deref()).await
-    } else {
-        // Unauthenticated: apply the shared IP bucket.
-        limiter.check_ip_limit(&ip, tenant_id.as_deref()).await
-    };
+    // ── Per-IP limit ──────────────────────────────────────────────────────
+    let limit_result = limiter.check_ip_limit(&ip).await;
 
     if !limit_result.allowed {
-        if let Some(ref uid) = user_id {
-            warn!(user_id = %uid, "Per-user rate limit exceeded");
-        } else {
-            warn!(ip = %ip, "IP rate limit exceeded");
-        }
+        warn!(ip = %ip, "IP rate limit exceeded");
         return Err(RateLimitExceeded {
             retry_after_secs: limit_result.retry_after_secs,
         });
@@ -211,11 +197,7 @@ pub async fn rate_limit_middleware(
 
     // Add rate limit headers
     let mut response = response;
-    let limit = if user_id.is_some() {
-        limiter.config().rps_per_user
-    } else {
-        limiter.config().rps_per_ip
-    };
+    let limit = limiter.config().rps_per_ip;
     if let Ok(limit_value) = format!("{limit}").parse() {
         response.headers_mut().insert("X-RateLimit-Limit", limit_value);
     }

@@ -11,10 +11,7 @@
 #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 #![allow(clippy::panic)] // Reason: a test helper that cannot answer must fail loudly, not return a plausible 0
 
-use super::{
-    middleware_fn::{extract_jwt_subject, extract_real_ip},
-    *,
-};
+use super::{middleware_fn::extract_real_ip, *};
 
 /// Live bucket counts, for the eviction assertions below (#1080).
 ///
@@ -396,8 +393,8 @@ async fn test_rate_limiter_ip_allow() {
     };
 
     let limiter = RateLimiter::new(config);
-    assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
-    assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
+    assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
+    assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
 }
 
 #[tokio::test]
@@ -410,8 +407,8 @@ async fn test_rate_limiter_ip_block() {
     };
 
     let limiter = RateLimiter::new(config);
-    assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
-    assert!(!limiter.check_ip_limit("127.0.0.1", None).await.allowed);
+    assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
+    assert!(!limiter.check_ip_limit("127.0.0.1").await.allowed);
 }
 
 #[tokio::test]
@@ -424,8 +421,8 @@ async fn test_rate_limiter_disabled() {
     };
 
     let limiter = RateLimiter::new(config);
-    assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
-    assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
+    assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
+    assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
 }
 
 #[tokio::test]
@@ -438,8 +435,8 @@ async fn test_rate_limiter_different_ips() {
     };
 
     let limiter = RateLimiter::new(config);
-    assert!(limiter.check_ip_limit("192.168.1.1", None).await.allowed);
-    assert!(limiter.check_ip_limit("192.168.1.2", None).await.allowed);
+    assert!(limiter.check_ip_limit("192.168.1.1").await.allowed);
+    assert!(limiter.check_ip_limit("192.168.1.2").await.allowed);
 }
 
 #[tokio::test]
@@ -452,9 +449,9 @@ async fn test_rate_limiter_user_limit() {
     };
 
     let limiter = RateLimiter::new(config);
-    assert!(limiter.check_user_limit("user123", None).await.allowed);
-    assert!(limiter.check_user_limit("user123", None).await.allowed);
-    assert!(!limiter.check_user_limit("user123", None).await.allowed);
+    assert!(limiter.check_user_limit("user123").await.allowed);
+    assert!(limiter.check_user_limit("user123").await.allowed);
+    assert!(!limiter.check_user_limit("user123").await.allowed);
 }
 
 #[tokio::test]
@@ -467,11 +464,11 @@ async fn test_rate_limiter_remaining() {
     };
 
     let limiter = RateLimiter::new(config);
-    let first = limiter.check_ip_limit("127.0.0.1", None).await;
+    let first = limiter.check_ip_limit("127.0.0.1").await;
     assert!(first.allowed);
     assert!(first.remaining < 10.0, "remaining should be 9 after first token consumed");
 
-    let second = limiter.check_ip_limit("127.0.0.1", None).await;
+    let second = limiter.check_ip_limit("127.0.0.1").await;
     assert!(second.remaining < first.remaining, "remaining must decrease per request");
 }
 
@@ -493,7 +490,7 @@ async fn cleanup_evicts_a_stale_ip_bucket() {
     };
     let limiter = RateLimiter::new(config);
 
-    limiter.check_ip_limit("127.0.0.1", None).await;
+    limiter.check_ip_limit("127.0.0.1").await;
     assert_eq!(ip_bucket_count(&limiter), 1, "precondition: the request must mint a bucket");
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -519,7 +516,7 @@ async fn cleanup_keeps_a_fresh_ip_bucket() {
     };
     let limiter = RateLimiter::new(config);
 
-    limiter.check_ip_limit("127.0.0.1", None).await;
+    limiter.check_ip_limit("127.0.0.1").await;
     limiter.cleanup().await;
 
     assert_eq!(
@@ -765,36 +762,6 @@ fn test_retry_after_for_path_unknown_path_returns_one() {
 }
 
 #[test]
-fn test_extract_jwt_subject_returns_sub_claim() {
-    use base64::Engine as _;
-    let payload = serde_json::json!({"sub": "user-42", "exp": 9_999_999_999_u64});
-    let b64 =
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string().as_bytes());
-    let token = format!("Bearer header.{b64}.sig");
-    assert_eq!(extract_jwt_subject(&token), Some("user-42".to_string()));
-}
-
-#[test]
-fn test_extract_jwt_subject_no_bearer_prefix_returns_none() {
-    assert_eq!(extract_jwt_subject("Basic dXNlcjpwYXNz"), None);
-}
-
-#[test]
-fn test_extract_jwt_subject_malformed_token_returns_none() {
-    assert_eq!(extract_jwt_subject("Bearer notajwt"), None);
-}
-
-#[test]
-fn test_extract_jwt_subject_missing_sub_returns_none() {
-    use base64::Engine as _;
-    let payload = serde_json::json!({"iss": "provider", "exp": 9_999_999_999_u64});
-    let b64 =
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string().as_bytes());
-    let token = format!("Bearer header.{b64}.sig");
-    assert_eq!(extract_jwt_subject(&token), None);
-}
-
-#[test]
 fn test_extract_real_ip_without_proxy_returns_peer() {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -846,7 +813,7 @@ fn test_extract_real_ip_trust_disabled_ignores_headers() {
 }
 
 #[tokio::test]
-async fn test_ip_bucket_cap_denies_new_ip_when_full() {
+async fn test_ip_bucket_cap_evicts_rather_than_denying_when_full() {
     let config = RateLimitConfig {
         enabled: true,
         rps_per_ip: 1_000,
@@ -856,28 +823,27 @@ async fn test_ip_bucket_cap_denies_new_ip_when_full() {
     };
     let limiter = RateLimiter::new(config);
 
-    assert!(
-        limiter.check_ip_limit("1.1.1.1", None).await.allowed,
-        "first IP should be tracked"
-    );
-    assert!(
-        limiter.check_ip_limit("2.2.2.2", None).await.allowed,
-        "second IP should be tracked"
-    );
+    assert!(limiter.check_ip_limit("1.1.1.1").await.allowed, "first IP should be tracked");
+    assert!(limiter.check_ip_limit("2.2.2.2").await.allowed, "second IP should be tracked");
 
     assert!(
-        limiter.check_ip_limit("1.1.1.1", None).await.allowed,
+        limiter.check_ip_limit("1.1.1.1").await.allowed,
         "known IP must still pass after cap is reached"
     );
 
+    // #1143 inverted this deliberately. It used to assert the unseen IP was DENIED —
+    // pinning a denial of service against strangers as intended behaviour. A full map
+    // now evicts the least-recently-used of a sample instead: accuracy degrades,
+    // availability does not.
     assert!(
-        !limiter.check_ip_limit("3.3.3.3", None).await.allowed,
-        "unseen IP must be denied when ip_buckets is at max_buckets"
+        limiter.check_ip_limit("3.3.3.3").await.allowed,
+        "an unseen IP must be SERVED when ip_buckets is full; the cap is a memory \
+         ceiling, not a licence to refuse strangers"
     );
 }
 
 #[tokio::test]
-async fn test_user_bucket_cap_denies_new_user_when_full() {
+async fn test_user_bucket_cap_evicts_rather_than_denying_when_full() {
     let config = RateLimitConfig {
         enabled: true,
         rps_per_user: 1_000,
@@ -887,28 +853,23 @@ async fn test_user_bucket_cap_denies_new_user_when_full() {
     };
     let limiter = RateLimiter::new(config);
 
-    assert!(
-        limiter.check_user_limit("alice", None).await.allowed,
-        "first user should be tracked"
-    );
-    assert!(
-        limiter.check_user_limit("bob", None).await.allowed,
-        "second user should be tracked"
-    );
+    assert!(limiter.check_user_limit("alice").await.allowed, "first user should be tracked");
+    assert!(limiter.check_user_limit("bob").await.allowed, "second user should be tracked");
 
     assert!(
-        limiter.check_user_limit("alice", None).await.allowed,
+        limiter.check_user_limit("alice").await.allowed,
         "known user must pass after cap"
     );
 
+    // #1143: inverted with the IP case above, and for the same reason.
     assert!(
-        !limiter.check_user_limit("carol", None).await.allowed,
-        "unseen user must be denied when user_buckets is at max_buckets"
+        limiter.check_user_limit("carol").await.allowed,
+        "an unseen user must be SERVED when user_buckets is full"
     );
 }
 
 #[tokio::test]
-async fn test_path_ip_bucket_cap_denies_new_combination_when_full() {
+async fn test_path_ip_bucket_cap_evicts_rather_than_denying_when_full() {
     let sec = RateLimitingSecurityConfig {
         enabled: true,
         requests_per_second: 1_000,
@@ -933,9 +894,12 @@ async fn test_path_ip_bucket_cap_denies_new_combination_when_full() {
         "known (path, ip) pair must still pass"
     );
 
+    // #1143: inverted with the two cases above. This one matters most — the per-path
+    // buckets guard the auth endpoints, so refusing an unseen (path, ip) pair locks
+    // out precisely the logins and registrations the limit exists to protect.
     assert!(
-        !limiter.check_path_limit("/auth/start", "2.2.2.2").await.allowed,
-        "unseen (path, ip) combination must be denied when path_ip_buckets is at max_buckets"
+        limiter.check_path_limit("/auth/start", "2.2.2.2").await.allowed,
+        "an unseen (path, ip) combination must be SERVED when path_ip_buckets is full"
     );
 }
 
@@ -1012,9 +976,9 @@ async fn test_redis_rate_limiter_allows_up_to_capacity() {
     let rl = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
     let ip = format!("test_allow:{}", uuid::Uuid::new_v4());
     for _ in 0..5 {
-        assert!(rl.check_ip_limit(&ip, None).await.allowed, "should be allowed within capacity");
+        assert!(rl.check_ip_limit(&ip).await.allowed, "should be allowed within capacity");
     }
-    assert!(!rl.check_ip_limit(&ip, None).await.allowed, "6th request should be rejected");
+    assert!(!rl.check_ip_limit(&ip).await.allowed, "6th request should be rejected");
 }
 
 #[cfg(feature = "redis-rate-limiting")]
@@ -1039,11 +1003,166 @@ async fn test_redis_two_instances_share_bucket() {
     let b = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
     let ip = format!("test_shared:{suffix}");
 
-    assert!(a.check_ip_limit(&ip, None).await.allowed);
-    assert!(a.check_ip_limit(&ip, None).await.allowed);
-    assert!(b.check_ip_limit(&ip, None).await.allowed);
+    assert!(a.check_ip_limit(&ip).await.allowed);
+    assert!(a.check_ip_limit(&ip).await.allowed);
+    assert!(b.check_ip_limit(&ip).await.allowed);
     assert!(
-        !b.check_ip_limit(&ip, None).await.allowed,
+        !b.check_ip_limit(&ip).await.allowed,
         "4th request should be rejected across instances"
     );
+}
+
+// ---------------------------------------------------------------------------
+// #1143: the bucket key must be derivable only from facts a client cannot forge
+// ---------------------------------------------------------------------------
+
+/// A rate limiter's key space must be bounded by something the caller cannot inflate.
+/// That is the whole property — capacity caps and eviction are compensation for its
+/// absence, not substitutes for it.
+///
+/// **Two of the three vectors are closed structurally rather than by these tests, and
+/// deliberately so.** `check_ip_limit` and `check_user_limit` no longer *accept* a
+/// tenant, and the HTTP middleware no longer reads a JWT `sub` it cannot verify, so a
+/// test reproducing those attacks would not compile. Making an illegal state
+/// unrepresentable beats asserting it does not arise. For the record, measured before
+/// the change: **50 of 50 requests allowed** against `rps_per_ip = 1, burst = 1`, from
+/// one IP, unauthenticated, by varying `X-Tenant-ID` — the limit did not limit.
+///
+/// What remains variable is the address itself, so that is what is tested here.
+mod bucket_keys_are_not_attacker_controlled {
+    use std::net::{IpAddr, SocketAddr};
+
+    use super::*;
+    use crate::middleware::rate_limit::key::normalise_ip_key;
+
+    /// A proxy forwards `X-Forwarded-For`; it does not validate it. Returning the raw
+    /// string made every distinct value a distinct bucket — the `X-Tenant-ID`
+    /// amplification one header over, and reachable by anyone behind a trusted proxy.
+    #[test]
+    fn an_unparseable_forwarded_value_is_not_an_address() {
+        for junk in [
+            "not-an-ip",
+            "",
+            "   ",
+            "1.2.3",
+            "tenant-42",
+            "::gg",
+            "1.2.3.4.5",
+        ] {
+            assert_eq!(normalise_ip_key(junk), None, "{junk:?} must not become a key");
+        }
+    }
+
+    /// A single routine `IPv6` allocation *is* a /64, so keying on the full /128 would
+    /// let one ordinary customer mint 2^64 buckets. Bounding the tenant while leaving
+    /// this open would close the front door and leave the side door ajar.
+    #[test]
+    fn ipv6_addresses_in_one_allocation_share_one_key() {
+        let a = normalise_ip_key("2001:db8:1:2::1").unwrap();
+        let b = normalise_ip_key("2001:db8:1:2:ffff:ffff:ffff:ffff").unwrap();
+        assert_eq!(a, b, "a /64 is one key");
+        assert_eq!(a, "2001:db8:1:2::/64");
+
+        // A different /64 is a different client, and must remain distinguishable.
+        let other = normalise_ip_key("2001:db8:1:3::1").unwrap();
+        assert_ne!(a, other, "distinct allocations must not collapse together");
+    }
+
+    /// `IPv4` is keyed whole — a /32 is one host, and collapsing it would merge
+    /// unrelated clients into one bucket.
+    #[test]
+    fn ipv4_is_keyed_whole() {
+        assert_eq!(normalise_ip_key("203.0.113.7").unwrap(), "203.0.113.7");
+        assert_ne!(
+            normalise_ip_key("203.0.113.7").unwrap(),
+            normalise_ip_key("203.0.113.8").unwrap()
+        );
+    }
+
+    /// The end-to-end consequence: one `IPv6` customer varying the low 64 bits gets one
+    /// bucket, so the limit holds. Without the /64 collapse this loop would allow
+    /// every request and leave 200 buckets behind.
+    #[tokio::test]
+    async fn one_ipv6_allocation_cannot_mint_a_fresh_budget() {
+        let limiter = RateLimiter::new(RateLimitConfig {
+            enabled: true,
+            rps_per_ip: 1,
+            burst_size: 1,
+            ..Default::default()
+        });
+
+        let mut allowed = 0;
+        for i in 0..200 {
+            let addr: SocketAddr = format!("[2001:db8:1:2::{i:x}]:443").parse().unwrap();
+            let ip: IpAddr = addr.ip();
+            let key = normalise_ip_key(&ip.to_string()).unwrap();
+            if limiter.check_ip_limit(&key).await.allowed {
+                allowed += 1;
+            }
+        }
+
+        assert_eq!(allowed, 1, "one /64, burst of 1: got {allowed}/200");
+        assert_eq!(ip_bucket_count(&limiter), 1, "and it occupies one bucket");
+    }
+}
+
+/// #1143 direction 3: a full bucket map degrades accuracy, never availability.
+mod a_full_map_does_not_refuse_strangers {
+    use super::*;
+
+    /// Denying an unseen key is a denial of service against strangers — and
+    /// `ip_buckets` only grows on requests that have no bucket yet, so the strangers
+    /// are exactly the unauthenticated ones: every login and registration attempt.
+    ///
+    /// #1080 made a full map recoverable rather than permanent. This asserts the
+    /// stronger property: it is never fatal in the first place.
+    #[tokio::test]
+    async fn a_new_client_is_served_when_the_map_is_full() {
+        let limiter = RateLimiter::new(RateLimitConfig {
+            enabled: true,
+            rps_per_ip: 100,
+            burst_size: 100,
+            max_buckets: 32,
+            ..Default::default()
+        });
+
+        // Fill well past capacity with distinct clients.
+        for i in 0..200 {
+            let ip = format!("203.0.113.{}", i % 256);
+            let _ = limiter.check_ip_limit(&ip).await;
+        }
+
+        // A client never seen before must still be served.
+        let stranger = limiter.check_ip_limit("198.51.100.42").await;
+        assert!(
+            stranger.allowed,
+            "a full map must not refuse an unseen client — that is a DoS against \
+             exactly the unauthenticated callers"
+        );
+
+        // …and the map stays bounded. Best-effort under concurrency, so allow slack.
+        let live = ip_bucket_count(&limiter);
+        assert!(live <= 64, "map must stay bounded near max_buckets=32, saw {live}");
+    }
+
+    /// #1080's property, restated so it cannot regress: a client denied on a full map
+    /// becomes servable again without a restart.
+    #[tokio::test]
+    async fn the_limiter_still_enforces_after_eviction_pressure() {
+        let limiter = RateLimiter::new(RateLimitConfig {
+            enabled: true,
+            rps_per_ip: 1,
+            burst_size: 1,
+            max_buckets: 8,
+            ..Default::default()
+        });
+
+        // Its own bucket is fresh, so the first passes and the second does not —
+        // eviction must not have turned the limiter into a no-op.
+        assert!(limiter.check_ip_limit("198.51.100.7").await.allowed);
+        assert!(
+            !limiter.check_ip_limit("198.51.100.7").await.allowed,
+            "eviction must degrade accuracy under pressure, not disable enforcement"
+        );
+    }
 }

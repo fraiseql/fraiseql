@@ -11,6 +11,62 @@ use super::{
     token_bucket::TokenBucket,
 };
 
+/// How many entries to sample when making room for a new bucket.
+///
+/// Redis uses 5 for its approximated LRU and finds it close to exact; the cost is
+/// O(SAMPLE) per eviction, paid only at capacity.
+const EVICTION_SAMPLE: usize = 8;
+
+/// Make room for one bucket by evicting the least-recently-used of a small sample,
+/// rather than refusing the newcomer (#1143).
+///
+/// **Why evict rather than deny.** Denying an unseen key is a denial of service
+/// against strangers — and `ip_buckets` only grows on requests that have no bucket
+/// yet, so the strangers are exactly the unauthenticated ones: every login and
+/// registration attempt. Degrade accuracy, never availability. #1080 made a full map
+/// recoverable rather than permanent; this makes it non-fatal in the first place.
+///
+/// **Why sampling rather than exact LRU.** An exact LRU needs an intrusive list behind
+/// a mutex, which would serialise the request hot path and give back the very property
+/// [`DashMap`] is here for. Sampling and evicting the oldest seen is the same trade
+/// Redis makes, and costs O(`EVICTION_SAMPLE`) with no global lock. The sample is
+/// whatever iteration yields first, so it is biased toward some shards; that is
+/// acceptable for an approximation whose worst case is evicting a slightly younger
+/// bucket than the true oldest.
+///
+/// **Why it is nearly free.** A bucket idle longer than its refill window has already
+/// refilled to full, so evicting it loses no enforcement at all — the same criterion
+/// [`cleanup`](InMemoryRateLimiter::cleanup) uses. Least-recently-used correlates with
+/// most-idle, so the sampled-oldest is approximately the already-full. The worst case,
+/// evicting a partly-drained bucket, costs at most `burst_size` of accuracy in a
+/// regime where the alternative was refusing real clients.
+///
+/// **This is only safe because the key space is bounded.** With an attacker-inflatable
+/// key (the pre-#1143 tenant and unverified subject), eviction would have been a
+/// cheap way to flush *other* clients' buckets and reset one's own. Keys now derive
+/// from the peer address or a verified identity, so mounting that needs real
+/// addresses, against which the per-IP limit still applies individually.
+fn evict_one_lru<K>(map: &DashMap<K, TokenBucket>)
+where
+    K: std::hash::Hash + Eq + Clone,
+{
+    let victim = {
+        let mut oldest: Option<(K, std::time::Instant)> = None;
+        for entry in map.iter().take(EVICTION_SAMPLE) {
+            let seen = entry.value().last_refill;
+            if oldest.as_ref().is_none_or(|(_, best)| seen < *best) {
+                oldest = Some((entry.key().clone(), seen));
+            }
+        }
+        oldest.map(|(k, _)| k)
+    };
+    // The iterator above holds shard guards; it must be dropped before `remove`
+    // takes a write guard on the same shard, or this deadlocks.
+    if let Some(key) = victim {
+        map.remove(&key);
+    }
+}
+
 /// In-memory token-bucket rate limiter.
 ///
 /// Each bucket map is a [`DashMap`]: lookups/refills on the request hot path
@@ -85,19 +141,8 @@ impl InMemoryRateLimiter {
         if !self.path_ip_buckets.contains_key(&key)
             && self.path_ip_buckets.len() >= self.config.max_buckets
         {
-            debug!(
-                ip = ip,
-                path = path,
-                "Path-IP bucket capacity reached — denying unseen combination"
-            );
-            let retry = if tokens_per_sec > 0.0 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                // Reason: ceil(1/tokens_per_sec) is always a small positive integer
-                ((1.0_f64 / tokens_per_sec).ceil() as u32).max(1)
-            } else {
-                1
-            };
-            return CheckResult::deny(retry);
+            debug!(ip = ip, path = path, "Path-IP bucket capacity reached — evicting LRU");
+            evict_one_lru(&self.path_ip_buckets);
         }
 
         let (allowed, remaining) = {
@@ -132,17 +177,30 @@ impl InMemoryRateLimiter {
     }
 
     /// Check if request is allowed for given IP.
-    pub(super) async fn check_ip_limit(&self, ip: &str, tenant_id: Option<&str>) -> CheckResult {
+    ///
+    /// **The key is the IP and nothing else (#1143).** It used to be
+    /// `format!("{tenant}:{ip}")`, with the tenant taken raw from an `X-Tenant-ID`
+    /// header that nothing validated — and a fresh key is a fresh *full* bucket, so
+    /// varying the header did not merely add map entries: it handed the caller an
+    /// unlimited budget. Measured before the fix: 50 of 50 requests allowed against
+    /// `rps_per_ip = 1, burst = 1`, from one IP, unauthenticated.
+    ///
+    /// A rate limiter's key space must be bounded by something the caller cannot
+    /// inflate. That is the whole property; capacity caps and eviction are
+    /// compensation for its absence, not substitutes for it. The Redis backend already
+    /// keyed on the IP alone, so this also removes a silent disagreement between the
+    /// two backends about what a bucket means.
+    pub(super) async fn check_ip_limit(&self, ip: &str) -> CheckResult {
         if !self.config.enabled {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
-        let key = tenant_id.map_or_else(|| ip.to_string(), |tid| format!("{}:{}", tid, ip));
+        let key = ip.to_string();
 
         // Best-effort capacity check; see `check_path_limit` for why this races safely.
         if !self.ip_buckets.contains_key(&key) && self.ip_buckets.len() >= self.config.max_buckets {
-            debug!(ip = ip, tenant_id = ?tenant_id, "IP bucket capacity reached — denying unseen IP");
-            return CheckResult::deny(1);
+            debug!(ip = ip, "IP bucket capacity reached — evicting LRU");
+            evict_one_lru(&self.ip_buckets);
         }
 
         let (allowed, remaining) = {
@@ -175,24 +233,29 @@ impl InMemoryRateLimiter {
     }
 
     /// Check if request is allowed for given user.
-    pub(super) async fn check_user_limit(
-        &self,
-        user_id: &str,
-        tenant_id: Option<&str>,
-    ) -> CheckResult {
+    ///
+    /// `user_id` must be a **verified** identity. The key is it and nothing else, for
+    /// the same reason as [`check_ip_limit`](Self::check_ip_limit): the unvalidated
+    /// tenant used to be folded in, so varying `X-Tenant-ID` minted a fresh full
+    /// bucket per request.
+    ///
+    /// Callers are responsible for the "verified" half, and the HTTP middleware no
+    /// longer calls this at all — it derived `user_id` from a JWT payload it decoded
+    /// without checking the signature, which is attacker-chosen text. gRPC
+    /// authenticates before calling, so its use is sound.
+    pub(super) async fn check_user_limit(&self, user_id: &str) -> CheckResult {
         if !self.config.enabled {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
-        let key =
-            tenant_id.map_or_else(|| user_id.to_string(), |tid| format!("{}:{}", tid, user_id));
+        let key = user_id.to_string();
 
         // Best-effort capacity check; see `check_path_limit` for why this races safely.
         if !self.user_buckets.contains_key(&key)
             && self.user_buckets.len() >= self.config.max_buckets
         {
-            debug!(user_id = user_id, tenant_id = ?tenant_id, "User bucket capacity reached — denying unseen user");
-            return CheckResult::deny(1);
+            debug!(user_id = user_id, "User bucket capacity reached — evicting LRU");
+            evict_one_lru(&self.user_buckets);
         }
 
         let (allowed, remaining) = {
