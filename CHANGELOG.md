@@ -3183,6 +3183,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The observer action-result cache can hit again (#1011).** Both cache-key derivations —
+  `ObserverExecutor::cache_key` and `CachedActionExecutor::cache_key` — identified an action by
+  `format!("{action:?}")`. `ActionConfig::Webhook` holds a `HashMap<String, String>` of headers
+  and `RandomState` reseeds per map instance, so two `ActionConfig` values holding *identical*
+  data rendered differently and keyed differently, within one process. Measured before the fix:
+  **twenty identically populated four-header actions produced eleven distinct keys.** For any
+  webhook action carrying two or more headers the cache therefore never hit — every dispatch
+  computed a fresh key, missed, executed, and wrote another entry, so the store grew one key per
+  dispatch with no eviction pressure beyond TTL and the hit-rate metric sat at zero, which reads
+  as "still warming".
+
+  The key is now derived from the action's canonical JSON (key-sorted, the same canonicaliser
+  the idempotency token uses) hashed with `SHA-256` rather than `DefaultHasher` — these keys are
+  persisted in Redis, and `DefaultHasher`'s output is documented as unstable across Rust
+  releases, so a toolchain bump would have silently orphaned every live entry. A golden-value
+  test pins the rendering so that change is loud.
+
+  As with #1122, the fix is one definition rather than two corrected copies:
+  `cache::key::action_result_key`. It returns `Option`, and both callers treat `None` as "not
+  cacheable" — no lookup, no store — because a fallback rendering could let two distinct actions
+  collide onto one key, which serves one action's result in place of another's. `CachedActionExecutor`'s
+  keys additionally gain the entity type and id the executor's copy already carried.
+
 - **`requires_role` means the same thing on every transport, and a scope is not a role
   (#1122).** The REST resolver checked `SecurityContext.scopes` where the executor checks
   `SecurityContext.roles` — the field's documented contract. The issue reported this as a

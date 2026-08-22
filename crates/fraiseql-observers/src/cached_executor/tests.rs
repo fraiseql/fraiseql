@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    cache::{CacheBackend, CachedActionResult},
+    cache::{CacheBackend, CachedActionResult, key::action_result_key},
     config::ActionConfig,
     error::Result,
     event::{EntityEvent, EventKind},
@@ -114,7 +114,7 @@ async fn test_cache_hit_does_not_execute_action() {
         reply_to:         None,
     };
 
-    let cache_key = CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
+    let cache_key = action_result_key(&event, &action).expect("action renders to JSON");
     let cached_result =
         CachedActionResult::new("cached".to_string(), true, "Cached result".to_string(), 1.0);
 
@@ -150,17 +150,33 @@ fn test_cache_key_generation() {
         signing_secret_env: None,
     };
 
-    let key = CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
+    let key = action_result_key(&event, &action).expect("action renders to JSON");
 
-    // Cache key format: action_result:{event_id}:{action_debug}
     // Verify key contains the actual event.id (auto-generated)
     let expected_event_id = event.id.to_string();
     assert!(
         key.contains(&expected_event_id),
         "Key should contain event ID {expected_event_id}"
     );
-    assert!(key.contains("Webhook"), "Key should contain action type");
     assert!(key.starts_with("action_result:"), "Key should start with action_result:");
+
+    // This used to assert the key `contains("Webhook")` — i.e. that the action's
+    // `Debug` rendering was pasted into it, which was #1011's defect. The
+    // property worth holding is that a different action keys differently, not
+    // that the key is human-readable.
+    let other = ActionConfig::Email {
+        to:               Some("a@b.com".to_string()),
+        to_template:      None,
+        subject:          Some("s".to_string()),
+        subject_template: None,
+        body_template:    None,
+        reply_to:         None,
+    };
+    assert_ne!(
+        key,
+        action_result_key(&event, &other).expect("action renders to JSON"),
+        "a different action must not reuse this action's key"
+    );
 }
 
 #[tokio::test]

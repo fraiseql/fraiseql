@@ -34,10 +34,9 @@
 //!
 //! # Cache Key Design
 //!
-//! Cache key = `action_result:{event.id}:{action_hash}`
-//!
-//! - `event.id`: `UUIDv4` (globally unique)
-//! - `action_hash`: Hash of action config (type + params)
+//! The key is derived by [`crate::cache::key::action_result_key`], which is the
+//! single definition shared with [`crate::executor::ObserverExecutor`] — this
+//! module used to carry its own, and both were wrong the same way (#1011).
 //!
 //! This ensures:
 //! - Same event + same action → cached
@@ -141,18 +140,6 @@ impl<E: ActionExecutor, C: CacheBackend> CachedActionExecutor<E, C> {
             metrics: MetricsRegistry::global().unwrap_or_default(),
         }
     }
-
-    /// Generate cache key from event and action.
-    ///
-    /// Format: `action_result:{event.id}:{action_hash}`
-    ///
-    /// Uses Debug representation of action for hashing (includes all params).
-    fn cache_key(event: &EntityEvent, action: &ActionConfig) -> String {
-        // Use Debug repr for stable hash of action params
-        let action_repr = format!("{action:?}");
-        // Simple hash: just concatenate (could use SHA256 for shorter keys)
-        format!("action_result:{}:{action_repr}", event.id)
-    }
 }
 
 #[cfg(feature = "caching")]
@@ -160,7 +147,12 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
     for CachedActionExecutor<E, C>
 {
     async fn execute(&self, event: &EntityEvent, action: &ActionConfig) -> Result<ActionResult> {
-        let cache_key = Self::cache_key(event, action);
+        // No key means not cacheable: execute, and do not invent a key that two
+        // distinct actions could share (see `cache::key`).
+        let Some(cache_key) = crate::cache::key::action_result_key(event, action) else {
+            warn!("Action does not render to JSON; executing uncached");
+            return self.inner.execute(event, action).await;
+        };
 
         // Check cache first
         match self.cache.get(&cache_key).await {

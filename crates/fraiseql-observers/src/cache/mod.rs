@@ -52,6 +52,11 @@
 /// Always compiled (the Redis transport that consumes them is `caching`-gated) so
 /// the security-critical escape-then-substitute logic is unit-tested on every push.
 mod glob;
+/// The one definition of an action-result cache key (#1011).
+///
+/// Always compiled, like `glob`, so the key's stability is unit-tested on every
+/// push rather than only in a leg that enables `caching`.
+pub mod key;
 #[cfg(feature = "caching")]
 pub mod redis;
 

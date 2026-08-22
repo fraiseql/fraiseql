@@ -6,30 +6,13 @@ use tracing::{debug, warn};
 
 use super::ObserverExecutor;
 use crate::{
-    cache::CachedActionResult, config::ActionConfig, event::EntityEvent, traits::ActionResult,
+    cache::{CachedActionResult, key::action_result_key},
+    config::ActionConfig,
+    event::EntityEvent,
+    traits::ActionResult,
 };
 
 impl ObserverExecutor {
-    /// Generate a cache key for action result caching.
-    ///
-    /// Format: `action_result:{event.id}:{action_type}:{entity_type}:{entity_id}`
-    pub(super) fn cache_key(event: &EntityEvent, action: &ActionConfig) -> String {
-        use std::{
-            collections::hash_map::DefaultHasher,
-            hash::{Hash, Hasher},
-        };
-
-        // Hash the action config for uniqueness
-        let mut hasher = DefaultHasher::new();
-        format!("{action:?}").hash(&mut hasher);
-        let action_hash = hasher.finish();
-
-        format!(
-            "action_result:{}:{}:{}:{}",
-            event.id, action_hash, event.entity_type, event.entity_id
-        )
-    }
-
     /// Try to get cached action result, return None if cache disabled or miss.
     pub(super) async fn try_cache_get(
         &self,
@@ -37,7 +20,7 @@ impl ObserverExecutor {
         action: &ActionConfig,
     ) -> Option<ActionResult> {
         if let Some(ref cache) = self.cache_backend {
-            let cache_key = Self::cache_key(event, action);
+            let cache_key = action_result_key(event, action)?;
             if let Ok(Some(cached)) = cache.get(&cache_key).await {
                 debug!("Cache hit for {} ({}ms latency)", action.action_type(), cached.duration_ms);
                 #[cfg(feature = "metrics")]
@@ -66,7 +49,10 @@ impl ObserverExecutor {
     ) {
         if let Some(ref cache) = self.cache_backend {
             if result.success {
-                let cache_key = Self::cache_key(event, action);
+                let Some(cache_key) = action_result_key(event, action) else {
+                    warn!("Action does not render to JSON; result not cached");
+                    return;
+                };
                 let cached_result = CachedActionResult::new(
                     result.action_type.clone(),
                     result.success,

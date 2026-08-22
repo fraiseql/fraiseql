@@ -176,7 +176,7 @@ pub fn derive_idempotency_token(
 /// `serde_json::Map` is insertion-ordered in this workspace, so `to_string()` on
 /// a `Value` is a rendering of how the value was *built*, not of what it holds.
 /// Anything that hashes or compares a rendered payload has to normalise first.
-fn canonical_json(value: &serde_json::Value) -> serde_json::Value {
+pub(crate) fn canonical_json(value: &serde_json::Value) -> serde_json::Value {
     match value {
         serde_json::Value::Object(map) => {
             let mut keys: Vec<&String> = map.keys().collect();
