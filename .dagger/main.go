@@ -385,6 +385,15 @@ func (m *FraiseqlCi) ShellGates(
 		// push" over the difference. It had drifted twice when this landed (#1135).
 		"python3 tools/check-preflight-parity.py",
 		"make test-preflight-parity",
+		// Same shape, one leg over: `make test-integration-postgres` is a
+		// hand-maintained copy of integrationPostgres's line list. Before it
+		// existed, the fact that these suites only pass under --test-threads=1
+		// lived ONLY in this file, so `cargo test -p fraiseql-core` was red by
+		// construction and `make test-integration` reported success having run
+		// 1 test out of 2828 (#1169). Bidirectional — a local-only extra line
+		// falsifies the target's claim in the other direction.
+		"python3 tools/check-integration-parity.py",
+		"make test-integration-parity",
 		// The bare-DATABASE_URL gate above ran here for its whole life without ever
 		// being able to reject anything (#1075). Its red capability is now pinned.
 		"make test-imports-gate",

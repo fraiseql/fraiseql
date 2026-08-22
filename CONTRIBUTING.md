@@ -137,12 +137,21 @@ cargo build --all-features
 # Run all tests
 make test
 
-# Run integration tests (requires PostgreSQL)
+# Run the `integration (postgres)` CI shard exactly as CI runs it
+# (requires `make db-up`; the DB-backed suites only pass serialized)
+make test-integration-postgres
+
+# The above plus the observer and server #[ignore] suites
 make test-integration
 
 # Run specific test
 cargo test test_schema
 ```
+
+> Do not reach for plain `cargo test -p fraiseql-core` with a `DATABASE_URL`
+> bound. Those suites share one `public` schema and collide under default
+> parallelism, so you get 38 failures that are not yours, with names that drift
+> between runs. See [`docs/testing-matrix.md`](docs/testing-matrix.md).
 
 ---
 

@@ -5209,6 +5209,52 @@ disagreed, and the promise was the part that was wrong.
   loudly rather than pass over an empty requirement set) run in `preflight` and in
   `ShellGates`.
 
+- **There is now a local command that runs the DB-backed suites the way CI runs them
+  (#1169).** There was not, and the two a developer would naturally reach for were a
+  false-red and a false-green respectively.
+
+  `cargo test -p fraiseql-core` with a `DATABASE_URL` bound gave **4257 passed, 38 failed**
+  across four binaries, every failure a fixture-provisioning name collision in the shared
+  schema — `pg_type_typname_nsp_index`, `pg_class_relname_nsp_index`, `… already exists`.
+  These suites provision fixtures in the same `public` schema of the same database, so they
+  only pass serialized, and the failing *names* drift between runs, which reads as flakiness
+  in whatever you just changed. `make test-integration` looked like the sanctioned
+  alternative and was worse — its PostgreSQL line passed `-- --ignored`, and none of these
+  suites are `#[ignore]`d (they self-skip on an absent `DATABASE_URL`). `cargo test --
+  --ignored` runs *only* ignored tests, so that target executed **1 test out of 2828**
+  across 77 binaries and then printed "All integration tests passed." `make test-full` step
+  [3/9] carried a copy of the same line under the same claim.
+
+  CI has always known better — `.dagger/main.go`'s `integrationPostgres` runs all 35 of its
+  invocations with `--test-threads=1` — but the knowledge lived only in that file. It now
+  also lives in `make test-integration-postgres`, a line-for-line mirror of that shard.
+  `make test-integration` runs it plus the observer and server `#[ignore]` suites, and
+  `test-full` step [3/9] calls the same target rather than carrying a second corrected copy
+  of the line — when a rule is enforced in several places the fix is one definition, not
+  parallel copies. The local run additionally re-clones the failover standby first, because
+  `pg_promote()` is one-way and CI gets fresh containers where a workstation does not.
+
+  Verified by running it: **2586 passed, 0 failed** across all 35 invocations, with every
+  one of the 142 `test result` lines reporting more than zero tests — the suites that
+  self-skip without a database are proven to have executed, not merely to have exited 0.
+
+  A hand-maintained copy of a CI list drifts — that is #1135's lesson one leg over — so
+  `tools/check-integration-parity.py` holds the two to each other and fails unless they
+  agree. Unlike the preflight gate it is **bidirectional**: this target's whole claim is
+  "this is what CI runs", so a local-only extra line falsifies it in the other direction
+  too. Env prefixes and feature ordering are normalised away (the shard reaches Postgres at
+  a bound alias, the target at a published port — the one difference that is supposed to
+  exist); `--test-threads` is compared verbatim, since that flag is the entire point. A
+  shard line the parser cannot classify is fatal rather than dropped — including one built
+  from a Go expression the const resolver cannot read, which if dropped would leave a
+  well-formed `--features ''` carrying a silently wrong expectation. Gate and
+  red-capability self-test (`tools/tests/integration_parity_test.sh`, nine fixtures) both
+  run in `preflight` and in `ShellGates`.
+
+  Making the suites genuinely parallel-safe would cut local wall-clock substantially and
+  remains worth doing; it is a much larger change and is deliberately not a prerequisite
+  for this.
+
 ### Security
 
 - **The HTTP/2 stack is patched against unbounded empty DATA frames (RUSTSEC-2026-0258).**

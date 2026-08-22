@@ -8,11 +8,45 @@ and how to run each test category.
 | Command | Infrastructure | Duration | Coverage |
 |---------|---------------|----------|----------|
 | `make test-unit` | None | ~30s | Unit tests (all crates, `--lib`) |
-| `make test-integration` | Docker (db-up) | ~10 min | DB + observer + server integration |
-| `make test-full` | Docker (db-up + federation-up) | ~30 min | Everything (8 steps) |
+| `make test-integration-postgres` | Docker (db-up) | ~40 min | The `integration (postgres)` CI shard, exactly as CI runs it |
+| `make test-integration` | Docker (db-up) | ~50 min | The above, plus the observer and server `#[ignore]` suites |
+| `make test-full` | Docker (db-up + federation-up) | ~70 min | Everything (9 steps) |
 | `make test-all-ignored` | Docker (db-up) | ~15 min | All `#[ignore]` tests |
 | `make test-federation` | Docker (federation-up) | ~5 min | Apollo Federation stack |
 | `make test-parity` | uv, bun, go, mvn, php | ~10 min | Cross-SDK schema parity |
+
+## Do not reach for plain `cargo test` on the DB-backed crates
+
+The `fraiseql-core` and `fraiseql-db` integration suites provision their fixtures
+with `CREATE TABLE` / `CREATE TYPE` in the **same `public` schema of the same
+database**. Run in parallel they collide on PostgreSQL's catalog uniqueness:
+
+```
+duplicate key value violates unique constraint "pg_type_typname_nsp_index"
+```
+
+So with a `DATABASE_URL` bound, `cargo test -p fraiseql-core` gives **4257
+passed, 38 failed** and `cargo test -p fraiseql-db` **457 passed, 5 failed** —
+none of which are yours, and the failing *names* drift between runs, which reads
+as flakiness in whatever you just changed. CI never uses default parallelism:
+every one of these invocations carries `--test-threads=1`.
+
+Use **`make test-integration-postgres`**. It is the line-for-line mirror of the
+Dagger `integration (postgres)` shard, held to it in both directions by
+`make lint-integration-parity`, so what passes there is what CI will run.
+
+Two things this replaced, both of which misled (#1169):
+
+- `cargo test -p <crate>` — red by construction, per above.
+- `make test-integration`'s old PostgreSQL line, which passed `-- --ignored`.
+  None of these suites are `#[ignore]`d — they self-skip on an absent
+  `DATABASE_URL` — and `cargo test -- --ignored` runs *only* ignored tests, so
+  it executed **1 test out of 2828** across 77 binaries and then printed "All
+  integration tests passed."
+
+Making the suites genuinely parallel-safe would cut the wall-clock a lot and is
+worth doing; it is a separate, much larger change and is not a prerequisite for
+anything here.
 
 ## Infrastructure Services
 
@@ -38,7 +72,7 @@ Started via `make federation-up` (uses `docker/docker-compose.federation.yml`):
 
 | Feature | Requires | Tests |
 |---------|----------|-------|
-| `test-postgres` | PostgreSQL | DB integration (`--ignored`) |
+| `test-postgres` | PostgreSQL | DB integration (self-skips without `DATABASE_URL`; **not** `#[ignore]`d) |
 | `redis-apq` | Redis | APQ storage (`--ignored`) |
 
 ### fraiseql-observers

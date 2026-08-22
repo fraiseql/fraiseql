@@ -5,9 +5,10 @@ help:
 	@echo "FraiseQL v2 Development Commands"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test               - Run unit + integration tests (PostgreSQL)"
+	@echo "  make test               - Run unit + integration tests (PostgreSQL) — ~50 min, serialized"
 	@echo "  make test-unit          - Run unit tests only (fast, no database)"
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
+	@echo "  make test-integration-postgres - The 'integration (postgres)' CI shard, exactly as CI runs it"
 	@echo "  make test-full          - Run ALL categories: unit + snapshots + DBs + Redis/NATS/Vault + server + federation"
 	@echo "  make test-federation    - Run federation tests (requires Docker)"
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
@@ -117,9 +118,11 @@ test-full: db-up federation-up
 	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
 	@echo ""
 	@echo "[3/9] Database integration tests (PostgreSQL)..."
-	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-postgres -p fraiseql-core --lib --tests -- --ignored --test-threads=4
+# Was the same `-p fraiseql-core … -- --ignored` line as test-integration's, with
+# the same result: 1 test of 2828, under a banner claiming the database
+# integration tests had run (#1169). A second corrected copy would drift from the
+# first, so both call the one mirror target.
+	@$(MAKE) --no-print-directory test-integration-postgres
 	@echo ""
 	@echo "[4/9] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
 	@echo ""
@@ -163,12 +166,13 @@ test-unit:
 
 # Run integration tests (requires Docker databases)
 # Runs each suite with the correct feature flags and env vars.
-test-integration: db-up
-	@echo ""
-	@echo "=== PostgreSQL integration tests ==="
-	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test --features test-postgres -p fraiseql-core --lib --tests -- --ignored --test-threads=4
+#
+# The PostgreSQL section is `test-integration-postgres` — the mirror of the
+# Dagger shard. It used to be one `-p fraiseql-core … -- --ignored` line, which
+# ran 1 test out of 2828 across 77 binaries and then printed "All integration
+# tests passed": none of those suites are `#[ignore]`d (they self-skip on an
+# absent DATABASE_URL), and `--ignored` runs ONLY ignored tests (#1169).
+test-integration: test-integration-postgres
 	@echo ""
 	@echo "=== fraiseql-observers integration tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -180,6 +184,96 @@ test-integration: db-up
 		cargo test -p fraiseql-server --lib --tests -- --ignored
 	@echo ""
 	@echo "All integration tests passed."
+
+# ============================================================================
+# `integration (postgres)` — the local mirror of the Dagger shard (#1169)
+# ============================================================================
+#
+# Every suite below provisions its fixtures in the same `public` schema of the
+# same database, so they collide on Postgres' catalog uniqueness when run in
+# parallel: `cargo test -p fraiseql-core` with a DATABASE_URL bound gives 38
+# failures that have nothing to do with your change, and the failing NAMES drift
+# between runs, so it reads as flakiness in whatever you just touched. CI never
+# uses default parallelism — `.dagger/main.go`'s integrationPostgres runs every
+# line with `--test-threads=1` — but that knowledge lived only in that file.
+# This target is the command that was missing.
+#
+# The line list is held to the shard's by `make lint-integration-parity`, in
+# both directions. Do not edit one side alone. The rationale for each individual
+# line lives with it in `.dagger/main.go` and is deliberately not duplicated
+# here: two copies of a rationale drift, and only one copy can be right.
+#
+# Serialized on purpose: expect this to take a while. What is NOT mirrored is
+# the shard's build environment (sccache, mold, CARGO_INCREMENTAL=0, a pinned
+# toolchain image) — that is the local box's `.cargo/config.toml` to decide, and
+# none of it changes what the tests assert.
+test-integration-postgres: export DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+test-integration-postgres: export STANDBY_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5436/test_fraiseql
+test-integration-postgres: export FAILOVER_STANDBY_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5437/test_fraiseql
+# Mirrors integrationBase/rustBase: RUST_LOG=debug is what CI's assertions run
+# under, so a test that only fails at that level must fail here too.
+test-integration-postgres: export RUST_LOG := debug
+test-integration-postgres: export RUST_BACKTRACE := 1
+.PHONY: test-integration-postgres
+# db-failover-reset first: the #957 test calls pg_promote() on the failover
+# standby and a promoted standby never goes back. CI starts from fresh
+# containers every run; locally the second run would assert against a plain
+# writable server unless it is re-cloned.
+test-integration-postgres: db-up db-failover-reset
+	@echo ""
+	@echo "=== integration (postgres) — mirroring .dagger/main.go integrationPostgres ==="
+	@echo "### toolchain: $$(rustc --version)"
+	@echo ""
+	@echo "### core/db --test '*' sweep (serialized: shared public schema)"
+	@cargo test -p fraiseql-core --features 'arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test '*' -- --test-threads=1
+	@cargo test -p fraiseql-db --features 'postgres,wire-backend,test-postgres' --test '*' -- --test-threads=1
+	@echo ""
+	@echo "### live-PostgreSQL lib tests"
+	@cargo test -p fraiseql-db --lib --features 'postgres,wire-backend,test-postgres' -- --test-threads=1
+	@cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1
+	@echo ""
+	@echo "### auth: durable identity store, password, reset, verification, linking, single-use, sweeps"
+	@cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1
+	@cargo test -p fraiseql-auth --test local_password -- --test-threads=1
+	@cargo test -p fraiseql-auth --test password_reset -- --test-threads=1
+	@cargo test -p fraiseql-auth --test email_verification -- --test-threads=1
+	@cargo test -p fraiseql-auth --test social_linking -- --test-threads=1
+	@cargo test -p fraiseql-auth --test postgres_single_use_consume -- --test-threads=1
+	@cargo test -p fraiseql-auth --test postgres_expiry_sweep -- --test-threads=1
+	@cargo test -p fraiseql-server --features auth --test integration -- --test-threads=1
+	@cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1
+	@echo ""
+	@echo "### inbound spine, storage policy admin, sources, functions runtime"
+	@cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1
+	@cargo test -p fraiseql-server --features inbound,inbound-email --lib inbound:: -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
+	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
+	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
+	@cargo test -p fraiseql-server --features functions-runtime,observers --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: --test-threads=1
+	@cargo test -p fraiseql-server --features functions-runtime --test functions_schema_seam_test
+	@cargo test -p fraiseql-server --features functions-runtime --test functions_query_bridge_pin_test
+	@echo ""
+	@echo "### saga: forward execution, compensation, recovery, remote dispatch"
+	@cargo test -p fraiseql-federation --features saga,test-utils --test saga_integration -- --include-ignored --test-threads=1
+	@echo ""
+	@echo "### fraiseql-cli against-db suites (each self-skips without DATABASE_URL)"
+	@cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test mutation_contract_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test doctor_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test source_probe_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test cascade_rls_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test setup_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test sources_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1
+	@echo ""
+	@echo "### seed-fixture integrity (runs last: names any clobber a suite above left)"
+	@cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1
+	@echo ""
+	@echo "test-integration OK: postgres suite passed"
 
 # Run ALL #[ignore] tests — requires full test infrastructure (make db-up first).
 # Covers: Redis APQ, NATS transport, observer bridge, Vault secrets, server DB queries.
@@ -634,6 +728,22 @@ lint-preflight-parity:
 test-preflight-parity:
 	@bash tools/tests/preflight_parity_test.sh
 
+# Gate: `make test-integration-postgres` must run exactly what the Dagger
+# `integration (postgres)` shard runs. The knowledge that these suites only pass
+# serialized lived only in `.dagger/main.go`, so the two commands a developer
+# reaches for were a false-red and a false-green respectively (#1169). A mirror
+# maintained by hand in a second file is only worth having if it cannot drift.
+.PHONY: lint-integration-parity
+lint-integration-parity:
+	@python3 tools/check-integration-parity.py
+
+# Red-capability pin for the integration parity gate: a dropped line, an added
+# line, a changed flag, and a shard shape the parser cannot read must each be
+# reported rather than passed over.
+.PHONY: test-integration-parity
+test-integration-parity:
+	@bash tools/tests/integration_parity_test.sh
+
 # Red-capability pin for the bare-DATABASE_URL gate. It ran in preflight and in the
 # required CI leg for its whole life without ever rejecting anything (#1075), so every
 # assertion here is a shape it must reject — starting with the literal text its
@@ -659,7 +769,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-imports-gate test-suite-coverage-workflows
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
