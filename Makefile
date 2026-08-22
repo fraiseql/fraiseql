@@ -589,6 +589,27 @@ lint-examples-postgres-only:
 lint-sdk-dead-surface:
 	@bash tools/check-sdk-dead-surface.sh
 
+# Gate: a declared-but-unread `feature = []` is a promise the build cannot keep —
+# enabling it changes nothing, so the capability it names is either absent or
+# reachable another way. Ran in the Dagger leg only until #1135.
+.PHONY: lint-feature-chains
+lint-feature-chains:
+	@bash tools/check-feature-chains.sh
+
+# Gate: `make preflight` must run everything the Dagger ShellGates leg runs, or
+# its "Safe to push" line is false. Two lists maintained by hand in two files
+# drift silently, and did twice (#1135).
+.PHONY: lint-preflight-parity
+lint-preflight-parity:
+	@python3 tools/check-preflight-parity.py
+
+# Red-capability pin for the parity gate. A gate asserting two lists agree is
+# itself a third place the assurance can be false, so each way they can diverge
+# has a fixture that must be reported.
+.PHONY: test-preflight-parity
+test-preflight-parity:
+	@bash tools/tests/preflight_parity_test.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -597,7 +618,7 @@ lint-sdk-dead-surface:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests test-release-tooling test-changelog-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

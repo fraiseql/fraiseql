@@ -300,6 +300,11 @@ func (m *FraiseqlCi) ShellGates(
 		// unreported for as long as it was there. A gate that is red and unrun is worth
 		// less than no gate — it trains the next reader to assume the surface is checked.
 		"bash tools/check-feature-chains.sh",
+		// This list and the Makefile's `preflight:` target are two hand-maintained
+		// copies of one thing, so they drift, and `make preflight` says "Safe to
+		// push" over the difference. It had drifted twice when this landed (#1135).
+		"python3 tools/check-preflight-parity.py",
+		"make test-preflight-parity",
 	}, "\n")
 
 	return m.shellBase().

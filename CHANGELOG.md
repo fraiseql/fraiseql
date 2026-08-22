@@ -4611,6 +4611,33 @@ disagreed, and the promise was the part that was wrong.
   workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
   since v2.14.1, was already in the publish list and is unaffected.
 
+- **`make preflight` now runs everything the CI leg it claims to mirror runs (#1135).** It
+  printed `✅ preflight passed — mirrors the Dagger preflight leg. Safe to push.` while
+  skipping `make test-deadline-gate`, which `ShellGates` does run. That gate pins the
+  boundary behaviour of `check-deadlines.sh` — the only enforcement of the `# deadline:`
+  risk-acceptance convention, and a gate that reddens a **required** check on a *date*
+  rather than on a push, so an off-by-one in it is a day on which no branch can merge.
+  That is precisely the test you want to have run before pushing.
+
+  The one-line fix would not have held. The two lists — the `preflight:` prerequisites in
+  the `Makefile` and the script literal in `.dagger/main.go` — are two hand-maintained
+  copies of one thing, and a **second** gate (`check-feature-chains.sh`) had already
+  drifted out of the local one by the time this was fixed. So the fix is a gate:
+  `tools/check-preflight-parity.py` resolves the `preflight` target through its
+  prerequisites and recipe, resolves the `ShellGates` list, and fails unless every CI
+  command is reachable locally — matching a `make lint-routes` against a bare
+  `bash tools/check-route-syntax.sh`, since the two lists legitimately spell the same gate
+  differently. It also compares the budgets passed at each call site, so an
+  `UNWRAP_ALLOW_LIMIT` that differs between the two is reported rather than accepted.
+
+  The check is deliberately one-directional: `preflight` may run *more* than CI (it runs
+  fmt/rustdoc/clippy inline, which Dagger runs as sibling gates of the same `Preflight`
+  function), and a local target stricter than CI costs nothing. Both the gate and its
+  red-capability self-test (`tools/tests/preflight_parity_test.sh`, five fixtures — one
+  per way the lists can diverge, including an unparseable Go literal, which must fail
+  loudly rather than pass over an empty requirement set) run in `preflight` and in
+  `ShellGates`.
+
 ### Security
 
 - **The HTTP/2 stack is patched against unbounded empty DATA frames (RUSTSEC-2026-0258).**
