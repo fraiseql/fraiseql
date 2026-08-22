@@ -802,6 +802,140 @@ async fn an_undeclared_mutation_argument_is_a_validation_error() {
     );
 }
 
+/// #1005: the same rule as B3, on the **payload** of a write.
+///
+/// #939 wired `validate_selection_set` into `QueryMatcher::match_query` and
+/// `execute_node_query`. Mutations classify and dispatch on their own path and
+/// reached neither, so the silent-null behaviour #939 removed from the read path
+/// survived on the write path — and the write half is the sharper one: the
+/// mutation **executes**, the row is committed, and the response carries
+/// `"emial": null` under a 200. A client that branches on the misspelled field
+/// takes the wrong branch after a committed write.
+#[tokio::test]
+async fn an_undeclared_mutation_payload_field_is_a_validation_error() {
+    let (exec, adapter) = mutation_executor();
+    let err = exec
+        .execute(r#"mutation { createUser(email: "a@b.com", name: "A") { id emial } }"#, None)
+        .await
+        .expect_err("a field the payload type does not define is an invalid document");
+
+    assert!(err.to_string().contains("emial"), "the error must name the field, got: {err}");
+    assert!(
+        adapter.recorded_function_calls().is_empty(),
+        "#1005: the write must not happen. An invalid document that commits a row and then \
+         reports the field as null is worse than one that is refused: got {:?}",
+        adapter.recorded_function_calls()
+    );
+}
+
+/// A mutation whose payload is a **union** of a success and an error variant —
+/// the shape #1005 says must be scoped before the write path can be validated at
+/// all (#212, #450/#451, #698's synthesized cascade envelope all produce it).
+fn union_payload_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+    let json = serde_json::json!({
+        "types": [
+            {
+                "name": "CreateUserSuccess",
+                "sql_source": "v_user",
+                "fields": [
+                    {"name": "id", "field_type": "ID", "nullable": false},
+                    {"name": "email", "field_type": "String", "nullable": true}
+                ]
+            },
+            {
+                "name": "MutationError",
+                "sql_source": "v_error",
+                "is_error": true,
+                "fields": [{"name": "message", "field_type": "String", "nullable": false}]
+            }
+        ],
+        "unions": [{
+            "name": "CreateUserResult",
+            "member_types": ["CreateUserSuccess", "MutationError"]
+        }],
+        "mutations": [{
+            "name": "createUser",
+            "return_type": "CreateUserResult",
+            "sql_source": "fn_create_user",
+            "operation": {"Insert": {"table": "users"}},
+            "arguments": [
+                {"name": "email", "arg_type": "String", "nullable": false}
+            ]
+        }]
+    })
+    .to_string();
+    let schema = CompiledSchema::from_json(&json, false).expect("union fixture must parse");
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new(schema, Arc::clone(&adapter)), adapter)
+}
+
+/// The scoping rule, stated as a test: a field inside `... on X` is checked
+/// against **X**, so a typo in a success variant is caught.
+#[tokio::test]
+async fn an_undeclared_field_in_a_union_payload_variant_is_a_validation_error() {
+    let (exec, adapter) = union_payload_executor();
+    let err = exec
+        .execute(
+            r#"mutation { createUser(email: "a@b.com") { ... on CreateUserSuccess { id emial } } }"#,
+            None,
+        )
+        .await
+        .expect_err("a field the success variant does not define is an invalid document");
+
+    assert!(err.to_string().contains("emial"), "the error must name the field, got: {err}");
+    assert!(adapter.recorded_function_calls().is_empty(), "the write must not happen");
+}
+
+/// The other half of the same rule, and the one that makes it safe: a field
+/// declared on the variant the fragment names must **not** be rejected because
+/// some *other* member of the union lacks it.
+///
+/// `message` exists on `MutationError` and not on `CreateUserSuccess`; `id` is
+/// the reverse. Scoring either against the union as a whole — or against the
+/// first member — rejects a working mutation, which is strictly worse than the
+/// silent null this fixes and is why #939 left the write path alone.
+#[tokio::test]
+async fn each_union_variant_is_scored_against_its_own_fields() {
+    let (exec, _) = union_payload_executor();
+    exec.execute(
+        r#"mutation { createUser(email: "a@b.com") { __typename ... on CreateUserSuccess { id email } ... on MutationError { message } } }"#,
+        None,
+    )
+    .await
+    .expect("every field is declared on the variant that names it");
+}
+
+/// Control, and the one that decides whether this fix is safe to ship: every
+/// declared payload field still executes.
+///
+/// Validating a payload selection against the wrong type would **reject a
+/// working mutation** — strictly worse than the defect being fixed, which is why
+/// #939 left the write path alone rather than guessing.
+#[tokio::test]
+async fn declared_mutation_payload_fields_still_execute() {
+    let (exec, _) = mutation_executor();
+    exec.execute(
+        r#"mutation { createUser(email: "a@b.com", name: "A") { id email name } }"#,
+        None,
+    )
+    .await
+    .expect("a fully-declared mutation payload must still run");
+}
+
+/// Control: `__typename` is a meta-field, legal on any selection set and absent
+/// from every type's field list. Rejecting it would break every client that
+/// discriminates a result.
+#[tokio::test]
+async fn typename_is_legal_on_a_mutation_payload() {
+    let (exec, _) = mutation_executor();
+    exec.execute(
+        r#"mutation { createUser(email: "a@b.com", name: "A") { __typename id } }"#,
+        None,
+    )
+    .await
+    .expect("__typename must remain legal on a mutation payload");
+}
+
 /// Control: the auto-wired arguments a query *does* accept still execute. A
 /// validator that rejects a legitimate filter is worse than the bug it fixes.
 #[tokio::test]

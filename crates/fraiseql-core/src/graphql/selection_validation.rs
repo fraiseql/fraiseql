@@ -63,6 +63,31 @@ fn validate_at(
     if depth >= MAX_VALIDATION_DEPTH {
         return Ok(());
     }
+
+    // A union has no fields of its own, so there is nothing to score a bare key
+    // against — but each inline fragment names a concrete variant, and that
+    // variant's fields are checkable. This is the scoping rule mutation payloads
+    // need (#1005): a payload type may be a union of success and error variants
+    // resolved per result (#212, #450/#451, #698's synthesized cascade envelope),
+    // and validating a member's fields against the *wrong* variant would reject a
+    // working mutation — strictly worse than the silent null being fixed.
+    //
+    // Bare non-meta fields directly on a union pass unadjudicated rather than
+    // being refused. § 5.3.1 does forbid them, but rejecting here would make this
+    // routine the arbiter of union modelling, and #939's guards are deliberately
+    // the other way: an absence of evidence is not evidence of a defect.
+    if schema.find_type(type_name).is_none() && schema.find_union(type_name).is_some() {
+        for sel in selections {
+            if let Some(condition) = sel.name.strip_prefix("...on ") {
+                let condition = condition.trim();
+                if schema.find_type(condition).is_some() {
+                    validate_at(schema, condition, &sel.nested_fields, depth + 1)?;
+                }
+            }
+        }
+        return Ok(());
+    }
+
     let Some(type_def) = schema.find_type(type_name) else {
         return Ok(());
     };

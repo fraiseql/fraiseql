@@ -3244,6 +3244,33 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Mutation payload selections are validated against the compiled type (#1005).** #939 made a
+  selection on an undeclared field a validation error (§ 5.3.1) by wiring
+  `validate_selection_set` into `QueryMatcher::match_query` and `execute_node_query`. Mutations
+  classify and dispatch on their own path and reached neither, so the silent-null behaviour
+  #939 removed from the read path survived on the write path — where it costs more:
+
+  ```graphql
+  mutation { createUser(email: "a@b.com", name: "Alice") { id emial } }
+  ```
+
+  executed, **committed the row**, and answered 200 with the misspelled field simply absent. A
+  client branching on it takes the wrong branch after a completed write. The check now runs at
+  the universal mutation chokepoint, alongside `requires_role` (#422), `requires_actor` (#966)
+  and argument validation (#1154) — so it covers the GraphQL branches, `execute_mutation_query`
+  and the REST write path's direct `SupportsMutations` API, and it runs *before* the write.
+
+  **The union scoping rule, which is why #939 left this alone.** A payload type may be a union
+  of success and error variants resolved per result (#212, #450/#451, #698's synthesized
+  cascade envelope), and scoring a member's fields against the wrong variant would **reject a
+  working mutation** — strictly worse than the silent null. The rule is now stated and tested:
+  a field inside `... on X` is checked against **X**, and a bare non-meta field directly on a
+  union passes unadjudicated rather than being refused. § 5.3.1 does forbid the latter, but
+  refusing it here would make the validator the arbiter of union modelling, and #939's guards
+  are deliberately the other way round — an absence of evidence is not evidence of a defect.
+  Those guards are unchanged: unknown type passes, a type with no field list passes, and `__`
+  meta-fields pass.
+
 - **A nested `where` comparison gets its declared cast (#1157).** `where_field_types` mapped
   only the entry type's own fields, and said so: "Only the top level is mapped. A nested
   relation path (`machine.id`) has no entry, and the generator falls back to the JSON value's

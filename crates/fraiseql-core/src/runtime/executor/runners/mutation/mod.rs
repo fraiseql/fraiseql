@@ -889,6 +889,24 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         security_ctx,
     )?;
 
+    // 1e. #1005: the fields selected on the payload must be defined on it
+    //      (GraphQL § 5.3.1). #939 wired this into `QueryMatcher::match_query` and
+    //      `execute_node_query`; mutations classify and dispatch on their own path
+    //      and reached neither, so the silent-null behaviour #939 removed from the
+    //      read path survived on the write path — where it costs more, because the
+    //      row is committed before the client reads the null.
+    //
+    //      Validated *here*, at the chokepoint, and therefore before the write.
+    //      A payload type that is a union is scoped per inline fragment by
+    //      `validate_selection_set`; a bare key on one passes unadjudicated,
+    //      because scoring it against the wrong variant would reject a working
+    //      mutation.
+    //
+    //      Named fragment spreads are already expanded by classification, and
+    //      § 5.3.1 is a static rule, so this runs on the unfiltered selection set
+    //      rather than after `@skip`/`@include` — exactly as the query path does.
+    crate::graphql::validate_selection_set(&ctx.schema, &mutation_def.return_type, selections)?;
+
     // 1d. #1154: the arguments written on the mutation field must be defined on
     //      it (GraphQL § 5.4.1). Step 3 below binds positionally from
     //      `mutation_def.arguments`, so an undeclared argument was dropped and
