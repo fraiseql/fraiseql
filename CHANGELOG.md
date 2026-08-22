@@ -4634,6 +4634,49 @@ disagreed, and the promise was the part that was wrong.
   workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
   since v2.14.1, was already in the publish list and is unaffected.
 
+- **A suite that ran zero tests read as covered; the coverage gate can now see it
+  (#1082, #1056, #1093).** `tools/check-suite-coverage.py` is the gate every "verified
+  executing" claim in the last two programs was checked through. It had three blind spots,
+  one of them live:
+
+  - **A file-level `#![cfg(feature = "…")]` was invisible.** The gate learned a binary's
+    feature requirement from `[[test]] required-features` and from nowhere else, while 67 of
+    the 68 test binaries that gate themselves with an inner attribute declare no such key. An
+    inner `cfg` under a leg that omits the feature compiles to an **empty binary** and reports
+    `test result: ok. 0 passed`. One suite was in exactly that state:
+    `fraiseql-server::functions_query_bridge_pin_test` is `#![cfg(feature =
+    "functions-runtime")]` and was named in `serverInProcessTests`, whose feature list does
+    not contain it. It is rewired onto a `--features functions-runtime` line beside
+    `functions_schema_seam_test` — which had been placed correctly by hand, with a comment
+    explaining why, because nothing could catch the difference. It now runs **2 tests** where
+    it ran 0.
+  - **Feature implications are followed.** A leg passing `--features observers-nats` also
+    enables `observers`, so a subset test against the literal `--features` list would have
+    reported false orphans as soon as the point above started demanding features. Enabled
+    features are now closed over each crate's own `[features]` table, and `default` is
+    included unless `--no-default-features` is passed (which the parser now tracks).
+  - **`not(feature = …)` is modelled.** `#![cfg(all(feature = "arrow", not(feature =
+    "wire-backend")))]` compiles to nothing under `--all-features`, so an all-features leg
+    does not cover it however many other boxes it ticks.
+  - **A positional test-name filter no longer credits a whole crate.** `covers_binary`
+    applied `--lib`, `--doc`, `-p`, `--exclude`, `--test`, features, ignore-mode and service
+    env, but never `inv.filters` — though `covers_module` did. So `cargo test -p
+    fraiseql-storage --features aws-s3 backend::s3` was read as running every binary in the
+    crate, when in fact each prints "running 0 tests": the filter is a test-*name* filter and
+    those binaries' tests are free functions. A filtered run now covers only what it names
+    with `--test`. `--skip` deliberately does *not* disqualify — it removes matching tests and
+    leaves the rest running, and every `--skip` in the tree names a lib-module path that
+    cannot match an integration binary's tests.
+
+  Ordered as above because the first change alone would have produced false orphans without
+  the second. On the current tree the tightened gate reports exactly one finding — the live
+  one — across 419 binaries and 89 feature-gated lib modules, with no false positives.
+
+  ⚠ Still open: #1120. The gate reads `.dagger/main.go` only, so the four codegen
+  consumer suites that execute in `sdk-conformance.yml` remain carried as exemptions rather
+  than checked. Their reasons are accurate today — the `Consumer-usage gates` step does run
+  all four — but an exemption is a claim the gate does not verify.
+
 - **Four official SDKs' own CI gates now run on a branch push (#1119).** Pushing a branch that
   changed all eleven official SDKs started seven SDK workflows. Four did not run at all:
 

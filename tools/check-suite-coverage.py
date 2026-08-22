@@ -132,6 +132,75 @@ SERVICES = {
 
 ALL_FEATURES = object()  # sentinel: --all-features
 
+# crate -> {feature: [features it implies]}, filled by discover(). Needed because a leg
+# naming `observers-nats` also enables `observers`, so a suite gated on `observers` IS
+# covered by it — and a subset test over the literal `--features` list would report a
+# false ORPHAN (#1082).
+FEATURE_GRAPH: dict[str, dict[str, list[str]]] = {}
+
+# A file-level inner attribute gating the WHOLE test binary, e.g.
+#   #![cfg(feature = "functions-runtime")]
+#   #![cfg(all(feature = "auth", feature = "rest"))]
+#   #![cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+# Anchored to the start of a line so an attribute inside a string or a nested item
+# cannot match. `#![cfg(test)]` and other non-feature predicates yield nothing.
+FILE_CFG = re.compile(r"^#!\[cfg\((.*)\)\]\s*$", re.M)
+NOT_FEATURE = re.compile(r'not\s*\(\s*feature\s*=\s*"([^"]+)"\s*\)')
+ANY_PREDICATE = re.compile(r"\bany\s*\(")
+
+
+def parse_file_level_cfg(src: str) -> tuple[set[str], set[str]]:
+    """(features that must be ON, features that must be OFF) for the whole file.
+
+    `discover_binaries` learned a binary's feature requirement from
+    `[[test]] required-features` and from nowhere else. 67 of the 68 test binaries
+    that gate themselves with a file-level `#![cfg(feature = "…")]` declare no such
+    key, so the gate treated them as feature-free: any leg naming one satisfied
+    coverage whether or not it enabled the feature, and an inner `cfg` under a leg
+    that omits it compiles to an empty binary reporting `test result: ok. 0 passed`
+    (#1082).
+
+    `any(...)` is deliberately not modelled: "one of these features" cannot be
+    expressed as a required set, and guessing would either over- or under-credit.
+    No file in the tree uses it; if one appears, it is reported rather than
+    silently mis-read.
+    """
+    required: set[str] = set()
+    forbidden: set[str] = set()
+    for m in FILE_CFG.finditer(src):
+        pred = m.group(1)
+        if ANY_PREDICATE.search(pred):
+            die(
+                "a file-level #![cfg(any(...))] is not modelled by this gate; it would "
+                f"be silently mis-credited. Predicate: cfg({pred})"
+            )
+        for feat in NOT_FEATURE.findall(pred):
+            forbidden.add(feat)
+        negated = NOT_FEATURE.sub("", pred)
+        required.update(re.findall(r'feature\s*=\s*"([^"]+)"', negated))
+    return required, forbidden
+
+
+def expand_features(crate: str, feats: set[str], with_defaults: bool) -> set[str]:
+    """Close a `--features` list over the crate's own [features] table.
+
+    `observers-nats = ["observers", "dep:async-nats"]` means a leg passing
+    `--features observers-nats` has `observers` on too. Entries naming another crate
+    (`dep:x`, `other-crate/feature`) are not features of this crate and are dropped.
+    """
+    table = FEATURE_GRAPH.get(crate, {})
+    seen: set[str] = set()
+    stack = list(feats)
+    if with_defaults and "default" in table:
+        stack.append("default")
+    while stack:
+        f = stack.pop()
+        if f in seen or "/" in f or f.startswith("dep:"):
+            continue
+        seen.add(f)
+        stack.extend(table.get(f, []))
+    return seen
+
 
 def die(msg: str) -> None:
     print(f"suite-coverage: FATAL: {msg}", file=sys.stderr)
@@ -147,6 +216,11 @@ class TestBinary:
         self.name = name
         self.path = path
         self.required_features: set[str] = set()
+        # Features that must be OFF for this binary to hold any tests. A file-level
+        # `#![cfg(all(feature = "arrow", not(feature = "wire-backend")))]` compiles to
+        # an EMPTY binary under `--all-features`, so a leg enabling the forbidden
+        # feature does not cover it however many other boxes it ticks (#1082).
+        self.forbidden_features: set[str] = set()
         self.needs: set[str] = set()  # service-group names from SERVICES
         self.n_tests = 0
         self.n_ignored = 0
@@ -226,8 +300,15 @@ def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestB
     binaries = []
     for f in sorted(tests_dir.glob("*.rs")):
         b = TestBinary(crate, f.stem, f)
-        b.required_features = declared.get(f.stem, set())
+        b.required_features = set(declared.get(f.stem, set()))
         src = f.read_text(encoding="utf-8", errors="replace")
+        # A file-level `#![cfg(feature = "…")]` gates the binary exactly as
+        # `required-features` does, but cargo cannot see it: it builds the target and
+        # produces an empty one. Fold it in so `covers_binary` demands a leg that
+        # actually enables the feature (#1082).
+        cfg_required, cfg_forbidden = parse_file_level_cfg(src)
+        b.required_features |= cfg_required
+        b.forbidden_features |= cfg_forbidden
         # Count the binary's own tests BEFORE appending shared-harness sources:
         # a helper-only file with zero tests is not a suite.
         #
@@ -364,6 +445,7 @@ class Invocation:
         self.doc_only = False
         self.tests: list[str] = []  # --test names ("*" = every binary)
         self.features: set[str] | object = set()
+        self.no_default_features = False
         self.filters: list[str] = []  # positive test-name filters
         self.skips: list[str] = []  # --skip tokens
         self.ignored_mode = False  # `-- --ignored`: runs ONLY #[ignore]d tests
@@ -538,6 +620,8 @@ def parse_cmd(inv: Invocation) -> None:
             inv.tests.append(toks[i].strip("'\""))
         elif t == "--all-features":
             inv.features = ALL_FEATURES
+        elif t == "--no-default-features":
+            inv.no_default_features = True
         elif t == "--features":
             i += 1
             feats = toks[i].strip("'\"")
@@ -570,11 +654,16 @@ def parse_cmd(inv: Invocation) -> None:
 # ── Phase C: coverage ─────────────────────────────────────────────────────────
 
 
-def features_enabled(inv: Invocation, wanted: set[str]) -> bool:
+def features_enabled(
+    inv: Invocation, crate: str, wanted: set[str], forbidden: set[str] = frozenset()
+) -> bool:
     if inv.features is ALL_FEATURES:
-        return True
+        # `--all-features` enables everything, so a `not(feature = …)` arm compiles to
+        # nothing. The suite builds and runs zero tests — covered by nobody (#1082).
+        return not forbidden
     assert isinstance(inv.features, set)
-    return wanted <= inv.features
+    enabled = expand_features(crate, inv.features, with_defaults=not inv.no_default_features)
+    return wanted <= enabled and not (forbidden & enabled)
 
 
 def covers_binary(inv: Invocation, b: TestBinary) -> bool:
@@ -588,7 +677,21 @@ def covers_binary(inv: Invocation, b: TestBinary) -> bool:
         return False
     if inv.tests and "*" not in inv.tests and b.name not in inv.tests:
         return False
-    if not features_enabled(inv, b.required_features):
+    # A positional TESTNAME filter is passed to every selected binary, and cargo cannot
+    # tell the gate which names it will match. `covers_module` has always applied
+    # `filters`; `covers_binary` did not, so `cargo test -p fraiseql-storage --features
+    # aws-s3 backend::s3` was read as running EVERY binary in the crate, when in fact
+    # each one prints "running 0 tests" (#1056, #1093). The safe reading of a filtered
+    # run is that it covers only what it names with `--test`, and nothing by crate.
+    #
+    # `inv.skips` deliberately does NOT disqualify: `--skip` removes matching tests and
+    # leaves the rest running, so a binary stays covered unless every one of its tests
+    # matches — which the gate cannot know, and which is false for every `--skip` in
+    # the tree today (they name lib-module paths like `migrations::tests`, which cannot
+    # match an integration binary's free functions).
+    if not inv.tests and inv.filters:
+        return False
+    if not features_enabled(inv, b.crate, b.required_features, b.forbidden_features):
         return False
     # `-- --ignored` runs ONLY #[ignore]d tests; a plain run skips them;
     # `--include-ignored` runs both.
@@ -612,7 +715,7 @@ def covers_module(inv: Invocation, mod: LibTestModule) -> bool:
         return False
     if inv.crate is None and not inv.workspace:
         return False
-    if not features_enabled(inv, mod.features):
+    if not features_enabled(inv, mod.crate, mod.features):
         return False
     if inv.filters and not any(mod.module_path.startswith(f.rstrip(":")) for f in inv.filters):
         return False
@@ -643,6 +746,14 @@ def main() -> int:
     binaries: list[TestBinary] = []
     modules: list[LibTestModule] = []
     crate_names = set()
+    # Two passes: the feature graph of EVERY crate must exist before any coverage
+    # question is asked, because a leg naming one feature enables the ones it implies.
+    for cd in crates:
+        manifest = parse_cargo_toml(cd)
+        FEATURE_GRAPH[manifest["package"]["name"]] = {
+            name: list(implies) if isinstance(implies, list) else []
+            for name, implies in manifest.get("features", {}).items()
+        }
     for cd in crates:
         manifest = parse_cargo_toml(cd)
         crate = manifest["package"]["name"]
