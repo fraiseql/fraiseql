@@ -286,3 +286,93 @@ fn parse_query_pairs_encoded() {
     assert_eq!(result.len(), 1);
     assert_eq!(result[0], ("name[icontains]".to_string(), "alice".to_string()));
 }
+
+// ---------------------------------------------------------------------------
+// #1153: the REST rendering site sanitizes by provenance, not by status class
+// ---------------------------------------------------------------------------
+
+/// A fix that only touched the GraphQL gate would leave REST leaking — the tree
+/// already knew the DB message "carries schema names, constraint details, and SQL
+/// fragments" and forwarded 22/23 anyway. This drives the actual rendering site.
+mod database_text_is_sanitized_on_rest {
+    use axum::http::StatusCode;
+    use fraiseql_core::schema::ErrorSanitizationConfig;
+
+    use super::super::helpers::rest_result_to_response;
+    use crate::{
+        config::error_sanitization::ErrorSanitizer, routes::rest::handler::response::RestError,
+    };
+
+    /// Verbatim shape of a real leak, reduced: an internal SQL function, the
+    /// write-path mechanism, two table names the client never referenced, and a
+    /// constraint identifier.
+    const RAW: &str = "Database error: Function call app.delete_order (with change-log outbox) \
+                       failed: update or delete on table \"tb_order\" violates foreign key \
+                       constraint \"tb_order_line_fk_order_fkey\" on table \"tb_order_line\"";
+
+    fn enabled() -> ErrorSanitizer {
+        ErrorSanitizer::new(ErrorSanitizationConfig {
+            enabled: true,
+            sanitize_database_errors: true,
+            ..Default::default()
+        })
+    }
+
+    async fn body_of(resp: axum::response::Response) -> String {
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    /// The 400-class database faults — the ones a caller can provoke on demand, and
+    /// the whole point of #1153.
+    #[tokio::test]
+    async fn a_client_triggerable_400_is_sanitized() {
+        for err in [
+            RestError::constraint_violation(RAW),
+            RestError::bad_user_input(RAW),
+        ] {
+            let code = err.code;
+            let resp = rest_result_to_response(Err(err), &enabled());
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{code} keeps its status");
+
+            let body = body_of(resp).await;
+            for leaked in [
+                "tb_order",
+                "tb_order_line",
+                "app.delete_order",
+                "fkey",
+                "outbox",
+                "violates",
+            ] {
+                assert!(!body.contains(leaked), "{code} still leaks {leaked}: {body}");
+            }
+            // The code survives — it is the actionable part the client needs.
+            assert!(body.contains(code), "{code} must remain in the body: {body}");
+        }
+    }
+
+    /// The opt-out still opts out on the newly covered classes, or this would
+    /// override a deployment that asked for raw messages.
+    #[tokio::test]
+    async fn the_opt_out_still_forwards_the_raw_message() {
+        let sanitizer = ErrorSanitizer::new(ErrorSanitizationConfig {
+            enabled: true,
+            sanitize_database_errors: false,
+            ..Default::default()
+        });
+        let resp = rest_result_to_response(Err(RestError::constraint_violation(RAW)), &sanitizer);
+        assert!(body_of(resp).await.contains("tb_order_line_fk_order_fkey"));
+    }
+
+    /// A 4xx whose message the *server* wrote carries no database text and must keep
+    /// reaching the client — otherwise this fix trades a disclosure bug for an
+    /// unusable API.
+    #[tokio::test]
+    async fn a_client_authored_4xx_still_passes_through() {
+        let resp = rest_result_to_response(
+            Err(RestError::bad_request("query parameter 'limit' must be an integer")),
+            &enabled(),
+        );
+        assert!(body_of(resp).await.contains("must be an integer"));
+    }
+}

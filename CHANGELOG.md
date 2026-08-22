@@ -5257,6 +5257,45 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **`error_sanitization` now reaches the database errors a client can actually trigger, on
+  GraphQL and REST alike (#1153).** The sanitizer replaced a message only for
+  `InternalServerError` and `DatabaseError`. #413 reclassifies SQLSTATE class 22 as
+  `BadUserInput` and class 23 as `ConstraintViolation` so they answer 400 rather than 500 —
+  right for the status, and it moved them out of the sanitizer's reach. The set of database
+  errors the sanitizer could rewrite was therefore the *complement* of the set a caller can
+  provoke on demand, while the compiled artefact advertised `sanitize_database_errors: true`.
+
+  A mutation tripping a foreign key returned, verbatim, at HTTP 400: the internal SQL
+  function name, the write-path mechanism, two table names the client never referenced, a
+  foreign-key column and the constraint identifier. Compiling with the block enabled and
+  disabled produced byte-identical responses.
+
+  **Routing is now by provenance, not HTTP class.** `ErrorCode::carries_database_text` states
+  it once, and both surfaces ask it: the GraphQL sanitizer, and the REST rendering site, which
+  gated on `is_server_error()` alone and so leaked the same strings in 4xx bodies. A fix to
+  only one of them would have left the other leaking — the tree's own doc comment already
+  recorded that the DB message "carries schema names, constraint details, and SQL fragments"
+  and forwarded 22/23 anyway. `RestError.code` is a wire string rather than the enum, so the
+  two spellings are pinned equal in both directions by
+  `database_text_codes_agree_across_surfaces`, which also asserts each wire spelling against
+  what serde actually emits.
+
+  Widening the gate is precise rather than broad: `BadUserInput` and `ConstraintViolation` are
+  each constructed in exactly one place — the `E::Database` arm of the two mappers — so no
+  hand-written validation message can be blanked by mistake. Client-authored 4xx messages
+  (validation, auth, not-found) still pass through, and `sanitize_database_errors = false`
+  still forwards the raw text.
+
+  A sanitized 400 gets a message chosen by class rather than the internal-error sentence: a
+  400 answered with "An internal error occurred" is a false statement about what happened, and
+  a client told that retries or escalates for nothing. The error **code** still carries the
+  actionable part; only the free text — where the schema, function and constraint names live —
+  is withheld. A configured `custom_error_message` still wins on every class.
+
+  `pg_detail`'s doc comment described this pass-through as intentional. It was an accurate
+  description of a defect being read as a specification, and it has been corrected rather than
+  left for the next reader.
+
 - **A count of a `requires_actor`-gated relation is refused, like the rows it describes
   (#1166).** `QueryRunner::count_rows` is a second REST read chokepoint rather than a step
   inside the first — the embedding path calls it alone — and it carried the #422 operation

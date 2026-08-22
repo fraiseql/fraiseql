@@ -856,3 +856,82 @@ mod error_status {
         assert_eq!(RestError::from(server).status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 }
+
+// ---------------------------------------------------------------------------
+// #1153: which errors carry database-written text
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod database_text_provenance {
+    use super::super::response::RestError;
+    use crate::error::ErrorCode;
+
+    /// The two surfaces must agree on which errors carry database text, or one of
+    /// them sanitizes less than the other and the deployment's control means
+    /// different things depending on the transport the caller picked. That is #808's
+    /// shape, and #966 paid for it once already.
+    ///
+    /// The REST side asks the question of a wire string because `RestError.code` is
+    /// one; this pins that string list to the enum it mirrors, in **both**
+    /// directions — a code added to one list and not the other fails here.
+    #[test]
+    fn database_text_codes_agree_across_surfaces() {
+        // Every code, with the answer stated once. Serde renders `ErrorCode` in
+        // SCREAMING_SNAKE_CASE, which is exactly the REST spelling.
+        let cases = [
+            (ErrorCode::InternalServerError, "INTERNAL_SERVER_ERROR", true),
+            (ErrorCode::DatabaseError, "DATABASE_ERROR", true),
+            (ErrorCode::BadUserInput, "BAD_USER_INPUT", true),
+            (ErrorCode::ConstraintViolation, "CONSTRAINT_VIOLATION", true),
+            // Client-authored messages: no database text, must keep passing through.
+            (ErrorCode::ValidationError, "VALIDATION_ERROR", false),
+            (ErrorCode::Unauthenticated, "UNAUTHENTICATED", false),
+            (ErrorCode::Forbidden, "FORBIDDEN", false),
+            (ErrorCode::NotFound, "NOT_FOUND", false),
+            (ErrorCode::Conflict, "CONFLICT", false),
+            (ErrorCode::RequestError, "REQUEST_ERROR", false),
+        ];
+
+        for (code, wire, expected) in cases {
+            assert_eq!(code.carries_database_text(), expected, "ErrorCode::{code:?} provenance");
+
+            // The wire spelling in the table is the one serde actually emits — so a
+            // renamed variant fails here rather than silently unpinning the REST side.
+            let rendered = serde_json::to_string(&code).unwrap();
+            assert_eq!(rendered, format!("\"{wire}\""), "wire spelling of {code:?}");
+
+            let rest = RestError {
+                status:  code.status_code(),
+                code:    wire,
+                message: "x".to_string(),
+                details: None,
+            };
+            assert_eq!(
+                rest.carries_database_text(),
+                expected,
+                "RestError {wire} must agree with ErrorCode::{code:?}"
+            );
+        }
+    }
+
+    /// The message class is chosen from the code, so a 400 is never answered with a
+    /// sentence asserting an internal error occurred.
+    #[test]
+    fn a_client_fault_maps_to_its_own_error_code() {
+        let cases = [
+            ("BAD_USER_INPUT", ErrorCode::BadUserInput),
+            ("CONSTRAINT_VIOLATION", ErrorCode::ConstraintViolation),
+            ("DATABASE_ERROR", ErrorCode::InternalServerError),
+            ("INTERNAL_SERVER_ERROR", ErrorCode::InternalServerError),
+        ];
+        for (wire, expected) in cases {
+            let rest = RestError {
+                status:  expected.status_code(),
+                code:    wire,
+                message: "x".to_string(),
+                details: None,
+            };
+            assert_eq!(rest.database_error_code(), expected, "{wire}");
+        }
+    }
+}

@@ -24,10 +24,17 @@ pub use where_generator::{IndexedColumnsCache, PostgresWhereGenerator};
 ///
 /// Deliberately the primary message only, **not** `DbError`'s own `Display` (which
 /// appends `DETAIL:` and `HINT:`). Postgres puts row values in `DETAIL` — `Key
-/// (email)=(alice@example.com) already exists` — and the errors most likely to carry one
-/// are exactly the ones that reach the client unsanitized: SQLSTATE classes 22 and 23 map
-/// to `BAD_USER_INPUT` / `CONSTRAINT_VIOLATION`, which `ErrorSanitizer` passes through by
-/// design. The primary message still names the constraint, which is the diagnostic.
+/// (email)=(alice@example.com) already exists` — and keeping row values and internal
+/// surrogate keys out of an error string is worth doing regardless of what happens
+/// downstream. The primary message still names the constraint, which is the diagnostic.
+///
+/// This paragraph used to add that classes 22 and 23 "reach the client unsanitized …
+/// which `ErrorSanitizer` passes through by design". That was an accurate description of
+/// a defect, read as a specification. Since #1153 the sanitizer routes on **provenance**:
+/// `BAD_USER_INPUT` and `CONSTRAINT_VIOLATION` carry database-written text and are
+/// replaced like any other database message when sanitization is enabled. This string is
+/// still the server-side log line, so it must stay diagnostic — but do not treat it as
+/// client-visible.
 ///
 /// Falls back to `Display` for client-side failures (connection closed, TLS, encode),
 /// where there is no server error to read and `Display` is already descriptive.

@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
-use crate::error::{ClientInputSqlState, classify_client_input_sqlstate};
+use crate::error::{ClientInputSqlState, ErrorCode, classify_client_input_sqlstate};
 
 /// HTTP response with status, headers, and optional body.
 pub struct RestResponse {
@@ -34,6 +34,37 @@ pub struct RestError {
 }
 
 impl RestError {
+    /// Whether this error's message was written by the database driver.
+    ///
+    /// The REST spelling of [`ErrorCode::carries_database_text`]. `RestError.code` is a
+    /// wire string rather than the enum, so the question is asked of the string — and
+    /// `database_text_codes_agree_across_surfaces` pins the two lists equal, because two
+    /// hand-maintained copies of one security policy are exactly how a surface ends up
+    /// enforcing less than its sibling (#1153, and #966 before it).
+    #[must_use]
+    pub fn carries_database_text(&self) -> bool {
+        matches!(
+            self.code,
+            "INTERNAL_SERVER_ERROR" | "DATABASE_ERROR" | "BAD_USER_INPUT" | "CONSTRAINT_VIOLATION"
+        )
+    }
+
+    /// The [`ErrorCode`] this error corresponds to, for choosing the replacement message
+    /// class when it is sanitized.
+    ///
+    /// Only the two client-fault database codes need distinguishing; everything else
+    /// takes the generic internal message. This never widens *what* is sanitized —
+    /// [`carries_database_text`](Self::carries_database_text) is the only thing that
+    /// decides that.
+    #[must_use]
+    pub fn database_error_code(&self) -> ErrorCode {
+        match self.code {
+            "BAD_USER_INPUT" => ErrorCode::BadUserInput,
+            "CONSTRAINT_VIOLATION" => ErrorCode::ConstraintViolation,
+            _ => ErrorCode::InternalServerError,
+        }
+    }
+
     /// 400 Bad Request.
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {

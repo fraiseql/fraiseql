@@ -44,15 +44,8 @@ impl ErrorSanitizer {
             return error;
         }
 
-        let is_internal =
-            matches!(error.code, ErrorCode::InternalServerError | ErrorCode::DatabaseError);
-
-        if is_internal && self.config.sanitize_database_errors {
-            error.message = self
-                .config
-                .custom_error_message
-                .clone()
-                .unwrap_or_else(|| "An internal error occurred".to_string());
+        if error.code.carries_database_text() && self.config.sanitize_database_errors {
+            error.message = self.replacement_message(error.code);
         }
 
         if self.config.hide_implementation_details {
@@ -76,27 +69,38 @@ impl ErrorSanitizer {
         self.config.enabled
     }
 
-    /// Whether an internal/server-fault error message should be replaced with a generic
-    /// one before reaching the client.
+    /// Whether a database-provenance error message should be replaced with a generic one
+    /// before reaching the client.
     ///
-    /// This is the same gate [`sanitize`](Self::sanitize) applies to
-    /// `InternalServerError`/`DatabaseError` on the GraphQL path, exposed so the REST
-    /// surface can apply identical sanitization at its error-rendering site (H7 — the
-    /// REST path previously wrote raw DB error text into 5xx bodies).
+    /// This is the same gate [`sanitize`](Self::sanitize) applies on the GraphQL path,
+    /// exposed so the REST surface can apply identical sanitization at its
+    /// error-rendering site (H7 — the REST path previously wrote raw DB error text into
+    /// 5xx bodies; #1153 — and into 4xx bodies, which is the half a caller can trigger).
     #[must_use]
     pub const fn should_sanitize_internal(&self) -> bool {
         self.config.enabled && self.config.sanitize_database_errors
     }
 
-    /// The generic, client-safe message used to replace internal error detail.
+    /// The generic, client-safe message that replaces a database-written one.
     ///
-    /// Matches the replacement [`sanitize`](Self::sanitize) uses on the GraphQL path
-    /// (the configured `custom_error_message`, or `"An internal error occurred"`).
+    /// A configured `custom_error_message` wins, as before. Otherwise the replacement is
+    /// chosen by class, because a 400 answered with `"An internal error occurred"` is a
+    /// false statement about what happened: the request *was* the fault, the server is
+    /// fine, and a client told otherwise will retry or escalate for no reason. The error
+    /// **code** still carries the actionable part (`BAD_USER_INPUT` /
+    /// `CONSTRAINT_VIOLATION`); it is only the free text — which is where the schema,
+    /// function and constraint names live — that is withheld.
     #[must_use]
-    pub fn internal_error_message(&self) -> String {
-        self.config
-            .custom_error_message
-            .clone()
-            .unwrap_or_else(|| "An internal error occurred".to_string())
+    pub fn replacement_message(&self, code: ErrorCode) -> String {
+        if let Some(custom) = self.config.custom_error_message.clone() {
+            return custom;
+        }
+        match code {
+            ErrorCode::BadUserInput => "The request contains an invalid value".to_string(),
+            ErrorCode::ConstraintViolation => {
+                "The request conflicts with the current state of the data".to_string()
+            },
+            _ => "An internal error occurred".to_string(),
+        }
     }
 }

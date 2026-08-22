@@ -51,11 +51,16 @@ pub(super) fn parse_query_pairs(query: &str) -> Vec<(String, String)> {
 
 /// Convert a REST handler result into an Axum HTTP response.
 ///
-/// On the error path, server faults (5xx) are sanitized when the operator enabled error
-/// sanitization: the raw message — which for `FraiseQLError::Database` carries schema
-/// names, constraint details, and SQL fragments — is replaced with the generic message
-/// and logged server-side instead (H7). Client-facing 4xx messages (validation, auth,
-/// not-found, SQLSTATE 22/23 client-input faults) are intentional and pass through.
+/// On the error path, any error whose message was written by the database driver is
+/// sanitized when the operator enabled error sanitization: the raw message — which for
+/// `FraiseQLError::Database` carries schema names, constraint details, and SQL fragments —
+/// is replaced with a generic one and logged server-side instead (H7).
+///
+/// That set is decided by **provenance, not status**. It used to be `is_server_error()`
+/// alone, which excluded the SQLSTATE 22/23 client-input faults #413 maps to 400 — and
+/// those are the ones a caller can provoke on demand, so the sanitizer covered everything
+/// except what an attacker could reach (#1153). Genuinely client-authored 4xx messages
+/// (validation, auth, not-found) still pass through: they carry no database text.
 pub(super) fn rest_result_to_response(
     result: Result<RestResponse, RestError>,
     sanitizer: &ErrorSanitizer,
@@ -84,14 +89,17 @@ pub(super) fn rest_result_to_response(
             response
         },
         Err(mut e) => {
-            if e.status.is_server_error() && sanitizer.should_sanitize_internal() {
+            if (e.status.is_server_error() || e.carries_database_text())
+                && sanitizer.should_sanitize_internal()
+            {
                 tracing::error!(
                     status = %e.status,
                     code = e.code,
-                    "REST internal error (message sanitized before client response): {}",
+                    "REST database error (message sanitized before client response): {}",
                     e.message
                 );
-                e.message = sanitizer.internal_error_message();
+                let code = e.database_error_code();
+                e.message = sanitizer.replacement_message(code);
                 // Drop any structured detail too, so internal specifics never leak.
                 e.details = None;
             }

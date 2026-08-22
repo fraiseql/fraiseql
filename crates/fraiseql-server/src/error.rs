@@ -84,6 +84,38 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
+    /// Whether an error carrying this code has a message written by the database
+    /// driver, and so must not be forwarded verbatim when sanitization is on.
+    ///
+    /// **Provenance, not HTTP class, decides whether a message is safe to forward.**
+    /// #413 reclassified SQLSTATE class 22/23 as client faults so they return 400
+    /// instead of 500 — right for the status, but it also moved them out of the
+    /// sanitizer's reach, and those are precisely the failures a caller can provoke on
+    /// demand. The set the sanitizer could rewrite became the complement of the set an
+    /// attacker could trigger, while the compiled artefact still advertised
+    /// `sanitize_database_errors: true` (#1153).
+    ///
+    /// Including the two 400-class codes is precise rather than broad:
+    /// [`BadUserInput`](Self::BadUserInput) and
+    /// [`ConstraintViolation`](Self::ConstraintViolation) are each constructed in
+    /// exactly one place — the `E::Database` arm of
+    /// [`GraphQLError::from_fraiseql_error`] and its REST mirror — so no hand-written
+    /// validation message can wear one and be blanked by mistake.
+    ///
+    /// The REST surface asks the same question through
+    /// `RestError::carries_database_text`, whose spelling is pinned to this one by
+    /// `database_text_codes_agree_across_surfaces`.
+    #[must_use]
+    pub const fn carries_database_text(self) -> bool {
+        matches!(
+            self,
+            Self::InternalServerError
+                | Self::DatabaseError
+                | Self::BadUserInput
+                | Self::ConstraintViolation
+        )
+    }
+
     /// Get HTTP status code for this error.
     ///
     /// Follows the [GraphQL over HTTP spec](https://graphql.github.io/graphql-over-http/):

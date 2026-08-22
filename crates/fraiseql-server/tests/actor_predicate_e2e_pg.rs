@@ -514,15 +514,13 @@ async fn rest_refuses_the_same_restricted_query() {
 /// Three things make this test able to fail for the right reason, and each one
 /// was a way to write a version that passes with the bug present:
 ///
-/// * The **count-only** form. `Prefer: count=exact` also runs
-///   `execute_query_direct`, whose gate would refuse the agent anyway — so that
-///   spelling proves nothing about `count_rows`.
-/// * `id` in the `select`. Count-only selects an empty field set, the parent row
-///   then carries no join key, and `count_related` returns 0 *before* reaching
-///   `count_rows`. The assertion would hold over a call that never happened.
-/// * The agent token carries `roles: ["reader"]`, so the role gate already in
-///   `count_rows` admits it. The actor gate is the only thing left that can
-///   refuse.
+/// * The **count-only** form. `Prefer: count=exact` also runs `execute_query_direct`, whose gate
+///   would refuse the agent anyway — so that spelling proves nothing about `count_rows`.
+/// * `id` in the `select`. Count-only selects an empty field set, the parent row then carries no
+///   join key, and `count_related` returns 0 *before* reaching `count_rows`. The assertion would
+///   hold over a call that never happened.
+/// * The agent token carries `roles: ["reader"]`, so the role gate already in `count_rows` admits
+///   it. The actor gate is the only thing left that can refuse.
 #[tokio::test]
 async fn rest_refuses_a_count_of_a_restricted_relation_to_an_agent() {
     if database_url_or_skip("rest_refuses_a_count_of_a_restricted_relation_to_an_agent").is_none() {
