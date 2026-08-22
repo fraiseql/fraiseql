@@ -50,8 +50,19 @@ async fn test_loader_invalid_json() {
 
 // ── Storage config ────────────────────────────────────────────────────────────
 
+/// #1008: a `storage` section in the compiled schema is refused, not silently
+/// dropped.
+///
+/// It was parsed, validated by `validate_storage_config`, stored on
+/// `ExtendedCompiledSchema.storage` — and read by nothing. `main.rs` takes
+/// `.schema` and `.functions` and drops `.storage` on the floor; the server's
+/// storage backend is built from `[storage]` in the **server config file**. So an
+/// author who read "configuration is embedded in the compiled schema" and put
+/// bucket policy there got a successful compile, a successful boot, and either no
+/// storage backend at all or whatever unrelated `[storage]` the server config
+/// named.
 #[tokio::test]
-async fn test_schema_loads_storage_config() {
+async fn a_storage_section_in_the_compiled_schema_is_refused() {
     let json = r#"{
         "types": [],
         "storage": {
@@ -64,13 +75,31 @@ async fn test_schema_loads_storage_config() {
     let file = write_schema(json);
     let loader = CompiledSchemaLoader::new(file.path());
 
-    let extended = loader.load_extended().await.unwrap();
-    let storage = extended.storage.unwrap();
+    let err = loader.load_extended().await.expect_err(
+        "a compiled-schema `storage` section must be refused, not accepted and dropped",
+    );
 
-    assert_eq!(storage.buckets.len(), 2);
-    assert_eq!(storage.buckets[0].name, "avatars");
-    assert_eq!(storage.buckets[1].name, "media");
-    assert_eq!(storage.buckets[1].max_object_bytes, Some(5_242_880));
+    assert!(
+        matches!(err, SchemaLoadError::ValidationError(_)),
+        "expected ValidationError, got {err:?}"
+    );
+    assert!(
+        err.to_string().contains("[storage]"),
+        "the refusal must name the working surface so the author can move the config there: {err}"
+    );
+}
+
+/// A `null` storage key is the shape a producer emits for "absent", and must
+/// stay bootable — refusing it would fail a schema that declares nothing.
+#[tokio::test]
+async fn a_null_storage_key_is_not_refused() {
+    let file = write_schema(r#"{"types": [], "storage": null}"#);
+    let loader = CompiledSchemaLoader::new(file.path());
+
+    assert!(
+        loader.load_extended().await.is_ok(),
+        "a null `storage` key declares nothing and must not fail the boot"
+    );
 }
 
 #[tokio::test]
@@ -78,27 +107,7 @@ async fn test_schema_without_storage_returns_none() {
     let file = write_schema(minimal_schema());
     let loader = CompiledSchemaLoader::new(file.path());
 
-    let extended = loader.load_extended().await.unwrap();
-    assert!(extended.storage.is_none());
-}
-
-#[tokio::test]
-async fn test_schema_validates_storage_bucket_names() {
-    // bucket name with spaces is invalid
-    let json = r#"{
-        "types": [],
-        "storage": {
-            "buckets": [{"name": "bad name with spaces", "access": "private"}]
-        }
-    }"#;
-    let file = write_schema(json);
-    let loader = CompiledSchemaLoader::new(file.path());
-
-    let result = loader.load_extended().await;
-    assert!(
-        matches!(result, Err(SchemaLoadError::ValidationError(_))),
-        "expected ValidationError, got {result:?}"
-    );
+    assert!(loader.load_extended().await.is_ok());
 }
 
 // ── Functions config ──────────────────────────────────────────────────────────
@@ -236,9 +245,6 @@ async fn test_schema_realtime_key_with_unknown_entity_is_ignored() {
 async fn test_schema_full_loads_all_sections() {
     let json = r#"{
         "types": [{"name": "User", "sql_source": "t_users"}],
-        "storage": {
-            "buckets": [{"name": "avatars", "access": "private"}]
-        },
         "functions": {
             "module_dir": "/functions",
             "definitions": [
@@ -255,9 +261,10 @@ async fn test_schema_full_loads_all_sections() {
 
     let extended = loader.load_extended().await.unwrap();
 
-    // storage + functions load; the legacy `"realtime"` section (still in the fixture) is
-    // ignored with a warning (#605), so the load still succeeds.
-    assert!(extended.storage.is_some());
+    // functions load; the legacy `"realtime"` section (still in the fixture) is ignored
+    // with a warning (#605), so the load still succeeds. `storage` is no longer in this
+    // fixture because it is now refused outright (#1008) — the two postures are
+    // deliberately different and each has its own test.
     assert!(extended.functions.is_some());
 }
 

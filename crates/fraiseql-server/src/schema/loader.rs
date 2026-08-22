@@ -28,50 +28,6 @@ pub enum SchemaLoadError {
     ValidationError(String),
 }
 
-/// Storage configuration extracted from the `"storage"` section of a compiled schema.
-///
-/// This describes the *bucket policies* declared by the developer, not the storage
-/// backend settings (which come from server TOML / environment variables).
-///
-/// ```json
-/// {
-///   "storage": {
-///     "buckets": [
-///       { "name": "avatars", "access": "private" },
-///       { "name": "media", "access": "public_read", "max_object_bytes": 5242880 }
-///     ]
-///   }
-/// }
-/// ```
-#[derive(Debug, Clone, Deserialize)]
-pub struct SchemaStorageConfig {
-    /// Bucket definitions declared in the schema.
-    pub buckets: Vec<SchemaBucketDef>,
-}
-
-/// A single bucket definition from the compiled schema.
-#[derive(Debug, Clone, Deserialize)]
-pub struct SchemaBucketDef {
-    /// Bucket name — must be a valid identifier (alphanumeric, hyphens, underscores; no spaces).
-    pub name: String,
-
-    /// Access policy: `"private"` (default) or `"public_read"`.
-    #[serde(default = "default_access")]
-    pub access: String,
-
-    /// Maximum object size in bytes. `None` means unlimited.
-    #[serde(default)]
-    pub max_object_bytes: Option<u64>,
-
-    /// Allowed MIME types. `None` means any MIME type is accepted.
-    #[serde(default)]
-    pub allowed_mime_types: Option<Vec<String>>,
-}
-
-fn default_access() -> String {
-    "private".to_string()
-}
-
 /// Functions configuration extracted from the `"functions"` section of a compiled schema.
 ///
 /// ```json
@@ -103,15 +59,12 @@ pub struct FunctionsConfig {
 /// A compiled schema with all optional platform extensions parsed out.
 ///
 /// Use [`CompiledSchemaLoader::load_extended`] to obtain this type. It bundles the
-/// core [`CompiledSchema`] together with optional storage and functions
-/// configurations that are embedded in the compiled schema JSON.
+/// core [`CompiledSchema`] together with the optional `functions` configuration
+/// embedded in the compiled schema JSON.
 #[derive(Debug)]
 pub struct ExtendedCompiledSchema {
     /// Core compiled GraphQL schema (types, queries, mutations, subscriptions).
     pub schema: CompiledSchema,
-
-    /// Storage bucket configuration, if the `"storage"` key is present and non-null.
-    pub storage: Option<SchemaStorageConfig>,
 
     /// Serverless functions configuration, if the `"functions"` key is present.
     pub functions: Option<FunctionsConfig>,
@@ -207,10 +160,11 @@ impl CompiledSchemaLoader {
     /// Load schema and all optional platform extension sections from file.
     ///
     /// In addition to the core schema (types, queries, mutations, subscriptions),
-    /// this method parses and validates the `"storage"` and `"functions"` top-level
-    /// keys if they are present. A legacy `"realtime"` key is ignored with a warning
-    /// (the subsystem was removed in #605). Unknown top-level keys are ignored for
-    /// forward compatibility.
+    /// this method parses and validates the `"functions"` top-level key if it is
+    /// present. A `"storage"` key is refused (#1008 — nothing reads it; the working
+    /// surface is `[storage]` in the server config file). A legacy `"realtime"` key
+    /// is ignored with a warning (the subsystem was removed in #605). Unknown
+    /// top-level keys are ignored for forward compatibility.
     ///
     /// # Errors
     ///
@@ -218,7 +172,7 @@ impl CompiledSchemaLoader {
     /// Returns [`SchemaLoadError::IoError`] if the file cannot be read.
     /// Returns [`SchemaLoadError::ParseError`] if the JSON is malformed.
     /// Returns [`SchemaLoadError::ValidationError`] if any of the following fail:
-    ///   - A storage bucket name contains whitespace or is empty.
+    ///   - A non-null `"storage"` key is present.
     ///   - A function trigger string does not match a recognised pattern.
     pub async fn load_extended(&self) -> Result<ExtendedCompiledSchema, SchemaLoadError> {
         info!(path = %self.path.display(), "Loading extended compiled schema");
@@ -244,17 +198,32 @@ impl CompiledSchemaLoader {
         let schema = CompiledSchema::from_json(&contents, false)
             .map_err(|e| SchemaLoadError::ValidationError(e.to_string()))?;
 
-        // Parse and validate the optional sections.
-        let storage = raw
-            .get("storage")
-            .filter(|v| !v.is_null())
-            .map(|v| {
-                let cfg: SchemaStorageConfig = serde_json::from_value(v.clone())?;
-                validate_storage_config(&cfg)?;
-                Ok::<_, SchemaLoadError>(cfg)
-            })
-            .transpose()?;
+        // The compiled-schema `storage` section is refused rather than parsed (#1008).
+        //
+        // It used to be deserialized, validated, and stored on
+        // `ExtendedCompiledSchema.storage` — where nothing read it. `main.rs` takes
+        // `.schema` and `.functions`; the storage backend is built from `[storage]` in
+        // the *server config file*. So an author who read "configuration is embedded in
+        // the compiled schema" and declared buckets here got a clean compile, a clean
+        // boot, and either no storage backend or an unrelated one. Parsing and
+        // validating it is what made it look honoured.
+        //
+        // Refused rather than warned-and-ignored, unlike the `realtime` key below: that
+        // one names a subsystem that no longer exists, so an author can only recompile,
+        // while this one names a live subsystem configured elsewhere. Naming the working
+        // surface is the difference between a refusal and a usable one (#612).
+        if raw.get("storage").is_some_and(|v| !v.is_null()) {
+            return Err(SchemaLoadError::ValidationError(
+                "the compiled schema declares a `storage` section, which no part of the \
+                 server reads: the storage backend is built from `[storage]` in the server \
+                 config file (or its FRAISEQL_STORAGE_* environment overrides). Move the \
+                 bucket configuration there and remove this section, which would otherwise \
+                 be silently dropped at boot."
+                    .to_string(),
+            ));
+        }
 
+        // Parse and validate the optional sections.
         let functions = raw
             .get("functions")
             .filter(|v| !v.is_null())
@@ -280,16 +249,11 @@ impl CompiledSchemaLoader {
 
         info!(
             path = %self.path.display(),
-            has_storage = storage.is_some(),
             has_functions = functions.is_some(),
             "Extended schema loaded successfully"
         );
 
-        Ok(ExtendedCompiledSchema {
-            schema,
-            storage,
-            functions,
-        })
+        Ok(ExtendedCompiledSchema { schema, functions })
     }
 
     /// Get the path to the schema file.
@@ -297,28 +261,6 @@ impl CompiledSchemaLoader {
     pub fn path(&self) -> &Path {
         &self.path
     }
-}
-
-/// Validate storage bucket configurations.
-///
-/// # Errors
-///
-/// Returns `ValidationError` if any bucket name is empty or contains whitespace.
-fn validate_storage_config(config: &SchemaStorageConfig) -> Result<(), SchemaLoadError> {
-    for bucket in &config.buckets {
-        if bucket.name.is_empty() {
-            return Err(SchemaLoadError::ValidationError(
-                "storage bucket name must not be empty".to_string(),
-            ));
-        }
-        if bucket.name.chars().any(char::is_whitespace) {
-            return Err(SchemaLoadError::ValidationError(format!(
-                "storage bucket name {:?} must not contain whitespace",
-                bucket.name
-            )));
-        }
-    }
-    Ok(())
 }
 
 /// Valid trigger prefixes recognised by the trigger system.

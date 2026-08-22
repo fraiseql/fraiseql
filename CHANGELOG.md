@@ -20,6 +20,24 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `storage` section in the compiled schema is now refused at load (#1008).** It used to be
+  deserialized into `SchemaStorageConfig`, validated by `validate_storage_config`, and stored
+  on `ExtendedCompiledSchema.storage` — where **nothing read it**. `main.rs` takes `.schema`
+  and `.functions`; the server's storage backend is built from `[storage]` in the *server
+  config file*. So an author who read "configuration is embedded in the compiled schema" and
+  declared buckets there got a clean compile, a clean boot, and either no storage backend at
+  all or whatever unrelated `[storage]` the server config named. Parsing and validating the
+  section is precisely what made it look honoured.
+
+  The boot now fails with an error naming `[storage]` in the server config as the working
+  surface. This is deliberately a different posture from the legacy `realtime` key, which is
+  warned-and-ignored: that one names a subsystem that no longer exists, so an author can only
+  recompile, while this one names a live subsystem configured elsewhere.
+
+  **Who is affected:** only hand-authored compiled schemas. `fraiseql-cli` has never emitted a
+  `storage` section, and a `null` value is still accepted. `SchemaStorageConfig`,
+  `SchemaBucketDef` and `ExtendedCompiledSchema.storage` are removed from the public API.
+
 - **A declared custom scalar compiles to `FieldType::Scalar`, so `--emit-ddl` emits `TEXT`
   where it used to emit `JSONB` (#1018).** `parse_field_type` resolved a non-builtin name
   against the schema's declared enums, interfaces and unions (#923) and fell through to

@@ -2,10 +2,7 @@
 
 pub mod loader;
 
-pub use loader::{
-    CompiledSchemaLoader, ExtendedCompiledSchema, FunctionsConfig, SchemaBucketDef,
-    SchemaStorageConfig,
-};
+pub use loader::{CompiledSchemaLoader, ExtendedCompiledSchema, FunctionsConfig};
 
 #[cfg(test)]
 mod tests;
