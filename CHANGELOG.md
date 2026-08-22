@@ -4951,6 +4951,17 @@ disagreed, and the promise was the part that was wrong.
   `tools/tests/test_imports_gate_test.sh` pins the red capability with ten fixtures, the
   first of which is the literal text the original could not see.
 
+  ⚠ One migrated site was wrong, and only the `integration (http-e2e)` shard could say so.
+  `TestServerConfig::new()` in `crates/fraiseql-server/tests/test_helpers.rs` resolved the URL
+  through `database_url()`, making *construction* the loud-failure point. The two suites that
+  share that module drive a bound server over `FRAISEQL_TEST_URL` and never open a database
+  connection, so their shard binds no `DATABASE_URL` at all — and every construction in it
+  panicked, the module's own builder unit tests included. It now resolves through
+  `try_database_url()` and leaves the field empty; suites that genuinely connect already
+  overwrite it or call `database_url()` themselves. The lesson is narrow and worth keeping:
+  a loud-failure contract belongs at the point of *use*, not the point of construction, or it
+  fires in the places that were right not to need it.
+
 - **`make preflight` now runs everything the CI leg it claims to mirror runs (#1135).** It
   printed `✅ preflight passed — mirrors the Dagger preflight leg. Safe to push.` while
   skipping `make test-deadline-gate`, which `ShellGates` does run. That gate pins the

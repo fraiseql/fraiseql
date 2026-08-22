@@ -29,19 +29,33 @@ use tokio::{net::TcpListener, task::JoinHandle};
 pub struct TestServerConfig {
     /// Bind address
     pub bind_addr:    String,
-    /// Database URL
+    /// Database URL, empty when the environment provides none.
+    ///
+    /// Resolving it eagerly made *construction* the failure point, and the two
+    /// suites sharing this module — `http_server_e2e_test` and
+    /// `concurrent_load_test` — drive a bound server over `FRAISEQL_TEST_URL`
+    /// and never open a database connection. Their shard binds no
+    /// `DATABASE_URL` by design, so every `TestServerConfig::new()` in it
+    /// panicked, this module's own builder unit tests included.
+    ///
+    /// Every suite that does connect either overwrites this field with its own
+    /// scratch URL or calls `fraiseql_test_support::database_url()` directly —
+    /// which is where #1075's loud-failure contract lives, and where it belongs:
+    /// at the point of use, not the point of construction.
     pub database_url: String,
     /// Schema path
     pub schema_path:  String,
 }
 
 impl TestServerConfig {
-    /// Create with defaults
+    /// Create with defaults.
+    ///
+    /// Does not require a database: see [`Self::database_url`].
     #[must_use]
     pub fn new() -> Self {
         Self {
             bind_addr:    "127.0.0.1:0".to_string(), // Random port
-            database_url: fraiseql_test_support::database_url(),
+            database_url: fraiseql_test_support::try_database_url().unwrap_or_default(),
             schema_path:  "schema.compiled.json".to_string(),
         }
     }
