@@ -44,7 +44,7 @@ impl TestDb {
     /// `#[ignore]`d and named explicitly by the leg, so this is the local
     /// convenience path, not a way for CI to skip them.
     async fn setup() -> Result<Option<Self>, Box<dyn std::error::Error>> {
-        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+        let Some(db_url) = fraiseql_test_support::try_database_url() else {
             eprintln!("Skipping: DATABASE_URL not set");
             return Ok(None);
         };
@@ -136,8 +136,7 @@ impl TestDb {
     }
 
     fn connection_string(&self) -> String {
-        let db_url =
-            std::env::var("DATABASE_URL").expect("DATABASE_URL must be set — setup() checks this");
+        let db_url = fraiseql_test_support::database_url();
         db_url.rsplit_once('/').map_or_else(
             || format!("{}/{}", db_url, self.database_name),
             |(base, _)| format!("{}/{}", base, self.database_name),
@@ -148,7 +147,7 @@ impl TestDb {
 impl Drop for TestDb {
     fn drop(&mut self) {
         let db_name = self.database_name.clone();
-        let Ok(default_url) = std::env::var("DATABASE_URL") else {
+        let Some(default_url) = fraiseql_test_support::try_database_url() else {
             return;
         };
 

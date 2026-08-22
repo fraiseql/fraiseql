@@ -1,0 +1,24 @@
+# Deliberate exceptions for tools/check-test-imports.sh — one path per line, with a reason.
+#
+# A file belongs here only when reading `DATABASE_URL` is the code's JOB: an operator
+# supplied the variable and this is the code that honours it. Test code never qualifies
+# — it must use `fraiseql_test_support::database_url()` (panics with an actionable
+# message) or `try_database_url()` (the explicit self-skipping form), so that a CI leg
+# which forgets to inject the URL fails loudly instead of silently retargeting a
+# different database. That silent-default shape is what #1075 found behind a gate that
+# could never fire.
+#
+# The gate fails on a stale row too, so an entry that stops reading the variable must
+# be removed rather than left as an exemption nobody prunes.
+
+# `fraiseql-cli` subcommands: DATABASE_URL is the documented fallback for the
+# `--database-url` flag, so these are the code that implements the fallback.
+crates/fraiseql-cli/src/commands/migrate.rs
+crates/fraiseql-cli/src/commands/generate_views.rs
+crates/fraiseql-cli/src/commands/doctor.rs
+crates/fraiseql-cli/src/commands/query.rs
+crates/fraiseql-cli/src/commands/run.rs
+
+# The server's CLI config loader: DATABASE_URL is one of the documented sources the
+# runtime config resolves from, ahead of the TOML value.
+crates/fraiseql-server/src/cli.rs

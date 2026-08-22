@@ -899,7 +899,7 @@ mod lease_tests {
     #[cfg(feature = "postgres")]
     #[tokio::test]
     async fn test_postgres_advisory_acquire_release() {
-        let Ok(url) = std::env::var("DATABASE_URL") else {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
             eprintln!("Skipping: DATABASE_URL not set");
             return;
         };
@@ -921,7 +921,7 @@ mod lease_tests {
     #[cfg(feature = "postgres")]
     #[tokio::test]
     async fn test_postgres_advisory_contention() {
-        let Ok(url) = std::env::var("DATABASE_URL") else {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
             eprintln!("Skipping: DATABASE_URL not set");
             return;
         };

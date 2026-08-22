@@ -1542,7 +1542,7 @@ mod queued_executor_tests {
 mod storage_tests {
     #[tokio::test]
     async fn test_postgres_query_events() {
-        if std::env::var("DATABASE_URL").is_err() {
+        if fraiseql_test_support::try_database_url().is_none() {
             eprintln!("Skipping: DATABASE_URL not set");
             return;
         }

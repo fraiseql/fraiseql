@@ -30,7 +30,7 @@ mod wired_pg {
     use uuid::Uuid;
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     /// A unique, all-lowercase, identifier-safe entity type name per test run.
@@ -598,7 +598,7 @@ mod recovery_pg {
     use uuid::Uuid;
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     /// A unique, all-lowercase, identifier-safe entity type name per test run, so
@@ -1101,7 +1101,7 @@ mod coordinator_pg {
     use uuid::Uuid;
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     /// A unique, all-lowercase, identifier-safe entity type name per test run.
@@ -1463,7 +1463,7 @@ mod remote_dispatch_pg {
     };
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     fn unique_typename() -> String {
@@ -1792,7 +1792,7 @@ mod prefetch_pg {
     };
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     fn unique_typename() -> String {
@@ -2119,7 +2119,7 @@ mod recovery_safety_pg {
     };
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     fn unique_typename() -> String {
@@ -2784,7 +2784,7 @@ mod compensation_honesty_pg {
     use uuid::Uuid;
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     fn unique_typename() -> String {
@@ -3170,7 +3170,7 @@ mod wired_execution_pg {
     use uuid::Uuid;
 
     fn database_url() -> Option<String> {
-        std::env::var("DATABASE_URL").ok()
+        fraiseql_test_utils::try_database_url()
     }
 
     /// Unique, identifier-safe entity type per test run: the mutation builder

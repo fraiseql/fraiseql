@@ -102,8 +102,8 @@ mod tls_integration {
     /// Returns `None` if neither env var is available, allowing tests to skip gracefully.
     fn require_tls_test_config() -> Option<(String, Option<String>)> {
         let db_url = env::var("TLS_DATABASE_URL")
-            .or_else(|_| env::var("DATABASE_URL"))
-            .ok()?;
+            .ok()
+            .or_else(fraiseql_test_support::try_database_url)?;
         let ca_cert_path = env::var("TLS_TEST_CA_CERT").ok();
         Some((db_url, ca_cert_path))
     }

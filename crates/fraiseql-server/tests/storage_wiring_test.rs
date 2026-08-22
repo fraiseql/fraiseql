@@ -28,7 +28,7 @@ async fn build_storage_state_returns_none_without_config() {
 
 #[tokio::test]
 async fn build_storage_state_wires_local_backend_from_config() {
-    let Ok(database_url) = std::env::var("DATABASE_URL") else {
+    let Some(database_url) = fraiseql_test_support::try_database_url() else {
         eprintln!(
             "skipping build_storage_state_wires_local_backend_from_config: DATABASE_URL unset"
         );

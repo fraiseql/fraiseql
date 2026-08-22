@@ -3622,6 +3622,7 @@ dependencies = [
  "dashmap",
  "fraiseql-core",
  "fraiseql-guard",
+ "fraiseql-test-support",
  "futures",
  "jsonwebtoken",
  "parquet",

@@ -12,8 +12,7 @@
 #[cfg(all(feature = "wire-backend", feature = "test-postgres"))]
 #[tokio::test]
 async fn test_wire_connection() {
-    let conn_str = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql:///fraiseql_bench".to_string());
+    let conn_str = fraiseql_test_support::database_url();
 
     println!("Testing fraiseql-wire connection with: {}", conn_str);
 

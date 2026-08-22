@@ -11,7 +11,7 @@ use sqlx::postgres::PgPoolOptions;
 
 #[tokio::test]
 async fn postgres_revocation_store_persists_and_checks_jtis() {
-    let Ok(database_url) = std::env::var("DATABASE_URL") else {
+    let Some(database_url) = fraiseql_test_support::try_database_url() else {
         eprintln!(
             "skipping postgres_revocation_store_persists_and_checks_jtis: DATABASE_URL unset"
         );

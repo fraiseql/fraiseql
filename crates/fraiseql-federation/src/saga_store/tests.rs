@@ -71,12 +71,12 @@ fn test_corrupt_stored_value_display() {
 
 #[tokio::test]
 async fn test_postgres_connection() {
-    if std::env::var("DATABASE_URL").is_err() {
+    if fraiseql_test_utils::try_database_url().is_none() {
         eprintln!("Skipping: DATABASE_URL not set");
         return;
     }
-    // Use SAGA_STORE_TEST_URL (postgres-specific) so this test is unaffected
-    // when the suite is invoked with DATABASE_URL pointing to MySQL/SQL Server.
+    // Use SAGA_STORE_TEST_URL (postgres-specific) so this test targets a store
+    // of its own rather than whatever DATABASE_URL happens to point at.
     let url = std::env::var("SAGA_STORE_TEST_URL").unwrap_or_else(|_| {
         "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string()
     });

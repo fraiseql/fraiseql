@@ -37,7 +37,7 @@ use sqlx::{
 };
 
 async fn pool() -> PgPool {
-    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for --ignored runs");
+    let url = fraiseql_test_support::database_url();
     PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap()
 }
 
@@ -220,7 +220,7 @@ async fn generated_insert_executes_and_round_trips_every_type() {
 async fn batched_queries_with_heterogeneous_schemas_error_loudly() {
     use arrow_flight::flight_service_server::FlightService;
 
-    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for --ignored runs");
+    let url = fraiseql_test_support::database_url();
 
     struct TestFlightAdapter {
         inner: fraiseql_core::db::PostgresAdapter,

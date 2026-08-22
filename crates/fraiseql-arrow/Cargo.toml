@@ -49,6 +49,10 @@ uuid = {workspace = true}
 criterion = {version = "0.5", features = ["async_tokio"]}
 # Integration test dependencies
 fraiseql-core = {workspace = true, features = ["postgres"]}
+# Canonical DATABASE_URL resolution: `database_url()` panics with an actionable
+# message, `try_database_url()` is the self-skipping form. Bare `std::env::var`
+# in a test is what tools/check-test-imports.sh refuses (#1075).
+fraiseql-test-support = {path = "../fraiseql-test-support"}
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
 temp-env = {workspace = true}
 tempfile = "3"

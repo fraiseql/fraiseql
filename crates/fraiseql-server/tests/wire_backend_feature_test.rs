@@ -30,6 +30,19 @@
 #![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
 #![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
+/// A well-formed URL for the adapter constructors below.
+///
+/// `FraiseWireAdapter::new` is synchronous and never connects, so the tests that
+/// only construct an adapter assert that the construction path compiles and runs
+/// under each feature combination — they need a *parseable* URL, not a reachable
+/// database. Reading `DATABASE_URL` there made a no-infrastructure test's input
+/// depend on the environment for no reason, and put it behind the bare-resolution
+/// gate (#1075). Tests that genuinely connect use
+/// `fraiseql_test_support::try_database_url()` and skip when it is unset.
+#[cfg(feature = "wire-backend")]
+const CONSTRUCTOR_ONLY_URL: &str =
+    "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test";
+
 mod common;
 
 // ============================================================================
@@ -71,7 +84,7 @@ mod postgres_adapter_tests {
     /// Test PostgreSQL adapter initialization without wire-backend feature.
     #[tokio::test]
     async fn test_postgres_adapter_initialization_default() {
-        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+        let Some(db_url) = fraiseql_test_support::try_database_url() else {
             eprintln!("Skipping: DATABASE_URL not set");
             return;
         };
@@ -83,7 +96,7 @@ mod postgres_adapter_tests {
     /// Test PostgreSQL adapter with pool configuration (default feature).
     #[tokio::test]
     async fn test_postgres_adapter_with_pool_config_default() {
-        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+        let Some(db_url) = fraiseql_test_support::try_database_url() else {
             eprintln!("Skipping: DATABASE_URL not set");
             return;
         };
@@ -120,12 +133,8 @@ mod wire_adapter_tests {
     /// Test Wire adapter initialization with wire-backend feature.
     #[test]
     fn test_wire_adapter_initialization() {
-        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test".to_string()
-        });
-
         // FraiseWireAdapter constructor is synchronous
-        let adapter = FraiseWireAdapter::new(&db_url);
+        let adapter = FraiseWireAdapter::new(crate::CONSTRUCTOR_ONLY_URL);
 
         // Verify we got a valid adapter
         drop(adapter);
@@ -134,11 +143,7 @@ mod wire_adapter_tests {
     /// Test Wire adapter with custom chunk size configuration.
     #[test]
     fn test_wire_adapter_with_chunk_size() {
-        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test".to_string()
-        });
-
-        let adapter = FraiseWireAdapter::new(&db_url).with_chunk_size(512);
+        let adapter = FraiseWireAdapter::new(crate::CONSTRUCTOR_ONLY_URL).with_chunk_size(512);
 
         // Verify configuration was applied
         drop(adapter);
@@ -188,7 +193,7 @@ async fn test_feature_gated_main_initialization_postgres() {
     // This test verifies the main.rs feature gates work correctly for PostgreSQL.
     // We test the adapter initialization logic that's gated in main.rs.
 
-    let Ok(db_url) = std::env::var("DATABASE_URL") else {
+    let Some(db_url) = fraiseql_test_support::try_database_url() else {
         eprintln!("Skipping: DATABASE_URL not set");
         return;
     };
@@ -216,13 +221,9 @@ async fn test_feature_gated_main_initialization_postgres() {
 #[test]
 fn test_feature_gated_main_initialization_wire() {
     // This test verifies the main.rs feature gates work correctly for Wire adapter.
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test".to_string()
-    });
-
     // Verify Wire adapter initialization code path
     use fraiseql_core::db::FraiseWireAdapter;
-    let _adapter = FraiseWireAdapter::new(&db_url);
+    let _adapter = FraiseWireAdapter::new(CONSTRUCTOR_ONLY_URL);
     // No async needed, Wire adapter is sync
 }
 
@@ -237,8 +238,6 @@ mod arrow_flight_tests {
     #[test]
     fn test_flight_service_postgres_adapter_wrapping() {
         use fraiseql_core::db::PostgresAdapter;
-        let _db_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://localhost/test".to_string());
         // Marker to show test exists
         let _ = std::marker::PhantomData::<PostgresAdapter>;
     }
@@ -250,11 +249,7 @@ mod arrow_flight_tests {
 
         use fraiseql_core::db::FraiseWireAdapter;
 
-        let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql:fraiseql_password@localhost:5432/fraiseql_test".to_string()
-        });
-
-        let adapter = Arc::new(FraiseWireAdapter::new(&db_url));
+        let adapter = Arc::new(FraiseWireAdapter::new(crate::CONSTRUCTOR_ONLY_URL));
         let _flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::from_arc(adapter);
     }
 }

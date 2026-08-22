@@ -36,7 +36,7 @@ use sqlx::{
 const TENANT: &str = "6f1b2c34-5d6e-4f70-8a91-b2c3d4e5f607";
 
 async fn pool() -> PgPool {
-    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for --ignored runs");
+    let url = fraiseql_test_support::database_url();
     PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap()
 }
 
@@ -70,7 +70,7 @@ async fn count(pool: &PgPool, sql: &str) -> i64 {
 }
 
 async fn adapter() -> FlightDatabaseAdapter {
-    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for --ignored runs");
+    let url = fraiseql_test_support::database_url();
     FlightDatabaseAdapter::new(fraiseql_core::db::PostgresAdapter::new(&url).await.unwrap())
 }
 

@@ -10,7 +10,7 @@ use fraiseql_server::tenancy::{FromPoolConfig, TenantPoolConfig};
 
 #[tokio::test]
 async fn postgres_adapter_builds_from_tenant_pool_config() {
-    let Ok(database_url) = std::env::var("DATABASE_URL") else {
+    let Some(database_url) = fraiseql_test_support::try_database_url() else {
         eprintln!("skipping postgres_adapter_builds_from_tenant_pool_config: DATABASE_URL unset");
         return;
     };

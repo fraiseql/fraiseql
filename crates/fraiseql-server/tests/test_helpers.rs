@@ -41,8 +41,7 @@ impl TestServerConfig {
     pub fn new() -> Self {
         Self {
             bind_addr:    "127.0.0.1:0".to_string(), // Random port
-            database_url: std::env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string()),
+            database_url: fraiseql_test_support::database_url(),
             schema_path:  "schema.compiled.json".to_string(),
         }
     }

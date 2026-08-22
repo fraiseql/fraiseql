@@ -54,7 +54,7 @@ impl TestDb {
             .try_init();
 
         // Skip gracefully when DATABASE_URL is not set
-        let Ok(db_url) = std::env::var("DATABASE_URL") else {
+        let Some(db_url) = fraiseql_test_support::try_database_url() else {
             eprintln!("Skipping: DATABASE_URL not set");
             return Ok(None);
         };
@@ -165,8 +165,7 @@ impl TestDb {
     /// Panics if `DATABASE_URL` is not set. This is safe because `setup()`
     /// already verified its presence.
     fn connection_string(&self) -> String {
-        let db_url =
-            std::env::var("DATABASE_URL").expect("DATABASE_URL must be set — setup() checks this");
+        let db_url = fraiseql_test_support::database_url();
         db_url.rsplit_once('/').map_or_else(
             || format!("{}/{}", db_url, self.database_name),
             |(base, _)| format!("{}/{}", base, self.database_name),
@@ -178,10 +177,7 @@ impl Drop for TestDb {
     fn drop(&mut self) {
         // Clean up test database (non-blocking)
         let db_name = self.database_name.clone();
-        let default_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
-                .to_string()
-        });
+        let default_url = fraiseql_test_support::database_url();
 
         // Spawn async task to clean up database
         std::thread::spawn(move || {

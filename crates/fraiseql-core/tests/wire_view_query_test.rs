@@ -8,8 +8,7 @@ mod wire_view_tests {
 
     #[tokio::test]
     async fn test_query_v_users_view() {
-        let conn_str = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql:///fraiseql_bench".to_string());
+        let conn_str = fraiseql_test_support::database_url();
 
         println!("Connecting to: {}", conn_str);
 

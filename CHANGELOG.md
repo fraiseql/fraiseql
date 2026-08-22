@@ -4611,6 +4611,67 @@ disagreed, and the promise was the part that was wrong.
   workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
   since v2.14.1, was already in the publish list and is unaffected.
 
+- **preflight now compiles the default feature set, which no gate in it ever did (#1101).**
+  Every Rust gate in the required preflight check is `--all-features`: `clippy`, `rustdoc`,
+  and the local `make` mirror of both. `--all-features` cannot, by construction, compile a
+  `cfg(not(feature = …))` arm — so the configuration a plain `cargo build`, a `cargo install`
+  and the slim Docker image actually produce was the one preflight never built. `make
+  check-default` and a `check-default` Dagger gate now run `cargo check --workspace
+  --all-targets` with default features.
+
+  ⚠ **The issue's stated mechanism does not reproduce, and the fix is not the one it
+  proposed.** #1101 reported that `--workspace --all-targets --all-features` "does not compile
+  `crates/fraiseql-server/src/main.rs`" and proposed adding a per-package `--bins` lint. Cargo's
+  unit graph says otherwise: the `fraiseql-server` bin target is present under both
+  `--all-features` and default features, because its `required-features = ["cli"]` is satisfied
+  by `default = ["auth", "cli"]`. The control holds — under `--no-default-features` the bin
+  correctly disappears from the graph, so the probe does respect `required-features`. A
+  `--bins` gate would therefore have added a second compile of something already compiled.
+  What the report's own evidence shows is the feature-OFF blindness above: its error appeared
+  under default features and *not* under `--all-features`. The feature matrix leg does build
+  many such arms by combo, but it is push-to-dev + dispatch, so a branch never sees it.
+
+- **The bare-`DATABASE_URL` gate can now reject something (#1075).** `check-test-imports.sh`
+  forbids test code from resolving `DATABASE_URL` itself instead of going through
+  `fraiseql_test_support::database_url()`, which panics with an actionable message when the
+  variable is unset. Its pattern was `'std::env::var\("DATABASE_URL"\)'` passed to `grep`
+  **without `-E`** — BRE, where `\(` and `\)` open and close a group rather than matching
+  parentheses. So it searched for `std::env::var"DATABASE_URL"`, a string that cannot occur
+  in Rust source, and printed `OK` on every tree it has ever seen, in `make preflight` and in
+  the required CI leg alike.
+
+  Fifteen files under `crates/*/tests/` carried the exact text it forbade. Three of them
+  defaulted to a **different database** when the variable was unset — `fraiseql_bench`,
+  `test_fraiseql`, `fraiseql_test` — which is the false green the rule exists to prevent: a
+  leg that forgets to inject the URL does not fail, it silently measures somewhere else. The
+  helper's own doc comment had named the stake: "a false-green meta-risk larger than most
+  single findings."
+
+  The fix is in three parts, because repairing the regex alone would have turned a required
+  check red on fifteen files:
+
+  - **The gate matches with `grep -F` and filters**, rather than with a hand-escaped regex —
+    nothing left to get wrong. It now also catches `env::var("DATABASE_URL")` after a
+    `use std::env`, which the fully-qualified pattern would have missed even once fixed, and
+    it excludes `TLS_`/`TEST_`/`STANDBY_DATABASE_URL`, which are separate variables with
+    their own policy.
+  - **Its scope is fail-closed over `crates/*/src/` as well as `crates/*/tests/`.** The old
+    scope missed unit tests in `src/**/tests.rs` and in inline `#[cfg(test)] mod` blocks, where
+    four more violations lived. Production code that legitimately reads the variable — the
+    CLI's `--database-url` fallbacks, the server's config loader — is named in
+    `tools/test-imports.allow` with a reason, so a new production reader is a deliberate edit.
+    A stale row fails too, so the allowlist cannot rot into one nobody prunes.
+  - **All nineteen call sites were migrated.** Silent-default sites became
+    `database_url()` (panics); deliberate self-skipping sites became `try_database_url()`
+    (same behaviour, one policy). Four sites in `wire_backend_feature_test.rs` were doing
+    something else again: they construct a `FraiseWireAdapter`, whose constructor is
+    synchronous and never connects, so they needed a *parseable* URL and not a database at
+    all — reading `DATABASE_URL` there made a suite declaring `Infrastructure: none` depend on
+    the environment for nothing. Those now use a named constant.
+
+  `tools/tests/test_imports_gate_test.sh` pins the red capability with ten fixtures, the
+  first of which is the literal text the original could not see.
+
 - **`make preflight` now runs everything the CI leg it claims to mirror runs (#1135).** It
   printed `✅ preflight passed — mirrors the Dagger preflight leg. Safe to push.` while
   skipping `make test-deadline-gate`, which `ShellGates` does run. That gate pins the

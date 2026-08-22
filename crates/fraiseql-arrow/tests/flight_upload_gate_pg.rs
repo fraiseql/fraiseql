@@ -48,7 +48,7 @@ const TEST_FLIGHT_SECRET: &str = "flight-upload-gate-session-secret";
 // ---------------------------------------------------------------- fixtures
 
 async fn pool() -> PgPool {
-    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for --ignored runs");
+    let url = fraiseql_test_support::database_url();
     PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap()
 }
 
@@ -123,7 +123,7 @@ impl ArrowDatabaseAdapter for PgFlightAdapter {
 }
 
 async fn flight_adapter() -> Arc<dyn ArrowDatabaseAdapter> {
-    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for --ignored runs");
+    let url = fraiseql_test_support::database_url();
     let inner = fraiseql_core::db::PostgresAdapter::new(&url).await.unwrap();
     Arc::new(PgFlightAdapter { inner })
 }

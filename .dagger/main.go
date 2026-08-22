@@ -159,6 +159,7 @@ func (m *FraiseqlCi) Preflight(
 		{"fmt", m.Fmt},
 		{"rustdoc", m.Rustdoc},
 		{"clippy", m.Clippy},
+		{"check-default", m.CheckDefault},
 	}
 
 	var report strings.Builder
@@ -208,6 +209,35 @@ func (m *FraiseqlCi) Clippy(
 		WithExec([]string{
 			"cargo", "clippy", "--all-targets", "--", "-D", "warnings",
 		}).
+		Stdout(ctx)
+}
+
+// CheckDefault:
+// `cargo check --workspace --all-targets` — the DEFAULT feature set.
+//
+// Every other Rust gate in this leg is `--all-features`, which by construction
+// can never compile a `cfg(not(feature = …))` arm. The default configuration is
+// not an edge case: it is what a plain `cargo build`, a `cargo install` and the
+// slim Docker image produce, and it is the only one in which the server's
+// non-wire dispatch arm and the `fraiseql` crate's feature-gated bin resolve the
+// way a default deployment resolves them.
+//
+// #1101 reported this as "--all-targets --all-features does not compile the
+// fraiseql-server binary". That mechanism does not reproduce — under both
+// feature sets the bin is in cargo's unit graph (its `required-features = ["cli"]`
+// is satisfied by `default = ["auth", "cli"]`), and it drops out only under
+// `--no-default-features`. What the report's own evidence shows is the feature-OFF
+// blindness above: the error appeared under default features and not under
+// `--all-features`. The feature matrix leg covers many such arms by combo, but it
+// is push-to-dev + dispatch, so a branch never sees it; this gate is in the
+// required check.
+func (m *FraiseqlCi) CheckDefault(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.rustSrc(source).
+		WithExec([]string{"cargo", "check", "--workspace", "--all-targets"}).
 		Stdout(ctx)
 }
 
@@ -305,6 +335,9 @@ func (m *FraiseqlCi) ShellGates(
 		// push" over the difference. It had drifted twice when this landed (#1135).
 		"python3 tools/check-preflight-parity.py",
 		"make test-preflight-parity",
+		// The bare-DATABASE_URL gate above ran here for its whole life without ever
+		// being able to reject anything (#1075). Its red capability is now pinned.
+		"make test-imports-gate",
 	}, "\n")
 
 	return m.shellBase().

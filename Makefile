@@ -240,6 +240,14 @@ changelog-full:
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
 
+# The DEFAULT feature set, which no other Rust gate here compiles. `clippy` and
+# `rustdoc` are both `--all-features`, and `--all-features` can never compile a
+# `cfg(not(feature = …))` arm — so the configuration a plain `cargo build` and the
+# slim image actually produce is the one preflight never built (#1101).
+.PHONY: check-default
+check-default:
+	cargo check --workspace --all-targets
+
 # Secondary gate: count #[allow(clippy::unwrap_used)] annotations in production source files.
 # Primary enforcement: clippy::unwrap_used = "deny" in workspace lints — any new .unwrap() in
 # production code fails `cargo clippy --workspace -- -D warnings` before this gate runs.
@@ -610,6 +618,14 @@ lint-preflight-parity:
 test-preflight-parity:
 	@bash tools/tests/preflight_parity_test.sh
 
+# Red-capability pin for the bare-DATABASE_URL gate. It ran in preflight and in the
+# required CI leg for its whole life without ever rejecting anything (#1075), so every
+# assertion here is a shape it must reject — starting with the literal text its
+# BRE-escaped pattern could not see.
+.PHONY: test-imports-gate
+test-imports-gate:
+	@bash tools/tests/test_imports_gate_test.sh
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
@@ -618,7 +634,7 @@ test-preflight-parity:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-preflight-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-imports-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -629,6 +645,8 @@ preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-as
 	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
 	@echo "=== preflight: clippy (--all-targets --all-features -D warnings) ==="
 	@$(MAKE) --no-print-directory clippy
+	@echo "=== preflight: check-default (default features — the feature-OFF arms) ==="
+	@$(MAKE) --no-print-directory check-default
 	@echo ""
 	@echo "✅ preflight passed — mirrors the Dagger preflight leg. Safe to push."
 

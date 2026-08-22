@@ -684,8 +684,7 @@ mod dispatch_632_tests {
     #[tokio::test]
     #[ignore = "requires PostgreSQL"]
     async fn database_action_calls_the_function_for_real() {
-        let url = std::env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set for --ignored postgres tests");
+        let url = fraiseql_test_support::database_url();
         let pool = sqlx::postgres::PgPoolOptions::new()
             .max_connections(2)
             .connect(&url)

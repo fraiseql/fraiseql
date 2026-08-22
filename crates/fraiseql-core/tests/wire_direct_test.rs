@@ -16,10 +16,7 @@ mod wire_direct_tests {
 
     #[tokio::test]
     async fn test_direct_v_user_query() {
-        let conn_str = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
-                .to_string()
-        });
+        let conn_str = fraiseql_test_support::database_url();
 
         println!("Connecting to: {}", conn_str);
 
