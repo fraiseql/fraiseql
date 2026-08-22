@@ -4634,6 +4634,19 @@ disagreed, and the promise was the part that was wrong.
   workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
   since v2.14.1, was already in the publish list and is unaffected.
 
+- **90 `Duration` literals rewritten before the lint that rejects them reaches stable
+  (#1121).** `clippy::pedantic` is `deny` workspace-wide, and beta's
+  `duration_suboptimal_units` fires on `Duration::from_secs(<multiple of 60>)`. On the next
+  toolchain promotion that becomes an error, not a warning — in `fraiseql-core` first, so
+  every crate depending on it fails too. A grep found 90 call sites at 60, 120, 240, 300,
+  600, 900 and 3600 seconds.
+
+  Done deliberately *before* the bump rather than during it: a toolchain bump that also has
+  to land 90 unrelated mechanical edits is a bump whose failures cannot be attributed.
+  `Duration::from_mins` and `from_hours` are themselves recent, so they were checked against
+  the MSRV first — both compile and evaluate correctly under 1.94.1 — rather than allowing
+  the lint at the workspace lint table.
+
 - **The stale-cache canary can detect staleness in more than the first suite of a leg
   (#1132).** The #880 canary exists to turn a silent failure class — a leg testing artifacts
   built from different source than the commit under test, which happened three times, once

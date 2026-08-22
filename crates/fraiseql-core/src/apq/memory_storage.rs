@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use super::storage::{ApqError, ApqStats, ApqStorage};
 
 /// Default TTL for stored queries (1 hour).
-const DEFAULT_TTL: Duration = Duration::from_secs(3600);
+const DEFAULT_TTL: Duration = Duration::from_hours(1);
 
 /// Default maximum number of stored queries.
 const DEFAULT_MAX_ENTRIES: usize = 1000;

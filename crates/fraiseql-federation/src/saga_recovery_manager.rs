@@ -129,7 +129,7 @@ impl Default for RecoveryConfig {
             check_interval:          Duration::from_secs(5),
             max_sagas_per_iteration: 50,
             stale_age_hours:         24,
-            stuck_threshold:         Duration::from_secs(300),
+            stuck_threshold:         Duration::from_mins(5),
             max_recovery_attempts:   5,
         }
     }

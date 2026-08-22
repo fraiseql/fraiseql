@@ -107,8 +107,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Code:");
     println!("  let config = ConnectionConfig::builder(&database, &user)");
     println!("      .password(&password)");
-    println!("      .statement_timeout(Duration::from_secs(60))");
-    println!("      .keepalive_idle(Duration::from_secs(300))");
+    println!("      .statement_timeout(Duration::from_mins(1))");
+    println!("      .keepalive_idle(Duration::from_mins(5))");
     println!("      .application_name(\"fraiseql_example\")");
     println!("      .extra_float_digits(2)");
     println!("      .build();");
@@ -116,8 +116,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let full_config = ConnectionConfig::builder(&database, &user)
         .password(&password)
-        .statement_timeout(Duration::from_secs(60))
-        .keepalive_idle(Duration::from_secs(300))
+        .statement_timeout(Duration::from_mins(1))
+        .keepalive_idle(Duration::from_mins(5))
         .application_name("fraiseql_example")
         .extra_float_digits(2)
         .build();
@@ -154,7 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let builder_config = ConnectionConfig::builder("mydb", "user")
         .password("secret")
         .statement_timeout(Duration::from_secs(45))
-        .keepalive_idle(Duration::from_secs(600))
+        .keepalive_idle(Duration::from_mins(10))
         .application_name("fluent_example")
         .param("timezone", "UTC")
         .build();
@@ -163,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ConnectionConfig::builder(\"mydb\", \"user\")");
     println!("      .password(\"secret\")");
     println!("      .statement_timeout(Duration::from_secs(45))");
-    println!("      .keepalive_idle(Duration::from_secs(600))");
+    println!("      .keepalive_idle(Duration::from_mins(10))");
     println!("      .application_name(\"fluent_example\")");
     println!("      .param(\"timezone\", \"UTC\")");
     println!("      .build()");
@@ -203,7 +203,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "5.25 seconds",
         ),
         (Duration::from_secs(30), "30 seconds"),
-        (Duration::from_secs(300), "5 minutes"),
+        (Duration::from_mins(5), "5 minutes"),
     ];
 
     for (duration, description) in examples {

@@ -118,7 +118,7 @@ impl ConnectionConfig {
 ///     .password("secret")
 ///     .connect_timeout(Duration::from_secs(10))
 ///     .statement_timeout(Duration::from_secs(30))
-///     .keepalive_idle(Duration::from_secs(300))
+///     .keepalive_idle(Duration::from_mins(5))
 ///     .application_name("my_app")
 ///     .build();
 /// ```

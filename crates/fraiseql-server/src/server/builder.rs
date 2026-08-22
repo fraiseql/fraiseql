@@ -916,7 +916,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if let Some(store) = pkce_store {
             let store_clone = Arc::clone(store);
             tasks.spawn(async move {
-                let mut ticker = tokio::time::interval(Duration::from_secs(300));
+                let mut ticker = tokio::time::interval(Duration::from_mins(5));
                 ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
                 loop {
                     ticker.tick().await;
@@ -984,7 +984,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         use tokio::time::MissedTickBehavior;
 
-        const SWEEP_INTERVAL: Duration = Duration::from_secs(300);
+        const SWEEP_INTERVAL: Duration = Duration::from_mins(5);
 
         if let Some(ref mfa) = local_auth.mfa {
             let store = Arc::clone(&mfa.mfa_store);

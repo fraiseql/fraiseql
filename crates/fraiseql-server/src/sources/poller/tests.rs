@@ -380,7 +380,7 @@ async fn ingests_across_schedule_windows_and_a_restart() {
     // guard forbids a same-window repeat, and window 2 is exactly what #796 broke.
     // Worst case ~60 s to the first tick + 60 s to the next window + guest time.
     let first = tokio::spawn(build().run_forever());
-    wait_for_cursor_page(&pool, source, 2, std::time::Duration::from_secs(240)).await;
+    wait_for_cursor_page(&pool, source, 2, std::time::Duration::from_mins(4)).await;
     first.abort();
     assert!(first.await.unwrap_err().is_cancelled());
 
@@ -402,7 +402,7 @@ async fn ingests_across_schedule_windows_and_a_restart() {
     // would gap. (At-least-once: a transient guest failure re-runs the SAME
     // page, which the contains-assert below tolerates.)
     let second = tokio::spawn(build().run_forever());
-    wait_for_cursor_page(&pool, source, before + 1, std::time::Duration::from_secs(240)).await;
+    wait_for_cursor_page(&pool, source, before + 1, std::time::Duration::from_mins(4)).await;
     second.abort();
     assert!(second.await.unwrap_err().is_cancelled());
 

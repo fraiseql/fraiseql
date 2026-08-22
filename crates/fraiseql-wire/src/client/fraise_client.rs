@@ -157,7 +157,7 @@ impl FraiseClient {
     /// // (database, user); the URL's components override them when present)
     /// let config = ConnectionConfig::builder("mydb", "app_user")
     ///     .statement_timeout(Duration::from_secs(30))
-    ///     .keepalive_idle(Duration::from_secs(300))
+    ///     .keepalive_idle(Duration::from_mins(5))
     ///     .application_name("my_app")
     ///     .build();
     ///

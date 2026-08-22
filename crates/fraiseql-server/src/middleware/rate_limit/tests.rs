@@ -88,7 +88,7 @@ mod token_bucket_tests {
             tokens:      0.0,
             capacity:    10.0,
             refill_rate: 0.0,
-            last_refill: Instant::now().checked_sub(Duration::from_secs(60)).unwrap(),
+            last_refill: Instant::now().checked_sub(Duration::from_mins(1)).unwrap(),
         };
         assert!(!bucket.try_consume(1.0), "zero refill rate means no refill ever");
     }

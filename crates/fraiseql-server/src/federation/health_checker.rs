@@ -113,7 +113,7 @@ impl RollingErrorWindow {
         let now = Instant::now();
         buckets
             .iter()
-            .filter(|b| now.duration_since(b.timestamp) < Duration::from_secs(60))
+            .filter(|b| now.duration_since(b.timestamp) < Duration::from_mins(1))
             .map(|b| b.errors)
             .sum()
     }
@@ -128,7 +128,7 @@ impl RollingErrorWindow {
         let now = Instant::now();
         let recent: Vec<_> = buckets
             .iter()
-            .filter(|b| now.duration_since(b.timestamp) < Duration::from_secs(300))
+            .filter(|b| now.duration_since(b.timestamp) < Duration::from_mins(5))
             .collect();
 
         if recent.is_empty() {
@@ -150,7 +150,7 @@ impl RollingErrorWindow {
         let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
         while let Some(front) = buckets.front() {
-            if now.duration_since(front.timestamp) > Duration::from_secs(300) {
+            if now.duration_since(front.timestamp) > Duration::from_mins(5) {
                 buckets.pop_front();
             } else {
                 break;

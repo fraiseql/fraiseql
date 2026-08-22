@@ -945,7 +945,7 @@ mod fact_table_version_tests {
         assert!(cached.is_fresh(Duration::from_secs(1)));
 
         // Should be fresh for a longer duration
-        assert!(cached.is_fresh(Duration::from_secs(60)));
+        assert!(cached.is_fresh(Duration::from_mins(1)));
     }
 
     #[test]

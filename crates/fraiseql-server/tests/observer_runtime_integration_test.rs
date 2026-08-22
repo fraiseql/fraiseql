@@ -882,7 +882,7 @@ async fn test_high_throughput_processing() {
     }
 
     // Wait for all events to process (with longer timeout for high volume)
-    wait_for_webhook(&mock_server, event_count, Duration::from_secs(60)).await;
+    wait_for_webhook(&mock_server, event_count, Duration::from_mins(1)).await;
 
     // Verify all events were processed
     let request_count = mock_server.request_count().await;

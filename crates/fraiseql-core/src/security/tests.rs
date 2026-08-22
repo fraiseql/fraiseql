@@ -3020,7 +3020,7 @@ mod rls_policy_tests {
         policy.evaluate(&context, "Post").unwrap();
 
         // Advance to EXACTLY the expiry second
-        clock.advance(std::time::Duration::from_secs(300));
+        clock.advance(std::time::Duration::from_mins(5));
         assert_eq!(clock.now_secs(), t0 + 300);
 
         // At exactly expires_at, the entry must be considered expired (now < expires_at is false)

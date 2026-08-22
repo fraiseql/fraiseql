@@ -1903,7 +1903,7 @@ async fn a_replica_whose_lag_cannot_be_measured_is_never_eligible() {
             read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls:                  vec![replica_url.clone()],
                 pin_after_write:       std::time::Duration::ZERO,
-                max_lag:               Some(std::time::Duration::from_secs(60)),
+                max_lag:               Some(std::time::Duration::from_mins(1)),
                 health_probe_interval: std::time::Duration::from_millis(100),
             }),
         },
@@ -1989,7 +1989,7 @@ async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
             read_replicas:       Some(crate::postgres::ReadReplicaConfig {
                 urls:                  vec![standby_db_url()],
                 // Long enough that nothing expires during the test.
-                pin_after_write:       std::time::Duration::from_secs(300),
+                pin_after_write:       std::time::Duration::from_mins(5),
                 max_lag:               None,
                 health_probe_interval: std::time::Duration::from_millis(100),
             }),
@@ -2027,11 +2027,9 @@ async fn a_per_query_lag_budget_overrides_the_servers() {
     let standby = bs_fixture(tag).await;
     // Server-wide budget generous enough that it alone would keep the standby in
     // rotation; the per-query budget is what has to exclude it.
-    let adapter = bs_adapter(
-        Some(std::time::Duration::from_secs(300)),
-        std::time::Duration::from_millis(100),
-    )
-    .await;
+    let adapter =
+        bs_adapter(Some(std::time::Duration::from_mins(5)), std::time::Duration::from_millis(100))
+            .await;
 
     let mut origin = String::new();
     for _ in 0..100 {

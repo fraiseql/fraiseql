@@ -233,7 +233,7 @@ fn test_detect_key_rotation_when_keys_removed() {
         *cache = Some(CachedJwks {
             jwks:       old_jwks,
             fetched_at: Instant::now(),
-            ttl:        Duration::from_secs(300),
+            ttl:        Duration::from_mins(5),
         });
     }
 
@@ -257,7 +257,7 @@ fn test_detect_key_rotation_when_no_keys_removed() {
         *cache = Some(CachedJwks {
             jwks:       old_jwks,
             fetched_at: Instant::now(),
-            ttl:        Duration::from_secs(300),
+            ttl:        Duration::from_mins(5),
         });
     }
 
@@ -283,7 +283,7 @@ fn invalidate_jwks_cache_clears_the_cached_entry() {
                 keys: vec![make_jwk("compromised_kid")],
             },
             fetched_at: Instant::now(),
-            ttl:        Duration::from_secs(300),
+            ttl:        Duration::from_mins(5),
         });
     }
     assert!(validator.jwks_cache.read().is_some(), "precondition: cache populated");
@@ -336,7 +336,7 @@ async fn refresh_jwks_replaces_the_cache_with_freshly_fetched_keys() {
                 keys: vec![make_jwk("compromised_kid")],
             },
             fetched_at: Instant::now(),
-            ttl:        Duration::from_secs(300),
+            ttl:        Duration::from_mins(5),
         });
     }
 
@@ -1192,15 +1192,15 @@ mod replay_cache_tests {
     #[tokio::test]
     async fn test_first_use_accepted() {
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        let result = cache.check_and_record("jti-abc", Duration::from_secs(900)).await;
+        let result = cache.check_and_record("jti-abc", Duration::from_mins(15)).await;
         assert!(result.is_ok(), "first use should be accepted");
     }
 
     #[tokio::test]
     async fn test_replay_rejected() {
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        cache.check_and_record("jti-abc", Duration::from_secs(900)).await.unwrap();
-        let result = cache.check_and_record("jti-abc", Duration::from_secs(900)).await;
+        cache.check_and_record("jti-abc", Duration::from_mins(15)).await.unwrap();
+        let result = cache.check_and_record("jti-abc", Duration::from_mins(15)).await;
         assert!(
             matches!(result, Err(ReplayCacheError::Replayed)),
             "second use of same jti should be rejected"
@@ -1210,8 +1210,8 @@ mod replay_cache_tests {
     #[tokio::test]
     async fn test_different_jtis_accepted_independently() {
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        cache.check_and_record("jti-1", Duration::from_secs(900)).await.unwrap();
-        let result = cache.check_and_record("jti-2", Duration::from_secs(900)).await;
+        cache.check_and_record("jti-1", Duration::from_mins(15)).await.unwrap();
+        let result = cache.check_and_record("jti-2", Duration::from_mins(15)).await;
         assert!(result.is_ok(), "different jti should be accepted");
     }
 
@@ -1231,7 +1231,7 @@ mod replay_cache_tests {
         }
 
         let cache = ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailOpen);
-        let result = cache.check_and_record("jti-xyz", Duration::from_secs(900)).await;
+        let result = cache.check_and_record("jti-xyz", Duration::from_mins(15)).await;
         assert!(result.is_ok(), "fail-open should accept on backend error");
     }
 
@@ -1251,7 +1251,7 @@ mod replay_cache_tests {
         }
 
         let cache = ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailClosed);
-        let result = cache.check_and_record("jti-xyz", Duration::from_secs(900)).await;
+        let result = cache.check_and_record("jti-xyz", Duration::from_mins(15)).await;
         assert!(result.is_err(), "fail-closed should reject on backend error");
     }
 
@@ -1259,8 +1259,8 @@ mod replay_cache_tests {
     async fn test_replay_counter_increments() {
         let before = jwt_replay_rejected_total();
         let cache = ReplayCache::new(MemoryReplayCache::new());
-        cache.check_and_record("jti-counter", Duration::from_secs(900)).await.unwrap();
-        let _ = cache.check_and_record("jti-counter", Duration::from_secs(900)).await;
+        cache.check_and_record("jti-counter", Duration::from_mins(15)).await.unwrap();
+        let _ = cache.check_and_record("jti-counter", Duration::from_mins(15)).await;
         let after = jwt_replay_rejected_total();
         assert!(after > before, "replay counter should have incremented");
     }

@@ -86,7 +86,7 @@ async fn expired_key_treated_as_new() {
 
 #[tokio::test(start_paused = true)]
 async fn max_entries_evicts_oldest() {
-    let store = InMemoryIdempotencyStore::new(Duration::from_secs(3600), 3);
+    let store = InMemoryIdempotencyStore::new(Duration::from_hours(1), 3);
     let hash = hash_body(&json!({}));
 
     store.store(k("key1"), hash, make_response()).await;

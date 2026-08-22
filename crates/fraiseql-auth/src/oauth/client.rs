@@ -416,7 +416,7 @@ impl OIDCClient {
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
     ) -> Result<Self, JwksError> {
-        let jwks_cache = Arc::new(JwksCache::new(&config.jwks_uri, StdDuration::from_secs(3600))?);
+        let jwks_cache = Arc::new(JwksCache::new(&config.jwks_uri, StdDuration::from_hours(1))?);
         Ok(Self {
             config,
             client_id: client_id.into(),

@@ -40,7 +40,7 @@ fn test_connection_config_builder_basic() {
 fn test_connection_config_builder_with_timeouts() {
     let connect_timeout = Duration::from_secs(10);
     let statement_timeout = Duration::from_secs(30);
-    let keepalive_idle = Duration::from_secs(300);
+    let keepalive_idle = Duration::from_mins(5);
 
     let config = ConnectionConfig::builder("mydb", "myuser")
         .password("mypass")
@@ -71,7 +71,7 @@ fn test_connection_config_builder_fluent() {
         .password("secret")
         .param("key1", "value1")
         .connect_timeout(Duration::from_secs(5))
-        .statement_timeout(Duration::from_secs(60))
+        .statement_timeout(Duration::from_mins(1))
         .application_name("test_app")
         .build();
 
@@ -80,7 +80,7 @@ fn test_connection_config_builder_fluent() {
     assert_eq!(config.password.as_ref().map(|p| p.as_str()), Some("secret"));
     assert_eq!(config.params.get("key1"), Some(&"value1".to_string()));
     assert_eq!(config.connect_timeout, Some(Duration::from_secs(5)));
-    assert_eq!(config.statement_timeout, Some(Duration::from_secs(60)));
+    assert_eq!(config.statement_timeout, Some(Duration::from_mins(1)));
     assert_eq!(config.application_name, Some("test_app".to_string()));
 }
 

@@ -32,7 +32,7 @@ mod stress_tests {
         let latencies = Arc::new(std::sync::Mutex::new(Vec::new()));
 
         let start = Instant::now();
-        let duration = Duration::from_secs(60);
+        let duration = Duration::from_mins(1);
         let target_rate = 1000.0; // events/second
         let interval = Duration::from_secs_f64(1.0 / target_rate);
 
@@ -234,7 +234,7 @@ mod stress_tests {
         println!("\nTotal time: {:.2}s", elapsed.as_secs_f64());
         println!("Rate: {:.0} ops/sec", f64::from(iterations) / elapsed.as_secs_f64());
 
-        assert!(elapsed < Duration::from_secs(60), "Should complete in reasonable time");
+        assert!(elapsed < Duration::from_mins(1), "Should complete in reasonable time");
     }
 
     /// Test recovery from checkpoint

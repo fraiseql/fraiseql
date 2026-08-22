@@ -682,7 +682,7 @@ async fn test_token_refresh_worker_cancellation() {
     let scheduler = Arc::new(TokenRefreshScheduler::new());
     let refresher = Arc::new(NeverCalledRefresher);
     let (worker, cancel_tx) =
-        TokenRefreshWorker::new(scheduler, refresher, StdDuration::from_secs(3600));
+        TokenRefreshWorker::new(scheduler, refresher, StdDuration::from_hours(1));
 
     let handle = tokio::spawn(worker.run());
     // Cancel immediately

@@ -435,7 +435,7 @@ async fn cron_scheduler_task(
     module_registry: std::collections::HashMap<String, crate::types::FunctionModule>,
     mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_mins(1));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     // Skip the initial immediate tick so the scheduler doesn't fire on startup.
     interval.tick().await;

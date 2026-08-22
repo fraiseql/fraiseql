@@ -86,13 +86,13 @@ async fn honors_the_error_supplied_backoff_floor() {
     let result: Result<u32, &str> = run_with_retry(
         &zero_delay_policy(2),
         |_error| true,
-        |_error| Some(Duration::from_secs(300)),
+        |_error| Some(Duration::from_mins(5)),
         |n| async move { if n < 2 { Err("greylisted") } else { Ok(n) } },
     )
     .await;
     assert_eq!(result, Ok(2));
     assert!(
-        start.elapsed() >= Duration::from_secs(300),
+        start.elapsed() >= Duration::from_mins(5),
         "the retry waited the error's mail-appropriate floor, not the policy's zero delay"
     );
 }

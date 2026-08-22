@@ -347,8 +347,7 @@ fn test_s3_presign_upload_returns_valid_url() {
         let key = "presign-upload-test.txt";
 
         // Generate presigned URL for upload (1 hour expiry)
-        let presigned_result =
-            backend.presigned_url(key, std::time::Duration::from_secs(3600)).await;
+        let presigned_result = backend.presigned_url(key, std::time::Duration::from_hours(1)).await;
 
         assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
 
@@ -382,8 +381,7 @@ fn test_s3_presign_download_returns_valid_url() {
         backend.upload(key, data, "text/plain").await.expect("upload succeeds");
 
         // Generate presigned URL for download
-        let presigned_result =
-            backend.presigned_url(key, std::time::Duration::from_secs(3600)).await;
+        let presigned_result = backend.presigned_url(key, std::time::Duration::from_hours(1)).await;
 
         assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
 
@@ -436,13 +434,12 @@ fn test_s3_presign_rejects_invalid_keys() {
 
     rt.block_on(async {
         // Test path traversal in presigned URL
-        let result = backend
-            .presigned_url("../etc/passwd", std::time::Duration::from_secs(3600))
-            .await;
+        let result =
+            backend.presigned_url("../etc/passwd", std::time::Duration::from_hours(1)).await;
         assert!(result.is_err(), "path traversal should be rejected");
 
         // Test empty key
-        let result = backend.presigned_url("", std::time::Duration::from_secs(3600)).await;
+        let result = backend.presigned_url("", std::time::Duration::from_hours(1)).await;
         assert!(result.is_err(), "empty key should be rejected");
     });
 }
@@ -461,8 +458,8 @@ fn test_s3_presign_respects_expiry() {
         let key = "presign-ttl-test.txt";
 
         // Generate URLs with different expiry times
-        let short_ttl = std::time::Duration::from_secs(60);
-        let long_ttl = std::time::Duration::from_secs(3600);
+        let short_ttl = std::time::Duration::from_mins(1);
+        let long_ttl = std::time::Duration::from_hours(1);
 
         let short_url = backend
             .presigned_url(key, short_ttl)

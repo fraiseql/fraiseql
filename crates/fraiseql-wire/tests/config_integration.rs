@@ -47,12 +47,12 @@ mod config_integration {
     #[tokio::test]
     async fn test_config_keepalive_idle_applied() {
         let config = ConnectionConfig::builder("postgres", "postgres")
-            .keepalive_idle(Duration::from_secs(300))
+            .keepalive_idle(Duration::from_mins(5))
             .build();
 
         assert_eq!(
             config.keepalive_idle,
-            Some(Duration::from_secs(300)),
+            Some(Duration::from_mins(5)),
             "keepalive_idle not set in config"
         );
     }
@@ -76,8 +76,8 @@ mod config_integration {
     async fn test_config_multiple_options() {
         let config = ConnectionConfig::builder("mydb", "myuser")
             .password("secret")
-            .statement_timeout(Duration::from_secs(60))
-            .keepalive_idle(Duration::from_secs(300))
+            .statement_timeout(Duration::from_mins(1))
+            .keepalive_idle(Duration::from_mins(5))
             .application_name("multi_test")
             .extra_float_digits(1)
             .build();
@@ -88,8 +88,8 @@ mod config_integration {
             config.password,
             Some(zeroize::Zeroizing::new("secret".to_string()))
         );
-        assert_eq!(config.statement_timeout, Some(Duration::from_secs(60)));
-        assert_eq!(config.keepalive_idle, Some(Duration::from_secs(300)));
+        assert_eq!(config.statement_timeout, Some(Duration::from_mins(1)));
+        assert_eq!(config.keepalive_idle, Some(Duration::from_mins(5)));
         assert_eq!(config.application_name, Some("multi_test".to_string()));
         assert_eq!(config.extra_float_digits, Some(1));
     }

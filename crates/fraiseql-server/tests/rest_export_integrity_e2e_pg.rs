@@ -62,7 +62,7 @@ const PAGE: u64 = 100;
 
 /// Any single export must finish well inside this. It exists so the non-termination
 /// mode **fails** the test rather than hanging the suite.
-const EXPORT_TIMEOUT: Duration = Duration::from_secs(60);
+const EXPORT_TIMEOUT: Duration = Duration::from_mins(1);
 
 // ---------------------------------------------------------------------------
 // Fixture

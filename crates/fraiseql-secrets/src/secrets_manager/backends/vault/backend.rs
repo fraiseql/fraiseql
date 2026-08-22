@@ -110,7 +110,7 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 ///     VaultBackend::with_approle("https://vault.example.com:8200", "role-id", "secret-id")
 ///         .await?,
 /// );
-/// let (_handle, _cancel) = VaultBackend::spawn_token_renewal(&vault, Duration::from_secs(60));
+/// let (_handle, _cancel) = VaultBackend::spawn_token_renewal(&vault, Duration::from_mins(1));
 /// # Ok(())
 /// # }
 /// ```

@@ -64,7 +64,7 @@ async fn test_lease_renewal_task_cancels_cleanly() {
     let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
 
     let (task, cancel_tx) =
-        LeaseRenewalTask::new(manager, vec!["db/creds".to_string()], Duration::from_secs(60));
+        LeaseRenewalTask::new(manager, vec!["db/creds".to_string()], Duration::from_mins(1));
 
     // Cancel immediately before the first sleep interval fires.
     cancel_tx.send(true).unwrap();

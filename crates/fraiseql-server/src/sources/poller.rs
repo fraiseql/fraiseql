@@ -251,7 +251,7 @@ impl SourcePoller {
     /// opens (and has not already fired in it). Shutdown is by task abort — the
     /// lifecycle drives the poller on its `JoinSet`.
     pub async fn run_forever(mut self) {
-        let mut ticker = tokio::time::interval(Duration::from_secs(60));
+        let mut ticker = tokio::time::interval(Duration::from_mins(1));
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         // Skip the immediate initial tick so a source does not fire on startup.
         ticker.tick().await;

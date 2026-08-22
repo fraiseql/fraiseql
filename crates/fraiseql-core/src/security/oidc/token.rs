@@ -306,7 +306,7 @@ impl OidcValidator {
                         None
                     }
                 })
-                .unwrap_or(Duration::from_secs(900)); // Fallback: 15-minute TTL
+                .unwrap_or(Duration::from_mins(15)); // Fallback: 15-minute TTL
 
             replay_cache.check_and_record(jti, ttl).await.map_err(|e| {
                 use crate::security::oidc::replay_cache::ReplayCacheError;

@@ -174,7 +174,7 @@ pub fn build_pollers<S: std::hash::BuildHasher>(
 }
 
 /// How long to wait for a startup Return-Path probe to land before warning.
-const PROBE_TIMEOUT: Duration = Duration::from_secs(120);
+const PROBE_TIMEOUT: Duration = Duration::from_mins(2);
 /// How often to poll the mailbox while waiting for the probe.
 const PROBE_INTERVAL: Duration = Duration::from_secs(10);
 

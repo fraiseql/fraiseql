@@ -201,7 +201,7 @@ fn cache_returns_inserted_outcome() {
         "[\"u1\"]".to_owned(),
         "u1".to_owned(),
         resolved("actor_role", json!("admin")),
-        Duration::from_secs(60),
+        Duration::from_mins(1),
     );
 
     match cache.get("[\"u1\"]") {
@@ -238,19 +238,19 @@ fn cache_flush_evicts_only_matching_subject() {
         "[\"u1\"]".to_owned(),
         "u1".to_owned(),
         resolved("r", json!("a")),
-        Duration::from_secs(60),
+        Duration::from_mins(1),
     );
     cache.insert(
         "[\"u1\",\"x\"]".to_owned(),
         "u1".to_owned(),
         resolved("r", json!("a")),
-        Duration::from_secs(60),
+        Duration::from_mins(1),
     );
     cache.insert(
         "[\"u2\"]".to_owned(),
         "u2".to_owned(),
         resolved("r", json!("b")),
-        Duration::from_secs(60),
+        Duration::from_mins(1),
     );
 
     cache.flush("u1");
@@ -268,13 +268,13 @@ fn cache_flush_all_clears() {
         "[\"u1\"]".to_owned(),
         "u1".to_owned(),
         resolved("r", json!("a")),
-        Duration::from_secs(60),
+        Duration::from_mins(1),
     );
     cache.insert(
         "[\"u2\"]".to_owned(),
         "u2".to_owned(),
         resolved("r", json!("b")),
-        Duration::from_secs(60),
+        Duration::from_mins(1),
     );
 
     cache.flush_all();

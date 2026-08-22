@@ -546,7 +546,7 @@ mod lifecycle_tests {
         // ever return on their own.
         for _ in 0..3 {
             tasks.spawn(async {
-                let mut ticker = tokio::time::interval(Duration::from_secs(60));
+                let mut ticker = tokio::time::interval(Duration::from_mins(1));
                 loop {
                     ticker.tick().await;
                 }

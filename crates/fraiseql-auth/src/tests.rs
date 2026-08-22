@@ -4160,7 +4160,7 @@ mod jwks_tests {
     #[tokio::test]
     async fn test_jwks_cache_empty() {
         let cache =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600))
+            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_hours(1))
                 .unwrap();
         assert!(cache.get_key_from_cache("nonexistent_kid").is_none());
     }
@@ -4176,7 +4176,7 @@ mod jwks_tests {
 
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_secs(3600),
+            Duration::from_hours(1),
         )
         .unwrap();
 
@@ -4195,7 +4195,7 @@ mod jwks_tests {
 
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_secs(3600),
+            Duration::from_hours(1),
         )
         .unwrap();
 
@@ -4234,7 +4234,7 @@ mod jwks_tests {
 
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_secs(3600),
+            Duration::from_hours(1),
         )
         .unwrap();
 
@@ -4245,7 +4245,7 @@ mod jwks_tests {
     #[tokio::test]
     async fn test_jwks_cache_network_error() {
         let cache =
-            JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_secs(3600)).unwrap();
+            JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_hours(1)).unwrap();
         let result = cache.get_key("any-kid").await;
         assert!(result.is_err(), "expected Err for network error (connection refused)");
     }
@@ -4268,7 +4268,7 @@ mod jwks_tests {
 
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_secs(3600),
+            Duration::from_hours(1),
         )
         .unwrap();
         let result = cache.get_key("any-kid").await;
@@ -4288,7 +4288,7 @@ mod jwks_tests {
 
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_secs(3600),
+            Duration::from_hours(1),
         )
         .unwrap();
         let key = cache
@@ -4300,36 +4300,34 @@ mod jwks_tests {
 
     #[test]
     fn test_jwks_cache_rejects_invalid_url() {
-        let result = JwksCache::new("not-a-url", Duration::from_secs(3600));
+        let result = JwksCache::new("not-a-url", Duration::from_hours(1));
         assert!(result.is_err(), "invalid URL should be rejected at construction");
         assert!(matches!(result.unwrap_err(), JwksError::InvalidUrl { .. }));
     }
 
     #[test]
     fn test_jwks_cache_rejects_non_http_scheme() {
-        let result = JwksCache::new("ftp://example.com/jwks.json", Duration::from_secs(3600));
+        let result = JwksCache::new("ftp://example.com/jwks.json", Duration::from_hours(1));
         assert!(matches!(result.unwrap_err(), JwksError::InvalidScheme { .. }));
     }
 
     #[test]
     fn test_jwks_cache_rejects_http_non_localhost() {
-        let result = JwksCache::new("http://example.com/jwks.json", Duration::from_secs(3600));
+        let result = JwksCache::new("http://example.com/jwks.json", Duration::from_hours(1));
         assert!(matches!(result.unwrap_err(), JwksError::InvalidScheme { .. }));
     }
 
     #[test]
     fn test_jwks_cache_accepts_https() {
         let result =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600));
+            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_hours(1));
         assert!(result.is_ok(), "valid https:// URL should be accepted");
     }
 
     #[test]
     fn test_jwks_cache_accepts_http_localhost() {
-        let result = JwksCache::new(
-            "http://localhost:8080/.well-known/jwks.json",
-            Duration::from_secs(3600),
-        );
+        let result =
+            JwksCache::new("http://localhost:8080/.well-known/jwks.json", Duration::from_hours(1));
         assert!(result.is_ok(), "http://localhost should be accepted for dev");
     }
 
@@ -4451,7 +4449,7 @@ mod jwks_tests {
     #[test]
     fn test_jwks_cache_debug_format() {
         let cache =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600))
+            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_hours(1))
                 .unwrap();
         let dbg = format!("{cache:?}");
         assert!(dbg.contains("JwksCache"), "Debug output must contain struct name");

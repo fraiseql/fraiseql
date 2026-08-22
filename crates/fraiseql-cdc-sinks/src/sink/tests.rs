@@ -92,8 +92,8 @@ fn backoff_is_monotonic_and_capped() {
     assert_eq!(next_attempt_delay(2), Duration::from_secs(2));
     assert_eq!(next_attempt_delay(3), Duration::from_secs(4));
     assert_eq!(next_attempt_delay(9), Duration::from_secs(256));
-    assert_eq!(next_attempt_delay(20), Duration::from_secs(300));
-    assert_eq!(next_attempt_delay(u32::MAX), Duration::from_secs(300));
+    assert_eq!(next_attempt_delay(20), Duration::from_mins(5));
+    assert_eq!(next_attempt_delay(u32::MAX), Duration::from_mins(5));
 }
 
 // ── Kafka endpoint guard ──────────────────────────────────────────────────────
