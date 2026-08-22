@@ -1445,6 +1445,23 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             security_context,
         )?;
 
+        // #1166: the actor gate, for precisely the reason the role gate above is here,
+        // and missing for as long as that one was. `resolve_direct_read` carried both;
+        // this peer carried only the role half, so `?select=id,rel.count` reported how
+        // many rows a `requires_actor`-gated relation reaches to a caller of the wrong
+        // actor class. The rows never leaked — the row path is gated — but a count over
+        // a filtered relation is an oracle over it.
+        //
+        // Ordered after the role gate to match `resolve_direct_read`, so the role
+        // gate's enumeration-hiding "not found" is not pre-empted by the actor gate's
+        // message on either chokepoint (`the_role_gate_still_runs_first`).
+        crate::security::actor_type::enforce_requires_actor(
+            "Query",
+            &query_match.query_def.name,
+            &query_match.query_def.requires_actor,
+            security_context,
+        )?;
+
         // 1. Evaluate RLS policy. Fail closed (#784) when a policy is configured but there is no
         //    principal — the count must not disagree with the (equally refused) body it describes.
         let rls_where_clause: Option<RlsWhereClause> =

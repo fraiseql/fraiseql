@@ -48,8 +48,9 @@ use fraiseql_core::{
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
     schema::{
-        ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, MutationDefinition,
-        MutationOperation, QueryDefinition, RestConfig, TypeDefinition,
+        ArgumentDefinition, AutoParams, Cardinality, CompiledSchema, FieldDefinition, FieldType,
+        MutationDefinition, MutationOperation, QueryDefinition, Relationship, RestConfig,
+        TypeDefinition,
     },
     security::ActorType,
 };
@@ -138,6 +139,18 @@ fn schema() -> CompiledSchema {
         FieldDefinition::new("id", FieldType::Id),
         FieldDefinition::new("label", FieldType::String),
     ];
+    // #1166: an unrestricted parent carrying a relation to the RESTRICTED type.
+    // `?select=id,lockedSecrets.count` reaches `count_rows` **alone** — the only
+    // caller that does — which is what makes the missing actor gate observable.
+    // Both sides join on `id` over the same view, so a human's count is 1 per
+    // row: a nonzero number the agent must not be able to read.
+    secret.relationships = vec![Relationship {
+        name:           "lockedSecrets".to_string(),
+        target_type:    "LockedSecret".to_string(),
+        cardinality:    Cardinality::OneToMany,
+        foreign_key:    "id".to_string(),
+        referenced_key: "id".to_string(),
+    }];
     schema.types.push(secret);
 
     // The control: no restriction, reachable by everyone.
@@ -166,6 +179,13 @@ fn schema() -> CompiledSchema {
         .with_sql_source(format!("{SCHEMA}.v_secret"));
     restricted.requires_actor = vec![ActorType::HumanUser];
     restricted.requires_role = Some("reader".to_string());
+    // What the compiler emits for a list query (`[query_defaults] where` is true
+    // by default). Load-bearing for the #1166 count test: the embedding path's
+    // parent-scoping predicate is only composed when `has_where` is set, so
+    // without this the count reports the whole table rather than the relation —
+    // a number that is the same for a scoped and an unscoped read, and therefore
+    // proves nothing.
+    restricted.auto_params = AutoParams::all();
     schema.queries.push(restricted);
 
     let mut create = MutationDefinition::new("createSecret", "Secret");
@@ -479,6 +499,59 @@ async fn rest_refuses_the_same_restricted_query() {
     assert!(
         !body.contains("classified"),
         "and no restricted row may reach a REST response: {body}"
+    );
+}
+
+/// #1166: the **count** of a restricted relation is a read, and must be refused
+/// at the same gate as the rows.
+///
+/// `count_rows` is a second REST chokepoint, not a step inside
+/// `resolve_direct_read`: the embedding path calls it alone. It carried the #422
+/// authorizer and the #1122 role gate and not this one, so
+/// `?select=id,lockedSecrets.count` reported the cardinality of a set the caller
+/// is forbidden to select from — an oracle over a gated relation.
+///
+/// Three things make this test able to fail for the right reason, and each one
+/// was a way to write a version that passes with the bug present:
+///
+/// * The **count-only** form. `Prefer: count=exact` also runs
+///   `execute_query_direct`, whose gate would refuse the agent anyway — so that
+///   spelling proves nothing about `count_rows`.
+/// * `id` in the `select`. Count-only selects an empty field set, the parent row
+///   then carries no join key, and `count_related` returns 0 *before* reaching
+///   `count_rows`. The assertion would hold over a call that never happened.
+/// * The agent token carries `roles: ["reader"]`, so the role gate already in
+///   `count_rows` admits it. The actor gate is the only thing left that can
+///   refuse.
+#[tokio::test]
+async fn rest_refuses_a_count_of_a_restricted_relation_to_an_agent() {
+    if database_url_or_skip("rest_refuses_a_count_of_a_restricted_relation_to_an_agent").is_none() {
+        return;
+    }
+    let rig = Box::pin(boot()).await.unwrap();
+    let url = format!("{}/rest/v1/openSecrets?select=id,lockedSecrets.count", rig.server.url);
+
+    // The human first: prove the count path works and returns a real number, or
+    // the agent's refusal below is satisfied by any broken embed.
+    let allowed = rig.client.get(&url).bearer_auth(human_token()).send().await.expect("request");
+    let status = allowed.status();
+    let body = allowed.text().await.expect("body");
+    assert_eq!(status, 200, "the human must be served the count: {body}");
+    let rows: Value = serde_json::from_str(&body).expect("JSON body");
+    let first = rows.get(0).or_else(|| rows.get("data").and_then(|d| d.get(0)));
+    assert_eq!(
+        first.and_then(|r| r.get("lockedSecrets_count")),
+        Some(&json!(1)),
+        "and the count must be the real cardinality, not a placeholder: {body}"
+    );
+
+    let denied = rig.client.get(&url).bearer_auth(agent_token()).send().await.expect("request");
+    let status = denied.status();
+    let body = denied.text().await.expect("body");
+    assert_eq!(status, 403, "the agent must be refused at the count chokepoint too: {body}");
+    assert!(
+        !body.contains("lockedSecrets_count"),
+        "and no cardinality of a gated set may reach the response: {body}"
     );
 }
 

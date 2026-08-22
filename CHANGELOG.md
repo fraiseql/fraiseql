@@ -5257,6 +5257,27 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **A count of a `requires_actor`-gated relation is refused, like the rows it describes
+  (#1166).** `QueryRunner::count_rows` is a second REST read chokepoint rather than a step
+  inside the first — the embedding path calls it alone — and it carried the #422 operation
+  authorizer, the #1122 role gate and #784's fail-closed RLS, but not the #966 actor gate its
+  peer `resolve_direct_read` carries. So `GET /rest/v1/<parent>?select=id,<rel>.count` reported
+  how many rows a relation reaches to a caller of the wrong actor class: an `ai_agent` counting
+  a relation declared `requires_actor = ["human_user"]` got a number. The rows themselves never
+  leaked — that path is gated — but a count over a filtered relation is an oracle over it.
+
+  Both chokepoints now carry the same four gates, with the actor gate ordered after the role
+  gate on each so the role gate's enumeration-hiding "not found" is not pre-empted. The gate is
+  a no-op for any query that declares no `requires_actor`, so nothing else changes.
+
+  Proven in `actor_predicate_e2e_pg` against a real server and database. Three ways to write
+  this test so it passes with the bug present were found and avoided, and they are recorded on
+  the test: `Prefer: count=exact` also runs the gated row path and refuses anyway; a count-only
+  `select` leaves the parent row without a join key, so the embed returns 0 before ever calling
+  `count_rows`; and a token missing the `reader` role is refused by the role gate that was
+  already there. The agent token holds the role, and the human's count is asserted to be the
+  real cardinality first.
+
 - **The HTTP/2 stack is patched against unbounded empty DATA frames (RUSTSEC-2026-0258).**
   `h2` accepted and queued empty DATA frames without limit, letting a peer drive memory growth
   on an open connection. The advisory matched two instances of `h2` in this workspace, and they
