@@ -9,8 +9,20 @@
    module under `src/`, per workspace crate.
 2. **Discover what runs** — every `cargo test` / `cargo nextest` invocation in
    `.dagger/main.go`, attributed to its leg function, with feature lists
-   resolved and the leg's bound services (DATABASE_URL etc.) recorded. The gate
-   reads the SAME file the legs execute, so gate and legs cannot drift.
+   resolved and the leg's bound services (DATABASE_URL etc.) recorded; and
+   every such invocation in a `run:` block under `.github/workflows/`,
+   attributed as `<workflow>:<job>`, for the suites that need a networked
+   runner and so cannot live in an offline Dagger leg (#1120). The gate reads
+   the SAME files CI executes, so gate and CI cannot drift.
+
+   The workflow side is held to a stricter standard, because a workflow can
+   look like coverage and provide none: a `workflow_dispatch:`-only trigger, a
+   `working-directory` in another Cargo workspace, `--bench`, or a `paths:`
+   filter that the suite's own source does not match. Each is resolved in full
+   and then discounted with a printed reason — and an invocation the parser
+   cannot resolve is fatal rather than dropped, since a parser that quietly
+   drops what it cannot read reports coverage that does not exist, which is
+   worse than the exemption it replaced.
 3. **Fail loud** when a suite is claimed by no leg:
    - a test binary no invocation runs (feature-gated out, crate excluded, or
      simply never named);
@@ -451,6 +463,11 @@ class Invocation:
         self.ignored_mode = False  # `-- --ignored`: runs ONLY #[ignore]d tests
         self.include_ignored = False  # `-- --include-ignored`: runs both classes
         self.env: set[str] = set()  # leg-bound env vars (filled later)
+        # GitHub Actions only: the `paths:` filter of the workflow's push/PR
+        # triggers. A path-filtered workflow covers a suite only if editing that
+        # suite triggers it — otherwise the suite can be broken and the workflow
+        # that "runs" it never fires. `None` = no filter, i.e. every path.
+        self.trigger_paths: list[str] | None = None
 
     def __repr__(self):
         return f"<{self.leg}: {self.cmd[:90]}>"
@@ -651,6 +668,546 @@ def parse_cmd(inv: Invocation) -> None:
         j += 1
 
 
+# ── Phase B2: what runs in GitHub Actions ─────────────────────────────────────
+#
+# Four codegen consumer suites shell out to language toolchains and the network,
+# so they cannot live in the offline Dagger legs and execute in a GitHub-hosted
+# job instead (#1120). Carrying them as exemptions meant the gate took on faith
+# the very thing it exists to check: an exemption is a claim, and deleting the
+# `--test` flag from the workflow would have left all four compiling, #[ignore]d,
+# exempt, and running nowhere.
+#
+# This side of the gate is held to a stricter standard than the Dagger side,
+# because a workflow can *look* like coverage while providing none. Three ways,
+# all present in this tree today:
+#
+#   1. `feature-flags.yml` and `bench.yml` are `workflow_dispatch:`-only — their
+#      push/PR triggers were stripped in the Dagger migration and kept "as
+#      porting spec". Their `cargo test` lines run on no push and no PR. Reading
+#      them as coverage would invent it outright.
+#   2. `rust-sdk.yml` (job-level `defaults.run.working-directory`) and
+#      `rust-sdk-client.yml` (per-step `working-directory`) run under
+#      `sdks/official/…`, which declares its own `[workspace]`. `cargo test
+#      --all-features` there covers that workspace, not this one.
+#   3. `bench.yml` runs `--bench`, which selects a benchmark target, not a test
+#      binary.
+#
+# So every invocation is resolved in full — including `${{ matrix.* }}`, which
+# must expand or raise — and only then filtered, with the reason recorded. The
+# order matters: resolving first means an unparseable new shape is FATAL even in
+# a workflow that would not have counted anyway, which is what keeps this from
+# rotting the moment someone edits feature-flags.yml.
+
+WORKFLOWS = REPO / ".github" / "workflows"
+
+GHA_EXPR = re.compile(r"\$\{\{\s*(.*?)\s*\}\}")
+
+
+class YamlError(Exception):
+    pass
+
+
+def _yaml_scalar(text: str) -> str | bool | None:
+    """A plain/quoted YAML scalar. No int/float coercion — nothing here needs it."""
+    text = text.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        body = text[1:-1]
+        return body.replace("''", "'") if text[0] == "'" else body
+    if text in ("true", "True", "yes", "on"):
+        return True
+    if text in ("false", "False", "no", "off"):
+        return False
+    if text in ("null", "~", ""):
+        return None
+    return text
+
+
+def _yaml_key(text: str) -> str:
+    """A mapping key: unquoted, but never value-coerced.
+
+    `on:` is the whole reason this is separate from [`_yaml_scalar`]. Under YAML
+    1.1 the plain scalar `on` is the boolean true, so a value-coercing key reader
+    turns every workflow's trigger block into a key named `True` and the gate
+    then reports that no workflow has an `on:` block — loudly, but about the
+    wrong thing.
+    """
+    text = text.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        body = text[1:-1]
+        return body.replace("''", "'") if text[0] == "'" else body
+    return text
+
+
+def _strip_comment(line: str) -> str:
+    """Drop a trailing `#` comment, respecting quotes. `#` mid-token is not one."""
+    out, quote = [], None
+    for i, c in enumerate(line):
+        if quote:
+            out.append(c)
+            if c == quote:
+                quote = None
+        elif c in "\"'":
+            quote = c
+            out.append(c)
+        elif c == "#" and (i == 0 or line[i - 1] in " \t"):
+            break
+        else:
+            out.append(c)
+    return "".join(out).rstrip()
+
+
+def _parse_flow(text: str):
+    """`[a, b]` / `{a: b}`, one level of nesting. Raises on anything else."""
+    text = text.strip()
+    if text.startswith("[") and text.endswith("]"):
+        inner = text[1:-1].strip()
+        return [_yaml_scalar(p) for p in _split_flow(inner)] if inner else []
+    if text.startswith("{") and text.endswith("}"):
+        inner = text[1:-1].strip()
+        out = {}
+        for part in _split_flow(inner):
+            if ":" not in part:
+                raise YamlError(f"flow mapping entry without ':': {part!r}")
+            k, _, v = part.partition(":")
+            out[_yaml_key(k)] = _yaml_scalar(v)
+        return out
+    raise YamlError(f"not a flow collection: {text!r}")
+
+
+def _split_flow(inner: str) -> list[str]:
+    parts, buf, quote, depth = [], [], None, 0
+    for c in inner:
+        if quote:
+            buf.append(c)
+            if c == quote:
+                quote = None
+        elif c in "\"'":
+            quote = c
+            buf.append(c)
+        elif c in "[{":
+            depth += 1
+            buf.append(c)
+        elif c in "]}":
+            depth -= 1
+            buf.append(c)
+        elif c == "," and depth == 0:
+            parts.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(c)
+    if "".join(buf).strip():
+        parts.append("".join(buf).strip())
+    return parts
+
+
+class _Lines:
+    """Indentation-aware cursor over the significant lines of a YAML document."""
+
+    def __init__(self, text: str):
+        self.raw = text.expandtabs(8).split("\n")
+        self.i = 0
+
+    def peek(self) -> tuple[int, str] | None:
+        while self.i < len(self.raw):
+            line = self.raw[self.i]
+            stripped = _strip_comment(line)
+            if not stripped.strip():
+                self.i += 1
+                continue
+            if stripped.strip() == "---":
+                self.i += 1
+                continue
+            if stripped.lstrip().startswith("%"):
+                raise YamlError("YAML directives are not supported")
+            return len(stripped) - len(stripped.lstrip(" ")), stripped.strip()
+        return None
+
+    def next(self) -> tuple[int, str]:
+        got = self.peek()
+        if got is None:
+            raise YamlError("unexpected end of document")
+        self.i += 1
+        return got
+
+    def block_scalar(self, indent: int, style: str) -> str:
+        """Read a `|` / `>` block, keeping raw (un-comment-stripped) text."""
+        body: list[str] = []
+        block_indent = None
+        while self.i < len(self.raw):
+            line = self.raw[self.i].expandtabs(8)
+            if not line.strip():
+                body.append("")
+                self.i += 1
+                continue
+            cur = len(line) - len(line.lstrip(" "))
+            if cur <= indent:
+                break
+            if block_indent is None:
+                block_indent = cur
+            body.append(line[block_indent:] if len(line) >= block_indent else line.lstrip(" "))
+            self.i += 1
+        while body and not body[-1].strip():
+            body.pop()
+        if style.startswith(">"):
+            # Folded: a run of non-empty lines joins with spaces; a blank line is a
+            # newline. Indented continuation lines are literal in real YAML; nothing
+            # in these workflows relies on that, and treating them as folded would
+            # silently reshape a command, so refuse instead.
+            folded, run = [], []
+            for line in body:
+                if not line.strip():
+                    if run:
+                        folded.append(" ".join(run))
+                        run = []
+                    folded.append("")
+                elif line.startswith(" "):
+                    raise YamlError("indented line inside a folded (>) scalar")
+                else:
+                    run.append(line.strip())
+            if run:
+                folded.append(" ".join(run))
+            text = "\n".join(folded)
+        else:
+            text = "\n".join(body)
+        if style.endswith("-"):
+            return text
+        return text + "\n" if text else text
+
+
+def _parse_block(lines: _Lines, indent: int):
+    """Parse the block at `indent`: a mapping, or a sequence of `-` entries."""
+    got = lines.peek()
+    if got is None or got[0] < indent:
+        return None
+    if got[1].startswith("- "):
+        return _parse_seq(lines, indent)
+    if got[1] == "-":
+        return _parse_seq(lines, indent)
+    return _parse_map(lines, indent)
+
+
+def _parse_seq(lines: _Lines, indent: int) -> list:
+    out = []
+    while True:
+        got = lines.peek()
+        if got is None or got[0] != indent or not (got[1] == "-" or got[1].startswith("- ")):
+            return out
+        lines.next()
+        rest = got[1][1:].lstrip()
+        if not rest:
+            child = lines.peek()
+            out.append(_parse_block(lines, child[0]) if child and child[0] > indent else None)
+            continue
+        # `- key: value` opens a mapping whose indent is where `key` starts.
+        item_indent = indent + (len(got[1]) - len(got[1][1:].lstrip()))
+        if _looks_like_mapping(rest):
+            lines.raw[lines.i - 1] = " " * item_indent + rest
+            lines.i -= 1
+            out.append(_parse_map(lines, item_indent))
+        else:
+            out.append(_scalar_or_flow(rest))
+
+
+def _looks_like_mapping(text: str) -> bool:
+    if text.startswith(("[", "{")):
+        return False
+    key, sep, _ = _split_key(text)
+    return bool(sep) and bool(key)
+
+
+def _split_key(text: str) -> tuple[str, str, str]:
+    """Split `key: value` outside quotes. Returns (key, ':' or '', value)."""
+    quote = None
+    for i, c in enumerate(text):
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in "\"'":
+            quote = c
+        elif c == ":" and (i + 1 == len(text) or text[i + 1] in " \t"):
+            return text[:i].strip(), ":", text[i + 1 :].strip()
+    return text, "", ""
+
+
+def _scalar_or_flow(text: str):
+    if text.startswith(("[", "{")):
+        return _parse_flow(text)
+    return _yaml_scalar(text)
+
+
+def _parse_map(lines: _Lines, indent: int) -> dict:
+    out: dict = {}
+    while True:
+        got = lines.peek()
+        if got is None or got[0] != indent:
+            return out
+        if got[1].startswith("- "):
+            return out
+        lines.next()
+        key, sep, value = _split_key(got[1])
+        if not sep:
+            raise YamlError(f"expected `key: value`, got {got[1]!r}")
+        key = _yaml_key(key)
+        if value.startswith(("|", ">")) and (len(value) == 1 or value[1] in "-+ "):
+            out[key] = lines.block_scalar(indent, value.split()[0])
+        elif value:
+            out[key] = _scalar_or_flow(value)
+        else:
+            child = lines.peek()
+            out[key] = _parse_block(lines, child[0]) if child and child[0] > indent else None
+    return out
+
+
+def parse_yaml(text: str):
+    """The GitHub-Actions subset of YAML, stdlib-only, strict.
+
+    Deliberately NOT a general parser: anchors, multi-document streams, complex
+    keys and nested flow collections raise rather than resolve to something
+    plausible. It also leaves `on:` a string key — the YAML 1.1 boolean coercion
+    that turns `on` into `True` is precisely the kind of quiet reshaping this
+    gate cannot afford.
+    """
+    lines = _Lines(text)
+    first = lines.peek()
+    if first is None:
+        return {}
+    return _parse_block(lines, first[0])
+
+
+def gha_path_match(pattern: str, path: str) -> bool:
+    """GitHub's push/pull_request `paths:` filter glob.
+
+    `**` crosses directory separators, `*` and `?` do not, and a pattern with no
+    wildcard matches that path or anything beneath it.
+    """
+    rx, i = [], 0
+    while i < len(pattern):
+        c = pattern[i]
+        if pattern.startswith("**", i):
+            rx.append(".*")
+            i += 2
+        elif c == "*":
+            rx.append("[^/]*")
+            i += 1
+        elif c == "?":
+            rx.append("[^/]")
+            i += 1
+        else:
+            rx.append(re.escape(c))
+            i += 1
+    return re.fullmatch("".join(rx), path) is not None
+
+
+class WorkflowUnresolvable(Exception):
+    pass
+
+
+def _expand_matrix(matrix: dict) -> list[dict]:
+    """`strategy.matrix` → the list of combinations, as GitHub computes it."""
+    if "exclude" in matrix:
+        raise WorkflowUnresolvable("`matrix.exclude` — teach the gate this shape")
+    axes = {k: v for k, v in matrix.items() if k not in ("include", "exclude")}
+    for name, values in axes.items():
+        if not isinstance(values, list):
+            raise WorkflowUnresolvable(f"matrix axis {name!r} is not a list: {values!r}")
+    # With no axes the base is EMPTY, not `[{}]`: an include-only matrix (the
+    # `feature-flags.yml` shape) expands to exactly its include entries. Seeding
+    # `[{}]` instead leaves a phantom variable-less combination in the product,
+    # and every `${{ matrix.* }}` in the job is then unresolvable against it.
+    combos: list[dict] = [{}] if axes else []
+    for name, values in axes.items():
+        combos = [{**c, name: v} for c in combos for v in values]
+    include = matrix.get("include") or []
+    if not isinstance(include, list):
+        raise WorkflowUnresolvable(f"`matrix.include` is not a list: {include!r}")
+    for entry in include:
+        if not isinstance(entry, dict):
+            raise WorkflowUnresolvable(f"`matrix.include` entry is not a mapping: {entry!r}")
+        overlap = {k: v for k, v in entry.items() if k in axes}
+        extended = False
+        for c in combos:
+            if overlap and all(c.get(k) == v for k, v in overlap.items()):
+                c.update(entry)
+                extended = True
+        if not extended:
+            combos.append(dict(entry))
+    # No `strategy.matrix` at all: one run, no variables.
+    return combos or [{}]
+
+
+def _resolve_expressions(cmd: str, combo: dict, where: str) -> str:
+    """Substitute `${{ matrix.x }}`; raise on anything else the gate cannot know."""
+
+    def sub(m: re.Match) -> str:
+        expr = m.group(1)
+        key = expr[len("matrix.") :] if expr.startswith("matrix.") else None
+        if key is not None and key in combo:
+            return str(combo[key])
+        raise WorkflowUnresolvable(f"{where}: cannot resolve `${{{{ {expr} }}}}`")
+
+    return GHA_EXPR.sub(sub, cmd)
+
+
+def _cargo_commands(script: str) -> list[tuple[str, str]]:
+    """Cargo test/nextest commands in a `run:` script, with the cwd in force.
+
+    Returns `(relative-cwd, command)`. A `cd` earlier in the same script moves the
+    cwd for what follows it — `cd /tmp/gen-rs && cargo check` is the shape that
+    makes ignoring this unsafe.
+    """
+    script = re.sub(r"\\\n\s*", " ", script)
+    # Drop heredoc bodies: their contents are data, not commands.
+    script = re.sub(r"<<'?(\w+)'?\n.*?\n\s*\1\n", "\n", script, flags=re.S)
+    out, cwd = [], "."
+    for line in script.split("\n"):
+        line = line.strip()
+        if line.startswith("#"):
+            continue
+        for seg in re.split(r"&&|\|\||;|(?<!\|)\|(?!\|)", line):
+            seg = seg.strip()
+            if not seg:
+                continue
+            m = re.match(r"cd\s+(\S+)$", seg)
+            if m:
+                target = m.group(1).strip("\"'")
+                cwd = target if target.startswith("/") else (f"{cwd}/{target}" if cwd != "." else target)
+                continue
+            if re.match(r"cargo\s+(?:\+\S+\s+)?(?:test|nextest)\b", seg):
+                out.append((cwd, seg))
+    return out
+
+
+def _auto_triggers(doc: dict) -> dict | None:
+    """The push/pull_request trigger config, or None when the workflow is manual.
+
+    `on: [push]` and `on: push` normalise to a filterless trigger; a
+    `workflow_dispatch:`-only workflow returns None and covers nothing.
+    """
+    on = doc.get("on")
+    if on is None:
+        raise WorkflowUnresolvable("workflow has no `on:` block")
+    if isinstance(on, str):
+        on = {on: None}
+    elif isinstance(on, list):
+        on = {str(k): None for k in on}
+    if not isinstance(on, dict):
+        raise WorkflowUnresolvable(f"unreadable `on:` block: {on!r}")
+    autos = {k: v for k, v in on.items() if k in ("push", "pull_request")}
+    return autos or None
+
+
+def _trigger_paths(autos: dict) -> list[str] | None:
+    """The union of the automatic triggers' `paths:`; None means "every path"."""
+    union: list[str] = []
+    for name, cfg in autos.items():
+        cfg = cfg or {}
+        if not isinstance(cfg, dict):
+            raise WorkflowUnresolvable(f"unreadable `{name}:` trigger: {cfg!r}")
+        if "paths-ignore" in cfg:
+            raise WorkflowUnresolvable(f"`{name}.paths-ignore` — teach the gate this shape")
+        paths = cfg.get("paths")
+        if paths is None:
+            return None
+        if not isinstance(paths, list):
+            raise WorkflowUnresolvable(f"`{name}.paths` is not a list: {paths!r}")
+        union.extend(str(p) for p in paths)
+    return union
+
+
+def extract_workflow_invocations() -> tuple[list[Invocation], list[str]]:
+    """Cargo test invocations in `.github/workflows/`, and why each was discounted.
+
+    Every invocation is resolved before any of it is discarded, so a shape the
+    parser cannot read is FATAL even in a workflow whose result would have been
+    thrown away. Returns the counting invocations and a human-readable ledger of
+    the rest.
+    """
+    counted: list[Invocation] = []
+    ledger: list[str] = []
+    if not WORKFLOWS.is_dir():
+        return counted, ledger
+
+    for wf in sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml")):
+        text = wf.read_text(encoding="utf-8")
+        if not re.search(r"cargo\s+(?:\+\S+\s+)?(?:test|nextest)\b", text):
+            continue
+        try:
+            doc = parse_yaml(text)
+        except YamlError as e:
+            die(f"{wf.name}: {e} — teach tools/check-suite-coverage.py this YAML shape")
+        if not isinstance(doc, dict) or not isinstance(doc.get("jobs"), dict):
+            die(f"{wf.name}: no `jobs:` mapping — teach the gate this workflow shape")
+
+        try:
+            autos = _auto_triggers(doc)
+            trigger_paths = _trigger_paths(autos) if autos else None
+        except WorkflowUnresolvable as e:
+            die(f"{wf.name}: {e}")
+
+        for job_id, job in doc["jobs"].items():
+            if not isinstance(job, dict):
+                die(f"{wf.name}:{job_id}: unreadable job")
+            leg = f"{wf.name}:{job_id}"
+            defaults = ((job.get("defaults") or {}).get("run") or {}).get("working-directory")
+            steps = job.get("steps") or []
+            if not isinstance(steps, list):
+                die(f"{leg}: `steps:` is not a list")
+            try:
+                combos = _expand_matrix((job.get("strategy") or {}).get("matrix") or {})
+            except WorkflowUnresolvable as e:
+                die(f"{leg}: {e}")
+
+            for step in steps:
+                if not isinstance(step, dict) or not step.get("run"):
+                    continue
+                script = step["run"]
+                if not isinstance(script, str):
+                    die(f"{leg}: `run:` is not a string")
+                step_dir = step.get("working-directory") or defaults or "."
+                for combo in combos:
+                    for cwd, raw in _cargo_commands(script):
+                        try:
+                            cmd = _resolve_expressions(raw, combo, leg)
+                            base = _resolve_expressions(str(step_dir), combo, leg)
+                        except WorkflowUnresolvable as e:
+                            die(str(e))
+                        # The step's working-directory and any `cd` inside the
+                        # script compose; either alone is enough to leave the
+                        # workspace this gate reasons about.
+                        effective = cwd if cwd.startswith("/") else _join(base, cwd)
+                        if effective not in (".", ""):
+                            ledger.append(
+                                f"{leg}: not counted — runs in `{effective}`, "
+                                f"outside this workspace: {cmd[:70]}"
+                            )
+                            continue
+                        if re.search(r"(?:^|\s)--bench(?:\s|=|$)", cmd):
+                            ledger.append(
+                                f"{leg}: not counted — `--bench` selects a benchmark "
+                                f"target, not a test binary: {cmd[:70]}"
+                            )
+                            continue
+                        if autos is None:
+                            ledger.append(
+                                f"{leg}: not counted — workflow_dispatch-only, so this "
+                                f"runs on no push and no PR: {cmd[:70]}"
+                            )
+                            continue
+                        inv = Invocation(leg, cmd)
+                        inv.trigger_paths = trigger_paths
+                        parse_cmd(inv)
+                        counted.append(inv)
+    return counted, ledger
+
+
+def _join(base: str, rel: str) -> str:
+    if rel in (".", ""):
+        return base if base else "."
+    if base in (".", ""):
+        return rel
+    return f"{base}/{rel}"
+
+
 # ── Phase C: coverage ─────────────────────────────────────────────────────────
 
 
@@ -666,8 +1223,23 @@ def features_enabled(
     return wanted <= enabled and not (forbidden & enabled)
 
 
+def triggers_path(inv: Invocation, path: Path) -> bool:
+    """Would editing `path` start the workflow this invocation runs in?
+
+    A Dagger leg has no path filter and always answers yes. A path-filtered
+    workflow that does not list the suite's own crate is not coverage: the suite
+    could be broken in the same commit that fails to run it.
+    """
+    if inv.trigger_paths is None:
+        return True
+    rel = path.resolve().relative_to(REPO).as_posix()
+    return any(gha_path_match(p, rel) for p in inv.trigger_paths)
+
+
 def covers_binary(inv: Invocation, b: TestBinary) -> bool:
     if inv.lib_only or inv.doc_only:
+        return False
+    if not triggers_path(inv, b.path):
         return False
     if inv.crate is not None and inv.crate != b.crate:
         return False
@@ -709,6 +1281,8 @@ def covers_binary(inv: Invocation, b: TestBinary) -> bool:
 def covers_module(inv: Invocation, mod: LibTestModule) -> bool:
     if inv.doc_only or inv.tests:
         return False
+    if not triggers_path(inv, mod.path):
+        return False
     if inv.crate is not None and inv.crate != mod.crate:
         return False
     if inv.workspace and mod.crate in inv.excludes:
@@ -739,7 +1313,9 @@ def load_exemptions() -> dict[str, str]:
 
 def main() -> int:
     main_go = DAGGER_MAIN.read_text(encoding="utf-8")
-    invocations = extract_invocations(main_go)
+    dagger_invocations = extract_invocations(main_go)
+    workflow_invocations, workflow_ledger = extract_workflow_invocations()
+    invocations = dagger_invocations + workflow_invocations
     exemptions = load_exemptions()
 
     crates = sorted(p for p in (REPO / "crates").iterdir() if (p / "Cargo.toml").exists())
@@ -830,17 +1406,28 @@ def main() -> int:
             print(f"  ✗ {f}")
         print(
             f"\n  {len(binaries)} binaries / {len(modules)} feature-gated lib modules "
-            f"checked against {len(invocations)} leg invocations."
+            f"checked against {len(invocations)} invocations "
+            f"({len(dagger_invocations)} Dagger, {len(workflow_invocations)} workflow)."
         )
+        if workflow_ledger:
+            print("\n  Workflow invocations resolved but NOT counted as coverage:")
+            for line in sorted(set(workflow_ledger)):
+                print(f"    · {line}")
         print("  Wire the suite into a leg in .dagger/main.go, or add an exemption with a")
         print("  reason to tools/suite-coverage-exemptions.toml.")
         return 1
 
     print(
         f"suite-coverage: OK — {len(binaries)} binaries and {len(modules)} feature-gated "
-        f"lib modules all covered ({len(invocations)} leg invocations, "
+        f"lib modules all covered ({len(dagger_invocations)} Dagger + "
+        f"{len(workflow_invocations)} workflow invocations, "
         f"{len(used_exemptions)} exemptions in use)."
     )
+    # The discounted workflow invocations are printed on success too: they are the
+    # cases where a `cargo test` line exists and provides no coverage, which is
+    # exactly what a reader skimming the workflows would otherwise miscount.
+    for line in sorted(set(workflow_ledger)):
+        print(f"  · {line}")
     return 0
 
 

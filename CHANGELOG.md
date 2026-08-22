@@ -3183,6 +3183,50 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The suite-coverage gate reads GitHub Actions too, so four exemptions became checks
+  (#1120).** The gate discovered what runs by parsing `.dagger/main.go` and nothing else. The
+  four `fraiseql-codegen::client_*_consumer` suites shell out to language toolchains and the
+  network — `uvx ty`, `npx tsc`, `go build`, a nested `cargo check` — so they cannot run in
+  the offline Dagger legs and execute in `sdk-conformance.yml`'s `generated-clients` job
+  instead. They were carried as exemptions, which is to say the gate took on faith the one
+  thing it exists to check: deleting a `--test` flag from that step would have left all four
+  compiling, `#[ignore]d`, exempt, and running nowhere. It now reads `run:` blocks under
+  `.github/workflows/`, and the four exemptions are gone.
+
+  The parser is deliberately stricter than the Dagger one, because a workflow can look like
+  coverage and provide none. Three of those shapes are live in this tree:
+
+  - **`workflow_dispatch:`-only.** `feature-flags.yml` and `bench.yml` lost their push and PR
+    triggers in the Dagger migration and kept their `cargo test` lines "as porting spec". Five
+    invocations that run on no push and no PR.
+  - **Another Cargo workspace.** `rust-sdk.yml` (job-level `defaults.run.working-directory`)
+    and `rust-sdk-client.yml` (per-step `working-directory`) run under `sdks/official/…`,
+    which declares its own `[workspace]`. A `cd` inside a `run:` script counts the same way.
+  - **`--bench`**, which selects a benchmark target rather than a test binary.
+
+  A fourth is not live but is the one an exemption could never have caught: a `paths:` filter
+  that the suite's own source does not match. The workflow then exists, passes, and never
+  fires on the commit that breaks the suite — so a path-filtered workflow now covers a target
+  only if editing that target would start it.
+
+  Every invocation is resolved *before* any of it is discounted, including `${{ matrix.* }}`
+  against both the axis product and `include:` entries, and an expression the gate cannot
+  resolve is fatal rather than dropped — in a dispatch-only workflow as much as anywhere else.
+  A parser that silently drops what it cannot read reports coverage that does not exist, which
+  is worse than the exemption it replaced. The discounted invocations are printed on success
+  as well as failure, since they are precisely what a reader skimming the workflows would
+  otherwise miscount as coverage.
+
+  The YAML is read by a strict stdlib-only subset parser (the gate runs in a container with
+  bare `python3`). It refuses anchors, multi-document streams and nested flow collections
+  rather than resolving them to something plausible, and it reads mapping keys without value
+  coercion — under YAML 1.1 the plain scalar `on` is boolean true, and a coercing reader turns
+  every workflow's trigger block into a key named `True`.
+
+  `make test-suite-coverage-workflows` pins the red capability with fourteen fixtures, one per
+  way a workflow can appear to cover a suite it does not. Each was verified to go red when the
+  corresponding rule is removed from the gate.
+
 - **Four `relay_integration` tests declare the `$id` they use, so `integration (postgres)` is
   green again (#1164).** They executed `{ node(id: $id) { id } }` — an anonymous shorthand
   operation defining no variables — which § 5.8.3 correctly refuses since the variable-use
@@ -4730,10 +4774,7 @@ disagreed, and the promise was the part that was wrong.
   the second. On the current tree the tightened gate reports exactly one finding — the live
   one — across 419 binaries and 89 feature-gated lib modules, with no false positives.
 
-  ⚠ Still open: #1120. The gate reads `.dagger/main.go` only, so the four codegen
-  consumer suites that execute in `sdk-conformance.yml` remain carried as exemptions rather
-  than checked. Their reasons are accurate today — the `Consumer-usage gates` step does run
-  all four — but an exemption is a claim the gate does not verify.
+  Closed since, by the entry below: #1120.
 
 - **Four official SDKs' own CI gates now run on a branch push (#1119).** Pushing a branch that
   changed all eleven official SDKs started seven SDK workflows. Four did not run at all:

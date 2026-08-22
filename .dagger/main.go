@@ -344,6 +344,9 @@ func (m *FraiseqlCi) ShellGates(
 		// leg that executes it (it parses THIS file, so legs and gate cannot
 		// drift). Retrospective rule 1 of the 2026-07-27 program.
 		"python3 tools/check-suite-coverage.py",
+		// …and the red-capability pin for its GitHub Actions side (#1120): a
+		// workflow can look like coverage and provide none.
+		"make test-suite-coverage-workflows",
 		// Comment-only #[test] bodies read as green coverage (#895/#748).
 		"bash tools/check-empty-tests.sh",
 		// Snapshot pairing, both directions (#986): every .snap registered, no
