@@ -473,14 +473,165 @@ impl TomlSchema {
     /// references an undefined type, if a federation entity references an undefined
     /// type, or if server/database/circuit-breaker configuration values are invalid.
     pub fn validate(&self) -> Result<()> {
-        use fraiseql_core::runtime::suggest_similar;
+        self.validate_self_contained()?;
+        self.validate_type_references()
+    }
 
+    /// Validate everything that needs no knowledge of the merged type set.
+    ///
+    /// This half runs on **every** compile path, called from the merger's
+    /// `merge_values` — the funnel all six `merge_*` entry points share (#1017).
+    ///
+    /// The `--types` workflow (`SchemaMerger::merge_files`) cannot call
+    /// [`Self::validate`] before the merge, because a query in the TOML may
+    /// legitimately name a type that only `types.json` defines. That exemption
+    /// justifies skipping the *type-reference* checks and nothing else, but for
+    /// a long time it skipped all of them: an invalid `[server]` port, a
+    /// `pool_min` above `pool_max`, an incomplete `[auth]` PKCE group and an
+    /// unparseable proxy CIDR were refused by five workflows and compiled by the
+    /// sixth. Splitting the function is what makes the exemption cover only what
+    /// it actually justifies — and makes a check added here later run
+    /// everywhere by default, rather than on whichever path someone remembers.
+    ///
+    /// **Add self-contained checks here, not in [`Self::validate_type_references`].**
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an accepted-but-unconsumed config section is present,
+    /// if tenancy/role/hierarchy/server/database/federation-circuit-breaker/auth
+    /// or rate-limiting configuration is invalid.
+    pub(crate) fn validate_self_contained(&self) -> Result<()> {
         self.reject_accepted_but_unconsumed_config()?;
 
         // #892: the same validation the project-config path runs (`config::mod`'s
         // `self.fraiseql.tenancy.validate()`). An empty `tenant_claim` under a non-`none`
         // mode would compile to a tenancy config that resolves no tenant at all.
         self.tenancy.validate()?;
+
+        // #897: a role with no name or no scopes grants nothing and cannot be
+        // referenced, so it is refused rather than compiled into a
+        // `role_definitions` entry that can never match.
+        for role in &self.security.role_definitions {
+            role.validate()?;
+        }
+
+        // Validate hierarchy configs have non-empty values
+        if let Some(ref hierarchies) = self.hierarchies {
+            for (name, config) in hierarchies {
+                config
+                    .validate()
+                    .map_err(|e| anyhow::anyhow!("Invalid hierarchy config '{name}': {e}"))?;
+            }
+        }
+
+        self.server.validate()?;
+        self.database.validate()?;
+
+        self.validate_circuit_breaker()?;
+
+        // Validate the [auth] block's group structure (#612 item 9): JWT group
+        // (issuer/audience) is functional; a PKCE client group is all-four-or-none and
+        // a complete one is rejected (not yet functional on the compiled path — #621).
+        if let Some(auth) = &self.auth {
+            auth.validate()?;
+        }
+
+        // Validate trusted_proxy_cidrs are parseable CIDR ranges (#609). The server
+        // parses these into `ipnet::IpNet`; catching a bad value here surfaces the
+        // error where the operator is authoring rather than at server boot.
+        if let Some(rate_limiting) = &self.security.rate_limiting {
+            if let Some(cidrs) = &rate_limiting.trusted_proxy_cidrs {
+                for cidr in cidrs {
+                    if cidr.parse::<ipnet::IpNet>().is_err() {
+                        anyhow::bail!(
+                            "[security.rate_limiting] trusted_proxy_cidrs contains an invalid \
+                             CIDR range '{cidr}'. Use CIDR notation such as \"10.0.0.0/8\", or \
+                             \"0.0.0.0/0\" to trust every proxy IP explicitly."
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate the federation circuit-breaker block.
+    ///
+    /// Self-contained: `per_database` overrides are matched against declared
+    /// federation *entity* names, which live in this TOML, not in `types.json`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any threshold is zero or a `per_database` entry names
+    /// no declared federation entity.
+    fn validate_circuit_breaker(&self) -> Result<()> {
+        let Some(cb) = &self.federation.circuit_breaker else {
+            return Ok(());
+        };
+
+        if cb.failure_threshold == 0 {
+            anyhow::bail!("federation.circuit_breaker.failure_threshold must be greater than 0");
+        }
+        if cb.recovery_timeout_secs == 0 {
+            anyhow::bail!(
+                "federation.circuit_breaker.recovery_timeout_secs must be greater than 0"
+            );
+        }
+        if cb.success_threshold == 0 {
+            anyhow::bail!("federation.circuit_breaker.success_threshold must be greater than 0");
+        }
+
+        // Validate per-database overrides reference defined entity names
+        let entity_names: std::collections::HashSet<&str> =
+            self.federation.entities.iter().map(|e| e.name.as_str()).collect();
+        for override_cfg in &cb.per_database {
+            if !entity_names.contains(override_cfg.database.as_str()) {
+                anyhow::bail!(
+                    "federation.circuit_breaker.per_database entry '{}' does not match any \
+                     defined federation entity",
+                    override_cfg.database
+                );
+            }
+            if override_cfg.failure_threshold == Some(0) {
+                anyhow::bail!(
+                    "federation.circuit_breaker.per_database['{}'].failure_threshold must be \
+                     greater than 0",
+                    override_cfg.database
+                );
+            }
+            if override_cfg.recovery_timeout_secs == Some(0) {
+                anyhow::bail!(
+                    "federation.circuit_breaker.per_database['{}'].recovery_timeout_secs must \
+                     be greater than 0",
+                    override_cfg.database
+                );
+            }
+            if override_cfg.success_threshold == Some(0) {
+                anyhow::bail!(
+                    "federation.circuit_breaker.per_database['{}'].success_threshold must be \
+                     greater than 0",
+                    override_cfg.database
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate everything that resolves a name against the merged type set.
+    ///
+    /// This is the half the `--types` workflow genuinely cannot run before the
+    /// merge: `self.types` is empty there, because the types arrive in
+    /// `types.json`. The compiler runs `SchemaValidator::validate` on the merged
+    /// intermediate schema instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a query, mutation, field hierarchy reference or
+    /// federation entity names a type or hierarchy that is not defined.
+    fn validate_type_references(&self) -> Result<()> {
+        use fraiseql_core::runtime::suggest_similar;
 
         let type_names: Vec<&str> = self.types.keys().map(String::as_str).collect();
 
@@ -529,15 +680,6 @@ impl TomlSchema {
             }
         }
 
-        // Validate hierarchy configs have non-empty values
-        if let Some(ref hierarchies) = self.hierarchies {
-            for (name, config) in hierarchies {
-                config
-                    .validate()
-                    .map_err(|e| anyhow::anyhow!("Invalid hierarchy config '{name}': {e}"))?;
-            }
-        }
-
         // Validate federation entities reference existing types
         for entity in &self.federation.entities {
             if !self.types.contains_key(&entity.name) {
@@ -546,86 +688,6 @@ impl TomlSchema {
                     "Federation entity '{}' references undefined type{hint}",
                     entity.name
                 );
-            }
-        }
-
-        self.server.validate()?;
-        self.database.validate()?;
-
-        // Validate federation circuit breaker configuration
-        if let Some(cb) = &self.federation.circuit_breaker {
-            if cb.failure_threshold == 0 {
-                anyhow::bail!(
-                    "federation.circuit_breaker.failure_threshold must be greater than 0"
-                );
-            }
-            if cb.recovery_timeout_secs == 0 {
-                anyhow::bail!(
-                    "federation.circuit_breaker.recovery_timeout_secs must be greater than 0"
-                );
-            }
-            if cb.success_threshold == 0 {
-                anyhow::bail!(
-                    "federation.circuit_breaker.success_threshold must be greater than 0"
-                );
-            }
-
-            // Validate per-database overrides reference defined entity names
-            let entity_names: std::collections::HashSet<&str> =
-                self.federation.entities.iter().map(|e| e.name.as_str()).collect();
-            for override_cfg in &cb.per_database {
-                if !entity_names.contains(override_cfg.database.as_str()) {
-                    anyhow::bail!(
-                        "federation.circuit_breaker.per_database entry '{}' does not match \
-                         any defined federation entity",
-                        override_cfg.database
-                    );
-                }
-                if override_cfg.failure_threshold == Some(0) {
-                    anyhow::bail!(
-                        "federation.circuit_breaker.per_database['{}'].failure_threshold \
-                         must be greater than 0",
-                        override_cfg.database
-                    );
-                }
-                if override_cfg.recovery_timeout_secs == Some(0) {
-                    anyhow::bail!(
-                        "federation.circuit_breaker.per_database['{}'].recovery_timeout_secs \
-                         must be greater than 0",
-                        override_cfg.database
-                    );
-                }
-                if override_cfg.success_threshold == Some(0) {
-                    anyhow::bail!(
-                        "federation.circuit_breaker.per_database['{}'].success_threshold \
-                         must be greater than 0",
-                        override_cfg.database
-                    );
-                }
-            }
-        }
-
-        // Validate the [auth] block's group structure (#612 item 9): JWT group
-        // (issuer/audience) is functional; a PKCE client group is all-four-or-none and
-        // a complete one is rejected (not yet functional on the compiled path — #621).
-        if let Some(auth) = &self.auth {
-            auth.validate()?;
-        }
-
-        // Validate trusted_proxy_cidrs are parseable CIDR ranges (#609). The server
-        // parses these into `ipnet::IpNet`; catching a bad value here surfaces the
-        // error where the operator is authoring rather than at server boot.
-        if let Some(rate_limiting) = &self.security.rate_limiting {
-            if let Some(cidrs) = &rate_limiting.trusted_proxy_cidrs {
-                for cidr in cidrs {
-                    if cidr.parse::<ipnet::IpNet>().is_err() {
-                        anyhow::bail!(
-                            "[security.rate_limiting] trusted_proxy_cidrs contains an invalid \
-                             CIDR range '{cidr}'. Use CIDR notation such as \"10.0.0.0/8\", or \
-                             \"0.0.0.0/0\" to trust every proxy IP explicitly."
-                        );
-                    }
-                }
             }
         }
 

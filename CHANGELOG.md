@@ -3183,6 +3183,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The `--types` compile path validates what every other path validates (#1017).**
+  `SchemaMerger::merge_files` was the one entry point of six that never called
+  `TomlSchema::validate()`. Its exemption is real but narrow — a query in the TOML may
+  legitimately name a type that only `types.json` defines, so the *type-reference* checks
+  cannot run before the merge. Everything else in `validate()` needs no type at all, and all
+  of it was skipped: an invalid `[server]` port, a `[server.tls] min_version` outside
+  {1.2, 1.3}, a `pool_min` above `pool_max`, a zero `connect_timeout_ms`, an incomplete
+  `[auth]` PKCE group, a zero federation circuit-breaker threshold, an unparseable
+  `trusted_proxy_cidrs` entry and an empty `[hierarchies]` table were each refused by five
+  workflows and compiled by the sixth. All eight are now refused everywhere; a new test
+  asserts the parity directly, with the TOML-only path as its control.
+
+  `validate()` is split into `validate_self_contained()` and `validate_type_references()`,
+  and the merger's `merge_values` — the funnel all six entry points share — calls the
+  self-contained half. #612's unconsumed-config gate, #892's `[tenancy]` check and #897's
+  role check had each been rescued into that funnel one at a time as they were noticed; the
+  split is what stops the next self-contained check added to `validate()` from needing the
+  same rescue.
+
 - **The observer action-result cache can hit again (#1011).** Both cache-key derivations —
   `ObserverExecutor::cache_key` and `CachedActionExecutor::cache_key` — identified an action by
   `format!("{action:?}")`. `ActionConfig::Webhook` holds a `HashMap<String, String>` of headers

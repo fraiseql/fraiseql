@@ -477,23 +477,25 @@ impl SchemaMerger {
     /// Merge JSON types with TOML schema
     #[allow(clippy::cognitive_complexity)] // Reason: deep merge of two schema formats with many field-level transformations
     fn merge_values(types_value: &Value, toml_schema: &TomlSchema) -> Result<IntermediateSchema> {
-        // #612: reject accepted-but-unconsumed config on EVERY compile path. The full
-        // `TomlSchema::validate()` is skipped on the `--types` path (`merge_files`), but
-        // these sections are self-contained and must never compile silently.
-        toml_schema.reject_accepted_but_unconsumed_config()?;
-
-        // #892: same reasoning, same funnel. `[tenancy]` is self-contained — it references
-        // no type — so it is checked here rather than only in `TomlSchema::validate()`,
-        // which `merge_files` does not call. A `mode` other than `none` with an empty
-        // `tenant_claim` compiles to a tenancy config that can resolve no tenant at all.
-        toml_schema.tenancy.validate()?;
-
-        // #897: likewise for role definitions — a role with no name or no scopes grants
-        // nothing and cannot be referenced, so it is refused on both workflows rather
-        // than compiled into a `role_definitions` entry that can never match.
-        for role in &toml_schema.security.role_definitions {
-            role.validate()?;
-        }
+        // #1017: every self-contained TOML check runs on EVERY compile path, here at
+        // the funnel all six `merge_*` entry points share.
+        //
+        // `merge_files` (the `--types` workflow) cannot call the whole of
+        // `TomlSchema::validate()`, because a query in the TOML may legitimately name a
+        // type that only `types.json` defines. That exemption justifies skipping the
+        // type-reference checks and nothing else — but for a long time it skipped all of
+        // them, so an invalid `[server]` port, a `pool_min` above `pool_max`, an
+        // incomplete `[auth]` PKCE group and an unparseable proxy CIDR were refused by
+        // five workflows and compiled by the sixth. #612's unconsumed-config gate, #892's
+        // `[tenancy]` check and #897's role check were each rescued here one at a time;
+        // calling the self-contained half wholesale is what stops the next one needing
+        // the same rescue.
+        //
+        // The other five entry points call `TomlSchema::validate()`, which runs this half
+        // too, so they check it twice. That redundancy is the point and must not be
+        // "cleaned up" by dropping this call: it is what makes the funnel — not the
+        // entry point — the thing that guarantees the check ran.
+        toml_schema.validate_self_contained()?;
 
         // Typo guard: [queries.defaults] is a common mistake for [query_defaults].
         if toml_schema.queries.contains_key("defaults") {
