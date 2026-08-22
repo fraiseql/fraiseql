@@ -46,7 +46,7 @@ repos:
         exclude: '/fuzz/seed_corpus/'
       - id: check-yaml
         args: ['--allow-multiple-documents', '--unsafe']
-        exclude: '(deploy/kubernetes/helm/.*templates/|examples/ci/|vagga\.yaml|vendor-drift\.yml)'
+        exclude: '(deploy/kubernetes/helm/.*templates/|vagga\.yaml|vendor-drift\.yml)'
       - id: check-toml
       - id: check-added-large-files
         args: ['--maxkb=1000']

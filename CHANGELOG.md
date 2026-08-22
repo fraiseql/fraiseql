@@ -3158,6 +3158,29 @@ disagreed, and the promise was the part that was wrong.
   comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
   archived onto issue #687 before removal.
 
+- **`examples/ci/` (#1074).** The directory instructed users to copy two CI configurations
+  into their own repositories. Both invoked `examples/agents/python/schema_auditor.py`,
+  which exists nowhere in this repo — nor do the other four artifacts its README points at
+  (`examples/pre-commit-hooks.sh`, `docs/DESIGNING_FOR_FRAISEQL.md`, `docs/LINTING_RULES.md`,
+  `docs/CI_CD_INTEGRATION.md`). Both also configured `DATABASE_URL: sqlite::memory:`, a
+  backend removed in this release. It was self-referential documentation for a tool that was
+  never written, and nothing in the repository referenced it.
+
+  #1074 filed it as "a design-quality gate cannot fail", pointing at an
+  `echo "exit_code=$?"` unreachable under `bash -eo pipefail` and an `== '1'` condition that
+  therefore cannot hold. Both are real, and both go with the directory — but three refuters
+  were right that it is not the honest headline: a user copying the workflow fails loudly at
+  `pip install -r examples/agents/python/requirements.txt` long before reaching the audit
+  step, and the job does publish a failure through its `Create check run` step. The defect is
+  dead documentation, and patching line 89 of a file nobody can run would have been the wrong
+  fix.
+
+  ⚠ Found while removing it: `check-examples-postgres-only.sh` anchored its URL pattern on
+  `://`, so `sqlite::memory:` — which has no authority component — read straight past it, and
+  the gate was green over both files for as long as they existed. The pattern now accepts
+  `://`, `::memory:` and `:file.db` alike, and is red on those two lines when they are
+  restored.
+
 ### Fixed
 
 - **An undeclared argument no longer returns an unfiltered result set (#1154).** See
@@ -5557,23 +5580,25 @@ disagreed, and the promise was the part that was wrong.
 Shipped knowingly, with preconditions, so an operator can decide rather than discover. Every
 number below is open at the time of this release.
 
-- **Twelve HIGH-severity findings from the 2026-08-09 audit remain unfixed**: #1065 #1066
-  #1067 #1071 #1072 #1073 #1074 #1075 #1076 #1077 #1078 #1082. ⚠ They are **provisionally
+- **Ten HIGH-severity findings from the 2026-08-09 audit remain unfixed**: #1065 #1066
+  #1067 #1071 #1072 #1073 #1076 #1077 #1078 #1082. (#1074 and #1075 were on this list and
+  are fixed in this release — see `### Removed` and `### Fixed`.) ⚠ They are **provisionally
   ranked**: their severity rests on the audit's own text and has not been re-verified against
   source. That caveat is not boilerplate — of the findings this release *did* act on, one
   (#1068) turned out to be **already fixed**, and two others' stated impact was wrong in the
   issue body. Treat the list as a place to look, not as a verified account.
 - **`examples/` largely does not build or run** — #1050 #1051 #1052 #1053 #1054 #1071 #1072
-  #1073 #1074. The 2026-08-09 pass was the first audit to examine `examples/` at all. Nothing
+  #1073. (#1074's `examples/ci/` is deleted, see `### Removed`.) The 2026-08-09 pass was the first audit to examine `examples/` at all. Nothing
   in the shipped crates depends on them, but a reader following an example may not get a
   working result.
-- **A cluster of CI gates cannot fail** — among them #1071–#1075 (an `examples/ci` check whose
-  exit code is never set, a `check-test-imports.sh` whose BRE escapes turn literal parens into
-  a capture group, a health gate that reads "unhealthy" as healthy, a Dockerfile hiding a
-  compile failure behind `|| true`) and #1082 (`check-suite-coverage` is blind to a file-level
-  `#![cfg(feature)]`, so a suite can run **zero** tests and read green). This release fixed
-  three gates of the same family (#1127, #1128, #1129) and added four more; the cluster above
-  is not yet done.
+- **A cluster of CI gates cannot fail** — the remainder is #1071, #1072, #1073 (a health gate
+  that reads "unhealthy" as healthy, a Dockerfile hiding a compile failure behind `|| true`)
+  and #1082 (`check-suite-coverage` is blind to a file-level `#![cfg(feature)]`, so a suite
+  can run **zero** tests and read green — and one does today). Two of the cluster are fixed in
+  this release: #1075's `check-test-imports.sh`, whose BRE escapes made it unable to reject
+  anything, and #1074's `examples/ci` check, which is deleted along with the dead directory
+  around it. This release also fixed three gates of the same family (#1127, #1128, #1129) and
+  added several more; the cluster above is not yet done.
 - **Rate-limiter bucket exhaustion is still cheap to cause (#1143).** #1080's fix means a full
   bucket map recovers instead of locking out new clients permanently — it does **not** stop one
   unauthenticated client from filling the map: `X-Tenant-ID` is folded into the bucket key

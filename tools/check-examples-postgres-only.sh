@@ -30,8 +30,13 @@ found=0
 # Markdown has no comment syntax, so a `mysql://` inside a README code block still fails.
 drop_comments() { grep -vE '^[^:]+:[0-9]+:[[:space:]]*(#|//|--)'; }
 
+# `://` is not the only URL form. `sqlite::memory:` and `sqlite:file.db` carry no
+# authority component, so a pattern anchored on `://` reads straight past them — and did:
+# both files in the deleted `examples/ci/` set `DATABASE_URL: sqlite::memory:` and this
+# gate was green over them for as long as they existed (#1074). Accept `:` followed by
+# anything that is not whitespace, which covers `://`, `::memory:` and `:file.db` alike.
 echo "→ unsupported connection URLs in examples/"
-if hits=$(grep -rniE '(mysql|mariadb|sqlite|sqlserver|mssql|jdbc:[a-z]+)://' examples/ \
+if hits=$(grep -rniE '(mysql|mariadb|sqlite|sqlserver|mssql|jdbc:[a-z]+):(//|:|[a-z0-9._/-]*\.db)' examples/ \
     | drop_comments || true); [ -n "$hits" ]; then
     echo "✗ examples/ names a connection URL for a backend FraiseQL removed in #374:"
     echo "$hits"
