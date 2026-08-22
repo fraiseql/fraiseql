@@ -268,3 +268,134 @@ fn an_enum_typed_field_introspects_as_enum_not_object() {
     );
     assert_eq!(named.name.as_deref(), Some("OrderStatus"));
 }
+
+// ── #1018: the same defect, one variant over ──────────────────────────────────
+//
+// `DeclaredTypeNames::resolve` learned about enums, interfaces and unions and
+// still fell through to `Object` for a name the author declared in
+// `custom_scalars`, so `FieldType::Scalar(_)` had no producer for an authored
+// schema either. The three consumers below are the ones that branch on it.
+
+const EMAIL_SCALAR: &str = "Email";
+
+fn scalar_decls() -> Value {
+    json!({"custom_scalars": [{"name": EMAIL_SCALAR, "base_type": "String"}]})
+}
+
+#[test]
+fn a_custom_scalar_typed_field_compiles_to_the_scalar_variant() {
+    let compiled = compile(&schema_with(
+        &json!([{"name": "email", "type": EMAIL_SCALAR, "nullable": false}]),
+        &scalar_decls(),
+    ));
+
+    assert_eq!(
+        order_field_type(&compiled, "email"),
+        json!({"Scalar": "Email"}),
+        "#1018: a field typed with a declared custom scalar must compile to the Scalar \
+         variant. `Object` tells every consumer it is a composite type with no fields"
+    );
+}
+
+/// The list path recurses, exactly as it does for #923's enums.
+#[test]
+fn a_list_of_custom_scalars_resolves_the_element_kind() {
+    let compiled = compile(&schema_with(
+        &json!([{"name": "ccs", "type": "[Email!]", "nullable": true}]),
+        &scalar_decls(),
+    ));
+
+    assert_eq!(order_field_type(&compiled, "ccs"), json!({"List": {"Scalar": "Email"}}));
+}
+
+/// Consumer 1: introspection. An introspecting client is told a scalar is an
+/// OBJECT with no fields — the #923 symptom, verbatim.
+#[test]
+fn a_custom_scalar_typed_field_introspects_as_scalar_not_object() {
+    let compiled = compile(&schema_with(
+        &json!([{"name": "email", "type": EMAIL_SCALAR, "nullable": false}]),
+        &scalar_decls(),
+    ));
+
+    let schema: CompiledSchema =
+        CompiledSchema::from_json(&serde_json::to_string(&compiled).unwrap(), false).unwrap();
+    let introspection = IntrospectionBuilder::build(&schema);
+
+    let order = introspection
+        .types
+        .iter()
+        .find(|t| t.name.as_deref() == Some("Order"))
+        .expect("Order is introspectable");
+    let email = order
+        .fields
+        .as_ref()
+        .expect("Order has fields")
+        .iter()
+        .find(|f| f.name == "email")
+        .expect("Order.email is introspectable");
+
+    let named = unwrap_non_null(&email.field_type);
+
+    assert_eq!(
+        named.kind,
+        TypeKind::Scalar,
+        "#1018: introspection must report Order.email as SCALAR; OBJECT makes an \
+         introspection-driven client generate a nested selection for a leaf"
+    );
+    assert_eq!(named.name.as_deref(), Some(EMAIL_SCALAR));
+}
+
+/// Consumer 2: `--emit-ddl`. `Object` maps to `JSONB`, so a custom-scalar column
+/// was emitted as JSONB where `TEXT` is correct. This is the breaking half.
+#[test]
+fn a_custom_scalar_column_emits_text_not_jsonb() {
+    let dir = TempDir::new().unwrap();
+    let schema = schema_with(
+        &json!([{"name": "email", "type": EMAIL_SCALAR, "nullable": false}]),
+        &scalar_decls(),
+    );
+    fs::write(dir.path().join("schema.json"), serde_json::to_string_pretty(&schema).unwrap())
+        .unwrap();
+
+    let ddl_dir = dir.path().join("ddl");
+    let result = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args([
+            "compile",
+            "schema.json",
+            "--output",
+            dir.path().join("schema.compiled.json").to_str().unwrap(),
+            "--emit-ddl",
+            ddl_dir.to_str().unwrap(),
+        ])
+        .current_dir(dir.path())
+        .output()
+        .expect("run fraiseql-cli");
+    assert!(
+        result.status.success(),
+        "compile --emit-ddl failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+
+    let ddl = fs::read_to_string(ddl_dir.join("order.sql")).expect("order.sql is emitted");
+
+    assert!(
+        ddl.contains("email TEXT NOT NULL"),
+        "#1018: a custom-scalar column must be TEXT, not JSONB. Emitted:\n{ddl}"
+    );
+}
+
+/// The counterweight #923 needed, restated for scalars: an *undeclared* name must
+/// still compile to an object reference, so the fix cannot be "call everything a
+/// scalar". `an_undeclared_type_name_still_compiles_to_an_object_reference`
+/// covers the field position; this covers the case where a custom-scalar block
+/// exists but does not declare the name in question.
+#[test]
+fn an_undeclared_name_stays_an_object_even_when_other_scalars_are_declared() {
+    let compiled = compile(&schema_with(
+        &json!([{"name": "note", "type": "Untyped", "nullable": true}]),
+        &scalar_decls(),
+    ));
+
+    assert_eq!(order_field_type(&compiled, "note"), json!({"Object": "Untyped"}));
+}

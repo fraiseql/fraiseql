@@ -34,7 +34,8 @@ use super::intermediate::{IntermediateFactTable, IntermediateInjectDefaults, Int
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
 
-/// The author-declared enum, interface and union names of one schema (`#923`).
+/// The author-declared enum, interface, union and custom-scalar names of one schema
+/// (`#923`, extended by `#1018`).
 ///
 /// `parse_field_type` matched the twelve builtin scalar names and routed everything else
 /// to `FieldType::Object`, because it is a free function with no view of the document it
@@ -52,6 +53,9 @@ pub struct SchemaConverter;
 ///   `status { … }` for a scalar value;
 /// * `--emit-ddl` maps `Object` to `JSONB` rather than to the enum's own Postgres type.
 ///
+/// `#1018` is the same defect one variant over: a name declared in `custom_scalars` also
+/// fell through to `Object`, so `FieldType::Scalar` had no producer either.
+///
 /// Held by name rather than by definition because that is all resolution needs, and
 /// because it must be built *before* the type arrays are consumed by conversion.
 #[derive(Debug, Default)]
@@ -59,6 +63,7 @@ pub(crate) struct DeclaredTypeNames {
     enums:      HashSet<String>,
     interfaces: HashSet<String>,
     unions:     HashSet<String>,
+    scalars:    HashSet<String>,
 }
 
 impl DeclaredTypeNames {
@@ -68,6 +73,7 @@ impl DeclaredTypeNames {
             enums:      schema.enums.iter().map(|e| e.name.clone()).collect(),
             interfaces: schema.interfaces.iter().map(|i| i.name.clone()).collect(),
             unions:     schema.unions.iter().map(|u| u.name.clone()).collect(),
+            scalars:    schema.custom_scalars.iter().flatten().map(|s| s.name.clone()).collect(),
         }
     }
 
@@ -79,6 +85,12 @@ impl DeclaredTypeNames {
     /// an error because a `--schema-dir` author can legitimately declare a custom scalar in
     /// a file this pass cannot see. Reversing that decision belongs with #724's reasoning,
     /// not here.
+    ///
+    /// A name declared in `custom_scalars` resolves to `FieldType::Scalar` (#1018). Without
+    /// it that variant had no producer for an authored schema — the #923 defect, one variant
+    /// over — and three consumers branched on the wrong answer: `--emit-ddl` emitted `JSONB`
+    /// where `TEXT` is correct, introspection reported `OBJECT` for a leaf, and the
+    /// TypeScript generator emitted a sub-selection for a scalar.
     fn resolve(&self, name: &str) -> FieldType {
         let owned = || name.to_string();
         if self.enums.contains(name) {
@@ -87,6 +99,8 @@ impl DeclaredTypeNames {
             FieldType::Interface(owned())
         } else if self.unions.contains(name) {
             FieldType::Union(owned())
+        } else if self.scalars.contains(name) {
+            FieldType::Scalar(owned())
         } else {
             FieldType::Object(owned())
         }

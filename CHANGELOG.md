@@ -20,6 +20,27 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A declared custom scalar compiles to `FieldType::Scalar`, so `--emit-ddl` emits `TEXT`
+  where it used to emit `JSONB` (#1018).** `parse_field_type` resolved a non-builtin name
+  against the schema's declared enums, interfaces and unions (#923) and fell through to
+  `FieldType::Object` for everything else — including a name the author declared in
+  `custom_scalars`. That variant therefore had **no producer at all** for an authored schema,
+  the same shape #923 fixed one variant over, and three consumers branched on the wrong
+  answer: `--emit-ddl` gave a custom-scalar column a `JSONB` type, introspection reported
+  `OBJECT` for a leaf (so an introspecting client generates a nested selection for it), and
+  the TypeScript/Go/Python/Rust emitters treated it as requiring a sub-selection.
+
+  **Migration.** A project that uses a custom scalar (`Email`, `IBAN`, any author-declared
+  name) and generates its DDL from `--emit-ddl` will see that column's type change from
+  `JSONB` to `TEXT`. Existing databases are unaffected until you regenerate; when you do,
+  reconcile the column type by hand — `ALTER TABLE … ALTER COLUMN … TYPE TEXT USING …` — since
+  a JSONB-encoded string carries its quotes. The columns were only ever `JSONB` because the
+  compiler had mislabelled the field.
+
+  An *undeclared* name still resolves to `FieldType::Object`, deliberately and unchanged:
+  `SchemaValidator` reports it by name, and #724 chose a warning there because a
+  `--schema-dir` author can declare a scalar in a file the converter cannot see.
+
 - **`where` and `orderBy` are no longer typed as the `JSON` scalar (#1154).** They now publish
   `{Entity}WhereInput` and `[{Entity}OrderByInput]` — the conventional names clients already
   write, and which until now resolved against nothing. A document declaring
