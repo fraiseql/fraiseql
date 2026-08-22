@@ -226,13 +226,11 @@ fn mint(sub: &str, extra: &Value) -> String {
 
 /// An ordinary user token: no `act`, no `service_account` scope → `human_user`.
 ///
-/// Carries the role as **both** a `roles` claim and a `scope`, because the two
-/// `requires_role` gates on the path read different fields: the executor checks
-/// `SecurityContext.roles`, the REST resolver checks `SecurityContext.scopes`
-/// (`rest/handler/query.rs`). That divergence is pre-existing and out of this
-/// issue's scope — filed as #1122 — but a token carrying only one of them is
-/// refused by the *role* gate before the actor gate is reached, which would make
-/// the REST leg of this suite assert nothing about `requires_actor`.
+/// Carries the role as both a `roles` claim and a `scope`. It no longer needs to
+/// — #1122 made every transport read `roles` — but it is left as-is deliberately:
+/// a token holding both satisfies the role gate on any reading of it, so the REST
+/// leg of *this* suite keeps testing `requires_actor` and nothing else. The two
+/// tests that pin #1122 mint one claim each, at the bottom of this file.
 fn human_token() -> String {
     mint(HUMAN_SUB, &json!({ "roles": ["reader"], "scope": "reader" }))
 }
@@ -591,4 +589,92 @@ async fn an_anonymous_request_belongs_to_no_class() {
     let body = resp.text().await.expect("body");
     assert!(status.is_client_error(), "anonymous must be refused — {status}: {body}");
     assert!(!body.contains("classified"), "and no row may reach it: {body}");
+}
+
+// ─── #1122: `requires_role` must mean the same thing on every transport ───────
+//
+// The two tests below are about the *role* gate, not the actor gate, and they
+// live here because this suite already declares `requires_role = "reader"` on
+// `humanSecrets` and already mints tokens for a real server. They are the reason
+// `human_token()` had to carry the role as both a claim and a scope.
+
+/// The documented contract: "only users whose `SecurityContext.roles` contains
+/// this role". A token that satisfies it is served over REST, as it is over
+/// GraphQL.
+#[tokio::test]
+async fn rest_serves_a_role_gated_query_to_a_token_carrying_only_the_role() {
+    if database_url_or_skip("rest_serves_a_role_gated_query_to_a_token_carrying_only_the_role")
+        .is_none()
+    {
+        return;
+    }
+    let rig = Box::pin(boot()).await.unwrap();
+    let roles_only = mint(HUMAN_SUB, &json!({ "roles": ["reader"] }));
+
+    // GraphQL first, so a failure here says "the fixture is wrong", not "REST is".
+    let gql = rig.gql("{ humanSecrets { id label } }", Some(&roles_only)).await;
+    assert!(
+        gql["data"]["humanSecrets"].as_array().is_some_and(|r| !r.is_empty()),
+        "the fixture's own contract: `roles` admits over GraphQL: {gql}"
+    );
+
+    let resp = rig
+        .client
+        .get(format!("{}/rest/v1/humanSecrets", rig.server.url))
+        .bearer_auth(&roles_only)
+        .send()
+        .await
+        .expect("request");
+    let status = resp.status();
+    let body = resp.text().await.expect("body");
+    assert_eq!(
+        status, 200,
+        "REST must admit what the executor admits — the role gate reads `roles`: {body}"
+    );
+    assert!(body.contains("classified"), "and serve the rows: {body}");
+}
+
+/// The other direction, and the sharper one: a scope is not a role. A token
+/// carrying `scope: "reader"` and no roles at all must not reach the rows.
+///
+/// This is not symmetry for its own sake. `resolve_direct_read` — the REST
+/// chokepoint that enforces `requires_actor` (#966), field RBAC (#423) and RLS
+/// (#784) — has no role gate, so whatever `resolve_get_query` lets past is
+/// served. A pre-check keyed on the wrong field is the only thing standing here.
+#[tokio::test]
+async fn rest_refuses_a_role_gated_query_to_a_token_carrying_only_the_scope() {
+    if database_url_or_skip("rest_refuses_a_role_gated_query_to_a_token_carrying_only_the_scope")
+        .is_none()
+    {
+        return;
+    }
+    let rig = Box::pin(boot()).await.unwrap();
+    // A human (no `act`, no `service_account` scope), so the actor gate admits it
+    // and the role gate is the only thing under test.
+    let scope_only = mint(HUMAN_SUB, &json!({ "scope": "reader" }));
+
+    // GraphQL refuses it, because the executor reads `roles`.
+    let gql = rig.gql("{ humanSecrets { id } }", Some(&scope_only)).await;
+    assert!(
+        gql["data"]["humanSecrets"].as_array().is_none(),
+        "a scope is not a role over GraphQL: {gql}"
+    );
+
+    let resp = rig
+        .client
+        .get(format!("{}/rest/v1/humanSecrets", rig.server.url))
+        .bearer_auth(&scope_only)
+        .send()
+        .await
+        .expect("request");
+    let status = resp.status();
+    let body = resp.text().await.expect("body");
+    assert!(
+        status.is_client_error(),
+        "a scope is not a role over REST either — {status}: {body}"
+    );
+    assert!(
+        !body.contains("classified"),
+        "and no role-gated row may reach a REST response: {body}"
+    );
 }

@@ -34,6 +34,7 @@ pub mod oidc;
 pub mod profiles;
 pub mod query_validator;
 pub mod rls_policy;
+pub mod role_gate;
 pub mod security_context;
 pub mod tls_enforcer;
 pub mod validation_audit;

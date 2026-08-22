@@ -253,15 +253,13 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 .matcher
                 .match_query_with_operation_name(query, variables, operation_name)?;
 
-        // 2b. Enforce requires_role — return "not found" (not "forbidden") to prevent enumeration
-        if let Some(ref required_role) = query_match.query_def.requires_role {
-            if !security_context.roles.iter().any(|r| r == required_role) {
-                return Err(FraiseQLError::Validation {
-                    message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                    path:    None,
-                });
-            }
-        }
+        // 2b. Enforce requires_role — "not found" (not "forbidden") to prevent enumeration.
+        crate::security::role_gate::enforce_requires_role(
+            "Query",
+            &query_match.query_def.name,
+            query_match.query_def.requires_role.as_deref(),
+            Some(security_context),
+        )?;
 
         // 2c. Enforce requires_actor (#966), after the role gate so a caller
         //     lacking the role learns nothing here that "not found" did not
@@ -1054,6 +1052,21 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
         }
 
+        // #1122: `requires_role`, for exactly the reason #966 is here. The role gate
+        // lived only in `execute_regular_query_with_security` — a GraphQL entry point
+        // this path never enters — plus a pre-check in the REST resolver that read
+        // `scopes` instead of `roles`. So a token carrying `scope: "reader"` and no
+        // roles at all was served every row of a query gated on the `reader` *role*.
+        // Enforced before the actor gate to keep the GraphQL ordering, which
+        // `the_role_gate_still_runs_first` pins: the role gate's enumeration-hiding
+        // "not found" must not be pre-empted by the actor gate's message.
+        crate::security::role_gate::enforce_requires_role(
+            "Query",
+            &query_match.query_def.name,
+            query_match.query_def.requires_role.as_deref(),
+            security_context,
+        )?;
+
         // #966: the actor allow-list, for the same reason and in the same place.
         // The GraphQL entry points gate before dispatching; this path does not go
         // through them — `execute_query_direct`, `count_rows` and the streaming
@@ -1420,6 +1433,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             let ops = [(OperationKind::Query, query_match.query_def.name.clone())];
             enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
         }
+
+        // #1122: the role gate, here as well as in `resolve_direct_read`, because this
+        // is a second chokepoint rather than a step inside the first — the embedding
+        // path (`rest/embedding/executor.rs`) calls it alone. A count is a read: it
+        // reports the cardinality of a set the caller may not select from.
+        crate::security::role_gate::enforce_requires_role(
+            "Query",
+            &query_match.query_def.name,
+            query_match.query_def.requires_role.as_deref(),
+            security_context,
+        )?;
 
         // 1. Evaluate RLS policy. Fail closed (#784) when a policy is configured but there is no
         //    principal — the count must not disagree with the (equally refused) body it describes.

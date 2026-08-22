@@ -344,6 +344,10 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .find(|t| t.name.as_str() == rep.typename)
                     .and_then(|t| t.requires_role.as_deref())
             });
+            // NOT `role_gate::enforce_requires_role`: `_entities` answers a refusal as
+            // an authorization denial with the federation error shape, not as the
+            // operation's absence — a subgraph's caller is a gateway that already
+            // knows the type exists, so there is nothing to hide from it.
             if let Some(required_role) = required_role {
                 let has_role =
                     security_context.is_some_and(|sc| sc.roles.iter().any(|r| r == required_role));

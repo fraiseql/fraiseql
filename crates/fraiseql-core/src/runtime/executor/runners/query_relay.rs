@@ -524,16 +524,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             })?;
 
         // requires_role: invisible (enumeration-hiding "not found") unless the context holds it.
-        if let Some(ref required_role) = node_qdef.requires_role {
-            let has_role =
-                security_context.is_some_and(|sc| sc.roles.iter().any(|r| r == required_role));
-            if !has_role {
-                return Err(FraiseQLError::Validation {
-                    message: format!("Query '{}' not found in schema", node_qdef.name),
-                    path:    None,
-                });
-            }
-        }
+        crate::security::role_gate::enforce_requires_role(
+            "Query",
+            &node_qdef.name,
+            node_qdef.requires_role.as_deref(),
+            security_context,
+        )?;
 
         // requires_actor (#966): the `node(id:)` lookup is a second door onto the
         // rows its backing query guards, so it inherits that query's actor

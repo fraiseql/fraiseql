@@ -3183,6 +3183,44 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`requires_role` means the same thing on every transport, and a scope is not a role
+  (#1122).** The REST resolver checked `SecurityContext.scopes` where the executor checks
+  `SecurityContext.roles` — the field's documented contract. The issue reported this as a
+  reachability problem in one direction, and it is: a token carrying `roles: ["reader"]`
+  received `403` from REST for a query GraphQL serves it.
+
+  The other direction is worse than the issue states, and it is a **fail-open authorization
+  bypass**. `resolve_direct_read` — the REST read chokepoint that enforces `requires_actor`
+  (#966), field RBAC (#423) and RLS fail-closed (#784) — carried **no role gate at all**, and
+  neither did `count_rows`. The resolver's pre-check was the only thing standing there, so a
+  token holding a *scope* named `reader` and **no roles whatsoever** was served every row of a
+  query gated on the `reader` **role**. Proven end to end against a live server before the fix:
+
+  ```
+  a scope is not a role over REST either — 200 OK:
+  {"data":[{"id":"…","label":"classified"},{"id":"…","label":"restricted"}], …}
+  ```
+
+  This is precisely the #966/#808 shape — "a predicate enforced on one transport is not
+  enforced" — which the chokepoint's own comment warns about, one gate over.
+
+  The role gate now runs at both REST chokepoints, and the resolver's pre-check is gone rather
+  than corrected: a gate there would be a fourth place for the rule to drift and would still
+  miss the embedding path, which does not resolve through it. `resolve_get_query` and
+  `resolve_streaming_get_query` no longer take a security context at all, since they no longer
+  make an authorization decision.
+
+  The rule itself is now one function — `security::role_gate::enforce_requires_role` — and the
+  three gates that agreed (regular query, relay `node(id:)`, mutation) call it too. Six
+  hand-written copies were what allowed one to be wrong. Federation's `_entities` gate
+  deliberately does not use it and now says why: a subgraph answers a gateway that already
+  knows the type exists, so there is nothing to hide from it.
+
+  ⚠ The refusal shape changes for REST: a role-gated query the caller cannot reach now answers
+  as **absent** rather than `403 FORBIDDEN`, which is what `requires_role` has always
+  documented — `FORBIDDEN` confirms the operation exists and that some role reaches it, which
+  is what role enumeration needs.
+
 - **The workspace is clean under `cargo +beta clippy`, so the next toolchain promotion is a
   toolchain change and nothing else (#1163).** `clippy::pedantic` is `deny` workspace-wide, so
   every beta finding becomes an error the day beta ships. The issue listed six. The real

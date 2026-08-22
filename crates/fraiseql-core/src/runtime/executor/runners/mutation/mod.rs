@@ -870,17 +870,13 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         )?;
     }
 
-    // 1b. Enforce requires_role — return "not found" (not "forbidden") to prevent
-    //     enumeration, mirroring the query-level check in query_regular.rs.
-    if let Some(required_role) = mutation_def.requires_role.as_deref() {
-        let has_role = security_ctx.is_some_and(|c| c.roles.iter().any(|r| r == required_role));
-        if !has_role {
-            return Err(FraiseQLError::Validation {
-                message: format!("Mutation '{mutation_name}' not found in schema"),
-                path:    None,
-            });
-        }
-    }
+    // 1b. Enforce requires_role — "not found" (not "forbidden") to prevent enumeration.
+    crate::security::role_gate::enforce_requires_role(
+        "Mutation",
+        mutation_name,
+        mutation_def.requires_role.as_deref(),
+        security_ctx,
+    )?;
 
     // 1c. Enforce requires_actor (#966). This chokepoint is why "every transport"
     //     is a fact rather than a claim: every mutation entry path — both GraphQL

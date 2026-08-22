@@ -48,10 +48,8 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         relative_path: &str,
         query_pairs: &[(&str, &str)],
         headers: &http::HeaderMap,
-        security_context: Option<&SecurityContext>,
     ) -> Result<ResolvedGetQuery, RestError> {
-        let resolved =
-            self.resolve_get_query(relative_path, query_pairs, headers, security_context)?;
+        let resolved = self.resolve_get_query(relative_path, query_pairs, headers)?;
 
         let streamable = self
             .schema
@@ -76,14 +74,15 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
     ///
     /// # Errors
     ///
-    /// Returns `RestError` on route not found, role check failure, or
-    /// parameter extraction error.
+    /// Returns `RestError` on route not found or parameter extraction error.
+    ///
+    /// Takes no security context: authorization on this path runs at the executor
+    /// chokepoints, not here (#1122).
     pub fn resolve_get_query(
         &self,
         relative_path: &str,
         query_pairs: &[(&str, &str)],
         headers: &http::HeaderMap,
-        security_context: Option<&SecurityContext>,
     ) -> Result<ResolvedGetQuery, RestError> {
         let resolved = self
             .route_table
@@ -102,13 +101,13 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
             .find_query(query_name)
             .ok_or_else(|| RestError::not_found(format!("Query not found: {query_name}")))?;
 
-        // Check requires_role
-        if let Some(ref required_role) = query_def.requires_role {
-            match security_context {
-                Some(ctx) if ctx.scopes.contains(required_role) => {},
-                _ => return Err(RestError::forbidden()),
-            }
-        }
+        // `requires_role` is NOT checked here (#1122). It used to be, against
+        // `ctx.scopes` — the wrong field — and answering `403`, which the field's
+        // own contract forbids. It now runs in `resolve_direct_read` and
+        // `count_rows`, the two chokepoints every REST read passes through,
+        // alongside `requires_actor` (#966) and field RBAC (#423). A gate in this
+        // resolver would be a fourth place for the rule to drift, and would still
+        // miss the embedding path, which does not come through here.
 
         let type_def = self.schema.find_type(&query_def.return_type);
 
@@ -244,8 +243,7 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
-        let resolved_query =
-            self.resolve_get_query(relative_path, query_pairs, headers, security_context)?;
+        let resolved_query = self.resolve_get_query(relative_path, query_pairs, headers)?;
         let query_match = &resolved_query.query_match;
         let variables_json = &resolved_query.variables;
         let params = &resolved_query.params;

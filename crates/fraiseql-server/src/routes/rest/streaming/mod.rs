@@ -100,12 +100,7 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
 ) -> Result<NdjsonResponse, RestError> {
-    let resolved = handler.resolve_streaming_get_query(
-        relative_path,
-        query_pairs,
-        headers,
-        security_context,
-    )?;
+    let resolved = handler.resolve_streaming_get_query(relative_path, query_pairs, headers)?;
 
     let prefer = PreferHeader::from_headers(headers);
     validate_ndjson_request(&prefer, &resolved.params.pagination)?;
