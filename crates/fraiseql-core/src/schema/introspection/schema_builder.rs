@@ -11,7 +11,7 @@ use super::{
     field_resolver::{build_arg_input_value, type_ref},
     type_resolver::{
         build_enum_type, build_input_object_type, build_interface_type, build_object_type,
-        build_union_type, builtin_scalars,
+        build_union_type, builtin_scalars, referenced_scalar_type,
     },
     types::{
         IntrospectionField, IntrospectionInputValue, IntrospectionSchema, IntrospectionType,
@@ -73,6 +73,29 @@ impl IntrospectionBuilder {
         if !schema.subscriptions.is_empty() {
             types.push(build_subscription_type(schema));
         }
+
+        // Publish a SCALAR node for every leaf name the schema references but does
+        // not define (#1156), from the same collection the SDL declares
+        // `scalar Name` from — so the two surfaces agree by construction rather
+        // than by coincidence. Without this, `__schema` advertised names that
+        // resolved to nothing: a field typed `Object(datetime)` where no type
+        // declares `datetime` introspected as an OBJECT reference with no node
+        // behind it.
+        //
+        // This runs last, and skips any name already published, because
+        // `referenced_scalars` excludes only the five GraphQL built-ins while
+        // `builtin_scalars` publishes eleven — `DateTime`, `UUID`, `JSON`,
+        // `Date`, `Time` and `Decimal` are referenced names that already have a
+        // node. A duplicate would be invalid GraphQL and would silently collapse
+        // in `build_type_map`, which is a last-write-wins `HashMap`.
+        let published: std::collections::HashSet<&str> =
+            types.iter().filter_map(|t| t.name.as_deref()).collect();
+        let dangling: Vec<String> = schema
+            .referenced_scalars()
+            .into_iter()
+            .filter(|name| !published.contains(name.as_str()))
+            .collect();
+        types.extend(dangling.iter().map(|name| referenced_scalar_type(name)));
 
         // Build directives: built-in + custom
         let mut directives = builtin_directives();

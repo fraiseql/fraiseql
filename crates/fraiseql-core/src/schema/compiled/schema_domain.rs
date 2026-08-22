@@ -511,7 +511,7 @@ impl CompiledSchema {
     /// dangling (`Unknown type datetime`). The custom-scalar registry is also included.
     /// The federation `_Any`/`_Entity`/`_Service`/`_FieldSet` built-ins (supplied by the
     /// federation layer) are excluded.
-    fn referenced_scalars(&self) -> Vec<String> {
+    pub(crate) fn referenced_scalars(&self) -> Vec<String> {
         use std::collections::{BTreeSet, HashSet};
 
         const BUILTINS: [&str; 5] = ["String", "Int", "Float", "Boolean", "ID"];

@@ -100,6 +100,26 @@ fn scalar_type_with_url(
     }
 }
 
+/// Build the `SCALAR` node for a leaf name the schema references but does not
+/// define (#1156).
+///
+/// The SDL surface has always declared these (`referenced_scalars` →
+/// `scalar Name`), so the federation SDL is type-complete; introspection did
+/// not, and published an `OBJECT` reference to a type with no node. A client
+/// that walks `__schema.types` looking the name up finds nothing.
+///
+/// The description says what the node is, because guessing a better *type* for
+/// it is deliberately out of scope: a dangling `datetime` should introspect as
+/// something a client can look up, but deciding it is really `DateTime` is a
+/// separate and much less safe conversation.
+pub(super) fn referenced_scalar_type(name: &str) -> IntrospectionType {
+    scalar_type(
+        name,
+        "Referenced by this schema but not defined by it; published as a scalar so the \
+         reference resolves.",
+    )
+}
+
 // =============================================================================
 // User-defined type builders
 // =============================================================================

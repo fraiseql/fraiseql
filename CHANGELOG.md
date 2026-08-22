@@ -3204,6 +3204,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`__schema` no longer advertises names that resolve to nothing (#1156).** A field typed
+  `Object(T)` where no type declares `T` introspected as an `OBJECT` reference to an undefined
+  type, so a client walking `__schema.types` to look `T` up found no node at all. This is not a
+  rare authoring accident: one real 191-type schema references eight such names from its
+  *authored* fields, emitted by an authoring layer that put a host-language type name
+  (`datetime`, `date`, `dict`) where a scalar belonged.
+
+  The SDL surface has always handled it — `referenced_scalars()` collects every leaf name that
+  is neither a built-in nor a defined composite and declares `scalar Name`, which is what makes
+  the federation SDL type-complete. Introspection now publishes a `SCALAR` node from that same
+  collection, so the two surfaces agree by construction rather than by coincidence; the new
+  test asserts the agreement, not either surface alone.
+
+  Names already published are skipped, which is load-bearing rather than tidy:
+  `referenced_scalars` excludes only the five GraphQL built-ins while introspection publishes
+  eleven, so `DateTime`, `UUID`, `JSON`, `Date`, `Time` and `Decimal` would otherwise appear
+  twice — invalid GraphQL, and silently collapsed by `build_type_map`'s last-write-wins
+  `HashMap`.
+
+  Guessing a better type for the authoring layer's mistake stays out of scope: a dangling
+  `datetime` should introspect as *something a client can look up*; deciding it is really
+  `DateTime` is a separate and much less safe conversation.
+
 - **The `--types` compile path validates what every other path validates (#1017).**
   `SchemaMerger::merge_files` was the one entry point of six that never called
   `TomlSchema::validate()`. Its exemption is real but narrow — a query in the TOML may
