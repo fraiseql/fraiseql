@@ -3183,6 +3183,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Four `relay_integration` tests declare the `$id` they use, so `integration (postgres)` is
+  green again (#1164).** They executed `{ node(id: $id) { id } }` — an anonymous shorthand
+  operation defining no variables — which § 5.8.3 correctly refuses since the variable-use
+  validation landed. Test debt exposed by a correctness fix, not a regression in it. The cost
+  was disproportionate to the defect: `integrationPostgres` runs 44 cargo-test invocations
+  under `set -e`, and the failure is in the second, so the other 42 — the whole
+  live-PostgreSQL surface of that leg — did not run for five days while the job reported four
+  failing tests.
+
 - **An undeclared argument no longer returns an unfiltered result set (#1154).** See
   `### Breaking`: the fix is a behaviour change for every client currently sending an argument
   the schema does not declare, which is the population getting wrong answers today. Found by a

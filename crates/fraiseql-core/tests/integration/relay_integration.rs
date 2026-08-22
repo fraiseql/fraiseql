@@ -406,7 +406,7 @@ async fn test_node_query_found() {
     let node_id = encode_node_id("User", alice_uuid);
 
     let result = exec
-        .execute("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
+        .execute("query($id: ID!) { node(id: $id) { id } }", Some(&json!({"id": node_id})))
         .await
         .unwrap();
 
@@ -422,7 +422,7 @@ async fn test_node_query_not_found() {
     let node_id = encode_node_id("User", unknown_uuid);
 
     let result = exec
-        .execute("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
+        .execute("query($id: ID!) { node(id: $id) { id } }", Some(&json!({"id": node_id})))
         .await
         .unwrap();
 
@@ -450,7 +450,7 @@ async fn node_lookup_inherits_the_backing_querys_actor_allow_list() {
 
     let alice_uuid = "aaaa0000-0000-0000-0000-000000000001";
     let node_id = encode_node_id("User", alice_uuid);
-    let query = "{ node(id: $id) { id } }";
+    let query = "query($id: ID!) { node(id: $id) { id } }";
     let vars = json!({ "id": node_id });
 
     let human = SecurityContext::system_job("t", "r", vec![], vec![], None)
@@ -475,7 +475,7 @@ async fn node_lookup_inherits_the_backing_querys_actor_allow_list() {
 async fn test_node_query_invalid_id_returns_error() {
     let exec = executor();
     let result = exec
-        .execute("{ node(id: $id) { id } }", Some(&json!({"id": "not-valid-base64!!!"})))
+        .execute("query($id: ID!) { node(id: $id) { id } }", Some(&json!({"id": "not-valid-base64!!!"})))
         .await;
 
     assert!(result.is_err(), "invalid node ID should return an error");
