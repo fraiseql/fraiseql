@@ -984,6 +984,25 @@ async fn a_created_resource_reports_its_location() {
 /// dashboard saw a healthy connection, so its reconnect and error handling never fired
 /// and it showed stale data indefinitely. Enabling the `observers` feature turned an
 /// honest `501` into a silent no-op.
+///
+/// # If you are here because this test went red
+///
+/// You have populated `event_transport`, which is #428's work — and this assertion is
+/// the gate for **#1113**, deliberately. Two defects sit in the live-event branch you
+/// have just made reachable, and both ship the moment it is:
+///
+/// 1. The subscription sets no `tenant_id`, and `in_memory` / `postgres_notify` drop `EventFilter`
+///    entirely (only NATS applies it) — so an authenticated caller on any tenant receives every
+///    tenant's events, full `data` payload included. Both halves need fixing: set the tenant from
+///    the resolved security context (and decide what an untenanted principal may see — refusing is
+///    the fail-closed answer), *and* make every transport honour the filter or refuse a filtered
+///    subscription.
+/// 2. `Last-Event-ID` is extracted and dropped, so a client reconnecting after a blip silently
+///    loses the gap while the stream reports healthy. Honouring it means changing the event id from
+///    a UUID to `EntityEvent.seq` and catching up from `core.tb_entity_change_log`; an in-process
+///    buffer will not do, being per-replica.
+///
+/// Do not simply delete this assertion to make the wiring green.
 #[tokio::test]
 async fn the_sse_stream_refuses_rather_than_pretending_to_deliver_events() {
     let Some(rig) = rig_with_writes().await else {
