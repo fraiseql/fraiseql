@@ -293,6 +293,13 @@ func (m *FraiseqlCi) ShellGates(
 		// PostgreSQL-only de-scope covered crates/; examples/ kept a running
 		// MySQL topology for three phases afterwards (#940).
 		"bash tools/check-examples-postgres-only.sh",
+		// A declared-but-unread `feature = []` is a promise the build cannot keep:
+		// enabling it changes nothing, so the capability it names is either absent or
+		// reachable another way. This gate existed but ran in NO leg while failing on
+		// clean dev, so its one real finding (`export-parquet`, deleted in #1012) went
+		// unreported for as long as it was there. A gate that is red and unrun is worth
+		// less than no gate — it trains the next reader to assume the surface is checked.
+		"bash tools/check-feature-chains.sh",
 	}, "\n")
 
 	return m.shellBase().

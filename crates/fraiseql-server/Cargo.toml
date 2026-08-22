@@ -310,11 +310,15 @@ redis-idempotency = ["redis", "rmp-serde"]
 # REST transport
 rest = []
 # REST export formats — fine-grained flags compose into the `export` umbrella.
-# Deps are wired in their respective phases (CSV phase 2, XLSX phase 4, Parquet phase 5).
+#
+# `export-parquet` was removed in 2.15.0 (#1012). It carried no dependency and gated no
+# `cfg`, so enabling it changed nothing: REST has no Parquet branch, and the Parquet writer
+# that does exist belongs to `fraiseql-arrow` behind the `arrow` feature
+# (`fraiseql-arrow/src/export.rs::export_parquet`, reached over Flight, not REST). Adding a
+# flag back here without a `cfg` that reads it just recreates the ghost.
 export-csv = ["dep:csv"]
 export-xlsx = ["dep:rust_xlsxwriter", "dep:tempfile"]
-export-parquet = []
-export = ["export-csv", "export-xlsx", "export-parquet"]
+export = ["export-csv", "export-xlsx"]
 auth-saml = ["auth", "fraiseql-auth/auth-saml"]
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]

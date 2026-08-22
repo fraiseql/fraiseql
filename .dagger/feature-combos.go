@@ -133,8 +133,8 @@ var featureCombos = []featureCombo{
 	// Docker image ships `rest,arrow`. The XLSX writer imported the formula-injection
 	// guard from the CSV module, so `rest,export-xlsx` did not compile at all. One
 	// combo per writer, so a cross-module import in EITHER direction reddens here.
-	// (`export-parquet` gets no combo on purpose: it has zero `cfg` usage, so building
-	// it exercises nothing — that ghost is #1012's to delete or allowlist.)
+	// (There is no `export-parquet` combo because the feature no longer exists: it gated
+	// nothing and was deleted in 2.15.0 (#1012). Parquet is `fraiseql-arrow`'s, over Flight.)
 	{name: "server-rest-export-xlsx", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-xlsx"}},
 	{name: "server-rest-export-csv", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-csv"}},
 
