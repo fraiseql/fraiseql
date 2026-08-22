@@ -97,7 +97,7 @@ hex = "0.4"
 hmac = "0.13"
 hyper = {version = "1.0"}
 indexmap = {version = "2", features = ["serde"]}
-itertools = "0.14"
+itertools = "0.15"
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 # Caching
 # Lockfile holds 0.18.2 or later: RUSTSEC-2026-0253 (use-after-free when a key's
