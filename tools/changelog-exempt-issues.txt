@@ -16,7 +16,6 @@
 
 #732   refactor only: decomposed execute_graphql_request (~580 lines) into named steps; no behaviour change
 #879   CI: the Dagger test leg hard-failed on PoolTimedOut where it should skip; test-rig behaviour
-#880   CI: the integration leg could validate stale target-cache artifacts; build-hygiene canary
 #884   test-only: adds a workspace-scoped guard for the idempotency-token property already fixed under #900
 #895   test-only: 15 comment-only #[test] bodies that asserted nothing given real assertions
 #898   test-only: pins the rate-limiter Redis boot refusal already shipped under #770/#777

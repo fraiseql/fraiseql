@@ -4634,6 +4634,42 @@ disagreed, and the promise was the part that was wrong.
   workspace built it, the release never shipped it. `fraiseql-guard`, the other crate new
   since v2.14.1, was already in the publish list and is unaffected.
 
+- **The stale-cache canary can detect staleness in more than the first suite of a leg
+  (#1132).** The #880 canary exists to turn a silent failure class — a leg testing artifacts
+  built from different source than the commit under test, which happened three times, once
+  silently validating pre-fix code — into a loud one. It recorded its source digest as a
+  single file *inside the mounted target cache*: `target/.fraiseql-ci-src-digest`. A Dagger
+  leg mounts one volume for many suites — `integrationBase` mounts
+  `fraiseql-rust-target-integ4-<toolchain>` and **fourteen** canary-wrapped suites run against
+  it. Whichever ran first wrote the current digest; the other thirteen read it back equal and
+  printed `source digest changed since last run: no` about a run where the source certainly
+  had changed. Since detection requires `changed == yes && fresh == 0`, the canary was
+  structurally incapable of firing for any suite but the first one per volume, per run — and
+  its diagnostic line asserted the opposite.
+
+  The marker is now keyed on the cargo argument vector, so each suite compares against its
+  own last build. Demonstrated on a fixture that reproduces the real shape (suite A
+  recompiles and succeeds, updating the shared marker; suite B's own artifacts are the stale
+  ones): the old script reports `changed: no` and exits 0, the new one detects the stale cache
+  and exits 1.
+
+- **The integration `server` shard's log now carries per-suite test counts (#1124).** The
+  program's rule 2 asks that a real-system test be verified *executing* — nonzero counts in
+  the leg log. On that shard the check could not be performed: the log held the echoed script
+  source and the shard's final OK marker, but not one `test result: N passed` line. The
+  `set -e` chain proves every `cargo test` exited 0; it cannot distinguish a suite that
+  compiled to **zero** tests and exited 0 — the failure mode fixed one instance of above.
+
+  The marker had to be constructed at runtime, because both obvious approaches match the
+  harness rather than its output: grepping the log for a suite name returns ~99 hits that are
+  all the echoed script, and in the feature-matrix leg grepping for `COMBO-RESULT <combo>:
+  FAIL` matches the script source, which contains both branch literals. So the shard now
+  defines a shell function named `cargo` that shadows the binary — wrapping all ~60 existing
+  command lines with no change to any of them — and emits `SUITE-RAN <args> :: test result:
+  …` through `printf` with `%s` placeholders. The format string in the echoed source cannot
+  match a search for a resolved line, so `grep '^SUITE-RAN'` yields exactly the suites that
+  ran, with their counts. A failing suite still aborts the shard with its real exit code.
+
 - **A suite that ran zero tests read as covered; the coverage gate can now see it
   (#1082, #1056, #1093).** `tools/check-suite-coverage.py` is the gate every "verified
   executing" claim in the last two programs was checked through. It had three blind spots,

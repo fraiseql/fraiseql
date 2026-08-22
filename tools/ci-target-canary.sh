@@ -33,7 +33,22 @@ if [[ "${1:-}" != "--" ]]; then
 fi
 shift
 
-MARKER="target/.fraiseql-ci-src-digest"
+# One marker PER INVOCATION, not per target volume (#1132).
+#
+# The marker was a single path inside the mounted `target/` cache, and a Dagger leg
+# mounts one volume for many suites — `integrationBase` mounts
+# `fraiseql-rust-target-integ4-<toolchain>` and FOURTEEN canary-wrapped suites run
+# against it. Whichever ran first wrote the current digest; the other thirteen read it
+# back equal and printed `source digest changed: no` about a run where the source
+# certainly had changed. Since detection requires `changed == yes && fresh == 0`, the
+# canary was structurally incapable of detecting a stale cache in any suite but the
+# first one per volume, per run — and its diagnostic line actively said the opposite.
+#
+# Keying on the cargo argument vector makes each suite compare against its own last
+# build, which is the question the canary is actually asking. sha256 of the NUL-joined
+# args, so `--features a,b` and `--features a` cannot collide.
+ARGS_KEY="$(printf '%s\0' "$@" | sha256sum | cut -c1-16)"
+MARKER="target/.fraiseql-ci-src-digest-${ARGS_KEY}"
 BUILD_LOG="$(mktemp)"
 trap 'rm -f "${BUILD_LOG}"' EXIT
 
@@ -89,4 +104,5 @@ if [[ "${changed}" == "yes" && "${fresh}" -eq 0 ]]; then
 fi
 
 echo "${cur}" >"${MARKER}"
-echo "#880 canary OK: fresh-built units: ${fresh}; source digest changed since last run: ${changed}"
+echo "#880 canary OK: fresh-built units: ${fresh}; source digest changed since this" \
+     "suite's last run: ${changed} (marker ${ARGS_KEY})"

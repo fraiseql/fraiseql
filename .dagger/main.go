@@ -57,6 +57,43 @@ const (
 	serverInProcessTests = " --test admin_api_security_test --test admin_authz_test --test admin_cache_vocabulary_e2e --test admission_control_test --test api_admin_tests --test api_design_audit_tests --test api_design_security_tests --test api_federation_tests --test api_infrastructure_tests --test api_openapi_tests --test api_query_tests --test api_schema_tests --test apq_mutation_e2e_test --test auth_me_integration_test --test auth_regression_test --test backpressure_overload_test --test backpressure_test --test cache_wiring_tests --test changelog_cascade_compose_boot --test config_struct_test --test connection_pooling_validation_test --test constructor_drift_test --test documentation_examples_test --test endpoint_health_tests --test error_handling_validation_test --test example_validation_test --test federation_saga_validation_test --test functions_platform_pins_test --test graphql_http_layer_test --test graphql_request_validation_test --test grpc_transport_e2e_test --test integration_performance_validation_test --test introspection_gate_e2e_test --test introspection_mutation_authz_test --test introspection_security_test --test metrics_facade_scrape --test metrics_integration_test --test metrics_monitoring_validation_test --test multitenancy_test --test observability_test --test operational_tools_test --test platform_e2e_test --test production_safety_test --test profile_error_redaction_test --test profile_query_limits_test --test rate_limit_bucket_eviction_test --test rate_limiting_integration_test --test rest_transport_e2e_test --test security --test property --test security_audit_test --test security_config_runtime_test --test security_stack_integration_test --test service_account_conformance_test --test studio_admin_api_test --test studio_auth_users_test --test studio_data_browser_test --test studio_e2e_test --test studio_functions_test --test studio_metrics_test --test studio_shell_test --test studio_storage_test --test tracing_integration_test --test typename_e2e_test --test v230_integration_tests"
 )
 
+// suiteCountPrelude makes a shard's per-suite test counts readable from its log.
+//
+// The program's rule 2 asks that a real-system test be "verified executing (nonzero
+// counts in the leg log)". On the `integration (server)` shard that check could not be
+// performed: the log carried the echoed script source — Dagger prints every `withExec`
+// command — and the shard's final OK marker, but not one `test result: N passed` line
+// from the suites themselves (#1124). The `set -e` chain proves every `cargo test`
+// exited 0; what it cannot distinguish is a suite that compiled to ZERO tests and
+// exited 0, which is exactly the #1082 failure mode this program just fixed one
+// instance of.
+//
+// ⚠ Two traps this has to design around, both cases where a grep matched the harness
+// rather than its output:
+//
+//  1. Grepping the log for a suite name returns ~99 hits that are ALL the echoed
+//     script. Any marker written as a literal in the command list has the same problem:
+//     it appears in the source Dagger prints, whether or not it ever ran.
+//  2. In the feature-matrix leg, grepping for `COMBO-RESULT <combo>: FAIL` matched the
+//     script source, which contains both the OK and the FAIL branch literals.
+//
+// So the marker is CONSTRUCTED AT RUNTIME. The prelude below defines a shell function
+// named `cargo`, which shadows the binary for every command in the list — so all ~60
+// existing `cargo test …` lines are wrapped with no change to any of them — and prints
+//
+//	SUITE-RAN <args> :: test result: ok. N passed; …
+//
+// via printf with `%s` placeholders. The format string in the echoed source therefore
+// never matches a search for a resolved line, and `grep '^SUITE-RAN'` on the log yields
+// exactly the suites that actually executed, with their counts.
+const suiteCountPrelude = `cargo() {
+  local out rc
+  out="$(command cargo "$@" 2>&1)"; rc=$?
+  printf '%s\n' "$out"
+  printf 'SUITE-RAN %s :: %s\n' "$*" "$(printf '%s' "$out" | grep '^test result:' | tr '\n' '|')"
+  return $rc
+}`
+
 // LintRoutes fails if any axum 0.7-style `:param` route capture remains in the
 // source tree, mirroring tools/check-route-syntax.sh (issue #316). It replaces the
 // GitHub-hosted `axum-route-syntax-check` job.
@@ -1174,6 +1211,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 
 	script := strings.Join([]string{
 		"set -e",
+		suiteCountPrelude,
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: server database (Dagger-bound postgres)'",
 		"bash tools/ci-target-canary.sh -- test -p fraiseql-server --test database_query_test", // #880 canary
