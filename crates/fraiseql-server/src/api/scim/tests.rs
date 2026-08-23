@@ -125,3 +125,75 @@ mod concurrency {
         );
     }
 }
+
+// ── search_body ───────────────────────────────────────────────────────────────
+
+mod search_body {
+    //! #1090: the `POST /.search` body shape.
+    //!
+    //! RFC 7644 defines `attributes` in *two* shapes, and they are not the same type. As a
+    //! query parameter (§3.9) it is one comma-separated string; inside a `SearchRequest` body
+    //! (§3.4.3) it is a multi-valued **array**. Reading only the string form made every
+    //! conformant `.search` request carrying attributes fail deserialization, so axum answered
+    //! `422 text/plain` — which a SCIM client reports as "unexpected response content format",
+    //! indistinguishable from an empty body.
+    #![allow(clippy::panic)] // Reason: test code, panics acceptable
+
+    use serde_json::json;
+
+    use crate::api::scim::{ListQuery, SearchBody, resources::project};
+
+    /// Byte-for-byte the body `scim2-tester` sent in the failing run, captured from the wire.
+    const TESTER_BODY: &str = r#"{"attributes":["externalId"],"schemas":["urn:ietf:params:scim:api:messages:2.0:SearchRequest"]}"#;
+
+    fn parse(body: &str) -> ListQuery {
+        serde_json::from_str::<SearchBody>(body)
+            .unwrap_or_else(|e| panic!("SearchBody must accept {body}: {e}"))
+            .into()
+    }
+
+    #[test]
+    fn the_array_form_of_attributes_is_accepted() {
+        let q = parse(TESTER_BODY);
+        assert_eq!(q.attributes.as_deref(), Some("externalId"));
+    }
+
+    #[test]
+    fn a_multi_valued_attributes_array_keeps_every_name() {
+        let q = parse(r#"{"attributes":["userName","displayName"]}"#);
+        // `project` splits on commas, so the array joins into its query-parameter spelling.
+        assert_eq!(q.attributes.as_deref(), Some("userName,displayName"));
+
+        let projected = project(
+            json!({"id": "u1", "userName": "ada", "displayName": "Ada", "externalId": "x"}),
+            q.attributes.as_deref(),
+            q.excluded.as_deref(),
+        );
+        assert!(projected.get("userName").is_some(), "requested attribute survives");
+        assert!(projected.get("displayName").is_some(), "second requested attribute survives");
+        assert!(projected.get("externalId").is_none(), "unrequested attribute is dropped");
+    }
+
+    #[test]
+    fn the_array_form_of_excluded_attributes_is_accepted() {
+        let q = parse(r#"{"excludedAttributes":["displayName","externalId"]}"#);
+        assert_eq!(q.excluded.as_deref(), Some("displayName,externalId"));
+    }
+
+    #[test]
+    fn the_comma_separated_string_form_still_parses() {
+        // The query-parameter spelling in a body is not RFC 7644's shape, but clients do send
+        // it; accepting both is a superset, and refusing it would be a new failure.
+        let q = parse(r#"{"attributes":"userName,displayName"}"#);
+        assert_eq!(q.attributes.as_deref(), Some("userName,displayName"));
+    }
+
+    #[test]
+    fn an_absent_or_null_attributes_field_stays_absent() {
+        assert_eq!(parse(r#"{"filter":"userName eq \"ada\""}"#).attributes, None);
+        assert_eq!(parse(r#"{"attributes":null}"#).attributes, None);
+        // An empty array is not "return nothing" — `project` treats an empty want-list as
+        // no projection, and the two spellings must agree.
+        assert_eq!(parse(r#"{"attributes":[]}"#).attributes.as_deref(), Some(""));
+    }
+}

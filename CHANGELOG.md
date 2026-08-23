@@ -2570,8 +2570,8 @@ disagreed, and the promise was the part that was wrong.
   tests had missed (`$ref`/`type` sub-attributes strict clients reject, a PATCH surface too
   narrow to provision with, an empty `members` array read as "not removed", and untyped
   404/405 bodies). Okta and Entra validators need a public URL and a vendor tenant, so those
-  stay a manual pre-release step. Two deviations are documented with reasons and one defect
-  is filed (#1090).
+  stay a manual pre-release step. Two deviations are documented with reasons; the one defect
+  it filed (#1090) is fixed in this release and its exemption removed.
 
 - **SAML SP request signing, encrypted assertions, and SP metadata publishing (#948).**
   FraiseQL's SP verified inbound assertions but could not sign its outbound
@@ -3243,6 +3243,34 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **`POST /scim/v2/.search` accepts the array spelling of `attributes` that RFC 7644 actually
+  defines for a request body (#1090).** RFC 7644 gives these two wire types. As a query
+  parameter (§ 3.9) `attributes` is one comma-separated string; inside a `SearchRequest` body
+  (§ 3.4.3) it is a multi-valued **array**. The body shape read only the string, so every
+  conformant `.search` request carrying `attributes` or `excludedAttributes` failed
+  deserialization before reaching a handler, and axum answered `422 text/plain`.
+
+  A SCIM client reports that as "unexpected response content format", because a plain-text body
+  and an empty body produce the identical JSON parse error — `Expecting value: line 1 column 1
+  (char 0)`. The issue reasonably read that as an empty body and recorded the cause as
+  unexplained; tracing the client's own requests showed a populated, non-JSON one:
+  `Failed to deserialize the JSON body into the target type: attributes: invalid type:
+  sequence, expected a string`. Nothing was empty, and nothing was unroutable — the three
+  things previously ruled out (the 404 fallback, the 405 fallback, the routes themselves) were
+  each correctly ruled out.
+
+  Both spellings are now accepted and normalised to the comma-separated form the projection
+  consumes. Accepting the string form in a body is a superset rather than a second bug: clients
+  do send it, `scim2-models` itself accepts either, and refusing it would turn a request that
+  works today into a new failure. The GET query-parameter path is untouched — it was already
+  correct, which is why `object_query_with_attributes` and `object_list_with_attributes` passed
+  while only the `.search` projection failed.
+
+  The `scim2-tester` exemption for this is **removed**, not re-worded: the third-party
+  conformance run is now `55 passed, 0 failed, 2 accepted deviations, 0 skipped`, with the
+  `.search` responses verified on the wire as `200 application/scim+json` carrying real
+  `ListResponse` bodies for both Users and Groups.
 
 - **Mutation payload selections are validated against the compiled type (#1005).** #939 made a
   selection on an undeclared field a validation error (§ 5.3.1) by wiring

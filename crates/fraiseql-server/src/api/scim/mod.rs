@@ -271,10 +271,39 @@ struct SearchBody {
     start_index:         Option<i64>,
     #[serde(default)]
     count:               Option<i64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "attribute_list")]
     attributes:          Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "attribute_list")]
     excluded_attributes: Option<String>,
+}
+
+/// Read `attributes` / `excludedAttributes` in either spelling RFC 7644 gives them.
+///
+/// §3.9 defines them as one comma-separated **string** in the query parameter; §3.4.3's
+/// `SearchRequest` body carries the same information as a multi-valued **array**. They are the
+/// same field with two wire types, and a conformant client sends the array when it posts to
+/// `/.search`. Reading only the string form made every such request fail deserialization, so
+/// axum answered `422 text/plain` — which a SCIM client reports as "unexpected response
+/// content format", indistinguishable from an empty body (#1090).
+///
+/// Both are accepted and normalised to the comma-separated form `project` consumes. Accepting
+/// the string in a body is a superset, not a second bug: clients do send it, and refusing it
+/// would turn a request that works today into a new failure.
+fn attribute_list<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrList {
+        String(String),
+        List(Vec<String>),
+    }
+
+    Ok(Option::<StringOrList>::deserialize(deserializer)?.map(|value| match value {
+        StringOrList::String(one) => one,
+        StringOrList::List(many) => many.join(","),
+    }))
 }
 
 impl From<SearchBody> for ListQuery {

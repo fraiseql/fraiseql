@@ -34,11 +34,6 @@ ACCEPTED_DEVIATIONS: dict[str, str] = {
         "account-linking key (#411). A second address would either be invisible to linking "
         "or silently widen it, so multi-valued emails are stored as the primary only."
     ),
-    "Unexpected response content format": (
-        "#1090 — one search-projection check reads an empty body for a reason not yet "
-        "explained; every other check, including the whole provisioning lifecycle and "
-        "deactivation, passes. Tracked, not silently tolerated."
-    ),
     "did not remove attribute 'active'": (
         "`active` is the offboarding switch and is NOT NULL by design. Making it removable "
         "would mean a nullable deactivation flag, and 'NULL' would have to be read as "
