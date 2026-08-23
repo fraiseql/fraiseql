@@ -523,10 +523,22 @@ pub async fn webhook_handler(
         // accepted-but-unclassified rather than failing the sender.
         Ok(_) => json_status(StatusCode::OK, &json!({ "status": "accepted" })),
         Err(error) => {
+            // #1045: render through `FraiseQLError`'s own `IntoResponse` — that impl *is*
+            // the sanitizer, collapsing `Authentication` to a flat "Authentication failed"
+            // and `Database` to "A database error occurred". Hand-rolling the body here
+            // put the entire `Display` chain in front of an unauthenticated caller: the
+            // verifier's internal reason on a 401, and raw PostgreSQL error text on a 5xx
+            // via `WebhookError::Database` → "inbound spine: claim: {error}".
             let mapped: fraiseql_error::FraiseQLError = error.into();
-            let status = StatusCode::from_u16(mapped.status_code())
-                .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-            json_status(status, &json!({ "error": mapped.to_string() }))
+            // The detail the client no longer sees still has to reach the operator —
+            // that is the trade the sanitizer's own comment describes.
+            tracing::warn!(
+                route = %provider,
+                provider = %route.provider,
+                error = %mapped,
+                "inbound webhook delivery failed"
+            );
+            mapped.into_response()
         },
     }
 }

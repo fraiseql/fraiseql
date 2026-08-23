@@ -134,6 +134,91 @@ fn webhook_source_rejects_delivery_without_event_id() {
     assert!(source.normalize(&raw).is_err());
 }
 
+// ── #1045: the route must not hand-roll its error body past the sanitizer ──
+
+mod error_body_sanitization {
+    //! `impl IntoResponse for FraiseQLError` (`fraiseql-error/src/http.rs`) exists to
+    //! collapse internal error text — it renders `Authentication` as a flat
+    //! `"Authentication failed"` and `Database` as `"A database error occurred"`,
+    //! under a comment reading *"database/config/storage/internal/observer details
+    //! must not leak to clients"*.
+    //!
+    //! The webhook route bypassed it: `json_status` hand-rolled
+    //! `json!({"error": mapped.to_string()})`, so an **unauthenticated** caller was
+    //! handed the `Display` chain instead — the verifier's internal reason on a 401,
+    //! and, via `WebhookError::Database` → `"inbound spine: claim: {error}"`, raw
+    //! PostgreSQL error text on a 5xx.
+
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use tower::ServiceExt as _;
+
+    use super::{HashMap, WebhookInboundState, lazy_pool, webhook_router};
+    use crate::config::WebhookRouteConfig;
+
+    /// A router with one generic HMAC route whose signing secret resolves.
+    ///
+    /// `hmac-sha256` needs no timestamp and no `public_url`, and a forged signature
+    /// is refused by `verify_signature` **before** any database work, so the lazy
+    /// pool is never connected.
+    fn router_with_one_route() -> Router {
+        let mut routes = HashMap::new();
+        routes.insert(
+            "hooks".to_string(),
+            WebhookRouteConfig {
+                secret_env: "TEST_WEBHOOK_SECRET".to_string(),
+                provider:   "hmac-sha256".to_string(),
+                path:       None,
+                public_url: None,
+            },
+        );
+        let state =
+            WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s3cret-value".to_string()));
+        webhook_router(state)
+    }
+
+    #[tokio::test]
+    async fn a_forged_signature_is_refused_without_echoing_the_internal_reason() {
+        let request = Request::builder()
+            .method("POST")
+            .uri("/webhooks/hooks")
+            .header("X-Signature", "deadbeef")
+            .body(Body::from(r#"{"id":"evt_1"}"#))
+            .unwrap();
+
+        let response = router_with_one_route().oneshot(request).await.unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::UNAUTHORIZED,
+            "a forged signature is the sender's fault, so the status stays 401"
+        );
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let text = String::from_utf8(bytes.to_vec()).unwrap();
+        let body: serde_json::Value = serde_json::from_str(&text).unwrap();
+
+        // Positive first: an unsanitized body would satisfy every `!contains` below
+        // too, so absence-only assertions cannot pin this on their own.
+        assert_eq!(
+            body["error_description"], "Authentication failed",
+            "the sanitizer's flat description is what an unauthenticated caller may see; \
+             got {text}"
+        );
+        assert_eq!(
+            body["error"], "authentication_error",
+            "the route must render through FraiseQLError's IntoResponse, not its own shape; \
+             got {text}"
+        );
+        assert!(
+            !text.contains("signature mismatch"),
+            "the verifier's internal reason must not reach the sender; got {text}"
+        );
+    }
+}
+
 // ── #751: dedup keys must derive from signed material only ──────────────
 
 mod signed_dedup_key {
