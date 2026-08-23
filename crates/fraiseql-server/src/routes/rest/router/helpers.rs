@@ -193,9 +193,26 @@ mod sanitization_tests {
     }
 
     #[tokio::test]
-    async fn client_input_4xx_message_is_preserved_even_when_enabled() {
-        // SQLSTATE 22 (client-input data exception) maps to a 400 whose message tells the
-        // caller what they did wrong — it must NOT be clobbered by internal sanitization.
+    async fn a_client_input_4xx_is_sanitized_but_still_reads_as_the_caller_s_fault() {
+        // ⚠ Inverted by #1153, deliberately — this assertion used to require the opposite.
+        //
+        // It previously demanded that the raw Postgres text survive at 400, reasoning that
+        // the message tells the caller what they did wrong. #1153 established the reverse:
+        // SQLSTATE classes 22 and 23 are precisely the faults a caller can provoke on
+        // demand, so sanitizing only 5xx left the sanitizer's reach as the *complement* of
+        // the reachable set — while the compiled artefact advertised
+        // `sanitize_database_errors: true`. The text is Postgres-authored and not a surface
+        // this project controls: 22P02 names a column's type, 22001 its width, and the
+        // class-23 case that prompted the fix returned a function name, two table names the
+        // client never referenced, an FK column and the constraint identifier.
+        //
+        // What the caller keeps is the actionable part — the error *code* — plus a message
+        // that still attributes the fault to the request rather than to the server. Only
+        // the free text is withheld.
+        //
+        // Do not restore `contains("not-a-uuid")` to settle a DX complaint. Re-widening
+        // means deciding per SQLSTATE class which Postgres message text is safe to forward,
+        // and that taxonomy is exactly what #1153 removed.
         let err = RestError::from(FraiseQLError::Database {
             message:   "invalid input syntax for type uuid: \"not-a-uuid\"".into(),
             sql_state: Some("22P02".into()),
@@ -204,7 +221,14 @@ mod sanitization_tests {
 
         let response = rest_result_to_response(Err(err), &enabled_sanitizer());
         let message = body_message(response).await;
-        assert!(message.contains("not-a-uuid"), "client-input 4xx message preserved: {message}");
+
+        // Positive assertion first: absence-only checks pass on an unsanitized message too.
+        assert_eq!(message, "The request contains an invalid value");
+        assert!(!message.contains("not-a-uuid"), "raw database text must not survive: {message}");
+        assert!(
+            !message.to_lowercase().contains("internal"),
+            "a client fault must not be described as an internal error: {message}"
+        );
     }
 
     #[tokio::test]

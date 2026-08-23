@@ -5407,6 +5407,16 @@ disagreed, and the promise was the part that was wrong.
   actionable part; only the free text — where the schema, function and constraint names live —
   is withheld. A configured `custom_error_message` still wins on every class.
 
+  Concretely, with sanitization enabled a malformed UUID now answers
+  `400 BAD_USER_INPUT "The request contains an invalid value"` where it previously echoed
+  Postgres verbatim — `invalid input syntax for type uuid: "not-a-uuid"`. That echo is the
+  part being withheld, and the trade is deliberate: class 22 and 23 faults are the ones a
+  caller can provoke on demand, and the text is Postgres-authored rather than ours (22P02
+  names a column's type, 22001 its width). Deciding per SQLSTATE class which message text is
+  safe to forward is the taxonomy this change exists to remove, so the narrower reading —
+  sanitize class 23 only, since the foreign-key case above is what prompted it — was
+  considered and rejected.
+
   `pg_detail`'s doc comment described this pass-through as intentional. It was an accurate
   description of a defect being read as a specification, and it has been corrected rather than
   left for the next reader.
