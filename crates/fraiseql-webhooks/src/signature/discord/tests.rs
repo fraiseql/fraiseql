@@ -85,7 +85,30 @@ fn test_invalid_public_key_hex() {
     let verifier = DiscordVerifier::new();
     let ts = fresh_timestamp();
     let result = verifier.verify(b"test", "abc123", "not-hex!", Some(&ts), None);
-    assert!(matches!(result, Err(SignatureError::Crypto(_))));
+    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
+}
+
+/// #1045: the counterpart to `test_invalid_public_key_hex`, and the reason
+/// `KeyMaterial` had to be split out of the old `Crypto` variant.
+///
+/// Both inputs fail to decode as hex, but the *key* is the server's and the
+/// *signature* is the sender's, so they must not share an error class: mapping
+/// them alike is what let an unauthenticated caller choose between a 401 and a
+/// 5xx by editing one header.
+#[test]
+fn an_unparseable_signature_is_the_senders_fault_not_key_material() {
+    let verifier = DiscordVerifier::new();
+    let ts = fresh_timestamp();
+    // A real key, so verification reaches the signature decode rather than
+    // stopping at the key — the failure mode that made the SendGrid twin vacuous.
+    let (public_key_hex, _) = make_valid_discord_signature(&ts, br#"{"type":1}"#);
+
+    let result = verifier.verify(b"{\"type\":1}", "zz", &public_key_hex, Some(&ts), None);
+
+    assert!(
+        matches!(result, Err(SignatureError::InvalidFormat)),
+        "an unparseable sender signature must stay the sender's fault; got {result:?}"
+    );
 }
 
 #[test]

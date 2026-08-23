@@ -18,7 +18,7 @@ fn test_invalid_signature() {
 fn test_missing_url_returns_error() {
     let verifier = TwilioVerifier;
     let result = verifier.verify(b"payload", "sig", "secret", None, None);
-    assert!(matches!(result, Err(SignatureError::Crypto(_))));
+    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
 }
 
 #[test]

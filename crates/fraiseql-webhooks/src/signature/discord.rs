@@ -76,7 +76,9 @@ impl SignatureVerifier for DiscordVerifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto("Discord public key must not be empty".to_string()));
+            return Err(SignatureError::KeyMaterial(
+                "Discord public key must not be empty".to_string(),
+            ));
         }
 
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
@@ -87,17 +89,19 @@ impl SignatureVerifier for DiscordVerifier {
 
         // Decode the hex-encoded public key from secret
         let pk_bytes = hex::decode(secret)
-            .map_err(|e| SignatureError::Crypto(format!("invalid public key hex: {e}")))?;
+            .map_err(|e| SignatureError::KeyMaterial(format!("invalid public key hex: {e}")))?;
 
         let public_key = VerifyingKey::try_from(pk_bytes.as_slice())
-            .map_err(|e| SignatureError::Crypto(format!("invalid Ed25519 public key: {e}")))?;
+            .map_err(|e| SignatureError::KeyMaterial(format!("invalid Ed25519 public key: {e}")))?;
 
-        // Decode the hex-encoded signature
-        let sig_bytes = hex::decode(signature)
-            .map_err(|e| SignatureError::Crypto(format!("invalid signature hex: {e}")))?;
+        // Decode the hex-encoded signature. #1045: these two parse the *sender's*
+        // header, so a failure is `InvalidFormat` (the sender's fault, 401) and never
+        // `KeyMaterial` (the server's, 5xx) — otherwise any anonymous caller could mint
+        // a 5xx on demand by posting `X-Signature-Ed25519: zz`.
+        let sig_bytes = hex::decode(signature).map_err(|_| SignatureError::InvalidFormat)?;
 
-        let sig = Signature::try_from(sig_bytes.as_slice())
-            .map_err(|e| SignatureError::Crypto(format!("invalid Ed25519 signature: {e}")))?;
+        let sig =
+            Signature::try_from(sig_bytes.as_slice()).map_err(|_| SignatureError::InvalidFormat)?;
 
         // Discord signs: timestamp + body
         let mut message = timestamp.as_bytes().to_vec();

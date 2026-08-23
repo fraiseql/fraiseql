@@ -32,7 +32,7 @@ impl SignatureVerifier for GitLabVerifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
+            return Err(SignatureError::KeyMaterial(
                 "GitLab webhook token must not be empty".to_string(),
             ));
         }

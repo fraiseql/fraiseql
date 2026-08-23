@@ -81,7 +81,7 @@ fn test_empty_secret_rejected() {
     let ts = fresh_timestamp();
     let sig = format!("ts={ts};h1=abc123");
     let result = verifier.verify(b"payload", &sig, "", None, None);
-    assert!(matches!(result, Err(SignatureError::Crypto(_))));
+    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
 }
 
 #[test]

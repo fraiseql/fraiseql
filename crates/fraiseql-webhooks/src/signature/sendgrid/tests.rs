@@ -25,7 +25,7 @@ fn test_invalid_public_key_returns_error() {
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
     let result = verifier.verify(b"body", "sig", "not-a-pem-key", Some(&ts), None);
-    assert!(matches!(result, Err(SignatureError::Crypto(_))));
+    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
 }
 
 #[test]
@@ -42,19 +42,37 @@ fn test_expired_timestamp_rejected() {
     assert!(matches!(result, Err(SignatureError::TimestampExpired)));
 }
 
+/// A genuinely valid SPKI PEM for a freshly generated P-256 key.
+///
+/// The previous fixture here was a hand-written PEM introduced with the comment
+/// "use a real PEM key stub to get past key parsing"; its point is not on the curve,
+/// so `from_public_key_pem` rejected it and this test never reached the signature
+/// decode it is named for. Generating the key is what makes the name true (#1174).
+fn valid_public_key_pem() -> String {
+    use p256::{ecdsa::SigningKey, pkcs8::EncodePublicKey as _};
+    use rand_core::OsRng;
+
+    SigningKey::random(&mut OsRng)
+        .verifying_key()
+        .to_public_key_pem(p256::pkcs8::der::pem::LineEnding::default())
+        .expect("P-256 VerifyingKey serializes to SPKI PEM")
+}
+
 #[test]
 fn test_invalid_signature_base64() {
     let verifier = SendGridVerifier::new();
-    // Use a real PEM key stub to get past key parsing
-    let pem = concat!(
-        "-----BEGIN PUBLIC KEY-----\n",
-        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0OaghMQgGMiXbDEsGDFvZJeXRrwv\n",
-        "oHSoitCAYeOSe9tqLl9xn7xbFvs5N2H+FzP9Y+sX7jlGRzW5/3D3OQ==\n",
-        "-----END PUBLIC KEY-----\n"
-    );
     let ts = fresh_timestamp();
-    let result = verifier.verify(b"body", "not-base64!!!", pem, Some(&ts), None);
-    assert!(matches!(result, Err(SignatureError::Crypto(_))));
+
+    let result =
+        verifier.verify(b"body", "not-base64!!!", &valid_public_key_pem(), Some(&ts), None);
+
+    // #1045: the signature is the *sender's* input, so an unparseable one is
+    // `InvalidFormat` (401) — never `KeyMaterial`, which is reserved for the server's
+    // own configured key and maps to a 5xx.
+    assert!(
+        matches!(result, Err(SignatureError::InvalidFormat)),
+        "an unparseable sender signature must be the sender's fault; got {result:?}"
+    );
 }
 
 #[test]
@@ -62,7 +80,7 @@ fn test_empty_secret_rejected() {
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
     let result = verifier.verify(b"body", "sig", "", Some(&ts), None);
-    assert!(matches!(result, Err(SignatureError::Crypto(_))));
+    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
 }
 
 /// Round-trip test: generate a P-256 key pair, sign, and verify.

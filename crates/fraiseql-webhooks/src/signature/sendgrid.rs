@@ -80,7 +80,7 @@ impl SignatureVerifier for SendGridVerifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
+            return Err(SignatureError::KeyMaterial(
                 "SendGrid public key must not be empty".to_string(),
             ));
         }
@@ -93,16 +93,19 @@ impl SignatureVerifier for SendGridVerifier {
 
         // Decode the PEM public key from `secret`.
         let public_key = VerifyingKey::from_public_key_pem(secret).map_err(|e| {
-            SignatureError::Crypto(format!("invalid SendGrid P-256 public key: {e}"))
+            SignatureError::KeyMaterial(format!("invalid SendGrid P-256 public key: {e}"))
         })?;
 
-        // Decode the Base64-encoded DER signature.
+        // Decode the Base64-encoded DER signature. #1045: these two parse the *sender's*
+        // header, so a failure is `InvalidFormat` (the sender's fault, 401) and never
+        // `KeyMaterial` (the server's, 5xx) — otherwise any anonymous caller could mint a
+        // 5xx on demand by posting an unparseable signature.
         let sig_der = general_purpose::STANDARD
             .decode(signature)
-            .map_err(|e| SignatureError::Crypto(format!("invalid signature base64: {e}")))?;
+            .map_err(|_| SignatureError::InvalidFormat)?;
 
         let sig = DerSignature::try_from(sig_der.as_slice())
-            .map_err(|e| SignatureError::Crypto(format!("invalid DER signature: {e}")))?;
+            .map_err(|_| SignatureError::InvalidFormat)?;
 
         // SendGrid signed message: timestamp_bytes + body_bytes
         let mut message = ts.as_bytes().to_vec();

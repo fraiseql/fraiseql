@@ -94,7 +94,7 @@ impl SignatureVerifier for PaddleVerifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
+            return Err(SignatureError::KeyMaterial(
                 "Paddle webhook secret must not be empty".to_string(),
             ));
         }
@@ -110,7 +110,7 @@ impl SignatureVerifier for PaddleVerifier {
         signing.extend_from_slice(payload);
 
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| SignatureError::Crypto(e.to_string()))?;
+            .map_err(|e| SignatureError::KeyMaterial(e.to_string()))?;
         mac.update(&signing);
 
         let expected = hex::encode(mac.finalize().into_bytes());

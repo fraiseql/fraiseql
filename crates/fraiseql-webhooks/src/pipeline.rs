@@ -21,7 +21,7 @@ use serde_json::Value;
 
 use crate::{
     EventHandler, IdempotencyStore, Result, SecretProvider, SignatureVerifier, WebhookError,
-    WebhookIsolation,
+    WebhookIsolation, signature::SignatureError,
 };
 
 /// One inbound webhook delivery to be processed by [`WebhookPipeline::process`].
@@ -88,6 +88,16 @@ pub fn verify_signature(
     ) {
         Ok(true) => Ok(()),
         Ok(false) => Err(WebhookError::SignatureInvalid("signature mismatch".to_string())),
+        // #1045: route by *who is at fault*. Unusable key material is the operator's
+        // misconfiguration and must not be reported to the sender as a 401 — providers
+        // treat sustained auth failures as a reason to disable the endpoint, so the
+        // whole misconfiguration window is lost. Every other variant is sender-caused.
+        //
+        // The discrimination has to happen at the producer, which is why
+        // `SignatureError::KeyMaterial` exists: the old `Crypto` variant also carried
+        // sender-supplied signature-decode failures, so matching on it here would have
+        // let any anonymous caller mint a 5xx on demand.
+        Err(SignatureError::KeyMaterial(reason)) => Err(WebhookError::KeyMaterial(reason)),
         Err(e) => Err(WebhookError::SignatureInvalid(e.to_string())),
     }
 }

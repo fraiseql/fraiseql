@@ -75,7 +75,7 @@ impl SignatureVerifier for StripeVerifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto(
+            return Err(SignatureError::KeyMaterial(
                 "Stripe webhook secret must not be empty".to_string(),
             ));
         }
@@ -112,7 +112,7 @@ impl SignatureVerifier for StripeVerifier {
         let signed_payload = format!("{}.{}", timestamp, String::from_utf8_lossy(payload));
 
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| SignatureError::Crypto(e.to_string()))?;
+            .map_err(|e| SignatureError::KeyMaterial(e.to_string()))?;
         mac.update(signed_payload.as_bytes());
 
         let expected = hex::encode(mac.finalize().into_bytes());

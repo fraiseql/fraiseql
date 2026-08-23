@@ -56,10 +56,12 @@ impl SignatureVerifier for HmacSha256Verifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto("HMAC-SHA256 secret must not be empty".to_string()));
+            return Err(SignatureError::KeyMaterial(
+                "HMAC-SHA256 secret must not be empty".to_string(),
+            ));
         }
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| SignatureError::Crypto(e.to_string()))?;
+            .map_err(|e| SignatureError::KeyMaterial(e.to_string()))?;
         mac.update(payload);
 
         let expected = hex::encode(mac.finalize().into_bytes());
@@ -110,10 +112,12 @@ impl SignatureVerifier for HmacSha1Verifier {
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         if secret.is_empty() {
-            return Err(SignatureError::Crypto("HMAC-SHA1 secret must not be empty".to_string()));
+            return Err(SignatureError::KeyMaterial(
+                "HMAC-SHA1 secret must not be empty".to_string(),
+            ));
         }
         let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes())
-            .map_err(|e| SignatureError::Crypto(e.to_string()))?;
+            .map_err(|e| SignatureError::KeyMaterial(e.to_string()))?;
         mac.update(payload);
 
         let expected = hex::encode(mac.finalize().into_bytes());

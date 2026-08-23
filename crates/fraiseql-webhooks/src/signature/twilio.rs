@@ -10,7 +10,7 @@
 //!   the hash over the body it actually received and compares.
 //!
 //! The `url` parameter is required. Without it, verification fails with
-//! `SignatureError::Crypto`.
+//! `SignatureError::KeyMaterial`.
 //!
 //! # The `bodySHA256` parameter is not trusted input (#1069)
 //!
@@ -191,7 +191,7 @@ impl SignatureVerifier for TwilioVerifier {
     ) -> Result<bool, SignatureError> {
         // Twilio signatures are computed over the URL, not just the body.
         let url = url.ok_or_else(|| {
-            SignatureError::Crypto(
+            SignatureError::KeyMaterial(
                 "Twilio signature verification requires the request URL. \
                  Pass the full request URL as the `url` parameter."
                     .to_string(),
@@ -199,7 +199,9 @@ impl SignatureVerifier for TwilioVerifier {
         })?;
 
         if secret.is_empty() {
-            return Err(SignatureError::Crypto("Twilio auth token must not be empty".to_string()));
+            return Err(SignatureError::KeyMaterial(
+                "Twilio auth token must not be empty".to_string(),
+            ));
         }
 
         // `None` means the URI declared a `bodySHA256` that is not this body's digest:
@@ -211,7 +213,7 @@ impl SignatureVerifier for TwilioVerifier {
         };
 
         let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes())
-            .map_err(|e| SignatureError::Crypto(e.to_string()))?;
+            .map_err(|e| SignatureError::KeyMaterial(e.to_string()))?;
         mac.update(signing_string.as_bytes());
 
         let expected = general_purpose::STANDARD.encode(mac.finalize().into_bytes());

@@ -33,6 +33,6 @@ fn test_empty_secret_errors() {
     let verifier = PostmarkVerifier;
     assert!(matches!(
         verifier.verify(b"test", "anything", "", None, None),
-        Err(SignatureError::Crypto(_))
+        Err(SignatureError::KeyMaterial(_))
     ));
 }

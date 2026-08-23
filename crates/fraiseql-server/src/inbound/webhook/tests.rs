@@ -219,6 +219,101 @@ mod error_body_sanitization {
     }
 }
 
+// ── #1045: who is at fault decides the status, and `Crypto` cannot decide it ──
+
+mod key_material_is_not_the_senders_fault {
+    //! `SignatureError::KeyMaterial` was raised for **two** unrelated things: server-side
+    //! key material that failed to parse, and sender-supplied signature bytes that
+    //! failed to parse. Both collapsed into `SignatureInvalid` → 401.
+    //!
+    //! A 401 for a server-side misconfiguration blames the sender for the operator's
+    //! mistake, and providers that disable an endpoint after sustained auth failures
+    //! drop every event in the window. But the naive repair — routing `Crypto` to 5xx
+    //! at the pipeline — is worse: `discord.rs:97/100` and `sendgrid.rs:102/105` parse
+    //! **sender** bytes, so it would hand any anonymous caller an on-demand 5xx.
+    //!
+    //! Hence the split at the producer, and hence the second test here: it is the
+    //! guard that the fix did not overshoot.
+
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use tower::ServiceExt as _;
+
+    use super::{HashMap, WebhookInboundState, lazy_pool, webhook_router};
+    use crate::config::WebhookRouteConfig;
+
+    /// RFC 8032 test vector 1's public key — a genuinely valid Ed25519 point, so a
+    /// route carrying it reaches the *signature* parse rather than failing on the key.
+    const VALID_ED25519_PUBLIC_KEY: &str =
+        "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
+
+    fn discord_router(configured_key: &'static str) -> Router {
+        let mut routes = HashMap::new();
+        routes.insert(
+            "discord".to_string(),
+            WebhookRouteConfig {
+                secret_env: "TEST_DISCORD_KEY".to_string(),
+                provider:   "discord".to_string(),
+                path:       None,
+                public_url: None,
+            },
+        );
+        let state =
+            WebhookInboundState::new(lazy_pool(), &routes, |_| Some(configured_key.to_string()));
+        webhook_router(state)
+    }
+
+    /// Discord checks freshness before it parses either key or signature, so both
+    /// tests need a timestamp inside the tolerance window to reach the parse at all.
+    fn request(signature: &str) -> Request<Body> {
+        Request::builder()
+            .method("POST")
+            .uri("/webhooks/discord")
+            .header("X-Signature-Ed25519", signature)
+            .header("X-Signature-Timestamp", chrono::Utc::now().timestamp().to_string())
+            .body(Body::from(r#"{"id":"evt_1","type":1}"#))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_misconfigured_signing_key_is_the_servers_fault_not_a_401() {
+        // The operator pasted something that is not hex into the route's key env.
+        let response = discord_router("not-hex!").oneshot(request("aabb")).await.unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "unparseable configured key material is a server-side misconfiguration; \
+             answering 401 blames the sender and invites the provider to disable the endpoint"
+        );
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let text = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(
+            !text.contains("hex") && !text.contains("public key"),
+            "the key-parsing detail belongs in the operator's log, not the response; got {text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_malformed_sender_signature_is_still_a_401() {
+        // Guard against overshooting: this Crypto comes from the *sender's* header, so
+        // routing the whole variant to 5xx would let any anonymous caller mint one.
+        let response =
+            discord_router(VALID_ED25519_PUBLIC_KEY).oneshot(request("zz")).await.unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::UNAUTHORIZED,
+            "an unparseable signature header is the sender's fault and must stay 401, \
+             or an anonymous caller can produce a 5xx on demand"
+        );
+    }
+}
+
 // ── #751: dedup keys must derive from signed material only ──────────────
 
 mod signed_dedup_key {

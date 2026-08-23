@@ -140,6 +140,17 @@ pub enum WebhookError {
     #[error("Invalid payload: {0}")]
     InvalidPayload(String),
 
+    /// The server's configured signing key material could not be used — it was present
+    /// but empty, or failed to parse as the provider's key format. The inner string is
+    /// the underlying reason, for the operator's log only.
+    ///
+    /// Distinct from [`WebhookError::SignatureInvalid`] because the fault is the
+    /// operator's, not the sender's: this maps to a 5xx so the provider retries and the
+    /// delivery survives the misconfiguration window, instead of a 401 that tells the
+    /// provider to give up (#1045).
+    #[error("Webhook key material is unusable: {0}")]
+    KeyMaterial(String),
+
     /// A sqlx database operation failed inside a caller-driven transaction.
     /// The inner string is the sqlx error message.
     #[error("Database error: {0}")]
@@ -191,6 +202,14 @@ impl From<WebhookError> for fraiseql_error::FraiseQLError {
                 // body; the env-var / secret name belongs in the operator's log
                 // only (#787).
                 tracing::error!(secret = %name, "webhook signing secret is not configured");
+                Self::Configuration {
+                    message: "webhook route is not fully configured (see server logs)".into(),
+                }
+            },
+            WebhookError::KeyMaterial(reason) => {
+                // Same posture as `MissingSecret`: the operator needs the reason, the
+                // unauthenticated caller must not have it (#787/#1045).
+                tracing::error!(reason = %reason, "webhook signing key material is unusable");
                 Self::Configuration {
                     message: "webhook route is not fully configured (see server logs)".into(),
                 }

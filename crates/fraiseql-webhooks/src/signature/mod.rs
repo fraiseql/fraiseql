@@ -42,10 +42,24 @@ pub enum SignatureError {
     #[error("Missing timestamp")]
     MissingTimestamp,
 
-    /// A cryptographic operation failed (e.g., an invalid key was supplied or key parsing failed).
-    /// The inner string contains the underlying error message.
-    #[error("Crypto error: {0}")]
-    Crypto(String),
+    /// The **server's** configured key material could not be used: it was empty, or it
+    /// failed to parse as the provider's key format (hex, PEM, DER), or a required
+    /// signing input the operator configures (Twilio's `public_url`) was absent.
+    ///
+    /// This variant exists to be discriminable from the sender-caused variants above,
+    /// because the two have opposite HTTP answers: a delivery that fails here is the
+    /// operator's misconfiguration and maps to a 5xx, while everything else in this enum
+    /// is the sender's fault and maps to 401 (#1045).
+    ///
+    /// It must therefore **never** be raised for anything parsed out of the request —
+    /// signature bytes in particular. Doing so would let an unauthenticated caller
+    /// produce a 5xx on demand. Sender-supplied bytes that do not parse are
+    /// [`SignatureError::InvalidFormat`].
+    ///
+    /// The inner string is the underlying error message, for the operator's log; it is
+    /// not safe to return to the caller.
+    #[error("Key material error: {0}")]
+    KeyMaterial(String),
 }
 
 /// Constant-time comparison to prevent timing attacks.
