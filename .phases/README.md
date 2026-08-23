@@ -40,6 +40,15 @@ Supporting documents at this level:
 
 ## Not in the release program — decided separately
 
+- **[2026-08-20-document-validation-gaps/](2026-08-20-document-validation-gaps/) — the #1154
+  family.** Nine phases. #1154 closed one door (an undeclared *argument* is now refused);
+  re-probing found the same silent-discard failure mode through six more: unvalidated variable
+  definitions and references (§5.8.2/§5.8.3/§5.8.4), unvalidated `where` field names,
+  unvalidated `orderBy` field names on both the list and window paths (#1014), case-sensitive
+  `ID` equality, and introspection ignoring the selection set. Written against `0fe785b07`;
+  its README §2 records **nine places the source brief disagreed with the tree**. Five human
+  decisions gate it, including whether any of it delays the v2.15.0 cut — start at
+  [P00](2026-08-20-document-validation-gaps/phase-00-decisions-and-sequencing.md).
 - **The 101-issue backlog** (48 audit pass 4 · 47 the last program's rule-6 residue ·
   6 deferrals). Needs a triage decision, not a phase. Analysis in
   [BACKLOG-2026-08-16.md](BACKLOG-2026-08-16.md).
