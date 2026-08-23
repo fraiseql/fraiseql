@@ -167,7 +167,10 @@ impl WebhookInboundState {
 
         for (name, config) in routes {
             let segment = config.path.clone().unwrap_or_else(|| name.clone());
-            let Some(secret) = get_env(&config.secret_env) else {
+            // #1045: `SECRET_ENV=""` is unset for every purpose that matters — it cannot
+            // verify anything — so it takes the same skip path rather than mounting a
+            // route that answers 401 to every genuine delivery.
+            let Some(secret) = get_env(&config.secret_env).filter(|s| !s.is_empty()) else {
                 tracing::warn!(
                     route = %name,
                     secret_env = %config.secret_env,
@@ -291,13 +294,17 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
                 config.provider
             )));
         }
-        if get_env(&config.secret_env).is_none() {
+        // #1045: an env var that is set but empty verifies nothing, so it is treated as
+        // unset here too. Checking only `is_none()` let `SECRET_ENV=""` boot clean and
+        // then fail every delivery with a 401 that blamed the sender.
+        if get_env(&config.secret_env).filter(|s| !s.is_empty()).is_none() {
             if is_production {
                 return Err(crate::ServerError::ConfigError(format!(
-                    "[webhooks.{name}] secret_env = {:?} is not set in the environment, so \
-                     the configured route cannot verify any delivery. Set the variable, or \
-                     remove the route. (For local development only, FRAISEQL_ENV=development \
-                     downgrades this to a warning and skips the route.)",
+                    "[webhooks.{name}] secret_env = {:?} is not set (or is empty) in the \
+                     environment, so the configured route cannot verify any delivery. Set \
+                     the variable, or remove the route. (For local development only, \
+                     FRAISEQL_ENV=development downgrades this to a warning and skips the \
+                     route.)",
                     config.secret_env
                 )));
             }

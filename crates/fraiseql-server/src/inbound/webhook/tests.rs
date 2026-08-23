@@ -314,6 +314,68 @@ mod key_material_is_not_the_senders_fault {
     }
 }
 
+// ── #1045: a secret that is set but empty is not a secret ──────────────
+
+mod empty_secret_is_not_configured {
+    //! `webhook_routes_check` asked only whether the env var was *absent*, so
+    //! `SECRET_ENV=""` booted clean in production. The route then mounted, and every
+    //! genuine delivery met a verifier whose `secret.is_empty()` guard fired — so a
+    //! pure server-side config error was reported to the sender as a 401.
+    //!
+    //! Empty is treated as unset in all three places that ask: the boot check refuses
+    //! it in production, and the mount path skips the route rather than serving one
+    //! that cannot verify anything.
+
+    use super::{super::webhook_routes_check, HashMap, WebhookInboundState, lazy_pool};
+    use crate::config::WebhookRouteConfig;
+
+    fn one_route() -> HashMap<String, WebhookRouteConfig> {
+        let mut routes = HashMap::new();
+        routes.insert(
+            "hooks".to_string(),
+            WebhookRouteConfig {
+                secret_env: "TEST_WEBHOOK_SECRET".to_string(),
+                provider:   "hmac-sha256".to_string(),
+                path:       None,
+                public_url: None,
+            },
+        );
+        routes
+    }
+
+    #[test]
+    fn production_refuses_a_route_whose_secret_env_is_empty() {
+        let error = webhook_routes_check(&one_route(), |_| Some(String::new()), true)
+            .expect_err("an empty signing secret cannot verify a delivery, so it must not boot");
+
+        let message = error.to_string();
+        assert!(
+            message.contains("TEST_WEBHOOK_SECRET"),
+            "the refusal must name the variable the operator has to fix; got {message}"
+        );
+    }
+
+    #[test]
+    fn a_non_empty_secret_still_boots() {
+        // The guard against overshooting: the check must still accept a real secret.
+        assert!(
+            webhook_routes_check(&one_route(), |_| Some("s3cret".to_string()), true).is_ok(),
+            "a configured, non-empty secret is exactly the case that must boot"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_route_with_an_empty_secret_is_not_mounted() {
+        // Same disposition as an unset variable (#787): unmounted, so it 404s rather
+        // than mounting a route that 401s every genuine delivery.
+        let state = WebhookInboundState::new(lazy_pool(), &one_route(), |_| Some(String::new()));
+        assert!(
+            state.routes.is_empty(),
+            "a route whose secret is empty must be skipped, not mounted"
+        );
+    }
+}
+
 // ── #751: dedup keys must derive from signed material only ──────────────
 
 mod signed_dedup_key {

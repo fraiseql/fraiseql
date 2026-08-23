@@ -43,6 +43,12 @@ impl SecretProvider for StaticSecretProvider {
     async fn get_secret(&self, name: &str) -> Result<String> {
         self.secrets
             .get(name)
+            // #1045: a registered-but-empty secret is a misconfiguration, not a secret.
+            // Returning `Ok("")` kept this type's documented fail-closed guarantee true
+            // only for *absent* names: an operator with `SECRET_ENV=""` booted clean, and
+            // then every verifier's own `secret.is_empty()` guard reported the config
+            // error to the sender as a 401.
+            .filter(|secret| !secret.is_empty())
             .cloned()
             .ok_or_else(|| WebhookError::MissingSecret(name.to_string()))
     }

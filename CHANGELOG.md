@@ -5285,6 +5285,35 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **The inbound webhook route no longer returns internal error text to unauthenticated
+  callers, and a misconfigured signing key is no longer reported as the sender's fault
+  (#1045).**
+
+  Three defects on one route, all of which answered the wrong thing to whoever posted to
+  `POST /webhooks/{provider}` — a caller who is, at that point, unauthenticated by definition.
+
+  - **The sanitizer was bypassed.** `impl IntoResponse for FraiseQLError` exists to collapse
+    internal detail — `Authentication` to a flat `"Authentication failed"`, `Database` to
+    `"A database error occurred"` — but the route hand-rolled `{"error": mapped.to_string()}`
+    and so returned the whole `Display` chain instead. A forged signature answered
+    `Authentication error: webhook signature verification failed: signature mismatch`, and a
+    failing spine claim put **raw PostgreSQL error text** in a 5xx body. The route now renders
+    through that impl; the suppressed detail is logged with route and provider context.
+  - **`SignatureError::Crypto` conflated two opposite faults** — the server's configured key
+    material and the sender's signature bytes — and both became 401. An operator whose key
+    fails to parse got a route that blamed the sender, and providers that disable an endpoint
+    after sustained auth failures drop every event in that window. The variant is now
+    `KeyMaterial`, raised only for the server's own key, and maps to a 5xx; the four producers
+    that decode sender-supplied signatures (Discord hex and Ed25519, SendGrid base64 and DER)
+    raise the sender-fault `InvalidFormat` and stay 401. The split is made at the producer
+    deliberately: discriminating on the old variant at the pipeline would have let any
+    anonymous caller mint a 5xx on demand.
+  - **An empty signing secret is now a missing one.** `SECRET_ENV=""` passed the boot check,
+    which asked only whether the variable was absent, and `StaticSecretProvider` returned
+    `Ok("")` rather than `MissingSecret` — against its own documented fail-closed guarantee.
+    The route mounted and then failed every genuine delivery with a 401. Empty is treated as
+    unset in all three places that ask.
+
 - **The rate limiter's bucket keys are derived only from facts a caller cannot forge, and a
   full bucket map no longer refuses strangers (#1143).**
 
