@@ -121,6 +121,27 @@ pub struct SchemaRegistry {
     version_counter: AtomicU64,
 }
 
+/// What a [`SchemaRegistry::reload_all_schemas`] pass actually did.
+///
+/// Individual view failures used to be `warn!`-logged and discarded, so the caller
+/// could only ever report success. Carrying them lets the admin action tell an
+/// operator that a refresh it acknowledged did not, in fact, refresh (#1039).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SchemaReloadOutcome {
+    /// Views reloaded successfully.
+    pub reloaded: usize,
+    /// One `"<view>: <error>"` entry per view that failed to reload.
+    pub failed:   Vec<String>,
+}
+
+impl SchemaReloadOutcome {
+    /// Whether every attempted view reloaded.
+    #[must_use]
+    pub const fn is_complete(&self) -> bool {
+        self.failed.is_empty()
+    }
+}
+
 impl SchemaRegistry {
     /// Create a new schema registry.
     #[must_use]
@@ -254,37 +275,39 @@ impl SchemaRegistry {
         }
     }
 
-    /// Reload all schemas from the database (safe for running queries).
+    /// Reload every **registered** schema from the database (safe for running queries).
     ///
-    /// Attempts to reload each known view. Failures on individual views are logged
-    /// but do not prevent other views from reloading.
+    /// Attempts to reload each view currently in the registry. A failure on one view
+    /// does not prevent the others from reloading; every failure is reported in the
+    /// returned outcome rather than only logged, so a caller can tell an operator
+    /// what actually happened (#1039).
     ///
-    /// # Returns
-    ///
-    /// `Ok(count)` with the number of successfully reloaded schemas.
-    ///
-    /// # Errors
-    ///
-    /// This function is currently infallible and always returns `Ok`. Individual
-    /// view reload failures are logged as warnings but do not propagate.
-    pub async fn reload_all_schemas(&self, db_adapter: &dyn ArrowDatabaseAdapter) -> Result<usize> {
+    /// Before #1039 this iterated a hardcoded `["va_orders", "va_users", "ta_orders",
+    /// "ta_users"]`, so a view an embedder had registered through
+    /// [`SchemaRegistry::register`] was never refreshed no matter how often the admin
+    /// action was invoked.
+    pub async fn reload_all_schemas(
+        &self,
+        db_adapter: &dyn ArrowDatabaseAdapter,
+    ) -> SchemaReloadOutcome {
         use tracing::warn;
 
-        let views = vec!["va_orders", "va_users", "ta_orders", "ta_users"];
-        let mut reloaded_count = 0;
+        // Collect first: `reload_schema` writes to the same map we are iterating.
+        let views: Vec<String> = self.schemas.iter().map(|entry| entry.key().clone()).collect();
+
+        let mut outcome = SchemaReloadOutcome::default();
 
         for view_name in views {
-            match self.reload_schema(view_name, db_adapter).await {
-                Ok(_) => {
-                    reloaded_count += 1;
-                },
+            match self.reload_schema(&view_name, db_adapter).await {
+                Ok(_) => outcome.reloaded += 1,
                 Err(e) => {
                     warn!(view = %view_name, error = %e, "Failed to reload schema");
+                    outcome.failed.push(format!("{view_name}: {e}"));
                 },
             }
         }
 
-        Ok(reloaded_count)
+        outcome
     }
 
     /// Check if a view has a registered schema.

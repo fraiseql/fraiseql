@@ -1321,45 +1321,71 @@ impl FraiseQLFlightService {
 
     /// Handle `RefreshSchemaRegistry` action.
     ///
-    /// Admin-only action that safely reloads schema definitions from the database
-    /// without disrupting running queries (Copy-on-Write via Arc<Schema>).
+    /// Admin-only action that reloads schema definitions from the database without
+    /// disrupting running queries (copy-on-write via `Arc<Schema>`).
     ///
     /// Returns a JSON result with:
-    /// - `success`: true/false
+    /// - `success`: whether every registered view reloaded
     /// - `reloaded_count`: number of successfully reloaded schemas
+    /// - `failed`: one entry per view that did not reload, with its error
     /// - `message`: descriptive message
-    pub(crate) fn handle_refresh_schema_registry(&self) -> ActionResultStream {
+    ///
+    /// The response reports the outcome (#1039). It previously returned
+    /// `success: true` unconditionally, *outside* the `if let Some(adapter)` guard,
+    /// so a service with no database adapter reported that a reload had started when
+    /// nothing had been spawned at all. It never carried `reloaded_count` despite
+    /// this doc promising it, and per-view failures were only `warn!`-logged — so an
+    /// operator whose refresh silently did nothing was told it had succeeded, and
+    /// subsequent queries kept being shaped by the stale schema.
+    ///
+    /// The reload is awaited rather than spawned. It is a handful of admin-triggered
+    /// queries, and a result the caller cannot observe is worth less than the latency
+    /// it saves.
+    pub(crate) async fn handle_refresh_schema_registry(&self) -> ActionResultStream {
         info!("RefreshSchemaRegistry action triggered");
 
-        let db_adapter = self.db_adapter.clone();
-        let schema_registry = Arc::clone(&self.schema_registry);
+        let Some(adapter) = self.db_adapter.as_ref() else {
+            warn!("RefreshSchemaRegistry: no database adapter is configured");
+            return Self::action_json(&serde_json::json!({
+                "success": false,
+                "reloaded_count": 0,
+                "failed": [],
+                "message": "No database adapter is configured; no schema could be reloaded.",
+            }));
+        };
 
-        // Spawn background task to reload schemas
-        if let Some(adapter) = db_adapter {
-            tokio::spawn(async move {
-                match schema_registry.reload_all_schemas(adapter.as_ref()).await {
-                    Ok(count) => {
-                        info!("Schema reload completed: {} schemas reloaded", count);
-                    },
-                    Err(e) => {
-                        warn!("Schema reload failed: {}", e);
-                    },
-                }
-            });
+        let outcome = self.schema_registry.reload_all_schemas(adapter.as_ref()).await;
+
+        let message = if outcome.is_complete() {
+            format!("Reloaded {} schema(s)", outcome.reloaded)
+        } else {
+            format!("Reloaded {} schema(s); {} failed", outcome.reloaded, outcome.failed.len())
+        };
+
+        if outcome.is_complete() {
+            info!(reloaded = outcome.reloaded, "Schema reload completed");
+        } else {
+            warn!(
+                reloaded = outcome.reloaded,
+                failed = outcome.failed.len(),
+                "Schema reload completed with failures"
+            );
         }
 
-        // Return immediate response to client
-        let response = serde_json::json!({
-            "success": true,
-            "message": "Schema reload started (processing in background)",
-        });
+        Self::action_json(&serde_json::json!({
+            "success": outcome.is_complete(),
+            "reloaded_count": outcome.reloaded,
+            "failed": outcome.failed,
+            "message": message,
+        }))
+    }
 
+    /// Wrap a JSON value as a single-result action stream.
+    fn action_json(value: &serde_json::Value) -> ActionResultStream {
         let result = Ok(arrow_flight::Result {
-            body: serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec()).into(),
+            body: serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec()).into(),
         });
-
-        let stream = futures::stream::iter(vec![result]);
-        Box::pin(stream)
+        Box::pin(futures::stream::iter(vec![result]))
     }
 
     /// Handle `GetSchemaVersions` action.
@@ -1756,5 +1782,123 @@ mod bulk_export_document_tests {
         let document = exported_csv_document(10_001).await;
         let non_empty = document.lines().filter(|line| !line.trim().is_empty()).count();
         assert_eq!(non_empty, 10_002, "expected 1 header + 10 001 data rows");
+    }
+}
+
+/// #1039 — the `RefreshSchemaRegistry` response must report what the reload did.
+///
+/// The only pre-existing test built a service with no adapter and asserted that
+/// `do_action` returned `Ok`. Because the handler answered `success: true`
+/// unconditionally and no adapter meant no reload was even spawned, that assertion
+/// held for every possible implementation — including one that did nothing at all.
+#[cfg(test)]
+mod refresh_schema_registry_tests {
+    #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
+
+    use std::{collections::HashMap, sync::Arc};
+
+    use async_trait::async_trait;
+    use futures::StreamExt;
+
+    use super::FraiseQLFlightService;
+    use crate::db::{ArrowDatabaseAdapter, DatabaseResult};
+
+    /// Returns one row for any query, so every view reloads successfully.
+    struct OneRowAdapter;
+
+    // Reason: the adapter trait's methods are async; impls must match its signatures.
+    #[async_trait]
+    impl ArrowDatabaseAdapter for OneRowAdapter {
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
+            let mut row = HashMap::new();
+            row.insert("id".to_string(), serde_json::json!("1"));
+            Ok(vec![row])
+        }
+    }
+
+    /// Returns no rows, so `reload_schema` cannot infer and every view fails.
+    struct EmptyAdapter;
+
+    // Reason: the adapter trait's methods are async; impls must match its signatures.
+    #[async_trait]
+    impl ArrowDatabaseAdapter for EmptyAdapter {
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Run the action and decode its single JSON result.
+    async fn refresh_body(svc: &FraiseQLFlightService) -> serde_json::Value {
+        let mut stream = svc.handle_refresh_schema_registry().await;
+        let result = stream
+            .next()
+            .await
+            .expect("the action must produce a result")
+            .expect("the result must not be an error");
+        serde_json::from_slice(&result.body).expect("the body must be JSON")
+    }
+
+    /// With no adapter nothing can reload, so the response must not claim success.
+    #[tokio::test]
+    async fn no_adapter_reports_failure_rather_than_a_started_reload() {
+        let body = refresh_body(&FraiseQLFlightService::new()).await;
+
+        assert_eq!(body["success"], serde_json::json!(false), "body: {body}");
+        assert_eq!(body["reloaded_count"], serde_json::json!(0), "body: {body}");
+    }
+
+    /// A successful reload reports the count the documented contract promises, and
+    /// covers every *registered* view.
+    ///
+    /// The extra view matters: the reload used to iterate a hardcoded
+    /// `["va_orders", "va_users", "ta_orders", "ta_users"]`, so asserting against
+    /// only the defaults would pass whether or not the hardcoding was fixed. A view
+    /// that list can never contain is what makes this test discriminate.
+    #[tokio::test]
+    async fn successful_reload_covers_every_registered_view() {
+        use arrow::datatypes::{DataType, Field, Schema};
+
+        let svc = FraiseQLFlightService::new_with_db(Arc::new(OneRowAdapter));
+
+        let defaults = svc.schema_registry.len();
+        assert!(defaults > 0, "the fixture needs registered views");
+
+        svc.schema_registry.register(
+            "va_invoices",
+            Arc::new(Schema::new(vec![Field::new("id", DataType::Utf8, true)])),
+        );
+        let registered = svc.schema_registry.len();
+        assert_eq!(registered, defaults + 1, "the extra view must be registered");
+
+        let body = refresh_body(&svc).await;
+
+        assert_eq!(body["success"], serde_json::json!(true), "body: {body}");
+        assert_eq!(
+            body["reloaded_count"],
+            serde_json::json!(registered),
+            "every registered view must reload, not a hardcoded list: {body}"
+        );
+    }
+
+    /// A per-view failure must reach the operator instead of being `warn!`-logged
+    /// and reported as success.
+    #[tokio::test]
+    async fn a_failing_reload_is_reported_not_swallowed() {
+        let svc = FraiseQLFlightService::new_with_db(Arc::new(EmptyAdapter));
+
+        let body = refresh_body(&svc).await;
+
+        assert_eq!(body["success"], serde_json::json!(false), "body: {body}");
+        assert_eq!(body["reloaded_count"], serde_json::json!(0), "body: {body}");
+        assert!(
+            !body["failed"].as_array().expect("failed must be an array").is_empty(),
+            "the failing views must be named: {body}"
+        );
     }
 }

@@ -49,7 +49,7 @@ pub(super) async fn do_action(
                 ));
             }
 
-            svc.handle_refresh_schema_registry()
+            svc.handle_refresh_schema_registry().await
         },
         "GetSchemaVersions" => {
             // Admin-only action - verify "admin" scope

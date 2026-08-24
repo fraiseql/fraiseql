@@ -3293,6 +3293,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`RefreshSchemaRegistry` reports what the reload actually did (#1039).**
+
+  The action returned `{"success": true, "message": "Schema reload started"}` from *outside*
+  the `if let Some(adapter)` guard, so a service with no database adapter — where nothing was
+  spawned at all — still told the caller a reload had started. Its own documented contract
+  promised `success: true/false` and a `reloaded_count`; the response could never be `false`
+  and never carried a count. Per-view failures were only `warn!`-logged, so an operator whose
+  refresh silently did nothing was told it had succeeded while subsequent queries kept being
+  shaped by the stale schema.
+
+  The reload is now awaited rather than spawned — it is a handful of admin-triggered queries,
+  and a result the caller cannot observe is worth less than the latency it saves — and the
+  response carries `success`, `reloaded_count` and a `failed` list naming each view that did
+  not reload with its error.
+
+  The reload also covers every **registered** view. It previously iterated a hardcoded
+  `["va_orders", "va_users", "ta_orders", "ta_users"]`, so a view registered through
+  `SchemaRegistry::register` was never refreshed however often the action was invoked.
+
+  ⚠ The only test covering this built a service with no adapter and asserted that `do_action`
+  returned `Ok` — which held for every possible implementation, including one that did
+  nothing. The response body is now asserted.
+
 - **`GetSchema` no longer advertises a GraphQL result schema the data stream never produces (#1037).**
 
   For a `GraphQLQuery` ticket, `GetSchema`, `GetFlightInfo` and `PollFlightInfo` returned the
