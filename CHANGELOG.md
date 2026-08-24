@@ -20,6 +20,24 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`ConvertConfig::max_rows` is removed from `fraiseql-arrow` (#1041).**
+
+  The field was public and documented as "Maximum total rows to convert (default: unlimited)",
+  and it was populated at five call sites — but nothing ever read it. `convert_batch`
+  appended every row it was given and `chunk_into_batches` chunked the whole slice, so a
+  caller who set the cap to bound peak memory got no cap at all. The only test covering it
+  set the field and then asserted the field it had just set, which holds for every possible
+  implementation including the one that ignores it.
+
+  It is removed rather than implemented. No path in the workspace needs it: the single site
+  that set it non-`None` derived it from the same `limit` that `build_optimized_sql` already
+  emits as a SQL `LIMIT`, so PostgreSQL bounds the row count before conversion begins, and
+  the other four passed `None`.
+
+  Construct `ConvertConfig` with `batch_size` alone. Callers who relied on the documented cap
+  never had one, so no behaviour changes — only the false promise on the published crate's
+  API is gone.
+
 - **The inbound-webhook dedup namespace is the route, not the provider, which renames one
   ledger column and one public field (#1046).**
 

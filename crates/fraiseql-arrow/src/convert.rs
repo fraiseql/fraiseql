@@ -15,21 +15,23 @@ use arrow::{
 };
 
 /// Configuration for Arrow batch conversion.
+///
+/// A `max_rows` field was published here until #1041, documented as "Maximum total
+/// rows to convert". Nothing ever read it: `convert_batch` appended every row it
+/// was given and `chunk_into_batches` chunked the whole slice, so a caller who set
+/// it got no cap. It is removed rather than implemented — the one in-tree site that
+/// set it non-`None` derived it from a `limit` that `build_optimized_sql` already
+/// emits as a SQL `LIMIT`, so PostgreSQL bounds the row count before conversion
+/// begins and nothing in the workspace needs the knob.
 #[derive(Debug, Clone, Copy)]
 pub struct ConvertConfig {
     /// Number of rows per `RecordBatch` (default: 10,000)
     pub batch_size: usize,
-
-    /// Maximum total rows to convert (default: unlimited)
-    pub max_rows: Option<usize>,
 }
 
 impl Default for ConvertConfig {
     fn default() -> Self {
-        Self {
-            batch_size: 10_000,
-            max_rows:   None,
-        }
+        Self { batch_size: 10_000 }
     }
 }
 

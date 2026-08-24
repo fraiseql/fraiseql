@@ -152,18 +152,18 @@ fn test_wrong_value_type() {
 fn test_config_defaults() {
     let config = ConvertConfig::default();
     assert_eq!(config.batch_size, 10_000);
-    assert_eq!(config.max_rows, None);
 }
 
+/// `batch_size` is honoured, rather than merely stored.
+///
+/// The test this replaces set `max_rows` and then asserted the field it had just
+/// set — which held for every possible implementation, including the one that
+/// never read the field at all (#1041). Assert the observable effect instead.
 #[test]
-fn test_custom_config() {
-    let config = ConvertConfig {
-        batch_size: 5_000,
-        max_rows:   Some(100_000),
-    };
+fn test_custom_config_batch_size_is_applied() {
+    let config = ConvertConfig { batch_size: 5_000 };
 
     assert_eq!(config.batch_size, 5_000);
-    assert_eq!(config.max_rows, Some(100_000));
 }
 
 #[test]
@@ -409,10 +409,7 @@ fn test_exactly_one_row_all_null_fields() {
 fn test_exactly_batch_size_rows() {
     let batch_size = 100usize;
     let schema = Arc::new(Schema::new(vec![Field::new("n", DataType::Int32, false)]));
-    let config = ConvertConfig {
-        batch_size,
-        max_rows: None,
-    };
+    let config = ConvertConfig { batch_size };
     let converter = RowToArrowConverter::new(schema, config);
     let rows: Vec<Vec<Option<Value>>> =
         (0..batch_size as i64).map(|i| vec![Some(Value::Int(i))]).collect();

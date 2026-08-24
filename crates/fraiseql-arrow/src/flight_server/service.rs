@@ -744,10 +744,7 @@ impl FraiseQLFlightService {
         let arrow_rows = convert_db_rows_to_arrow(&rows, &schema)
             .map_err(|e| format!("Row conversion failed: {e}"))?;
 
-        let config = ConvertConfig {
-            batch_size: 10_000,
-            max_rows:   None,
-        };
+        let config = ConvertConfig { batch_size: 10_000 };
         let converter = RowToArrowConverter::new(schema, config);
         chunk_into_batches(&arrow_rows, &converter, config.batch_size)
             .map_err(|e| format!("Arrow conversion failed: {e}"))
@@ -867,7 +864,6 @@ impl FraiseQLFlightService {
         // [1, 10_000] so it can never be zero (defence-in-depth for H38).
         let config = ConvertConfig {
             batch_size: limit.unwrap_or(10_000).clamp(1, 10_000),
-            max_rows:   limit,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
@@ -1011,10 +1007,7 @@ impl FraiseQLFlightService {
                 .map_err(|e| Status::internal(format!("Row conversion failed: {e}")))?;
 
             // Convert to RecordBatches
-            let config = ConvertConfig {
-                batch_size: 10_000,
-                max_rows:   None,
-            };
+            let config = ConvertConfig { batch_size: 10_000 };
             let converter = RowToArrowConverter::new(inferred_schema.clone(), config);
 
             let batches = chunk_into_batches(&arrow_rows, &converter, config.batch_size)
@@ -1244,10 +1237,7 @@ impl FraiseQLFlightService {
             .map_err(|e| Status::internal(format!("Row conversion failed: {}", e)))?;
 
         // Convert to RecordBatches
-        let config = ConvertConfig {
-            batch_size: 10_000,
-            max_rows:   None,
-        };
+        let config = ConvertConfig { batch_size: 10_000 };
         let converter = RowToArrowConverter::new(schema, config);
 
         let batches: Vec<RecordBatch> =
@@ -1655,13 +1645,7 @@ mod chunk_into_batches_tests {
             Field::new("id", DataType::Int32, false),
             Field::new("name", DataType::Utf8, true),
         ]));
-        RowToArrowConverter::new(
-            schema,
-            ConvertConfig {
-                batch_size,
-                max_rows: None,
-            },
-        )
+        RowToArrowConverter::new(schema, ConvertConfig { batch_size })
     }
 
     #[test]
