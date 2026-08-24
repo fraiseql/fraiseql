@@ -275,27 +275,6 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       expect(schema.fact_tables![0].measures).toHaveLength(2);
     });
 
-    it("should have parity: aggregate queries", () => {
-      // TypeScript: Register aggregate query
-      SchemaRegistry.registerAggregateQuery(
-        "salesSummary",
-        "tf_sales",
-        true,
-        true,
-        "Aggregate sales by dimension"
-      );
-
-      // Python equivalent:
-      // @fraiseql.aggregate_query(factTable="tf_sales")
-      // def sales_summary() -> Record[]:
-      //   pass
-
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.aggregate_queries).toHaveLength(1);
-      expect(schema.aggregate_queries![0].fact_table).toBe("tf_sales");
-      expect(schema.aggregate_queries![0].auto_group_by).toBe(true);
-    });
-
     it("should have parity: dimension paths in fact tables", () => {
       // TypeScript: Fact table with dimension paths
       SchemaRegistry.registerFactTable(
@@ -616,7 +595,10 @@ describe("TypeScript ↔ Python Feature Parity", () => {
         subscriptions: true, // ✓ registerSubscription
         fieldMetadata: true, // ✓ field() with requiresScope, deprecated, description
         factTables: true, // ✓ registerFactTable
-        aggregateQueries: true, // ✓ registerAggregateQuery
+        // aggregateQueries is deliberately absent: the compiler refuses a schema
+        // declaring `aggregate_queries` (#956), so parity here would mean parity on
+        // producing an uncompilable document. Use `[[analytics.queries]]` in
+        // fraiseql.toml (#1023).
         observers: true, // ✓ registerObserver
       };
 
@@ -627,7 +609,9 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       const totalFeatures = Object.keys(parityFeatures).length;
 
       expect(implementedCount).toBe(totalFeatures);
-      expect(implementedCount).toBe(12);
+      // 11, not 12: aggregate-query authoring was removed because the compiler
+      // refuses the block it produced (#956, #1023).
+      expect(implementedCount).toBe(11);
     });
   });
 });

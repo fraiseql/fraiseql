@@ -168,16 +168,11 @@ export interface FactTableDefinition {
   denormalized_filters: DenormalizedFilter[];
 }
 
-/**
- * Aggregate query definition.
- */
-export interface AggregateQueryDefinition {
-  name: string;
-  fact_table: string;
-  auto_group_by: boolean;
-  auto_aggregates: boolean;
-  description?: string;
-}
+// NOTE: aggregate-query authoring is removed entirely (#956, #1023). The compiler never
+// read `aggregate_queries` and now refuses a schema that declares one, so this SDK was
+// producing documents that `fraiseql compile` rejects outright. A fact table alone gives
+// you the `<name>_aggregate` root field, and `[[analytics.queries]]` in fraiseql.toml is
+// the supported way to declare a named analytics query.
 
 /**
  * GraphQL subscription definition.
@@ -310,7 +305,6 @@ export interface Schema {
   input_types?: InputTypeDefinition[];
   unions?: UnionDefinition[];
   fact_tables?: FactTableDefinition[];
-  aggregate_queries?: AggregateQueryDefinition[];
   observers?: ObserverDefinition[];
   sources?: SourceDefinition[];
   /** Apollo Federation v2 metadata, included when generateSchemaJson() is used. */
@@ -470,7 +464,6 @@ export class SchemaRegistry {
   private static inputTypes: Map<string, InputTypeDefinition> = new Map();
   private static unions: Map<string, UnionDefinition> = new Map();
   private static factTables: Map<string, FactTableDefinition> = new Map();
-  private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
   private static observers: Map<string, ObserverDefinition> = new Map();
   private static sources: Map<string, SourceDefinition> = new Map();
   private static customScalars: Map<string, { class: typeof CustomScalar; description?: string }> = new Map();
@@ -804,31 +797,6 @@ export class SchemaRegistry {
   }
 
   /**
-   * Register an aggregate query definition.
-   *
-   * @param name - Query name
-   * @param factTable - Fact table name
-   * @param autoGroupBy - Auto-generate groupBy fields
-   * @param autoAggregates - Auto-generate aggregate fields
-   * @param description - Optional query description
-   */
-  static registerAggregateQuery(
-    name: string,
-    factTable: string,
-    autoGroupBy: boolean,
-    autoAggregates: boolean,
-    description?: string
-  ): void {
-    this.aggregateQueries.set(name, {
-      name,
-      fact_table: factTable,
-      auto_group_by: autoGroupBy,
-      auto_aggregates: autoAggregates,
-      description,
-    });
-  }
-
-  /**
    * Register an observer.
    *
    * @param name - Observer function name
@@ -1042,10 +1010,6 @@ export class SchemaRegistry {
       schema.fact_tables = Array.from(this.factTables.values());
     }
 
-    if (this.aggregateQueries.size > 0) {
-      schema.aggregate_queries = Array.from(this.aggregateQueries.values());
-    }
-
     if (this.observers.size > 0) {
       schema.observers = Array.from(this.observers.values());
     }
@@ -1084,7 +1048,6 @@ export class SchemaRegistry {
     this.inputTypes.clear();
     this.unions.clear();
     this.factTables.clear();
-    this.aggregateQueries.clear();
     this.observers.clear();
     this.sources.clear();
     this.customScalars.clear();

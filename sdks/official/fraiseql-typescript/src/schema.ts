@@ -111,9 +111,6 @@ export function exportSchema(outputPath: string, options: { pretty?: boolean } =
   if (schema.fact_tables) {
     console.log(`   Fact Tables: ${schema.fact_tables.length}`);
   }
-  if (schema.aggregate_queries) {
-    console.log(`   Aggregate Queries: ${schema.aggregate_queries.length}`);
-  }
   if (schema.observers) {
     console.log(`   Observers: ${schema.observers.length}`);
   }

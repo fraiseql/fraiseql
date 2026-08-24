@@ -151,23 +151,6 @@ describe("SchemaRegistry", () => {
     });
   });
 
-  describe("registerAggregateQuery", () => {
-    it("should register an aggregate query", () => {
-      SchemaRegistry.registerAggregateQuery(
-        "salesAggregate",
-        "tf_sales",
-        true,
-        true,
-        "Sales aggregation"
-      );
-
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.aggregate_queries).toHaveLength(1);
-      expect(schema.aggregate_queries![0].name).toBe("salesAggregate");
-      expect(schema.aggregate_queries![0].fact_table).toBe("tf_sales");
-    });
-  });
-
   describe("registerSubscription", () => {
     it("should register a simple subscription", () => {
       SchemaRegistry.registerSubscription(

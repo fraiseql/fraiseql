@@ -644,9 +644,10 @@ disagreed, and the promise was the part that was wrong.
   block still compiles. The manifest excuse is corrected to state the refusal.
 
 - **Go: `NewAggregateQueryConfig` / `RegisterAggregateQuery` / `AggregateQueryDefinition` are
-  removed (#956).** The Go SDK was the only SDK emitting an `aggregate_queries` block, and
-  the compiler now refuses one — so the builder produced schemas that could no longer
-  compile. Two shipped examples (`examples/analytics`, `examples/complete`) used it and are
+  removed (#956).** The compiler now refuses an `aggregate_queries` block, so the builder
+  produced schemas that could no longer compile. ⚠ This entry originally claimed the Go SDK
+  was the only SDK emitting the block; that was wrong — the TypeScript SDK's producer was
+  missed and survived until #1023. Two shipped examples (`examples/analytics`, `examples/complete`) used it and are
   updated: they keep their fact tables, which is what actually makes analytics work, because
   the executor dispatches the `<fact_table>_aggregate` and `<fact_table>_window` root fields
   to the fact-table planners with no further declaration. For a *named* analytics query, use
@@ -3300,6 +3301,19 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **TypeScript: aggregate-query authoring is removed (#1023).**
+
+  #956 made `fraiseql compile` refuse any schema declaring `aggregate_queries` and removed the
+  Go SDK's builders for it. The TypeScript producer was missed and stayed live, so a TypeScript
+  author following the analytics path the SDK still advertised exported a schema whose own
+  summary reported `Aggregate Queries: N`, and the next command rejected the whole document.
+
+  `SchemaRegistry.registerAggregateQuery`, the `aggregateQueries` map, the `aggregate_queries`
+  key, the `AggregateQueryDefinition` interface and the `exportSchema` summary line are all
+  removed, mirroring what #956 did to Go. Fact tables are untouched — they are what makes
+  analytics work, giving you the `<fact_table>_aggregate` and `<fact_table>_window` root fields
+  — and a named analytics query is declared with `[[analytics.queries]]` in `fraiseql.toml`.
 
 - **PHP: `autoParams()` and `deprecated()` reach the compiler, and `crud` generates
   operations (#1021, #1022).**
