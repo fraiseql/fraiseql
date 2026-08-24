@@ -9,8 +9,12 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 /// Arrow schema for GraphQL query results.
 ///
-/// This is a placeholder schema.
-/// schemas will be generated dynamically from GraphQL type definitions.
+/// ⚠ **Placeholder, and not the shape any code produces.** `do_get` on a
+/// `GraphQLQuery` ticket emits either a single `result` column or a schema derived
+/// from the result rows — never `{id, data}`. The Flight metadata handlers returned
+/// this until #1037 and now refuse instead, so nothing calls it.
+///
+/// Do not wire it to a metadata RPC: advertising it contradicts the data stream.
 ///
 /// # Schema
 ///
@@ -25,6 +29,12 @@ pub fn graphql_result_schema() -> Arc<Schema> {
 }
 
 /// Arrow schema for observer events.
+///
+/// ⚠ **Disagrees with the payload it claims to describe.** `HistoricalEvent`
+/// serializes `id` where this declares `event_id`, `tenant_id` where this declares
+/// `org_id`, and a nested JSON object where this types `data` as `Utf8`. The
+/// metadata handlers advertised it until #1038 and now refuse instead, so nothing
+/// calls it. Reconcile it against `HistoricalEvent` before wiring it anywhere.
 ///
 /// Maps to `EntityEvent` struct from `fraiseql-observers`.
 ///

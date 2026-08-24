@@ -19,10 +19,7 @@ use super::super::{
     FlightInfoStream, FraiseQLFlightService, HandshakeStream, create_session_token,
     map_security_error_to_status,
 };
-use crate::{
-    schema::{graphql_result_schema, observer_event_schema},
-    ticket::FlightTicket,
-};
+use crate::ticket::FlightTicket;
 
 /// Resolve the Arrow schema for a `FlightTicket`, enforcing unsupported-ticket errors.
 fn ticket_to_schema(
@@ -30,8 +27,32 @@ fn ticket_to_schema(
     ticket: FlightTicket,
 ) -> std::result::Result<SchemaRef, Status> {
     match ticket {
-        FlightTicket::GraphQLQuery { .. } => Ok(graphql_result_schema()),
-        FlightTicket::ObserverEvents { .. } => Ok(observer_event_schema()),
+        // #1037: this returned the hardcoded placeholder `{id: Utf8, data: Utf8}`,
+        // which `do_get` never produces — that path emits either a single `result`
+        // column or a schema derived from the result rows. A client planning off
+        // GetSchema/GetFlightInfo bound columns that never arrived, and the only
+        // test touching the shape asserted the placeholder's field names as ground
+        // truth. Refusing is honest; advertising a schema the stream contradicts is
+        // not.
+        //
+        // This refusal is about what the server can do today, not about GraphQL: a
+        // result shape *is* determined by the query and the schema. Deriving it here
+        // would need the projection ahead of execution, which `QueryExecutor` — type
+        // erased, returning `serde_json::Value` — does not expose.
+        FlightTicket::GraphQLQuery { .. } => Err(Status::unimplemented(
+            "GetSchema for GraphQLQuery is not implemented: this server does not \
+             derive a result schema ahead of execution. Read the schema from the \
+             header of the do_get response stream.",
+        )),
+        // #1038: this advertised a concrete 8-field schema for a ticket the server
+        // can never serve — `event_storage` is `None` at every constructor and
+        // nothing calls the setter, so `do_get` short-circuits with
+        // `failed_precondition`. The schema also disagreed with what
+        // `HistoricalEvent` actually serializes in three places.
+        FlightTicket::ObserverEvents { .. } => Err(Status::unimplemented(
+            "ObserverEvents is not implemented: no event storage is wired to the \
+             Flight server, so no event stream can be produced.",
+        )),
         FlightTicket::OptimizedView { view, .. } => svc
             .schema_registry
             .get(&view)

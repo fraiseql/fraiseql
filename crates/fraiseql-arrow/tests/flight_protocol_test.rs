@@ -163,9 +163,14 @@ async fn test_list_flights_enumerates_four_default_views() {
 // Tests: get_schema
 // ---------------------------------------------------------------------------
 
-/// `get_schema` returns a non-empty IPC schema for a `GraphQLQuery` ticket.
+/// #1037 — `get_schema` refuses a `GraphQLQuery` ticket rather than advertising a
+/// schema `do_get` never produces.
+///
+/// This test previously asserted only that the returned schema bytes were
+/// non-empty, which held for the hardcoded placeholder `{id: Utf8, data: Utf8}` —
+/// a shape the data stream never emits. It certified the defect.
 #[tokio::test]
-async fn test_get_schema_for_graphql_query_returns_schema() {
+async fn test_get_schema_for_graphql_query_is_unimplemented() {
     let service = FraiseQLFlightService::new();
     let ticket = FlightTicket::GraphQLQuery {
         query:     "{ users { id name } }".to_string(),
@@ -173,9 +178,33 @@ async fn test_get_schema_for_graphql_query_returns_schema() {
     };
     let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
 
-    assert!(result.is_ok(), "get_schema for GraphQLQuery must succeed");
-    let schema_result = result.unwrap().into_inner();
-    assert!(!schema_result.schema.is_empty(), "Schema bytes must be non-empty");
+    let status = result.expect_err("get_schema for GraphQLQuery must not return a schema");
+    assert_eq!(
+        status.code(),
+        tonic::Code::Unimplemented,
+        "expected Unimplemented, got {status:?}"
+    );
+}
+
+/// #1038 — `get_schema` refuses an `ObserverEvents` ticket, which advertised a
+/// concrete 8-field schema for a stream the server cannot produce.
+#[tokio::test]
+async fn test_get_schema_for_observer_events_is_unimplemented() {
+    let service = FraiseQLFlightService::new();
+    let ticket = FlightTicket::ObserverEvents {
+        entity_type: "Order".to_string(),
+        start_date:  None,
+        end_date:    None,
+        limit:       None,
+    };
+    let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
+
+    let status = result.expect_err("get_schema for ObserverEvents must not return a schema");
+    assert_eq!(
+        status.code(),
+        tonic::Code::Unimplemented,
+        "expected Unimplemented, got {status:?}"
+    );
 }
 
 /// `get_schema` for an `OptimizedView` ticket returns the registered Arrow schema.

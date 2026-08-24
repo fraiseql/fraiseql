@@ -3293,6 +3293,42 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`GetSchema` no longer advertises a GraphQL result schema the data stream never produces (#1037).**
+
+  For a `GraphQLQuery` ticket, `GetSchema`, `GetFlightInfo` and `PollFlightInfo` returned the
+  hardcoded placeholder `{id: Utf8, data: Utf8}`. `do_get` on the same ticket emits either a
+  single `result` column or a schema derived from the result rows — never `{id, data}`. The
+  mismatch was total rather than occasional: nullability alone guaranteed inequality even
+  where column names coincided. A client planning off the metadata RPC — an ADBC Flight SQL
+  execute-schema path, or a query planner that pre-binds columns — bound columns that never
+  arrived.
+
+  Those RPCs now return `Unimplemented`, matching what the sibling `BulkExport` and
+  `BatchedQueries` tickets already did. This reflects what the server does today, not a claim
+  about GraphQL: a result shape is determined by the query and the schema, but deriving it
+  here needs the projection ahead of execution, and `QueryExecutor` is type-erased and hands
+  the Flight server a `serde_json::Value`.
+
+  ⚠ The tests covering this asserted only that the returned bytes were non-empty — true of
+  any schema at all — so they certified the wrong one. They now assert the status code.
+
+- **`ObserverEvents` refuses instead of emitting a JSON blob on an Arrow stream (#1038).**
+
+  `do_get` on an `ObserverEvents` ticket returned a raw JSON array in `data_body` with an
+  empty `data_header` and `app_metadata: application/json`, while the metadata RPCs had
+  advertised a concrete 8-field Arrow schema. With no IPC message header, a client either
+  decodes nothing or fails at stream level; it never receives the advertised columns.
+
+  The advertised schema also disagreed with the payload in three places: `observer_event_schema()`
+  declares `event_id` where `HistoricalEvent` serializes `id`, declares `org_id` where the JSON
+  key is `tenant_id`, and types `data` as `Utf8` where the payload carries a nested object. A
+  client hand-decoding against it mis-mapped two keys and one type.
+
+  Both the metadata RPCs and `do_get` now return `Unimplemented`. Implementing this properly
+  means choosing an event contract, and the shape above is not evidence of one that was ever
+  agreed with a consumer. `ArrowEventStorage` and `set_event_storage` remain, so an embedder
+  keeps the building blocks.
+
 - **`do_exchange` `Subscribe` refuses instead of acknowledging a subscription it cannot serve (#1067).**
 
   `Subscribe` replied `Subscribed to {entity_type}` and spawned a forwarder task. Nothing in

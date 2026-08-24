@@ -89,17 +89,20 @@ async fn test_get_schema_for_observer_events() {
         let descriptor = FlightDescriptor::new_path(vec![String::from_utf8(ticket_bytes).unwrap()]);
         let request = tonic::Request::new(descriptor);
 
-        let response = client.get_schema(request).await.expect("GetSchema failed");
-        let schema_result = response.into_inner();
-
-        // Verify we got schema bytes back
-        assert!(!schema_result.schema.is_empty(), "Schema should not be empty");
-
-        // Decode and verify schema structure
-        let schema =
-            arrow::ipc::root_as_message(&schema_result.schema).expect("Failed to decode schema");
-        // Just verify we can decode it - detailed schema checks in unit tests
-        assert_eq!(schema.header_type(), arrow::ipc::MessageHeader::Schema);
+        // #1038: this advertised a concrete 8-field Arrow schema for a ticket the
+        // server can never serve — `event_storage` is `None` at every constructor
+        // and nothing calls the setter, so `do_get` short-circuited. The schema also
+        // disagreed with the emitted JSON in three places. Asserting only that the
+        // bytes decoded as *a* schema certified that.
+        let status = client
+            .get_schema(request)
+            .await
+            .expect_err("GetSchema for ObserverEvents must not return a schema");
+        assert_eq!(
+            status.code(),
+            tonic::Code::Unimplemented,
+            "expected Unimplemented, got {status:?}"
+        );
     })
     .await;
 }
@@ -128,11 +131,18 @@ async fn test_get_schema_for_graphql_query() {
         let descriptor = FlightDescriptor::new_path(vec![String::from_utf8(ticket_bytes).unwrap()]);
         let request = tonic::Request::new(descriptor);
 
-        let response = client.get_schema(request).await.expect("GetSchema failed");
-        let schema_result = response.into_inner();
-
-        // Verify we got schema bytes back
-        assert!(!schema_result.schema.is_empty(), "Schema should not be empty");
+        // #1037: this returned the hardcoded placeholder `{id: Utf8, data: Utf8}`,
+        // which the `do_get` stream never produces. "Non-empty bytes" is true of any
+        // schema at all, so this assertion certified the wrong one.
+        let status = client
+            .get_schema(request)
+            .await
+            .expect_err("GetSchema for GraphQLQuery must not return a schema");
+        assert_eq!(
+            status.code(),
+            tonic::Code::Unimplemented,
+            "expected Unimplemented, got {status:?}"
+        );
     })
     .await;
 }

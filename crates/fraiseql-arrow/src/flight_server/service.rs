@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use arrow::array::RecordBatch;
 use arrow_flight::{FlightData, flight_service_server::FlightServiceServer};
-use chrono::Utc;
 use fraiseql_core::security::OidcValidator;
 use futures::Stream;
 use tokio::sync::{Semaphore, mpsc};
@@ -1072,6 +1071,26 @@ impl FraiseQLFlightService {
 
     /// Query historical observer events and stream as Arrow data.
     ///
+    /// Refuses. This emitted a raw JSON array in `data_body` with an **empty**
+    /// `data_header` and `app_metadata: application/json`, on a stream whose
+    /// metadata RPCs had advertised a concrete 8-field Arrow schema. There is no
+    /// IPC message header, so an Arrow client either decodes nothing or fails at
+    /// stream level — it never receives the advertised columns (#1038).
+    ///
+    /// The advertised schema also disagreed with the payload in three places:
+    /// `observer_event_schema()` declares `event_id` where `HistoricalEvent`
+    /// serializes `id`, declares `org_id` where the JSON key is `tenant_id`, and
+    /// types `data` as `Utf8` where the payload carries a nested JSON object. So a
+    /// client hand-decoding the JSON against the advertised schema mis-mapped two
+    /// keys and one type.
+    ///
+    /// Implementing it properly means choosing an event contract, and the shape
+    /// above is not evidence of one that was ever agreed with a consumer. The
+    /// interface boundary is kept and the body left empty until something needs it.
+    ///
+    /// `ArrowEventStorage` and `set_event_storage` remain, so an embedder keeps the
+    /// building blocks; what is withdrawn is this handler's fabricated stream.
+    ///
     /// # Arguments
     ///
     /// * `entity_type` - Entity type to filter (e.g., "Order", "User")
@@ -1081,56 +1100,19 @@ impl FraiseQLFlightService {
     pub(crate) async fn execute_observer_events(
         &self,
         entity_type: &str,
-        start_date: Option<String>,
-        end_date: Option<String>,
-        limit: Option<usize>,
+        _start_date: Option<String>,
+        _end_date: Option<String>,
+        _limit: Option<usize>,
     ) -> std::result::Result<Response<FlightDataStream>, Status> {
-        // Check if event storage is configured
-        let event_storage = self.event_storage.as_ref().ok_or_else(|| {
-            Status::failed_precondition(
-                "Event storage not configured - cannot query historical events",
-            )
-        })?;
-
-        // Parse date strings to DateTime<Utc>
-        let start = start_date
-            .as_ref()
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-            .map(|dt| dt.with_timezone(&Utc));
-
-        let end = end_date
-            .as_ref()
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-            .map(|dt| dt.with_timezone(&Utc));
-
-        // Query events from storage
-        let events = event_storage
-            .query_events(entity_type, start, end, limit)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to query events: {}", e)))?;
-
         info!(
             entity_type = %entity_type,
-            event_count = events.len(),
-            "Queried historical observer events"
+            "Refusing ObserverEvents: the handler produced a JSON blob with no IPC header"
         );
 
-        // Build response as vector of FlightData messages
-        let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
-
-        // Return events as JSON
-        let json_data = serde_json::json!(events);
-        let json_str = json_data.to_string();
-
-        let flight_data = FlightData {
-            data_body: json_str.into_bytes().into(),
-            app_metadata: b"application/json".to_vec().into(),
-            ..Default::default()
-        };
-        messages.push(Ok(flight_data));
-
-        let stream = futures::stream::iter(messages);
-        Ok(Response::new(Box::pin(stream)))
+        Err(Status::unimplemented(
+            "ObserverEvents is not implemented: this server does not produce an Arrow \
+             event stream. Query historical events through the GraphQL API instead.",
+        ))
     }
 
     /// Export table data in bulk with multiple format support.

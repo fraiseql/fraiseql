@@ -23,6 +23,7 @@
 //! |---------|--------|--------|
 //! | Subscribe (`do_exchange`) | v2.1 | Real-time event streaming requires observer integration |
 //! | `BulkExport` GetSchema/GetFlightInfo | — | Schema varies by table; use `do_get` directly |
+//! | `GraphQLQuery` GetSchema/GetFlightInfo | — | No result schema is derived ahead of execution; read it from the `do_get` stream header |
 //! | `RefreshSchemaRegistry` action | v2.1 | Requires safe schema update mechanism for running queries |
 //! | Observer events (`do_get`) | v2.1 | Requires observer system integration |
 //! | `PollFlightInfo` | ✅ v2.1 | Synchronous: delegates to `get_flight_info`, returns `progress=1.0` |
