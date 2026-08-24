@@ -52,7 +52,13 @@ routing) lives once in `InboundMessage`.
 Each normalized delivery is deduplicated by `(source, idempotency_key)` on the spine
 (`_fraiseql_inbound_message`) and fires `after:ingest[:<source>]` functions on the same
 I/O-capable host context as `after:mutation`, reusing the durable dispatch path (retry +
-dead-letter). A declared routing rule maps a message to an entity by dedicated address +
+dead-letter).
+
+> **Durability boundary.** "Durable dispatch" means dispatch *failures* are retried and
+> land in the dead-letter queue. It does not mean dispatch survives process death: the
+> spine row is committed before dispatch, but nothing reads it back, so a crash between
+> the commit and the dispatch's completion loses that dispatch — and the committed row
+> makes the provider's redelivery a `duplicate`. See the `inbound::spine` module docs. A declared routing rule maps a message to an entity by dedicated address +
 plus-tag (`support+ticket-42@…` → `Ticket`/`42`); an `after:ingest` handler receives the
 whole message and can route it itself. See `docs/architecture/inbound-email.md` for the
 poll-IMAP adapter and `docs/architecture/functions.md` for the `after:ingest` host surface.

@@ -3244,6 +3244,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The inbound spine no longer documents an at-least-once dispatch guarantee it does not
+  implement (#1047).**
+
+  `inbound::spine` described itself as the inbound mirror of the outbound outbox and stated
+  that "if the process dies after the commit but before dispatch, the message survives for
+  replay". The row does survive; nothing reads it back. There is no reaper, no startup scan
+  and no replay surface — the only non-test statement against `_fraiseql_inbound_message` is
+  the `INSERT`. Writing before dispatching makes *persistence* durable; at-least-once
+  *dispatch* additionally requires a reader.
+
+  The gap is unrecoverable when hit, which is why the wording mattered: the committed
+  idempotency claim means the provider's redelivery — including a manual one from its
+  dashboard — is answered `duplicate` with no dispatch, and the table carries no
+  dispatch-state column, so an operator cannot even tell dispatched rows from undispatched
+  ones. The same shape applies to the email pull adapter, whose cursor advance commits with
+  the emit.
+
+  The documentation now states the boundary, in the module and in
+  `docs/architecture/webhooks.md`: dispatch *failures* are durable and land in the
+  dead-letter queue, but dispatch does not survive process death. Building the replay path
+  is tracked as **#1175**. No behaviour changed here.
+
 - **`POST /scim/v2/.search` accepts the array spelling of `attributes` that RFC 7644 actually
   defines for a request body (#1090).** RFC 7644 gives these two wire types. As a query
   parameter (§ 3.9) `attributes` is one comma-separated string; inside a `SearchRequest` body

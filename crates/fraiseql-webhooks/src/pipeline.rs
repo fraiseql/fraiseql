@@ -72,7 +72,7 @@ pub enum Disposition {
 ///
 /// Returns [`WebhookError::SignatureInvalid`] if the signature does not match
 /// (`Ok(false)` from the verifier) or cannot be parsed (a
-/// [`SignatureError`](crate::signature::SignatureError) from the verifier, e.g. a
+/// [`SignatureError`] from the verifier, e.g. a
 /// bad format or an expired timestamp).
 pub fn verify_signature(
     verifier: &dyn SignatureVerifier,

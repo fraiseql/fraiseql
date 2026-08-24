@@ -2,11 +2,37 @@
 //!
 //! [`PostgresInboundSpine`] persists normalized [`InboundMessage`]s into the
 //! `_fraiseql_inbound_message` table, deduplicated by `(source, idempotency_key)`.
-//! This is the inbound mirror of the outbound `tb_entity_change_log` outbox: a
-//! message is written durably *before* `after:ingest` dispatch, so dispatch is
-//! **at-least-once** — if the process dies after the commit but before dispatch,
-//! the message survives for replay, and a redelivery of an already-committed
-//! message is discarded by the unique-key claim rather than re-emitted.
+//! A message is written durably *before* `after:ingest` dispatch, and a redelivery
+//! of an already-committed message is discarded by the unique-key claim rather than
+//! re-emitted.
+//!
+//! # What is durable here, and what is not (#1047)
+//!
+//! **Persistence is durable and deduplicated. Dispatch is not at-least-once.**
+//!
+//! This module previously described itself as the inbound mirror of the outbound
+//! `tb_entity_change_log` outbox and claimed that "if the process dies after the
+//! commit but before dispatch, the message survives for replay". The row does
+//! survive — but nothing reads it back. There is no reaper, no startup scan and no
+//! replay surface anywhere in the tree; the only non-test statement against this
+//! table is the `INSERT` below. Writing before dispatching makes *persistence*
+//! durable; at-least-once *dispatch* additionally requires a reader, and there is
+//! none.
+//!
+//! The consequence is worth stating plainly, because the committed claim makes it
+//! unrecoverable: `after:ingest` is dispatched only after the transaction commits,
+//! so a crash any time between the commit and the dispatch's completion loses that
+//! dispatch permanently. The provider's redelivery — and a manual redelivery from
+//! the provider's dashboard — then finds the committed row and is answered
+//! `duplicate` with no dispatch. The table also carries no dispatch-state column,
+//! so an operator cannot even distinguish dispatched rows from undispatched ones by
+//! hand.
+//!
+//! The same shape applies to the email pull adapter, which advances its cursor in
+//! the same transaction as the emit and dispatches post-commit.
+//!
+//! Building the replay path is tracked as #1175; do not restore the at-least-once
+//! wording without it.
 //!
 //! The claim ([`emit_in_tx`]) is an `INSERT … ON CONFLICT DO NOTHING RETURNING id`
 //! and is designed to run *inside the receiver's transaction* (the
@@ -89,7 +115,8 @@ pub async fn emit_in_tx(
 
 /// PostgreSQL-backed durable inbound spine over a connection pool.
 ///
-/// See the module documentation for the at-least-once semantics and the schema.
+/// See the module documentation for the durability semantics and the schema —
+/// in particular, what "written before dispatch" does and does not buy (#1047).
 pub struct PostgresInboundSpine {
     pool: PgPool,
 }
