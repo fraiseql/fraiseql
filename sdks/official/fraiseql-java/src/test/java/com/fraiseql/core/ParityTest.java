@@ -105,15 +105,16 @@ public class ParityTest {
     @DisplayName("Parity: Register subscription with event filtering")
     void testParitySubscriptionWithEventFiltering() {
         // TypeScript equivalent:
-        // registerSubscription("orderCreated", "Order", false, [
+        // registerSubscription("orderCreated", "Order", [
         //   { name: "userId", type: "String", nullable: true }
-        // ], "Subscribe to new orders", { operation: "CREATE" })
+        // ], "Subscribe to new orders",
+        //   { filter: { conditions: [{ argument: "userId", path: "$.user_id" }] } })
 
         FraiseQL.subscription("orderCreated")
             .entityType("Order")
             .arg("userId", "String")
             .description("Subscribe to new orders")
-            .operation("CREATE")
+            .filterCondition("userId", "$.user_id")
             .register();
 
         SchemaRegistry registry = SchemaRegistry.getInstance();
@@ -121,7 +122,7 @@ public class ParityTest {
 
         assertTrue(subscription.isPresent());
         assertEquals("Order", subscription.get().entityType);
-        assertEquals("CREATE", subscription.get().operation);
+        assertEquals("$.user_id", subscription.get().filterConditions.get("userId"));
         assertEquals(1, subscription.get().arguments.size());
     }
 
@@ -169,17 +170,19 @@ public class ParityTest {
 
         FraiseQL.subscription("orderCreated")
             .entityType("Order")
-            .operation("CREATE")
+            .arg("customerId", "ID")
+            .filterCondition("customerId", "$.customer_id")
             .register();
 
         FraiseQL.subscription("orderUpdated")
             .entityType("Order")
-            .operation("UPDATE")
+            .arg("orderId", "ID")
+            .filterCondition("orderId", "$.id")
             .register();
 
         FraiseQL.subscription("orderDeleted")
             .entityType("Order")
-            .operation("DELETE")
+            .topic("orders.deleted")
             .register();
 
         SchemaRegistry registry = SchemaRegistry.getInstance();
@@ -314,12 +317,12 @@ public class ParityTest {
         // Register subscriptions
         FraiseQL.subscription("userCreated")
             .entityType("ParityUser")
-            .operation("CREATE")
+            .topic("user_events")
             .register();
 
         FraiseQL.subscription("orderCreated")
             .entityType("ParityOrder")
-            .operation("CREATE")
+            .topic("order_events")
             .register();
 
         // Register observer

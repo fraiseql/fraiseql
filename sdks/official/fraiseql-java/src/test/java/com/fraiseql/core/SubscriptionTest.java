@@ -3,6 +3,7 @@ package com.fraiseql.core;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,13 +58,17 @@ public class SubscriptionTest {
     }
 
     /**
-     * Test subscription with operation filter
+     * Test subscription narrowed by a condition on the event payload.
+     *
+     * <p>Replaces the operation-filter test: the runtime subscription model has no
+     * DML-verb member, so {@code operation("UPDATE")} reached nothing (#1024).
      */
     @Test
-    public void testSubscriptionWithOperation() {
+    public void testSubscriptionWithEventFilter() {
         FraiseQL.subscription("userUpdated")
             .entityType("User")
-            .operation("UPDATE")
+            .arg("userId", "ID")
+            .filterCondition("userId", "$.id")
             .description("Subscribe to user updates")
             .register();
 
@@ -71,7 +76,7 @@ public class SubscriptionTest {
         Optional<SchemaRegistry.SubscriptionInfo> subInfo = registry.getSubscription("userUpdated");
 
         assertTrue(subInfo.isPresent());
-        assertEquals("UPDATE", subInfo.get().operation);
+        assertEquals("$.id", subInfo.get().filterConditions.get("userId"));
     }
 
     /**
@@ -125,7 +130,8 @@ public class SubscriptionTest {
 
         FraiseQL.subscription("orderUpdated")
             .entityType("Order")
-            .operation("UPDATE")
+            .arg("orderId", "ID")
+            .filterCondition("orderId", "$.id")
             .register();
 
         FraiseQL.subscription("userCreated")
@@ -165,7 +171,8 @@ public class SubscriptionTest {
             .entityType("Order")
             .arg("storeId", "Int")
             .topic("order_events")
-            .operation("CREATE")
+            .filterCondition("storeId", "$.store_id")
+            .fields("id", "total")
             .description("Subscribe to new orders")
             .register();
 
@@ -176,7 +183,8 @@ public class SubscriptionTest {
         assertEquals("orderCreated", subInfo.get().name);
         assertEquals("Order", subInfo.get().entityType);
         assertEquals("order_events", subInfo.get().topic);
-        assertEquals("CREATE", subInfo.get().operation);
+        assertEquals("$.store_id", subInfo.get().filterConditions.get("storeId"));
+        assertEquals(List.of("id", "total"), subInfo.get().fields);
         assertEquals("Subscribe to new orders", subInfo.get().description);
         assertEquals(1, subInfo.get().arguments.size());
     }

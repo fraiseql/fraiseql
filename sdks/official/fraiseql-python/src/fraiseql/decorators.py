@@ -1329,13 +1329,14 @@ def input(cls: type[T]) -> type[T]:
     return cls
 
 
-def subscription(
+def subscription(  # noqa: PLR0913 — public API; all parameters are meaningful
     func: F | None = None,
     *,
     entity_type: str | None = None,
     topic: str | None = None,
-    operation: str | None = None,
-    **config_kwargs: Any,
+    filter: dict[str, Any] | None = None,
+    fields: list[str] | None = None,
+    deprecated: bool | str | None = None,
 ) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL subscription.
 
@@ -1345,12 +1346,20 @@ def subscription(
     Subscriptions in FraiseQL are compiled projections of database events.
     They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
 
+    An event is narrowed with ``filter``, which maps the subscription's own arguments
+    onto JSON paths in the event payload. There is no ``operation`` filter and no
+    ``**config_kwargs``: the runtime has no DML-verb member, so passing one used to
+    fail the whole document at ``fraiseql compile`` rather than filter anything, and
+    the catch-all is what carried it there (#1024).
+
     Args:
         func: Python function with type annotations
         entity_type: Entity type being subscribed to (defaults to return type)
         topic: Optional topic/channel name for filtering events
-        operation: Optional operation filter ("CREATE", "UPDATE", "DELETE")
-        **config_kwargs: Additional configuration options
+        filter: Optional ``{"conditions": [{"argument": ..., "path": ...}]}`` mapping
+            arguments onto JSON paths in the event payload
+        fields: Optional subset of event fields to project; all fields if omitted
+        deprecated: ``True``, or the reason as a string
 
     Returns:
         The original function (unmodified)
@@ -1363,25 +1372,26 @@ def subscription(
 
         This generates JSON:
         {
-            "name": "order_created",
-            "entity_type": "Order",
-            "nullable": false,
+            "name": "orderCreated",
+            "return_type": "Order",
             "arguments": [
-                {"name": "user_id", "type": "String", "nullable": true}
+                {"name": "userId", "type": "String", "nullable": true}
             ],
             "topic": "order_created"
         }
 
-        >>> @fraiseql.subscription(operation="UPDATE")
-        ... def user_updated() -> User:
-        ...     '''Subscribe to user updates.'''
+        >>> @fraiseql.subscription(
+        ...     filter={"conditions": [{"argument": "user_id", "path": "$.user_id"}]},
+        ... )
+        ... def user_updated(user_id: str | None = None) -> User:
+        ...     '''Subscribe to updates for one user.'''
         ...     pass
 
     Notes:
         - Function must have type annotations for all parameters and return type
         - Return type determines the entity being subscribed to
         - Use topic to filter events to specific channels
-        - Use operation to filter by CREATE/UPDATE/DELETE
+        - Use filter to narrow events by their payload
         - Arguments become subscription filters (compiled, not resolved)
     """
 
@@ -1392,21 +1402,16 @@ def subscription(
         # Determine entity type from return type or explicit parameter
         resolved_entity_type = entity_type or signature["return_type"]["type"]
 
-        # Build config
-        config: dict[str, Any] = {**config_kwargs}
-        if topic:
-            config["topic"] = topic
-        if operation:
-            config["operation"] = operation
-
         # Register subscription with schema registry
         SchemaRegistry.register_subscription(
             name=f.__name__,
             entity_type=resolved_entity_type,
-            nullable=signature["return_type"]["nullable"],
             arguments=signature["arguments"],
             description=f.__doc__,
-            **config,
+            topic=topic,
+            filter=filter,
+            fields=fields,
+            deprecated=deprecated,
         )
 
         # Return original function unmodified

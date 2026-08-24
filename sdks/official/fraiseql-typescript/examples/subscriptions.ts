@@ -2,21 +2,21 @@
  * FraiseQL Subscriptions Example
  *
  * This example demonstrates subscription support for real-time event streaming:
- * - Basic subscriptions with entity type filtering
- * - Event type filtering (CREATE, UPDATE, DELETE)
+ * - Basic subscriptions on a return type
  * - Topic-based subscriptions for event channels
- * - Filter arguments for targeted subscriptions
+ * - Filter arguments mapped onto paths in the event payload
+ * - Field projection from the event
  * - Common patterns: CDC, real-time notifications, alerts
  *
  * Subscriptions in FraiseQL are compiled database event projections,
  * sourced from LISTEN/NOTIFY or CDC, not resolver-based.
  *
- * **This example does not write a schema file, and cannot yet.** Every SDK emits a
- * subscription as `{name, entity_type, nullable, …}` while `IntermediateSubscription`
- * expects `{name, return_type, topic, filter, fields, …}`, and that struct is
- * `deny_unknown_fields` — so a document declaring any subscription is refused at
- * compile, in every language (#1024). The registrations below are real and are printed;
- * writing a `schema.json` here would only produce a file the next command rejects.
+ * Two concepts this example used to demonstrate are gone (#1024). There is no `nullable`
+ * and no `operation`/`operations`: the runtime subscription model has neither, and the
+ * SDK emitted both into a struct that denies unknown fields, so a document declaring any
+ * subscription was refused at compile — the whole document, not the subscription. Where
+ * a CREATE/UPDATE/DELETE filter was wanted, the event's own payload carries the verb and
+ * a `filter` condition selects on it.
  *
  * Usage:
  *   npx tsx examples/subscriptions.ts
@@ -28,257 +28,205 @@ import * as fraiseql from "../src/index";
 // TYPE DEFINITIONS
 // ============================================================================
 
-fraiseql.registerTypeFields("User", [
-  { name: "id", type: "ID", nullable: false },
-  { name: "email", type: "Email", nullable: false },
-  { name: "name", type: "String", nullable: false },
-  { name: "status", type: "String", nullable: false },
-]);
+fraiseql.registerTypeFields(
+  "User",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "email", type: "Email", nullable: false },
+    { name: "name", type: "String", nullable: false },
+    { name: "status", type: "String", nullable: false },
+  ],
+  undefined,
+  { sqlSource: "v_user" }
+);
 
-fraiseql.registerTypeFields("Order", [
-  { name: "id", type: "ID", nullable: false },
-  { name: "customerId", type: "ID", nullable: false },
-  { name: "status", type: "String", nullable: false },
-  { name: "totalAmount", type: "Decimal", nullable: false },
-  { name: "createdAt", type: "DateTime", nullable: false },
-]);
+fraiseql.registerTypeFields(
+  "Order",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "customerId", type: "ID", nullable: false },
+    { name: "status", type: "String", nullable: false },
+    { name: "totalAmount", type: "Decimal", nullable: false },
+    { name: "createdAt", type: "DateTime", nullable: false },
+  ],
+  undefined,
+  { sqlSource: "v_order" }
+);
 
-fraiseql.registerTypeFields("Payment", [
-  { name: "id", type: "ID", nullable: false },
-  { name: "orderId", type: "ID", nullable: false },
-  { name: "amount", type: "Decimal", nullable: false },
-  { name: "status", type: "String", nullable: false },
-  { name: "processedAt", type: "DateTime", nullable: false },
-]);
+fraiseql.registerTypeFields(
+  "Payment",
+  [
+    { name: "id", type: "ID", nullable: false },
+    { name: "orderId", type: "ID", nullable: false },
+    { name: "amount", type: "Decimal", nullable: false },
+    { name: "status", type: "String", nullable: false },
+    { name: "processedAt", type: "DateTime", nullable: false },
+  ],
+  undefined,
+  { sqlSource: "v_payment" }
+);
 
 // ============================================================================
-// EXAMPLE 1: Basic Event Type Filtering
+// EXAMPLE 1: Basic Subscriptions
 // ============================================================================
 
 // Subscribe to all user changes
 fraiseql.registerSubscription(
   "userChanged",
   "User",
-  false,
   [],
-  "Subscribe to any user changes (create, update, delete)"
+  "Subscribe to any user changes"
 );
 
-// Subscribe only to user creation
+// The event payload carries the DML verb; a filter condition selects on it, which is
+// what replaces the `operation: "CREATE"` this example used to pass.
 fraiseql.registerSubscription(
-  "userCreated",
+  "userEventsByVerb",
   "User",
-  false,
-  [],
-  "Subscribe to new user registrations",
-  { operation: "CREATE" }
-);
-
-// Subscribe only to user updates
-fraiseql.registerSubscription(
-  "userUpdated",
-  "User",
-  false,
-  [],
-  "Subscribe to user profile updates",
-  { operation: "UPDATE" }
-);
-
-// Subscribe only to user deletion
-fraiseql.registerSubscription(
-  "userDeleted",
-  "User",
-  false,
-  [],
-  "Subscribe to user deletions",
-  { operation: "DELETE" }
+  [{ name: "verb", type: "String", nullable: true }],
+  "Subscribe to user events of one kind",
+  { filter: { conditions: [{ argument: "verb", path: "$.op" }] } }
 );
 
 // ============================================================================
 // EXAMPLE 2: Topic-Based Subscriptions
 // ============================================================================
 
-// Topic-based filtering for order events
 fraiseql.registerSubscription(
   "orderEvents",
   "Order",
-  false,
   [],
-  "Subscribe to order events on order_events topic",
+  "Subscribe to order events on the order_events topic",
   { topic: "order_events" }
 );
 
-// Topic with operation filtering
-fraiseql.registerSubscription(
-  "newOrdersStream",
-  "Order",
-  false,
-  [],
-  "Stream of new orders",
-  { topic: "orders", operation: "CREATE" }
-);
-
-// Topic with multiple operations
 fraiseql.registerSubscription(
   "orderLifecycle",
   "Order",
-  false,
-  [],
-  "Track full order lifecycle",
-  { topic: "orders", operations: ["CREATE", "UPDATE", "DELETE"] }
+  [{ name: "status", type: "String", nullable: true }],
+  "Track order lifecycle on a topic, narrowed by status",
+  {
+    topic: "orders",
+    filter: { conditions: [{ argument: "status", path: "$.status" }] },
+  }
 );
 
 // ============================================================================
 // EXAMPLE 3: Filtered Subscriptions with Arguments
 // ============================================================================
 
-// Subscribe to changes for a specific user
 fraiseql.registerSubscription(
   "userUpdatesForId",
   "User",
-  false,
   [{ name: "userId", type: "ID", nullable: false }],
   "Subscribe to updates for a specific user",
-  { operation: "UPDATE" }
+  { filter: { conditions: [{ argument: "userId", path: "$.id" }] } }
 );
 
-// Subscribe to orders for a customer
 fraiseql.registerSubscription(
   "customerOrders",
   "Order",
-  false,
   [{ name: "customerId", type: "ID", nullable: false }],
-  "Subscribe to order changes for a specific customer"
+  "Subscribe to order changes for a specific customer",
+  { filter: { conditions: [{ argument: "customerId", path: "$.customer_id" }] } }
 );
 
-// Subscribe to high-value orders
+// ============================================================================
+// EXAMPLE 4: Projecting a Subset of the Event
+// ============================================================================
+
+// `fields` keeps the stream narrow: only these keys of the event are delivered.
 fraiseql.registerSubscription(
-  "expensiveOrders",
+  "orderTotals",
   "Order",
-  false,
-  [
-    { name: "minAmount", type: "Decimal", nullable: false },
-    { name: "maxAmount", type: "Decimal", nullable: true },
-  ],
-  "Subscribe to orders above a minimum amount",
-  { operation: "CREATE" }
+  [{ name: "customerId", type: "ID", nullable: true }],
+  "Just the amounts, for a running total",
+  {
+    topic: "orders",
+    filter: { conditions: [{ argument: "customerId", path: "$.customer_id" }] },
+    fields: ["id", "totalAmount"],
+  }
 );
 
 // ============================================================================
-// EXAMPLE 4: Real-Time Notification Patterns
+// EXAMPLE 5: Real-Time Notification Patterns
 // ============================================================================
 
-// Real-time payment processing
 fraiseql.registerSubscription(
   "paymentProcessed",
   "Payment",
-  false,
-  [
-    { name: "status", type: "String", nullable: false },
-    { name: "minAmount", type: "Decimal", nullable: true },
-  ],
+  [{ name: "status", type: "String", nullable: false }],
   "Real-time payment processing notifications",
-  { topic: "payments", operation: "UPDATE" }
+  {
+    topic: "payments",
+    filter: { conditions: [{ argument: "status", path: "$.status" }] },
+  }
 );
 
-// Real-time order status updates
 fraiseql.registerSubscription(
   "orderStatusChanged",
   "Order",
-  false,
   [
     { name: "orderId", type: "ID", nullable: false },
-    { name: "fromStatus", type: "String", nullable: true },
     { name: "toStatus", type: "String", nullable: true },
   ],
   "Get notified when order status changes",
-  { operation: "UPDATE" }
+  {
+    filter: {
+      conditions: [
+        { argument: "orderId", path: "$.id" },
+        { argument: "toStatus", path: "$.status" },
+      ],
+    },
+  }
 );
 
 // ============================================================================
-// EXAMPLE 5: Change Data Capture (CDC) Pattern
+// EXAMPLE 6: Change Data Capture (CDC) Pattern
 // ============================================================================
 
-// Capture all user changes for data synchronization
 fraiseql.registerSubscription(
   "userCDC",
   "User",
-  false,
   [],
-  "Change data capture for users (all operations)",
-  { topic: "cdc", operations: ["CREATE", "UPDATE", "DELETE"] }
+  "Change data capture for users",
+  { topic: "cdc" }
 );
 
-// Capture all order changes for audit trail
 fraiseql.registerSubscription(
   "orderCDC",
   "Order",
-  false,
   [],
-  "Change data capture for orders (all operations)",
-  { topic: "cdc", operations: ["CREATE", "UPDATE", "DELETE"] }
-);
-
-// ============================================================================
-// EXAMPLE 6: Alert Pattern with Filters
-// ============================================================================
-
-// Alert on unusual activity
-fraiseql.registerSubscription(
-  "unusualOrders",
-  "Order",
-  false,
-  [
-    { name: "minAmount", type: "Decimal", nullable: false },
-    { name: "timeWindowMinutes", type: "Int", nullable: true },
-  ],
-  "Alert on orders above threshold within time window",
-  { operation: "CREATE" }
-);
-
-// Alert on user status changes
-fraiseql.registerSubscription(
-  "userStatusAlert",
-  "User",
-  false,
-  [
-    { name: "fromStatus", type: "String", nullable: false },
-    { name: "toStatus", type: "String", nullable: false },
-  ],
-  "Alert when user status transitions",
-  { operation: "UPDATE" }
+  "Change data capture for orders",
+  { topic: "cdc" }
 );
 
 // ============================================================================
 // EXAMPLE 7: Multi-Topic Fan-Out Pattern
 // ============================================================================
 
-// Different channels for different priorities
 fraiseql.registerSubscription(
   "criticalOrders",
   "Order",
-  false,
-  [{ name: "minAmount", type: "Decimal", nullable: false }],
+  [{ name: "customerId", type: "ID", nullable: true }],
   "High-priority orders",
-  { topic: "orders.critical", operation: "CREATE" }
+  {
+    topic: "orders.critical",
+    filter: { conditions: [{ argument: "customerId", path: "$.customer_id" }] },
+  }
 );
 
-fraiseql.registerSubscription(
-  "standardOrders",
-  "Order",
-  false,
-  [],
-  "Standard orders",
-  { topic: "orders.standard", operation: "CREATE" }
-);
+fraiseql.registerSubscription("standardOrders", "Order", [], "Standard orders", {
+  topic: "orders.standard",
+});
 
+// A subscription that is on its way out says so, and generated clients warn.
 fraiseql.registerSubscription(
   "lowPriorityOrders",
   "Order",
-  false,
   [],
   "Low-priority orders",
-  { topic: "orders.low_priority", operation: "CREATE" }
+  { topic: "orders.low_priority", deprecated: "fold into standardOrders" }
 );
 
 // ============================================================================
@@ -291,7 +239,8 @@ fraiseql.registerQuery(
   false,
   false,
   [{ name: "id", type: "ID", nullable: false }],
-  "Get user by ID (works with userUpdatesForId subscription)"
+  "Get user by ID (works with userUpdatesForId subscription)",
+  { sql_source: "v_user" }
 );
 
 fraiseql.registerQuery(
@@ -300,16 +249,18 @@ fraiseql.registerQuery(
   false,
   false,
   [{ name: "id", type: "ID", nullable: false }],
-  "Get order by ID (complements order subscriptions)"
+  "Get order by ID (complements order subscriptions)",
+  { sql_source: "v_order" }
 );
 
 fraiseql.registerQuery(
-  "customerOrders",
+  "customerOrderHistory",
   "Order",
   true,
   false,
   [{ name: "customerId", type: "ID", nullable: false }],
-  "Get all orders for customer (backfill before subscribing)"
+  "Get all orders for customer (backfill before subscribing)",
+  { sql_source: "v_order" }
 );
 
 // ============================================================================
@@ -325,7 +276,8 @@ fraiseql.registerMutation(
     { name: "customerId", type: "ID", nullable: false },
     { name: "amount", type: "Decimal", nullable: false },
   ],
-  "Create order (will trigger orderCreated subscription)"
+  "Create order (will trigger orderEvents subscription)",
+  { sql_source: "fn_create_order", operation: "insert" }
 );
 
 fraiseql.registerMutation(
@@ -337,19 +289,21 @@ fraiseql.registerMutation(
     { name: "orderId", type: "ID", nullable: false },
     { name: "status", type: "String", nullable: false },
   ],
-  "Update order status (will trigger relevant subscriptions)"
+  "Update order status (will trigger relevant subscriptions)",
+  { sql_source: "fn_update_order_status", operation: "update" }
 );
 
 // ============================================================================
 // EXPORT SCHEMA
 // ============================================================================
 
+fraiseql.exportSchema("schema.json");
+
 const subscriptions = fraiseql.SchemaRegistry.getSchema().subscriptions;
 console.log(`Registered ${subscriptions.length} subscription(s):`);
 for (const subscription of subscriptions) {
   const topic = subscription.topic ? `  topic=${subscription.topic}` : "";
-  const operation = subscription.operation ? `  op=${subscription.operation}` : "";
-  console.log(`   ${subscription.name}  ${subscription.entity_type}${operation}${topic}`);
+  const conditions = subscription.filter?.conditions.length ?? 0;
+  const filter = conditions > 0 ? `  filter=${conditions} condition(s)` : "";
+  console.log(`   ${subscription.name}  ${subscription.return_type}${topic}${filter}`);
 }
-console.log("");
-console.log("Not exported: `entity_type` is not a key the compiler accepts — see #1024.");

@@ -392,27 +392,41 @@ class SchemaRegistry:
         }
 
     @classmethod
-    def register_subscription(
+    def register_subscription(  # noqa: PLR0913 — public API; all parameters are meaningful
         cls,
         name: str,
         entity_type: str,
-        nullable: bool,
         arguments: list[dict[str, Any]],
         description: str | None = None,
-        **config: Any,
+        topic: str | None = None,
+        filter: dict[str, Any] | None = None,
+        fields: list[str] | None = None,
+        deprecated: bool | str | None = None,
     ) -> None:
         """Register a GraphQL subscription.
 
         Subscriptions in FraiseQL are compiled projections of database events.
         They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
 
+        The emitted mapping is ``IntermediateSubscription``, member for member.
+        ``entity_type`` is the authoring spelling of the compiler's ``return_type`` and
+        is resolved here. There is no ``nullable`` and no ``operation``: the runtime
+        subscription model has neither, and emitting them failed the whole document at
+        ``fraiseql compile`` rather than doing anything (#1024). Nor is there a
+        ``**config`` catch-all — that is how ``operation`` reached the compiler in the
+        first place, and how a typo would.
+
         Args:
             name: Subscription name (e.g., "orderCreated")
             entity_type: Entity type name being subscribed to (e.g., "Order")
-            nullable: True if result can be null
             arguments: List of argument definitions (filters)
             description: Optional subscription description from docstring
-            **config: Additional configuration (topic, operation, etc.)
+            topic: Optional LISTEN/NOTIFY channel or CDC topic
+            filter: Optional ``{"conditions": [{"argument": ..., "path": ...}]}``
+                mapping arguments onto JSON paths in the event payload
+            fields: Optional subset of event fields to project; all fields if omitted
+            deprecated: ``True`` for deprecated with no stated reason, a string for the
+                reason, ``False``/``None`` for not deprecated
         """
         camel_name = _snake_to_camel(name)
         if camel_name in cls._subscriptions:
@@ -420,14 +434,24 @@ class SchemaRegistry:
                 f"Subscription {camel_name!r} is already registered. "
                 "Each name must be unique within a schema."
             )
-        cls._subscriptions[camel_name] = {
+        subscription: SchemaElement = {
             "name": camel_name,
-            "entity_type": entity_type,
-            "nullable": nullable,
+            "return_type": entity_type,
             "arguments": [{**a, "name": _snake_to_camel(a["name"])} for a in arguments],
-            "description": description,
-            **config,
         }
+        if description is not None:
+            subscription["description"] = description
+        if topic is not None:
+            subscription["topic"] = topic
+        if filter is not None:
+            subscription["filter"] = filter
+        if fields:
+            subscription["fields"] = fields
+        if deprecated:
+            subscription["deprecated"] = (
+                {"reason": deprecated} if isinstance(deprecated, str) else {}
+            )
+        cls._subscriptions[camel_name] = subscription
 
     @classmethod
     def register_source(  # noqa: PLR0913 — public API; all parameters are meaningful

@@ -15,8 +15,7 @@ func TestRegisterSubscription(t *testing.T) {
 
 		RegisterSubscription(SubscriptionDefinition{
 			Name:        "orderCreated",
-			EntityType:  "Order",
-			Nullable:    false,
+			ReturnType:  "Order",
 			Arguments:   []ArgumentDefinition{},
 			Description: "Subscribe to new orders",
 		})
@@ -30,11 +29,8 @@ func TestRegisterSubscription(t *testing.T) {
 		if sub.Name != "orderCreated" {
 			t.Errorf("expected name 'orderCreated', got %q", sub.Name)
 		}
-		if sub.EntityType != "Order" {
-			t.Errorf("expected entity type 'Order', got %q", sub.EntityType)
-		}
-		if sub.Nullable {
-			t.Error("expected nullable to be false")
+		if sub.ReturnType != "Order" {
+			t.Errorf("expected return type 'Order', got %q", sub.ReturnType)
 		}
 	})
 
@@ -43,8 +39,7 @@ func TestRegisterSubscription(t *testing.T) {
 
 		RegisterSubscription(SubscriptionDefinition{
 			Name:        "orderCreated",
-			EntityType:  "Order",
-			Nullable:    false,
+			ReturnType:  "Order",
 			Arguments:   []ArgumentDefinition{},
 			Topic:       "order_events",
 			Description: "Subscribe to new orders",
@@ -57,22 +52,33 @@ func TestRegisterSubscription(t *testing.T) {
 		}
 	})
 
-	t.Run("subscription with operation filter", func(t *testing.T) {
+	// Replaces "subscription with operation filter". A subscription does not filter on
+	// a DML verb — the runtime has no such member — it maps its own arguments onto JSON
+	// paths in the event payload.
+	t.Run("subscription with event filter", func(t *testing.T) {
 		Reset()
 
 		RegisterSubscription(SubscriptionDefinition{
-			Name:        "userUpdated",
-			EntityType:  "User",
-			Nullable:    false,
-			Arguments:   []ArgumentDefinition{},
-			Operation:   "UPDATE",
+			Name:       "userUpdated",
+			ReturnType: "User",
+			Arguments: []ArgumentDefinition{
+				{Name: "userId", Type: "ID", Nullable: true},
+			},
+			Filter: &SubscriptionFilter{
+				Conditions: []SubscriptionFilterCondition{
+					{Argument: "userId", Path: "$.id"},
+				},
+			},
 			Description: "Subscribe to user updates",
 		})
 
 		schema := GetSchema()
 		sub := schema.Subscriptions[0]
-		if sub.Operation != "UPDATE" {
-			t.Errorf("expected operation 'UPDATE', got %q", sub.Operation)
+		if sub.Filter == nil || len(sub.Filter.Conditions) != 1 {
+			t.Fatalf("expected 1 filter condition, got %+v", sub.Filter)
+		}
+		if sub.Filter.Conditions[0].Path != "$.id" {
+			t.Errorf("expected path '$.id', got %q", sub.Filter.Conditions[0].Path)
 		}
 	})
 
@@ -81,8 +87,7 @@ func TestRegisterSubscription(t *testing.T) {
 
 		RegisterSubscription(SubscriptionDefinition{
 			Name:       "orderStatusChanged",
-			EntityType: "Order",
-			Nullable:   false,
+			ReturnType: "Order",
 			Arguments: []ArgumentDefinition{
 				{Name: "userId", Type: "String", Nullable: true},
 				{Name: "status", Type: "String", Nullable: true},
@@ -103,21 +108,22 @@ func TestRegisterSubscription(t *testing.T) {
 		}
 	})
 
-	t.Run("nullable subscription", func(t *testing.T) {
+	// Replaces "nullable subscription". `fields` projects a subset of the event.
+	t.Run("subscription projecting event fields", func(t *testing.T) {
 		Reset()
 
 		RegisterSubscription(SubscriptionDefinition{
 			Name:        "userDeleted",
-			EntityType:  "User",
-			Nullable:    true,
+			ReturnType:  "User",
 			Arguments:   []ArgumentDefinition{},
+			Fields:      []string{"id"},
 			Description: "Subscribe to user deletions",
 		})
 
 		schema := GetSchema()
 		sub := schema.Subscriptions[0]
-		if !sub.Nullable {
-			t.Error("expected nullable to be true")
+		if len(sub.Fields) != 1 || sub.Fields[0] != "id" {
+			t.Errorf("expected fields [id], got %v", sub.Fields)
 		}
 	})
 
@@ -126,22 +132,19 @@ func TestRegisterSubscription(t *testing.T) {
 
 		RegisterSubscription(SubscriptionDefinition{
 			Name:       "orderCreated",
-			EntityType: "Order",
-			Nullable:   false,
+			ReturnType: "Order",
 			Arguments:  []ArgumentDefinition{},
 		})
 
 		RegisterSubscription(SubscriptionDefinition{
 			Name:       "orderUpdated",
-			EntityType: "Order",
-			Nullable:   false,
+			ReturnType: "Order",
 			Arguments:  []ArgumentDefinition{},
 		})
 
 		RegisterSubscription(SubscriptionDefinition{
 			Name:       "userCreated",
-			EntityType: "User",
-			Nullable:   false,
+			ReturnType: "User",
 			Arguments:  []ArgumentDefinition{},
 		})
 
@@ -152,13 +155,96 @@ func TestRegisterSubscription(t *testing.T) {
 	})
 }
 
+// TestSubscriptionJSONHasOnlyCompilerMembers pins the emitted key set.
+//
+// `IntermediateSubscription` denies unknown fields, so one extra key fails the *whole
+// document* at `fraiseql compile`. Nothing here used to check that — every assertion
+// above read the struct back through Go, where `entity_type`/`nullable`/`operation`
+// round-tripped perfectly and compiled nowhere (#1024).
+func TestSubscriptionJSONHasOnlyCompilerMembers(t *testing.T) {
+	Reset()
+
+	RegisterSubscription(SubscriptionDefinition{
+		Name:       "orderUpdated",
+		ReturnType: "Order",
+		Arguments: []ArgumentDefinition{
+			{Name: "orderId", Type: "ID", Nullable: true},
+		},
+		Description: "Stream of order update events",
+		Topic:       "order_events",
+		Filter: &SubscriptionFilter{
+			Conditions: []SubscriptionFilterCondition{{Argument: "orderId", Path: "$.id"}},
+		},
+		Fields:     []string{"id", "total"},
+		Deprecated: &DeprecationInfo{Reason: "use orderEvents"},
+	})
+
+	data, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
+
+	var schema map[string]interface{}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	subs, ok := schema["subscriptions"].([]interface{})
+	if !ok || len(subs) != 1 {
+		t.Fatalf("expected 1 subscription in JSON, got schema: %s", string(data))
+	}
+	sub, ok := subs[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("subscription is not an object: %s", string(data))
+	}
+
+	allowed := map[string]bool{
+		"name": true, "return_type": true, "arguments": true, "description": true,
+		"topic": true, "filter": true, "fields": true, "deprecated": true,
+	}
+	for key := range sub {
+		if !allowed[key] {
+			t.Errorf("emitted key %q is not a member of IntermediateSubscription", key)
+		}
+	}
+	if _, present := sub["return_type"]; !present {
+		t.Errorf("return_type absent from emitted subscription: %s", string(data))
+	}
+}
+
+func TestSubscriptionJSONOmitsUnsetOptions(t *testing.T) {
+	Reset()
+
+	RegisterSubscription(SubscriptionDefinition{
+		Name:       "orderCreated",
+		ReturnType: "Order",
+		Arguments:  []ArgumentDefinition{},
+	})
+
+	data, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
+
+	var schema map[string]interface{}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	sub := schema["subscriptions"].([]interface{})[0].(map[string]interface{})
+	for _, key := range []string{"description", "topic", "filter", "fields", "deprecated"} {
+		if _, present := sub[key]; present {
+			t.Errorf("unset option %q was emitted: %s", key, string(data))
+		}
+	}
+}
+
 func TestResetClearsSubscriptions(t *testing.T) {
 	Reset()
 
 	RegisterSubscription(SubscriptionDefinition{
 		Name:       "orderCreated",
-		EntityType: "Order",
-		Nullable:   false,
+		ReturnType: "Order",
 		Arguments:  []ArgumentDefinition{},
 	})
 
@@ -196,11 +282,9 @@ func TestGetSchemaIncludesSubscriptions(t *testing.T) {
 	// Register a subscription
 	RegisterSubscription(SubscriptionDefinition{
 		Name:        "orderCreated",
-		EntityType:  "Order",
-		Nullable:    false,
+		ReturnType:  "Order",
 		Arguments:   []ArgumentDefinition{},
 		Topic:       "orders",
-		Operation:   "CREATE",
 		Description: "Subscribe to new orders",
 	})
 
@@ -386,7 +470,7 @@ func TestDuplicateRegistrationErrors(t *testing.T) {
 
 	t.Run("RegisterSubscription returns error for duplicate", func(t *testing.T) {
 		Reset()
-		def := SubscriptionDefinition{Name: "orderCreated", EntityType: "Order", Nullable: false, Arguments: []ArgumentDefinition{}}
+		def := SubscriptionDefinition{Name: "orderCreated", ReturnType: "Order", Arguments: []ArgumentDefinition{}}
 
 		if err := RegisterSubscription(def); err != nil {
 			t.Fatalf("first registration should succeed, got: %v", err)

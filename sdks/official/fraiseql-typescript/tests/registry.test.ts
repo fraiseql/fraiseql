@@ -156,7 +156,6 @@ describe("SchemaRegistry", () => {
       SchemaRegistry.registerSubscription(
         "orderCreated",
         "Order",
-        false,
         [],
         "Subscribe to new orders"
       );
@@ -164,15 +163,13 @@ describe("SchemaRegistry", () => {
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions).toHaveLength(1);
       expect(schema.subscriptions[0].name).toBe("orderCreated");
-      expect(schema.subscriptions[0].entity_type).toBe("Order");
-      expect(schema.subscriptions[0].nullable).toBe(false);
+      expect(schema.subscriptions[0].return_type).toBe("Order");
     });
 
     it("should register a subscription with topic", () => {
       SchemaRegistry.registerSubscription(
         "orderCreated",
         "Order",
-        false,
         [],
         "Subscribe to new orders",
         { topic: "order_events" }
@@ -182,25 +179,23 @@ describe("SchemaRegistry", () => {
       expect(schema.subscriptions[0].topic).toBe("order_events");
     });
 
-    it("should register a subscription with operation filter", () => {
+    it("should register a subscription with an event filter", () => {
       SchemaRegistry.registerSubscription(
         "userUpdated",
         "User",
-        false,
-        [],
+        [{ name: "userId", type: "ID", nullable: true }],
         "Subscribe to user updates",
-        { operation: "UPDATE" }
+        { filter: { conditions: [{ argument: "userId", path: "$.id" }] } }
       );
 
       const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].operation).toBe("UPDATE");
+      expect(schema.subscriptions[0].filter?.conditions[0]?.path).toBe("$.id");
     });
 
     it("should register a subscription with arguments", () => {
       SchemaRegistry.registerSubscription(
         "orderStatusChanged",
         "Order",
-        false,
         [
           { name: "userId", type: "String", nullable: true },
           { name: "status", type: "String", nullable: true },
@@ -214,17 +209,17 @@ describe("SchemaRegistry", () => {
       expect(schema.subscriptions[0].arguments[0].nullable).toBe(true);
     });
 
-    it("should register a nullable subscription", () => {
+    it("should register a subscription projecting a subset of event fields", () => {
       SchemaRegistry.registerSubscription(
         "userDeleted",
         "User",
-        true,
         [],
-        "Subscribe to user deletions"
+        "Subscribe to user deletions",
+        { fields: ["id"] }
       );
 
       const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].nullable).toBe(true);
+      expect(schema.subscriptions[0].fields).toEqual(["id"]);
     });
   });
 

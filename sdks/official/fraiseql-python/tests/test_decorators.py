@@ -293,10 +293,63 @@ def test_subscription_decorator_simple() -> None:
 
     sub = schema["subscriptions"][0]
     assert sub["name"] == "orderCreated"
-    assert sub["entity_type"] == "Order"
-    assert sub["nullable"] is False
+    assert sub["return_type"] == "Order"
     assert sub["description"] == "Subscribe to new orders."
     assert len(sub["arguments"]) == 0
+
+
+def test_subscription_emits_only_compiler_members() -> None:
+    """The emitted mapping is IntermediateSubscription, member for member.
+
+    That struct is ``deny_unknown_fields``: one extra key fails the *whole document*
+    at ``fraiseql compile``. Nothing here used to pin the key set, which is how
+    ``entity_type``/``nullable``/``operation`` survived (#1024).
+    """
+    compiler_members = {
+        "name",
+        "return_type",
+        "arguments",
+        "description",
+        "topic",
+        "filter",
+        "fields",
+        "deprecated",
+    }
+
+    @fraiseql.type
+    class Order:
+        id: str
+        amount: float
+
+    @fraiseql.subscription(
+        topic="orders",
+        filter={"conditions": [{"argument": "orderId", "path": "$.id"}]},
+        fields=["id", "amount"],
+        deprecated="use orderEvents",
+    )
+    def order_created(order_id: str | None = None) -> Order:
+        """Subscribe to new orders."""
+        pass
+
+    sub = SchemaRegistry.get_schema()["subscriptions"][0]
+
+    assert set(sub) == compiler_members
+
+
+def test_subscription_omits_options_the_author_did_not_set() -> None:
+    """An unset option is an absent key, not a null the compiler has to tolerate."""
+
+    @fraiseql.type
+    class Order:
+        id: str
+
+    @fraiseql.subscription
+    def order_created() -> Order:
+        pass
+
+    sub = SchemaRegistry.get_schema()["subscriptions"][0]
+
+    assert set(sub) == {"name", "return_type", "arguments"}
 
 
 def test_subscription_decorator_with_topic() -> None:
@@ -317,20 +370,27 @@ def test_subscription_decorator_with_topic() -> None:
     sub = schema["subscriptions"][0]
 
     assert sub["name"] == "orderCreated"
-    assert sub["entity_type"] == "Order"
+    assert sub["return_type"] == "Order"
     assert sub["topic"] == "orders_created"
 
 
-def test_subscription_decorator_with_operation() -> None:
-    """Test @fraiseql.subscription with operation filter."""
+def test_subscription_decorator_with_event_filter() -> None:
+    """Test @fraiseql.subscription narrowing events by their payload.
+
+    This replaces the ``operation="UPDATE"`` test. A subscription does not filter on a
+    DML verb — the runtime has no such member — it maps its own arguments onto JSON
+    paths in the event.
+    """
 
     @fraiseql.type
     class User:
         id: str
         name: str
 
-    @fraiseql.subscription(operation="UPDATE")
-    def user_updated() -> User:
+    @fraiseql.subscription(
+        filter={"conditions": [{"argument": "userId", "path": "$.id"}]},
+    )
+    def user_updated(user_id: str | None = None) -> User:
         """Subscribe to user updates."""
         pass
 
@@ -338,8 +398,8 @@ def test_subscription_decorator_with_operation() -> None:
     sub = schema["subscriptions"][0]
 
     assert sub["name"] == "userUpdated"
-    assert sub["entity_type"] == "User"
-    assert sub["operation"] == "UPDATE"
+    assert sub["return_type"] == "User"
+    assert sub["filter"] == {"conditions": [{"argument": "userId", "path": "$.id"}]}
 
 
 def test_subscription_decorator_with_arguments() -> None:
@@ -360,7 +420,7 @@ def test_subscription_decorator_with_arguments() -> None:
     sub = schema["subscriptions"][0]
 
     assert sub["name"] == "orderStatusChanged"
-    assert sub["entity_type"] == "Order"
+    assert sub["return_type"] == "Order"
     assert len(sub["arguments"]) == 2
 
     user_arg = next(a for a in sub["arguments"] if a["name"] == "userId")
@@ -373,7 +433,7 @@ def test_subscription_decorator_with_arguments() -> None:
 
 
 def test_subscription_decorator_explicit_entity_type() -> None:
-    """Test @fraiseql.subscription with explicit entity_type."""
+    """``entity_type`` is the authoring alias, and it wins over the return annotation."""
 
     @fraiseql.type
     class OrderEvent:
@@ -389,20 +449,21 @@ def test_subscription_decorator_explicit_entity_type() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    # entity_type should be explicit "Order", not inferred "OrderEvent"
-    assert sub["entity_type"] == "Order"
+    # Resolved to the compiler's key, and to the explicit "Order" rather than the
+    # inferred "OrderEvent".
+    assert sub["return_type"] == "Order"
 
 
-def test_subscription_decorator_nullable_return() -> None:
-    """Test @fraiseql.subscription with nullable return type."""
+def test_subscription_decorator_projects_event_fields() -> None:
+    """``fields`` narrows what the event delivers; empty means every field."""
 
     @fraiseql.type
     class User:
         id: str
         name: str
 
-    @fraiseql.subscription
-    def user_deleted() -> User | None:
+    @fraiseql.subscription(fields=["id"])
+    def user_deleted() -> User:
         """Subscribe to user deletions."""
         pass
 
@@ -410,7 +471,33 @@ def test_subscription_decorator_nullable_return() -> None:
     sub = schema["subscriptions"][0]
 
     assert sub["name"] == "userDeleted"
-    assert sub["nullable"] is True
+    assert sub["fields"] == ["id"]
+
+
+def test_subscription_deprecation_is_canonicalized() -> None:
+    """``True`` means no stated reason; a string is the reason; ``False`` drops the key."""
+
+    @fraiseql.type
+    class Order:
+        id: str
+
+    @fraiseql.subscription(deprecated="use orderEvents")
+    def legacy_feed() -> Order:
+        pass
+
+    @fraiseql.subscription(deprecated=True)
+    def bare_feed() -> Order:
+        pass
+
+    @fraiseql.subscription(deprecated=False)
+    def live_feed() -> Order:
+        pass
+
+    subs = {s["name"]: s for s in SchemaRegistry.get_schema()["subscriptions"]}
+
+    assert subs["legacyFeed"]["deprecated"] == {"reason": "use orderEvents"}
+    assert subs["bareFeed"]["deprecated"] == {}
+    assert "deprecated" not in subs["liveFeed"]
 
 
 def test_multiple_subscriptions() -> None:
@@ -453,7 +540,7 @@ def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None
         id: str
         amount: float
 
-    @fraiseql.subscription(topic="orders", operation="CREATE")
+    @fraiseql.subscription(topic="orders", fields=["id", "amount"])
     def order_created() -> Order:
         """Subscribe to new orders."""
         pass
@@ -471,9 +558,9 @@ def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None
 
     sub = schema["subscriptions"][0]
     assert sub["name"] == "orderCreated"
-    assert sub["entity_type"] == "Order"
+    assert sub["return_type"] == "Order"
     assert sub["topic"] == "orders"
-    assert sub["operation"] == "CREATE"
+    assert sub["fields"] == ["id", "amount"]
 
 
 # =============================================================================

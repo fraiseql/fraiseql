@@ -175,20 +175,57 @@ export interface FactTableDefinition {
 // the supported way to declare a named analytics query.
 
 /**
+ * One condition of a subscription filter: which argument selects on which JSON path
+ * of the event payload.
+ */
+export interface SubscriptionFilterCondition {
+  argument: string;
+  path: string;
+}
+
+/**
+ * Filter configuration for subscription event matching.
+ */
+export interface SubscriptionFilter {
+  conditions: SubscriptionFilterCondition[];
+}
+
+/**
+ * Options a subscription may carry beyond its name, return type and arguments.
+ *
+ * Deliberately closed. The previous shape was an open `Record<string, unknown>` spread
+ * into the emitted definition, so `operation: "UPDATE"` or a plain typo travelled all
+ * the way to `fraiseql compile` and was refused there — against the whole document,
+ * naming a key the author could not find in any SDK type. A closed set moves that
+ * failure to the call site, where the author can see it (#1024).
+ */
+export interface SubscriptionOptions {
+  topic?: string;
+  filter?: SubscriptionFilter;
+  fields?: string[];
+  deprecated?: boolean | string;
+}
+
+/**
  * GraphQL subscription definition.
  *
  * Subscriptions in FraiseQL are compiled projections of database events.
  * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+ *
+ * This is the compiler's `IntermediateSubscription` shape, member for member. It used
+ * to be a different one — `entity_type`, `nullable`, `operation`, plus an index
+ * signature — and no gate compiled it, so a subscription authored through this SDK
+ * failed the whole document at `fraiseql compile` (#1024).
  */
 export interface SubscriptionDefinition {
   name: string;
-  entity_type: string;
-  nullable: boolean;
+  return_type: string;
   arguments: ArgumentDefinition[];
   description?: string;
   topic?: string;
-  operation?: string;
-  [key: string]: unknown; // For additional config
+  filter?: SubscriptionFilter;
+  fields?: string[];
+  deprecated?: { reason?: string };
 }
 
 /**
@@ -771,34 +808,51 @@ export class SchemaRegistry {
    * Subscriptions in FraiseQL are compiled projections of database events.
    * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
    *
+   * `entityType` is the authoring spelling of the compiler's `return_type`, resolved
+   * here rather than at compile time. There is no `nullable` and no `operation`: the
+   * runtime subscription model has neither, so emitting them failed the document
+   * instead of doing anything (#1024).
+   *
    * @param name - Subscription name
-   * @param entityType - Entity type name being subscribed to
-   * @param nullable - Whether result can be null
+   * @param entityType - Entity type name being subscribed to (the return type)
    * @param args - List of argument definitions (filters)
    * @param description - Optional subscription description
-   * @param config - Additional configuration (topic, operation, etc.)
+   * @param options - topic, filter, projected fields, deprecation
    */
   static registerSubscription(
     name: string,
     entityType: string,
-    nullable: boolean,
     args: ArgumentDefinition[],
     description?: string,
-    config?: Record<string, unknown>
+    options?: SubscriptionOptions
   ): void {
     if (this.subscriptions.has(name)) {
       throw new Error(
         `Subscription '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
-    this.subscriptions.set(name, {
+    const { topic, filter, fields, deprecated } = options ?? {};
+    const definition: SubscriptionDefinition = {
       name,
-      entity_type: entityType,
-      nullable,
+      return_type: entityType,
       arguments: args,
-      description,
-      ...config,
-    });
+    };
+    if (description !== undefined) {
+      definition.description = description;
+    }
+    if (topic !== undefined) {
+      definition.topic = topic;
+    }
+    if (filter !== undefined) {
+      definition.filter = filter;
+    }
+    if (fields !== undefined && fields.length > 0) {
+      definition.fields = fields;
+    }
+    if (deprecated !== undefined && deprecated !== false) {
+      definition.deprecated = typeof deprecated === "string" ? { reason: deprecated } : {};
+    }
+    this.subscriptions.set(name, definition);
   }
 
   /**

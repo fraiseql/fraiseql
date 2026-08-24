@@ -10,12 +10,17 @@ namespace FraiseQL;
  * Subscriptions in FraiseQL are compiled projections of database events.
  * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
  *
+ * There is no `nullable()` and no `operation()`: the runtime subscription model has
+ * neither member. Where a CREATE/UPDATE/DELETE filter was wanted, the event payload
+ * carries the verb and a `filter()` condition selects on it (#1024).
+ *
  * Usage:
  * ```php
  * SubscriptionBuilder::subscription('orderCreated')
  *     ->entityType('Order')
  *     ->topic('order_events')
- *     ->operation('CREATE')
+ *     ->argument('orderId', 'ID')
+ *     ->filterCondition('orderId', '$.id')
  *     ->description('Subscribe to new orders')
  *     ->build();
  * ```
@@ -24,12 +29,15 @@ final class SubscriptionBuilder
 {
     private string $name;
     private string $entityType = '';
-    private bool $nullable = false;
     /** @var array<string, ArgumentDefinition> */
     private array $arguments = [];
     private ?string $description = null;
     private ?string $topic = null;
-    private ?string $operation = null;
+    /** @var array<int, array{argument: string, path: string}> */
+    private array $filterConditions = [];
+    /** @var array<int, string> */
+    private array $fields = [];
+    private bool|string|null $deprecated = null;
 
     private function __construct(string $name)
     {
@@ -48,7 +56,7 @@ final class SubscriptionBuilder
     }
 
     /**
-     * Set the entity type for this subscription.
+     * Set the entity type for this subscription — the compiler's `return_type`.
      *
      * @param string $entityType The GraphQL type name
      * @return self
@@ -56,18 +64,6 @@ final class SubscriptionBuilder
     public function entityType(string $entityType): self
     {
         $this->entityType = $entityType;
-        return $this;
-    }
-
-    /**
-     * Set whether the subscription can return null.
-     *
-     * @param bool $nullable Whether null is allowed
-     * @return self
-     */
-    public function nullable(bool $nullable = true): self
-    {
-        $this->nullable = $nullable;
         return $this;
     }
 
@@ -114,14 +110,39 @@ final class SubscriptionBuilder
     }
 
     /**
-     * Set the operation filter for this subscription.
+     * Narrow delivered events by matching one argument against a path in the payload.
      *
-     * @param string $operation The operation (CREATE, UPDATE, DELETE)
+     * @param string $argument Name of a declared subscription argument
+     * @param string $path JSON path into the event data, e.g. '$.id'
      * @return self
      */
-    public function operation(string $operation): self
+    public function filterCondition(string $argument, string $path): self
     {
-        $this->operation = $operation;
+        $this->filterConditions[] = ['argument' => $argument, 'path' => $path];
+        return $this;
+    }
+
+    /**
+     * Project a subset of the event's fields. Every field is delivered if unset.
+     *
+     * @param array<int, string> $fields Field names
+     * @return self
+     */
+    public function fields(array $fields): self
+    {
+        $this->fields = $fields;
+        return $this;
+    }
+
+    /**
+     * Mark this subscription deprecated.
+     *
+     * @param bool|string $deprecated True, or the reason
+     * @return self
+     */
+    public function deprecated(bool|string $deprecated = true): self
+    {
+        $this->deprecated = $deprecated;
         return $this;
     }
 
@@ -135,11 +156,14 @@ final class SubscriptionBuilder
         $definition = new SubscriptionDefinition(
             name: $this->name,
             entityType: $this->entityType,
-            nullable: $this->nullable,
             arguments: $this->arguments,
             description: $this->description,
             topic: $this->topic,
-            operation: $this->operation,
+            filter: $this->filterConditions === []
+                ? null
+                : ['conditions' => $this->filterConditions],
+            fields: $this->fields,
+            deprecated: $this->deprecated,
         );
 
         SchemaRegistry::getInstance()->registerSubscription($definition);

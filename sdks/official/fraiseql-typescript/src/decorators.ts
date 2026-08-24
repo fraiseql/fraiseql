@@ -5,7 +5,14 @@
  * for JSON export. NO runtime behavior - only metadata collection.
  */
 
-import { SchemaRegistry, ArgumentDefinition, Field, EnumValue, FieldMetadata } from "./registry";
+import {
+  SchemaRegistry,
+  ArgumentDefinition,
+  Field,
+  EnumValue,
+  FieldMetadata,
+  SubscriptionOptions,
+} from "./registry";
 import { CustomScalar } from "./scalars";
 import { generateCrudOperations } from "./crud";
 
@@ -570,12 +577,13 @@ export function registerMutation(
 
 /**
  * Configuration for Subscription decorator.
+ *
+ * `entityType` is the authoring spelling of the compiler's `return_type`. There is no
+ * `operation`: the runtime subscription model filters on argument-to-JSON-path
+ * conditions, not on a DML verb (#1024).
  */
-export interface SubscriptionConfig {
+export interface SubscriptionConfig extends SubscriptionOptions {
   entityType?: string;
-  topic?: string;
-  operation?: "CREATE" | "UPDATE" | "DELETE";
-  [key: string]: unknown;
 }
 
 /**
@@ -602,8 +610,7 @@ export interface SubscriptionConfig {
  * ```json
  * {
  *   "name": "orderCreated",
- *   "entity_type": "Order",
- *   "nullable": false,
+ *   "return_type": "Order",
  *   "arguments": [
  *     {"name": "userId", "type": "String", "nullable": true}
  *   ],
@@ -622,35 +629,35 @@ export function Subscription(_config?: SubscriptionConfig) {
  * Helper function to manually register subscription with full metadata.
  *
  * @param name - Subscription name
- * @param entityType - Entity type being subscribed to
- * @param nullable - Whether result can be null
+ * @param entityType - Entity type being subscribed to (the return type)
  * @param args - Argument definitions (filters)
  * @param description - Optional subscription description
- * @param config - Additional configuration (topic, operation)
+ * @param options - topic, filter, projected fields, deprecation
  *
  * @example
  * ```ts
  * registerSubscription(
  *   "orderCreated",
  *   "Order",
- *   false,
  *   [
  *     { name: "userId", type: "String", nullable: true }
  *   ],
  *   "Subscribe to new orders",
- *   { topic: "order_events", operation: "CREATE" }
+ *   {
+ *     topic: "order_events",
+ *     filter: { conditions: [{ argument: "userId", path: "$.user_id" }] },
+ *   }
  * );
  * ```
  */
 export function registerSubscription(
   name: string,
   entityType: string,
-  nullable: boolean,
   args: ArgumentDefinition[],
   description?: string,
-  config?: Record<string, unknown>
+  options?: SubscriptionOptions
 ): void {
-  SchemaRegistry.registerSubscription(name, entityType, nullable, args, description, config);
+  SchemaRegistry.registerSubscription(name, entityType, args, description, options);
 }
 
 /**

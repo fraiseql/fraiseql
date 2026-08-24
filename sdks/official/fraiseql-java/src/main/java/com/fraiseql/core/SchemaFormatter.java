@@ -73,6 +73,13 @@ public class SchemaFormatter {
         if (!registry.getAllInterfaces().isEmpty()) {
             root.set("interfaces", formatInterfacesArray(registry.getAllInterfaces()));
         }
+        // Registered subscriptions used to reach no key at all: FraiseQL.subscription()
+        // built them and SchemaRegistry stored them, and this method never read them
+        // back — so a Java author's subscription was silently absent from the exported
+        // document rather than compiled (#1024).
+        if (!registry.getAllSubscriptions().isEmpty()) {
+            root.set("subscriptions", formatSubscriptionsArray(registry.getAllSubscriptions()));
+        }
 
         return root;
     }
@@ -363,6 +370,63 @@ public class SchemaFormatter {
             mutationsArray.add(mutationNode);
         }
         return mutationsArray;
+    }
+
+    /**
+     * Format all registered subscriptions as an array of objects.
+     *
+     * <p>The emitted object is the compiler's {@code IntermediateSubscription}, member for
+     * member: {@code name}, {@code return_type}, {@code arguments}, and the optional
+     * {@code description} / {@code topic} / {@code filter} / {@code fields} /
+     * {@code deprecated}. That struct denies unknown fields, so an extra key would fail
+     * the whole document rather than the subscription.
+     */
+    private static ArrayNode formatSubscriptionsArray(
+            Map<String, SchemaRegistry.SubscriptionInfo> subscriptions) {
+        ArrayNode subscriptionsArray = mapper.createArrayNode();
+        for (SchemaRegistry.SubscriptionInfo subscriptionInfo : subscriptions.values()) {
+            ObjectNode subscriptionNode = mapper.createObjectNode();
+            subscriptionNode.put("name", subscriptionInfo.name);
+            subscriptionNode.put("return_type", bareType(subscriptionInfo.entityType));
+            subscriptionNode.set("arguments", formatArguments(subscriptionInfo.arguments));
+
+            if (subscriptionInfo.description != null && !subscriptionInfo.description.isEmpty()) {
+                subscriptionNode.put("description", subscriptionInfo.description);
+            }
+            if (subscriptionInfo.topic != null) {
+                subscriptionNode.put("topic", subscriptionInfo.topic);
+            }
+            if (!subscriptionInfo.filterConditions.isEmpty()) {
+                ArrayNode conditionsArray = mapper.createArrayNode();
+                for (Map.Entry<String, String> condition : subscriptionInfo.filterConditions.entrySet()) {
+                    ObjectNode conditionNode = mapper.createObjectNode();
+                    conditionNode.put("argument", condition.getKey());
+                    conditionNode.put("path", condition.getValue());
+                    conditionsArray.add(conditionNode);
+                }
+                ObjectNode filterNode = mapper.createObjectNode();
+                filterNode.set("conditions", conditionsArray);
+                subscriptionNode.set("filter", filterNode);
+            }
+            if (!subscriptionInfo.fields.isEmpty()) {
+                ArrayNode fieldsArray = mapper.createArrayNode();
+                for (String field : subscriptionInfo.fields) {
+                    fieldsArray.add(field);
+                }
+                subscriptionNode.set("fields", fieldsArray);
+            }
+            // The empty string means "deprecated, no stated reason", which the compiler
+            // models as an absent `reason`; null means not deprecated at all.
+            if (subscriptionInfo.deprecationReason != null) {
+                ObjectNode deprecatedNode = mapper.createObjectNode();
+                if (!subscriptionInfo.deprecationReason.isEmpty()) {
+                    deprecatedNode.put("reason", subscriptionInfo.deprecationReason);
+                }
+                subscriptionNode.set("deprecated", deprecatedNode);
+            }
+            subscriptionsArray.add(subscriptionNode);
+        }
+        return subscriptionsArray;
     }
 
     /** Format all registered enums as an array of objects. */

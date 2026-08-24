@@ -44,7 +44,6 @@ void main() {
 - Type definitions with SQL source mapping
 - Enum support
 - Query and mutation registration
-- Subscription definitions
 - Field-level metadata (description, deprecation, access control)
 - Fact table and analytics support (measures, dimensions)
 - Observer and webhook configuration

@@ -5,8 +5,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -254,18 +256,86 @@ public class OperationsTest {
     }
 
     @Test
-    @DisplayName("Create subscription with operation filter")
-    void testSubscriptionWithOperation() {
+    @DisplayName("Create subscription with event filter")
+    void testSubscriptionWithEventFilter() {
         FraiseQL.subscription("userUpdated")
             .entityType("User")
-            .operation("UPDATE")
+            .arg("userId", "ID")
+            .filterCondition("userId", "$.id")
             .register();
 
         SchemaRegistry registry = SchemaRegistry.getInstance();
         var subscription = registry.getSubscription("userUpdated");
 
         assertTrue(subscription.isPresent());
-        assertEquals("UPDATE", subscription.get().operation);
+        assertEquals("$.id", subscription.get().filterConditions.get("userId"));
+    }
+
+    @Test
+    @DisplayName("A registered subscription reaches the exported document")
+    void subscriptionAppearsInJsonExport() throws Exception {
+        FraiseQL.subscription("orderUpdated")
+            .entityType("Order")
+            .arg("orderId", "ID")
+            .topic("order_events")
+            .filterCondition("orderId", "$.id")
+            .fields("id", "total")
+            .description("Stream of order update events")
+            .register();
+
+        JsonNode sub = findSubscription(FraiseQL.exportSchemaAsJson(), "orderUpdated");
+        assertNotNull(sub, "subscriptions absent from exported document");
+        assertEquals("Order", sub.get("return_type").asText());
+        assertEquals("order_events", sub.get("topic").asText());
+        assertEquals("orderId", sub.get("filter").get("conditions").get(0).get("argument").asText());
+        assertEquals("$.id", sub.get("filter").get("conditions").get(0).get("path").asText());
+        assertEquals("total", sub.get("fields").get(1).asText());
+    }
+
+    /**
+     * The emitted keys are exactly {@code IntermediateSubscription}'s members.
+     *
+     * <p>That struct denies unknown fields, so one extra key fails the whole document at
+     * {@code fraiseql compile}. Before #1024 no key was emitted at all — the formatter
+     * never read the registry's subscriptions back, so every Java-authored subscription
+     * was silently dropped from a compile that then reported success.
+     */
+    @Test
+    @DisplayName("Subscription emits no key outside the compiler's member list")
+    void subscriptionEmitsOnlyCompilerMembers() throws Exception {
+        FraiseQL.subscription("orderUpdated")
+            .entityType("Order")
+            .arg("orderId", "ID")
+            .topic("order_events")
+            .filterCondition("orderId", "$.id")
+            .fields("id")
+            .deprecated("use orderEvents")
+            .register();
+
+        JsonNode sub = findSubscription(FraiseQL.exportSchemaAsJson(), "orderUpdated");
+        assertNotNull(sub);
+
+        Set<String> allowed = Set.of("name", "return_type", "arguments", "description",
+            "topic", "filter", "fields", "deprecated");
+        List<String> emitted = new ArrayList<>();
+        sub.fieldNames().forEachRemaining(emitted::add);
+        for (String key : emitted) {
+            assertTrue(allowed.contains(key),
+                "emitted key '" + key + "' is not a member of IntermediateSubscription");
+        }
+        assertEquals("use orderEvents", sub.get("deprecated").get("reason").asText());
+    }
+
+    @Test
+    @DisplayName("Subscription omits every option the author did not set")
+    void subscriptionOmitsUnsetOptions() throws Exception {
+        FraiseQL.subscription("orderCreated").entityType("Order").register();
+
+        JsonNode sub = findSubscription(FraiseQL.exportSchemaAsJson(), "orderCreated");
+        assertNotNull(sub);
+        for (String key : List.of("description", "topic", "filter", "fields", "deprecated")) {
+            assertNull(sub.get(key), "unset option '" + key + "' was emitted");
+        }
     }
 
     @Test
@@ -481,6 +551,10 @@ public class OperationsTest {
 
     private JsonNode findMutation(JsonNode schema, String name) {
         return SchemaNodes.byName(schema, "mutations", name);
+    }
+
+    private JsonNode findSubscription(JsonNode schema, String name) {
+        return SchemaNodes.byName(schema, "subscriptions", name);
     }
 
     // =========================================================================

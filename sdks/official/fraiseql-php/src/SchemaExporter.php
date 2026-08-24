@@ -15,6 +15,7 @@ use FraiseQL\Attributes\GraphQLType;
  * - `types`: array of type objects (not a map)
  * - `queries`: array of query objects (not a map)
  * - `mutations`: array of mutation objects (not a map)
+ * - `subscriptions`: array of subscription objects, when any are registered
  * - All keys snake_case
  *
  * Usage:
@@ -92,6 +93,18 @@ final class SchemaExporter
         $enums = $registry->getAllEnums();
         if (!empty($enums)) {
             $schema['enums'] = array_values($enums);
+        }
+
+        // Registered subscriptions used to reach no key at all: `SubscriptionBuilder`
+        // registered them, `SchemaRegistry` stored them, and this method never read
+        // them back — so a PHP author's subscription was silently absent from the
+        // document rather than compiled (#1024).
+        $subscriptions = $registry->getAllSubscriptions();
+        if (!empty($subscriptions)) {
+            $schema['subscriptions'] = array_map(
+                fn(SubscriptionDefinition $subscription) => $subscription->toArray(),
+                array_values($subscriptions),
+            );
         }
 
         return $schema;

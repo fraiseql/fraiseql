@@ -34,7 +34,7 @@ This document certifies the feature parity status of FraiseQL Python with TypeSc
 | Subscriptions | ✅ @subscription | ✅ registerSubscription() | ✅ SubscriptionBuilder | Complete ✅ |
 | Query Parameters | ✅ function args | ✅ args: [...] | ✅ .arg() | Complete ✅ |
 | Mutation Operations | ✅ Supported | ✅ operation: "CREATE" | ✅ Supported | Complete ✅ |
-| Subscription Filtering | ✅ topic, operation | ✅ topic, operation | ✅ topic, operation | Complete ✅ |
+| Subscription Filtering | ✅ topic, filter, fields | ✅ topic, filter, fields | ✅ topic, filter, fields | Complete ✅ |
 | Auto Parameters | ✅ Supported | ✅ autoParams | ✅ Supported | Complete ✅ |
 
 **Status**: 100% - All operation features available

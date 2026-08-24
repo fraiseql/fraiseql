@@ -28,7 +28,7 @@ All features in Python can be expressed identically in TypeScript, producing equ
 | Subscriptions | `@subscription` | `@Subscription()` + `registerSubscription()` | ✅ Complete |
 | Query Parameters | `def query(limit: int = 10)` | `registerQuery(..., args: [...])` | ✅ Complete |
 | Mutation Operations | `operation: "CREATE"/"UPDATE"/"DELETE"` | `operation: "CREATE"/"UPDATE"/"DELETE"` | ✅ Complete |
-| Subscription Filtering | `entity_type`, `topic`, `operation` | `entityType`, `topic`, `operation` | ✅ Complete |
+| Subscription Filtering | `entity_type`, `topic`, `filter`, `fields` | `entityType`, `topic`, `filter`, `fields` | ✅ Complete |
 | Auto Parameters | `autoParams: {"field": True}` | `autoParams: {field: true}` | ✅ Complete |
 
 **Status**: 100% - All operation features available
@@ -103,7 +103,7 @@ All features in Python can be expressed identically in TypeScript, producing equ
 |----------|-------|--------|
 | Type System Decorators | 26 | ✅ All Passing |
 | Field Metadata | 23 | ✅ All Passing |
-| Subscriptions | 25 | ✅ All Passing |
+| Subscriptions | 26 | ✅ All Passing |
 | Registry | 16 | ✅ All Passing |
 | Observers | 12 | ✅ All Passing |
 | Views | 36 | ✅ All Passing |

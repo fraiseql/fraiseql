@@ -1,88 +1,100 @@
 import { SchemaRegistry, registerSubscription } from "../src/index";
 
+/**
+ * The members `IntermediateSubscription` accepts, and the only ones it accepts — it is
+ * `deny_unknown_fields`, so anything else fails the *whole document* at
+ * `fraiseql compile`, not just the subscription.
+ *
+ * Pinning the set here is what this suite was missing (#1024): every assertion below
+ * used to check that the registry echoed back whatever it was handed, which it did
+ * faithfully — including `entity_type`, `nullable`, `operation` and a free-form
+ * `operations` that no SDK type ever declared. 25 green tests over a shape no schema
+ * could compile.
+ */
+const COMPILER_MEMBERS = [
+  "name",
+  "return_type",
+  "arguments",
+  "description",
+  "topic",
+  "filter",
+  "fields",
+  "deprecated",
+];
+
 describe("Subscriptions", () => {
   beforeEach(() => {
     SchemaRegistry.clear();
   });
 
+  describe("the emitted shape is the compiler's", () => {
+    it("emits return_type, and no key outside the compiler's member list", () => {
+      registerSubscription(
+        "orderLifecycle",
+        "Order",
+        [
+          { name: "customerId", type: "ID", nullable: false },
+          { name: "minAmount", type: "Decimal", nullable: true },
+        ],
+        "Subscribe to full order lifecycle events",
+        {
+          topic: "order_events",
+          filter: { conditions: [{ argument: "customerId", path: "$.customer_id" }] },
+          fields: ["id", "total"],
+          deprecated: "use orderEvents",
+        }
+      );
+
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
+
+      expect(subscription.return_type).toBe("Order");
+      expect(Object.keys(subscription).sort()).toEqual([...COMPILER_MEMBERS].sort());
+    });
+
+    it("omits every optional member the author did not set", () => {
+      registerSubscription("userCreated", "User", []);
+
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
+
+      expect(Object.keys(subscription)).toEqual(["name", "return_type", "arguments"]);
+    });
+  });
+
   describe("registerSubscription with basic configuration", () => {
     it("should register a basic subscription", () => {
-      registerSubscription(
-        "userCreated",
-        "User",
-        false,
-        [],
-        "Subscribe to new users"
-      );
+      registerSubscription("userCreated", "User", [], "Subscribe to new users");
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions).toHaveLength(1);
       expect(schema.subscriptions[0].name).toBe("userCreated");
-      expect(schema.subscriptions[0].entity_type).toBe("User");
+      expect(schema.subscriptions[0].return_type).toBe("User");
     });
 
     it("should register subscription with topic", () => {
-      registerSubscription(
-        "orderCreated",
-        "Order",
-        false,
-        [],
-        "Subscribe to new orders",
-        { topic: "order_events" }
-      );
+      registerSubscription("orderCreated", "Order", [], "Subscribe to new orders", {
+        topic: "order_events",
+      });
 
-      const schema = SchemaRegistry.getSchema();
-      const subscription = schema.subscriptions[0];
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
 
       expect(subscription.name).toBe("orderCreated");
       expect(subscription.topic).toBe("order_events");
     });
 
-    it("should register subscription with operation filter", () => {
-      registerSubscription(
-        "userUpdated",
-        "User",
-        false,
-        [],
-        "Subscribe to user updates",
-        { operation: "UPDATE" }
-      );
-
-      const schema = SchemaRegistry.getSchema();
-      const subscription = schema.subscriptions[0];
-
-      expect(subscription.operation).toBe("UPDATE");
-    });
-
-    it("should register subscription with multiple operation filters", () => {
-      registerSubscription(
-        "userChanged",
-        "User",
-        false,
-        [],
-        "Subscribe to user creates and updates",
-        { operations: ["CREATE", "UPDATE"] }
-      );
-
-      const schema = SchemaRegistry.getSchema();
-      const subscription = schema.subscriptions[0];
-
-      expect(subscription.operations).toEqual(["CREATE", "UPDATE"]);
-    });
-
     it("should register subscription with description", () => {
       const description = "Subscribe to any changes in orders";
-      registerSubscription(
-        "orderChanged",
-        "Order",
-        false,
-        [],
-        description,
-        { operations: ["CREATE", "UPDATE", "DELETE"] }
-      );
+      registerSubscription("orderChanged", "Order", [], description);
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions[0].description).toBe(description);
+    });
+
+    it("should reject a duplicate subscription name", () => {
+      registerSubscription("orderCreated", "Order", []);
+
+      expect(() => registerSubscription("orderCreated", "Order", [])).toThrow(
+        /already registered/
+      );
     });
   });
 
@@ -91,13 +103,11 @@ describe("Subscriptions", () => {
       registerSubscription(
         "orderCreatedForUser",
         "Order",
-        false,
         [{ name: "userId", type: "ID", nullable: false }],
         "Subscribe to orders for specific user"
       );
 
-      const schema = SchemaRegistry.getSchema();
-      const subscription = schema.subscriptions[0];
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
 
       expect(subscription.arguments).toHaveLength(1);
       expect(subscription.arguments[0].name).toBe("userId");
@@ -108,7 +118,6 @@ describe("Subscriptions", () => {
       registerSubscription(
         "orderStatusChanged",
         "Order",
-        false,
         [
           { name: "orderId", type: "ID", nullable: false },
           { name: "minAmount", type: "Decimal", nullable: true },
@@ -117,8 +126,7 @@ describe("Subscriptions", () => {
         "Subscribe to order status changes with filters"
       );
 
-      const schema = SchemaRegistry.getSchema();
-      const subscription = schema.subscriptions[0];
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
 
       expect(subscription.arguments).toHaveLength(3);
       expect(subscription.arguments[0].nullable).toBe(false);
@@ -129,7 +137,6 @@ describe("Subscriptions", () => {
       registerSubscription(
         "recentOrders",
         "Order",
-        false,
         [
           { name: "limit", type: "Int", nullable: false, default: 10 },
           { name: "minAmount", type: "Decimal", nullable: true },
@@ -137,221 +144,185 @@ describe("Subscriptions", () => {
         "Subscribe to recent orders with optional filters"
       );
 
-      const schema = SchemaRegistry.getSchema();
-      const subscription = schema.subscriptions[0];
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
 
       expect(subscription.arguments[0].default).toBe(10);
       expect(subscription.arguments[1].default).toBeUndefined();
     });
   });
 
-  describe("registerSubscription with nullable results", () => {
-    it("should register nullable subscription", () => {
-      registerSubscription("optionalUpdate", "Order", true, []);
-
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].nullable).toBe(true);
-    });
-
-    it("should register non-nullable subscription", () => {
-      registerSubscription("requiredUpdate", "Order", false, []);
-
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].nullable).toBe(false);
-    });
-  });
-
-  describe("registerSubscription with complex configurations", () => {
-    it("should register subscription with all options combined", () => {
-      registerSubscription(
-        "orderLifecycle",
-        "Order",
-        false,
-        [
-          { name: "customerId", type: "ID", nullable: false },
-          { name: "minAmount", type: "Decimal", nullable: true },
-        ],
-        "Subscribe to full order lifecycle events",
-        {
-          topic: "order_events",
-          operations: ["CREATE", "UPDATE", "DELETE"],
-        }
-      );
-
-      const schema = SchemaRegistry.getSchema();
-      const subscription = schema.subscriptions[0];
-
-      expect(subscription.name).toBe("orderLifecycle");
-      expect(subscription.entity_type).toBe("Order");
-      expect(subscription.topic).toBe("order_events");
-      expect(subscription.operations).toEqual(["CREATE", "UPDATE", "DELETE"]);
-      expect(subscription.arguments).toHaveLength(2);
-      expect(subscription.description).toBe(
-        "Subscribe to full order lifecycle events"
-      );
-    });
-
-    it("should register multiple subscriptions for same entity with different filters", () => {
-      registerSubscription(
-        "orderCreated",
-        "Order",
-        false,
-        [{ name: "customerId", type: "ID", nullable: false }],
-        "New orders",
-        { operation: "CREATE" }
-      );
-
+  describe("registerSubscription with event matching", () => {
+    // What replaced the CREATE/UPDATE/DELETE describe block. A subscription does not
+    // filter on a DML verb — the runtime has no such member — it maps its own arguments
+    // onto JSON paths in the event payload, and the compiler lowers those to
+    // `filter.argument_paths`.
+    it("should map one argument onto an event path", () => {
       registerSubscription(
         "orderUpdated",
         "Order",
-        false,
-        [{ name: "orderId", type: "ID", nullable: false }],
-        "Order updates",
-        { operation: "UPDATE" }
+        [{ name: "orderId", type: "ID", nullable: true }],
+        "Updates for one order",
+        { filter: { conditions: [{ argument: "orderId", path: "$.id" }] } }
       );
 
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
+
+      expect(subscription.filter).toEqual({
+        conditions: [{ argument: "orderId", path: "$.id" }],
+      });
+    });
+
+    it("should map several arguments onto several event paths", () => {
       registerSubscription(
-        "orderCancelled",
+        "orderNarrowed",
         "Order",
-        false,
-        [{ name: "orderId", type: "ID", nullable: false }],
-        "Cancelled orders",
-        { operation: "DELETE" }
+        [
+          { name: "orderId", type: "ID", nullable: true },
+          { name: "status", type: "String", nullable: true },
+        ],
+        undefined,
+        {
+          filter: {
+            conditions: [
+              { argument: "orderId", path: "$.id" },
+              { argument: "status", path: "$.order_status" },
+            ],
+          },
+        }
       );
 
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions).toHaveLength(3);
-      expect(schema.subscriptions[0].operation).toBe("CREATE");
-      expect(schema.subscriptions[1].operation).toBe("UPDATE");
-      expect(schema.subscriptions[2].operation).toBe("DELETE");
+      const subscription = SchemaRegistry.getSchema().subscriptions[0];
+
+      expect(subscription.filter?.conditions).toHaveLength(2);
+      expect(subscription.filter?.conditions[1]).toEqual({
+        argument: "status",
+        path: "$.order_status",
+      });
+    });
+
+    it("should project a subset of fields from the event", () => {
+      registerSubscription("orderTotals", "Order", [], undefined, {
+        fields: ["id", "total"],
+      });
+
+      expect(SchemaRegistry.getSchema().subscriptions[0].fields).toEqual(["id", "total"]);
+    });
+
+    it("should drop an empty projection rather than emit one", () => {
+      registerSubscription("orderAll", "Order", [], undefined, { fields: [] });
+
+      expect(SchemaRegistry.getSchema().subscriptions[0].fields).toBeUndefined();
     });
   });
 
-  describe("registerSubscription with different entity types", () => {
-    it("should register subscriptions for multiple entity types", () => {
-      registerSubscription("userCreated", "User", false, []);
-      registerSubscription("postCreated", "Post", false, []);
-      registerSubscription("commentCreated", "Comment", false, []);
+  describe("registerSubscription deprecation", () => {
+    it("should carry a stated reason", () => {
+      registerSubscription("legacyFeed", "Order", [], undefined, {
+        deprecated: "use orderEvents",
+      });
+
+      expect(SchemaRegistry.getSchema().subscriptions[0].deprecated).toEqual({
+        reason: "use orderEvents",
+      });
+    });
+
+    it("should carry deprecation with no stated reason", () => {
+      registerSubscription("legacyFeed", "Order", [], undefined, { deprecated: true });
+
+      expect(SchemaRegistry.getSchema().subscriptions[0].deprecated).toEqual({});
+    });
+
+    it("should drop the key when not deprecated", () => {
+      registerSubscription("liveFeed", "Order", [], undefined, { deprecated: false });
+
+      expect(SchemaRegistry.getSchema().subscriptions[0].deprecated).toBeUndefined();
+    });
+  });
+
+  describe("registerSubscription with different return types", () => {
+    it("should register subscriptions for multiple return types", () => {
+      registerSubscription("userCreated", "User", []);
+      registerSubscription("postCreated", "Post", []);
+      registerSubscription("commentCreated", "Comment", []);
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions).toHaveLength(3);
-      expect(schema.subscriptions.map((s) => s.entity_type)).toEqual([
+      expect(schema.subscriptions.map((s) => s.return_type)).toEqual([
         "User",
         "Post",
         "Comment",
       ]);
     });
-  });
 
-  describe("registerSubscription with event filtering patterns", () => {
-    it("should support INSERT event pattern", () => {
+    it("should register multiple subscriptions on the same type with different filters", () => {
       registerSubscription(
-        "onInsert",
-        "Entity",
-        false,
-        [],
-        "Subscribe to inserts",
-        { operation: "CREATE" }
+        "orderCreated",
+        "Order",
+        [{ name: "customerId", type: "ID", nullable: false }],
+        "New orders",
+        { filter: { conditions: [{ argument: "customerId", path: "$.customer_id" }] } }
+      );
+
+      registerSubscription(
+        "orderUpdated",
+        "Order",
+        [{ name: "orderId", type: "ID", nullable: false }],
+        "Order updates",
+        { filter: { conditions: [{ argument: "orderId", path: "$.id" }] } }
       );
 
       const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].operation).toBe("CREATE");
-    });
-
-    it("should support UPDATE event pattern", () => {
-      registerSubscription(
-        "onUpdate",
-        "Entity",
-        false,
-        [],
-        "Subscribe to updates",
-        { operation: "UPDATE" }
-      );
-
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].operation).toBe("UPDATE");
-    });
-
-    it("should support DELETE event pattern", () => {
-      registerSubscription(
-        "onDelete",
-        "Entity",
-        false,
-        [],
-        "Subscribe to deletes",
-        { operation: "DELETE" }
-      );
-
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].operation).toBe("DELETE");
-    });
-
-    it("should support multiple operations", () => {
-      registerSubscription(
-        "onChange",
-        "Entity",
-        false,
-        [],
-        "Subscribe to any changes",
-        { operations: ["CREATE", "UPDATE", "DELETE"] }
-      );
-
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].operations).toEqual([
-        "CREATE",
-        "UPDATE",
-        "DELETE",
+      expect(schema.subscriptions).toHaveLength(2);
+      expect(schema.subscriptions.map((s) => s.filter?.conditions[0]?.path)).toEqual([
+        "$.customer_id",
+        "$.id",
       ]);
     });
   });
 
   describe("registerSubscription with topic patterns", () => {
     it("should support topic-based subscriptions", () => {
-      registerSubscription(
-        "paymentProcessed",
-        "Payment",
-        false,
-        [],
-        "Listen to payment events",
-        { topic: "payments" }
-      );
+      registerSubscription("paymentProcessed", "Payment", [], "Listen to payment events", {
+        topic: "payments",
+      });
 
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].topic).toBe("payments");
+      expect(SchemaRegistry.getSchema().subscriptions[0].topic).toBe("payments");
     });
 
     it("should support hierarchical topic names", () => {
-      registerSubscription("orderTopic", "Order", false, [], undefined, {
+      registerSubscription("orderTopic", "Order", [], undefined, {
         topic: "orders.events.lifecycle",
       });
 
-      const schema = SchemaRegistry.getSchema();
-      expect(schema.subscriptions[0].topic).toBe("orders.events.lifecycle");
+      expect(SchemaRegistry.getSchema().subscriptions[0].topic).toBe(
+        "orders.events.lifecycle"
+      );
     });
 
-    it("should support topic with operation filtering", () => {
+    it("should support topic with event-path filtering", () => {
       registerSubscription(
         "newOrders",
         "Order",
-        false,
-        [],
+        [{ name: "status", type: "String", nullable: true }],
         "New orders from topic",
-        { topic: "orders", operation: "CREATE" }
+        {
+          topic: "orders",
+          filter: { conditions: [{ argument: "status", path: "$.order_status" }] },
+        }
       );
 
-      const schema = SchemaRegistry.getSchema();
-      const sub = schema.subscriptions[0];
+      const sub = SchemaRegistry.getSchema().subscriptions[0];
 
       expect(sub.topic).toBe("orders");
-      expect(sub.operation).toBe("CREATE");
+      expect(sub.filter?.conditions[0]?.argument).toBe("status");
     });
   });
 
   describe("Schema export with subscriptions", () => {
     it("should export schema with subscriptions", () => {
-      registerSubscription("userCreated", "User", false, [], "New users");
-      registerSubscription("orderUpdated", "Order", false, [], "Order changes", {
-        operation: "UPDATE",
+      registerSubscription("userCreated", "User", [], "New users");
+      registerSubscription("orderUpdated", "Order", [], "Order changes", {
+        topic: "order_events",
       });
 
       const schema = SchemaRegistry.getSchema();
@@ -359,11 +330,10 @@ describe("Subscriptions", () => {
       expect(schema.subscriptions).toHaveLength(2);
     });
 
-    it("should preserve subscription configuration in JSON export", () => {
+    it("should survive a JSON round-trip with no key outside the compiler's set", () => {
       registerSubscription(
         "orderEvent",
         "Order",
-        false,
         [
           { name: "customerId", type: "ID", nullable: false },
           { name: "minAmount", type: "Decimal", nullable: true },
@@ -371,75 +341,67 @@ describe("Subscriptions", () => {
         "Order lifecycle",
         {
           topic: "orders",
-          operations: ["CREATE", "UPDATE"],
+          filter: { conditions: [{ argument: "customerId", path: "$.customer_id" }] },
         }
       );
 
-      const schema = SchemaRegistry.getSchema();
-      const json = JSON.stringify(schema, null, 2);
-      const parsed = JSON.parse(json);
-
+      const parsed = JSON.parse(JSON.stringify(SchemaRegistry.getSchema(), null, 2));
       const sub = parsed.subscriptions[0];
+
       expect(sub.name).toBe("orderEvent");
-      expect(sub.entity_type).toBe("Order");
+      expect(sub.return_type).toBe("Order");
       expect(sub.topic).toBe("orders");
-      expect(sub.operations).toEqual(["CREATE", "UPDATE"]);
       expect(sub.arguments).toHaveLength(2);
+      expect(Object.keys(sub).every((k) => COMPILER_MEMBERS.includes(k))).toBe(true);
     });
   });
 
   describe("Common subscription patterns", () => {
     it("should support CDC (Change Data Capture) pattern", () => {
-      registerSubscription(
-        "userChanges",
-        "User",
-        false,
-        [],
-        "Capture all user changes",
-        { operations: ["CREATE", "UPDATE", "DELETE"] }
-      );
+      registerSubscription("userChanges", "User", [], "Capture all user changes", {
+        topic: "user_events",
+      });
 
-      const schema = SchemaRegistry.getSchema();
-      const sub = schema.subscriptions[0];
+      const sub = SchemaRegistry.getSchema().subscriptions[0];
 
-      expect(sub.operations).toEqual(["CREATE", "UPDATE", "DELETE"]);
+      expect(sub.topic).toBe("user_events");
+      expect(sub.return_type).toBe("User");
     });
 
     it("should support filtering pattern", () => {
       registerSubscription(
         "expensiveOrders",
         "Order",
-        false,
         [
           { name: "minAmount", type: "Decimal", nullable: false },
           { name: "currency", type: "String", nullable: true },
         ],
         "Orders above threshold",
-        { operation: "CREATE" }
+        { filter: { conditions: [{ argument: "currency", path: "$.currency" }] } }
       );
 
-      const schema = SchemaRegistry.getSchema();
-      const sub = schema.subscriptions[0];
+      const sub = SchemaRegistry.getSchema().subscriptions[0];
 
       expect(sub.arguments).toHaveLength(2);
-      expect(sub.operation).toBe("CREATE");
+      expect(sub.filter?.conditions[0]?.path).toBe("$.currency");
     });
 
     it("should support real-time notification pattern", () => {
       registerSubscription(
         "newMessages",
         "Message",
-        false,
         [{ name: "userId", type: "ID", nullable: false }],
         "Real-time messages for user",
-        { topic: "messages", operation: "CREATE" }
+        {
+          topic: "messages",
+          filter: { conditions: [{ argument: "userId", path: "$.recipient_id" }] },
+        }
       );
 
-      const schema = SchemaRegistry.getSchema();
-      const sub = schema.subscriptions[0];
+      const sub = SchemaRegistry.getSchema().subscriptions[0];
 
       expect(sub.topic).toBe("messages");
-      expect(sub.operation).toBe("CREATE");
+      expect(sub.filter?.conditions[0]?.path).toBe("$.recipient_id");
       expect(sub.arguments[0].name).toBe("userId");
     });
   });

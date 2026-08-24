@@ -134,18 +134,36 @@ type FactTableDefinition struct {
 	DenormalizedFilters []FilterDefinition   `json:"denormalized_filters"`
 }
 
+// SubscriptionFilterCondition maps one subscription argument onto a JSON path in the
+// event payload.
+type SubscriptionFilterCondition struct {
+	Argument string `json:"argument"`
+	Path     string `json:"path"`
+}
+
+// SubscriptionFilter narrows which events a subscription delivers.
+type SubscriptionFilter struct {
+	Conditions []SubscriptionFilterCondition `json:"conditions"`
+}
+
 // SubscriptionDefinition represents a GraphQL subscription
 // Subscriptions in FraiseQL are compiled projections of database events.
 // They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+//
+// This is the compiler's IntermediateSubscription, member for member. It used to carry
+// EntityType/Nullable/Operation and a free-form Config, none of which that struct has —
+// and it denies unknown fields, so a document declaring any subscription was refused
+// whole at `fraiseql compile` (#1024). EntityType survives as the authoring spelling on
+// the builder; the field emitted here is ReturnType.
 type SubscriptionDefinition struct {
-	Name        string                 `json:"name"`
-	EntityType  string                 `json:"entity_type"`
-	Nullable    bool                   `json:"nullable"`
-	Arguments   []ArgumentDefinition   `json:"arguments"`
-	Description string                 `json:"description,omitempty"`
-	Topic       string                 `json:"topic,omitempty"`
-	Operation   string                 `json:"operation,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
+	Name        string               `json:"name"`
+	ReturnType  string               `json:"return_type"`
+	Arguments   []ArgumentDefinition `json:"arguments"`
+	Description string               `json:"description,omitempty"`
+	Topic       string               `json:"topic,omitempty"`
+	Filter      *SubscriptionFilter  `json:"filter,omitempty"`
+	Fields      []string             `json:"fields,omitempty"`
+	Deprecated  *DeprecationInfo     `json:"deprecated,omitempty"`
 }
 
 // EnumValueDefinition represents a single value in a GraphQL enum.

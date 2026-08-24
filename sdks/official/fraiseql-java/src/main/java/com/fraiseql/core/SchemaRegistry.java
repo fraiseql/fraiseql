@@ -283,25 +283,33 @@ public class SchemaRegistry {
      * @param description optional description
      */
     public void registerSubscription(String subscriptionName, String entityType, Map<String, String> arguments, String description) {
-        SubscriptionInfo subscriptionInfo = new SubscriptionInfo(subscriptionName, entityType, arguments, description, null, null);
+        SubscriptionInfo subscriptionInfo = new SubscriptionInfo(
+            subscriptionName, entityType, arguments, description, null, null, null, null);
         subscriptions.put(subscriptionName, subscriptionInfo);
     }
 
     /**
-     * Register a subscription in the schema with topic and operation.
+     * Register a subscription in the schema with topic, event filter and projection.
      * Subscriptions in FraiseQL are compiled projections of database events.
      * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
      *
      * @param subscriptionName the subscription name
-     * @param entityType the entity type being subscribed to
+     * @param entityType the entity type being subscribed to (the return type)
      * @param arguments the subscription arguments (filters)
      * @param description optional description
      * @param topic optional topic/channel name for filtering events
-     * @param operation optional operation filter (CREATE, UPDATE, DELETE)
+     * @param filterConditions argument name -&gt; JSON path in the event payload
+     * @param fields subset of event fields to project; all fields when null or empty
+     * @param deprecationReason deprecation reason, empty string for no stated reason,
+     *     null for not deprecated
      */
     public void registerSubscription(String subscriptionName, String entityType, Map<String, String> arguments,
-                                     String description, String topic, String operation) {
-        SubscriptionInfo subscriptionInfo = new SubscriptionInfo(subscriptionName, entityType, arguments, description, topic, operation);
+                                     String description, String topic,
+                                     Map<String, String> filterConditions, List<String> fields,
+                                     String deprecationReason) {
+        SubscriptionInfo subscriptionInfo = new SubscriptionInfo(
+            subscriptionName, entityType, arguments, description, topic,
+            filterConditions, fields, deprecationReason);
         subscriptions.put(subscriptionName, subscriptionInfo);
     }
 
@@ -821,6 +829,11 @@ public class SchemaRegistry {
      * Information about a registered GraphQL subscription.
      * Subscriptions in FraiseQL are compiled projections of database events.
      * They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
+     *
+     * <p>{@code entityType} is the authoring spelling of the compiler's
+     * {@code return_type}. There is no {@code operation}: the runtime subscription model
+     * has no DML-verb member, and events are narrowed by {@code filterConditions}, which
+     * map arguments onto JSON paths in the event payload (#1024).
      */
     public static class SubscriptionInfo {
         public final String name;
@@ -828,16 +841,29 @@ public class SchemaRegistry {
         public final Map<String, String> arguments;
         public final String description;
         public final String topic;
-        public final String operation;
+        /** Argument name -&gt; JSON path in the event payload. */
+        public final Map<String, String> filterConditions;
+        /** Subset of event fields to project; all fields when empty. */
+        public final List<String> fields;
+        /** Deprecation reason, or the empty string for "deprecated, no stated reason". */
+        public final String deprecationReason;
 
         public SubscriptionInfo(String name, String entityType, Map<String, String> arguments,
-                                String description, String topic, String operation) {
+                                String description, String topic,
+                                Map<String, String> filterConditions, List<String> fields,
+                                String deprecationReason) {
             this.name = name;
             this.entityType = entityType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
             this.description = description;
             this.topic = topic;
-            this.operation = operation;
+            this.filterConditions = filterConditions == null
+                ? Collections.emptyMap()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(filterConditions));
+            this.fields = fields == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(fields));
+            this.deprecationReason = deprecationReason;
         }
 
         @Override
@@ -847,7 +873,7 @@ public class SchemaRegistry {
                 ", entityType='" + entityType + '\'' +
                 ", arguments=" + arguments.size() +
                 (topic != null ? ", topic='" + topic + '\'' : "") +
-                (operation != null ? ", operation='" + operation + '\'' : "") +
+                (filterConditions.isEmpty() ? "" : ", filter=" + filterConditions.size()) +
                 '}';
         }
     }

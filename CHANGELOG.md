@@ -20,6 +20,53 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Every SDK's subscription authoring surface moves to the compiler's shape, dropping
+  `nullable` and `operation` (#1024).**
+
+  A subscription authored through any SDK could not be compiled. The SDKs emitted
+  `{name, entity_type, nullable, operation, …}`; `IntermediateSubscription` reads
+  `{name, return_type, arguments, description, topic, filter, fields, deprecated}` and denies
+  unknown fields — so `entity_type` failed the **whole document**, not the subscription.
+
+  The compiler is canonical. Five SDKs ship a subscription surface and all five change:
+
+  - **TypeScript, Python, Go** emitted the wrong shape and were refused at compile.
+  - **PHP and Java emitted nothing at all.** `SchemaExporter::toArray()` and
+    `SchemaFormatter.formatSchema()` never read their registries' subscriptions back, so a
+    registered subscription was *silently dropped* from a compile that then reported success —
+    the worse failure of the two, and the reason the shape defect above survived undetected in
+    those two SDKs.
+
+  What changes for authors:
+
+  - `entity_type` / `entityType` survives as the **authoring spelling**, resolved to
+    `return_type` before export. Existing calls that name the type keep working.
+  - **`nullable` is gone.** It was a positional parameter in TypeScript, Python and PHP, so
+    dropping it shifts later arguments — a compile error at the call site in TypeScript, and
+    a `TypeError` in Python. The runtime subscription model has no nullability member; the
+    value was only ever emitted into a struct that refused it.
+  - **`operation` / `operations` is gone.** There is no DML-verb filter in the runtime.
+    Where one was wanted, the event payload carries the verb and a `filter` condition selects
+    on it: `filter: { conditions: [{ argument: "verb", path: "$.op" }] }`.
+  - **`filter`, `fields` and `deprecated` are new** and reach the compiled schema:
+    `filter` maps arguments onto JSON paths in the event, `fields` projects a subset of the
+    event, `deprecated` surfaces through introspection.
+  - The **options bag is closed**. TypeScript's `SubscriptionDefinition` had an index
+    signature and Python's decorator a `**config_kwargs`, both spread verbatim into the
+    emitted object — which is how `operation` reached the compiler, and how any typo would.
+    An unknown option is now a type error at the call site instead of a parse failure against
+    the whole document.
+
+  Also fixed in passing, because it blocked the PHP half: `FraiseQL\ArgumentDefinition` lived
+  in `src/ArgumentBuilder.php` and was therefore not PSR-4 autoloadable, making
+  `SubscriptionBuilder::argument()` a fatal error in any process that had not already loaded
+  `ArgumentBuilder`. It now has its own file. The sibling violation — `UnsetValue` in
+  `src/Unset.php`, dead and unreachable — is tracked separately as #1184, with the
+  `composer dump-autoload --strict-psr` gate that would have caught both.
+
+  The Ruby and Dart READMEs listed "Subscription definitions" as a shipped feature. Neither
+  SDK has a single line of subscription code; the claim is removed.
+
 - **PHP SDK: `QueryBuilder::relayCursorType()` is removed (#1021).**
 
   The setter accepted a value and discarded it. `IntermediateQuery` has no cursor-type member —

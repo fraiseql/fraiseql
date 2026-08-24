@@ -206,55 +206,44 @@ Subscriptions in FraiseQL are **compiled database event projections** sourced fr
 ```typescript
 registerSubscription(
   "orderCreated",
-  "Order",                                        // entity type
-  false,                                          // nullable
+  "Order",                                        // entity type == return type
   [{ name: "userId", type: "ID", nullable: true }],
   "Fires when an order is created",
-  { topic: "order_events", operation: "CREATE" }
+  {
+    topic: "order_events",
+    filter: { conditions: [{ argument: "userId", path: "$.user_id" }] },
+  }
 );
 ```
-
-> **Not yet compilable.** Every SDK emits a subscription as `{name, entity_type, nullable,
-> …}` while the compiler's `IntermediateSubscription` expects `{name, return_type, topic,
-> filter, fields, …}`, and that struct denies unknown fields — so a schema declaring any
-> subscription is refused at compile, in every language. Tracked as #1024.
 
 ### Subscription Configuration
 
-**SubscriptionConfig Options**:
+**SubscriptionOptions**:
 
-- `entityType`: Entity type being subscribed to (defaults to return type)
-- `topic`: Optional topic/channel name for filtering events
-- `operation`: Single event type filter - "CREATE" | "UPDATE" | "DELETE"
-- `operations`: Multiple event type filters - ["CREATE", "UPDATE", "DELETE"]
+- `topic`: Optional LISTEN/NOTIFY channel or CDC topic
+- `filter`: `{ conditions: [{ argument, path }] }` — maps the subscription's own
+  arguments onto JSON paths in the event payload
+- `fields`: Subset of event fields to deliver; every field if omitted
+- `deprecated`: `true`, or the reason as a string
 
-**Manual Registration**:
-
-```typescript
-fraiseql.registerSubscription(
-  "orderCreated",        // name
-  "Order",               // entityType
-  false,                 // nullable
-  [
-    { name: "userId", type: "String", nullable: true }
-  ],                     // filter arguments
-  "Subscribe to new orders",
-  { topic: "order_events", operation: "CREATE" }
-);
-```
+The set is **closed**. It used to be an open `Record<string, unknown>` spread into the
+emitted definition, so `operation: "CREATE"` — or a typo — travelled to `fraiseql compile`
+and failed the whole document there, naming a key that appeared in no SDK type (#1024).
+There is no `nullable` and no `operation`/`operations`: the runtime subscription model has
+neither. Where a DML-verb filter is wanted, the event payload carries the verb and a
+`filter` condition selects on it.
 
 **Subscription Patterns**:
 
-1. **Event Type Filtering** - Subscribe to specific operations
+1. **Event Filtering** - Narrow by the event's own payload
 
 ```typescript
 fraiseql.registerSubscription(
-  "userCreated",
+  "userEventsByVerb",
   "User",
-  false,
-  [],
-  "New user registrations",
-  { operation: "CREATE" }  // Only CREATE events
+  [{ name: "verb", type: "String", nullable: true }],
+  "User events of one kind",
+  { filter: { conditions: [{ argument: "verb", path: "$.op" }] } }
 );
 ```
 
@@ -264,10 +253,9 @@ fraiseql.registerSubscription(
 fraiseql.registerSubscription(
   "criticalOrders",
   "Order",
-  false,
   [],
   "High-priority orders",
-  { topic: "orders.critical", operation: "CREATE" }
+  { topic: "orders.critical" }
 );
 ```
 
@@ -277,39 +265,30 @@ fraiseql.registerSubscription(
 fraiseql.registerSubscription(
   "customerOrders",
   "Order",
-  false,
-  [{ name: "customerId", type: "ID", nullable: false }],  // Filter by customer
-  "Orders for specific customer"
+  [{ name: "customerId", type: "ID", nullable: false }],
+  "Orders for specific customer",
+  { filter: { conditions: [{ argument: "customerId", path: "$.customer_id" }] } }
+);
+```
+
+1. **Field Projection** - Keep the stream narrow
+
+```typescript
+fraiseql.registerSubscription(
+  "orderTotals",
+  "Order",
+  [],
+  "Just the amounts",
+  { topic: "orders", fields: ["id", "totalAmount"] }
 );
 ```
 
 1. **Change Data Capture (CDC)** - Capture all changes
 
 ```typescript
-fraiseql.registerSubscription(
-  "userCDC",
-  "User",
-  false,
-  [],
-  "All user changes",
-  { operations: ["CREATE", "UPDATE", "DELETE"] }
-);
-```
-
-1. **Alerts and Notifications** - Complex filtering
-
-```typescript
-fraiseql.registerSubscription(
-  "unusualOrders",
-  "Order",
-  false,
-  [
-    { name: "minAmount", type: "Decimal", nullable: false },
-    { name: "timeWindowMinutes", type: "Int", nullable: true }
-  ],
-  "Alert on high-value orders",
-  { operation: "CREATE" }
-);
+fraiseql.registerSubscription("userCDC", "User", [], "All user changes", {
+  topic: "cdc",
+});
 ```
 
 ### Type System Decorators

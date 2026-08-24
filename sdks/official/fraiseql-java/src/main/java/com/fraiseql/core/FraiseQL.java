@@ -637,7 +637,9 @@ public class FraiseQL {
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
         private String topic = null;
-        private String operation = null;
+        private final Map<String, String> filterConditions = new LinkedHashMap<>();
+        private final List<String> fields = new ArrayList<>();
+        private String deprecationReason = null;
 
         private SubscriptionBuilder(String name) {
             this.name = name;
@@ -700,13 +702,50 @@ public class FraiseQL {
         }
 
         /**
-         * Set the operation filter for this subscription.
+         * Narrow delivered events by matching one argument against a path in the payload.
          *
-         * @param operation the operation type (CREATE, UPDATE, DELETE)
+         * <p>This replaces {@code operation(String)}. The runtime subscription model has
+         * no DML-verb member, so a CREATE/UPDATE/DELETE filter had nothing to reach; the
+         * verb travels in the event payload and a condition selects on it (#1024).
+         *
+         * @param argName name of a declared subscription argument
+         * @param path JSON path into the event data, e.g. {@code "$.id"}
          * @return this builder for chaining
          */
-        public SubscriptionBuilder operation(String operation) {
-            this.operation = operation;
+        public SubscriptionBuilder filterCondition(String argName, String path) {
+            filterConditions.put(argName, path);
+            return this;
+        }
+
+        /**
+         * Project a subset of the event's fields. Every field is delivered if unset.
+         *
+         * @param fieldNames the field names to deliver
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder fields(String... fieldNames) {
+            Collections.addAll(fields, fieldNames);
+            return this;
+        }
+
+        /**
+         * Mark this subscription deprecated with a stated reason.
+         *
+         * @param reason why it is deprecated
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder deprecated(String reason) {
+            this.deprecationReason = reason == null ? "" : reason;
+            return this;
+        }
+
+        /**
+         * Mark this subscription deprecated with no stated reason.
+         *
+         * @return this builder for chaining
+         */
+        public SubscriptionBuilder deprecated() {
+            this.deprecationReason = "";
             return this;
         }
 
@@ -714,7 +753,8 @@ public class FraiseQL {
          * Register this subscription in the schema.
          */
         public void register() {
-            registry.registerSubscription(name, entityType, arguments, description, topic, operation);
+            registry.registerSubscription(name, entityType, arguments, description, topic,
+                filterConditions, fields, deprecationReason);
         }
     }
 

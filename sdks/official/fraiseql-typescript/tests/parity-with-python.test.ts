@@ -200,22 +200,28 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       registerSubscription(
         "orderCreated",
         "Order",
-        false,
         [{ name: "userId", type: "String", nullable: true }],
         "Subscribe to new orders",
-        { topic: "orders", operation: "CREATE" }
+        {
+          topic: "orders",
+          filter: { conditions: [{ argument: "userId", path: "$.user_id" }] },
+        }
       );
 
       // Python equivalent:
-      // @fraiseql.subscription(entity_type="Order", topic="orders", operation="CREATE")
+      // @fraiseql.subscription(
+      //     entity_type="Order",
+      //     topic="orders",
+      //     filter={"conditions": [{"argument": "user_id", "path": "$.user_id"}]},
+      // )
       // def order_created(user_id: str | None = None) -> Order:
       //   pass
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions).toHaveLength(1);
-      expect(schema.subscriptions[0].entity_type).toBe("Order");
+      expect(schema.subscriptions[0].return_type).toBe("Order");
       expect(schema.subscriptions[0].topic).toBe("orders");
-      expect(schema.subscriptions[0].operation).toBe("CREATE");
+      expect(schema.subscriptions[0].filter?.conditions[0]?.path).toBe("$.user_id");
     });
 
     it("should have parity: operations with auto_params configuration", () => {
