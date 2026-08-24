@@ -183,9 +183,18 @@ pub(super) fn render_document(
         format!("({})", op.call_args.join(", "))
     };
 
-    let mut doc = format!("{kind} {name}{var_sig} {{\n  {name}{call_sig} {{\n");
-    doc.push_str(selection);
-    doc.push_str("  }\n}");
+    let mut doc = format!("{kind} {name}{var_sig} {{\n  {name}{call_sig}");
+
+    // A leaf return type yields no selection lines, and `{}` is a parse error —
+    // the field is simply selected without a sub-selection (#1031).
+    if selection.is_empty() {
+        doc.push_str("\n}");
+    } else {
+        doc.push_str(" {\n");
+        doc.push_str(selection);
+        doc.push_str("  }\n}");
+    }
+
     doc
 }
 
@@ -207,8 +216,23 @@ pub(super) fn selection_for_return(ctx: &SchemaCtx, return_type: &str, relay: bo
     type_selection(ctx, return_type, "    ")
 }
 
-/// Selection-set lines for a type name (object, union, or — degenerate — scalar).
+/// Selection-set lines for a composite type name (object, interface, or union).
+///
+/// Returns **empty** for a leaf return type. A scalar or enum takes no
+/// sub-selection, but this used to write `__typename` unconditionally, so a
+/// `userCount: Int!` root query was asked for `userCount { __typename }` while
+/// `type_name_to_py`/`type_name_to_ts` mapped its return type to `int`/`number`
+/// (#1031). The caller was promised a scalar and the document requested an
+/// object; FraiseQL's own validator passes a selection on a type it cannot
+/// resolve, so the result was HTTP 200 and a wrong value rather than an error.
 pub(super) fn type_selection(ctx: &SchemaCtx, type_name: &str, indent: &str) -> String {
+    let is_composite = ctx.unions.contains_key(type_name)
+        || ctx.object_types.contains_key(type_name)
+        || ctx.interfaces.contains_key(type_name);
+    if !is_composite {
+        return String::new();
+    }
+
     let mut sel = String::new();
     let _ = writeln!(sel, "{indent}__typename");
 
@@ -240,11 +264,23 @@ pub(super) fn type_selection(ctx: &SchemaCtx, type_name: &str, indent: &str) -> 
     sel
 }
 
-/// The leaf field names of an object type, one indented line each.
+/// The leaf field names of an object **or interface** type, one line each.
+///
+/// Interfaces are consulted because the compiler registers them as legal
+/// query/mutation return types. Looking only at `object_types` meant an
+/// interface-returning operation selected `__typename` and silently discarded
+/// every field the interface declares (#1031) — a wrong result rather than a
+/// failed request, which is why nothing surfaced it.
 fn leaf_name_lines(ctx: &SchemaCtx, type_name: &str, indent: &str) -> String {
+    let fields = ctx
+        .object_types
+        .get(type_name)
+        .map(|ty| &ty.fields)
+        .or_else(|| ctx.interfaces.get(type_name).map(|iface| &iface.fields));
+
     let mut out = String::new();
-    if let Some(ty) = ctx.object_types.get(type_name) {
-        for field in leaf_fields(&ty.fields) {
+    if let Some(fields) = fields {
+        for field in leaf_fields(fields) {
             let _ = writeln!(out, "{indent}{}", field.name);
         }
     }

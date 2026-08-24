@@ -6,7 +6,8 @@ use std::path::PathBuf;
 
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition,
-    FieldType, MutationDefinition, QueryDefinition, TypeDefinition, UnionDefinition,
+    FieldType, InterfaceDefinition, MutationDefinition, QueryDefinition, TypeDefinition,
+    UnionDefinition,
 };
 
 use super::schema_hash;
@@ -171,6 +172,95 @@ fn a_nullable_vector_argument_is_declared_nullable() {
         !document.contains("$embedding: [Float!]!"),
         "an optional argument must not be declared non-null:\n{document}"
     );
+}
+
+/// #1031 — a leaf return type still got a selection set. `type_selection` wrote
+/// `__typename` for every return type, while `type_name_to_py`/`type_name_to_ts`
+/// map scalar return-type names to `int`/`number` — so the generator promised the
+/// caller a scalar and asked the server for a sub-selection of one.
+///
+/// The failure is not a rejected request: FraiseQL's own validator passes a
+/// selection on an unknown type, so the caller gets HTTP 200 and an object where
+/// its generated type says `int`.
+#[test]
+fn a_scalar_return_type_gets_no_selection_set() {
+    let schema = leaf_return_fixture(FieldType::Int, "userCount");
+    let generated = super::python::generate(&schema).unwrap();
+    let documents = docs(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
+    let document = documents.first().expect("fixture has one query");
+
+    assert!(
+        !document.contains("__typename"),
+        "a scalar return type takes no sub-selection:\n{document}"
+    );
+    assert_documents_parse(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
+}
+
+/// The same path, and the reason the adversarial review widened this finding: an
+/// enum return type is in neither `unions` nor `object_types`, so it took the
+/// identical branch — and there the emitted client even type-checks, because the
+/// enum is imported by name, making the invalid document fully invisible.
+#[test]
+fn an_enum_return_type_gets_no_selection_set() {
+    let schema = leaf_return_fixture(FieldType::Enum("UserRole".to_string()), "currentRole");
+    let generated = super::python::generate(&schema).unwrap();
+    let documents = docs(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
+    let document = documents.first().expect("fixture has one query");
+
+    assert!(
+        !document.contains("__typename"),
+        "an enum return type takes no sub-selection:\n{document}"
+    );
+}
+
+/// The third case, and a silent drop rather than a bad request: `leaf_name_lines`
+/// consulted only `object_types`, so a query returning an **interface** — which
+/// the compiler explicitly registers as a legal return type — selected
+/// `__typename` and discarded every field the interface declares.
+#[test]
+fn an_interface_return_type_selects_its_declared_fields() {
+    let mut schema = CompiledSchema::new();
+
+    let mut node = InterfaceDefinition::new("Node");
+    node.fields.push(FieldDefinition::new("id", FieldType::Id));
+    node.fields.push(FieldDefinition::new("createdAt", FieldType::DateTime));
+    schema.interfaces.push(node);
+
+    schema.queries.push(QueryDefinition::new("node", "Node"));
+
+    let generated = super::python::generate(&schema).unwrap();
+    let documents = docs(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
+    let document = documents.first().expect("fixture has one query");
+
+    for field in ["id", "createdAt"] {
+        assert!(
+            document.contains(field),
+            "interface field {field} was dropped from the document:\n{document}"
+        );
+    }
+}
+
+/// One root query returning `field_type`, with nothing else in the schema.
+fn leaf_return_fixture(field_type: FieldType, query_name: &str) -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+
+    if let FieldType::Enum(name) = &field_type {
+        schema.enums.push(EnumDefinition {
+            name:        name.clone(),
+            values:      vec![EnumValueDefinition {
+                name:        "ADMIN".to_string(),
+                description: None,
+                deprecation: None,
+            }],
+            description: None,
+        });
+    }
+
+    schema
+        .queries
+        .push(QueryDefinition::new(query_name, field_type.to_graphql_string()));
+
+    schema
 }
 
 /// #1032 — a union member with no leaf fields produced `... on X {\n}`. An empty

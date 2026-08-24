@@ -3293,6 +3293,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A leaf return type no longer gets a sub-selection, and an interface return type keeps its
+  fields (#1031).**
+
+  `type_selection` wrote `__typename` for every return type, while `type_name_to_ts` and
+  `type_name_to_py` map scalar return-type names to `number`/`str` — the two halves of the same
+  generator contradicted each other. A `userCount: Int!` root query generated the document
+  `query userCount { userCount { __typename } }` alongside a wrapper declaring
+  `Promise<number>`. An enum return type took the identical branch, and there the emitted client
+  even type-checks, because the enum is imported by name.
+
+  This is not a rejected request. `validate_selection_set` deliberately passes when the type is
+  not in `schema.types`, so the document is accepted, executed, and the caller receives an
+  object where its generated type promises a scalar.
+
+  A third case was a silent drop rather than a bad request: `leaf_name_lines` consulted only
+  `object_types`, so a query returning an **interface** — which the compiler explicitly
+  registers as a legal return type — selected `__typename` and discarded every field the
+  interface declares. Interfaces are now consulted alongside object types.
+
 - **Generated clients no longer emit `GraphQL` documents that cannot be parsed (#1066, #1032).**
 
   Two independent shapes produced a document the server rejects at its parse step, so every
