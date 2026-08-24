@@ -58,6 +58,77 @@ fn freshness_huge_tolerance_does_not_wrap_to_reject_everything() {
     assert!(check_timestamp_freshness(i64::MAX, "0", u64::MAX).is_ok());
 }
 
+// ── #1049: the freshness gate does unchecked arithmetic on an unauthenticated header ──
+
+mod extreme_timestamps {
+    //! `check_timestamp_freshness` runs **before** the HMAC comparison in all five
+    //! timestamped verifiers, on a header the server threads through raw. `now - ts`
+    //! and `.abs()` were both unchecked, so an extreme value overflowed: a panic in
+    //! any debug-assertions build, and a silent wrap in release.
+    //!
+    //! The tolerance side had already been hardened against exactly this (saturating
+    //! `try_from`, tested above); the `now - ts` side had not.
+    //!
+    //! ⚠ The issue's own reproduction does **not** reproduce. `i64::MIN` as the
+    //! timestamp is correctly *rejected*: `now - i64::MIN` wraps to roughly `-9.22e18`,
+    //! whose `.abs()` is far outside any tolerance. The fail-open needs `ts` to be
+    //! exactly `now - 2^63`, so that the wrap lands precisely on `i64::MIN`, where
+    //! `.abs()` is the identity. Both cases are pinned below.
+
+    use super::super::{SignatureError, check_timestamp_freshness};
+
+    const NOW: i64 = 1_700_000_000;
+
+    #[test]
+    fn the_single_value_that_wrapped_onto_i64_min_is_rejected() {
+        // `now - ts == 2^63` overflows to exactly `i64::MIN`, and `i64::MIN.abs()` is
+        // `i64::MIN` in release, which is *not* greater than the tolerance — so the
+        // replay gate returned Ok for an arbitrarily old timestamp. This is the one
+        // input per clock second for which the guard failed open.
+        let ts = NOW.wrapping_sub(i64::MIN);
+        assert!(
+            matches!(
+                check_timestamp_freshness(NOW, &ts.to_string(), 300),
+                Err(SignatureError::TimestampExpired)
+            ),
+            "a timestamp 2^63 seconds away must be expired, not accepted"
+        );
+    }
+
+    #[test]
+    fn i64_min_is_rejected_without_overflowing() {
+        // The issue's quoted input. It was always *rejected* — but only after an
+        // unchecked subtraction that panics under debug assertions, which is how this
+        // test fails on the unfixed tree rather than by assertion.
+        assert!(
+            matches!(
+                check_timestamp_freshness(NOW, &i64::MIN.to_string(), 300),
+                Err(SignatureError::TimestampExpired)
+            ),
+            "an i64::MIN timestamp must be expired"
+        );
+    }
+
+    #[test]
+    fn i64_max_is_rejected_without_overflowing() {
+        assert!(
+            matches!(
+                check_timestamp_freshness(NOW, &i64::MAX.to_string(), 300),
+                Err(SignatureError::TimestampExpired)
+            ),
+            "an i64::MAX timestamp must be expired"
+        );
+    }
+
+    #[test]
+    fn a_fresh_timestamp_still_passes() {
+        // The guard against overshooting: saturating the arithmetic must not start
+        // rejecting ordinary deliveries.
+        assert!(check_timestamp_freshness(NOW, &NOW.to_string(), 300).is_ok());
+        assert!(check_timestamp_freshness(NOW, &(NOW - 299).to_string(), 300).is_ok());
+    }
+}
+
 // ── #781: every verifier accepts a genuine, provider-generated delivery ───────
 //
 // Each fixture's signature is computed by the PROVIDER'S documented algorithm,

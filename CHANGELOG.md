@@ -5307,6 +5307,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **The shared webhook freshness gate no longer does unchecked arithmetic on an
+  unauthenticated timestamp header (#1049).**
+
+  `check_timestamp_freshness` runs *before* the HMAC comparison in all five timestamped
+  verifiers, on a header threaded through raw, and computed `(now - ts).abs()` unchecked.
+  An extreme timestamp panicked in any debug-assertions build (aborting that connection,
+  not the process) and wrapped in release — and for the single value per clock second
+  where `now - ts` landed exactly on `i64::MIN`, `.abs()` is the identity, so
+  `i64::MIN > tolerance` was false and **the replay gate returned `Ok` for an arbitrarily
+  old timestamp**.
+
+  The distance is now `saturating_sub` widened through `unsigned_abs`, compared `u64` to
+  `u64` — which also retires the `i64::try_from(tolerance_secs)` saturation, so neither an
+  extreme timestamp nor an extreme configured tolerance can wrap the window.
+
+  No replay bypass followed from this: all five callers bind the timestamp into the signed
+  material, so anyone passing the subsequent signature check already holds the secret.
+  The guard was violating its own contract, which is reason enough. Reachability also
+  requires the non-default `inbound` feature and a configured route.
+
+  ⚠ The issue's own reproduction does not reproduce: `i64::MIN` as the timestamp was always
+  correctly *rejected*. Both that case and the genuine `now - 2^63` one are now pinned.
+
 - **The inbound webhook route no longer returns internal error text to unauthenticated
   callers, and a misconfigured signing key is no longer reported as the sender's fault
   (#1045).**

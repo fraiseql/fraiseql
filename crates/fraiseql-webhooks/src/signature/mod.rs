@@ -77,11 +77,25 @@ pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 ///
 /// This is the single freshness check shared by every timestamped verifier
 /// (Slack, SendGrid, Discord, Paddle, Stripe), so the logic cannot drift between
-/// providers (M-webhook-replay-drift). `tolerance_secs` is a `u64` converted to
-/// `i64` saturating at [`i64::MAX`]; a raw `seconds as i64` cast would silently
-/// wrap a large configured tolerance to a *negative* window that rejects every
-/// request. `now` is the current Unix time in seconds, injected so the check is
-/// testable.
+/// providers (M-webhook-replay-drift). `now` is the current Unix time in seconds,
+/// injected so the check is testable.
+///
+/// # Both sides of the comparison are overflow-safe (#1049)
+///
+/// Every verifier calls this **before** its HMAC comparison, on a timestamp header
+/// taken raw from an unauthenticated request, so the arithmetic here runs on
+/// attacker-chosen input.
+///
+/// The distance is `saturating_sub` widened through [`i64::unsigned_abs`], and the
+/// comparison is `u64` against `u64`. Previously it was `(now - ts).abs() >
+/// tolerance`: an extreme `ts` panicked in any debug-assertions build, and in
+/// release wrapped — for the single value where `now - ts` landed exactly on
+/// [`i64::MIN`], `.abs()` is the identity, so `i64::MIN > tolerance` was false and
+/// the replay gate **returned `Ok` for an arbitrarily old timestamp**.
+///
+/// Comparing in `u64` also removes the `i64::try_from(tolerance_secs)` conversion
+/// that used to be needed, so neither an extreme timestamp nor an extreme
+/// configured tolerance can wrap the window now.
 ///
 /// # Errors
 ///
@@ -93,8 +107,7 @@ pub(crate) fn check_timestamp_freshness(
     tolerance_secs: u64,
 ) -> Result<(), SignatureError> {
     let ts: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
-    let tolerance = i64::try_from(tolerance_secs).unwrap_or(i64::MAX);
-    if (now - ts).abs() > tolerance {
+    if now.saturating_sub(ts).unsigned_abs() > tolerance_secs {
         return Err(SignatureError::TimestampExpired);
     }
     Ok(())
