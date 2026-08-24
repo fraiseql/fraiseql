@@ -1,6 +1,6 @@
 //! The webhook push adapter — the first inbound [`Source`].
 //!
-//! Mounts `POST /webhooks/{provider}` and turns a signed provider callback into a
+//! Mounts `POST /webhooks/{segment}` and turns a signed provider callback into a
 //! normalized [`InboundMessage`] on the durable spine, reusing the
 //! `fraiseql-webhooks` [`WebhookPipeline`] for the security-critical middle:
 //! resolve the signing secret → verify the signature (no database work until the
@@ -38,22 +38,45 @@ use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{config::WebhookRouteConfig, inbound::spine::emit_in_tx};
 
-/// A push [`Source`] for one webhook provider.
+/// A push [`Source`] for one configured webhook route.
 ///
 /// Normalization is pure: signature verification and the delivery transaction are
 /// the pipeline's job, so [`normalize`](PushSource::normalize) only maps a
 /// verified [`RawDelivery`] into an [`InboundMessage`], carrying the JSON body as
 /// the message [`payload`](InboundMessage::payload).
+///
+/// # Why the route is carried alongside the provider (#1046)
+///
+/// The spine dedups on `(source, idempotency_key)`, and `source` is
+/// `webhook:<provider>` — the `after:ingest` routing discriminant, which must stay
+/// provider-shaped or every declared trigger breaks. So the *route* has to enter
+/// the other half: [`normalize`](PushSource::normalize) namespaces the idempotency
+/// key as `<route length>:<route>:<event id>`. Without it, two routes serving one
+/// provider share a spine namespace, and the second sender's event `1001` is
+/// discarded as a redelivery of the first sender's. The email adapter reached the
+/// same shape from the other direction (#775), which is why its keys are
+/// `<message-id>:sha256:…`.
+///
+/// The length prefix is what makes that join injective for *any* segment; the
+/// sender picks the event id, so a bare `<route>:<id>` join would let one route's
+/// sender aim at another's key. See `normalize` for the concrete collision.
 pub struct WebhookSource {
     provider: String,
+    route:    String,
 }
 
 impl WebhookSource {
-    /// Build a source for a provider (e.g. `stripe`).
+    /// Build a source for a provider (e.g. `stripe`) received on a named route
+    /// (the `/webhooks/{segment}` path segment).
+    ///
+    /// Both are needed because they answer different questions: the provider is
+    /// the `after:ingest:webhook:<provider>` routing discriminant, while the route
+    /// is the dedup namespace (#1046).
     #[must_use]
-    pub fn new(provider: impl Into<String>) -> Self {
+    pub fn new(provider: impl Into<String>, route: impl Into<String>) -> Self {
         Self {
             provider: provider.into(),
+            route:    route.into(),
         }
     }
 }
@@ -75,8 +98,16 @@ impl PushSource for WebhookSource {
         if delivery.event_id.is_empty() {
             return Err(IngestError::new("webhook delivery has no event id"));
         }
-        let mut message =
-            InboundMessage::new(self.source(), delivery.event_id, delivery.received_at);
+        // #1046: the route, not the provider, is the dedup scope — see the type's
+        // documentation for why it cannot live in `source` instead.
+        //
+        // Length-prefixed, because the sender chooses the event id and a plain
+        // `<route>:<id>` join is not injective: route `a` with the id `b:1` lands on
+        // the same key as route `a:b` with the id `1`. The ledger key is a real
+        // tuple and stays distinct, so such a forgery would claim cleanly and lose
+        // only the durable spine row — the exact silent drop this issue is about.
+        let idempotency_key = format!("{}:{}:{}", self.route.len(), self.route, delivery.event_id);
+        let mut message = InboundMessage::new(self.source(), idempotency_key, delivery.received_at);
         // The event type is the closest thing a webhook has to a subject.
         if !delivery.event_type.is_empty() {
             message.subject = Some(delivery.event_type.to_string());
@@ -436,22 +467,27 @@ fn json_status(status: StatusCode, body: &Value) -> Response {
     (status, body.to_string()).into_response()
 }
 
-/// `POST /webhooks/{provider}` — verify, normalize, and persist an inbound delivery.
+/// `POST /webhooks/{segment}` — verify, normalize, and persist an inbound delivery.
 ///
 /// On success returns `200` with `{"status":"processed"|"duplicate"}`. A forged
 /// signature is `401`, a malformed payload `400`, a server-side misconfiguration
 /// `500` — routed by the pipeline's error mapping.
+///
+/// The captured path parameter is the **route segment**, not the provider: several
+/// routes may serve one provider, and it is the segment that identifies which
+/// configuration (and which signing secret) a delivery arrived under. It was named
+/// `provider` here, which is how it came to key the dedup namespace (#1046).
 pub async fn webhook_handler(
     State(state): State<WebhookInboundState>,
-    Path(provider): Path<String>,
+    Path(segment): Path<String>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    let Some(route) = state.routes.get(&provider) else {
+    let Some(route) = state.routes.get(&segment) else {
         return json_status(
             StatusCode::NOT_FOUND,
-            &json!({ "error": format!("no inbound webhook route '{provider}'") }),
+            &json!({ "error": format!("no inbound webhook route '{segment}'") }),
         );
     };
 
@@ -517,7 +553,7 @@ pub async fn webhook_handler(
 
     // Normalize before the pipeline so the durable payload is the normalized
     // message; the pipeline persists it (as delivery params) inside its transaction.
-    let source = WebhookSource::new(route.provider.clone());
+    let source = WebhookSource::new(route.provider.clone(), segment.clone());
     let raw = RawDelivery {
         event_id:    &event_id,
         event_type:  &event_type,
@@ -534,10 +570,13 @@ pub async fn webhook_handler(
     let params = serde_json::to_value(&message).unwrap_or(Value::Null);
 
     let delivery = Delivery {
-        provider: &route.provider,
+        // #1046: the dedup namespace is this route, not the provider it serves.
+        // Sound as a namespace because `webhook_routes_check` refuses two routes
+        // resolving to one segment (#1048), so a segment names exactly one config.
+        route: &segment,
         event_id: &event_id,
         event_type: &event_type,
-        function_name: &provider,
+        function_name: &segment,
         body: &body,
         signature: &signature,
         timestamp: timestamp.as_deref(),
@@ -568,7 +607,7 @@ pub async fn webhook_handler(
             // The detail the client no longer sees still has to reach the operator —
             // that is the trade the sanitizer's own comment describes.
             tracing::warn!(
-                route = %provider,
+                route = %segment,
                 provider = %route.provider,
                 error = %mapped,
                 "inbound webhook delivery failed"
@@ -602,10 +641,10 @@ fn dispatch_after_ingest(state: &WebhookInboundState, message: &InboundMessage) 
 }
 
 /// Build the inbound webhook sub-router. Register with [`Router::merge`]; the
-/// single route is `POST /webhooks/{provider}`.
+/// single route is `POST /webhooks/{segment}`.
 pub fn webhook_router(state: WebhookInboundState) -> Router {
     Router::new()
-        .route("/webhooks/{provider}", post(webhook_handler))
+        .route("/webhooks/{segment}", post(webhook_handler))
         .with_state(state)
 }
 

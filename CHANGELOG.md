@@ -20,6 +20,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The inbound-webhook dedup namespace is the route, not the provider, which renames one
+  ledger column and one public field (#1046).**
+
+  `fraiseql-webhooks`: `Delivery.provider` is now `Delivery.route`, and
+  `IdempotencyStore::claim`'s second parameter is `route`. The types are unchanged; what
+  changed is what the value must be — the receiving endpoint, not the provider it serves.
+  A caller that keeps passing a provider string reintroduces the defect below, so the
+  rename is deliberate rather than mechanical.
+
+  The ledger column `webhooks.tb_inbound_delivery.provider` is renamed to `route`, and the
+  unique key with it. `PostgresIdempotencyStore::init` performs the rename in place on an
+  existing database (`CREATE TABLE IF NOT EXISTS` alone would leave the old column and the
+  first claim would fail with *column "route" does not exist*); the unique index follows the
+  column, so the claim never loses its atomicity.
+
+  `fraiseql-server`: `WebhookSource::new` takes the route segment as a second argument, and a
+  webhook message's spine `idempotency_key` is now `<route length>:<route>:<event id>` rather
+  than the bare event id — the same structured-key shape the email adapter has carried since
+  #775. It is length-prefixed because the spine flattens its half of the key into one column
+  while the *sender* chooses the event id: a bare `<route>:<id>` join is not injective, and
+  route `a` receiving the id `b:1` would land on route `a:b`'s event `1`. The
+  `after:ingest:webhook:<provider>` trigger discriminant is deliberately **unchanged**;
+  declared triggers keep firing.
+
+  **Who is affected, and how far:** a ledger row written before the upgrade still matches
+  after it whenever a route's segment equals its provider string — which is the documented
+  one-route-per-provider shape, so most deployments see no discontinuity at all. Under a
+  `path` override, or two routes on one provider, a delivery still in the provider's retry
+  window may be processed once more. Spine keys all change, so the same one-time window
+  applies there.
+
 - **A `storage` section in the compiled schema is now refused at load (#1008).** It used to be
   deserialized into `SchemaStorageConfig`, validated by `validate_storage_config`, and stored
   on `ExtendedCompiledSchema.storage` — where **nothing read it**. `main.rs` takes `.schema`
@@ -3243,6 +3274,32 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **Two webhook routes serving one provider no longer discard each other's deliveries
+  (#1046).**
+
+  Several `[webhooks.*]` routes may legitimately share a `provider` — two partners on the
+  generic `hmac-sha256` scheme under separate secrets, a live/test pair, two accounts of one
+  multi-tenant provider. Each sender numbers its own events, so the same id turns up on both.
+  Both dedup layers were keyed on the provider alone: the ledger on `(provider, event_id)`
+  and the spine on `(webhook:<provider>, event_id)`. Partner B's own event `1001` therefore
+  met partner A's claim, was answered `200 {"status":"duplicate"}`, was never written to the
+  spine and never fired `after:ingest`. Because a 200 reads as success, B never retried — the
+  loss was silent and permanent. It is also a cross-sender suppression channel: a partner
+  holding a valid secret for its own route can pre-claim ids it predicts a co-tenant will
+  use. This is exactly the shape #775 fixed for email, which the webhook side did not get.
+
+  Both layers are now namespaced by route. The trigger discriminant is not: it stays
+  `after:ingest:webhook:<provider>`, so co-provider routes still fire the same declared
+  handlers and no user function declaration breaks.
+
+  The two layers had to be fixed together. Scoping only the ledger moves the drop rather than
+  removing it — the claim succeeds, the spine's `ON CONFLICT` discards the row, and the route
+  still answers `processed`, so the defect becomes *invisible at the HTTP surface*. The
+  regression test asserts the spine row count for that reason.
+
+  Route segments are a sound namespace only because boot now refuses two routes resolving to
+  one segment (#1048); that fix is a prerequisite for this one.
 
 - **Two webhook routes resolving to the same path segment are refused at boot instead of
   silently shadowing each other (#1048).**

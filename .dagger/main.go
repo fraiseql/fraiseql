@@ -1235,6 +1235,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// idempotency claim — the defect it guards lived precisely where no
 		// real-system test reached.
 		"cargo test -p fraiseql-server --features inbound --test webhook_replay_header_dedup_pg -- --test-threads=1",
+		// #1046: both dedup layers are scoped per route, not per provider. Two
+		// routes on one provider, each sender's own event 1001, driven through the
+		// real route + real claim + real spine. Only a live database can show it:
+		// the ledger and the spine fail in the same direction, and fixing just the
+		// ledger still answers 200 "processed" while dropping the message.
+		"cargo test -p fraiseql-server --features inbound --test webhook_route_dedup_scope_pg -- --test-threads=1",
 		// #781/#787: genuine provider-shaped deliveries (Slack timestamp threading,
 		// Twilio public_url, LemonSqueezy hex) through the real route + real
 		// idempotency claim, plus the boot-time route validation.

@@ -161,7 +161,7 @@ macro_rules! skip_if_no_db {
 
 fn delivery(event_id: &str, params: Value) -> Delivery<'_> {
     Delivery {
-        provider: "stripe",
+        route: "stripe",
         event_id,
         event_type: "payment_intent.succeeded",
         function_name: "process_payment",
@@ -220,7 +220,7 @@ async fn duplicate_delivery_is_discarded_and_handler_runs_once() {
     assert!(matches!(first, Disposition::Processed(_)), "first delivery is processed");
     assert!(
         matches!(second, Disposition::Duplicate),
-        "a duplicate (provider, event_id) is silently discarded, got: {second:?}",
+        "a duplicate (route, event_id) is silently discarded, got: {second:?}",
     );
     assert_eq!(delivery_count(&admin).await, 1, "the duplicate adds no second claim row");
     assert_eq!(
@@ -238,7 +238,7 @@ async fn concurrent_duplicate_deliveries_process_exactly_once() {
     let pipeline_b = WebhookPipeline::new(admin.clone(), secrets(), store_b, RecordingHandler);
     let d = delivery("evt_race", json!({"id": "evt_race"}));
 
-    // Two deliveries of the same (provider, event_id) race. They serialise on the
+    // Two deliveries of the same (route, event_id) race. They serialise on the
     // unique-key row lock inside the atomic claim: exactly one inserts and commits,
     // the other waits, sees the conflict, and is discarded.
     let (a, b) = tokio::join!(
@@ -361,4 +361,72 @@ async fn rls_denies_inbound_delivery_ledger_by_default() {
         "deny-by-default: a NOBYPASSRLS reader sees zero rows (no permissive policy)",
     );
     assert_eq!(delivery_count(&admin).await, 1, "the owner bypasses RLS and sees the row");
+}
+
+/// The column names of the delivery ledger, sorted.
+async fn ledger_columns(pool: &PgPool) -> Vec<String> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT column_name FROM information_schema.columns \
+         WHERE table_schema = 'webhooks' AND table_name = 'tb_inbound_delivery' \
+         ORDER BY column_name",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+/// #1046 upgrade path: a ledger created before the dedup namespace was scoped per
+/// route still carries the old `provider` column, and the `CREATE TABLE IF NOT
+/// EXISTS` in `SCHEMA_SQL` will not touch it — the first claim after the upgrade
+/// would fail with *column "route" does not exist*. `init` renames it in place.
+///
+/// The rename is only worth anything if the unique index follows the column: an
+/// `ON CONFLICT (route, event_id)` that no longer resolves to a constraint is an
+/// error, and one resolving to the wrong one would silently stop deduplicating. So
+/// this drives a real redelivery through the migrated table rather than inspecting
+/// the catalogue alone.
+///
+/// Reconstructs the old shape by renaming back rather than dropping, because other
+/// suites share this table. A failure between the two renames leaves the ledger in
+/// its pre-#1046 shape; the next `init` (every suite's setup runs one) repairs it.
+#[tokio::test]
+async fn init_migrates_a_pre_1046_ledger_and_the_claim_stays_atomic() {
+    let (store, admin) = skip_if_no_db!();
+
+    sqlx::query("ALTER TABLE webhooks.tb_inbound_delivery RENAME COLUMN route TO provider")
+        .execute(&admin)
+        .await
+        .unwrap();
+    assert!(
+        ledger_columns(&admin).await.contains(&"provider".to_string()),
+        "precondition: the ledger is in its pre-#1046 shape",
+    );
+
+    store.init().await.unwrap();
+
+    let columns = ledger_columns(&admin).await;
+    assert!(
+        columns.contains(&"route".to_string()),
+        "#1046: init must rename the namespace column on an existing ledger; got {columns:?}",
+    );
+    assert!(
+        !columns.contains(&"provider".to_string()),
+        "#1046: the old column must be renamed, not duplicated; got {columns:?}",
+    );
+
+    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
+    let d = delivery("evt_migrated", json!({"id": "evt_migrated"}));
+    let first = pipeline.process(&AcceptingVerifier, "stripe", &d).await.unwrap();
+    let second = pipeline.process(&AcceptingVerifier, "stripe", &d).await.unwrap();
+
+    assert!(
+        matches!(first, Disposition::Processed(_)),
+        "a fresh delivery is claimed on the migrated ledger, got: {first:?}",
+    );
+    assert!(
+        matches!(second, Disposition::Duplicate),
+        "the unique index must survive the rename, or every redelivery is processed \
+         again; got: {second:?}",
+    );
+    assert_eq!(delivery_count(&admin).await, 1, "the redelivery adds no second claim row");
 }

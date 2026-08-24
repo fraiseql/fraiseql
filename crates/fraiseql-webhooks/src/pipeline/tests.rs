@@ -27,7 +27,7 @@ impl EventHandler for NeverHandler {
 
 fn delivery() -> Delivery<'static> {
     Delivery {
-        provider:      "stripe",
+        route:         "stripe",
         event_id:      "evt_1",
         event_type:    "payment_intent.succeeded",
         function_name: "process_payment",

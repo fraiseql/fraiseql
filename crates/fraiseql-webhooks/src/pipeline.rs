@@ -31,8 +31,17 @@ use crate::{
 /// function. They are separate because the handler often forwards a transformed
 /// subset of the payload, not the verbatim bytes.
 pub struct Delivery<'a> {
-    /// Provider name, used as the first half of the idempotency key (e.g. `"stripe"`).
-    pub provider:      &'a str,
+    /// Which configured receiving endpoint this delivery arrived on — the first
+    /// half of the idempotency key, and the dedup namespace.
+    ///
+    /// **Not the provider (#1046).** Several endpoints may serve one provider
+    /// under separate signing secrets (two partners on the generic `hmac-sha256`
+    /// scheme, a live/test pair, two accounts of one multi-tenant provider), and
+    /// each sender numbers its own events from scratch. Keying on the provider
+    /// therefore let one sender's event `1001` discard another's as a duplicate,
+    /// answering `200` so the loss was silent and permanent. Give each endpoint a
+    /// distinct value — the server passes the route's path segment.
+    pub route:         &'a str,
     /// Provider-assigned unique delivery id, the second half of the idempotency key.
     pub event_id:      &'a str,
     /// Event type (e.g. `"payment_intent.succeeded"`), recorded with the claim.
@@ -147,7 +156,7 @@ where
     ///
     /// Returns [`Disposition::Processed`] when the handler ran and committed, or
     /// [`Disposition::Duplicate`] when an earlier committed delivery already
-    /// claimed this `(provider, event_id)`.
+    /// claimed this `(route, event_id)`.
     ///
     /// # Errors
     ///
@@ -185,7 +194,7 @@ where
 
         let claimed = match self
             .store
-            .claim(&mut tx, delivery.provider, delivery.event_id, delivery.event_type)
+            .claim(&mut tx, delivery.route, delivery.event_id, delivery.event_type)
             .await
         {
             Ok(claimed) => claimed,

@@ -80,7 +80,7 @@ mod after_ingest_bridge {
 
 #[test]
 fn webhook_source_declares_push_transport() {
-    let source = WebhookSource::new("stripe");
+    let source = WebhookSource::new("stripe", "partner-a");
     assert_eq!(
         source.source(),
         IngestSource::Webhook {
@@ -92,7 +92,7 @@ fn webhook_source_declares_push_transport() {
 
 #[test]
 fn webhook_source_normalizes_delivery_and_carries_payload() {
-    let source = WebhookSource::new("stripe");
+    let source = WebhookSource::new("stripe", "partner-a");
     let payload = serde_json::json!({ "id": "evt_1", "type": "charge.succeeded" });
     let mut headers = BTreeMap::new();
     headers.insert("webhook-id".to_string(), "evt_1".to_string());
@@ -112,16 +112,86 @@ fn webhook_source_normalizes_delivery_and_carries_payload() {
             provider: "stripe".to_string(),
         }
     );
-    assert_eq!(message.idempotency_key, "evt_1");
+    assert_eq!(
+        message.idempotency_key, "9:partner-a:evt_1",
+        "#1046: the spine dedup key is namespaced by the receiving route — `source` \
+         cannot carry it, being the after:ingest discriminant"
+    );
     assert_eq!(message.subject.as_deref(), Some("charge.succeeded"));
     assert_eq!(message.payload.as_ref(), Some(&payload));
     assert_eq!(message.headers.get("webhook-id").map(String::as_str), Some("evt_1"));
     assert_eq!(message.trigger_type(), "after:ingest:webhook:stripe");
 }
 
+/// The two halves of the #1046 design pull in opposite directions and both must
+/// hold: the dedup key separates two routes on one provider, while the trigger
+/// discriminant stays provider-shaped so declared `after:ingest` functions keep
+/// firing. A fix that scoped `IngestSource::Webhook` instead would satisfy the
+/// first and break the second.
+#[test]
+fn two_routes_on_one_provider_share_a_trigger_but_not_a_dedup_key() {
+    let payload = serde_json::json!({ "id": "1001" });
+    let headers = BTreeMap::new();
+    let raw = RawDelivery {
+        event_id:    "1001",
+        event_type:  "order.created",
+        payload:     &payload,
+        headers:     &headers,
+        received_at: timestamp(),
+    };
+
+    let a = WebhookSource::new("hmac-sha256", "partner-a").normalize(&raw).unwrap();
+    let b = WebhookSource::new("hmac-sha256", "partner-b").normalize(&raw).unwrap();
+
+    assert_ne!(
+        a.idempotency_key, b.idempotency_key,
+        "#1046: each sender numbers its own events, so one sender's `1001` must not \
+         deduplicate against another's"
+    );
+    assert_eq!(
+        a.trigger_type(),
+        b.trigger_type(),
+        "#1046: the after:ingest discriminant stays `webhook:<provider>` — changing it \
+         would break every declared trigger"
+    );
+}
+
+/// A flattened namespace is only a namespace if it is injective, and the sender
+/// controls half the input. With a plain `<route>:<event id>` join, route `a`
+/// receiving a payload whose `id` is `b:1` produces the same key as route `a:b`
+/// receiving event `1` — so a sender on one route can pre-claim the other's spine
+/// row. The ledger key is a genuine tuple and stays distinct, which is what makes
+/// this quiet: the claim succeeds, only the durable row is lost.
+#[test]
+fn a_colon_in_a_route_segment_cannot_forge_another_routes_dedup_key() {
+    let key = |route: &str, id: &str| {
+        let payload = serde_json::json!({ "id": id });
+        let headers = BTreeMap::new();
+        let raw = RawDelivery {
+            event_id:    id,
+            event_type:  "order.created",
+            payload:     &payload,
+            headers:     &headers,
+            received_at: timestamp(),
+        };
+        WebhookSource::new("hmac-sha256", route)
+            .normalize(&raw)
+            .unwrap()
+            .idempotency_key
+    };
+
+    assert_ne!(
+        key("a", "b:1"),
+        key("a:b", "1"),
+        "#1046: the route/event-id join must be unambiguous for every segment — the \
+         event id is chosen by whoever posts, so an ambiguous join hands one route's \
+         sender a way to suppress another route's message"
+    );
+}
+
 #[test]
 fn webhook_source_rejects_delivery_without_event_id() {
-    let source = WebhookSource::new("stripe");
+    let source = WebhookSource::new("stripe", "partner-a");
     let payload = serde_json::json!({});
     let headers = BTreeMap::new();
     let raw = RawDelivery {

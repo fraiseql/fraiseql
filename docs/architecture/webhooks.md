@@ -33,7 +33,7 @@ Use it when **your own data changes** and you want downstream consumers to know:
 ## Inbound Webhook Receiver (`fraiseql-webhooks`)
 
 > **Status: mounted (opt-in).** Behind the opt-in `inbound` Cargo feature, the receiver
-> is mounted as an HTTP route — `POST /webhooks/{provider}` — as the first **push adapter**
+> is mounted as an HTTP route — `POST /webhooks/{segment}` — as the first **push adapter**
 > of the inbound-source model (see below). The route verifies the signature via this
 > pipeline, normalizes the delivery to an `InboundMessage`, and persists it onto the durable
 > inbound spine *inside the receiver transaction*, so persistence is atomic with the
@@ -91,7 +91,7 @@ poll-IMAP adapter and `docs/architecture/functions.md` for the `after:ingest` ho
 ```
 Provider (Stripe, GitHub, …)
          │
-         │ POST /webhooks/{provider}
+         │ POST /webhooks/{segment}
          ▼
 ┌────────────────────────────┐
 │ Signature Verification     │  ← constant-time HMAC check
@@ -100,8 +100,8 @@ Provider (Stripe, GitHub, …)
              │ valid
              ▼
 ┌────────────────────────────┐
-│ Idempotency Check          │  ← deduplicate by event ID
-│ (event_id already seen?)   │
+│ Idempotency Check          │  ← deduplicate by (route, event id)
+│ (seen on THIS route?)      │
 └────────────┬───────────────┘
              │ new event
              ▼
@@ -116,6 +116,33 @@ Provider (Stripe, GitHub, …)
 │ fn_handle_payment_succeeded($1::jsonb)
 └────────────────────────────┘
 ```
+
+### Dedup scope: the route, not the provider
+
+Several `[webhooks.*]` routes may serve one `provider`, and they are meant to: two
+partners signing with the generic `hmac-sha256` scheme under separate secrets, a
+live/test pair, two accounts of one multi-tenant provider. Each sender numbers its
+own events, so the same event id turns up on both.
+
+Both dedup layers are therefore namespaced by **route** — the `/webhooks/{segment}`
+path segment, which is a route's `path` override or, absent one, its config key:
+
+* the delivery ledger claims `(route, event_id)`;
+* the durable spine claims `(source, "<route length>:<route>:<event id>")`.
+
+The spine has to flatten its half into one column, and the sender chooses the event
+id — so the join is length-prefixed to keep it injective. A bare `<route>:<id>` join
+is not: route `a` receiving the id `b:1` lands on route `a:b`'s event `1`.
+
+Keying on the provider instead meant the second sender's genuine delivery met the
+first's claim, was answered `200 {"status":"duplicate"}`, never reached the spine
+and never fired `after:ingest` — and, since the 200 reads as success, was never
+retried (#1046). A route segment is a sound namespace because the server refuses at
+boot to mount two routes resolving to one segment (#1048).
+
+What is *not* route-scoped is the `after:ingest:webhook:<provider>` trigger
+discriminant: it stays provider-shaped, so co-provider routes fire the same declared
+handlers. A handler that must distinguish its senders should read the payload.
 
 ### Configuration
 

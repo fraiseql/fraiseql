@@ -84,12 +84,18 @@ pub trait SignatureVerifier: Send + Sync {
 /// [`claim`]: IdempotencyStore::claim
 #[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait IdempotencyStore: Send + Sync {
-    /// Atomically claim a `(provider, event_id)` delivery within the caller's
+    /// Atomically claim a `(route, event_id)` delivery within the caller's
     /// transaction.
     ///
     /// Returns `Ok(Some(id))` when the delivery is newly claimed (the caller
     /// should process it) and `Ok(None)` when it was already claimed by an
     /// earlier committed delivery (a duplicate the caller must silently discard).
+    ///
+    /// `route` is the **dedup namespace**: which configured receiving endpoint
+    /// this delivery arrived on. It is deliberately not the provider — two
+    /// endpoints may serve one provider under separate secrets, and each sender
+    /// numbers its own events, so a provider-wide namespace discards the second
+    /// sender's genuine deliveries as duplicates (#1046).
     ///
     /// The claim must be performed with the supplied transaction so that it is
     /// rolled back if the handler later fails — otherwise an event marked
@@ -102,7 +108,7 @@ pub trait IdempotencyStore: Send + Sync {
     async fn claim(
         &self,
         tx: &mut Transaction<'_, Postgres>,
-        provider: &str,
+        route: &str,
         event_id: &str,
         event_type: &str,
     ) -> Result<Option<uuid::Uuid>>;
