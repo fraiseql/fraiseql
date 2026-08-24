@@ -20,6 +20,12 @@ fn create_test_batch() -> RecordBatch {
     RecordBatch::try_new(Arc::new(schema), vec![names, ages]).expect("should create batch")
 }
 
+/// Reassemble a multi-batch export the way a Flight consumer must: the stream
+/// carries one message per batch and the export is their concatenation.
+fn concat_export(batches: &[RecordBatch], format: ExportFormat) -> Vec<u8> {
+    BulkExporter::export_batches(batches, format).unwrap().concat()
+}
+
 #[test]
 fn test_export_format_from_str() {
     assert_eq!(ExportFormat::from_str("csv").unwrap(), ExportFormat::Csv);
@@ -250,4 +256,75 @@ fn test_export_format_debug_is_nonempty() {
     let fmt = ExportFormat::Csv;
     let s = format!("{fmt:?}");
     assert!(!s.is_empty());
+}
+
+/// #1036 — a multi-batch export must be ONE document, not N concatenated ones.
+///
+/// `execute_bulk_export` chunks rows at `batch_size: 10_000` and calls
+/// `export_batch` once per chunk, putting each result on the same Flight stream.
+/// Each call builds a fresh `arrow::csv::Writer`, which emits the header on its
+/// first write — so an export of 10 001 rows carries two header rows, and a
+/// consumer that concatenates the stream reads `name,age` as a data row.
+///
+/// Every other test in this file exports a single 3-row batch, which is exactly
+/// why this stayed invisible: the defect cannot appear below the batch size.
+#[test]
+fn multi_batch_csv_export_carries_exactly_one_header() {
+    let batches = [create_test_batch(), create_test_batch()];
+
+    let document: Vec<u8> = concat_export(&batches, ExportFormat::Csv);
+
+    let text = String::from_utf8(document).unwrap();
+    let header_rows = text.lines().filter(|line| line.starts_with("name,age")).count();
+    assert_eq!(
+        header_rows, 1,
+        "a multi-batch CSV export must carry exactly one header row, got {header_rows}:\n{text}"
+    );
+}
+
+/// The row payload must survive the multi-batch path intact — one header, but
+/// still every data row from every batch.
+#[test]
+fn multi_batch_csv_export_keeps_every_data_row() {
+    let batches = [create_test_batch(), create_test_batch()];
+
+    let text = String::from_utf8(concat_export(&batches, ExportFormat::Csv)).unwrap();
+
+    let alice_rows = text.lines().filter(|line| line.starts_with("Alice,")).count();
+    assert_eq!(alice_rows, 2, "both batches' rows must appear:\n{text}");
+}
+
+/// A multi-batch Parquet export must be ONE file.
+///
+/// Every Parquet file opens and closes with the `PAR1` magic, so a single file
+/// contains exactly two markers. Exporting each batch independently produced two
+/// complete files — four markers — whose concatenation a reader either rejects or
+/// silently reads as only the last file.
+///
+/// ⚠ No CI leg enables the `parquet` feature, so this test compiles under
+/// preflight's `--all-features` but is never executed by a gate.
+#[cfg(feature = "parquet")]
+#[test]
+fn multi_batch_parquet_export_is_a_single_file() {
+    let batches = [create_test_batch(), create_test_batch()];
+
+    let document = concat_export(&batches, ExportFormat::Parquet);
+
+    let magic_markers = document.windows(4).filter(|w| *w == b"PAR1".as_slice()).count();
+    assert_eq!(
+        magic_markers, 2,
+        "one Parquet file carries exactly two PAR1 markers (header + footer), got {magic_markers}"
+    );
+}
+
+/// JSON Lines has no document wrapper, so concatenation was already correct —
+/// pin that so the #1036 fix does not regress it into a single-batch export.
+#[test]
+fn multi_batch_json_export_keeps_every_data_row() {
+    let batches = [create_test_batch(), create_test_batch()];
+
+    let text = String::from_utf8(concat_export(&batches, ExportFormat::Json)).unwrap();
+
+    let lines = text.lines().filter(|l| !l.trim().is_empty()).count();
+    assert_eq!(lines, 6, "two 3-row batches must yield six NDJSON lines:\n{text}");
 }

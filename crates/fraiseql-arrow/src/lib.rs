@@ -100,7 +100,7 @@ pub use db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult};
 pub use error::{ArrowFlightError, Result};
 pub use event_storage::{ArrowEventStorage, HistoricalEvent};
 pub use exchange_protocol::{ExchangeMessage, RequestType};
-pub use export::{BatchStats, BulkExporter, ExportFormat};
+pub use export::{BatchExportWriter, BatchStats, BulkExporter, ExportFormat};
 pub use flight_server::{FraiseQLFlightService, QueryExecutor};
 pub use metadata::SchemaRegistry;
 pub use subscription::{EventSubscription, SubscriptionManager};

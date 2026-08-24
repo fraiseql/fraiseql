@@ -25,7 +25,7 @@ use crate::{
     db::ArrowDatabaseAdapter,
     db_convert::convert_db_rows_to_arrow,
     event_storage::ArrowEventStorage,
-    export::{BulkExporter, ExportFormat},
+    export::{BatchExportWriter, ExportFormat},
     metadata::SchemaRegistry,
     subscription::SubscriptionManager,
 };
@@ -1265,15 +1265,28 @@ impl FraiseQLFlightService {
             "Bulk export started"
         );
 
-        // Export and stream batches through a bounded channel so each
-        // `BulkExporter::export_batch` call only runs when the consumer is
-        // ready for it — peak memory holds the channel-buffer-sized window of
-        // serialised payloads rather than the full Vec<FlightData> (F011).
+        // Export and stream batches through a bounded channel so each batch is
+        // serialised only when the consumer is ready for it — peak memory holds
+        // the channel-buffer-sized window of serialised payloads rather than the
+        // full Vec<FlightData> (F011).
+        //
+        // One `BatchExportWriter` spans the whole export. Exporting each batch
+        // independently emitted a complete, self-contained document per message —
+        // N CSV headers, or N Parquet files each with its own footer — which is
+        // invisible below the 10 000-row batch size and silently corrupts every
+        // export above it (#1036).
         let mime = export_format.mime_type().as_bytes().to_vec();
         let stream = spawn_flight_data_stream(move |tx| async move {
+            let mut writer = BatchExportWriter::new(export_format);
+
             for (index, batch) in batches.iter().enumerate() {
-                let msg = match BulkExporter::export_batch(batch, export_format) {
+                let msg = match writer.write(batch) {
                     Ok(exported_bytes) => {
+                        // Formats that can only emit a complete document (Parquet)
+                        // buffer here and produce their bytes in `finish`.
+                        if exported_bytes.is_empty() {
+                            continue;
+                        }
                         info!(
                             batch_index = index,
                             bytes_size = exported_bytes.len(),
@@ -1291,6 +1304,26 @@ impl FraiseQLFlightService {
                 if tx.send(msg).await.is_err() || is_err {
                     return;
                 }
+            }
+
+            // Trailing bytes that complete the document. Empty for the
+            // row-oriented formats, which are already complete.
+            let trailer = match writer.finish() {
+                Ok(trailer) => trailer,
+                Err(e) => {
+                    let _ = tx.send(Err(Status::internal(format!("Export failed: {e}")))).await;
+                    return;
+                },
+            };
+            if !trailer.is_empty() {
+                info!(bytes_size = trailer.len(), "Exported document trailer");
+                let _ = tx
+                    .send(Ok(FlightData {
+                        data_body: trailer.into(),
+                        app_metadata: mime.clone().into(),
+                        ..Default::default()
+                    }))
+                    .await;
             }
         });
         Ok(Response::new(Box::pin(stream)))
@@ -1650,5 +1683,112 @@ mod chunk_into_batches_tests {
         let batches = chunk_into_batches(&rows, &converter(0), 0).expect("must not panic");
         let total: usize = batches.iter().map(arrow::array::RecordBatch::num_rows).sum();
         assert_eq!(total, 3, "all rows convert even when batch_size is 0 (floored to 1)");
+    }
+}
+
+/// #1036 — the bytes a `BulkExport` actually puts on the wire must form ONE document.
+///
+/// These drive `execute_bulk_export` itself rather than the exporter, because the
+/// export layer being correct does not make the stream correct: the service is what
+/// decides whether the document framing is emitted once or once per batch.
+#[cfg(test)]
+mod bulk_export_document_tests {
+    #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
+
+    use std::{collections::HashMap, sync::Arc};
+
+    use async_trait::async_trait;
+    use futures::StreamExt;
+
+    use super::FraiseQLFlightService;
+    use crate::db::{ArrowDatabaseAdapter, DatabaseResult};
+
+    /// Returns `rows` single-column rows — enough to cross the 10 000-row boundary
+    /// that `execute_bulk_export` chunks on.
+    struct RowCountAdapter {
+        rows: usize,
+    }
+
+    // Reason: the adapter trait's methods are async; impls must match its signatures.
+    #[async_trait]
+    impl ArrowDatabaseAdapter for RowCountAdapter {
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
+            Ok((0..self.rows)
+                .map(|i| {
+                    let mut row = HashMap::new();
+                    row.insert("id".to_string(), serde_json::json!(i.to_string()));
+                    row
+                })
+                .collect())
+        }
+    }
+
+    fn test_security_context() -> fraiseql_core::security::SecurityContext {
+        let user = fraiseql_core::security::auth_middleware::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new("user-1".to_string()),
+            scopes:       vec![],
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: std::collections::HashMap::new(),
+        };
+        fraiseql_core::security::SecurityContext::from_user(&user, "req-1".to_string())
+    }
+
+    /// Reassemble the export the way a consumer must: concatenate every message's
+    /// `data_body` in stream order.
+    async fn exported_csv_document(rows: usize) -> String {
+        let svc = FraiseQLFlightService::new_with_db(Arc::new(RowCountAdapter { rows }))
+            .with_bulk_export_tables(["orders"]);
+
+        let response = svc
+            .execute_bulk_export(
+                "orders",
+                None,
+                None,
+                Some("csv".to_string()),
+                &test_security_context(),
+            )
+            .await
+            .unwrap_or_else(|status| panic!("export failed: {status:?}"));
+
+        let mut stream = response.into_inner();
+        let mut document = Vec::new();
+        while let Some(item) = stream.next().await {
+            document.extend_from_slice(&item.unwrap().data_body);
+        }
+        String::from_utf8(document).unwrap()
+    }
+
+    /// A single-batch export was always correct, which is why every pre-#1036 test
+    /// passed. Pinned so the boundary case stays covered from both sides.
+    #[tokio::test]
+    async fn single_batch_export_carries_one_header() {
+        let document = exported_csv_document(3).await;
+        let headers = document.lines().filter(|line| *line == "id").count();
+        assert_eq!(headers, 1, "a single-batch export must carry one header:\n{document}");
+    }
+
+    /// 10 001 rows chunk into two batches, so this is the smallest export that
+    /// exercises the multi-batch path at the service's own `batch_size: 10_000`.
+    #[tokio::test]
+    async fn multi_batch_export_streams_exactly_one_header() {
+        let document = exported_csv_document(10_001).await;
+        let headers = document.lines().filter(|line| *line == "id").count();
+        assert_eq!(
+            headers, 1,
+            "a multi-batch export must carry exactly one header row, got {headers}"
+        );
+    }
+
+    /// One header, but still every row — the fix must not drop batches.
+    #[tokio::test]
+    async fn multi_batch_export_streams_every_row() {
+        let document = exported_csv_document(10_001).await;
+        let non_empty = document.lines().filter(|line| !line.trim().is_empty()).count();
+        assert_eq!(non_empty, 10_002, "expected 1 header + 10 001 data rows");
     }
 }

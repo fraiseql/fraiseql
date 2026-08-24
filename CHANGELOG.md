@@ -3275,6 +3275,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A bulk export larger than one batch is now a single document (#1036).**
+
+  `execute_bulk_export` chunks its result at 10 000 rows and called the exporter once per
+  chunk. Each call produced a complete, self-contained document — a fresh CSV header row,
+  or an entire Parquet file with its own footer — and put it on the same Flight stream. A
+  consumer reassembling that stream read `id,total,…` as a data row partway through the
+  file, or met a second Parquet file's magic bytes after the first one's footer.
+
+  The defect is size-dependent, which is why it survived: at a 10 000-row batch size every
+  export at or below the threshold is one batch and is perfectly correct, and every test in
+  the suite exported three rows. It could not appear except on real data.
+
+  One writer now spans the whole export, so document-level framing is emitted once. The
+  row-oriented formats stay lazy — one message per batch, so peak memory still holds a
+  single batch's serialised payload rather than the whole export — while Parquet, whose
+  footer describes every row group in the file, is assembled once and sent as one message.
+  JSON Lines was already correct, because NDJSON has no document wrapper, and is now pinned
+  by a test so the fix cannot regress it into a single-batch export.
+
+  ⚠ The Parquet half is covered only by tests that no CI leg executes. `parquet` is an
+  opt-in feature that nothing in the workspace enables, so preflight's `--all-features`
+  compiles those tests without ever running them.
+
 - **A configured Twilio route can now process a genuine form-encoded delivery (#1044).**
 
   The route rejected any body that was not valid JSON, and did so *before* signature
