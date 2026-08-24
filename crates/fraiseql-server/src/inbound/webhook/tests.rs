@@ -189,6 +189,85 @@ fn a_colon_in_a_route_segment_cannot_forge_another_routes_dedup_key() {
     );
 }
 
+mod form_bodies {
+    //! #1044: Twilio posts SMS/voice callbacks as
+    //! `application/x-www-form-urlencoded`. The route used to reject any non-JSON
+    //! body *before* verification, so a correctly configured Twilio route answered
+    //! 400 to every genuine delivery and the form arm of its signing scheme was
+    //! unreachable through the server.
+    //!
+    //! These pin the normalization contract. That the route now accepts such a
+    //! delivery end-to-end — real signature, real claim, real spine — is
+    //! `tests/webhook_provider_matrix_pg.rs`.
+
+    use axum::http::{HeaderMap, HeaderValue, header::CONTENT_TYPE};
+
+    use super::super::{form_to_json, is_form_encoded};
+
+    fn headers(content_type: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_str(content_type).unwrap());
+        headers
+    }
+
+    #[test]
+    fn a_form_content_type_is_recognised_with_or_without_parameters() {
+        assert!(is_form_encoded(&headers("application/x-www-form-urlencoded")));
+        assert!(
+            is_form_encoded(&headers("application/x-www-form-urlencoded; charset=UTF-8")),
+            "a charset parameter is legal and must not change the reading"
+        );
+        assert!(
+            is_form_encoded(&headers("Application/X-WWW-Form-Urlencoded")),
+            "media types are case-insensitive"
+        );
+    }
+
+    #[test]
+    fn other_content_types_still_take_the_json_path() {
+        assert!(!is_form_encoded(&headers("application/json")));
+        assert!(!is_form_encoded(&headers("text/plain")));
+        assert!(
+            !is_form_encoded(&HeaderMap::new()),
+            "no declared type is not a form body — the sender's declaration decides"
+        );
+    }
+
+    #[test]
+    fn a_twilio_shaped_body_becomes_a_flat_object_with_values_decoded() {
+        assert_eq!(
+            form_to_json(b"CallSid=CA123&From=%2B15550001111&Body=hi+there"),
+            serde_json::json!({
+                "CallSid": "CA123",
+                "From":    "+15550001111",
+                "Body":    "hi there",
+            }),
+            "percent escapes and `+` must be decoded, or an after:ingest function \
+             reads a phone number as `%2B1…`"
+        );
+    }
+
+    #[test]
+    fn a_repeated_key_keeps_every_value_in_wire_order() {
+        assert_eq!(
+            form_to_json(b"Tag=a&CallSid=CA123&Tag=b"),
+            serde_json::json!({ "Tag": ["a", "b"], "CallSid": "CA123" }),
+            "form encoding permits repeats; collapsing them to one value would drop \
+             data with nothing on the wire to show for it"
+        );
+    }
+
+    #[test]
+    fn degenerate_bodies_parse_rather_than_fail() {
+        assert_eq!(form_to_json(b""), serde_json::json!({}));
+        assert_eq!(
+            form_to_json(b"novalue"),
+            serde_json::json!({ "novalue": "" }),
+            "form encoding has no invalid syntax to reject — a bare key is an empty value"
+        );
+    }
+}
+
 #[test]
 fn webhook_source_rejects_delivery_without_event_id() {
     let source = WebhookSource::new("stripe", "partner-a");

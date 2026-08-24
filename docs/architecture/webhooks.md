@@ -117,6 +117,24 @@ Provider (Stripe, GitHub, …)
 └────────────────────────────┘
 ```
 
+### Body formats
+
+The route reads the request's `Content-Type` and parses accordingly:
+
+| Declared type | Parsed as |
+|---|---|
+| `application/x-www-form-urlencoded` | a JSON object — values percent-decoded, `+` as space; a key that repeats becomes the array of its values in wire order |
+| anything else | JSON; a body that does not parse is `400` |
+
+Form support is not Twilio-specific, but Twilio is why it exists: it posts SMS and
+voice callbacks form-encoded, and the form arm of its signing scheme is built for
+exactly that shape. While the route rejected every non-JSON body it did so *before*
+verification, so a correctly configured Twilio route answered `400` to 100% of
+genuine SMS callbacks (#1044).
+
+Verification is unaffected by any of this — it reads the raw request bytes, never
+the parsed value — so parsing a form body cannot weaken a signature check.
+
 ### Dedup scope: the route, not the provider
 
 Several `[webhooks.*]` routes may serve one `provider`, and they are meant to: two

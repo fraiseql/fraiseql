@@ -3275,6 +3275,27 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A configured Twilio route can now process a genuine form-encoded delivery (#1044).**
+
+  The route rejected any body that was not valid JSON, and did so *before* signature
+  verification. Twilio posts SMS and voice callbacks as
+  `application/x-www-form-urlencoded` — the shape the form arm of its signing scheme
+  exists for — so a correctly configured Twilio route booted clean and then answered
+  `400 {"error":"webhook body is not valid JSON"}` to 100% of genuine callbacks, without
+  ever verifying or persisting one. The same class as #781: a provider that is dead on
+  arrival behind a config that validates. The failure is loud on the wire (Twilio surfaces
+  it as error 11200), so this is an availability defect, not a silent drop and not a bypass.
+
+  The route now reads the request's `Content-Type` and parses a form body into a JSON
+  object: values percent-decoded, and a key that repeats kept as the array of its values
+  in wire order rather than collapsed to one. This is not Twilio-specific — it applies to
+  any route, so a future form-posting provider does not re-file this issue.
+
+  Verification is untouched: it reads the raw request bytes, never the parsed value, so
+  no signature check is weakened by parsing a body a different way. Dispatch is on the
+  declared media type rather than on sniffing the bytes, so a body that is both valid JSON
+  and valid form-encoding cannot be read one way here and another way elsewhere.
+
 - **Two webhook routes serving one provider no longer discard each other's deliveries
   (#1046).**
 

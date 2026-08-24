@@ -467,6 +467,63 @@ fn json_status(status: StatusCode, body: &Value) -> Response {
     (status, body.to_string()).into_response()
 }
 
+/// The media type Twilio posts SMS/voice callbacks as, and the one the form arm of
+/// its signing scheme exists to verify.
+const FORM_MEDIA_TYPE: &str = "application/x-www-form-urlencoded";
+
+/// Whether the request declares a form-encoded body (#1044).
+///
+/// Compares the media type alone: `; charset=UTF-8` is a legal parameter and must
+/// not change the reading. The sender's declaration is what decides this, rather
+/// than sniffing the bytes — guessing at a format is how a body that is valid JSON
+/// *and* valid form-encoding would be read two different ways on two deployments.
+fn is_form_encoded(headers: &HeaderMap) -> bool {
+    headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(';')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .eq_ignore_ascii_case(FORM_MEDIA_TYPE)
+        })
+}
+
+/// Parse an `application/x-www-form-urlencoded` body into a JSON object (#1044).
+///
+/// `after:ingest` functions consume [`InboundMessage::payload`], which is JSON, so
+/// a form body has to become one. A key seen once maps to its string value; a key
+/// that repeats maps to the array of its values in wire order. Form encoding
+/// permits repeats, and collapsing them to a single value would drop data with
+/// nothing on the wire to show for it.
+///
+/// Percent-decoding (and `+` as space) comes from `url::form_urlencoded`, the same
+/// grammar Twilio's signing string is built from — but deliberately a separate call
+/// from verification, which reads the raw bytes and never this value.
+///
+/// Never fails: form encoding has no invalid syntax to reject. A body with no `=`
+/// is one key with an empty value, and an empty body is an empty object.
+fn form_to_json(body: &[u8]) -> Value {
+    use serde_json::map::Entry;
+
+    let mut object = serde_json::Map::new();
+    for (key, value) in url::form_urlencoded::parse(body) {
+        let value = Value::String(value.into_owned());
+        match object.entry(key.into_owned()) {
+            Entry::Vacant(slot) => {
+                slot.insert(value);
+            },
+            Entry::Occupied(mut slot) => match slot.get_mut() {
+                Value::Array(values) => values.push(value),
+                first => *first = Value::Array(vec![first.take(), value]),
+            },
+        }
+    }
+    Value::Object(object)
+}
+
 /// `POST /webhooks/{segment}` — verify, normalize, and persist an inbound delivery.
 ///
 /// On success returns `200` with `{"status":"processed"|"duplicate"}`. A forged
@@ -507,13 +564,24 @@ pub async fn webhook_handler(
     };
     let signature = signature.to_string();
 
-    // A non-JSON body is rejected: every supported provider posts JSON, and a
-    // structured payload is what `after:ingest` functions consume.
-    let Ok(payload) = serde_json::from_slice::<Value>(&body) else {
-        return json_status(
-            StatusCode::BAD_REQUEST,
-            &json!({ "error": "webhook body is not valid JSON" }),
-        );
+    // #1044: not every supported provider posts JSON. Twilio sends SMS/voice
+    // callbacks as `application/x-www-form-urlencoded` — that is what the form arm
+    // of its signing scheme is for — so rejecting any non-JSON body meant a
+    // correctly configured Twilio route answered 400 to 100% of genuine deliveries,
+    // before verification, and the form arm was unreachable through this route.
+    //
+    // Dispatch on the declared media type. Verification is unaffected either way:
+    // it reads `Delivery.body`, the raw bytes, never this parsed value.
+    let payload = if is_form_encoded(&headers) {
+        form_to_json(&body)
+    } else {
+        let Ok(payload) = serde_json::from_slice::<Value>(&body) else {
+            return json_status(
+                StatusCode::BAD_REQUEST,
+                &json!({ "error": "webhook body is not valid JSON" }),
+            );
+        };
+        payload
     };
 
     // #781: thread the provider's timestamp header and the configured public URL

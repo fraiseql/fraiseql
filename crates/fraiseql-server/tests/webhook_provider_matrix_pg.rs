@@ -115,6 +115,17 @@ fn now() -> String {
         .to_string()
 }
 
+/// A value distinct on every run. `setup` truncates the ledger but not the spine,
+/// so a suite re-run inside the same second would otherwise present a key the spine
+/// already holds.
+fn unique() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+        .to_string()
+}
+
 #[tokio::test]
 async fn a_genuine_slack_delivery_is_processed() {
     let Some(pool) = setup().await else {
@@ -155,9 +166,10 @@ async fn a_genuine_twilio_delivery_is_processed() {
     };
     let router = router(pool);
 
-    // Twilio posts JSON here (the route requires a JSON body). For a non-form body its
-    // scheme appends `bodySHA256=<hex>` to the request URI and signs the URI *including*
-    // that parameter (#1069) — this request is built the way Twilio actually sends one.
+    // The JSON half of Twilio's scheme: it appends `bodySHA256=<hex>` to the request URI
+    // and signs the URI *including* that parameter (#1069) — this request is built the
+    // way Twilio actually sends one. The form half is
+    // `a_genuine_form_encoded_twilio_delivery_is_processed` below (#1044).
     // Before #1069 the test signed `TWILIO_PUBLIC_URL` bare, which is why it passed
     // against a verifier whose MAC covered no body material at all.
     let body = format!(r#"{{"id":"twilio-{}","type":"sms"}}"#, now());
@@ -183,6 +195,79 @@ async fn a_genuine_twilio_delivery_is_processed() {
          passed the configured public_url, so verification always errored; body: {response}"
     );
     assert!(response.contains("processed"), "expected processed, got: {response}");
+}
+
+/// #1044: the shape Twilio actually posts for SMS and voice —
+/// `application/x-www-form-urlencoded`, no `bodySHA256`, signed over the URL with the
+/// body's parameters sorted by decoded key and appended as `name + value`.
+///
+/// The route used to reject any non-JSON body *before* verification, so a correctly
+/// configured Twilio route answered `400 {"error":"webhook body is not valid JSON"}`
+/// to 100% of genuine SMS callbacks, and the form arm of `build_signing_string` was
+/// unreachable through the server. Asserting the persisted payload as well as the
+/// status is what makes this a test of normalization and not just of the gate.
+#[tokio::test]
+async fn a_genuine_form_encoded_twilio_delivery_is_processed() {
+    let Some(pool) = setup().await else {
+        eprintln!(
+            "skipping a_genuine_form_encoded_twilio_delivery_is_processed: DATABASE_URL unset"
+        );
+        return;
+    };
+    let router = router(pool.clone());
+
+    // A repeated key and two percent-escaped values, so the assertion below covers
+    // decoding and the repeat-to-array rule, not just the happy scalar case.
+    let call_sid = format!("CA{}", unique());
+    let body = format!("Body=hi+there&CallSid={call_sid}&From=%2B15550001111&Tag=a&Tag=b");
+
+    // Twilio's form signing string: the URL, then each decoded `name + value` pair
+    // sorted by decoded key, concatenated with no delimiter. Equal keys keep wire
+    // order. No `bodySHA256` — that parameter belongs to the non-form scheme.
+    let signing_string =
+        format!("{TWILIO_PUBLIC_URL}Bodyhi thereCallSid{call_sid}From+15550001111TagaTagb");
+    let mut mac = Hmac::<Sha1>::new_from_slice(SECRET.as_bytes()).unwrap();
+    mac.update(signing_string.as_bytes());
+    let signature = BASE64.encode(mac.finalize().into_bytes());
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/webhooks/twilio")
+        .header("X-Twilio-Signature", signature)
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(body.clone()))
+        .unwrap();
+    let (status, response) = send(&router, request).await;
+
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "#1044: a genuine form-encoded Twilio callback must be verified and accepted; \
+         it used to be 400'd on its content type before verification ever ran. \
+         Response: {response}"
+    );
+    assert!(response.contains("processed"), "expected processed, got: {response}");
+
+    let stored = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT payload -> 'payload' FROM _fraiseql_inbound_message \
+         WHERE payload -> 'payload' ->> 'CallSid' = $1",
+    )
+    .bind(&call_sid)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        stored,
+        serde_json::json!({
+            "Body":    "hi there",
+            "CallSid": call_sid,
+            "From":    "+15550001111",
+            "Tag":     ["a", "b"],
+        }),
+        "#1044: the form body must reach after:ingest as a decoded JSON object — \
+         `+`/`%2B` decoded, and a repeated key kept as every value rather than one",
+    );
 }
 
 /// The #1069 exploit, at the route: the same captured `X-Twilio-Signature`, a body the
