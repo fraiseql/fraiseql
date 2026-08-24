@@ -126,7 +126,11 @@ pub(super) fn input_base_name(type_str: &str) -> String {
 pub(super) fn arg_graphql_type(ft: &FieldType, nullable: bool) -> String {
     let base = ft.to_graphql_string();
     let undecorated = base.strip_suffix('!').unwrap_or(base.as_str());
-    if nullable { undecorated.to_string() } else { format!("{undecorated}!") }
+    if nullable {
+        undecorated.to_string()
+    } else {
+        format!("{undecorated}!")
+    }
 }
 
 /// The `GraphQL` half of a built operation: variable declarations and the

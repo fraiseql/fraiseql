@@ -79,11 +79,30 @@ struct DictField {
     py:       String,
 }
 
+/// Whether `CPython` would rewrite `name` if it appeared in a class body.
+///
+/// Private name mangling applies to any identifier with **two or more leading**
+/// underscores and **at most one trailing** underscore: inside `class User`,
+/// `__typename` becomes `_User__typename`. `__init__` is untouched, having two
+/// trailing underscores.
+///
+/// This matters because the generated `TypedDict`s declare `__typename` as their
+/// discriminant, so the class form silently declared a key the wire never sends
+/// (#1033).
+fn is_mangled_in_class_body(name: &str) -> bool {
+    name.starts_with("__") && !name.ends_with("__")
+}
+
 /// Emit a `TypedDict` from prepared rows, choosing the class or functional
 /// syntax: class syntax normally, functional (`X = TypedDict("X", {...})`) when
-/// any field name is a Python keyword — the class form would be a syntax error.
+/// any field name is one the class body would not carry verbatim — a Python
+/// keyword (a syntax error) or a name `CPython` would mangle (#1033).
 fn emit_typed_dict(out: &mut String, name: &str, fields: &[DictField]) {
-    let needs_functional = fields.iter().any(|f| is_py_keyword(&f.name));
+    // The functional form takes plain string keys, so it is the only form that
+    // can express a field name the class syntax would alter.
+    let needs_functional = fields
+        .iter()
+        .any(|f| is_py_keyword(&f.name) || is_mangled_in_class_body(&f.name));
     if needs_functional {
         let _ = writeln!(out, "{name} = TypedDict(\n    \"{name}\",\n    {{");
         for field in fields {
@@ -514,7 +533,12 @@ fn build_operation(arguments: &[ArgumentDefinition], relay: bool) -> Operation {
 fn emit_operation_fn(out: &mut String, name: &str, op: &Operation, result: &str) {
     let doc_const = format!("_{}", const_name(name));
 
-    let _ = writeln!(out, "def {name}(");
+    // The identifier is escaped; the wire is not. `import` is a legal GraphQL
+    // operation name and an illegal Python one, and `def import(` is a
+    // SyntaxError that makes the *whole* generated package unimportable rather
+    // than just this operation (#1035). The document constant and the response
+    // key below both keep the original name, exactly as argument escaping does.
+    let _ = writeln!(out, "def {}(", py_param_name(name));
     out.push_str("    client: FraiseqlClient,\n");
     if !op.params.is_empty() {
         out.push_str("    *,\n");
@@ -558,11 +582,26 @@ fn type_name_to_py(name: &str) -> String {
 
 /// Emit one author-supplied description as a single-line `#` comment.
 ///
-/// Comments (not docstrings) carry descriptions everywhere so schema-author
-/// text can never escape into code: a `#` comment ends only at a newline, and
-/// newlines are collapsed to spaces here.
+/// Comments (not docstrings) carry descriptions everywhere so schema-author text
+/// can never escape into code: a `#` comment ends only at a newline.
+///
+/// Collapsing `'\n'` alone was not enough. Python source is read with universal
+/// newlines, so a lone `'\r'` **also** terminates the comment, and everything
+/// after it becomes module-level code executed on import — from a schema the
+/// operator may not have authored (#1034). Every control character is replaced,
+/// not just the two that are known to end a comment: the guard should not depend
+/// on an inventory of which control characters a future Python treats as a line
+/// break.
+///
+/// `\r\n` is normalised first so an ordinary CRLF description collapses to one
+/// space rather than two.
 fn doc_comment(description: &str) -> String {
-    format!("# {}", description.replace('\n', " "))
+    let sanitized: String = description
+        .replace("\r\n", "\n")
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    format!("# {sanitized}")
 }
 
 fn push_doc(out: &mut String, description: Option<&str>) {

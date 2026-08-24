@@ -81,6 +81,81 @@ pub(super) fn custom_scalar_name(ft: &FieldType) -> Option<&str> {
     }
 }
 
+/// Words that cannot name a function in a generated client.
+///
+/// Generated clients are ES modules, so the strict-mode and module-only
+/// reservations (`await`, `yield`, `let`, `static`, `implements` …) apply
+/// alongside the unconditional keywords. Contextual `TypeScript` words that are
+/// legal function names — `type`, `as`, `any`, `namespace` — are deliberately
+/// absent: escaping them would rename identifiers for no reason.
+///
+/// This list is **not** the Python one. `delete`, `new` and `function` break
+/// `TypeScript` while being ordinary Python identifiers, and `from`, `del` and
+/// `lambda` do the reverse — which is why #1035 is two fixes, not one.
+const TS_RESERVED: &[&str] = &[
+    "await",
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "debugger",
+    "default",
+    "delete",
+    "do",
+    "else",
+    "enum",
+    "export",
+    "extends",
+    "false",
+    "finally",
+    "for",
+    "function",
+    "if",
+    "implements",
+    "import",
+    "in",
+    "instanceof",
+    "interface",
+    "let",
+    "new",
+    "null",
+    "package",
+    "private",
+    "protected",
+    "public",
+    "return",
+    "static",
+    "super",
+    "switch",
+    "this",
+    "throw",
+    "true",
+    "try",
+    "typeof",
+    "var",
+    "void",
+    "while",
+    "with",
+    "yield",
+];
+
+/// A reserved-word-safe `TypeScript` identifier: `delete` → `delete_`.
+///
+/// Only the *declaration* site needs this. The `GraphQL` document, the response
+/// key (`data.delete`) and the inline result type (`{ delete: T }`) are all legal
+/// property positions and keep the original name, so the escape never reaches
+/// the wire — the same guarantee `py_param_name` already gives on the Python
+/// side.
+pub(super) fn ts_ident(name: &str) -> String {
+    if TS_RESERVED.contains(&name) {
+        format!("{name}_")
+    } else {
+        name.to_string()
+    }
+}
+
 /// A parsed input-field `GraphQL` type string, rendered to `TypeScript`.
 pub(super) struct ParsedInputType {
     /// `TypeScript` type expression (e.g. `string`, `(string | null)[]`).

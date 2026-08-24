@@ -124,12 +124,20 @@ fn every_file_is_stamped_with_the_schema_hash() {
     }
 }
 
+/// Object types carry their `__typename` discriminant and their field types.
+///
+/// The functional `TypedDict("User", {...})` form is not incidental here: every
+/// object type declares `__typename`, which the class syntax would mangle to
+/// `_User__typename` (#1033), so object types are always emitted this way.
 #[test]
 fn objects_are_typed_dicts_with_literal_typename() {
     let types = file(&generate(&fixture()).unwrap(), "types.py");
-    assert!(types.contains("class User(TypedDict):"), "{types}");
-    assert!(types.contains("__typename: Literal[\"User\"]"), "{types}");
-    assert!(types.contains("age: int | None"), "nullable field must be `| None`: {types}");
+    assert!(types.contains("User = TypedDict("), "{types}");
+    assert!(types.contains("\"__typename\": Literal[\"User\"]"), "{types}");
+    assert!(
+        types.contains("\"age\": int | None"),
+        "nullable field must be `| None`: {types}"
+    );
     assert!(
         types.contains("from .enums import UserRole"),
         "enum leaf refs must be imported: {types}"
@@ -139,9 +147,10 @@ fn objects_are_typed_dicts_with_literal_typename() {
 #[test]
 fn error_type_carries_the_injected_status_field() {
     let types = file(&generate(&fixture()).unwrap(), "types.py");
-    let error_block = types.split("class NotFoundError").nth(1).expect("NotFoundError emitted");
+    let error_block =
+        types.split("NotFoundError = TypedDict").nth(1).expect("NotFoundError emitted");
     assert!(
-        error_block.contains("status: str"),
+        error_block.contains("\"status\": str"),
         "error types must carry the runtime-injected status: {types}"
     );
 }
@@ -232,6 +241,122 @@ fn python_keywords_are_escaped_without_changing_the_wire_shape() {
     );
     // The document itself uses the GraphQL name, untouched.
     assert!(queries.contains("$from: String!"), "{queries}");
+}
+
+/// #1033 — `CPython` applies private name mangling to identifiers in a class body,
+/// so `class User(TypedDict): __typename: ...` declares the key
+/// `_User__typename`. The wire dict has `__typename`, so any consumer that
+/// introspects the `TypedDict` at runtime — `typeguard.check_type`,
+/// `pydantic.TypeAdapter(...).validate_python`, anything driven by
+/// `__annotations__` or `__required_keys__` — rejects a perfectly valid response
+/// for a missing required key, and reports `__typename` as extra.
+///
+/// The escape hatch already existed (the functional `TypedDict("X", {...})` form,
+/// where keys are plain strings) but fired only for Python keywords.
+///
+/// ⚠ Neither existing gate can see this: `ty` does not model mangling — it
+/// accepts `u["__typename"]` and rejects `u["_User__typename"]` — and
+/// `python3 -m compileall` only checks syntax. Only runtime introspection of the
+/// emitted class shows it, which is why the consumer test now asserts on
+/// `__required_keys__`.
+#[test]
+fn typename_is_declared_under_the_key_the_wire_actually_carries() {
+    let types = file(&generate(&fixture()).unwrap(), "types.py");
+
+    assert!(
+        types.contains("User = TypedDict("),
+        "a mangling field name must force the functional form: {types}"
+    );
+    assert!(
+        types.contains("\"__typename\": Literal[\"User\"]"),
+        "the discriminant must be a plain string key: {types}"
+    );
+}
+
+/// #1034 — `doc_comment` collapsed only `'\n'`. Python source is read with
+/// universal newlines, so a lone `\r` terminates a `#` comment and everything
+/// after it becomes module-level code, executed on import.
+///
+/// Verified against `CPython`: a file containing `# desc\rINJECTED = 1` imports
+/// with `INJECTED == 1`. The `TypeScript` twin has guarded its equivalent hole
+/// (`*/`) with a dedicated test since it was written; the Python side had none,
+/// while its own doc comment claimed author text "can never escape into code".
+#[test]
+fn a_carriage_return_in_a_description_cannot_escape_the_comment() {
+    let mut schema = CompiledSchema::new();
+
+    let mut thing = TypeDefinition::new("Thing", "v_thing");
+    thing.description = Some("first line\rINJECTED = 1".to_string());
+    thing.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(thing);
+
+    let types = file(&generate(&schema).unwrap(), "types.py");
+
+    assert!(
+        !types.contains('\r'),
+        "a carriage return must never reach the generated source: {types:?}"
+    );
+    assert!(
+        types.contains("INJECTED = 1"),
+        "the text itself is still carried, as comment prose: {types}"
+    );
+}
+
+/// The second, likelier half of #1034: an ordinary CRLF description is not code
+/// execution but a broken build. `\n` became a space, so `"one\r\ntwo"` emitted
+/// `# one\r two` — whose continuation line starts with a space, giving
+/// `IndentationError` on import while `generate-client` still printed its success
+/// line and exited 0.
+#[test]
+fn a_crlf_description_does_not_break_the_generated_module() {
+    let mut schema = CompiledSchema::new();
+
+    let mut thing = TypeDefinition::new("Thing", "v_thing");
+    thing.description = Some("first line\r\nsecond line".to_string());
+    thing.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(thing);
+
+    let types = file(&generate(&schema).unwrap(), "types.py");
+
+    assert!(!types.contains('\r'), "CRLF must be collapsed like any newline: {types:?}");
+    assert!(
+        types.contains("# first line second line"),
+        "both lines belong on the one comment line: {types}"
+    );
+}
+
+/// #1035 — `emit_operation_fn` interpolated the `GraphQL` operation name straight
+/// into `def {name}(`. `py_param_name`/`is_py_keyword` existed and were applied
+/// to arguments and `TypedDict` fields, but never at the function-name site, so a
+/// mutation named `import` emitted `def import(` — a `SyntaxError` that makes the
+/// **entire** generated package unimportable, not just that operation.
+///
+/// The fix must be wire-neutral: the document and the response key keep the
+/// original `GraphQL` name, exactly as the argument escaping already does.
+#[test]
+fn a_keyword_operation_name_is_escaped_without_changing_the_wire_shape() {
+    let mut schema = CompiledSchema::new();
+
+    let mut thing = TypeDefinition::new("Thing", "v_thing");
+    thing.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(thing);
+
+    schema.mutations.push(MutationDefinition::new("import", "Thing"));
+
+    let mutations = file(&generate(&schema).unwrap(), "mutations.py");
+
+    assert!(
+        mutations.contains("def import_("),
+        "a keyword operation name must be escaped: {mutations}"
+    );
+    assert!(
+        mutations.contains("data[\"import\"]"),
+        "the response key must stay the original GraphQL name: {mutations}"
+    );
+    assert!(
+        mutations.contains("mutation import"),
+        "the document must stay the original GraphQL name: {mutations}"
+    );
 }
 
 /// Every pgvector field type renders as the surface it actually has (#959).

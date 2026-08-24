@@ -98,4 +98,39 @@ fn generated_client_type_checks_in_a_consumer_project() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
+
+    assert_typed_dict_keys_match_the_wire(project.path());
+}
+
+/// The generated `TypedDict`s must declare the keys the server actually sends.
+///
+/// This is deliberately a **runtime** check, because neither gate above can see
+/// the failure it guards. `CPython` mangles `__typename` in a class body to
+/// `_User__typename` (#1033), but `ty` does not model mangling — it accepts
+/// `u["__typename"]` and rejects `u["_User__typename"]` — and `compileall` only
+/// parses. A `TypedDict` whose declared discriminant no consumer can satisfy
+/// therefore passes both, and is visible only by importing the module and
+/// reading `__required_keys__`.
+fn assert_typed_dict_keys_match_the_wire(project: &std::path::Path) {
+    const PROBE: &str = r#"from fraiseql_client.types import User
+
+keys = set(User.__required_keys__) | set(User.__optional_keys__)
+assert "__typename" in keys, f"discriminant is mangled away; declared keys: {sorted(keys)}"
+assert not any(k.startswith("_User__") for k in keys), f"name-mangled key present: {sorted(keys)}"
+print("ok")
+"#;
+    std::fs::write(project.join("probe_keys.py"), PROBE).unwrap();
+
+    let probe = Command::new("python3")
+        .args(["probe_keys.py"])
+        .current_dir(project)
+        .output()
+        .expect("failed to run python3");
+
+    assert!(
+        probe.status.success(),
+        "the generated TypedDict does not declare the key the wire carries:\n{}\n{}",
+        String::from_utf8_lossy(&probe.stdout),
+        String::from_utf8_lossy(&probe.stderr),
+    );
 }

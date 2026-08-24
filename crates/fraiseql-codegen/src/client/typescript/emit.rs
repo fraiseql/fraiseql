@@ -12,7 +12,7 @@ use super::{
     Ctx, input_base_name, leaf_fields, referenced_named_type,
     render::{
         custom_scalar_name, field_type_ts, field_type_ts_nullable, named_scalar_ts,
-        parse_input_type,
+        parse_input_type, ts_ident,
     },
     render_imports,
 };
@@ -432,8 +432,12 @@ fn emit_operation_fn(out: &mut String, name: &str, op: &Operation, result: &str)
     let has_vars = !op.ts_fields.is_empty();
     let const_doc = const_name(name);
 
+    // The identifier is escaped; the wire is not (#1035). `delete` is a legal
+    // GraphQL operation name and an illegal JavaScript function name, and the
+    // parse error takes down the whole package through index.ts's star
+    // re-exports rather than just this operation.
     out.push_str("export async function ");
-    out.push_str(name);
+    out.push_str(&ts_ident(name));
     out.push_str("(\n  client: FraiseqlClient,\n");
     if has_vars {
         let fields = op.ts_fields.join("; ");

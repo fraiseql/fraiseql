@@ -128,7 +128,7 @@ fn docs(files: &crate::Generated, names: &[&str], open: &str, close: &str) -> Ve
 ///
 /// Nothing in this crate, the snapshot test, or the `sdk-conformance` workflow
 /// ever parsed a generated document — they only type-check the surrounding
-/// TypeScript/Python. That is why an unparseable document could ship (#1032,
+/// `TypeScript`/Python. That is why an unparseable document could ship (#1032,
 /// #1066): the generated client type-checks perfectly and dies on first call.
 fn assert_documents_parse(files: &crate::Generated, names: &[&str], open: &str, close: &str) {
     let documents = docs(files, names, open, close);
@@ -174,6 +174,49 @@ fn a_nullable_vector_argument_is_declared_nullable() {
     );
 }
 
+/// The `TypeScript` half of #1035. The two languages reserve different words, so
+/// this is two fixes rather than one: `delete`, `new` and `function` break
+/// `TypeScript` and are ordinary Python identifiers, while `from`, `del` and
+/// `lambda` break Python and are fine in `TypeScript`.
+///
+/// `delete` is the reachable case. It is a perfectly ordinary Python function
+/// name, so it registers verbatim as a `GraphQL` operation through the flagship
+/// Python SDK, and then the generated `TypeScript` client emits
+/// `export async function delete(` — a parser error that takes down the whole
+/// package through `index.ts`'s star re-exports.
+///
+/// Go and Rust need no equivalent: `go_export` capitalises the first letter and
+/// every Go keyword is lowercase, and `rs_ident` already escapes.
+#[test]
+fn a_reserved_operation_name_is_escaped_in_the_typescript_client() {
+    let mut schema = CompiledSchema::new();
+
+    let mut thing = TypeDefinition::new("Thing", "v_thing");
+    thing.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(thing);
+
+    schema.mutations.push(MutationDefinition::new("delete", "Thing"));
+
+    let generated = super::typescript::generate(&schema).unwrap();
+    let mutations = generated
+        .get(&PathBuf::from("mutations.ts"))
+        .expect("mutations.ts is generated")
+        .clone();
+
+    assert!(
+        mutations.contains("export async function delete_("),
+        "a reserved operation name must be escaped: {mutations}"
+    );
+    assert!(
+        mutations.contains("data.delete;"),
+        "the response key must stay the original GraphQL name: {mutations}"
+    );
+    assert!(
+        mutations.contains("mutation delete"),
+        "the document must stay the original GraphQL name: {mutations}"
+    );
+}
+
 /// #1031 — a leaf return type still got a selection set. `type_selection` wrote
 /// `__typename` for every return type, while `type_name_to_py`/`type_name_to_ts`
 /// map scalar return-type names to `int`/`number` — so the generator promised the
@@ -184,7 +227,7 @@ fn a_nullable_vector_argument_is_declared_nullable() {
 /// its generated type says `int`.
 #[test]
 fn a_scalar_return_type_gets_no_selection_set() {
-    let schema = leaf_return_fixture(FieldType::Int, "userCount");
+    let schema = leaf_return_fixture(&FieldType::Int, "userCount");
     let generated = super::python::generate(&schema).unwrap();
     let documents = docs(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
     let document = documents.first().expect("fixture has one query");
@@ -202,7 +245,7 @@ fn a_scalar_return_type_gets_no_selection_set() {
 /// enum is imported by name, making the invalid document fully invisible.
 #[test]
 fn an_enum_return_type_gets_no_selection_set() {
-    let schema = leaf_return_fixture(FieldType::Enum("UserRole".to_string()), "currentRole");
+    let schema = leaf_return_fixture(&FieldType::Enum("UserRole".to_string()), "currentRole");
     let generated = super::python::generate(&schema).unwrap();
     let documents = docs(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
     let document = documents.first().expect("fixture has one query");
@@ -241,10 +284,10 @@ fn an_interface_return_type_selects_its_declared_fields() {
 }
 
 /// One root query returning `field_type`, with nothing else in the schema.
-fn leaf_return_fixture(field_type: FieldType, query_name: &str) -> CompiledSchema {
+fn leaf_return_fixture(field_type: &FieldType, query_name: &str) -> CompiledSchema {
     let mut schema = CompiledSchema::new();
 
-    if let FieldType::Enum(name) = &field_type {
+    if let FieldType::Enum(name) = field_type {
         schema.enums.push(EnumDefinition {
             name:        name.clone(),
             values:      vec![EnumValueDefinition {
@@ -321,7 +364,10 @@ fn empty_union_member_fixture() -> CompiledSchema {
 
     schema.unions.push(UnionDefinition {
         name:         "CreateUserResult".to_string(),
-        member_types: vec!["CreateUserSuccess".to_string(), "NeverRegistered".to_string()],
+        member_types: vec![
+            "CreateUserSuccess".to_string(),
+            "NeverRegistered".to_string(),
+        ],
         description:  None,
     });
 

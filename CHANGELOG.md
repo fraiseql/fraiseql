@@ -3293,6 +3293,45 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Generated Python `TypedDict`s declare `__typename`, not `_User__typename` (#1033).**
+
+  CPython applies private name mangling to identifiers in a class body, so
+  `class User(TypedDict): __typename: Literal["User"]` declared the key `_User__typename`.
+  The wire carries `__typename`, so any consumer that introspects the `TypedDict` at runtime —
+  `typeguard.check_type`, `pydantic.TypeAdapter(...).validate_python`, or anything driven by
+  `__annotations__`/`__required_keys__` — rejected a valid response for a missing required key.
+  The functional `TypedDict("X", {...})` escape hatch already existed but fired only for Python
+  keywords; it now also fires for any name the class body would mangle.
+
+  ⚠ Neither existing gate could see this. `ty` does not model mangling — it accepts
+  `u["__typename"]` and rejects `u["_User__typename"]` — and `compileall` only parses. The
+  consumer test now imports the generated package and asserts on `__required_keys__`.
+
+- **A schema description can no longer inject executable code into a generated Python client
+  (#1034).**
+
+  `doc_comment` collapsed only `'\n'`. Python source is read with universal newlines, so a lone
+  `'\r'` also terminates a `#` comment, and everything after it became module-level code
+  executed on import. Every control character is now replaced, so the guard does not depend on
+  an inventory of which ones a future Python treats as a line break. `\r\n` is normalised first,
+  which also fixes the likelier accident: a CRLF description previously emitted a continuation
+  line starting with a space, so the generated module failed to import with `IndentationError`
+  while `generate-client` still printed its success line and exited 0.
+
+- **A reserved-word operation name no longer breaks the entire generated package (#1035).**
+
+  `import` is a legal GraphQL operation name and an illegal Python one, so a schema declaring it
+  generated `def import(` — a `SyntaxError` that makes every module in the package unimportable,
+  not just that operation. The TypeScript generator had the same gap with no keyword list at all,
+  and its reachable case is worse: `delete`, `new` and `export` are ordinary Python function
+  names that register verbatim as operations through the Python SDK, and `export async function
+  delete(` takes down the whole client through `index.ts`'s star re-exports.
+
+  The two languages reserve different words, so this is two fixes. Both are wire-neutral: only
+  the identifier is escaped, while the document, the response key and the inline result type all
+  keep the original GraphQL name. Go and Rust needed no change — `go_export` capitalises and
+  every Go keyword is lowercase, and `rs_ident` already escaped.
+
 - **A leaf return type no longer gets a sub-selection, and an interface return type keeps its
   fields (#1031).**
 
