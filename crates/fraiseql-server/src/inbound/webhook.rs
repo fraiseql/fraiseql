@@ -271,8 +271,36 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
     get_env: impl Fn(&str) -> Option<String>,
     is_production: bool,
 ) -> crate::Result<()> {
+    // #1048: two routes resolving to the same `/webhooks/{segment}` silently shadowed
+    // each other. `WebhookInboundState::new` inserts into a `BTreeMap` keyed by the
+    // segment, so a repeat is last-write-wins — and because it iterates a `HashMap`
+    // whose `RandomState` differs per process, *which* route survived changed between
+    // boots of an identical config. The loser's deliveries then met the winner's
+    // verifier and failed. Mirrors the duplicate-sink-name guard in
+    // `server_config/cdc_outbound.rs`.
+    //
+    // Checked in sorted order so the refusal names the same pair on every boot;
+    // diagnosing a non-deterministic config error with a non-deterministic message
+    // would be no better than the defect.
+    let mut sorted: Vec<(&String, &WebhookRouteConfig)> = routes.iter().collect();
+    sorted.sort_by(|(a, _), (b, _)| a.cmp(b));
+    let mut segments: std::collections::BTreeMap<&str, &str> = std::collections::BTreeMap::new();
+    for (name, config) in &sorted {
+        let segment = config.path.as_deref().unwrap_or(name.as_str());
+        if let Some(previous) = segments.insert(segment, name.as_str()) {
+            return Err(crate::ServerError::ConfigError(format!(
+                "[webhooks.{previous}] and [webhooks.{name}] both resolve to the path \
+                 segment {segment:?}, so only one of them could ever be mounted and which \
+                 one would change between restarts. Give one of them a distinct `path`, or \
+                 remove it. (A route's segment is its `path` override, or its config key \
+                 when `path` is absent — so an override may collide with another route's \
+                 name.)"
+            )));
+        }
+    }
+
     let registry = ProviderRegistry::new();
-    for (name, config) in routes {
+    for (name, config) in sorted {
         let Some(verifier) = registry.get(&config.provider) else {
             return Err(crate::ServerError::ConfigError(format!(
                 "[webhooks.{name}] provider = {:?} is not a known webhook provider; \

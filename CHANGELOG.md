@@ -3244,6 +3244,27 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Two webhook routes resolving to the same path segment are refused at boot instead of
+  silently shadowing each other (#1048).**
+
+  A route's segment is its `path` override, or its config key when `path` is absent.
+  `WebhookInboundState::new` inserted into a segment-keyed map, so a repeat was
+  last-write-wins — and because it iterated a `HashMap` whose `RandomState` differs per
+  process, **which** route survived changed between boots of an identical config. The
+  loser's deliveries then met the winner's verifier and failed. `webhook_routes_check`
+  validated each entry independently and never compared segments, so nothing refused,
+  warned, or documented the constraint.
+
+  Boot now refuses the collision, naming both routes and the segment, mirroring the
+  duplicate-sink-name guard in `cdc_outbound`. The check runs in sorted order so the
+  message is identical on every boot — diagnosing a non-deterministic config error with a
+  non-deterministic message would only move the problem.
+
+  Note this does not require two explicit `path` overrides: `[webhooks.a] path = "b"`
+  alongside `[webhooks.b]` collides identically, and is the likelier operator accident.
+  Nothing failed open — the surviving route still verified against its own secret — so
+  this is an availability and operability defect, not a bypass.
+
 - **The inbound spine no longer documents an at-least-once dispatch guarantee it does not
   implement (#1047).**
 

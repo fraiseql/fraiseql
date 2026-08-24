@@ -376,6 +376,113 @@ mod empty_secret_is_not_configured {
     }
 }
 
+// ── #1048: two routes cannot share a path segment ──────────────
+
+mod colliding_path_segments {
+    //! `WebhookInboundState::new` iterates a `HashMap` and inserts into a `BTreeMap`
+    //! keyed by `path.unwrap_or(name)`. A repeated segment is last-write-wins, and
+    //! `HashMap` iteration order is randomized per process — so which of the two
+    //! routes is live varied *between boots of the identical config*, and the loser's
+    //! deliveries all failed verification against the winner's secret.
+    //!
+    //! `webhook_routes_check` validated each entry independently and never compared
+    //! segments, so nothing refused, warned, or documented the constraint. The fix
+    //! mirrors the duplicate-sink-name guard in `server_config/cdc_outbound.rs`.
+
+    use super::{super::webhook_routes_check, HashMap, WebhookInboundState, lazy_pool};
+    use crate::config::WebhookRouteConfig;
+
+    fn route(provider: &str, secret_env: &str, path: Option<&str>) -> WebhookRouteConfig {
+        WebhookRouteConfig {
+            secret_env: secret_env.to_string(),
+            provider:   provider.to_string(),
+            path:       path.map(str::to_string),
+            public_url: None,
+        }
+    }
+
+    /// Two explicit `path` overrides onto the same segment.
+    fn both_overridden() -> HashMap<String, WebhookRouteConfig> {
+        let mut routes = HashMap::new();
+        routes.insert("stripe_live".to_string(), route("stripe", "STRIPE_LIVE", Some("stripe")));
+        routes.insert("stripe_test".to_string(), route("stripe", "STRIPE_TEST", Some("stripe")));
+        routes
+    }
+
+    /// The likelier operator accident: one override lands on another route's *name*.
+    fn override_collides_with_a_name() -> HashMap<String, WebhookRouteConfig> {
+        let mut routes = HashMap::new();
+        routes.insert("github".to_string(), route("github", "GH_SECRET", None));
+        routes.insert("github_v2".to_string(), route("github", "GH_SECRET_2", Some("github")));
+        routes
+    }
+
+    #[test]
+    fn two_routes_on_one_segment_are_refused_at_boot() {
+        let error = webhook_routes_check(&both_overridden(), |_| Some("s".to_string()), true)
+            .expect_err("a shadowed route can never receive a delivery, so this must not boot");
+
+        let message = error.to_string();
+        assert!(
+            message.contains("stripe"),
+            "the refusal must name the colliding segment; got {message}"
+        );
+        // Both names must appear: naming only the survivor leaves the operator
+        // guessing which of their routes vanished.
+        assert!(
+            message.contains("stripe_live") && message.contains("stripe_test"),
+            "the refusal must name both colliding routes; got {message}"
+        );
+    }
+
+    #[test]
+    fn an_override_colliding_with_another_routes_name_is_refused() {
+        let error =
+            webhook_routes_check(&override_collides_with_a_name(), |_| Some("s".to_string()), true)
+                .expect_err("a collision does not require two explicit overrides");
+
+        let message = error.to_string();
+        assert!(
+            message.contains("github_v2") && message.contains("github"),
+            "the refusal must name both colliding routes; got {message}"
+        );
+    }
+
+    #[test]
+    fn the_refusal_is_identical_across_runs() {
+        // The defect was non-determinism, so a refusal that names a different pair per
+        // boot would only move the problem. Each call builds a fresh `HashMap`, and
+        // `RandomState` is per-instance, so iteration order genuinely varies across
+        // these iterations — the deterministic sort is what keeps the message stable.
+        let first = webhook_routes_check(&both_overridden(), |_| Some("s".to_string()), true)
+            .unwrap_err()
+            .to_string();
+        for _ in 0..64 {
+            let again = webhook_routes_check(&both_overridden(), |_| Some("s".to_string()), true)
+                .unwrap_err()
+                .to_string();
+            assert_eq!(again, first, "the collision refusal must not vary between runs");
+        }
+    }
+
+    #[tokio::test] // `connect_lazy` spawns the pool keeper, so it needs a runtime.
+    async fn distinct_segments_still_boot() {
+        // The guard against overshooting: two routes sharing a *provider* but not a
+        // segment are a legitimate config and must still be accepted.
+        let mut routes = HashMap::new();
+        routes.insert("partner_a".to_string(), route("hmac-sha256", "A_SECRET", None));
+        routes.insert("partner_b".to_string(), route("hmac-sha256", "B_SECRET", None));
+
+        assert!(
+            webhook_routes_check(&routes, |_| Some("s".to_string()), true).is_ok(),
+            "distinct segments are not a collision, even on a shared provider"
+        );
+
+        let state = WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s".to_string()));
+        assert_eq!(state.routes.len(), 2, "both routes must mount");
+    }
+}
+
 // ── #751: dedup keys must derive from signed material only ──────────────
 
 mod signed_dedup_key {
