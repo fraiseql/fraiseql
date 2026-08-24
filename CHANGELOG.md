@@ -3293,6 +3293,36 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Input-field requiredness has one encoding, and the generators read the one the runtime
+  enforces (#1065).**
+
+  Requiredness was authorable two ways — a trailing `!` on the type string and the `nullable`
+  flag — and both reached the compiled schema unreconciled. The runtime reads only the flag
+  (`InputFieldDefinition::is_required()` = `!nullable && default_value.is_none()`); all four
+  generators read only the `!`. They disagreed in both directions:
+
+  - A schema authored with the official Python or TypeScript SDK emits bare type strings with
+    requiredness in `nullable`, so **every required input field generated as optional**. A
+    consumer omitting it passed `tsc --strict` and `ty check`, and the server rejected the
+    mutation with "required input field(s) not provided".
+  - A hand-written `"String!"` with no `nullable` key inverted it: the client marked the field
+    required while the runtime, seeing the defaulted `nullable: true`, enforced nothing.
+
+  Both halves are now closed. The compiler resolves a trailing `!` into the flag and strips it,
+  so a compiled schema states requiredness in exactly one place; and the four generators read
+  `is_required()` rather than parsing the type string. `default_value` is now honoured too — it
+  was read nowhere in the crate, so a non-null field with a default generated as required.
+
+  Only the **trailing** marker is the field's own. `[String!]` remains an optional list of
+  non-null elements, and that inner marker is still carried in the type.
+
+  ⚠ The reference fixture exhibited the inverted direction: `CreateUserInput.email` was
+  `"String!"` with no `nullable` key, so the snapshot emitted `email: string` while the runtime
+  treated the field as optional — client and runtime disagreed in the fixture that both the
+  snapshot test and the CI type-check gate run on. The fixture now states requiredness in the
+  encoding that counts, and the generated TypeScript is byte-identical apart from the schema
+  hash.
+
 - **Generated Python `TypedDict`s declare `__typename`, not `_User__typename` (#1033).**
 
   CPython applies private name mangling to identifiers in a class body, so

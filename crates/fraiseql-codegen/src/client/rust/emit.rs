@@ -369,7 +369,12 @@ fn emit_input(out: &mut String, schema: &CompiledSchema, input: &InputObjectDefi
             } else {
                 parsed.rs
             };
-            let (rs_type, extra) = if parsed.required {
+            // Requiredness comes from the flag the runtime enforces, not from a
+            // trailing `!` on the type string (#1065). `parse_input_type` still
+            // renders the type — including inner element non-nullability, which
+            // *is* carried in the string — but the field's own requiredness is
+            // `is_required()`, i.e. `!nullable && default_value.is_none()`.
+            let (rs_type, extra) = if field.is_required() {
                 (rs, String::new())
             } else {
                 (

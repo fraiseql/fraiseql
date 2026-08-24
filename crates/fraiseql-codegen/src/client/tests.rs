@@ -6,8 +6,8 @@ use std::path::PathBuf;
 
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition,
-    FieldType, InterfaceDefinition, MutationDefinition, QueryDefinition, TypeDefinition,
-    UnionDefinition,
+    FieldType, InputFieldDefinition, InputObjectDefinition, InterfaceDefinition,
+    MutationDefinition, QueryDefinition, TypeDefinition, UnionDefinition,
 };
 
 use super::schema_hash;
@@ -171,6 +171,102 @@ fn a_nullable_vector_argument_is_declared_nullable() {
     assert!(
         !document.contains("$embedding: [Float!]!"),
         "an optional argument must not be declared non-null:\n{document}"
+    );
+}
+
+/// #1065 — every generator decided input-field requiredness from a trailing `!`
+/// on the type string, while the runtime enforces
+/// `is_required() = !nullable && default_value.is_none()`.
+///
+/// The official SDKs emit bare type strings with requiredness carried only in
+/// `nullable`, so every required input field generated as **optional**: the
+/// consumer wrote a call omitting it, `tsc --strict` and `ty` both accepted it,
+/// and the server rejected the mutation at
+/// `InputFieldDefinition::is_required()`.
+///
+/// This is a claim about all four generators at once — the issue named two, and
+/// Go and Rust parse the same `!`.
+#[test]
+fn input_requiredness_follows_the_flag_the_runtime_enforces() {
+    let mut schema = CompiledSchema::new();
+
+    let mut user = TypeDefinition::new("User", "v_user");
+    user.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(user);
+
+    schema
+        .input_types
+        .push(InputObjectDefinition::new("CreateUserInput").with_fields(vec![
+        // The SDK-authored spelling: bare type, requiredness in the flag.
+        InputFieldDefinition::new("email", "String").with_nullable(false),
+        InputFieldDefinition::new("note", "String"),
+        // Non-null but defaulted — `is_required()` is false, and no generator
+        // ever read `default_value` at all.
+        InputFieldDefinition::new("role", "String")
+            .with_nullable(false)
+            .with_default_value("\"MEMBER\""),
+    ]));
+
+    let mut create = MutationDefinition::new("createUser", "User");
+    create.arguments.push(ArgumentDefinition::new(
+        "input",
+        FieldType::Input("CreateUserInput".to_string()),
+    ));
+    schema.mutations.push(create);
+
+    let ts = super::typescript::generate(&schema).unwrap();
+    let inputs_ts = ts.get(&PathBuf::from("inputs.ts")).unwrap().clone();
+    assert!(inputs_ts.contains("email: string;"), "TS: email must be required: {inputs_ts}");
+    assert!(
+        inputs_ts.contains("note?: string | null;"),
+        "TS: note must stay optional: {inputs_ts}"
+    );
+    assert!(
+        inputs_ts.contains("role?: string | null;"),
+        "TS: a defaulted field is not required: {inputs_ts}"
+    );
+
+    let py = super::python::generate(&schema).unwrap();
+    let inputs_py = py.get(&PathBuf::from("inputs.py")).unwrap().clone();
+    assert!(inputs_py.contains("email: str"), "Py: email must be required: {inputs_py}");
+    assert!(
+        inputs_py.contains("note: NotRequired[str | None]"),
+        "Py: note must stay optional: {inputs_py}"
+    );
+
+    // Go and Rust are column-aligned, so match on the field's own line rather
+    // than an exact-spacing substring.
+    let line_for = |source: &str, needle: &str| -> String {
+        source
+            .lines()
+            .find(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("no line containing {needle} in:\n{source}"))
+            .to_string()
+    };
+
+    let go = super::go::generate(&schema).unwrap();
+    let inputs_go = go.get(&PathBuf::from("inputs.go")).unwrap().clone();
+    let go_email = line_for(&inputs_go, "Email");
+    assert!(
+        !go_email.contains('*') && !go_email.contains("omitempty"),
+        "Go: email must be a required value, not an omitempty pointer: {go_email}"
+    );
+    assert!(
+        line_for(&inputs_go, "Note").contains("omitempty"),
+        "Go: note must stay optional: {inputs_go}"
+    );
+    assert!(
+        line_for(&inputs_go, "Role").contains("omitempty"),
+        "Go: a defaulted field is not required: {inputs_go}"
+    );
+
+    let rs = super::rust::generate(&schema).unwrap();
+    let inputs_rs = rs.get(&PathBuf::from("inputs.rs")).unwrap().clone();
+    let rs_email = line_for(&inputs_rs, "pub email");
+    assert!(!rs_email.contains("Option<"), "Rust: email must be required: {rs_email}");
+    assert!(
+        line_for(&inputs_rs, "pub note").contains("Option<"),
+        "Rust: note must stay optional: {inputs_rs}"
     );
 }
 

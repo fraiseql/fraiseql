@@ -109,9 +109,9 @@
       "name": "CreateUserInput",
       "description": "Fields required to create a user.",
       "fields": [
-        {"name": "email", "field_type": "String!"},
+        {"name": "email", "field_type": "String", "nullable": false},
         {"name": "displayName", "field_type": "String"},
-        {"name": "role", "field_type": "UserRole!"}
+        {"name": "role", "field_type": "UserRole", "nullable": false}
       ]
     },
     {

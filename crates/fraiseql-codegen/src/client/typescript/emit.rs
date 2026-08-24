@@ -175,7 +175,11 @@ fn emit_input(out: &mut String, input: &InputObjectDefinition) {
     for field in &input.fields {
         push_doc(out, "  ", field.description.as_deref());
         let parsed = parse_input_type(&field.field_type);
-        if parsed.required {
+        // Requiredness comes from the flag the runtime enforces, not from a trailing
+        // `!` on the type string (#1065). `parse_input_type` still renders the type —
+        // including inner element non-nullability, which *is* carried in the string —
+        // but the field's own requiredness is `!nullable && default_value.is_none()`.
+        if field.is_required() {
             let _ = writeln!(out, "  {}: {};", field.name, parsed.ts);
         } else {
             let _ = writeln!(out, "  {}?: {} | null;", field.name, parsed.ts);

@@ -58,7 +58,10 @@ fn fixture() -> CompiledSchema {
     schema
         .input_types
         .push(InputObjectDefinition::new("CreateUserInput").with_fields(vec![
-            InputFieldDefinition::new("email", "String!"),
+            // Requiredness in the encoding the runtime enforces. A trailing `!`
+            // on the type string is resolved into this flag at the compiler seam,
+            // so a compiled schema never carries both (#1065).
+            InputFieldDefinition::new("email", "String").with_nullable(false),
             InputFieldDefinition::new("role", "UserRole"),
         ]));
 

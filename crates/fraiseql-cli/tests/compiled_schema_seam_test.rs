@@ -992,3 +992,81 @@ fn an_unknown_key_inside_a_type_fails_the_compile() {
         "the error must name the offending key; got: {err}"
     );
 }
+
+// =============================================================================
+// #1065 — requiredness has one encoding by the time it reaches the runtime
+// =============================================================================
+
+/// Requiredness reached the compiled schema in **two** unsynchronised encodings:
+/// a trailing `!` on the type string, and the `nullable` flag. The runtime reads
+/// only the flag (`InputFieldDefinition::is_required`), while every generated
+/// client read only the `!` — so a schema declaring `"type": "String!"` compiled
+/// to a field the runtime treated as optional and the client typed as required,
+/// and the SDK-authored spelling (`"String"` + `nullable: false`) inverted it.
+///
+/// The compile now resolves the two at the seam: a trailing `!` sets
+/// `nullable = false` and is stripped, so a compiled schema carries requiredness
+/// in exactly one place.
+#[test]
+fn a_trailing_bang_on_an_input_field_becomes_the_nullable_flag() {
+    let corpus = json!({
+        "types": [
+            {"name": "User", "sql_source": "v_user",
+             "fields": [{"name": "id", "type": "ID", "nullable": false}]}
+        ],
+        "input_types": [
+            {"name": "CreateUserInput", "fields": [
+                {"name": "email", "type": "String!"},
+                {"name": "note", "type": "String"},
+                {"name": "role", "type": "UserRole", "nullable": false},
+                {"name": "tags", "type": "[String!]"}
+            ]}
+        ],
+        "enums": [{"name": "UserRole", "values": [{"name": "ADMIN"}]}],
+        "queries": [
+            {"name": "users", "return_type": "User", "returns_list": true,
+             "sql_source": "v_user"}
+        ]
+    });
+
+    let intermediate: IntermediateSchema = serde_json::from_value(corpus).unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("corpus must compile");
+
+    let input = compiled
+        .input_types
+        .iter()
+        .find(|i| i.name == "CreateUserInput")
+        .expect("input type reached the compiled schema");
+    let field = |name: &str| {
+        input
+            .fields
+            .iter()
+            .find(|f| f.name == name)
+            .expect("field reached the compiled schema")
+    };
+
+    // The `!` spelling: required, and the marker is consumed into the flag.
+    assert!(
+        field("email").is_required(),
+        "a trailing `!` must make the field required, which is what the runtime enforces"
+    );
+    assert_eq!(
+        field("email").field_type,
+        "String",
+        "the `!` must not survive alongside the flag, or the two encodings can disagree again"
+    );
+
+    // The SDK spelling: the flag alone, already the runtime's truth.
+    assert!(field("role").is_required(), "an explicit `nullable: false` must stay required");
+
+    // Neither marker: optional, per the documented GraphQL default.
+    assert!(!field("note").is_required(), "a bare type with no flag stays optional");
+
+    // Inner non-null is not outer non-null. `[String!]` is an optional list of
+    // non-null strings, and the element marker must not be read as the field's.
+    assert!(
+        !field("tags").is_required(),
+        "`[String!]` has no trailing `!` — the list itself is nullable"
+    );
+    assert_eq!(field("tags").field_type, "[String!]", "the element marker must be preserved");
+}

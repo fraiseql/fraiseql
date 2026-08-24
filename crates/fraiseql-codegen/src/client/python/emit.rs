@@ -262,7 +262,12 @@ fn emit_input(out: &mut String, input: &InputObjectDefinition) {
         .iter()
         .map(|field| {
             let parsed = parse_input_type(&field.field_type);
-            let py = if parsed.required {
+            // Requiredness comes from the flag the runtime enforces, not from a
+            // trailing `!` on the type string (#1065). `parse_input_type` still
+            // renders the type — including inner element non-nullability, which
+            // *is* carried in the string — but the field's own requiredness is
+            // `is_required()`, i.e. `!nullable && default_value.is_none()`.
+            let py = if field.is_required() {
                 parsed.py
             } else {
                 format!("NotRequired[{} | None]", parsed.py)

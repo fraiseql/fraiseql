@@ -309,13 +309,31 @@ impl SchemaConverter {
         // Convert default value to JSON string if present
         let default_value = intermediate.default.map(|v| v.to_string());
 
+        // Requiredness is authorable two ways — a trailing `!` on the type string
+        // and the `nullable` flag — and they were both carried into the compiled
+        // schema unreconciled. The runtime reads only the flag
+        // (`InputFieldDefinition::is_required`), every generated client read only
+        // the `!`, so the two disagreed in both directions: a hand-written
+        // `"String!"` was required to the client and optional to the runtime,
+        // while the SDK spelling (`"String"` + `nullable: false`) was the
+        // reverse (#1065).
+        //
+        // The `!` is resolved into the flag here and stripped, so a compiled
+        // schema states requiredness in exactly one place. Only the **trailing**
+        // marker is the field's own: `[String!]` is an optional list of non-null
+        // elements, and that inner marker is part of the type.
+        let (field_type, nullable) = match intermediate.field_type.strip_suffix('!') {
+            Some(base) => (base.trim_end().to_string(), false),
+            None => (intermediate.field_type, intermediate.nullable),
+        };
+
         InputFieldDefinition {
             name: intermediate.name,
-            field_type: intermediate.field_type,
+            field_type,
             // Carry per-field nullability into the compiled schema so the runtime
             // can enforce required input fields (#414). Output fields already do
             // this via `convert_field`.
-            nullable: intermediate.nullable,
+            nullable,
             description: intermediate.description,
             default_value,
             deprecation,
