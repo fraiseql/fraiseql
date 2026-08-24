@@ -39,7 +39,6 @@ final class QueryBuilder
 
     private ?string $requiresRoleValue = null;
     private ?string $deprecationReason = null;
-    private ?string $relayCursorTypeValue = null;
     private ?string $restPathValue = null;
     private ?string $restMethodValue = null;
 
@@ -141,12 +140,6 @@ final class QueryBuilder
         return $this;
     }
 
-    public function relayCursorType(string $type): self
-    {
-        $this->relayCursorTypeValue = $type;
-        return $this;
-    }
-
     public function restPath(string $path): self
     {
         $this->restPathValue = $path;
@@ -221,6 +214,30 @@ final class QueryBuilder
             $result['requires_role'] = $this->requiresRoleValue;
         }
 
+        // `auto_params` is an object of per-parameter booleans (`IntermediateAutoParams`),
+        // not a bare `true`. Expanding the flag here matches the Python SDK, whose
+        // decorator expands `auto_params=True` to the same four keys.
+        //
+        // Omitting it is not neutral: an absent `auto_params` inherits `[query_defaults]`,
+        // which is all-true only by default. A project that disables `limit` project-wide
+        // and opts one query back in with `autoParams(true)` silently got no limit
+        // parameter, because the opt-in never left the PHP process (#1021).
+        if ($this->autoParamsValue) {
+            $result['auto_params'] = [
+                'where'    => true,
+                'order_by' => true,
+                'limit'    => true,
+                'offset'   => true,
+            ];
+        }
+
+        // `deprecated`, not `deprecation`. `IntermediateQuery` denies unknown fields, so
+        // the latter is not a silent drop but a hard compile failure — and it was what
+        // the sibling `toArray()` emitted.
+        if ($this->deprecationReason !== null) {
+            $result['deprecated'] = ['reason' => $this->deprecationReason];
+        }
+
         if ($this->restPathValue !== null) {
             $rest = ['path' => $this->restPathValue, 'method' => $this->restMethodValue ?? 'GET'];
             $result['rest'] = $rest;
@@ -273,10 +290,6 @@ final class QueryBuilder
 
         if ($this->deprecationReason !== null) {
             $result['deprecation'] = ['reason' => $this->deprecationReason];
-        }
-
-        if ($this->relayCursorTypeValue !== null) {
-            $result['relay_cursor_type'] = $this->relayCursorTypeValue;
         }
 
         if ($this->autoParamsValue) {

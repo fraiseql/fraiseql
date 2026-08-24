@@ -20,6 +20,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **PHP SDK: `QueryBuilder::relayCursorType()` is removed (#1021).**
+
+  The setter accepted a value and discarded it. `IntermediateQuery` has no cursor-type member —
+  only `relay: bool` — so there was nothing for it to reach, and the sibling serializer that did
+  emit it wrote `relay_cursor_type`, a key the compiler refuses outright. Rather than leave a
+  setter that takes input it cannot honour, it is deleted. Remove the call; Relay pagination is
+  unaffected and is still enabled with `relay`.
+
 - **`ConvertConfig::max_rows` is removed from `fraiseql-arrow` (#1041).**
 
   The field was public and documented as "Maximum total rows to convert (default: unlimited)",
@@ -3292,6 +3300,29 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **PHP: `autoParams()` and `deprecated()` reach the compiler, and `crud` generates
+  operations (#1021, #1022).**
+
+  Three `QueryBuilder` setters stored values that `toIntermediateArray()` — the serializer
+  `vendor/bin/fraiseql export` actually calls — never emitted. The sibling `toArray()` did emit
+  them, under `deprecation` and `relay_cursor_type`, which is a second reason the gap was
+  invisible: the keys looked present in a serializer no shipped path used, and neither name is a
+  member of `IntermediateQuery`, which denies unknown fields.
+
+  `auto_params` is now emitted as the per-parameter boolean object the compiler declares, matching
+  how the Python SDK expands `auto_params=True`. Dropping it was not the no-op it appears to be:
+  an absent block inherits `[query_defaults]`, which is all-true only by default, so a project
+  disabling `limit` project-wide and opting one query back in silently got no limit parameter.
+  `deprecated` is emitted under the key the compiler reads.
+
+  `CrudGenerator` — a complete implementation of the get-by-id query, list query and
+  create/update/delete mutations with their input types — had **no callers**, so `crud: true`
+  generated nothing through either the fluent builder or the `#[GraphQLType(crud: true)]`
+  attribute. Both paths now expand it through one shared helper, with `cascade` riding on the
+  generated mutations where `IntermediateMutation::cascade` lives. The flags are expanded at
+  registration rather than emitted: `IntermediateType` has neither member and denies unknown
+  fields. Whether the other ten SDKs share this shape is tracked as #1182.
 
 - **Input-field requiredness has one encoding, and the generators read the one the runtime
   enforces (#1065).**

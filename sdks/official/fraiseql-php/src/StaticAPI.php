@@ -41,7 +41,53 @@ final class StaticAPI
      */
     public static function register(string $className): void
     {
-        SchemaRegistry::getInstance()->register($className);
+        $registry = SchemaRegistry::getInstance();
+        $registry->register($className);
+
+        foreach ($registry->getTypeNames() as $typeName) {
+            $attr = $registry->getType($typeName);
+            if ($attr !== null && $attr->crud) {
+                self::expandCrud($typeName, $registry->getTypeFields($typeName), $attr->sqlSource, $attr->cascade);
+            }
+        }
+    }
+
+    /**
+     * Generate the CRUD operations a type declaring `crud` asks for.
+     *
+     * `CrudGenerator` was fully implemented and had **no callers at all**, so
+     * `crud: true` generated nothing through either authoring idiom — the fluent
+     * builder or the `#[GraphQLType(crud: true)]` attribute (#1022).
+     *
+     * The flags are expanded here rather than emitted into the schema on purpose:
+     * `IntermediateType` has no `crud`/`cascade` member and denies unknown fields,
+     * so they are authoring-time expansion flags, exactly as in the Python SDK.
+     * `cascade` rides on the generated **mutations**, which is where
+     * `IntermediateMutation::cascade` lives.
+     *
+     * Expansion happens once, at registration: queries and mutations are keyed by
+     * name and would merely overwrite, but `registerInputType` throws on a
+     * duplicate name, so expanding again at export time would be a hard failure.
+     *
+     * @param array<string, FieldDefinition> $fields
+     */
+    private static function expandCrud(
+        string $typeName,
+        array $fields,
+        ?string $sqlSource,
+        bool $cascade,
+    ): void {
+        if ($fields === []) {
+            return;
+        }
+
+        $generated = CrudGenerator::generate($typeName, $fields, $sqlSource, $cascade);
+        foreach ($generated['queries'] as $query) {
+            $query->register();
+        }
+        foreach ($generated['mutations'] as $mutation) {
+            $mutation->register();
+        }
     }
 
     /**
@@ -233,6 +279,8 @@ final class StaticAPI
             sqlSource: $builder->getSqlSource(),
             description: $builder->getDescription(),
             isError: $builder->getIsError(),
+            crud: $builder->getCrud(),
+            cascade: $builder->getCascade(),
         );
 
         $types[$builder->getName()] = $typeAttr;
@@ -240,6 +288,19 @@ final class StaticAPI
 
         $typesProperty->setValue($registry, $types);
         $fieldsProperty->setValue($registry, $typeFields);
+
+        // The two builder flags had getters and no readers anywhere in the SDK, so a
+        // type declared `->crud(true)` generated nothing (#1022). They are expanded
+        // through the same helper the attribute path uses — one implementation, not a
+        // second copy that can drift.
+        if ($builder->getCrud()) {
+            self::expandCrud(
+                $builder->getName(),
+                $builder->getFields(),
+                $builder->getSqlSource(),
+                $builder->getCascade(),
+            );
+        }
     }
 
     /**

@@ -154,6 +154,91 @@ final class IntermediateExportKeysTest extends TestCase
         self::assertArrayNotHasKey('requires_scope', $fields['name']);
     }
 
+    /**
+     * `autoParams()`, `deprecated()` and `relayCursorType()` were three fluent setters whose
+     * values never reached `toIntermediateArray()` — the serializer the shipped
+     * `vendor/bin/fraiseql export` path actually calls. The sibling `toArray()` did emit
+     * them, under `deprecation` and `relay_cursor_type`, which is a second reason they were
+     * invisible: the keys looked present in a serializer no consumer used, and neither name
+     * is a member of `IntermediateQuery`, which denies unknown fields.
+     *
+     * Dropping `auto_params` is not the no-op it appears to be. An absent block inherits
+     * `[query_defaults]`, which is all-true only by default — so a project that disables
+     * `limit` project-wide and opts one query back in with `autoParams(true)` silently got
+     * no limit parameter (#1021).
+     */
+    public function testQueryAutoParamsReachTheCompilerAsPerParameterBooleans(): void
+    {
+        StaticAPI::query('widgets')
+            ->returnType('Widget')
+            ->returnsList(true)
+            ->sqlSource('v_widget')
+            ->autoParams(true)
+            ->register();
+
+        $schema = json_decode(SchemaExporter::export(), true);
+        $query  = $schema['queries'][0];
+
+        // `IntermediateAutoParams` is an object of booleans, not a bare `true`, and a bare
+        // `true` fails to deserialize rather than degrading.
+        self::assertSame(
+            ['where' => true, 'order_by' => true, 'limit' => true, 'offset' => true],
+            $query['auto_params'],
+        );
+    }
+
+    public function testQueryDeprecationReachesTheCompilerUnderTheKeyItReads(): void
+    {
+        StaticAPI::query('oldWidgets')
+            ->returnType('Widget')
+            ->returnsList(true)
+            ->sqlSource('v_widget')
+            ->deprecated('Use widgets instead')
+            ->register();
+
+        $schema = json_decode(SchemaExporter::export(), true);
+        $query  = $schema['queries'][0];
+
+        self::assertSame(['reason' => 'Use widgets instead'], $query['deprecated']);
+        self::assertArrayNotHasKey('deprecation', $query);
+    }
+
+    /**
+     * `CrudGenerator` is fully implemented and had **no callers**, so `crud: true`
+     * generated nothing through either authoring idiom (#1022). The flags are expanded at
+     * registration rather than emitted: `IntermediateType` has no `crud`/`cascade` member
+     * and denies unknown fields, so writing them would fail the compile.
+     */
+    public function testCrudOnTheFluentBuilderGeneratesOperations(): void
+    {
+        StaticAPI::type('Widget')
+            ->sqlSource('v_widget')
+            ->field('id', 'ID', nullable: false)
+            ->field('label', 'String', nullable: true)
+            ->crud(true)
+            ->cascade(true)
+            ->register();
+
+        $schema = json_decode(SchemaExporter::export(), true);
+
+        $queryNames    = array_column($schema['queries'], 'name');
+        $mutationNames = array_column($schema['mutations'], 'name');
+
+        self::assertContains('widget', $queryNames, 'the get-by-id query must be generated');
+        self::assertContains('widgets', $queryNames, 'the list query must be generated');
+        self::assertContains('create_widget', $mutationNames);
+        self::assertContains('update_widget', $mutationNames);
+        self::assertContains('delete_widget', $mutationNames);
+
+        // `cascade` belongs on the generated mutations — that is where
+        // `IntermediateMutation::cascade` lives — and never on the type.
+        foreach ($schema['mutations'] as $mutation) {
+            self::assertTrue($mutation['cascade'], "{$mutation['name']} must carry cascade");
+        }
+        self::assertArrayNotHasKey('crud', $schema['types'][0]);
+        self::assertArrayNotHasKey('cascade', $schema['types'][0]);
+    }
+
     public function testMutationRequiresRoleSurvivesExport(): void
     {
         StaticAPI::mutation('deleteOrder')

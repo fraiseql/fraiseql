@@ -95,28 +95,11 @@ final class FieldCompletenessTest extends TestCase
             ->register();
 
         $q = $this->findQuery(SchemaExporter::toArray(), 'oldQuery');
-        $this->assertArrayNotHasKey('deprecated', $q);
-        $this->markTestIncomplete(
-            'QueryBuilder::deprecated() never reaches toIntermediateArray(), so the reason '
-            . 'is dropped by the shipped exporter — IntermediateQuery.deprecated exists and '
-            . 'stays empty. Tracked as its own defect; see #1021.'
-        );
-    }
 
-    public function testQueryRelayCursorTypeAppearsInSchema(): void
-    {
-        StaticAPI::query('paginatedItems')
-            ->returnType('Item')
-            ->sqlSource('v_item')
-            ->relayCursorType('UUID')
-            ->register();
-
-        $q = $this->findQuery(SchemaExporter::toArray(), 'paginatedItems');
-        $this->assertArrayNotHasKey('relay_cursor_type', $q);
-        $this->markTestIncomplete(
-            'QueryBuilder::relayCursorType() never reaches toIntermediateArray(). Tracked as '
-            . 'its own defect; see #1021.'
-        );
+        // `deprecated`, the key IntermediateQuery declares — not `deprecation`, which the
+        // dead sibling serializer emitted and which the compiler would refuse outright.
+        $this->assertSame(['reason' => 'Use newQuery instead'], $q['deprecated']);
+        $this->assertArrayNotHasKey('deprecation', $q);
     }
 
     public function testQueryReturnsListAppearsInSchema(): void
