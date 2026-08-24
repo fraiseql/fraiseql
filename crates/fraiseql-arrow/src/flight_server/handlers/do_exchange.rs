@@ -4,7 +4,7 @@
 //! Supports three request types dispatched from `ExchangeMessage`:
 //! - `Query`     — execute a GraphQL query and return Arrow-encoded results
 //! - `Upload`    — insert Arrow `RecordBatch` data into a target table
-//! - `Subscribe` — stream real-time entity change events (requires `SubscriptionManager`)
+//! - `Subscribe` — refused; no event source is wired to the subscription manager (#1067)
 
 use std::sync::Arc;
 
@@ -21,10 +21,7 @@ use super::{
     },
     upload_guard::authorize_upload,
 };
-use crate::{
-    exchange_protocol::{ExchangeMessage, RequestType},
-    subscription::SubscriptionManager,
-};
+use crate::exchange_protocol::{ExchangeMessage, RequestType};
 
 /// Process a `Query` exchange request: run GraphQL and forward Arrow-encoded results.
 #[allow(clippy::cognitive_complexity)] // Reason: multi-step protocol handler with sequential error handling branches
@@ -208,56 +205,44 @@ async fn handle_upload(
     }
 }
 
-/// Process a `Subscribe` exchange request: stream entity change events to the client.
+/// Process a `Subscribe` exchange request.
+///
+/// Refuses. Nothing in this workspace — including the server that mounts Flight —
+/// ever calls `SubscriptionManager::broadcast_event`, so a subscription could never
+/// produce an event (#1067).
+///
+/// It previously acknowledged `Subscribed to {entity_type}` and spawned a forwarder
+/// anyway. Three consequences, all removed by refusing:
+///
+/// 1. The ack was false in every shipped configuration: the client waited forever for events that
+///    no code path can emit, while the module docs promise this surface returns `unimplemented`.
+/// 2. Every accepted subscription leaked. The forwarder blocked on `recv()`, which only returns
+///    `None` once every sender drops, and the sender was owned by the manager's process-lifetime
+///    `DashMap`. Nothing calls `unsubscribe` either, so each call left a task, a channel and a map
+///    entry alive for the process.
+/// 3. The map key was the client-chosen `correlation_id` on a `DashMap` shared across principals,
+///    so one client could evict another's entry.
+///
+/// Restoring this needs a real event source wired to `broadcast_event`, removal on
+/// stream close, and a key that is not client-chosen.
 async fn handle_subscribe(
     tx: Sender<Result<FlightData, Status>>,
-    subscription_manager: Arc<SubscriptionManager>,
     correlation_id: String,
     entity_type: String,
-    filter: Option<String>,
 ) {
-    info!(correlation_id = %correlation_id, entity_type = %entity_type, "Starting event subscription");
+    info!(
+        correlation_id = %correlation_id,
+        entity_type = %entity_type,
+        "Refusing Subscribe: no event source is wired to the subscription manager"
+    );
 
-    let mut event_rx =
-        subscription_manager.subscribe(correlation_id.clone(), entity_type.clone(), filter);
-
-    // Send subscription acknowledgment
-    let ack_response = ExchangeMessage::Response {
-        correlation_id: correlation_id.clone(),
-        result:         Ok(format!("Subscribed to {}", entity_type).into_bytes()),
-    };
-    if let Ok(ack_bytes) = ack_response.to_json_bytes() {
-        let _ = tx
-            .send(Ok(FlightData {
-                app_metadata: ack_bytes.into(),
-                ..Default::default()
-            }))
-            .await;
-    }
-
-    // Spawn task to forward events from subscription to client
-    tokio::spawn(async move {
-        while let Some(event) = event_rx.recv().await {
-            match serde_json::to_vec(&event) {
-                Ok(event_json) => {
-                    let event_data = FlightData {
-                        data_body: event_json.into(),
-                        app_metadata: b"observer_event".to_vec().into(),
-                        ..Default::default()
-                    };
-                    if let Err(e) = tx.send(Ok(event_data)).await {
-                        warn!("Failed to send event to subscriber: {}", e);
-                        break;
-                    }
-                },
-                Err(e) => {
-                    warn!("Failed to serialize event: {}", e);
-                    break;
-                },
-            }
-        }
-        info!(correlation_id = %correlation_id, "Subscription event stream closed");
-    });
+    send_exchange_error(
+        &tx,
+        &correlation_id,
+        "Subscribe is not implemented: no event source is wired to the Flight subscription \
+         manager, so no event can ever be delivered on this stream.",
+    )
+    .await;
 }
 
 /// Send an `ExchangeMessage::Response` with an error payload to the client.
@@ -307,7 +292,6 @@ pub(super) async fn handle(
     let db_adapter = svc.db_adapter.clone();
     let upload_allowed_tables = svc.upload_allowed_tables.clone();
     let executor = svc.executor.clone();
-    let subscription_manager = svc.subscription_manager.clone();
     let user_id = authenticated_user.user_id.0;
 
     tokio::spawn(async move {
@@ -345,16 +329,9 @@ pub(super) async fn handle(
                     },
                     RequestType::Subscribe {
                         entity_type,
-                        filter,
+                        filter: _,
                     } => {
-                        handle_subscribe(
-                            tx.clone(),
-                            subscription_manager.clone(),
-                            correlation_id,
-                            entity_type,
-                            filter,
-                        )
-                        .await;
+                        handle_subscribe(tx.clone(), correlation_id, entity_type).await;
                     },
                 },
                 Ok(ExchangeMessage::Complete { correlation_id }) => {
@@ -377,3 +354,6 @@ pub(super) async fn handle(
     let output_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
     Ok(Response::new(Box::pin(output_stream) as FlightDataStream))
 }
+
+#[cfg(test)]
+mod tests;

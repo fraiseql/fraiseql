@@ -3275,6 +3275,31 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`do_exchange` `Subscribe` refuses instead of acknowledging a subscription it cannot serve (#1067).**
+
+  `Subscribe` replied `Subscribed to {entity_type}` and spawned a forwarder task. Nothing in
+  the workspace — including the server that actually mounts Flight — ever calls
+  `SubscriptionManager::broadcast_event`, so no event could ever be delivered: the client
+  received a success acknowledgement and then waited indefinitely, on a surface the module
+  documentation already described as returning `unimplemented`.
+
+  Every accepted subscription also leaked. The forwarder blocked on `recv()`, which returns
+  only once every sender has dropped, and the sender was owned by a process-lifetime
+  `DashMap` on the shared manager. Nothing calls `unsubscribe` either, so each call left a
+  task, a channel and a map entry alive for the life of the process — unbounded growth
+  drivable by any authenticated Flight principal, one entry per distinct `correlation_id`.
+
+  That map key was the client-supplied `correlation_id` on a map shared across all
+  principals, so one client could evict another client's entry.
+
+  `Subscribe` now returns a descriptive error naming the reason, and takes no subscription,
+  spawns no task and touches no shared map. Restoring the feature needs a real event source
+  wired to `broadcast_event`, removal on stream close, and a key that is not client-chosen.
+
+  ⚠ Nothing tested this path before: the suite named for `do_exchange` asserted a
+  `register_defaults()` constant, so an acknowledgement that was false in every shipped
+  configuration went unnoticed. It is now covered directly.
+
 - **Identically-shaped batched queries are no longer refused at random (#1002).**
 
   An inferred Arrow schema took its field list from `HashMap::iter()`. That order is
