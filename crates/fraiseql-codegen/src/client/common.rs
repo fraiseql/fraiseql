@@ -114,9 +114,19 @@ pub(super) fn input_base_name(type_str: &str) -> String {
 
 /// Render a [`FieldType`] argument as a `GraphQL` type reference for a variable
 /// declaration, e.g. `ID!`, `UserFilter`, `[String]`.
+///
+/// Requiredness is applied to the **undecorated** base rather than appended to
+/// whatever [`FieldType::to_graphql_string`] returned, because a few types come
+/// back already decorated: `Vector` and `HalfVector` both render as the
+/// fully-formed `[Float!]!`. Appending to that produced `[Float!]!!`, which no
+/// `GraphQL` parser accepts, so every call to a vector-argument operation died
+/// at the server's parse step; the nullable branch was wrong the other way,
+/// declaring `[Float!]!` for a variable the generated wrapper left optional
+/// (#1066).
 pub(super) fn arg_graphql_type(ft: &FieldType, nullable: bool) -> String {
     let base = ft.to_graphql_string();
-    if nullable { base } else { format!("{base}!") }
+    let undecorated = base.strip_suffix('!').unwrap_or(base.as_str());
+    if nullable { undecorated.to_string() } else { format!("{undecorated}!") }
 }
 
 /// The `GraphQL` half of a built operation: variable declarations and the
@@ -204,8 +214,24 @@ pub(super) fn type_selection(ctx: &SchemaCtx, type_name: &str, indent: &str) -> 
 
     if let Some(union) = ctx.unions.get(type_name) {
         for member in &union.member_types {
+            let inner = format!("{indent}  ");
             let _ = writeln!(sel, "{indent}... on {member} {{");
-            sel.push_str(&leaf_name_lines(ctx, member, &format!("{indent}  ")));
+
+            // A member can contribute no leaf lines at all — its fields may be
+            // composite-only, or the name may resolve to no type in the schema
+            // (a typo, an interface, or a type never registered; nothing
+            // validates union members). Writing the braces around nothing gave
+            // `... on X {}`, and an empty selection set is a parse error, so
+            // every call to the operation failed (#1032). `__typename` is the
+            // one field every object type has, and it is what the generated
+            // client narrows on regardless.
+            let leaves = leaf_name_lines(ctx, member, &inner);
+            if leaves.is_empty() {
+                let _ = writeln!(sel, "{inner}__typename");
+            } else {
+                sel.push_str(&leaves);
+            }
+
             let _ = writeln!(sel, "{indent}}}");
         }
     } else {

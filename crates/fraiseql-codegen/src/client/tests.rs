@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition,
-    FieldType, MutationDefinition, QueryDefinition, TypeDefinition,
+    FieldType, MutationDefinition, QueryDefinition, TypeDefinition, UnionDefinition,
 };
 
 use super::schema_hash;
@@ -121,6 +121,140 @@ fn docs(files: &crate::Generated, names: &[&str], open: &str, close: &str) -> Ve
         })
         .filter(|doc| doc.starts_with("query ") || doc.starts_with("mutation "))
         .collect()
+}
+
+/// Parse every generated document with the **server's own** parser.
+///
+/// Nothing in this crate, the snapshot test, or the `sdk-conformance` workflow
+/// ever parsed a generated document — they only type-check the surrounding
+/// TypeScript/Python. That is why an unparseable document could ship (#1032,
+/// #1066): the generated client type-checks perfectly and dies on first call.
+fn assert_documents_parse(files: &crate::Generated, names: &[&str], open: &str, close: &str) {
+    let documents = docs(files, names, open, close);
+    assert!(!documents.is_empty(), "fixture produced no documents to parse");
+
+    for document in &documents {
+        assert!(
+            fraiseql_core::graphql::parse_query(document).is_ok(),
+            "generated document does not parse:\n{document}"
+        );
+    }
+}
+
+/// #1066 — `FieldType::Vector` renders as the already-decorated `[Float!]!`, so
+/// appending the non-null `!` emitted `$embedding: [Float!]!!`. Every call to a
+/// vector-argument operation died at the server's parse step.
+#[test]
+fn a_vector_argument_produces_a_parseable_document() {
+    let schema = vector_argument_fixture(false);
+    let generated = super::python::generate(&schema).unwrap();
+
+    assert_documents_parse(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
+}
+
+/// The nullable half of #1066: a `Vector` argument the author made optional was
+/// declared `$embedding: [Float!]!` while the wrapper made the parameter
+/// optional, so the document parses but demands a variable the client need never
+/// supply. Requiredness must follow `nullable`, not the type's own decoration.
+#[test]
+fn a_nullable_vector_argument_is_declared_nullable() {
+    let schema = vector_argument_fixture(true);
+    let generated = super::python::generate(&schema).unwrap();
+    let documents = docs(&generated, &["queries.py"], "\"\"\"", "\"\"\"");
+    let document = documents.first().expect("fixture has one query");
+
+    assert!(
+        document.contains("$embedding: [Float!]"),
+        "vector argument missing from document:\n{document}"
+    );
+    assert!(
+        !document.contains("$embedding: [Float!]!"),
+        "an optional argument must not be declared non-null:\n{document}"
+    );
+}
+
+/// #1032 — a union member with no leaf fields produced `... on X {\n}`. An empty
+/// selection set is a parse error, so every call to that operation failed.
+///
+/// Both triggers the adversarial review left standing are covered: a member type
+/// whose every field is composite, and a member name that does not resolve in
+/// `schema.types` at all (a typo, an interface name, or a type never registered)
+/// — `leaf_name_lines` returns `""` for both.
+#[test]
+fn a_union_member_without_leaf_fields_produces_a_parseable_document() {
+    let schema = empty_union_member_fixture();
+    let generated = super::python::generate(&schema).unwrap();
+
+    assert_documents_parse(&generated, &["mutations.py"], "\"\"\"", "\"\"\"");
+}
+
+/// The empty fragment must not merely be dropped: the member has to stay in the
+/// document, or a client narrowing on `__typename` can never match it.
+#[test]
+fn a_union_member_without_leaf_fields_keeps_its_inline_fragment() {
+    let schema = empty_union_member_fixture();
+    let generated = super::python::generate(&schema).unwrap();
+    let documents = docs(&generated, &["mutations.py"], "\"\"\"", "\"\"\"");
+    let document = documents.first().expect("fixture has one mutation");
+
+    for member in ["CreateUserSuccess", "NeverRegistered"] {
+        let opening = format!("... on {member} {{");
+        let start = document
+            .find(&opening)
+            .unwrap_or_else(|| panic!("member {member} lost its inline fragment:\n{document}"));
+        let body = &document[start + opening.len()..];
+        let end = body.find('}').expect("inline fragment is never closed");
+
+        assert!(
+            !body[..end].trim().is_empty(),
+            "the inline fragment for {member} is empty, which no GraphQL parser \
+             accepts:\n{document}"
+        );
+    }
+}
+
+/// A payload union whose members carry no leaf fields between them: one is
+/// composite-only, one is never registered as a type at all.
+fn empty_union_member_fixture() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+
+    let mut user = TypeDefinition::new("User", "v_user");
+    user.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(user);
+
+    // Every field composite, so `leaf_fields` is empty.
+    let mut success = TypeDefinition::new("CreateUserSuccess", "v_create_user_success");
+    success
+        .fields
+        .push(FieldDefinition::new("user", FieldType::Object("User".to_string())));
+    schema.types.push(success);
+
+    schema.unions.push(UnionDefinition {
+        name:         "CreateUserResult".to_string(),
+        member_types: vec!["CreateUserSuccess".to_string(), "NeverRegistered".to_string()],
+        description:  None,
+    });
+
+    schema.mutations.push(MutationDefinition::new("createUser", "CreateUserResult"));
+
+    schema
+}
+
+/// A single vector-similarity query, whose argument is the only thing under test.
+fn vector_argument_fixture(nullable: bool) -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+
+    let mut doc_type = TypeDefinition::new("Doc", "v_doc");
+    doc_type.fields.push(FieldDefinition::new("id", FieldType::Id));
+    schema.types.push(doc_type);
+
+    let mut search = QueryDefinition::new("searchDocs", "Doc").returning_list();
+    let mut embedding = ArgumentDefinition::new("embedding", FieldType::Vector);
+    embedding.nullable = nullable;
+    search.arguments.push(embedding);
+    schema.queries.push(search);
+
+    schema
 }
 
 /// Extract delimited blocks (documents) from generated source.

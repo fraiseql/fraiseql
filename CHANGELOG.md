@@ -3293,6 +3293,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Generated clients no longer emit `GraphQL` documents that cannot be parsed (#1066, #1032).**
+
+  Two independent shapes produced a document the server rejects at its parse step, so every
+  call to the affected operation failed while the generated client type-checked perfectly.
+
+  `FieldType::Vector` and `HalfVector` render as the already-decorated `[Float!]!`, and
+  `arg_graphql_type` appended the non-null `!` to whatever came back — so a `Vector!` argument
+  was declared `$embedding: [Float!]!!`. The nullable branch was wrong the other way: it
+  emitted `[Float!]!`, demanding a variable the generated wrapper had made optional.
+  Requiredness is now applied to the undecorated base.
+
+  Separately, a union member contributing no leaf field names had the braces written around
+  nothing, giving `... on X {}`. That happens when the member's fields are all composite, and
+  also when the member name resolves to no type at all — a typo, an interface, or a type never
+  registered, none of which anything validates. Such a member now selects `__typename`, which
+  every object type has and which the generated client narrows on anyway.
+
+  ⚠ Both survived because **no gate has ever parsed a generated document.** The snapshot test
+  and the `sdk-conformance` `generated-clients` job only type-check the surrounding
+  TypeScript/Python, which an invalid document passes. The crate now parses every generated
+  document with the server's own `parse_query`, so this whole class fails at generation time.
+
 - **`RefreshSchemaRegistry` reports what the reload actually did (#1039).**
 
   The action returned `{"success": true, "message": "Schema reload started"}` from *outside*
