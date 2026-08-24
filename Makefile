@@ -400,7 +400,14 @@ lint-expect:
 # declared with the macro, so the impls have no choice; both live in `src/` because they
 # test module-private behaviour (the trait's own defaults, and which method the cache
 # wrapper calls on its inner adapter).
-ASYNC_TRAIT_LIMIT := 197
+# 197 → 198: one shared `ArrowDatabaseAdapter` test double for the Flight surface
+# (#1036, #1039). It implements a trait that is itself declared with the macro, so the
+# impl has no choice, and it lives in `src/` because the handlers it drives —
+# `execute_bulk_export` and `handle_refresh_schema_registry` — are `pub(crate)` and
+# unreachable from `tests/`. This is +1, not +3: the work began with three separate
+# doubles (N rows / one row / no rows) and collapsed them into one parameterised mock
+# rather than raising this budget by three for test code.
+ASYNC_TRAIT_LIMIT := 198
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

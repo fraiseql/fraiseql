@@ -1695,15 +1695,22 @@ mod bulk_export_document_tests {
     use super::FraiseQLFlightService;
     use crate::db::{ArrowDatabaseAdapter, DatabaseResult};
 
-    /// Returns `rows` single-column rows — enough to cross the 10 000-row boundary
-    /// that `execute_bulk_export` chunks on.
-    struct RowCountAdapter {
-        rows: usize,
+    /// Returns `rows` single-column rows for any query.
+    ///
+    /// Shared by every Flight test in this file — enough rows to cross the
+    /// 10 000-row bulk-export boundary, exactly one to let a schema reload infer,
+    /// or none to make inference fail. One mock rather than three keeps the
+    /// `lint-async-trait` ratchet honest: every `async_trait` impl under `src/`
+    /// counts against it, and test mocks should not inflate a budget meant for
+    /// production dyn-dispatch. (The ratchet greps for the attribute as text, so
+    /// naming it in prose would count too.)
+    pub(super) struct RowsAdapter {
+        pub(super) rows: usize,
     }
 
     // Reason: the adapter trait's methods are async; impls must match its signatures.
     #[async_trait]
-    impl ArrowDatabaseAdapter for RowCountAdapter {
+    impl ArrowDatabaseAdapter for RowsAdapter {
         async fn execute_raw_query(
             &self,
             _sql: &str,
@@ -1733,7 +1740,7 @@ mod bulk_export_document_tests {
     /// Reassemble the export the way a consumer must: concatenate every message's
     /// `data_body` in stream order.
     async fn exported_csv_document(rows: usize) -> String {
-        let svc = FraiseQLFlightService::new_with_db(Arc::new(RowCountAdapter { rows }))
+        let svc = FraiseQLFlightService::new_with_db(Arc::new(RowsAdapter { rows }))
             .with_bulk_export_tables(["orders"]);
 
         let response = svc
@@ -1795,43 +1802,11 @@ mod bulk_export_document_tests {
 mod refresh_schema_registry_tests {
     #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
-    use std::{collections::HashMap, sync::Arc};
+    use std::sync::Arc;
 
-    use async_trait::async_trait;
     use futures::StreamExt;
 
-    use super::FraiseQLFlightService;
-    use crate::db::{ArrowDatabaseAdapter, DatabaseResult};
-
-    /// Returns one row for any query, so every view reloads successfully.
-    struct OneRowAdapter;
-
-    // Reason: the adapter trait's methods are async; impls must match its signatures.
-    #[async_trait]
-    impl ArrowDatabaseAdapter for OneRowAdapter {
-        async fn execute_raw_query(
-            &self,
-            _sql: &str,
-        ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-            let mut row = HashMap::new();
-            row.insert("id".to_string(), serde_json::json!("1"));
-            Ok(vec![row])
-        }
-    }
-
-    /// Returns no rows, so `reload_schema` cannot infer and every view fails.
-    struct EmptyAdapter;
-
-    // Reason: the adapter trait's methods are async; impls must match its signatures.
-    #[async_trait]
-    impl ArrowDatabaseAdapter for EmptyAdapter {
-        async fn execute_raw_query(
-            &self,
-            _sql: &str,
-        ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
-            Ok(Vec::new())
-        }
-    }
+    use super::{FraiseQLFlightService, bulk_export_document_tests::RowsAdapter};
 
     /// Run the action and decode its single JSON result.
     async fn refresh_body(svc: &FraiseQLFlightService) -> serde_json::Value {
@@ -1864,7 +1839,7 @@ mod refresh_schema_registry_tests {
     async fn successful_reload_covers_every_registered_view() {
         use arrow::datatypes::{DataType, Field, Schema};
 
-        let svc = FraiseQLFlightService::new_with_db(Arc::new(OneRowAdapter));
+        let svc = FraiseQLFlightService::new_with_db(Arc::new(RowsAdapter { rows: 1 }));
 
         let defaults = svc.schema_registry.len();
         assert!(defaults > 0, "the fixture needs registered views");
@@ -1890,7 +1865,7 @@ mod refresh_schema_registry_tests {
     /// and reported as success.
     #[tokio::test]
     async fn a_failing_reload_is_reported_not_swallowed() {
-        let svc = FraiseQLFlightService::new_with_db(Arc::new(EmptyAdapter));
+        let svc = FraiseQLFlightService::new_with_db(Arc::new(RowsAdapter { rows: 0 }));
 
         let body = refresh_body(&svc).await;
 
