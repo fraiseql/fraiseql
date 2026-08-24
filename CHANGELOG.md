@@ -3275,6 +3275,43 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Identically-shaped batched queries are no longer refused at random (#1002).**
+
+  An inferred Arrow schema took its field list from `HashMap::iter()`. That order is
+  unspecified and differs between map instances, so the same column set could produce
+  `[id, name, email, created_at]` for one query and `[created_at, email, id, name]` for the
+  next. `Schema` equality is order-sensitive, so the heterogeneous-schema guard on batched
+  queries compared the two and refused the request — telling the operator to run the
+  queries separately when they were already identically shaped. The same request could
+  succeed on the next process, which reads as an infrastructure flake rather than a bug.
+
+  Column order was equally unstable in the response, so a client reading Arrow columns by
+  index — the normal thing to do, and the reason to use columnar transport at all — got its
+  columns permuted between runs.
+
+  Inferred fields are now sorted. Sorting is the only stable order available at that point:
+  `execute_raw_query` returns `HashMap`, so the SELECT order is already lost before
+  inference runs. The pre-compiled `OptimizedView` path was never affected — it uses the
+  registry's fixed field order.
+
+- **An inferred column type now holds for every row, not just the first (#1042).**
+
+  Column types were inferred from row 0 alone. A column whose first returned row was `null`
+  was typed `Utf8`, and the `Utf8` catch-all then stringified every later value, so an
+  analytics client received `total` as `["99.99", "199.98", …]` instead of a float column —
+  silently, and differently on the next request if a different row came back first. The
+  mirror case failed loudly: a first row holding `100` typed the column `Int64`, and the
+  first later row holding `100.50` failed the entire request with
+  `Conversion("Cannot convert 100.5 to Int64")`.
+
+  Types are now unified across every row: `null` contributes no type information, a whole
+  number and a fractional one widen to `Float64` (whose converter accepts both), and
+  genuinely mixed types fall back to `Utf8` rather than failing. An all-null column stays
+  `Utf8` rather than becoming `DataType::Null`, which the array converters reject.
+
+  The field *set* still comes from the first row, so a column absent there is still dropped.
+  That is a separate silent-drop defect and is tracked on its own rather than folded in here.
+
 - **An out-of-range `Date32` from a client is refused instead of silently aborting the upload (#1040).**
 
   The `Date32` arm of the Arrow-to-SQL conversion added a `chrono::Duration` to the epoch

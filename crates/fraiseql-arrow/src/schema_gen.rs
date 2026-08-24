@@ -92,8 +92,26 @@ pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
 
 /// Infer Arrow schema from raw database rows (JSON objects).
 ///
-/// Examines the first row to determine field names and infers data types
-/// from JSON value types. All fields are nullable by default.
+/// Field names come from the first row. Field **types** are unified across every
+/// row, and the field list is **sorted**, so the same column set always produces
+/// the same schema. All fields are nullable.
+///
+/// Two properties this guarantees, each of which was previously broken:
+///
+/// - **Deterministic order** (#1002). The field list used to come from `HashMap::iter()`, whose
+///   order is unspecified and differs between map instances. `Schema` equality is order-sensitive,
+///   so the heterogeneous-schema guard on batched queries (#717) rejected identically-shaped
+///   queries at random. Sorting is the only stable order available here: `execute_raw_query`
+///   returns `HashMap`, so the SELECT order is already lost by this point.
+///
+/// - **Types that hold for every row** (#1042). Typing from row 0 alone meant a leading `null`
+///   silently retyped a numeric column as `Utf8` and stringified every later value, while a leading
+///   whole number typed a column `Int64` and the first fractional value failed the entire request.
+///   Both outcomes flipped between otherwise-identical requests depending on which row came back
+///   first.
+///
+/// The field *set* is still taken from the first row, so a column absent there is
+/// still dropped; that is tracked separately.
 ///
 /// # Arguments
 ///
@@ -109,22 +127,71 @@ pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
 pub fn infer_schema_from_rows(
     rows: &[HashMap<String, Value>],
 ) -> Result<Arc<Schema>, ArrowFlightError> {
-    if rows.is_empty() {
+    let Some(first_row) = rows.first() else {
         return Err(ArrowFlightError::SchemaNotFound(
             "Cannot infer schema from empty rows".to_string(),
         ));
+    };
+
+    let mut names: Vec<&String> = first_row.keys().collect();
+    names.sort_unstable();
+
+    // `None` = no non-null value seen yet for that column.
+    let mut inferred: Vec<Option<DataType>> = vec![None; names.len()];
+
+    for row in rows {
+        for (slot, name) in inferred.iter_mut().zip(&names) {
+            // `Utf8` is the top of the lattice; nothing can widen it further.
+            if slot.as_ref() == Some(&DataType::Utf8) {
+                continue;
+            }
+            let Some(value) = row.get(*name) else {
+                continue;
+            };
+            // JSON null carries no type information: a column that is null in one
+            // row and numeric in another is numeric.
+            if value.is_null() {
+                continue;
+            }
+            let observed = json_value_to_arrow_type(value);
+            *slot = Some(match slot.take() {
+                Some(current) => unify_arrow_types(&current, &observed),
+                None => observed,
+            });
+        }
     }
 
-    let first_row = &rows[0];
-    let arrow_fields: Vec<Field> = first_row
-        .iter()
-        .map(|(name, value)| {
-            let arrow_type = json_value_to_arrow_type(value);
-            Field::new(name.clone(), arrow_type, true) // All fields nullable
+    let arrow_fields: Vec<Field> = names
+        .into_iter()
+        .zip(inferred)
+        .map(|(name, data_type)| {
+            // An all-null column becomes `Utf8`, never `DataType::Null`: the array
+            // converters reject `Null`, so such a column poisoned the whole result
+            // (H37).
+            Field::new(name.clone(), data_type.unwrap_or(DataType::Utf8), true)
         })
         .collect();
 
     Ok(Arc::new(Schema::new(arrow_fields)))
+}
+
+/// Least common Arrow type of two values observed in the same column.
+fn unify_arrow_types(current: &DataType, observed: &DataType) -> DataType {
+    if current == observed {
+        return current.clone();
+    }
+
+    match (current, observed) {
+        // A whole number and a fractional one are both `Float64`. The `Float64`
+        // converter accepts integer JSON numbers, whereas the `Int64` one rejects
+        // any fraction outright and fails the request.
+        (DataType::Int64, DataType::Float64) | (DataType::Float64, DataType::Int64) => {
+            DataType::Float64
+        },
+        // Anything else genuinely mixed renders as text, which every JSON value
+        // can do, rather than failing the request.
+        _ => DataType::Utf8,
+    }
 }
 
 /// Infer an Arrow [`DataType`] from a JSON value.

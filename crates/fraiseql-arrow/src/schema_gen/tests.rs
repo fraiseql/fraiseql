@@ -357,3 +357,187 @@ fn test_json_value_to_arrow_type_covers_all_json_shapes() {
     assert_eq!(json_value_to_arrow_type(&json!(["a"])), DataType::Utf8);
     assert_eq!(json_value_to_arrow_type(&json!({"k": 1})), DataType::Utf8);
 }
+
+// ---------------------------------------------------------------------------
+// #1002 (column order) and #1042 (row-0 typing) — both in `infer_schema_from_rows`
+// ---------------------------------------------------------------------------
+
+/// Build a row from `(name, value)` pairs.
+fn row(pairs: &[(&str, serde_json::Value)]) -> HashMap<String, Value> {
+    pairs.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect()
+}
+
+fn field_names(schema: &Schema) -> Vec<String> {
+    schema.fields().iter().map(|f| f.name().clone()).collect()
+}
+
+fn type_of(schema: &Schema, name: &str) -> DataType {
+    schema.field_with_name(name).unwrap().data_type().clone()
+}
+
+/// #1002 — the inferred field order came from `HashMap::iter()`, which is
+/// unspecified and differs between map instances. The #717 heterogeneous-schema
+/// guard compares whole `Schema` values and `Schema` equality is order-sensitive,
+/// so two batched queries with an identical column set were refused
+/// nondeterministically. Enough columns here that an accidental sorted order is
+/// not a plausible false pass.
+#[test]
+fn inferred_field_order_is_deterministic() {
+    use serde_json::json;
+
+    let schema = infer_schema_from_rows(&[row(&[
+        ("name", json!("x")),
+        ("id", json!(1)),
+        ("email", json!("e")),
+        ("created_at", json!("t")),
+        ("total", json!(1.5)),
+        ("active", json!(true)),
+        ("zip", json!("z")),
+        ("age", json!(3)),
+    ])])
+    .unwrap();
+
+    assert_eq!(
+        field_names(&schema),
+        [
+            "active",
+            "age",
+            "created_at",
+            "email",
+            "id",
+            "name",
+            "total",
+            "zip"
+        ],
+        "inferred fields must be in a deterministic order"
+    );
+}
+
+/// The same column set must infer the same schema regardless of which map
+/// instance it arrives in — this is the property the #717 guard depends on.
+#[test]
+fn identical_column_sets_infer_equal_schemas() {
+    use serde_json::json;
+
+    let first = infer_schema_from_rows(&[row(&[
+        ("id", json!(1)),
+        ("name", json!("a")),
+        ("email", json!("e")),
+        ("created_at", json!("t")),
+    ])])
+    .unwrap();
+
+    let second = infer_schema_from_rows(&[row(&[
+        ("created_at", json!("t")),
+        ("email", json!("e")),
+        ("name", json!("b")),
+        ("id", json!(2)),
+    ])])
+    .unwrap();
+
+    assert_eq!(first, second, "identical column sets must produce equal schemas");
+}
+
+/// #1042 — a leading NULL typed the whole column `Utf8`, and every later number
+/// was then stringified by the `Utf8` catch-all. The column type flipped between
+/// otherwise-identical requests depending on which row came back first.
+#[test]
+fn leading_null_does_not_retype_a_numeric_column_as_string() {
+    use serde_json::json;
+
+    let schema = infer_schema_from_rows(&[
+        row(&[("total", json!(null))]),
+        row(&[("total", json!(99.99))]),
+    ])
+    .unwrap();
+
+    assert_eq!(type_of(&schema, "total"), DataType::Float64);
+}
+
+/// The mirror case failed loudly: row 0 typed `Int64`, and the first later
+/// fractional value killed the whole request with
+/// `Conversion("Cannot convert 100.5 to Int64")`. Widening to `Float64` converts
+/// both, because the `Float64` arm accepts integer JSON numbers.
+#[test]
+fn whole_number_then_fractional_widens_to_float64() {
+    use serde_json::json;
+
+    let schema = infer_schema_from_rows(&[
+        row(&[("total", json!(100))]),
+        row(&[("total", json!(100.5))]),
+    ])
+    .unwrap();
+
+    assert_eq!(type_of(&schema, "total"), DataType::Float64);
+}
+
+/// A column of whole numbers stays `Int64` — widening must not blanket-promote.
+#[test]
+fn all_whole_numbers_stay_int64() {
+    use serde_json::json;
+
+    let schema =
+        infer_schema_from_rows(&[row(&[("n", json!(1))]), row(&[("n", json!(2))])]).unwrap();
+
+    assert_eq!(type_of(&schema, "n"), DataType::Int64);
+}
+
+/// An all-null column stays `Utf8`. `DataType::Null` is rejected by the array
+/// converters, so a null column previously poisoned the whole result (H37) — that
+/// fix must survive this one.
+#[test]
+fn all_null_column_stays_utf8() {
+    use serde_json::json;
+
+    let schema = infer_schema_from_rows(&[
+        row(&[("maybe", json!(null))]),
+        row(&[("maybe", json!(null))]),
+    ])
+    .unwrap();
+
+    assert_eq!(type_of(&schema, "maybe"), DataType::Utf8);
+}
+
+/// Genuinely mixed types fall back to `Utf8`, which every value can be rendered
+/// as, rather than failing the request.
+#[test]
+fn mixed_string_and_number_falls_back_to_utf8() {
+    use serde_json::json;
+
+    let schema =
+        infer_schema_from_rows(&[row(&[("mixed", json!(1))]), row(&[("mixed", json!("one"))])])
+            .unwrap();
+
+    assert_eq!(type_of(&schema, "mixed"), DataType::Utf8);
+}
+
+/// A boolean column keeps its type across rows.
+#[test]
+fn boolean_column_stays_boolean() {
+    use serde_json::json;
+
+    let schema = infer_schema_from_rows(&[
+        row(&[("flag", json!(true))]),
+        row(&[("flag", json!(false))]),
+    ])
+    .unwrap();
+
+    assert_eq!(type_of(&schema, "flag"), DataType::Boolean);
+}
+
+/// The field *set* still comes from row 0 — only the column *types* widen across
+/// rows. `test_infer_schema_from_rows_uses_first_row_only` pins that deliberately,
+/// so a column absent from the first row is still dropped. That is a separate
+/// silent-drop defect, filed on its own rather than widened into #1042.
+#[test]
+fn field_set_still_comes_from_the_first_row() {
+    use serde_json::json;
+
+    let schema = infer_schema_from_rows(&[
+        row(&[("id", json!(1))]),
+        row(&[("id", json!(2)), ("late", json!("v"))]),
+    ])
+    .unwrap();
+
+    assert_eq!(field_names(&schema), ["id"]);
+}
