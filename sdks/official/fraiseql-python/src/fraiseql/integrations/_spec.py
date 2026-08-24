@@ -48,15 +48,24 @@ class OperationSpec:
     """``"query"`` or ``"mutation"``."""
     description: str | None
     args: list[ArgSpec] = field(default_factory=list)
+    selection: tuple[str, ...] = ()
+    """Leaf fields of the return type, empty when the root field returns a leaf.
+
+    A composite root field selected with no sub-selection is not an error the server
+    reports: it answers HTTP 200 with no ``errors`` and one **empty object** per row,
+    because the projection walks zero fields. Every adapter tool therefore reported
+    success and handed the model nothing (#1076).
+    """
 
     @property
     def document(self) -> str:
         """The GraphQL document invoking this operation with typed variables."""
+        selection = f" {{ {' '.join(self.selection)} }}" if self.selection else ""
         if not self.args:
-            return f"{self.kind} {{ {self.name} }}"
+            return f"{self.kind} {{ {self.name}{selection} }}"
         var_decls = ", ".join(f"${a.name}: {a.graphql_type}" for a in self.args)
         call_args = ", ".join(f"{a.name}: ${a.name}" for a in self.args)
-        return f"{self.kind} ({var_decls}) {{ {self.name}({call_args}) }}"
+        return f"{self.kind} ({var_decls}) {{ {self.name}({call_args}){selection} }}"
 
     @property
     def parameters_schema(self) -> dict[str, Any]:
@@ -119,6 +128,59 @@ def _is_required(type_ref: dict[str, Any] | None, default_value: Any) -> bool:
     return bool(type_ref) and type_ref.get("kind") == "NON_NULL" and default_value is None
 
 
+# Kinds that must carry a sub-selection, and kinds that must not. Anything else — a
+# truncated type ref, or a name the payload does not define — resolves to neither and
+# gets no selection, because inventing one produces a document the server rejects
+# outright, which is worse than the one it wrongly accepts.
+_COMPOSITE_KINDS = frozenset({"OBJECT", "INTERFACE", "UNION"})
+_LEAF_KINDS = frozenset({"SCALAR", "ENUM"})
+
+
+def _named_type(type_ref: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Unwrap NON_NULL/LIST down to the named type, or None if the chain is truncated.
+
+    ``client.introspect`` asks for three levels of wrapping, which is exactly what the
+    server publishes for its deepest shape (``[User]!`` → NON_NULL/LIST/OBJECT). A
+    deeper chain would arrive with no ``ofType`` and no name, and is reported as
+    unresolvable rather than guessed at.
+    """
+    while type_ref and type_ref.get("kind") in ("NON_NULL", "LIST"):
+        type_ref = type_ref.get("ofType")
+    return type_ref or None
+
+
+def _leaf_selection(
+    return_type: dict[str, Any] | None, types_by_name: dict[str, dict[str, Any]]
+) -> tuple[str, ...]:
+    """The return type's leaf fields, or ``()`` when the root field returns a leaf.
+
+    Only scalar and enum fields are selected. A composite field would need a
+    sub-selection of its own, which is the same defect one level down — and recursing
+    would need a cycle policy for a self-referential type, which nothing here can
+    choose for the caller.
+
+    A composite with no leaf fields selects ``__typename``: it is the one field
+    guaranteed to exist on every composite and to be a leaf, and ``{ }`` does not parse.
+    """
+    named = _named_type(return_type)
+    if not named or named.get("kind") not in _COMPOSITE_KINDS:
+        return ()
+
+    type_def = types_by_name.get(named.get("name") or "")
+    if type_def is None:
+        # A UNION has no `fields` and an undeclared name resolves to nothing. Only the
+        # former is safely selectable, and only via `__typename`.
+        return ("__typename",) if named.get("kind") == "UNION" else ()
+
+    leaves = tuple(
+        f["name"]
+        for f in type_def.get("fields") or []
+        if not f.get("name", "").startswith("__")
+        and (_named_type(f.get("type")) or {}).get("kind") in _LEAF_KINDS
+    )
+    return leaves or ("__typename",)
+
+
 def operation_specs(
     schema_data: dict[str, Any],
     *,
@@ -134,6 +196,16 @@ def operation_specs(
     """
     specs: list[OperationSpec] = []
     schema_info = schema_data.get("data", {}).get("__schema", {})
+
+    # Indexed first: a root field's return type is resolved against the same payload,
+    # which has always carried every type's full field list. `operation_specs` simply
+    # threw `op_field["type"]` away, so the data needed to build a selection set was
+    # present all along (#1076).
+    types_by_name = {
+        t["name"]: t
+        for t in schema_info.get("types", []) or []
+        if isinstance(t, dict) and "name" in t
+    }
 
     for type_info in schema_info.get("types", []):
         type_name = type_info.get("name", "")
@@ -169,6 +241,7 @@ def operation_specs(
                     kind=kind,
                     description=op_field.get("description"),
                     args=args,
+                    selection=_leaf_selection(op_field.get("type"), types_by_name),
                 )
             )
 

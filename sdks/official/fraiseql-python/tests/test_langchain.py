@@ -95,6 +95,28 @@ def introspection_data():
                             }
                         ],
                     },
+                    {
+                        "kind": "OBJECT",
+                        "name": "User",
+                        "fields": [
+                            {
+                                "name": "id",
+                                "description": None,
+                                "args": [],
+                                "type": {
+                                    "kind": "NON_NULL",
+                                    "name": None,
+                                    "ofType": {"kind": "SCALAR", "name": "ID"},
+                                },
+                            },
+                            {
+                                "name": "name",
+                                "description": None,
+                                "args": [],
+                                "type": {"kind": "SCALAR", "name": "String", "ofType": None},
+                            },
+                        ],
+                    },
                 ],
             }
         }
@@ -145,6 +167,11 @@ async def test_tool_execution_returns_json(mock_client, introspection_data):
     result = await tool._arun('{"limit": 5}')
     parsed = json.loads(result)
     assert parsed["users"][0]["name"] == "Alice"
+
+    # The mock answers whatever it is told to; only the document sent proves the tool
+    # asked for anything at all (#1076).
+    (document,) = mock_client.execute.call_args.args
+    assert document == "query ($limit: Int) { users(limit: $limit) { id name } }"
 
 
 @pytest.mark.anyio

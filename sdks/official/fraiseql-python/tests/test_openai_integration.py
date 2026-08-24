@@ -33,6 +33,11 @@ def introspection_data():
                                         "defaultValue": None,
                                     }
                                 ],
+                                "type": {
+                                    "kind": "LIST",
+                                    "name": None,
+                                    "ofType": {"kind": "OBJECT", "name": "User"},
+                                },
                             }
                         ],
                     },
@@ -44,7 +49,30 @@ def introspection_data():
                                 "name": "createUser",
                                 "description": "Create a new user",
                                 "args": [],
+                                "type": {"kind": "OBJECT", "name": "User", "ofType": None},
                             }
+                        ],
+                    },
+                    {
+                        "kind": "OBJECT",
+                        "name": "User",
+                        "fields": [
+                            {
+                                "name": "id",
+                                "description": None,
+                                "args": [],
+                                "type": {
+                                    "kind": "NON_NULL",
+                                    "name": None,
+                                    "ofType": {"kind": "SCALAR", "name": "ID"},
+                                },
+                            },
+                            {
+                                "name": "name",
+                                "description": None,
+                                "args": [],
+                                "type": {"kind": "SCALAR", "name": "String", "ofType": None},
+                            },
                         ],
                     },
                 ]
@@ -76,7 +104,7 @@ async def test_call_routes_through_the_client(mock_client, introspection_data):
     data = await functions.call("users", '{"limit": 5}')
     assert data == {"users": [{"id": "1"}]}
     (document,) = mock_client.execute.call_args.args
-    assert document == "query ($limit: Int) { users(limit: $limit) }"
+    assert document == "query ($limit: Int) { users(limit: $limit) { id name } }"
     assert mock_client.execute.call_args.kwargs["variables"] == {"limit": 5}
 
 

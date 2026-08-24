@@ -3349,6 +3349,38 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The Python AI adapters ask for fields, instead of reporting success with no data (#1076).**
+
+  `OperationSpec.document` never emitted a sub-selection, so every tool the OpenAI, MCP and
+  LangChain adapters generated sent `query ($limit: Int) { users(limit: $limit) }` for a root
+  field returning objects. That is not an error the server reports: validation skips a root
+  field with no nested fields, the planner extracts an empty projection, and the projector
+  walks zero fields — so the answer is HTTP 200, no `errors`, and **one empty object per row**.
+  The adapter reported success and handed the model nothing.
+
+  The mutation half failed the other way. `project_entity` treats an empty selection as "no
+  field filtering" and returns the stored entity unchanged, so a mutation tool returned the
+  **whole raw entity**, snake_case keys and all, including fields the caller never asked for.
+  One selection set closes both.
+
+  `operation_specs` now reads the return type it was already receiving and builds a leaf
+  selection from the type's own scalar and enum fields. Nothing about the introspection
+  protocol changes: `client.introspect` has always requested `type { kind name ofType { … } }`
+  per field and the full `types[].fields` list, and `_spec.py` simply discarded it.
+
+  The walk stops at leaves. A composite field would need a sub-selection of its own — the same
+  defect one level down — and recursing would require a cycle policy for a self-referential
+  type that nothing here can choose for the caller. A composite with no leaf fields selects
+  `__typename`; a root field returning a scalar or list-of-scalar still gets no sub-selection,
+  because `query { count }` is already correct.
+
+  ⚠ Why no gate caught it: two tests asserted the generated document against a hand-written
+  constant, and four adapter suites drove an `AsyncMock` whose response was written by hand —
+  `{"data": {"users": [{"id": "1"}]}}`, a response the real server cannot produce for that
+  document. Every adapter fixture also declared fields with no `type` at all, which no server
+  publishes; those fixtures now carry the real shape, and each adapter test asserts the
+  document that reaches the client rather than the reply the mock was told to give.
+
 - **A deprecated type field compiles, and reaches clients through introspection (#1025).**
 
   The Python and TypeScript SDKs both emit `deprecated` on type fields. `IntermediateField` had

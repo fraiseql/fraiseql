@@ -34,14 +34,42 @@ def introspection_data():
                                         "defaultValue": None,
                                     }
                                 ],
+                                "type": {
+                                    "kind": "LIST",
+                                    "name": None,
+                                    "ofType": {"kind": "OBJECT", "name": "User"},
+                                },
                             },
                             {
                                 "name": "secrets",
                                 "description": "Sensitive — excluded from tools",
                                 "args": [],
+                                "type": {"kind": "SCALAR", "name": "String", "ofType": None},
                             },
                         ],
-                    }
+                    },
+                    {
+                        "kind": "OBJECT",
+                        "name": "User",
+                        "fields": [
+                            {
+                                "name": "id",
+                                "description": None,
+                                "args": [],
+                                "type": {
+                                    "kind": "NON_NULL",
+                                    "name": None,
+                                    "ofType": {"kind": "SCALAR", "name": "ID"},
+                                },
+                            },
+                            {
+                                "name": "name",
+                                "description": None,
+                                "args": [],
+                                "type": {"kind": "SCALAR", "name": "String", "ofType": None},
+                            },
+                        ],
+                    },
                 ]
             }
         }
@@ -69,6 +97,25 @@ async def test_call_tool_routes_through_the_client(mock_client, introspection_da
     assert result["isError"] is False
     assert json.loads(result["content"][0]["text"]) == {"users": [{"id": "1"}]}
     assert mock_client.execute.call_args.kwargs["variables"] == {"limit": 3}
+
+    # The document reaching the server carries a sub-selection. Without one the server
+    # answers 200 with one empty object per row and `isError` is still False, so this
+    # assertion — not the two above — is what distinguishes success from #1076.
+    (document,) = mock_client.execute.call_args.args
+    assert document == "query ($limit: Int) { users(limit: $limit) { id name } }"
+
+
+@pytest.mark.anyio
+async def test_a_scalar_returning_tool_sends_no_sub_selection(mock_client, introspection_data):
+    from fraiseql.integrations.mcp import FraiseQLMcpTools
+
+    mock_client.execute.return_value = {"data": {"secrets": "redacted"}}
+    tools = FraiseQLMcpTools(mock_client, introspection_data)
+
+    await tools.call_tool("secrets")
+
+    (document,) = mock_client.execute.call_args.args
+    assert document == "query { secrets }"
 
 
 @pytest.mark.anyio
