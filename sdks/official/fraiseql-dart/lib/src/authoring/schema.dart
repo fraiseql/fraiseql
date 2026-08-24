@@ -449,7 +449,8 @@ class FieldType {
     // means deprecated with no stated reason, which the compiler models as an absent
     // `reason`.
     if (deprecated != null) {
-      json['deprecated'] = deprecated!.isEmpty ? <String, Object?>{} : {'reason': deprecated};
+      json['deprecated'] =
+          deprecated!.isEmpty ? <String, Object?>{} : {'reason': deprecated};
     }
     return json;
   }

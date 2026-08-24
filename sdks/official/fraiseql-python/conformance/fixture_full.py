@@ -34,9 +34,7 @@ class User:
     email: str
     name: Annotated[
         str | None,
-        fraiseql.field(
-            description='The user\'s "display" name', deprecated="use displayName"
-        ),
+        fraiseql.field(description='The user\'s "display" name', deprecated="use displayName"),
     ] = None
     salary: Annotated[float | None, fraiseql.field(requires_scope="read:User.salary")] = None
 
