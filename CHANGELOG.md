@@ -3302,6 +3302,31 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A deprecated type field compiles, and reaches clients through introspection (#1025).**
+
+  The Python and TypeScript SDKs both emit `deprecated` on type fields. `IntermediateField` had
+  no such member and denies unknown fields, so a schema marking any field deprecated was refused
+  outright — not the field, the whole document. Deprecation was reachable only through a
+  `@deprecated` entry in `directives`, making a field the one construct that could not say it
+  plainly, while queries, mutations, input fields, subscriptions and enum values all use a
+  first-class `deprecated: { reason }`.
+
+  `IntermediateField` gains that spelling, and the directive form keeps working — it takes
+  precedence when both are present, so no existing schema changes meaning. Nothing else was
+  missing: `FieldDefinition::deprecation` and the introspection resolver already existed, so a
+  deprecated field now surfaces as `isDeprecated` / `deprecationReason` and generated clients can
+  warn.
+
+  The TypeScript SDK also emitted the wrong *shape*: `FieldMetadata.deprecated` is
+  `boolean | string`, passed through verbatim where `IntermediateDeprecation` expects
+  `{ reason }`. It is now canonicalized the way `requiresScope` already was — `true` becomes a
+  deprecation with no stated reason, `false` drops the key — which also brings it into parity
+  with Python, whose emitted shape was correct all along.
+
+  ⚠ Found while fixing this: both SDKs still emit field-level `computed`, which the compiler
+  also refuses. #1025 cites `computed` as the precedent that #927 closed; it did not. Tracked
+  as #1183.
+
 - **TypeScript: aggregate-query authoring is removed (#1023).**
 
   #956 made `fraiseql compile` refuse any schema declaring `aggregate_queries` and removed the

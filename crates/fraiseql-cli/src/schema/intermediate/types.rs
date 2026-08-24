@@ -165,6 +165,21 @@ pub struct IntermediateField {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub directives: Option<Vec<IntermediateAppliedDirective>>,
 
+    /// Deprecation information for this field.
+    ///
+    /// The first-class spelling, matching `IntermediateQuery`,
+    /// `IntermediateInputField`, `IntermediateSubscription` and enum values.
+    /// Field deprecation used to be reachable only through a `@deprecated`
+    /// entry in [`directives`](Self::directives), so a field was the one
+    /// construct that could not say it plainly — and both the Python and
+    /// `TypeScript` SDKs emitted this key, which `deny_unknown_fields` turned
+    /// into a refusal of the whole document (#1025).
+    ///
+    /// The directive spelling still works; this takes precedence when both are
+    /// present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<IntermediateDeprecation>,
+
     /// Scope required to access this field (field-level access control)
     ///
     /// When set, users must have this scope in their JWT to query this field.

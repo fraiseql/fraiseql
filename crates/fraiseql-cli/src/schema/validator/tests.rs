@@ -491,6 +491,7 @@ mod schema_validator_tests {
 
     fn field(name: &str, ty: &str) -> IntermediateField {
         IntermediateField {
+            deprecated:      None,
             vector_config:   None,
             vector_distance: None,
             name:            name.to_string(),

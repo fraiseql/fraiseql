@@ -101,7 +101,10 @@ describe("Field-Level Metadata", () => {
       const schema = SchemaRegistry.getSchema();
       const oldEmailField = schema.types[0].fields[0];
 
-      expect(oldEmailField.deprecated).toBe("Use email instead");
+      // The compiler's shape, not the authoring one: `deprecated` is emitted as
+      // `IntermediateDeprecation` ({ reason }), which is also what the Python SDK
+      // emits — a raw string failed to deserialize outright (#1025).
+      expect(oldEmailField.deprecated).toEqual({ reason: "Use email instead" });
     });
 
     it("should register field with description", () => {
@@ -136,7 +139,7 @@ describe("Field-Level Metadata", () => {
       const salaryField = schema.types[0].fields[0];
 
       expect(salaryField.requires_scope).toBe("read:User.salary");
-      expect(salaryField.deprecated).toBe("Use totalCompensation instead");
+      expect(salaryField.deprecated).toEqual({ reason: "Use totalCompensation instead" });
       expect(salaryField.description).toBe(
         "Annual salary (deprecated - use totalCompensation)"
       );
@@ -184,7 +187,7 @@ describe("Field-Level Metadata", () => {
 
       const ssnField = userType.fields.find((f) => f.name === "ssn");
       expect(ssnField?.requires_scope).toBe("hr:view_pii");
-      expect(ssnField?.deprecated).toBe("Use nationalId instead");
+      expect(ssnField?.deprecated).toEqual({ reason: "Use nationalId instead" });
     });
 
     it("should handle fields without metadata", () => {
@@ -320,7 +323,7 @@ describe("Field-Level Metadata", () => {
 
       const salaryField = parsed.types[0].fields[0];
       expect(salaryField.requires_scope).toBe("read:User.salary");
-      expect(salaryField.deprecated).toBe("Use totalCompensation");
+      expect(salaryField.deprecated).toEqual({ reason: "Use totalCompensation" });
       expect(salaryField.description).toBe("Annual salary");
     });
   });

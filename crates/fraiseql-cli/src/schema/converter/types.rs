@@ -411,16 +411,23 @@ impl SchemaConverter {
                 .map_err(|e| anyhow::anyhow!("Field '{}': {e}", intermediate.name))?;
         }
 
-        // Extract deprecation info from @deprecated directive if present
-        let deprecation = intermediate.directives.as_ref().and_then(|directives| {
-            directives.iter().find(|d| d.name == "deprecated").map(|d| {
-                let reason = d
-                    .arguments
-                    .as_ref()
-                    .and_then(|args| args.get("reason").and_then(|v| v.as_str()).map(String::from));
-                fraiseql_core::schema::DeprecationInfo { reason }
-            })
-        });
+        // The first-class `deprecated` key wins, falling back to a `@deprecated`
+        // directive. The key is what every sibling construct uses and what the
+        // SDKs emit; the directive is the older spelling and keeps working, so a
+        // schema already using it is unaffected (#1025).
+        let deprecation = intermediate
+            .deprecated
+            .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason })
+            .or_else(|| {
+                intermediate.directives.as_ref().and_then(|directives| {
+                    directives.iter().find(|d| d.name == "deprecated").map(|d| {
+                        let reason = d.arguments.as_ref().and_then(|args| {
+                            args.get("reason").and_then(|v| v.as_str()).map(String::from)
+                        });
+                        fraiseql_core::schema::DeprecationInfo { reason }
+                    })
+                })
+            });
 
         Ok(FieldDefinition {
             name: intermediate.name.into(),

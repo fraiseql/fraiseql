@@ -1070,3 +1070,61 @@ fn a_trailing_bang_on_an_input_field_becomes_the_nullable_flag() {
     );
     assert_eq!(field("tags").field_type, "[String!]", "the element marker must be preserved");
 }
+
+// =============================================================================
+// #1025 — a deprecated type field survives the compile
+// =============================================================================
+
+/// Field deprecation was reachable only through a `@deprecated` **directive**,
+/// while every sibling construct — query, mutation, input field, subscription,
+/// enum value — spells it with a first-class `deprecated: {reason}` key. The
+/// Python and `TypeScript` SDKs both emit that key on type fields, and
+/// `IntermediateField` denies unknown fields, so a schema marking any field
+/// deprecated was refused outright: not the field, the whole document.
+///
+/// `FieldDefinition::deprecation` and the introspection resolver already
+/// existed; only the intermediate spelling was missing.
+#[test]
+fn a_deprecated_type_field_reaches_the_compiled_schema() {
+    let corpus = json!({
+        "types": [
+            {"name": "User", "sql_source": "v_user", "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "legacyName", "type": "String", "nullable": true,
+                 "deprecated": {"reason": "Use displayName"}},
+                {"name": "viaDirective", "type": "String", "nullable": true,
+                 "directives": [
+                     {"name": "deprecated", "arguments": {"reason": "the older spelling"}}
+                 ]}
+            ]}
+        ],
+        "queries": [
+            {"name": "users", "return_type": "User", "returns_list": true,
+             "sql_source": "v_user"}
+        ]
+    });
+
+    let intermediate: IntermediateSchema =
+        serde_json::from_value(corpus).expect("a field-level `deprecated` key must deserialize");
+    let compiled = SchemaConverter::convert(intermediate).expect("corpus must compile");
+
+    let user = compiled.types.iter().find(|t| t.name == "User").expect("User compiled");
+    let field =
+        |name: &str| user.fields.iter().find(|f| f.name.as_str() == name).expect("field compiled");
+
+    assert_eq!(
+        field("legacyName").deprecation.as_ref().and_then(|d| d.reason.as_deref()),
+        Some("Use displayName"),
+        "the key every sibling construct uses must carry the reason"
+    );
+
+    // The directive spelling predates this and must keep working — it is what
+    // `convert_field` read before, and a schema in the wild may use it.
+    assert_eq!(
+        field("viaDirective").deprecation.as_ref().and_then(|d| d.reason.as_deref()),
+        Some("the older spelling"),
+        "the @deprecated directive must still be honoured"
+    );
+
+    assert!(field("id").deprecation.is_none(), "an undecorated field is not deprecated");
+}

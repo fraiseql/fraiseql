@@ -152,6 +152,7 @@ fn sample_schema() -> IntermediateSchema {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "pk".to_string(),
@@ -165,6 +166,7 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -178,6 +180,7 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "name".to_string(),
@@ -191,6 +194,7 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "bio".to_string(),

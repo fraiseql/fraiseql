@@ -282,6 +282,7 @@ fn test_convert_minimal_schema() {
 #[test]
 fn convert_field_maps_authorize_true() {
     let intermediate = IntermediateField {
+        deprecated:      None,
         vector_config:   None,
         vector_distance: None,
         name:            "email".to_string(),
@@ -305,6 +306,7 @@ fn convert_field_maps_authorize_true() {
 #[test]
 fn convert_field_authorize_absent_defaults_false() {
     let intermediate = IntermediateField {
+        deprecated:      None,
         vector_config:   None,
         vector_distance: None,
         name:            "id".to_string(),
@@ -423,6 +425,7 @@ fn parse_field_type_plain_scalar_and_object_unchanged() {
 #[test]
 fn convert_field_list_type_compiles_to_list() {
     let intermediate = IntermediateField {
+        deprecated:      None,
         vector_config:   None,
         vector_distance: None,
         name:            "items".to_string(),
@@ -459,6 +462,7 @@ fn test_convert_type_with_fields() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -472,6 +476,7 @@ fn test_convert_type_with_fields() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "name".to_string(),
@@ -870,6 +875,7 @@ fn test_convert_field_with_deprecated_directive() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "oldId".to_string(),
@@ -886,6 +892,7 @@ fn test_convert_field_with_deprecated_directive() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -1243,6 +1250,7 @@ fn test_convert_interface() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
                 name:            "id".to_string(),
@@ -1309,6 +1317,7 @@ fn test_convert_type_implements_interface() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -1322,6 +1331,7 @@ fn test_convert_type_implements_interface() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "name".to_string(),
@@ -1351,6 +1361,7 @@ fn test_convert_type_implements_interface() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
                 name:            "id".to_string(),
@@ -1416,6 +1427,7 @@ fn test_validate_unknown_interface() {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![IntermediateField {
+                deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
                 name:            "id".to_string(),
@@ -1489,6 +1501,7 @@ fn test_validate_missing_interface_field() {
             fields:                 vec![
                 // Missing the required 'id' field from Node interface!
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "name".to_string(),
@@ -1518,6 +1531,7 @@ fn test_validate_missing_interface_field() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
                 name:            "id".to_string(),
@@ -1578,6 +1592,7 @@ fn test_convert_union() {
                 name:                   "User".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -1605,6 +1620,7 @@ fn test_convert_union() {
                 name:                   "Post".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -1687,6 +1703,7 @@ fn test_convert_field_requires_scope() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -1700,6 +1717,7 @@ fn test_convert_field_requires_scope() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "name".to_string(),
@@ -1713,6 +1731,7 @@ fn test_convert_field_requires_scope() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "salary".to_string(),
@@ -1726,6 +1745,7 @@ fn test_convert_field_requires_scope() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
                     name:            "ssn".to_string(),
@@ -1893,6 +1913,7 @@ mod tenancy_tests {
 
     fn make_field(name: &str, field_type: &str) -> IntermediateField {
         IntermediateField {
+            deprecated:      None,
             vector_config:   None,
             vector_distance: None,
             name:            name.to_string(),
@@ -1909,6 +1930,7 @@ mod tenancy_tests {
 
     fn make_tenant_id_field(name: &str) -> IntermediateField {
         IntermediateField {
+            deprecated:      None,
             vector_config:   None,
             vector_distance: None,
             name:            name.to_string(),
@@ -2909,6 +2931,7 @@ mod changelog_cascade_conformance_tests {
 
     fn field(name: &str, field_type: &str) -> IntermediateField {
         IntermediateField {
+            deprecated:      None,
             vector_config:   None,
             vector_distance: None,
             name:            name.to_string(),

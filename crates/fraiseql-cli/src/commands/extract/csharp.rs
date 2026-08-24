@@ -130,6 +130,7 @@ pub(super) fn extract_csharp_record_fields(body: &str) -> Vec<IntermediateField>
             nullable,
             description: None,
             directives: None,
+            deprecated: None,
             requires_scope: None,
             on_deny: None,
             authorize: None,

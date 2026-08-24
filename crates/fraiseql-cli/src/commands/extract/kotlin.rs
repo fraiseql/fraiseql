@@ -107,6 +107,7 @@ pub(super) fn extract_kotlin_fields(body: &str) -> Vec<IntermediateField> {
             nullable,
             description: None,
             directives: None,
+            deprecated: None,
             requires_scope: None,
             on_deny: None,
             authorize: None,

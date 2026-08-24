@@ -355,7 +355,9 @@ describe("TypeScript ↔ Python Feature Parity", () => {
 
       const schema = SchemaRegistry.getSchema();
       const oldEmailField = schema.types[0].fields.find((f) => f.name === "oldEmail");
-      expect(oldEmailField?.deprecated).toBe("Use email instead");
+      // Parity with Python, which emits {"reason": ...} — the raw string this used to
+      // assert was a divergence the compiler refused (#1025).
+      expect(oldEmailField?.deprecated).toEqual({ reason: "Use email instead" });
     });
 
     it("should have parity: computed fields excluded from CRUD inputs (create only)", () => {

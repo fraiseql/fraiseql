@@ -524,6 +524,31 @@ export class SchemaRegistry {
   }
 
   /**
+   * Turn the authoring spelling of field deprecation into the compiler's shape.
+   *
+   * `FieldMetadata` declares `deprecated?: boolean | string`, the field-metadata example
+   * documents it, and nothing ever converted it — so the field reached `fraiseql compile`
+   * carrying a bare string or boolean where `IntermediateDeprecation` expects
+   * `{ reason }`. Before #1025 the key was not a member of `IntermediateField` at all, so
+   * the whole document was refused; now the key is accepted and the *shape* is what has to
+   * be right.
+   *
+   * `true` means deprecated with no stated reason, which the compiler models as an absent
+   * `reason`. `false` means not deprecated, so the key is dropped rather than emitted as an
+   * empty deprecation.
+   */
+  private static canonicalizeFieldDeprecation<T extends Field>(fields: T[]): T[] {
+    return fields.map((f) => {
+      const { deprecated, ...rest } = f as T & { deprecated?: boolean | string };
+      if (deprecated === undefined || deprecated === false) {
+        return deprecated === undefined ? f : (rest as unknown as T);
+      }
+      const reason = typeof deprecated === "string" ? { reason: deprecated } : {};
+      return { ...rest, deprecated: reason } as unknown as T;
+    });
+  }
+
+  /**
    * Rename the vector keys to the ones the compiler reads, and fill the two defaults.
    *
    * Same shape as `canonicalizeFieldScopes` and for the same reason (#925): this SDK
@@ -601,7 +626,9 @@ export class SchemaRegistry {
       );
     }
     fields = this.canonicalizeVectorFields(
-      this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+      this.canonicalizeFieldDeprecation(
+        this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+      )
     );
     const typeDef: TypeDefinition = { name, fields, description };
     if (options?.relay) typeDef.relay = true;
@@ -897,7 +924,9 @@ export class SchemaRegistry {
     }
     this.interfaces.set(name, {
       name,
-      fields: this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields)),
+      fields: this.canonicalizeFieldDeprecation(
+        this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+      ),
       description,
     });
   }
@@ -921,7 +950,9 @@ export class SchemaRegistry {
     }
     this.inputTypes.set(name, {
       name,
-      fields: this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields)),
+      fields: this.canonicalizeFieldDeprecation(
+        this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+      ),
       description,
     });
   }

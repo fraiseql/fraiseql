@@ -3,9 +3,8 @@
  *
  * This example demonstrates field-level access control, deprecation, and documentation:
  * - `requiresScope`: JWT scope required to access this field
- * - `deprecated` is deliberately absent: `IntermediateField` has no such member and
- *   `deny_unknown_fields` refuses the whole document, so a deprecated *field* cannot
- *   be authored today (#1025). Deprecating a query or a mutation does work.
+ * - `deprecated`: marks the field deprecated, surfacing as `isDeprecated` /
+ *   `deprecationReason` in introspection so generated clients can warn (#1025)
  * - `description`: Field documentation for GraphQL schema
  *
  * Field metadata allows fine-grained control over who can access which fields,
@@ -191,7 +190,8 @@ fraiseql.registerTypeFields("Document", [
     type: "String",
     nullable: true,
     ...fraiseql.field({
-      description: "Old identifier format (deprecated)",
+      description: "Old identifier format",
+      deprecated: "Use `id` instead",
     }),
   },
 ]);
