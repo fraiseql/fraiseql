@@ -41,6 +41,7 @@ final readonly class FieldDefinition
         public bool $computed = false,
         public ?VectorConfig $vectorConfig = null,
         public ?string $vectorDistance = null,
+        public ?string $deprecated = null,
     ) {
     }
 

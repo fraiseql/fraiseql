@@ -110,6 +110,15 @@ public class ConformanceExport {
             .invalidatesViews(List.of("v_order_summary"))
             .invalidatesFactTables(List.of("tf_sale"))
             .register();
+
+        FraiseQL.subscription("orderUpdated")
+            .entityType("Order")
+            .arg("orderId", "ID")
+            .description("Stream of order update events")
+            .topic("order_events")
+            .filterCondition("orderId", "$.id")
+            .fields("id", "total")
+            .register();
     }
 
     private static Map<String, String> enumValues() {
@@ -137,7 +146,8 @@ public class ConformanceExport {
         @GraphQLField(type = "String")
         public String email;
 
-        @GraphQLField(type = "String", nullable = true, description = "The user's \"display\" name")
+        @GraphQLField(type = "String", nullable = true,
+            description = "The user's \"display\" name", deprecated = "use displayName")
         public String name;
 
         @GraphQLField(type = "Float", nullable = true, requiresScope = "read:User.salary")

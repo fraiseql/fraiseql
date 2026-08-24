@@ -40,6 +40,7 @@ module Dsl =
             computed: bool
             vectorConfig: VectorConfig option
             vectorDistance: string option
+            deprecated: DeprecationInfo option
         }
 
     /// Computation expression builder for a single <see cref="FieldDefinition"/>.
@@ -57,6 +58,7 @@ module Dsl =
                 computed = false
                 vectorConfig = None
                 vectorDistance = None
+                deprecated = None
             }
 
         member this.Zero() : FieldState = this.Yield(())
@@ -73,6 +75,7 @@ module Dsl =
                 computed = s.computed
                 vector_config = s.vectorConfig
                 vector_distance = s.vectorDistance
+                deprecated = s.deprecated
             }
 
         /// Sets whether this field may be null.
@@ -83,6 +86,12 @@ module Dsl =
         [<CustomOperation("description")>]
         member _.Description(s: FieldState, v: string) : FieldState =
             { s with description = Some v }
+
+        /// Marks the field deprecated, with the given reason.
+        [<CustomOperation("deprecated")>]
+        member _.Deprecated(s: FieldState, reason: string) : FieldState =
+            { s with
+                deprecated = Some { reason = if reason = "" then None else Some reason } }
 
         /// Sets the single scope required to read this field.
         [<CustomOperation("scope")>]

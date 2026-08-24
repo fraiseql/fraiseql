@@ -33,6 +33,7 @@ AUTHORED_INPUT_TYPES = ("CreateUserInput",)
 AUTHORED_ENUMS = ("OrderStatus",)
 AUTHORED_QUERIES = ("users", "user", "tenantOrders")
 AUTHORED_MUTATIONS = ("createUser", "placeOrder")
+AUTHORED_SUBSCRIPTIONS = ("orderUpdated",)
 
 # The pgvector type is kept out of `AUTHORED_TYPES` on purpose: the `vector_fields`
 # construct owns it whole. A `Vector` field without a `vector_config` is a compile
@@ -55,6 +56,7 @@ CONSTRUCTS = (
     "types",
     "field_description",
     "field_scope",
+    "field_deprecated",
     "type_relay",
     "type_is_error",
     "input_types",
@@ -68,6 +70,7 @@ CONSTRUCTS = (
     "mutation_arguments",
     "mutation_invalidates_views",
     "mutation_invalidates_fact_tables",
+    "subscriptions",
     "vector_fields",
 )
 
@@ -141,6 +144,7 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
     interfaces = _by_name(compiled.get("interfaces"))
     queries = _by_name(compiled.get("queries"))
     mutations = _by_name(compiled.get("mutations"))
+    subscriptions = _by_name(compiled.get("subscriptions"))
 
     observations: dict[str, Any] = {}
 
@@ -170,6 +174,19 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         if tname in types
         for f in types[tname].get("fields", [])
         if isinstance(f, dict) and f.get("requires_scope")
+    }
+
+    # The compiled key is `deprecation`, not the authored `deprecated`, and it is what
+    # `isDeprecated` / `deprecationReason` resolve from — so this asserts the fact
+    # reached introspection, which is the whole point of #1025 having implemented it
+    # rather than dropped it. The fixture marks a field that also carries a description,
+    # so neither field-level construct can pass by carrying the other.
+    observations["field_deprecated"] = {
+        f"{tname}.{f['name']}": f["deprecation"]
+        for tname in AUTHORED_TYPES
+        if tname in types
+        for f in types[tname].get("fields", [])
+        if isinstance(f, dict) and f.get("deprecation")
     }
 
     # `relay: true` is not asserted on the authored type alone — the compiler *acts* on
@@ -271,6 +288,35 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: mutations[name]["invalidates_fact_tables"]
         for name in AUTHORED_MUTATIONS
         if mutations.get(name, {}).get("invalidates_fact_tables")
+    }
+
+    # A subscription is asserted whole rather than by presence. Every SDK that shipped one
+    # emitted `entity_type`/`nullable`/`operation` against an `IntermediateSubscription`
+    # that has none of them and denies unknown fields, so three SDKs failed the compile and
+    # two — PHP and Java — emitted no `subscriptions` key at all and had the section
+    # silently dropped from a compile that then reported success (#1024). Nothing caught
+    # either, because this construct did not exist and the conformance suite is the only
+    # gate that compiles SDK output.
+    #
+    # `filter` is projected as the compiler lowered it: the authored
+    # `{conditions: [{argument, path}]}` becomes `{argument_paths: {...}}`, so an SDK that
+    # emitted the authoring shape verbatim into a place the compiler does not read it
+    # would show an empty map here rather than a match.
+    observations["subscriptions"] = {
+        name: {
+            "return_type": subscriptions[name].get("return_type"),
+            "description": subscriptions[name].get("description"),
+            "topic": subscriptions[name].get("topic"),
+            "arguments": [
+                {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                for a in subscriptions[name].get("arguments", [])
+                if isinstance(a, dict)
+            ],
+            "argument_paths": (subscriptions[name].get("filter") or {}).get("argument_paths"),
+            "fields": subscriptions[name].get("fields"),
+        }
+        for name in AUTHORED_SUBSCRIPTIONS
+        if name in subscriptions
     }
 
     # Every key of `vector_config` is asserted, not just its presence, because two of

@@ -1,5 +1,6 @@
 {
   "enums": {},
+  "field_deprecated": {},
   "field_description": {},
   "field_scope": {},
   "input_types": {},
@@ -21,6 +22,7 @@
   "query_cache_ttl": {},
   "query_inject_params": {},
   "query_requires_role": {},
+  "subscriptions": {},
   "type_is_error": [],
   "type_relay": {
     "connection_types_synthesized": [],

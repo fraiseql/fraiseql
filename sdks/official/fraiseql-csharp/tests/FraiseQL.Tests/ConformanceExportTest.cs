@@ -132,7 +132,8 @@ public class ConformanceExportTest
         [GraphQLField(Type = "String")]
         public string Email { get; set; } = string.Empty;
 
-        [GraphQLField(Type = "String", Nullable = true, Description = "The user's \"display\" name")]
+        [GraphQLField(Type = "String", Nullable = true, Description = "The user's \"display\" name",
+            Deprecated = "use displayName")]
         public string? Name { get; set; }
 
         [GraphQLField(Type = "Float", Nullable = true, Scope = "read:User.salary")]

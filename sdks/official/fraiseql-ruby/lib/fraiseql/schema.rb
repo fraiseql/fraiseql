@@ -214,8 +214,12 @@ module FraiseQL
 
       # `nullable` is required by the compiler and has no default there; it defaults to
       # true here, matching GraphQL's own default for an unadorned type.
+      # `deprecated` accepts `true` for "deprecated, no stated reason" or a String reason,
+      # and is emitted as `{ reason: ... }` — the shape `IntermediateField` reads since
+      # #1025. There was no parameter here at all, so a Ruby author could not deprecate a
+      # field through the path the exporter actually runs.
       def field(name, type, nullable: true, description: nil, requires_scope: nil, on_deny: nil,
-                vector_config: nil, vector_distance: nil)
+                vector_config: nil, vector_distance: nil, deprecated: false)
         definition = {
           "name" => name.to_s,
           "type" => Schema.graphql_type(type),
@@ -224,6 +228,7 @@ module FraiseQL
         definition["description"] = description if description
         definition["requires_scope"] = requires_scope.to_s if requires_scope
         definition["on_deny"] = on_deny.to_s if on_deny
+        definition["deprecated"] = (deprecated.is_a?(String) ? { "reason" => deprecated } : {}) if deprecated
 
         add_vector(definition, name, vector_config, vector_distance)
 

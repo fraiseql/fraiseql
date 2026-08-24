@@ -17,6 +17,7 @@ import {
   registerTypeFields,
   registerQuery,
   registerMutation,
+  registerSubscription,
   enum_,
   input,
   exportSchema,
@@ -42,7 +43,13 @@ function authorFull(): void {
     [
       { name: "id", type: "ID", nullable: false },
       { name: "email", type: "String", nullable: false },
-      { name: "name", type: "String", nullable: true, description: 'The user\'s "display" name' },
+      {
+        name: "name",
+        type: "String",
+        nullable: true,
+        description: 'The user\'s "display" name',
+        deprecated: "use displayName",
+      },
       { name: "salary", type: "Float", nullable: true, requires_scope: "read:User.salary" },
     ],
     undefined,
@@ -155,6 +162,18 @@ function authorFull(): void {
     invalidates_views: ["v_order_summary"],
     invalidates_fact_tables: ["tf_sale"],
   });
+
+  registerSubscription(
+    "orderUpdated",
+    "Order",
+    [{ name: "orderId", type: "ID", nullable: true }],
+    "Stream of order update events",
+    {
+      topic: "order_events",
+      filter: { conditions: [{ argument: "orderId", path: "$.id" }] },
+      fields: ["id", "total"],
+    }
+  );
 }
 
 const fixture = process.env.FRAISEQL_CONFORMANCE_FIXTURE;

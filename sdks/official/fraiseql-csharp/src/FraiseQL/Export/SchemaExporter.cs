@@ -118,7 +118,8 @@ public static class SchemaExporter
                 Scopes: f.Scopes,
                 Computed: f.Computed ? true : null,
                 Vector: f.Vector,
-                VectorDistance: f.VectorDistance))
+                VectorDistance: f.VectorDistance,
+                Deprecated: f.Deprecated))
             .ToList()
             .AsReadOnly();
 

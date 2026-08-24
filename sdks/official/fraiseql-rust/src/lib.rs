@@ -13,7 +13,7 @@ pub mod roles;
 pub mod schema;
 
 pub use authorization::{AuthorizeBuilder, AuthorizeConfig};
-pub use field::{Field, VectorConfig, VectorIndex, VectorMetric};
+pub use field::{Deprecation, Field, VectorConfig, VectorIndex, VectorMetric};
 pub use policies::{AuthzPolicyBuilder, AuthzPolicyConfig, AuthzPolicyType};
 pub use roles::{RoleMatchStrategy, RoleRequiredBuilder, RoleRequiredConfig};
 pub use schema::{validate_scope, SchemaRegistry, ScopeValidationError};

@@ -34,7 +34,11 @@ defmodule Conformance.FullSchema do
   fraiseql_type "User", sql_source: "v_user", relay: true do
     field(:id, :id, nullable: false)
     field(:email, :string, nullable: false)
-    field(:name, :string, nullable: true, description: ~s(The user's "display" name))
+    field(:name, :string,
+      nullable: true,
+      description: ~s(The user's "display" name),
+      deprecated: "use displayName"
+    )
     field(:salary, :float, nullable: true, requires_scope: "read:User.salary")
   end
 

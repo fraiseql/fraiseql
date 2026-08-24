@@ -467,6 +467,7 @@ final class SchemaRegistry
             computed: $fieldAttr?->computed ?? false,
             vectorConfig: $fieldAttr?->vectorConfig,
             vectorDistance: $fieldAttr?->vectorDistance,
+            deprecated: $fieldAttr?->deprecated,
         );
     }
 }

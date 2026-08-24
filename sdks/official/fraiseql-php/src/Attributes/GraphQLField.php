@@ -47,6 +47,8 @@ final readonly class GraphQLField
      * @param string|null $vectorDistance On a Float field, the vector field whose nearest-search
      *   distance this field carries. Selecting it on a query that did not run that search is
      *   refused, not answered with null.
+     * @param string|null $deprecated Deprecation reason. Surfaces as `isDeprecated` /
+     *   `deprecationReason` through introspection so generated clients can warn.
      */
     public function __construct(
         public ?string $type = null,
@@ -58,6 +60,7 @@ final readonly class GraphQLField
         public bool $computed = false,
         public ?\FraiseQL\VectorConfig $vectorConfig = null,
         public ?string $vectorDistance = null,
+        public ?string $deprecated = null,
     ) {
         if ($vectorConfig !== null && $vectorDistance !== null) {
             throw new \InvalidArgumentException(

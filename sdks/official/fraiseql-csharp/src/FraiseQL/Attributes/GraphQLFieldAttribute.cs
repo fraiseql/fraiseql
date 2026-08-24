@@ -40,6 +40,13 @@ public sealed class GraphQLFieldAttribute : Attribute
     /// <summary>Gets or sets an optional custom resolver name for computed fields.</summary>
     public string? Resolver { get; set; }
 
+    /// <summary>
+    /// Gets or sets why this field is deprecated. When set, the field surfaces as
+    /// <c>isDeprecated</c> / <c>deprecationReason</c> through introspection so generated
+    /// clients can warn. Use the empty string to deprecate with no stated reason.
+    /// </summary>
+    public string? Deprecated { get; set; }
+
     /// <summary>Gets or sets a single required OAuth scope for field access.</summary>
     public string? Scope { get; set; }
 

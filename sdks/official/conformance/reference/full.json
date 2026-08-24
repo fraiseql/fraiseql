@@ -6,19 +6,52 @@
       "sql_source": "v_user",
       "relay": true,
       "fields": [
-        { "name": "id", "type": "ID", "nullable": false },
-        { "name": "email", "type": "String", "nullable": false },
-        { "name": "name", "type": "String", "nullable": true, "description": "The user's \"display\" name" },
-        { "name": "salary", "type": "Float", "nullable": true, "requires_scope": "read:User.salary" }
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": true,
+          "description": "The user's \"display\" name",
+          "deprecated": {
+            "reason": "use displayName"
+          }
+        },
+        {
+          "name": "salary",
+          "type": "Float",
+          "nullable": true,
+          "requires_scope": "read:User.salary"
+        }
       ]
     },
     {
       "name": "Order",
       "sql_source": "v_order",
       "fields": [
-        { "name": "id", "type": "ID", "nullable": false },
-        { "name": "total", "type": "Float", "nullable": false },
-        { "name": "status", "type": "String", "nullable": false }
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "total",
+          "type": "Float",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "nullable": false
+        }
       ]
     },
     {
@@ -26,24 +59,73 @@
       "sql_source": "v_user_not_found",
       "is_error": true,
       "fields": [
-        { "name": "message", "type": "String", "nullable": false },
-        { "name": "code", "type": "String", "nullable": false }
+        {
+          "name": "message",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "code",
+          "type": "String",
+          "nullable": false
+        }
       ]
     },
     {
       "name": "Document",
       "sql_source": "v_document",
       "fields": [
-        { "name": "id", "type": "ID", "nullable": false },
-        { "name": "embedding", "type": "Vector", "nullable": false,
-          "vector_config": { "dimensions": 1536, "index_type": "ivf_flat", "distance_metric": "l2" } },
-        { "name": "fingerprint", "type": "BitVector", "nullable": false,
-          "vector_config": { "dimensions": 768, "index_type": "hnsw", "distance_metric": "hamming" } },
-        { "name": "compact", "type": "HalfVector", "nullable": true,
-          "vector_config": { "dimensions": 1536, "index_type": "hnsw", "distance_metric": "inner_product" } },
-        { "name": "terms", "type": "SparseVector", "nullable": true,
-          "vector_config": { "dimensions": 30000, "index_type": "none", "distance_metric": "cosine" } },
-        { "name": "similarity", "type": "Float", "nullable": false, "vector_distance": "embedding" }
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "embedding",
+          "type": "Vector",
+          "nullable": false,
+          "vector_config": {
+            "dimensions": 1536,
+            "index_type": "ivf_flat",
+            "distance_metric": "l2"
+          }
+        },
+        {
+          "name": "fingerprint",
+          "type": "BitVector",
+          "nullable": false,
+          "vector_config": {
+            "dimensions": 768,
+            "index_type": "hnsw",
+            "distance_metric": "hamming"
+          }
+        },
+        {
+          "name": "compact",
+          "type": "HalfVector",
+          "nullable": true,
+          "vector_config": {
+            "dimensions": 1536,
+            "index_type": "hnsw",
+            "distance_metric": "inner_product"
+          }
+        },
+        {
+          "name": "terms",
+          "type": "SparseVector",
+          "nullable": true,
+          "vector_config": {
+            "dimensions": 30000,
+            "index_type": "none",
+            "distance_metric": "cosine"
+          }
+        },
+        {
+          "name": "similarity",
+          "type": "Float",
+          "nullable": false,
+          "vector_distance": "embedding"
+        }
       ]
     }
   ],
@@ -51,9 +133,15 @@
     {
       "name": "OrderStatus",
       "values": [
-        { "name": "PENDING" },
-        { "name": "SHIPPED" },
-        { "name": "CANCELLED" }
+        {
+          "name": "PENDING"
+        },
+        {
+          "name": "SHIPPED"
+        },
+        {
+          "name": "CANCELLED"
+        }
       ]
     }
   ],
@@ -61,8 +149,16 @@
     {
       "name": "CreateUserInput",
       "fields": [
-        { "name": "email", "type": "String", "nullable": false },
-        { "name": "name", "type": "String", "nullable": true }
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": true
+        }
       ]
     }
   ],
@@ -82,7 +178,11 @@
       "nullable": true,
       "sql_source": "v_user",
       "arguments": [
-        { "name": "id", "type": "ID", "nullable": false }
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
       ]
     },
     {
@@ -92,7 +192,9 @@
       "nullable": false,
       "sql_source": "v_order",
       "arguments": [],
-      "inject_params": { "tenant_id": "jwt:tenant_id" },
+      "inject_params": {
+        "tenant_id": "jwt:tenant_id"
+      },
       "cache_ttl_seconds": 300,
       "requires_role": "admin"
     }
@@ -106,11 +208,24 @@
       "sql_source": "fn_create_user",
       "operation": "INSERT",
       "arguments": [
-        { "name": "email", "type": "String", "nullable": false },
-        { "name": "name", "type": "String", "nullable": true }
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": true
+        }
       ],
-      "invalidates_views": ["v_user", "v_user_summary"],
-      "invalidates_fact_tables": ["tf_signup"]
+      "invalidates_views": [
+        "v_user",
+        "v_user_summary"
+      ],
+      "invalidates_fact_tables": [
+        "tf_signup"
+      ]
     },
     {
       "name": "placeOrder",
@@ -120,9 +235,42 @@
       "sql_source": "fn_place_order",
       "operation": "INSERT",
       "arguments": [],
-      "inject_params": { "user_id": "jwt:sub" },
-      "invalidates_views": ["v_order_summary"],
-      "invalidates_fact_tables": ["tf_sale"]
+      "inject_params": {
+        "user_id": "jwt:sub"
+      },
+      "invalidates_views": [
+        "v_order_summary"
+      ],
+      "invalidates_fact_tables": [
+        "tf_sale"
+      ]
+    }
+  ],
+  "subscriptions": [
+    {
+      "name": "orderUpdated",
+      "return_type": "Order",
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": "ID",
+          "nullable": true
+        }
+      ],
+      "description": "Stream of order update events",
+      "topic": "order_events",
+      "filter": {
+        "conditions": [
+          {
+            "argument": "orderId",
+            "path": "$.id"
+          }
+        ]
+      },
+      "fields": [
+        "id",
+        "total"
+      ]
     }
   ]
 }

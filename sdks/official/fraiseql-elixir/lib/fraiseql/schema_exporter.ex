@@ -161,7 +161,16 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put("requires_scope", single_scope(f))
     |> maybe_put("vector_config", vector_config_to_map(f.vector_config))
     |> maybe_put("vector_distance", f.vector_distance)
+    |> maybe_put("deprecated", deprecation_to_map(f.deprecated))
   end
+
+  # `IntermediateField.deprecated` has been readable since #1025. `true` means deprecated
+  # with no stated reason, which the compiler models as an absent `reason`; `false` and
+  # `nil` drop the key rather than emitting an empty deprecation.
+  defp deprecation_to_map(nil), do: nil
+  defp deprecation_to_map(false), do: nil
+  defp deprecation_to_map(true), do: %{}
+  defp deprecation_to_map(reason) when is_binary(reason), do: %{"reason" => reason}
 
   # A `Vector` field without its config is refused by the compiler, so dropping this
   # would not be a silent loss — it would make the four pgvector field types unauthorable

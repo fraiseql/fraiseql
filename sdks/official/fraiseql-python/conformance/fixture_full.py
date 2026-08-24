@@ -32,7 +32,12 @@ from fraiseql.scalars import (  # noqa: TC001 — deferred annotations are resol
 class User:
     id: ID
     email: str
-    name: Annotated[str | None, fraiseql.field(description='The user\'s "display" name')] = None
+    name: Annotated[
+        str | None,
+        fraiseql.field(
+            description='The user\'s "display" name', deprecated="use displayName"
+        ),
+    ] = None
     salary: Annotated[float | None, fraiseql.field(requires_scope="read:User.salary")] = None
 
 
@@ -139,3 +144,15 @@ def createUser(email: str, name: str | None) -> User:  # noqa: N802
 )
 def placeOrder() -> Order:  # noqa: N802
     pass
+
+
+@fraiseql.subscription(
+    entity_type="Order",
+    topic="order_events",
+    filter={"conditions": [{"argument": "orderId", "path": "$.id"}]},
+    fields=["id", "total"],
+)
+def orderUpdated(order_id: ID | None = None) -> Order:  # noqa: N802
+    # No trailing period: the description travels from this docstring, and the canonical
+    # fixture's string is what every other SDK passes explicitly.
+    """Stream of order update events"""

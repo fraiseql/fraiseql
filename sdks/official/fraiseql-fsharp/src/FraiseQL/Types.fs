@@ -2,6 +2,16 @@ namespace FraiseQL
 
 open System.Text.Json.Serialization
 
+/// Field deprecation, emitted as the `deprecated` object the compiler reads.
+[<CLIMutable>]
+type DeprecationInfo =
+    {
+        /// Why the field is deprecated. Absent means deprecated with no stated reason,
+        /// which is how the compiler models `[<GraphQLField(Deprecated = true)>]` with no
+        /// `DeprecationReason`.
+        reason: string option
+    }
+
 /// pgvector configuration for a vector field, emitted as the `vector_config` object
 /// the compiler reads.
 ///
@@ -101,6 +111,12 @@ type FieldDefinition =
         /// field carries. Selecting it on a query that did not run that search is
         /// refused, not answered with null.
         vector_distance: string option
+        /// Deprecation, surfacing as `isDeprecated` / `deprecationReason` through
+        /// introspection so generated clients can warn. `GraphQLFieldAttribute` has
+        /// carried `Deprecated` and `DeprecationReason` all along; there was no member
+        /// here to put them in and `reflectFields` never read them, so neither reached
+        /// the exported schema.
+        deprecated: DeprecationInfo option
     }
 
 /// Represents an argument on a GraphQL query or mutation.

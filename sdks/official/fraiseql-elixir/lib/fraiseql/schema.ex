@@ -370,6 +370,7 @@ defmodule FraiseQL.Schema do
       `:half_vector` or `:sparse_vector` field; see `FraiseQL.VectorConfig`
     * `:vector_distance` — on a `:float` field, the vector field whose `nearest` search
       distance this field carries
+    * `:deprecated` — `true`, or the deprecation reason as a string
 
   ## Example
 
@@ -415,7 +416,8 @@ defmodule FraiseQL.Schema do
         requires_scope: unquote(opts[:requires_scope]),
         requires_scopes: unquote(opts[:requires_scopes]),
         vector_config: unquote(vector_config),
-        vector_distance: unquote(vector_distance)
+        vector_distance: unquote(vector_distance),
+        deprecated: unquote(opts[:deprecated])
       }
     end
   end

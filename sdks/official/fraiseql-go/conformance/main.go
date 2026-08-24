@@ -39,7 +39,13 @@ func authorFull() error {
 	if err := fraiseql.RegisterType("User", []fraiseql.FieldInfo{
 		{Name: "id", Type: "ID", Nullable: false},
 		{Name: "email", Type: "String", Nullable: false},
-		{Name: "name", Type: "String", Nullable: true, Description: `The user's "display" name`},
+		{
+			Name:        "name",
+			Type:        "String",
+			Nullable:    true,
+			Description: `The user's "display" name`,
+			Deprecated:  &fraiseql.DeprecationInfo{Reason: "use displayName"},
+		},
 		{Name: "salary", Type: "Float", Nullable: true, Scope: "read:User.salary"},
 	}, "", true); err != nil {
 		return err
@@ -115,14 +121,28 @@ func authorFull() error {
 		Register(); err != nil {
 		return err
 	}
-	return fraiseql.NewMutation("placeOrder").
+	if err := fraiseql.NewMutation("placeOrder").
 		ReturnType("Order").Nullable(false).
 		SqlSource("fn_place_order").
 		Operation("insert").
 		InjectParams(map[string]string{"user_id": "jwt:sub"}).
 		InvalidatesViews([]string{"v_order_summary"}).
 		InvalidatesFactTables([]string{"tf_sale"}).
-		Register()
+		Register(); err != nil {
+		return err
+	}
+
+	return fraiseql.RegisterSubscription(fraiseql.SubscriptionDefinition{
+		Name:        "orderUpdated",
+		ReturnType:  "Order",
+		Arguments:   []fraiseql.ArgumentDefinition{{Name: "orderId", Type: "ID", Nullable: true}},
+		Description: "Stream of order update events",
+		Topic:       "order_events",
+		Filter: &fraiseql.SubscriptionFilter{
+			Conditions: []fraiseql.SubscriptionFilterCondition{{Argument: "orderId", Path: "$.id"}},
+		},
+		Fields: []string{"id", "total"},
+	})
 }
 
 func author(fixture string) error {

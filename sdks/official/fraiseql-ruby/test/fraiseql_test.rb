@@ -12,6 +12,12 @@ class Product
   fraiseql_field :price, :Float,  required: true, deprecated: true
 end
 
+class Widget
+  include FraiseQL::Type
+
+  fraiseql_field :legacy, :String, required: false, deprecated: "use modern"
+end
+
 class TypeDefinitionTest < Minitest::Test
   def test_type_name_defaults_to_class_name
     assert_equal "Product", Product.fraiseql_type_name
@@ -37,14 +43,29 @@ class TypeDefinitionTest < Minitest::Test
     assert_equal "Product name", name_field[:description]
   end
 
-  # `IntermediateField` has no `deprecated` member — only enum values and input fields
-  # carry one — so the key was silently discarded by the compiler, and is now refused
-  # outright since the compiler denies unknown fields. Emitting it produced an export
-  # that could not compile while claiming to record a deprecation nothing would honour.
-  def test_deprecated_field_is_not_emitted
+  # Inverted, not deleted. `IntermediateField` had no `deprecated` member until #1025,
+  # so dropping the key was right at the time and this test was pinning it. Now the
+  # compiler reads it and the reason reaches introspection, so dropping it is a silent
+  # loss of what the author declared — the exact shape the conformance suite's
+  # `field_deprecated` construct exists to catch.
+  #
+  # `true` is deprecated with no stated reason, which the compiler models as an absent
+  # `reason`.
+  def test_deprecated_field_is_emitted_in_the_compilers_shape
     schema = Product.to_fraiseql_schema
     price_field = schema[:fields].find { |f| f[:name] == "price" }
-    refute price_field.key?(:deprecated)
+    assert_equal({}, price_field[:deprecated])
+  end
+
+  def test_deprecation_reason_is_carried
+    field = Widget.to_fraiseql_schema[:fields].first
+    assert_equal({ reason: "use modern" }, field[:deprecated])
+  end
+
+  def test_undeprecated_field_drops_the_key
+    schema = Product.to_fraiseql_schema
+    name_field = schema[:fields].find { |f| f[:name] == "name" }
+    refute name_field.key?(:deprecated)
   end
 
   def test_crud_disabled_by_default

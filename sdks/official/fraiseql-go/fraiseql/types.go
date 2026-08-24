@@ -30,6 +30,12 @@ type FieldInfo struct {
 	// distance this field carries. Selecting it on a query that did not run that
 	// search is refused, not answered with null.
 	VectorDistance string `json:"vector_distance,omitempty"`
+	// Deprecated marks the field deprecated, surfacing as `isDeprecated` /
+	// `deprecationReason` through introspection so generated clients can warn. Same
+	// shape as Description and Scope above: `IntermediateField.deprecated` has been
+	// readable since #1025 and there was simply no field here to put a reason in, so a
+	// Go author could not deprecate anything.
+	Deprecated *DeprecationInfo `json:"deprecated,omitempty"`
 }
 
 // VectorConfig is the pgvector configuration of a vector field.

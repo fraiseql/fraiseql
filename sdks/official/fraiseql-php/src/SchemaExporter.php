@@ -173,6 +173,13 @@ final class SchemaExporter
                             $field['vector_distance'] = $f->vectorDistance;
                         }
 
+                        // `IntermediateField.deprecated` has been readable since #1025.
+                        // There was no attribute to put a reason in, so a PHP author
+                        // could not deprecate a field at all.
+                        if ($f->deprecated !== null) {
+                            $field['deprecated'] = ['reason' => $f->deprecated];
+                        }
+
                         return $field;
                     },
                     $fields,

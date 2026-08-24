@@ -45,7 +45,10 @@ FraiseQLSchema authorFull() {
     fields: {
       'id': const FieldType.id(nullable: false),
       'email': const FieldType.string(nullable: false),
-      'name': const FieldType.string(description: 'The user\'s "display" name'),
+      'name': const FieldType.string(
+        description: 'The user\'s "display" name',
+        deprecated: 'use displayName',
+      ),
       'salary': const FieldType.float(requiresScope: 'read:User.salary'),
     },
   );

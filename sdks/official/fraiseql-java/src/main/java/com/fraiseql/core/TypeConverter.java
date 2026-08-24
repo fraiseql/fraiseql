@@ -239,6 +239,7 @@ public class TypeConverter {
             // Set deprecation flag if deprecated reason is provided
             if (!annotation.deprecated().isEmpty()) {
                 fieldInfo.isDeprecated = true;
+                fieldInfo.deprecationReason = annotation.deprecated();
             }
 
             fields.put(fieldName, fieldInfo);
@@ -321,6 +322,15 @@ public class TypeConverter {
         public VectorConfig vectorConfig;
         /** The vector field this Float reports the search distance of, or null. */
         public String vectorDistance;
+        /**
+         * Why the field is deprecated, or null.
+         *
+         * <p>{@code isDeprecated} above is a boolean and always was; the annotation's
+         * documented reason string was thrown away on the way in and the formatter never
+         * emitted anything either, so {@code @GraphQLField(deprecated = "...")} reached
+         * nothing at all.
+         */
+        public String deprecationReason;
 
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description) {
             this(name, type, nullable, description, null, null, false);

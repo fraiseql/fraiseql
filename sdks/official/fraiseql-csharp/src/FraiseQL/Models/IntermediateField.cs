@@ -28,6 +28,10 @@ namespace FraiseQL.Models;
 /// field carries. Selecting it on a query that did not run that search is refused, not
 /// answered with null.
 /// </param>
+/// <param name="Deprecated">
+/// Optional deprecation. When present the field surfaces as <c>isDeprecated</c> /
+/// <c>deprecationReason</c> through introspection.
+/// </param>
 public record IntermediateField(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("type")]        string Type,
@@ -45,4 +49,7 @@ public record IntermediateField(
     [property: JsonIgnore]                      IReadOnlyList<string>? Scopes = null,
     [property: JsonPropertyName("computed")]    bool? Computed = null,
     [property: JsonPropertyName("vector_config")]   VectorConfig? Vector = null,
-    [property: JsonPropertyName("vector_distance")] string? VectorDistance = null);
+    [property: JsonPropertyName("vector_distance")] string? VectorDistance = null,
+    // `IntermediateField.deprecated` has been readable since #1025. There was no
+    // attribute to put a reason in, so a C# author could not deprecate a field at all.
+    [property: JsonPropertyName("deprecated")]      DeprecationInfo? Deprecated = null);

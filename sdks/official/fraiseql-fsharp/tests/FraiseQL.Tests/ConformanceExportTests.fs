@@ -33,7 +33,10 @@ type ConformanceUser() =
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Email = "" with get, set
 
-    [<GraphQLField(Type = "String", Nullable = true, Description = "The user's \"display\" name")>]
+    [<GraphQLField(Type = "String",
+                   Nullable = true,
+                   Description = "The user's \"display\" name",
+                   DeprecationReason = "use displayName")>]
     member val Name = "" with get, set
 
     [<GraphQLField(Type = "Float", Nullable = true, Scope = "read:User.salary")>]

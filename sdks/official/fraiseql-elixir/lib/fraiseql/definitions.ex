@@ -83,6 +83,8 @@ defmodule FraiseQL.FieldDefinition do
     * `:vector_distance` — on a `Float` field, the vector field whose `nearest` search
       distance this field carries. Selecting it on a query that did not run that search
       is refused, not answered with null.
+    * `:deprecated` — `true` for deprecated with no stated reason, or the reason as a
+      string. Surfaces as `isDeprecated` / `deprecationReason` through introspection.
   """
 
   @enforce_keys [:name, :type]
@@ -95,7 +97,8 @@ defmodule FraiseQL.FieldDefinition do
     requires_scopes: nil,
     computed: false,
     vector_config: nil,
-    vector_distance: nil
+    vector_distance: nil,
+    deprecated: nil
   ]
 
   @type t :: %__MODULE__{
@@ -107,7 +110,8 @@ defmodule FraiseQL.FieldDefinition do
           requires_scopes: [String.t()] | nil,
           computed: boolean(),
           vector_config: FraiseQL.VectorConfig.t() | nil,
-          vector_distance: String.t() | nil
+          vector_distance: String.t() | nil,
+          deprecated: boolean() | String.t() | nil
         }
 end
 

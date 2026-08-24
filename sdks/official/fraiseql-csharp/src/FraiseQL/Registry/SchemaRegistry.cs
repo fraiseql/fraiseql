@@ -71,7 +71,7 @@ public sealed class SchemaRegistry
                     // Normalise a singleton Scopes list onto Scope; anything longer is
                     // unrepresentable downstream and is refused rather than dropped (#807).
                     NormaliseScope(f.Scope, f.Scopes, f.Name), null, f.Computed ? true : null,
-                    f.Vector, f.VectorDistance))
+                    f.Vector, f.VectorDistance, f.Deprecated))
                 .ToList()
                 .AsReadOnly();
 
@@ -301,7 +301,10 @@ public sealed class SchemaRegistry
                 Scopes: fieldAttr.Scopes,
                 Computed: fieldAttr.Computed,
                 Vector: BuildVectorConfig(fieldAttr, fieldName),
-                VectorDistance: fieldAttr.VectorDistance));
+                VectorDistance: fieldAttr.VectorDistance,
+                Deprecated: fieldAttr.Deprecated is null
+                    ? null
+                    : new DeprecationInfo(fieldAttr.Deprecated.Length == 0 ? null : fieldAttr.Deprecated)));
         }
 
         return fields.AsReadOnly();

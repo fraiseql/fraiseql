@@ -139,6 +139,23 @@ module SchemaRegistry =
                     else
                         None
 
+                // `Deprecated` and `DeprecationReason` have been on the attribute all
+                // along and were read nowhere, so an author who marked a field deprecated
+                // got a schema that says nothing about it. A reason with no `Deprecated`
+                // flag still deprecates: writing one is unambiguous intent.
+                let deprecated =
+                    if fieldAttr.Deprecated || fieldAttr.DeprecationReason <> "" then
+                        Some
+                            {
+                                reason =
+                                    if fieldAttr.DeprecationReason <> "" then
+                                        Some fieldAttr.DeprecationReason
+                                    else
+                                        None
+                            }
+                    else
+                        None
+
                 {
                     name = fieldName
                     type_ = resolvedType
@@ -152,6 +169,7 @@ module SchemaRegistry =
                     computed = fieldAttr.Computed
                     vector_config = vectorConfig
                     vector_distance = vectorDistance
+                    deprecated = deprecated
                 }))
         |> Array.toList
 

@@ -29,6 +29,7 @@ let private singleField =
         computed = false
         vector_config = None
         vector_distance = None
+        deprecated = None
     }
 
 let private singleType =

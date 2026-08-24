@@ -19,6 +19,10 @@ namespace FraiseQL.Models;
 /// <param name="VectorDistance">
 /// Optional name of the vector field whose search distance this <c>Float</c> field carries.
 /// </param>
+/// <param name="Deprecated">
+/// Optional deprecation. When present the field surfaces as <c>isDeprecated</c> /
+/// <c>deprecationReason</c> through introspection.
+/// </param>
 public record FieldDefinition(
     string Name,
     string Type,
@@ -29,4 +33,5 @@ public record FieldDefinition(
     IReadOnlyList<string>? Scopes,
     bool Computed = false,
     VectorConfig? Vector = null,
-    string? VectorDistance = null);
+    string? VectorDistance = null,
+    DeprecationInfo? Deprecated = null);

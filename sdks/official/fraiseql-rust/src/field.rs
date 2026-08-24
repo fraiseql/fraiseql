@@ -152,6 +152,20 @@ pub struct Field {
     /// answered with null.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_distance: Option<String>,
+    /// Deprecation, surfacing as `isDeprecated` / `deprecationReason` through
+    /// introspection so generated clients can warn. `IntermediateField.deprecated` has
+    /// been readable since #1025; there was no member here to put a reason in, so a Rust
+    /// author could not deprecate a field at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<Deprecation>,
+}
+
+/// Field deprecation, emitted as the `deprecated` object the compiler reads.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Deprecation {
+    /// Why the field is deprecated. Absent means deprecated with no stated reason.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 impl Field {
@@ -179,6 +193,7 @@ impl Field {
             description: None,
             vector_config: None,
             vector_distance: None,
+            deprecated: None,
         }
     }
 
@@ -265,6 +280,20 @@ impl Field {
     #[must_use]
     pub const fn with_vector_config(mut self, config: Option<VectorConfig>) -> Self {
         self.vector_config = config;
+        self
+    }
+
+    /// Marks the field deprecated, with an optional reason (fluent API).
+    ///
+    /// # Example
+    /// ```
+    /// # use fraiseql_rust::Field;
+    /// let field = Field::new("name", "String")
+    ///     .with_deprecated(Some("use displayName".to_string()));
+    /// ```
+    #[must_use]
+    pub fn with_deprecated(mut self, reason: Option<String>) -> Self {
+        self.deprecated = Some(Deprecation { reason });
         self
     }
 

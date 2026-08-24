@@ -6,6 +6,11 @@
       "CANCELLED"
     ]
   },
+  "field_deprecated": {
+    "User.name": {
+      "reason": "use displayName"
+    }
+  },
   "field_description": {
     "User.name": "The user's \"display\" name"
   },
@@ -116,6 +121,27 @@
   },
   "query_requires_role": {
     "tenantOrders": "admin"
+  },
+  "subscriptions": {
+    "orderUpdated": {
+      "argument_paths": {
+        "orderId": "$.id"
+      },
+      "arguments": [
+        {
+          "name": "orderId",
+          "nullable": true,
+          "type": "ID"
+        }
+      ],
+      "description": "Stream of order update events",
+      "fields": [
+        "id",
+        "total"
+      ],
+      "return_type": "Order",
+      "topic": "order_events"
+    }
   },
   "type_is_error": [
     "UserNotFound"

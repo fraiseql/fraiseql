@@ -14,17 +14,17 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 
 | Directory | Language | Conformance | Declared gaps |
 |-----------|----------|-------------|---------------|
-| `fraiseql-python/` | Python 3.11+ | 17/17 | — |
-| `fraiseql-typescript/` | TypeScript / Node.js | 17/17 | — |
-| `fraiseql-go/` | Go 1.23+ | 17/17 | — |
-| `fraiseql-php/` | PHP 8.2+ | 17/17 | — |
-| `fraiseql-java/` | Java 21+ | 17/17 | — |
-| `fraiseql-csharp/` | C# / .NET 8+ | 17/17 | — |
-| `fraiseql-fsharp/` | F# / .NET 8+ | 17/17 | — |
-| `fraiseql-elixir/` | Elixir | 17/17 | — |
-| `fraiseql-ruby/` | Ruby 3.2+ | 17/17 | — |
-| `fraiseql-dart/` | Dart / Flutter | 17/17 | — |
-| `fraiseql-rust/` | Rust | 4/17 | queries, mutations, enums, input types, Relay and error-type flags: the Rust SDK is field-level-RBAC focused and ships no builder for them |
+| `fraiseql-python/` | Python 3.11+ | 19/19 | — |
+| `fraiseql-typescript/` | TypeScript / Node.js | 19/19 | — |
+| `fraiseql-go/` | Go 1.23+ | 19/19 | — |
+| `fraiseql-php/` | PHP 8.2+ | 19/19 | — |
+| `fraiseql-java/` | Java 21+ | 19/19 | — |
+| `fraiseql-csharp/` | C# / .NET 8+ | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-fsharp/` | F# / .NET 8+ | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-elixir/` | Elixir | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-ruby/` | Ruby 3.2+ | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-dart/` | Dart / Flutter | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-rust/` | Rust | 5/19 | queries, mutations, subscriptions, enums, input types, Relay and error-type flags: the Rust SDK is field-level-RBAC focused and ships no builder for them |
 
 The TypeScript decorators `@Type`, `@Query`, `@Mutation` and `@Subscription` are **not**
 an authoring path — TypeScript erases the types they would need, so they refuse rather

@@ -35,7 +35,8 @@ def author_full
   schema.type "User", sql_source: "v_user", relay: true do |t|
     t.field :id, :id, nullable: false
     t.field :email, :string, nullable: false
-    t.field :name, :string, nullable: true, description: 'The user\'s "display" name'
+    t.field :name, :string, nullable: true, description: 'The user\'s "display" name',
+                           deprecated: "use displayName"
     t.field :salary, :float, nullable: true, requires_scope: "read:User.salary"
   end
 

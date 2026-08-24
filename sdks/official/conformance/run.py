@@ -298,6 +298,20 @@ def reference_expectations(cli: Path, update: bool) -> dict[str, dict]:
                     f"review the diff."
                 )
             expectations[fixture] = observations
+
+    # A construct the `full` fixture does not populate gates nothing: its expectation is
+    # empty, every SDK's result is empty, and they match — so it passes for all eleven
+    # while `exercised()` also reports it unexercised, which suppresses the stale-gap
+    # check. Two constructs would silently be in that state without this, and the failure
+    # is invisible by construction: it looks exactly like universal support.
+    unexercised = [c for c in CONSTRUCTS if not exercised(expectations["full"].get(c))]
+    if unexercised:
+        raise SystemExit(
+            f"FAIL the `full` reference fixture declares nothing for construct(s) "
+            f"{unexercised}. A construct the fixture does not exercise passes for every "
+            f"SDK regardless of support — add it to reference/full.json, or remove it "
+            f"from project.CONSTRUCTS."
+        )
     return expectations
 
 

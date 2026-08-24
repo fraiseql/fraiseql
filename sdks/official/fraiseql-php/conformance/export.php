@@ -30,7 +30,12 @@ final class ConformanceUser
     #[GraphQLField(type: 'String', nullable: false)]
     public string $email;
 
-    #[GraphQLField(type: 'String', nullable: true, description: 'The user\'s "display" name')]
+    #[GraphQLField(
+        type: 'String',
+        nullable: true,
+        description: 'The user\'s "display" name',
+        deprecated: 'use displayName',
+    )]
     public ?string $name;
 
     #[GraphQLField(type: 'Float', nullable: true, scope: 'read:User.salary')]
@@ -180,6 +185,15 @@ function authorFull(): void
         ->invalidatesViews(['v_order_summary'])
         ->invalidatesFactTables(['tf_sale'])
         ->register();
+
+    StaticAPI::subscription('orderUpdated')
+        ->entityType('Order')
+        ->argument('orderId', 'ID', argNullable: true)
+        ->description('Stream of order update events')
+        ->topic('order_events')
+        ->filterCondition('orderId', '$.id')
+        ->fields(['id', 'total'])
+        ->build();
 }
 
 $fixture = getenv('FRAISEQL_CONFORMANCE_FIXTURE');

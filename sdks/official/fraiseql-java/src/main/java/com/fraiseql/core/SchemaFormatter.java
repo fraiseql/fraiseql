@@ -205,6 +205,15 @@ public class SchemaFormatter {
         if (fieldInfo.vectorDistance != null) {
             fieldNode.put("vector_distance", fieldInfo.vectorDistance);
         }
+        // `IntermediateField.deprecated` has been readable since #1025, and
+        // @GraphQLField has documented a `deprecated` reason all along — it was captured
+        // as a bare boolean and emitted nowhere, so the reason reached neither the
+        // compiled schema nor introspection.
+        if (fieldInfo.deprecationReason != null && !fieldInfo.deprecationReason.isEmpty()) {
+            ObjectNode deprecatedNode = mapper.createObjectNode();
+            deprecatedNode.put("reason", fieldInfo.deprecationReason);
+            fieldNode.set("deprecated", deprecatedNode);
+        }
         return fieldNode;
     }
 

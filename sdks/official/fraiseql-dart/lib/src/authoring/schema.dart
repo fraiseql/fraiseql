@@ -296,6 +296,11 @@ class FieldType {
   /// answered with null.
   final String? vectorDistance;
 
+  /// Why the field is deprecated, or null. Surfaces as `isDeprecated` /
+  /// `deprecationReason` through introspection so generated clients can warn. Pass the
+  /// empty string to deprecate with no stated reason.
+  final String? deprecated;
+
   const FieldType.named(
     this.type, {
     this.nullable = true,
@@ -304,6 +309,7 @@ class FieldType {
     this.onDeny,
     this.vectorConfig,
     this.vectorDistance,
+    this.deprecated,
   }) : assert(
           vectorConfig == null || vectorDistance == null,
           'A field declares either vectorConfig or vectorDistance, not both: vectorConfig '
@@ -351,12 +357,14 @@ class FieldType {
     String? description,
     String? requiresScope,
     String? onDeny,
+    String? deprecated,
   }) : this.named(
           'ID',
           nullable: nullable,
           description: description,
           requiresScope: requiresScope,
           onDeny: onDeny,
+          deprecated: deprecated,
         );
 
   /// GraphQL `String`.
@@ -365,12 +373,14 @@ class FieldType {
     String? description,
     String? requiresScope,
     String? onDeny,
+    String? deprecated,
   }) : this.named(
           'String',
           nullable: nullable,
           description: description,
           requiresScope: requiresScope,
           onDeny: onDeny,
+          deprecated: deprecated,
         );
 
   /// GraphQL `Int`. Named `int_` because `int` is a Dart keyword-adjacent type name.
@@ -379,12 +389,14 @@ class FieldType {
     String? description,
     String? requiresScope,
     String? onDeny,
+    String? deprecated,
   }) : this.named(
           'Int',
           nullable: nullable,
           description: description,
           requiresScope: requiresScope,
           onDeny: onDeny,
+          deprecated: deprecated,
         );
 
   /// GraphQL `Float`.
@@ -393,12 +405,14 @@ class FieldType {
     String? description,
     String? requiresScope,
     String? onDeny,
+    String? deprecated,
   }) : this.named(
           'Float',
           nullable: nullable,
           description: description,
           requiresScope: requiresScope,
           onDeny: onDeny,
+          deprecated: deprecated,
         );
 
   /// GraphQL `Boolean`.
@@ -407,12 +421,14 @@ class FieldType {
     String? description,
     String? requiresScope,
     String? onDeny,
+    String? deprecated,
   }) : this.named(
           'Boolean',
           nullable: nullable,
           description: description,
           requiresScope: requiresScope,
           onDeny: onDeny,
+          deprecated: deprecated,
         );
 
   Map<String, Object?> _toJson(String name) {
@@ -429,6 +445,12 @@ class FieldType {
     // unauthorable in Dart.
     if (vectorConfig != null) json['vector_config'] = vectorConfig!.toJson();
     if (vectorDistance != null) json['vector_distance'] = vectorDistance;
+    // `IntermediateField.deprecated` has been readable since #1025. The empty string
+    // means deprecated with no stated reason, which the compiler models as an absent
+    // `reason`.
+    if (deprecated != null) {
+      json['deprecated'] = deprecated!.isEmpty ? <String, Object?>{} : {'reason': deprecated};
+    }
     return json;
   }
 }
