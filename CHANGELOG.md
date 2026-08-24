@@ -3275,6 +3275,27 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An out-of-range `Date32` from a client is refused instead of silently aborting the upload (#1040).**
+
+  The `Date32` arm of the Arrow-to-SQL conversion added a `chrono::Duration` to the epoch
+  with the plain `+` operator, whose `Add` impl is `checked_add_signed(..).expect(..)`. Most
+  of the legal `Date32` range runs past `NaiveDate::MAX` — roughly 95 million days from the
+  epoch — so the conversion panicked on values a client is entitled to send.
+
+  The panic unwound the spawned `do_put` task rather than the request. That dropped the
+  result sender, so the stream ended normally and the RPC completed with grpc-status OK, no
+  error message, and nothing written for that batch or any batch after it. The `Err` branch
+  that exists for exactly this case could never be taken, because the code panicked before
+  reaching it.
+
+  The trigger needs no hostile client. Writing a Unix-epoch *seconds* value into a `Date32`
+  column — 1 700 000 000 fits in an `i32` and is about 18x over the limit — is an ordinary
+  unit mix-up that hits it just as reliably as a crafted value.
+
+  The arm now uses `checked_add_signed` and returns an error naming the offending value,
+  which reaches the client as `invalid_argument`. The adjacent `Timestamp` arm was hardened
+  this way under #715; this one was missed.
+
 - **A bulk export larger than one batch is now a single document (#1036).**
 
   `execute_bulk_export` chunks its result at 10 000 rows and called the exporter once per

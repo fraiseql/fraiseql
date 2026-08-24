@@ -529,10 +529,18 @@ fn arrow_value_to_sql(
                 .downcast_ref::<Date32Array>()
                 .ok_or("Failed to cast to Date32Array")?;
             let days_since_epoch = arr.value(row);
-            // Calculate date from days since epoch (1970-01-01)
+            // Calculate date from days since epoch (1970-01-01).
             let epoch_date =
                 chrono::NaiveDate::from_ymd_opt(1970, 1, 1).ok_or("Failed to create epoch date")?;
-            let target_date = epoch_date + chrono::Duration::days(i64::from(days_since_epoch));
+            // `NaiveDate + TimeDelta` is `checked_add_signed(..).expect(..)`, and most
+            // of the legal Date32 range runs past `NaiveDate::MAX` — about 95 million
+            // days from the epoch. These bytes are client-supplied, so an out-of-range
+            // value is refused here rather than unwinding the spawned upload task and
+            // ending the RPC with grpc-status OK and nothing written (#1040). The
+            // Timestamp arm above was hardened the same way under #715.
+            let target_date = epoch_date
+                .checked_add_signed(chrono::Duration::days(i64::from(days_since_epoch)))
+                .ok_or_else(|| format!("date out of range: {days_since_epoch} days since epoch"))?;
             Ok(format!("'{}'::date", target_date))
         },
         _ => Err(format!("Unsupported Arrow type for SQL conversion: {:?}", array.data_type())),
@@ -668,3 +676,6 @@ pub fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatc
         .ok_or_else(|| "No batch in data".to_string())?
         .map_err(|e| format!("Failed to read batch: {}", e))
 }
+
+#[cfg(test)]
+mod tests;
