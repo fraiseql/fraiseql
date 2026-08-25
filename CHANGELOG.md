@@ -3386,6 +3386,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`from fraiseql import ChangelogConsumer, ChangelogEvent` works (#1185).**
+
+  `ChangelogConsumer`'s own module docstring documents that import, but neither name was
+  exported from `fraiseql/__init__.py`, so the class's usage example raised `ImportError` on
+  every supported Python version. Both names are now exported and listed in `__all__`, matching
+  how `AsyncFraiseQLClient` and the error hierarchy are already presented. The undocumented
+  `from fraiseql.changelog_consumer import ...` form keeps working.
+
+  No new import cost: `httpx` is already a required dependency and is already imported eagerly
+  by `async_client`.
+
 - **`JobWorkerPool::stop()` returns instead of hanging forever (#1063).**
 
   `stop()` cleared `is_running` and then awaited each worker task. The task checked that flag

@@ -40,3 +40,11 @@
 #1010  test infra: fraiseql-guard log-capture tests raced on process-global env
 #1103  CI: deny.toml advisory deadlines that would redden the required preflight check on a date; no shipped behaviour change
 #1134  release tooling: tools/release.sh did not update the doc status lines check-docs-version.sh enforces, so the release commit failed a required gate; no shipped behaviour change
+#999   test infra: observer log assertions read the row before the writer wrote it; test-side synchronisation only, runtime unchanged
+#1083  build config: fraiseql-core's DB-dependent TEST targets lacked required-features, so only `--no-default-features --all-targets` broke; no shipped artifact or library configuration changes
+#1096  test infra: three cache_rls_isolation_test fixtures shared one relation name and collided under parallelism
+#1106  test-only: deleted four "observability overhead" budgets that called the same function in both arms, plus a fifth test that asserted nothing
+#1114  test infra: storage_policy_admin_tests shared one bucket and truncated the policy table under each other
+#1165  test-only: four SSRF rejection tests called the guards without taking the bypass pin; the guards themselves are unchanged
+#1167  test infra: same defect as #1114, reported as an order-dependent pass count
+#1186  test infra: same defect as #1114, reported as nondeterministic parallel failures
