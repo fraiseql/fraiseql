@@ -119,7 +119,7 @@ PY
 # examples/ go unchecked for its whole life.
 # ---------------------------------------------------------------------------
 mapfile -t EXAMPLES < <(
-    find examples -mindepth 2 -maxdepth 3 -path '*/sql/setup.sql' -print0 \
+    find examples -path '*/sql/setup.sql' -print0 \
         | xargs -0 -n1 dirname | xargs -n1 dirname | sort -u
 )
 [ "${#EXAMPLES[@]}" -gt 0 ] || {
@@ -128,6 +128,18 @@ mapfile -t EXAMPLES < <(
 }
 
 echo "→ smoke-testing ${#EXAMPLES[@]} example(s) against $(psql "$DATABASE_URL" -tAc 'SHOW server_version' 2>/dev/null || echo PostgreSQL)"
+
+# No silent cap. An example carrying setup-shaped SQL under a name this gate does not
+# recognise is NOT covered, and saying so is the difference between a bounded gate and
+# a gate that reads as if it covered everything.
+mapfile -t UNCOVERED < <(
+    find examples \( -name 'setup.sql' -o -name 'schema.sql' \) \
+        -not -path '*/sql/setup.sql' -print | sort
+)
+if [ "${#UNCOVERED[@]}" -gt 0 ]; then
+    echo "  not covered (no sql/setup.sql; these have their own harnesses):"
+    printf '    %s\n' "${UNCOVERED[@]}"
+fi
 
 smoke_one() {
     local dir="$1" name db url work
