@@ -70,6 +70,38 @@ if ! PYTHONPATH="$SDK_SRC" python3 -c 'import fraiseql' 2>/dev/null; then
     python_ok=0
 fi
 
+# ---------------------------------------------------------------------------
+# Known-broken, each with the issue that owns it.
+#
+# These directories are v1-era rot that predates this gate, filed rather than
+# repaired so the gate could land without being red on trunk from day one — a red
+# gate nobody can turn green teaches the next reader to skip it (the lesson of
+# check-feature-chains.sh, #1055/#990).
+#
+# The list is checked in BOTH directions. An entry that starts PASSING is a failure,
+# because the exemption is now a lie and the only thing keeping it in the file is
+# that nobody looked. That is what stops this list from becoming permanent.
+# ---------------------------------------------------------------------------
+declare -A KNOWN_BROKEN=(
+    ["examples/federation/multi-cloud/orders-service/schema.py"]="#1190"
+    ["examples/federation/multi-cloud/products-service/schema.py"]="#1190"
+    ["examples/federation/multi-cloud/users-service/schema.py"]="#1190"
+    ["examples/ltree-hierarchical-data/organization-chart/schema.py"]="#1191"
+    ["examples/ltree-hierarchical-data/product-catalog/schema.py"]="#1191"
+)
+declare -A SAW_BROKEN=()
+
+# Record a failure. A path on the known-broken list is reported and tolerated;
+# anything else fails the gate.
+record_failure() {
+    local path="$1"
+    if [ -n "${KNOWN_BROKEN[$path]:-}" ]; then
+        SAW_BROKEN["$path"]=1
+        return 0
+    fi
+    found=1
+}
+
 found=0
 count=0
 authored=0
@@ -90,14 +122,14 @@ while IFS= read -r artifact; do
             echo "  FAIL $dir/schema.py — cannot import the in-repo authoring SDK."
             echo "         This gate does not skip. Provide python3 and the SDK's"
             echo "         dependencies (httpx) in whatever runs it."
-            found=1
+            record_failure "$dir/schema.py"
             continue
         fi
         authored=$((authored + 1))
         if ! out=$(cd "$work" && PYTHONPATH="$SDK_SRC" python3 schema.py 2>&1); then
             echo "  FAIL $dir/schema.py does not run"
             printf '%s\n' "$out" | tail -5 | sed 's/^/         /'
-            found=1
+            record_failure "$dir/schema.py"
             continue
         fi
         [ -f "$work/types.json" ] && types_arg=(--types types.json)
@@ -112,7 +144,7 @@ while IFS= read -r artifact; do
     else
         echo "  FAIL $artifact${types_arg[*]:+ (+ types.json from schema.py)}"
         printf '%s\n' "$out" | sed 's/^/         /'
-        found=1
+        record_failure "$artifact"
     fi
 done <<< "$artifacts"
 
@@ -125,7 +157,7 @@ while IFS= read -r script; do
     count=$((count + 1))
     if [ "$python_ok" -ne 1 ]; then
         echo "  FAIL $script — cannot import the in-repo authoring SDK (see above)."
-        found=1
+        record_failure "$script"
         continue
     fi
     work="$WORKDIR/orphan_$(printf '%s' "$dir" | tr '/' '_')"
@@ -136,9 +168,38 @@ while IFS= read -r script; do
     else
         echo "  FAIL $script does not run"
         printf '%s\n' "$out" | tail -5 | sed 's/^/         /'
-        found=1
+        record_failure "$script"
     fi
 done < <(find examples -name 'schema.py' | sort)
+
+# The other direction: an exemption that no longer describes anything is a claim the
+# tree has stopped making. Fail on it, so closing #1190 or #1191 also deletes its row
+# here rather than leaving a permanent hole.
+stale=()
+for path in "${!KNOWN_BROKEN[@]}"; do
+    if [ -z "${SAW_BROKEN[$path]:-}" ]; then
+        stale+=("$path (${KNOWN_BROKEN[$path]})")
+    fi
+done
+
+if [ "${#SAW_BROKEN[@]}" -gt 0 ]; then
+    echo
+    echo "  ${#SAW_BROKEN[@]} known-broken example(s) tolerated, each owned by an open issue:"
+    # Sorted: bash iterates an associative array in hash order, and a gate whose
+    # output differs run to run cannot be diffed against a previous run.
+    for path in "${!SAW_BROKEN[@]}"; do
+        echo "    $path  ${KNOWN_BROKEN[$path]}"
+    done | sort
+fi
+
+if [ "${#stale[@]}" -gt 0 ]; then
+    echo
+    echo "✗ these are on the known-broken list but now COMPILE:"
+    printf '    %s\n' "${stale[@]}" | sort
+    echo "  Delete the row from KNOWN_BROKEN in this file and close the issue."
+    echo "  An exemption nobody removes is how a gate stops meaning anything."
+    exit 1
+fi
 
 if [ "$found" -ne 0 ]; then
     echo
@@ -146,4 +207,5 @@ if [ "$found" -ne 0 ]; then
     echo "or an authoring source that does not run."
     exit 1
 fi
-echo "OK: $count example artifacts compile ($authored authored from schema.py first)."
+echo "OK: $count example artifacts compile ($authored authored from schema.py first,"
+echo "    ${#SAW_BROKEN[@]} known-broken and tracked)."

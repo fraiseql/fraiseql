@@ -63,16 +63,18 @@ FROM tb_post p
 JOIN tb_user u ON p.fk_user = u.pk_user;
 
 -- Insert sample data
-INSERT INTO tb_user (name, email) VALUES
-    ('Alice Johnson', 'alice@example.com'),
-    ('Bob Smith', 'bob@example.com'),
-    ('Charlie Brown', 'charlie@example.com');
+-- Fixed UUIDs, so the ids in this example's README and queries/*.vars.json are
+-- stable across a rebuild. A real application leaves `id` to its DEFAULT.
+INSERT INTO tb_user (id, name, email) VALUES
+    ('11111111-0000-4000-8000-000000000001', 'Alice Johnson', 'alice@example.com'),
+    ('11111111-0000-4000-8000-000000000002', 'Bob Smith', 'bob@example.com'),
+    ('11111111-0000-4000-8000-000000000003', 'Charlie Brown', 'charlie@example.com');
 
-INSERT INTO tb_post (title, content, fk_user) VALUES
-    ('Getting Started with FraiseQL', 'FraiseQL is a compiled GraphQL execution engine...', 1),
-    ('Database Views for GraphQL', 'Learn how to use database views with FraiseQL...', 1),
-    ('Performance Tips', 'Here are some tips for optimizing your FraiseQL queries...', 2),
-    ('Hello World', 'My first blog post using FraiseQL!', 3);
+INSERT INTO tb_post (id, title, content, fk_user) VALUES
+    ('22222222-0000-4000-8000-000000000001', 'Getting Started with FraiseQL', 'FraiseQL is a compiled GraphQL execution engine...', 1),
+    ('22222222-0000-4000-8000-000000000002', 'Database Views for GraphQL', 'Learn how to use database views with FraiseQL...', 1),
+    ('22222222-0000-4000-8000-000000000003', 'Performance Tips', 'Here are some tips for optimizing your FraiseQL queries...', 2),
+    ('22222222-0000-4000-8000-000000000004', 'Hello World', 'My first blog post using FraiseQL!', 3);
 
 -- Verify data
 SELECT 'Users:' AS info;

@@ -54,10 +54,10 @@ curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ users { id name email } }"}'
 
-# Get user by ID (IDs are UUIDs — copy one from the users list above)
+# Get user by ID. The seed data uses fixed UUIDs, so this one is stable.
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
-  -d '{"query": "{ user(id: \"PASTE-A-UUID-HERE\") { id name email } }"}'
+  -d '{"query": "{ user(id: \"11111111-0000-4000-8000-000000000001\") { id name email } }"}'
 ```
 
 ## Files
@@ -69,6 +69,7 @@ curl -X POST http://localhost:8000/graphql \
 | `schema.compiled.json` | Compiled schema for runtime |
 | `sql/setup.sql` | Database setup (tables, views, sample data) |
 | `queries/*.graphql` | Example GraphQL queries |
+| `queries/*.vars.json` | The variables each parameterised query needs |
 
 ## GraphQL Queries
 
@@ -94,5 +95,5 @@ schema.compiled.json (runtime)
 fraiseql-server
     │
     ▼ (connects to)
-PostgreSQL (v_users, v_posts views)
+PostgreSQL (v_user, v_post views)
 ```

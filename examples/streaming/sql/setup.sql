@@ -129,12 +129,14 @@ SELECT
 FROM tb_metric;
 
 -- Insert sample user activity first (required for messages foreign key)
-INSERT INTO tb_user_activity (username, status, active_now) VALUES
-    ('alice', 'online', TRUE),
-    ('bob', 'idle', FALSE),
-    ('charlie', 'online', TRUE),
-    ('diana', 'offline', FALSE),
-    ('eve', 'away', FALSE);
+-- Fixed UUIDs, so the ids in queries/*.vars.json are stable across a rebuild.
+-- A real application leaves `id` to its DEFAULT.
+INSERT INTO tb_user_activity (id, username, status, active_now) VALUES
+    ('33333333-0000-4000-8000-000000000001', 'alice', 'online', TRUE),
+    ('33333333-0000-4000-8000-000000000002', 'bob', 'idle', FALSE),
+    ('33333333-0000-4000-8000-000000000003', 'charlie', 'online', TRUE),
+    ('33333333-0000-4000-8000-000000000004', 'diana', 'offline', FALSE),
+    ('33333333-0000-4000-8000-000000000005', 'eve', 'away', FALSE);
 
 -- Insert sample events
 INSERT INTO tb_event (type, data) VALUES

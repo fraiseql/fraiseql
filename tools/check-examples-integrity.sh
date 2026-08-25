@@ -30,8 +30,47 @@ cd "$REPO_ROOT"
 
 found=0
 
+# ---------------------------------------------------------------------------
+# Known-broken, each with the issue that owns it.
+#
+# This gate landed on a tree that already had v1-era rot in it, filed rather than
+# repaired so it could go into preflight without being red on trunk from day one.
+# A required gate nobody can turn green teaches the next reader to skip it — the
+# lesson check-feature-chains.sh cost (#1055/#990).
+#
+# Keys are the exact first line of the finding, so an exemption cannot quietly widen
+# to cover a different defect that happens to be in the same file.
+#
+# Checked in BOTH directions: an entry that stops firing is a failure, because the
+# exemption has become a lie and the only thing keeping it here is that nobody
+# looked. That is what stops this list from becoming permanent.
+# ---------------------------------------------------------------------------
+declare -A KNOWN_BROKEN=(
+    ["docker/docker-compose.demo.yml names a Dockerfile that does not exist: admin-dashboard/Dockerfile"]="#1189"
+    ["docker/docker-compose.examples.yml names a Dockerfile that does not exist: admin-dashboard/Dockerfile"]="#1189"
+    ["examples/federation/multi-cloud/docker-compose-local.yml names a Dockerfile that does not exist: Dockerfile"]="#1190"
+    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-users.sql"]="#1190"
+    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-orders.sql"]="#1190"
+    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-products.sql"]="#1190"
+    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/supergraph.yaml"]="#1190"
+    ["documented directory does not exist: examples/federation/multi-cloud/docker-local"]="#1190"
+    ["documented directory does not exist: examples/federation/multi-cloud/deployment/aws"]="#1190"
+    ["documented directory does not exist: examples/federation/multi-cloud/deployment/gcp"]="#1190"
+    ["documented directory does not exist: examples/federation/multi-cloud/deployment/azure"]="#1190"
+    ["examples/federation/saga-complex/docker-compose.yml healthchecks with curl/wget over a base image that ships neither: python:3.11-slim"]="#1193"
+)
+declare -A SAW_BROKEN=()
+
 fail() {
-    echo "✗ $1"
+    local headline="$1"
+    if [ -n "${KNOWN_BROKEN[$headline]:-}" ]; then
+        SAW_BROKEN["$headline"]=1
+        echo "· $headline  [${KNOWN_BROKEN[$headline]}]"
+        shift
+        printf '%s\n' "$@" | sed 's/^/    /'
+        return
+    fi
+    echo "✗ $headline"
     shift
     printf '%s\n' "$@" | sed 's/^/    /'
     found=1
@@ -392,9 +431,31 @@ while IFS= read -r dockerfile; do
     done
 done < <(find examples -name 'Dockerfile*' | sort)
 
+# The other direction: an exemption that no longer describes anything is a claim the
+# tree has stopped making. Fail on it, so repairing an example also deletes its row
+# here rather than leaving a permanent hole.
+stale=()
+for headline in "${!KNOWN_BROKEN[@]}"; do
+    if [ -z "${SAW_BROKEN[$headline]:-}" ]; then
+        stale+=("${KNOWN_BROKEN[$headline]}  $headline")
+    fi
+done
+
+if [ "${#stale[@]}" -gt 0 ]; then
+    echo
+    echo "✗ these are on the known-broken list but no longer fire:"
+    # Sorted: bash iterates an associative array in hash order, and a gate whose
+    # output differs run to run cannot be diffed against a previous run.
+    printf '    %s\n' "${stale[@]}" | sort
+    echo "  Delete the row from KNOWN_BROKEN in this file and close the issue."
+    echo "  An exemption nobody removes is how a gate stops meaning anything."
+    exit 1
+fi
+
 if [ "$found" -ne 0 ]; then
     echo
     echo "examples/ integrity gate FAILED — see above."
     exit 1
 fi
-echo "OK: shipped examples pass the static integrity gate."
+echo "OK: shipped examples pass the static integrity gate"
+echo "    (${#SAW_BROKEN[@]} known-broken finding(s) tolerated, each owned by an open issue)."

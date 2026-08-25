@@ -363,6 +363,14 @@ func (m *FraiseqlCi) ShellGates(
 		// PostgreSQL-only de-scope covered crates/; examples/ kept a running
 		// MySQL topology for three phases afterwards (#940).
 		"bash tools/check-examples-postgres-only.sh",
+		// A shipped example must be able to run at all: compose mounts resolve, COPY
+		// sources exist in the build context, no `|| true` around a build step, no
+		// health grep that also matches "unhealthy", every documented `cd` lands
+		// somewhere. Before this, the whole CI coverage of `examples/` was one clippy
+		// run and three greps, and a nine-issue audit found essentially every
+		// documented entry point dead (#1050-#1054, #1071-#1073). The two tiers that
+		// need a toolchain and a database are the `examples` integration suite.
+		"bash tools/check-examples-integrity.sh",
 		// A declared-but-unread `feature = []` is a promise the build cannot keep:
 		// enabling it changes nothing, so the capability it names is either absent or
 		// reachable another way. This gate existed but ran in NO leg while failing on
@@ -883,8 +891,10 @@ func (m *FraiseqlCi) TestIntegration(
 		return m.integrationSaml(ctx, source)
 	case "quickstart":
 		return m.integrationQuickstart(ctx, source)
+	case "examples":
+		return m.integrationExamples(ctx, source)
 	default:
-		return "", fmt.Errorf("unknown integration suite %q (known: postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml, quickstart)", suite)
+		return "", fmt.Errorf("unknown integration suite %q (known: postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml, quickstart, examples)", suite)
 	}
 }
 
@@ -920,6 +930,65 @@ func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.D
 		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "postgresql-client", "curl", "python3-httpx"}).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("SMOKE_DATABASE_URL", dbURL).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// integrationExamples is the examples gate's two executing tiers (Phase 09 of the
+// 2026-08-22 program, #1050-#1054, #1071-#1073).
+//
+// Before this leg, the entire CI coverage of `examples/` was one clippy run over the
+// single example that is a Rust crate, plus three greps. A nine-issue audit found
+// essentially every documented entry point dead — and nothing would have noticed,
+// which is why repairing them without a gate buys a state that rots by the next
+// release.
+//
+// Two tiers here, both of which need a toolchain, so neither can live in ShellGates
+// (the static tier does, and runs in preflight):
+//
+//   - check-examples-compile.sh — every example's schema.py runs and every
+//     fraiseql.toml/schema.json compiles, each from its own directory.
+//   - examples-smoke.sh — every example with a sql/setup.sql loads it under
+//     ON_ERROR_STOP=1, compiles, resolves every one of its queries/*.graphql against
+//     a real PostgreSQL, and then a real fraiseql-server boots on it and answers a
+//     real query over HTTP.
+//
+// The HTTP half is the point: compiling the artifact is not testing the example, and
+// a healthy container is not a working one. #1071's image built, then refused to
+// boot, then booted healthy and answered ordinary queries while refusing the one
+// query that made it a subgraph. Only asking it that question finds that.
+//
+// Neither script skips. A missing binary, a missing psql, an unset DATABASE_URL are
+// each a failure — a check that quietly does nothing reads as green.
+func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Directory) (string, error) {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"echo '### integration: examples (compile tier + smoke tier)'",
+		"bash tools/ci-target-canary.sh -- build -p fraiseql-cli --bin fraiseql-cli", // #880 canary wraps the build
+		"cargo build -p fraiseql-server --bin fraiseql-server",
+		"export FRAISEQL_BIN=/src/target/debug/fraiseql-cli",
+		"export SERVER_BIN=/src/target/debug/fraiseql-server",
+		"bash tools/check-examples-compile.sh",
+		"bash tools/examples-smoke.sh",
+		"echo 'test-integration OK: examples suite passed'",
+	}, "\n")
+
+	return m.integrationBase(source, rustMsrv).
+		// The smoke drives the tools a reader drives: psql applies each example's
+		// setup.sql, curl asks the booted server a question. python3-httpx is the
+		// authoring SDK's one third-party import, and every example authors through
+		// it — five example schema.py files still did `from fraiseql import key` when
+		// this landed, and nothing had run them since v1.
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "postgresql-client", "curl", "python3-httpx"}).
+		WithServiceBinding(pgBindHost, m.pgService(source)).
+		// examples-smoke.sh CREATEs and DROPs a database per example, so it needs a
+		// URL it can connect to while doing that — the maintenance database, not one
+		// of its own.
+		WithEnvVariable("DATABASE_URL", dbURL).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }

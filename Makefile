@@ -696,6 +696,15 @@ lint-config-loaders:
 lint-examples-postgres-only:
 	@bash tools/check-examples-postgres-only.sh
 
+# Gate: a shipped example must be able to run at all — compose mounts resolve, COPY
+# sources exist in the build context, no `|| true` around a build step, no health
+# grep that also matches "unhealthy", and every documented `cd` lands somewhere.
+# The static tier of the examples gate (#1050-#1054, #1071-#1073); the two executing
+# tiers need a toolchain and a database and live in the `examples` integration suite.
+.PHONY: lint-examples-integrity
+lint-examples-integrity:
+	@bash tools/check-examples-integrity.sh
+
 # Gate: an SDK authoring surface removed for having no compiler consumer stays
 # removed (#926). The compiled-schema seam denies unknown fields, but a surface that
 # never reaches the wire at all — Java's registry-only dispatch config, Dart's
@@ -782,7 +791,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1322,6 +1331,33 @@ demo-clean:
 	@echo "✅ Demo stack cleaned"
 	@echo ""
 	@echo "💡 Run 'make demo-start' to start fresh"
+
+# ============================================================================
+# examples/ gate — the two tiers that need a toolchain
+#
+# The static tier (tools/check-examples-integrity.sh) runs in preflight as
+# `lint-examples-integrity`. These two execute things, so they need a built CLI
+# and, for the smoke, a PostgreSQL. Both mirror the `examples` Dagger integration
+# suite; neither skips.
+# ============================================================================
+
+## Compile every example's authoring artifact with the CLI in this tree
+.PHONY: examples-compile
+examples-compile:
+	@cargo build -p fraiseql-cli --bin fraiseql-cli
+	@FRAISEQL_BIN=$(CURDIR)/target/debug/fraiseql-cli bash tools/check-examples-compile.sh
+
+## Load, compile, resolve every shipped query, and boot the server on one example
+##
+## Needs a PostgreSQL it may CREATE DATABASE on. The local rig is `make db-up`:
+##   DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/postgres make examples-smoke
+.PHONY: examples-smoke
+examples-smoke:
+	@cargo build -p fraiseql-cli --bin fraiseql-cli
+	@cargo build -p fraiseql-server --bin fraiseql-server
+	@FRAISEQL_BIN=$(CURDIR)/target/debug/fraiseql-cli \
+	 SERVER_BIN=$(CURDIR)/target/debug/fraiseql-server \
+	 bash tools/examples-smoke.sh
 
 # ============================================================================
 # Docker Multi-Example Stack (Blog + E-Commerce + Streaming)
