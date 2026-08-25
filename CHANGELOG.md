@@ -3386,6 +3386,38 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A failed changelog poll is no longer indistinguishable from an empty one (#1061).**
+
+  `_poll_once` caught every `httpx.HTTPError` and returned `[]`, which `run()` read as "no new
+  events" and rewarded with exponential back-off. A revoked token therefore degraded to one
+  silent request per `max_poll_interval` forever: `run()` never returns and never raises, so
+  a supervising application had no programmatic way to tell a permanently broken consumer from
+  an idle one — only a log line.
+
+  `_poll_once` now returns `None` for a failure and `[]` for an empty changelog, and the
+  consumer exposes `consecutive_poll_failures` and `last_poll_error` plus an optional
+  `on_poll_error(exc, consecutive_failures)` callback. Back-off pacing is unchanged, and a
+  failing poll still does not crash the loop — the cursor is not advanced, so nothing is lost
+  and delivery resumes at the same point once the credential is fixed.
+
+  The sharper half was an asymmetry running exactly backwards: `resp.json()` and
+  `body.get("entries")` sat **outside** the try, so a proxy's HTML error page behind a `200`
+  killed `run()` outright, while a permanent `401` that will never self-heal was swallowed
+  indefinitely. The parse is inside the guarded region now.
+
+- **`from_now` startup cannot spin forever on a changelog that is still being written (#1058).**
+
+  `_fetch_tail_cursor`'s forward-paging loop had no attempt cap, no deadline and no `stop_event`
+  check. Its only exit was a page that came back no further ahead — an *idle instant*. Against a
+  changelog written faster than the round-trip, every page advanced, so `_initialise_cursor`
+  never returned: the consumer never reached its polling loop, dispatched nothing, saved no
+  checkpoint, and could not be shut down.
+
+  The walk is now bounded by a page cap, a 30 s wall-clock deadline, and a `stop_event` check
+  between pages, each logging where it stopped. Whatever cursor it reaches is still a valid
+  `from_now` tail — nothing before it is ever dispatched — so stopping early costs nothing the
+  mode was not already discarding by design.
+
 - **`ChangelogConsumer.run()` survives its first poll on Python 3.10, and 3.10 is now tested
   (#1057).**
 

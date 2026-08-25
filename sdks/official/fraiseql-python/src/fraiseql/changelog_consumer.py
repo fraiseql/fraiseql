@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
@@ -37,6 +38,12 @@ import httpx
 logger = logging.getLogger("fraiseql.changelog")
 
 _HTTP_NOT_FOUND = 404
+
+# Bounds on the ``from_now`` forward walk (#1058). Generous enough that an
+# ordinary catch-up finishes well inside them, tight enough that a changelog
+# under sustained write load cannot hold startup open indefinitely.
+_TAIL_MAX_PAGES = 1000
+_TAIL_DEADLINE_SECS = 30.0
 
 
 # ── ChangelogEvent ────────────────────────────────────────────────────────────
@@ -179,6 +186,9 @@ class HttpCheckpointStore:
 # Handler = an async callable accepting a ChangelogEvent
 Handler = Any  # Callable[[ChangelogEvent], Awaitable[None]]
 
+# PollErrorHandler = an async callable (exception, consecutive_failures) -> None
+PollErrorHandler = Any  # Callable[[Exception, int], Awaitable[None]]
+
 # Registry key: (object_type, modification_type)  — "*" means wildcard
 _RegistryKey = tuple[str, str]
 
@@ -204,6 +214,12 @@ class ChangelogConsumer:
             to use the built-in :class:`HttpCheckpointStore`.
         authorization: Optional ``Authorization`` header value.
         timeout: HTTP request timeout in seconds (default ``30.0``).
+        on_poll_error: Optional async callback ``(exc, consecutive_failures)``
+            invoked after every failed poll.  Without it a permanently broken
+            consumer — a revoked token, say — is indistinguishable from an idle
+            one on the programmatic surface, since :meth:`run` never returns and
+            never raises (#1061).  See also
+            :attr:`consecutive_poll_failures` and :attr:`last_poll_error`.
         client: Injectable :class:`httpx.AsyncClient` for testing.
     """
 
@@ -220,8 +236,12 @@ class ChangelogConsumer:
         checkpoint_store: CheckpointStore | None = None,
         authorization: str | None = None,
         timeout: float = 30.0,
+        on_poll_error: PollErrorHandler | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        self._on_poll_error = on_poll_error
+        self._consecutive_poll_failures = 0
+        self._last_poll_error: Exception | None = None
         self._base_url = base_url.rstrip("/")
         self._listener_id = listener_id
         self._poll_interval = poll_interval
@@ -251,6 +271,18 @@ class ChangelogConsumer:
             self._checkpoint_store: CheckpointStore = checkpoint_store
         else:
             self._checkpoint_store = HttpCheckpointStore(self._client, self._base_url)
+
+    # ─── Health ──────────────────────────────────────────────────────────────
+
+    @property
+    def consecutive_poll_failures(self) -> int:
+        """Failed polls since the last successful one (``0`` when healthy)."""
+        return self._consecutive_poll_failures
+
+    @property
+    def last_poll_error(self) -> Exception | None:
+        """The most recent poll failure, or ``None`` if the last poll worked."""
+        return self._last_poll_error
 
     # ─── Registration ────────────────────────────────────────────────────────
 
@@ -284,14 +316,23 @@ class ChangelogConsumer:
                 method signals shutdown.
         """
         try:
-            await self._initialise_cursor()
+            await self._initialise_cursor(stop_event)
 
             current_interval = self._poll_interval
 
             while not stop_event.is_set():
                 entries = await self._poll_once()
 
-                if entries:
+                if entries is None:
+                    # A failed poll. Backs off like an idle changelog — the
+                    # right pacing for a transient fault — but the caller can
+                    # now tell the two apart, and hear about it.
+                    await self._report_poll_error()
+                    current_interval = min(
+                        current_interval * self._backoff_factor,
+                        self._max_poll_interval,
+                    )
+                elif entries:
                     for event in entries:
                         await self._dispatch(event)
 
@@ -324,10 +365,15 @@ class ChangelogConsumer:
 
     # ─── Internal ────────────────────────────────────────────────────────────
 
-    async def _initialise_cursor(self) -> None:
-        """Set the initial cursor based on startup_mode and checkpoint."""
+    async def _initialise_cursor(self, stop_event: asyncio.Event | None = None) -> None:
+        """Set the initial cursor based on startup_mode and checkpoint.
+
+        Args:
+            stop_event: Optional shutdown signal, forwarded to the ``from_now``
+                tail walk so a slow startup can still be cancelled (#1058).
+        """
         if self._startup_mode == "from_now":
-            self._cursor = await self._fetch_tail_cursor()
+            self._cursor = await self._fetch_tail_cursor(stop_event)
             # Persist so subsequent from_checkpoint starts here
             await self._checkpoint_store.save(self._listener_id, self._cursor)
         else:
@@ -342,7 +388,7 @@ class ChangelogConsumer:
             self._startup_mode,
         )
 
-    async def _fetch_tail_cursor(self) -> int:
+    async def _fetch_tail_cursor(self, stop_event: asyncio.Event | None = None) -> int:
         """Return the cursor of the newest changelog entry (0 if empty).
 
         ``from_now`` must skip *all* pre-existing history. The original code
@@ -357,6 +403,18 @@ class ChangelogConsumer:
         on a current server the first forward page is already empty (one extra
         round-trip); on an older one it walks to the real tail. Nothing is ever
         dispatched here, so no pre-existing row is processed.
+
+        The forward walk is bounded (#1058). Its only natural exit is a page
+        that comes back no further ahead — an *idle instant* on the changelog.
+        Against one being written faster than the round-trip, every page
+        advances and the walk never converges, so ``run()`` never reaches its
+        polling loop, dispatches nothing, and cannot be stopped. A page cap, a
+        wall-clock deadline and a *stop_event* check bound it; whatever cursor
+        it stopped at is still a valid ``from_now`` tail, because nothing
+        before it is ever dispatched.
+
+        Args:
+            stop_event: Optional shutdown signal, honoured between pages.
         """
         cursor = 0
         # Fast path: the newest entry's cursor on servers that support ?latest.
@@ -371,8 +429,24 @@ class ChangelogConsumer:
 
         # Page forward to the true tail (correctness on servers that ignore
         # ?latest). ``after_cursor`` returns strictly-greater cursors, so this
-        # advances monotonically and terminates when a page comes back empty.
-        while True:
+        # advances monotonically and terminates when a page comes back empty —
+        # or when one of the three bounds below trips.
+        deadline = time.monotonic() + _TAIL_DEADLINE_SECS
+        for page in range(_TAIL_MAX_PAGES):
+            if stop_event is not None and stop_event.is_set():
+                logger.info("Tail paging stopped at cursor=%d on shutdown", cursor)
+                return cursor
+            if time.monotonic() >= deadline:
+                logger.warning(
+                    "Tail paging hit its %.0fs deadline after %d pages at cursor=%d; "
+                    "starting from here (the changelog is being written faster than "
+                    "it can be walked)",
+                    _TAIL_DEADLINE_SECS,
+                    page,
+                    cursor,
+                )
+                return cursor
+
             resp = await self._client.get(
                 f"{self._base_url}/api/observers/changelog",
                 params={"after_cursor": cursor, "limit": self._batch_size},
@@ -380,13 +454,25 @@ class ChangelogConsumer:
             resp.raise_for_status()
             next_cursor = resp.json().get("next_cursor")
             if next_cursor is None or int(next_cursor) <= cursor:
-                break
+                return cursor
             cursor = int(next_cursor)
 
+        logger.warning(
+            "Tail paging stopped at the %d-page cap at cursor=%d; starting from here",
+            _TAIL_MAX_PAGES,
+            cursor,
+        )
         return cursor
 
-    async def _poll_once(self) -> list[ChangelogEvent]:
-        """Fetch one batch of changelog entries from the server."""
+    async def _poll_once(self) -> list[ChangelogEvent] | None:
+        """Fetch one batch of changelog entries from the server.
+
+        Returns:
+            The batch (possibly empty) on success, or ``None`` when the poll
+            failed.  ``[]`` and ``None`` are deliberately different: an idle
+            changelog and a permanently broken consumer used to be the same
+            value, so a caller had no way to tell them apart (#1061).
+        """
         try:
             resp = await self._client.get(
                 f"{self._base_url}/api/observers/changelog",
@@ -396,13 +482,37 @@ class ChangelogConsumer:
                 },
             )
             resp.raise_for_status()
-        except httpx.HTTPError:
+            body: dict[str, Any] = resp.json()
+            raw_entries: list[dict[str, Any]] = body.get("entries", [])
+        except (httpx.HTTPError, ValueError, AttributeError, TypeError) as exc:
+            # The parse belongs inside the guard. Outside it, a proxy's HTML
+            # error page behind a 200 killed run() outright, while a permanent
+            # 401 — which will never self-heal — was swallowed forever. The
+            # asymmetry ran exactly backwards.
             logger.exception("Failed to poll changelog")
-            return []
+            self._record_poll_failure(exc)
+            return None
 
-        body: dict[str, Any] = resp.json()
-        raw_entries: list[dict[str, Any]] = body.get("entries", [])
+        self._consecutive_poll_failures = 0
+        self._last_poll_error = None
         return [ChangelogEvent.from_row(row) for row in raw_entries]
+
+    def _record_poll_failure(self, exc: Exception) -> None:
+        """Count a failed poll and remember it."""
+        self._consecutive_poll_failures += 1
+        self._last_poll_error = exc
+
+    async def _report_poll_error(self) -> None:
+        """Hand the most recent poll failure to *on_poll_error*, if registered."""
+        if self._on_poll_error is None or self._last_poll_error is None:
+            return
+        try:
+            await self._on_poll_error(
+                self._last_poll_error,
+                self._consecutive_poll_failures,
+            )
+        except Exception:
+            logger.exception("on_poll_error callback failed")
 
     async def _dispatch(self, event: ChangelogEvent) -> None:
         """Dispatch an event to all matching handlers (per-handler isolation)."""

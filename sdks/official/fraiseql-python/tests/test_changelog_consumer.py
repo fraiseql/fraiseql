@@ -10,6 +10,7 @@ import pytest
 import sniffio
 
 from fraiseql.changelog_consumer import (
+    _TAIL_MAX_PAGES,
     ChangelogConsumer,
     ChangelogEvent,
     HttpCheckpointStore,
@@ -444,6 +445,145 @@ class TestPollingLoop:
         assert poll_count >= 2  # Survived the 500 error
 
     @pytest.mark.anyio
+    async def test_failed_poll_is_distinguishable_from_an_empty_changelog(self):
+        """A failure must not look like "no new events" (#1061)."""
+
+        def handler(request):
+            return httpx.Response(401)
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        assert await consumer._poll_once() is None
+
+    @pytest.mark.anyio
+    async def test_empty_changelog_is_not_a_failure(self):
+        """The discriminator: an idle changelog must NOT count as failing."""
+
+        def handler(request):
+            return _json_response({"entries": [], "next_cursor": None})
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        assert await consumer._poll_once() == []
+        assert consumer.consecutive_poll_failures == 0
+        assert consumer.last_poll_error is None
+
+    @pytest.mark.anyio
+    async def test_persistent_failure_is_counted_and_reported(self):
+        """A permanently broken consumer must be detectable programmatically."""
+        _skip_unless_asyncio()
+        reported = []
+        stop = asyncio.Event()
+        polls = 0
+
+        def handler(request):
+            nonlocal polls
+            if "/checkpoint" in str(request.url):
+                return httpx.Response(404)
+            polls += 1
+            return httpx.Response(401)
+
+        async def on_poll_error(exc, consecutive):
+            reported.append((type(exc).__name__, consecutive))
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=0.01,
+            max_poll_interval=0.02,
+            on_poll_error=on_poll_error,
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+
+        async def stop_after():
+            while polls < 3:
+                await asyncio.sleep(0.01)
+            stop.set()
+
+        await asyncio.gather(consumer.run(stop), stop_after())
+
+        assert consumer.consecutive_poll_failures >= 3
+        assert consumer.last_poll_error is not None
+        assert [c for _, c in reported][:3] == [1, 2, 3]
+
+    @pytest.mark.anyio
+    async def test_failure_counter_resets_after_a_good_poll(self):
+        _skip_unless_asyncio()
+        stop = asyncio.Event()
+        polls = 0
+
+        def handler(request):
+            nonlocal polls
+            url = str(request.url)
+            if "/checkpoint" in url and request.method == "GET":
+                return httpx.Response(404)
+            if "/checkpoint" in url:
+                return _json_response({"message": "ok"})
+            polls += 1
+            if polls <= 2:
+                return httpx.Response(500)
+            return _json_response({"entries": [], "next_cursor": None})
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=0.01,
+            max_poll_interval=0.02,
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+
+        async def stop_after():
+            while polls < 3:
+                await asyncio.sleep(0.01)
+            stop.set()
+
+        await asyncio.gather(consumer.run(stop), stop_after())
+        assert consumer.consecutive_poll_failures == 0
+
+    @pytest.mark.anyio
+    async def test_a_malformed_200_body_does_not_kill_the_loop(self):
+        """The inverse asymmetry: a proxy HTML page was fatal, a permanent 401 was not.
+
+        `resp.json()` and `body.get("entries")` sat outside the guarded region,
+        so a transient malformed response killed `run()` outright while an
+        auth failure that will never self-heal was swallowed forever (#1061).
+        """
+        _skip_unless_asyncio()
+        stop = asyncio.Event()
+        polls = 0
+
+        def handler(request):
+            nonlocal polls
+            if "/checkpoint" in str(request.url):
+                return httpx.Response(404)
+            polls += 1
+            if polls == 1:
+                return httpx.Response(200, text="<html>502 Bad Gateway</html>")
+            return _json_response({"entries": [], "next_cursor": None})
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=0.01,
+            max_poll_interval=0.02,
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+
+        async def stop_after():
+            while polls < 2:
+                await asyncio.sleep(0.01)
+            stop.set()
+
+        await asyncio.gather(consumer.run(stop), stop_after())
+        assert polls >= 2  # survived the unparseable body
+
+    @pytest.mark.anyio
     async def test_backoff_on_empty_results(self, monkeypatch):
         """Empty polls increase the interval via exponential backoff, to a cap.
 
@@ -718,6 +858,78 @@ class TestFromNowTail:
         await consumer._initialise_cursor()
         assert consumer._cursor == 50
         assert checkpoint_saved["last_cursor"] == 50
+
+    @pytest.mark.anyio
+    async def test_tail_paging_is_bounded_on_a_changelog_still_being_written(self):
+        """A busy changelog must not keep `from_now` startup paging forever (#1058).
+
+        The loop's only exit was a page that came back no further ahead — an
+        idle instant. Against a changelog receiving writes faster than the
+        round-trip, every page advanced, so `_initialise_cursor` never returned:
+        `run()` never reached its polling loop, dispatched nothing, saved no
+        checkpoint, and ignored `stop_event`.
+        """
+        requests = 0
+        # Above the real cap, so an unbounded loop trips this rather than
+        # hanging the test runner. Derived from the constant, never guessed:
+        # a hard-coded threshold below the cap would fail the fixed code.
+        runaway = _TAIL_MAX_PAGES + 50
+
+        def handler(request):
+            nonlocal requests
+            url = str(request.url)
+            if "/checkpoint" in url:
+                return _json_response({"message": "ok"})
+            requests += 1
+            if requests >= runaway:
+                # Force termination so a broken loop fails an assertion below
+                # instead of never ending.
+                return _json_response({"entries": [], "next_cursor": None})
+            # Every page advances: the shape of a continuously-written changelog.
+            return _json_response({"entries": [], "next_cursor": requests * 10})
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="t",
+            startup_mode="from_now",
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        cursor = await consumer._fetch_tail_cursor()
+
+        assert requests < runaway, (
+            f"tail paging made {requests} requests against a changelog that keeps "
+            "advancing; it has no page cap or deadline"
+        )
+        # Whatever it stopped at is still a valid from_now tail: nothing before
+        # it is ever dispatched.
+        assert cursor > 0
+
+    @pytest.mark.anyio
+    async def test_tail_paging_stops_when_the_consumer_is_asked_to_stop(self):
+        """A spinning startup must still be shut down cleanly (#1058)."""
+        requests = 0
+        stop = asyncio.Event()
+
+        def handler(request):
+            nonlocal requests
+            url = str(request.url)
+            if "/checkpoint" in url:
+                return _json_response({"message": "ok"})
+            requests += 1
+            if requests == 3:
+                stop.set()
+            return _json_response({"entries": [], "next_cursor": requests * 10})
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="t",
+            startup_mode="from_now",
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        await consumer._fetch_tail_cursor(stop)
+
+        # The fast path plus three forward pages; it must not keep going.
+        assert requests <= 4
 
     @pytest.mark.anyio
     async def test_first_poll_replays_no_preexisting_rows(self):
