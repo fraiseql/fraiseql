@@ -309,8 +309,14 @@ class ChangelogConsumer:
                         self._max_poll_interval,
                     )
 
-                # Sleep with early exit on stop
-                with contextlib.suppress(TimeoutError):
+                # Sleep with early exit on stop.
+                #
+                # ``asyncio.TimeoutError``, not the builtin: they are the same
+                # class only from 3.11 on. On 3.10 — which this package claims
+                # to support — ``wait_for`` raises the asyncio one, the builtin
+                # does not catch it, and the consumer died out of ``run()`` at
+                # the end of its first sleep, every time (#1057).
+                with contextlib.suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(stop_event.wait(), timeout=current_interval)
         finally:
             if self._owns_client:

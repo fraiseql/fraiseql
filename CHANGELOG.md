@@ -3386,6 +3386,39 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`ChangelogConsumer.run()` survives its first poll on Python 3.10, and 3.10 is now tested
+  (#1057).**
+
+  The sleep-with-early-exit suppressed the builtin `TimeoutError`, but `asyncio.wait_for` raises
+  `asyncio.TimeoutError` — a *different* class before 3.11, where it became an alias. On 3.10
+  the exception propagated straight out of `run()` at the end of the first sleep, the `finally`
+  closed the client, and the consumer terminated after one cycle, every time. `pyproject.toml`
+  declares `requires-python = ">=3.10"`, ships a 3.10 classifier, and sets both ruff's
+  `target-version` and ty's `python-version` to 3.10, so the support claim was explicit.
+
+  The suppression now names `asyncio.TimeoutError`, which is correct on every supported version.
+
+  ⚠ Why no gate caught it: the CI matrix was `['3.11', '3.12']` — the *interior* of the claimed
+  range, which is the one region where version divergences do not live. It now runs
+  `['3.10', '3.11', '3.12', '3.13']`, both ends included. Adding 3.10 alone would still not have
+  exercised the bug: the only two tests that enter `run()` used `asyncio.TaskGroup`, which is
+  3.11+, so the new leg would have skipped or errored before reaching the sleep. They use
+  `asyncio.gather` now, and both fail on 3.10 without the fix.
+
+- **The changelog back-off is actually tested (#1062).**
+
+  `test_backoff_on_empty_results` asserted three constructor echoes and then recomputed
+  `min(interval * factor, max)` inside its own body against a hard-coded list. It never called
+  `run()` or `_poll_once`, so the production back-off was unverified: deleting the entire `else`
+  branch left it green.
+
+  It now measures the intervals `run()` actually asks for, and a second test covers the reset
+  after a non-empty poll — equally uncovered before. Three separate mutations were applied to
+  `run()` to confirm the tests can fail: removing the back-off branch (caught), inverting the cap
+  so the interval grows without bound (caught — the regression the original test was blindest
+  to), and removing the reset (caught by exactly the reset test, with the other two still
+  passing).
+
 - **A retried mutation no longer commits twice: both SDKs can send an `Idempotency-Key`, and
   generate one when retry is enabled (#1060).**
 

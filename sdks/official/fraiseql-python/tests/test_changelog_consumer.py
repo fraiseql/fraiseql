@@ -394,9 +394,10 @@ class TestPollingLoop:
                 await asyncio.sleep(0.01)
             stop.set()
 
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(consumer.run(stop))
-            tg.create_task(stop_after_polls())
+        # gather(), not TaskGroup: TaskGroup is 3.11+, and this is one of only
+        # two tests that enter run() at all, so using it made the whole polling
+        # loop unreachable on the 3.10 the package claims to support (#1057).
+        await asyncio.gather(consumer.run(stop), stop_after_polls())
 
         assert len(received_events) == 1
         assert received_events[0].object_id == "o1"
@@ -438,34 +439,97 @@ class TestPollingLoop:
                 await asyncio.sleep(0.01)
             stop.set()
 
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(consumer.run(stop))
-            tg.create_task(stop_after())
+        await asyncio.gather(consumer.run(stop), stop_after())
 
         assert poll_count >= 2  # Survived the 500 error
 
     @pytest.mark.anyio
-    async def test_backoff_on_empty_results(self):
-        """Empty polls increase the interval via exponential backoff."""
+    async def test_backoff_on_empty_results(self, monkeypatch):
+        """Empty polls increase the interval via exponential backoff, to a cap.
+
+        Measured from ``run()``. The previous version of this test recomputed
+        ``min(interval * factor, max)`` in its own body and never entered the
+        consumer at all, so deleting the whole back-off branch left it green
+        (#1062).
+        """
+        intervals: list[float] = []
+        stop = asyncio.Event()
+
+        def handler(request):
+            url = str(request.url)
+            if "/checkpoint" in url and request.method == "GET":
+                return _json_response({"listener_id": "test", "last_cursor": 0})
+            return _json_response({"entries": [], "next_cursor": None})
+
+        async def recording_wait_for(awaitable, timeout):
+            # The sleep the consumer asks for IS the measurement; nothing here
+            # recomputes it.
+            intervals.append(timeout)
+            awaitable.close()
+            if len(intervals) >= 5:
+                stop.set()
+                return True
+            # asyncio.TimeoutError is what the real wait_for raises on every
+            # version; the builtin is a *different* class before 3.11 (#1057).
+            raise asyncio.TimeoutError
+
+        monkeypatch.setattr(asyncio, "wait_for", recording_wait_for)
+
         consumer = ChangelogConsumer(
             base_url="http://test",
             listener_id="test",
             poll_interval=1.0,
             max_poll_interval=10.0,
             backoff_factor=2.0,
-            client=httpx.AsyncClient(),
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
         )
-        # Simulate: no entries, check that the consumer would compute the right interval
-        # We test this via the internal state after a couple of empty polls
-        # Rather than timing real sleeps, we verify the backoff math directly.
-        assert consumer._poll_interval == 1.0
-        assert consumer._max_poll_interval == 10.0
+        await consumer.run(stop)
 
-        # backoff: 1.0 * 2.0 = 2.0, then 2.0 * 2.0 = 4.0, capped at 10.0
-        interval = consumer._poll_interval
-        for expected in [2.0, 4.0, 8.0, 10.0, 10.0]:
-            interval = min(interval * consumer._backoff_factor, consumer._max_poll_interval)
-            assert interval == expected
+        assert intervals == [2.0, 4.0, 8.0, 10.0, 10.0]
+
+    @pytest.mark.anyio
+    async def test_backoff_resets_after_a_non_empty_poll(self, monkeypatch):
+        """A batch resets the interval; without it a busy consumer stays slow."""
+        intervals: list[float] = []
+        stop = asyncio.Event()
+        polls = 0
+
+        def handler(request):
+            nonlocal polls
+            url = str(request.url)
+            if "/checkpoint" in url and request.method == "GET":
+                return _json_response({"listener_id": "test", "last_cursor": 0})
+            if "/checkpoint" in url:
+                return _json_response({"ok": True})
+            polls += 1
+            # Empty, empty, then one batch: the third sleep must be back to 1.0.
+            if polls == 3:
+                return _json_response(
+                    {"entries": [_make_changelog_row(cursor=7)], "next_cursor": 7}
+                )
+            return _json_response({"entries": [], "next_cursor": None})
+
+        async def recording_wait_for(awaitable, timeout):
+            intervals.append(timeout)
+            awaitable.close()
+            if len(intervals) >= 3:
+                stop.set()
+                return True
+            raise asyncio.TimeoutError
+
+        monkeypatch.setattr(asyncio, "wait_for", recording_wait_for)
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=1.0,
+            max_poll_interval=10.0,
+            backoff_factor=2.0,
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        await consumer.run(stop)
+
+        assert intervals == [2.0, 4.0, 1.0]
 
 
 # ── startup_mode = "from_now" ────────────────────────────────────────────────
