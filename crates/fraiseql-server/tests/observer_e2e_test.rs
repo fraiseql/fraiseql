@@ -353,10 +353,20 @@ async fn test_observer_retry_exponential_backoff() {
     // With exponential backoff: 100ms + 200ms + 300ms = 600ms minimum, plus processing
     wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
 
-    // Verify retry attempts in tb_observer_log
-    let logs = get_observer_logs_for_entity(&pool, &order_id.to_string())
-        .await
-        .expect("Failed to fetch observer logs");
+    // Verify retry attempts in tb_observer_log.
+    //
+    // Waits for the success row rather than reading once: the webhook landing
+    // and the log INSERT are different events, and on a retried dispatch the
+    // failed attempts are written first — so a bare read can return a non-empty
+    // log whose last row is still `failed`, and the final-status assertion below
+    // would fail on timing rather than on behaviour (#999).
+    let logs = wait_for_observer_log_status(
+        &pool,
+        &order_id.to_string(),
+        "success",
+        Duration::from_secs(10),
+    )
+    .await;
 
     // Should have up to 3 attempts in the log
     assert!(!logs.is_empty(), "Expected observer log entries for entity {}", order_id);

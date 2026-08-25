@@ -768,10 +768,16 @@ async fn test_runtime_continues_after_errors() {
     let requests = mock_server.received_requests().await;
     assert_eq!(requests.len(), 1, "Expected 1 successful webhook after retries");
 
-    // Verify log shows attempt tracking
-    let logs = get_observer_logs_for_entity(&pool, &order_id_1.to_string())
-        .await
-        .expect("Failed to fetch observer logs");
+    // Verify log shows attempt tracking.
+    //
+    // Polled, not read once: the webhook arriving and the `tb_observer_log` row
+    // being written are two different events, and the INSERT happens after the
+    // dispatch returns. Reading here the instant `wait_for_webhook` returned is
+    // what made this the suite's one CI flake — the preceding `requests.len()`
+    // assertion passed in the same run, so the runtime had worked and only the
+    // log was not yet visible (#999).
+    let logs =
+        wait_for_observer_logs(&pool, &order_id_1.to_string(), 1, Duration::from_secs(10)).await;
 
     // Should have multiple log entries tracking retries
     assert!(!logs.is_empty(), "Expected observer logs for event with retries");

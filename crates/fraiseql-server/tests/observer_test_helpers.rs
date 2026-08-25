@@ -470,26 +470,119 @@ pub async fn wait_for_webhook(
     }
 }
 
+/// Wait until `entity_id` has at least `expected_count` observer-log rows,
+/// returning them ordered by attempt number.
+///
+/// **Use this instead of reading the log straight after [`wait_for_webhook`].**
+/// `wait_for_webhook` waits for the HTTP call, but the `tb_observer_log` INSERT
+/// happens *after* the dispatch returns, so the two are not the same event. A
+/// single read taken the moment the webhook lands is a read-before-write race:
+/// it passes whenever the writer happens to win and fails otherwise, and the
+/// failure reads as "the runtime did not log" rather than "the test looked too
+/// early" (#999).
+///
+/// Deadline discipline matches `wait_for_webhook`: poll every 100ms, assert on
+/// the elapsed deadline rather than sleeping a fixed guess.
+pub async fn wait_for_observer_logs(
+    pool: &PgPool,
+    entity_id: &str,
+    expected_count: usize,
+    timeout: Duration,
+) -> Vec<(String, i32, Option<i32>)> {
+    let start = tokio::time::Instant::now();
+
+    loop {
+        let logs = get_observer_logs_for_entity(pool, entity_id)
+            .await
+            .expect("Failed to fetch observer logs");
+
+        if logs.len() >= expected_count {
+            return logs;
+        }
+
+        assert!(
+            start.elapsed() <= timeout,
+            "Timeout waiting for {} observer log rows for entity {}. Got: {}",
+            expected_count,
+            entity_id,
+            logs.len()
+        );
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+/// Wait until `entity_id`'s most recent observer-log row carries `status`,
+/// returning every row ordered by attempt number.
+///
+/// The count-based [`wait_for_observer_logs`] is not enough when the assertion
+/// is about the *terminal* status of a retried dispatch: the failed attempts are
+/// logged first, so "at least one row exists" can be satisfied while the row the
+/// test is about has not been written yet. Waiting for the status is the actual
+/// synchronisation point (#999).
+pub async fn wait_for_observer_log_status(
+    pool: &PgPool,
+    entity_id: &str,
+    expected_status: &str,
+    timeout: Duration,
+) -> Vec<(String, i32, Option<i32>)> {
+    let start = tokio::time::Instant::now();
+
+    loop {
+        let logs = get_observer_logs_for_entity(pool, entity_id)
+            .await
+            .expect("Failed to fetch observer logs");
+
+        if logs.last().is_some_and(|(status, _, _)| status == expected_status) {
+            return logs;
+        }
+
+        assert!(
+            start.elapsed() <= timeout,
+            "Timeout waiting for observer log status {:?} on entity {}. Got: {:?}",
+            expected_status,
+            entity_id,
+            logs.iter().map(|(status, _, _)| status).collect::<Vec<_>>()
+        );
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
 /// Assert observer log entry
+///
+/// Polls for the row rather than reading once — see [`wait_for_observer_logs`]
+/// for why a single read races the writer (#999).
 pub async fn assert_observer_log(
     pool: &PgPool,
     entity_id: &str,
     expected_status: &str,
     expected_attempts: Option<i32>,
 ) {
-    let row: Option<(String, i32, Option<i32>)> = sqlx::query_as(
-        r"
-        SELECT status, attempt_number, duration_ms
-        FROM tb_observer_log
-        WHERE entity_id = $1::uuid
-        ORDER BY created_at DESC
-        LIMIT 1
-        ",
-    )
-    .bind(entity_id)
-    .fetch_optional(pool)
-    .await
-    .unwrap();
+    let start = tokio::time::Instant::now();
+    let timeout = Duration::from_secs(10);
+
+    let row: Option<(String, i32, Option<i32>)> = loop {
+        let row: Option<(String, i32, Option<i32>)> = sqlx::query_as(
+            r"
+            SELECT status, attempt_number, duration_ms
+            FROM tb_observer_log
+            WHERE entity_id = $1::uuid
+            ORDER BY created_at DESC
+            LIMIT 1
+            ",
+        )
+        .bind(entity_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap();
+
+        if row.is_some() || start.elapsed() > timeout {
+            break row;
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
 
     assert!(row.is_some(), "No observer log entry found for entity {}", entity_id);
     let (status, attempts, duration) = row.unwrap();
