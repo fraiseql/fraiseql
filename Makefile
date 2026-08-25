@@ -407,7 +407,13 @@ lint-expect:
 # unreachable from `tests/`. This is +1, not +3: the work began with three separate
 # doubles (N rows / one row / no rows) and collapsed them into one parameterised mock
 # rather than raising this budget by three for test code.
-ASYNC_TRAIT_LIMIT := 198
+# 198 → 199: one `JobQueue` test double for the worker-pool lifecycle tests (#1063). It
+# implements a trait that is itself declared with the macro, so the impl has no choice,
+# and it lives in `src/` because `mod worker_tests` sits in `queue/tests.rs` alongside the
+# module it covers — that module was an empty `mod worker_tests {}`, which is how a pool
+# whose `stop()` hung forever shipped. This is +1, not +4: one idle queue drives all four
+# lifecycle tests, since shutdown is observable on the no-work path.
+ASYNC_TRAIT_LIMIT := 199
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \
