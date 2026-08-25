@@ -496,6 +496,19 @@ mod worker_tests {
         }
     }
 
+    /// Wait until the workers have actually entered their loop, so a test cannot
+    /// pass merely because `stop()` beat them to the run flag. Bounded: an
+    /// unbounded spin here would hang the runner instead of failing.
+    async fn await_first_dequeue(dequeues: &Arc<AtomicUsize>) {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while dequeues.load(Ordering::SeqCst) == 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("no worker dequeued within 5s; the pool never started");
+    }
+
     fn pool(
         dequeues: &Arc<AtomicUsize>,
     ) -> JobWorkerPool<IdleQueue, NoopExecutor, FixedBackoffPolicy> {
@@ -521,9 +534,7 @@ mod worker_tests {
 
         // Let the workers actually reach their loop, so the is_running check at
         // spawn time cannot be what saves us.
-        while dequeues.load(Ordering::SeqCst) == 0 {
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
+        await_first_dequeue(&dequeues).await;
 
         tokio::time::timeout(Duration::from_secs(5), p.stop())
             .await
@@ -539,9 +550,7 @@ mod worker_tests {
         p.start().unwrap();
         assert!(p.is_running());
 
-        while dequeues.load(Ordering::SeqCst) == 0 {
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
+        await_first_dequeue(&dequeues).await;
 
         tokio::time::timeout(Duration::from_secs(5), p.stop())
             .await
