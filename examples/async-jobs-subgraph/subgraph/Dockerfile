@@ -1,5 +1,9 @@
 # Build the async-jobs subgraph (standalone crate, no FraiseQL dependency).
-FROM rust:1-slim AS builder
+#
+# Pinned to the same Debian release as the runtime stage: `rust:1-slim` floats onto
+# whatever Debian the image moves to, and a binary linked against a newer glibc than the
+# runtime base fails at container start rather than at build time.
+FROM rust:1-slim-bookworm AS builder
 WORKDIR /app
 COPY Cargo.toml ./
 COPY src ./src

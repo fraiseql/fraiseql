@@ -16,18 +16,34 @@
 # Every step must fail the build if it fails. This file previously ended its compile
 # step with `|| true` over a `schema.json` that no step generated, so the build was
 # green and shipped an image whose server could not boot (#1071).
-FROM rust:1-slim AS builder
+
+# The builder pins the same Debian release as the runtime stage below. `rust:1-slim`
+# floats: it is Debian 13 (trixie) today, and a binary linked against trixie's glibc is
+# not guaranteed to resolve on the bookworm runtime — the failure appears at container
+# start, long after a green build.
+FROM rust:1-slim-bookworm AS builder
 WORKDIR /repo
-RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev python3 \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        pkg-config libssl-dev python3 python3-pip \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
-RUN cargo build --release -p fraiseql-cli -p fraiseql-server
+# `federation` is not a default feature. Without it the server boots, answers
+# ordinary queries and reports healthy — and returns
+# `Validation error: Federation is not enabled in this build` for the one query
+# that makes it a subgraph, `query { _service { sdl } }`. rover asks exactly that,
+# so composition fails against a service that looks entirely fine.
+RUN cargo build --release -p fraiseql-cli -p fraiseql-server \
+    --features fraiseql-server/federation
 
-# Authoring: schema.py declares the types; running it writes types.json. The SDK is
-# taken from this repository rather than PyPI so the example always builds against
-# the version it ships with.
+# Authoring: schema.py declares the types; running it writes types.json.
+#
+# The SDK is installed from THIS REPOSITORY rather than PyPI so the example always builds
+# against the version it ships with — and installed rather than put on PYTHONPATH so that
+# its declared dependencies come with it. A bare PYTHONPATH import fails outright:
+# `fraiseql/__init__.py` imports the async client, which imports httpx.
+RUN pip install --break-system-packages --no-cache-dir ./sdks/official/fraiseql-python
 WORKDIR /repo/examples/async-jobs-subgraph/fraiseql-side
-RUN PYTHONPATH=/repo/sdks/official/fraiseql-python/src python3 schema.py
+RUN python3 schema.py
 
 # Compilation: types.json (shape) + fraiseql.toml (queries, federation, database)
 # -> schema.compiled.json. This is the only artifact the runtime image needs.
@@ -43,9 +59,11 @@ WORKDIR /app
 # authoring sources. That separation is the point of the architecture.
 COPY --from=builder /repo/target/release/fraiseql-server /usr/local/bin/fraiseql-server
 COPY --from=builder /repo/examples/async-jobs-subgraph/fraiseql-side/schema.compiled.json ./
+COPY examples/async-jobs-subgraph/fraiseql-side/server.toml ./
 # Drop privileges: run as a non-root user (schema files stay world-readable)
 RUN groupadd -r app && useradd -r -g app app
 USER app
+ENV FRAISEQL_CONFIG=/app/server.toml
 ENV FRAISEQL_SCHEMA_PATH=/app/schema.compiled.json
 ENV FRAISEQL_BIND_ADDR=0.0.0.0:8080
 EXPOSE 8080

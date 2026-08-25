@@ -1,8 +1,18 @@
 # Rover supergraph composition config.
 #
-# `rover supergraph compose --config router/supergraph.yaml > router/supergraph.graphql`
-# pulls each subgraph's SDL (via introspection of its running service) and
-# composes them into a single supergraph schema the Apollo Router serves.
+# `make supergraph` runs
+# `rover supergraph compose --config router/supergraph.yaml` on the HOST, and
+# rover fetches each subgraph's SDL itself. That is why the two URLs per subgraph
+# differ, and the difference is load-bearing (#1053):
+#
+#   routing_url  — who calls it: the ROUTER, from inside the compose network,
+#                  so it must be the compose service name.
+#   subgraph_url — who calls it: ROVER, from the host, so it must be the
+#                  published port. `fraiseql` and `subgraph` do not resolve
+#                  there; rover fails with a DNS error and composes nothing.
+#
+# If you move composition into the network (`docker compose run` a rover image),
+# both URLs become the service names again.
 #
 # The two subgraphs:
 #   - users : the FraiseQL (SQL-backed) service  -> owns User
@@ -12,8 +22,8 @@ subgraphs:
   users:
     routing_url: http://fraiseql:8080/graphql
     schema:
-      subgraph_url: http://fraiseql:8080/graphql
+      subgraph_url: http://localhost:8080/graphql
   jobs:
     routing_url: http://subgraph:4001/graphql
     schema:
-      subgraph_url: http://subgraph:4001/graphql
+      subgraph_url: http://localhost:4001/graphql

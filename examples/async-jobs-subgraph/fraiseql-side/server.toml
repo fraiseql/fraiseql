@@ -1,0 +1,14 @@
+# Runtime configuration for the FraiseQL subgraph.
+#
+# CORS is off because nothing reaches this service from a browser: the Apollo Router
+# calls it server-to-server inside the compose network, and rover fetches its SDL from
+# the host. That has to be said explicitly — the server runs in production mode unless
+# FRAISEQL_ENV says otherwise, and production mode refuses to boot with CORS enabled and
+# no origin list, since that would accept requests from any origin:
+#
+#   Error: cors_enabled is true but cors_origins is empty in production mode.
+#
+# A browser-facing deployment sets `cors_origins = ["https://app.example.com"]` instead.
+# Do not "fix" this by setting FRAISEQL_ENV=development; that turns the whole production
+# check set off, not just this one.
+cors_enabled = false

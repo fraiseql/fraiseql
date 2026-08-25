@@ -36,13 +36,26 @@ demo-local:
 	echo
 
 ## Build subgraph images and bring up postgres + subgraphs (no router yet).
+##
+## --wait matters: plain `up -d` returns once the containers are CREATED, so the
+## `supergraph` step below would race their boot and rover would get a connection
+## refused. Both subgraph images declare a HEALTHCHECK, so --wait blocks until
+## they actually answer.
 build:
 	docker compose build
-	docker compose up -d postgres subgraph fraiseql
+	docker compose up -d --wait postgres subgraph fraiseql
 
 ## Compose the supergraph schema from the running subgraphs (needs rover).
+##
+## rover runs on the host and fetches each subgraph over its published port — see
+## the comment in router/supergraph.yaml for why subgraph_url and routing_url
+## differ. Compose into a temporary file and move it into place only on success:
+## `> router/supergraph.graphql` truncates the target before rover even runs, so
+## a failed composition destroys the schema the router is currently serving.
 supergraph:
-	$(ROVER) supergraph compose --config router/supergraph.yaml > router/supergraph.graphql
+	@$(ROVER) supergraph compose --config router/supergraph.yaml > router/supergraph.graphql.tmp \
+	  || { rm -f router/supergraph.graphql.tmp; exit 1; }
+	@mv router/supergraph.graphql.tmp router/supergraph.graphql
 	@echo "Wrote router/supergraph.graphql"
 
 ## Full stack: subgraphs up, supergraph composed, router serving on :4000.
@@ -70,4 +83,4 @@ down:
 
 ## Remove the generated supergraph schema.
 clean: down
-	rm -f router/supergraph.graphql
+	rm -f router/supergraph.graphql router/supergraph.graphql.tmp

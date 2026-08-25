@@ -1,3 +1,4 @@
 router/supergraph.graphql
 fraiseql-side/types.json
 fraiseql-side/schema.compiled.json
+router/supergraph.graphql.tmp

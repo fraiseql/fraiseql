@@ -263,6 +263,85 @@ while IFS= read -r hit; do
     [ -d "$dir" ] || fail "documented directory does not exist: $dir" "$hit"
 done < <(grep -rn '^[[:space:]]*cd examples/' --include='*.md' examples/ README.md docs/ 2>/dev/null || true)
 
+# ---------------------------------------------------------------------------
+# 9. A composition tool that runs on the HOST must be given host-reachable URLs.
+#
+# #1053: router/supergraph.yaml gave rover `subgraph_url: http://fraiseql:8080/graphql`
+# — a compose service name — while the Makefile runs rover as a host CLI. rover cannot
+# resolve it, so `make run` aborts at composition and the documented federation demo has
+# never worked. The pair is easy to get wrong because the file legitimately carries BOTH
+# kinds of URL: `routing_url` is dialled by the router from inside the network and must
+# stay on the service name; only `subgraph_url` is dialled by whoever runs rover.
+#
+# Composition wrapped in `docker compose run/exec` runs inside the network, where the
+# service names are correct — those invocations are skipped.
+# ---------------------------------------------------------------------------
+echo "→ host-run supergraph composition names host-reachable subgraph URLs"
+while IFS= read -r hit; do
+    file="${hit%%:*}"
+    line="${hit#*:}"; line="${line#*:}"
+    stripped="${line#"${line%%[![:space:]]*}"}"
+    case "$stripped" in '#'*) continue ;; esac
+    case "$line" in *docker*) continue ;; esac
+    cfg="$(printf '%s' "$line" | sed -nE 's/.*--config[[:space:]]+([^[:space:]>]+).*/\1/p')"
+    [ -n "$cfg" ] || continue
+    cfg="$(dirname "$file")/$cfg"
+    if [ ! -f "$cfg" ]; then
+        fail "$file composes a supergraph from a config that does not exist: $cfg"
+        continue
+    fi
+    while IFS= read -r url; do
+        [ -n "$url" ] || continue
+        case "$url" in *//localhost*|*//127.0.0.1*) continue ;; esac
+        fail "$cfg: subgraph_url is not reachable from the host, where $file runs the composer:" \
+             "$url" \
+             "rover fetches this URL itself, so it must be the published port." \
+             "routing_url is the one that stays on the compose service name."
+    done < <(grep -E '^[[:space:]]*subgraph_url:' "$cfg" | sed -E 's/^[[:space:]]*subgraph_url:[[:space:]]*//')
+done < <(grep -rn 'supergraph compose' --include='Makefile' --include='*.mk' --include='*.sh' examples/ || true)
+
+# ---------------------------------------------------------------------------
+# 10. A multi-stage image must link and run against the same Debian release.
+#
+# Found while building examples/async-jobs-subgraph for real (#1071's repair): its
+# builder was `rust:1-slim`, which is Debian 13 (trixie) today, while the runtime stage
+# is `debian:bookworm-slim` (Debian 12). A binary linked against trixie's glibc is not
+# guaranteed to resolve on bookworm, and when it does not, the failure appears when the
+# container starts — long after a green build, in whatever runs the image. The tag
+# floats, so the day the rust image moves the break arrives with no diff to point at.
+#
+# Only checked when the RUNTIME stage names a release; an image that runs on the same
+# base it builds on (python:3.13-slim -> python:3.13-slim) cannot drift apart.
+# ---------------------------------------------------------------------------
+echo "→ multi-stage example images pin builder and runtime to one Debian release"
+debian_release() {
+    case "$1" in
+        *bookworm*) echo bookworm ;;
+        *trixie*)   echo trixie ;;
+        *bullseye*) echo bullseye ;;
+        *)          echo "" ;;
+    esac
+}
+while IFS= read -r dockerfile; do
+    mapfile -t froms < <(grep -E '^FROM ' "$dockerfile" | awk '{print $2}')
+    [ "${#froms[@]}" -ge 2 ] || continue
+    runtime="${froms[-1]}"
+    rt="$(debian_release "$runtime")"
+    [ -n "$rt" ] || continue
+    for (( i = 0; i < ${#froms[@]} - 1; i++ )); do
+        builder="${froms[$i]}"
+        bt="$(debian_release "$builder")"
+        if [ -z "$bt" ]; then
+            fail "$dockerfile builds on \`$builder\`, which pins no Debian release, and runs on \`$runtime\`" \
+                 "That tag follows whatever Debian it moves to. A binary linked against a glibc" \
+                 "newer than $rt's fails when the container starts, not when the image builds."
+        elif [ "$bt" != "$rt" ]; then
+            fail "$dockerfile builds on $bt (\`$builder\`) but runs on $rt (\`$runtime\`)" \
+                 "Link and run against the same Debian release."
+        fi
+    done
+done < <(find examples -name 'Dockerfile*' | sort)
+
 if [ "$found" -ne 0 ]; then
     echo
     echo "examples/ integrity gate FAILED — see above."
