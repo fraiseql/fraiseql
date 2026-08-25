@@ -26,9 +26,23 @@
 //! demonstrating tenant isolation did not have it. It is now
 //! `WITH (security_invoker = true)`, which is also what the new check requires.
 //!
+//! ## Why every fixture relation is named after its test
+//!
+//! Three tests used to share one `tb_rls_probe`, each opening with
+//! `DROP TABLE IF EXISTS … CASCADE; CREATE TABLE …`. That is correct alone and racy
+//! together: one test's `CREATE` collides with another's, and the collision surfaces
+//! as `duplicate key … pg_type_typname_nsp_index` rather than as anything about RLS,
+//! so a developer running the crate the default way read a catalog error as an RLS
+//! failure (#1096). The integration leg hid it by passing `--test-threads=1`, which
+//! made that flag load-bearing for *correctness* rather than merely for database
+//! contention.
+//!
+//! Each test now owns its relation names, so the suite is correct under parallelism
+//! and nothing outside it has to arrange for isolation. Do not reintroduce a shared
+//! fixture name here: give the new test its own.
+//!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** creates and drops shared `tenant_items` / `v_tenant_item`
-//! fixtures → run `--test-threads=1`.
+//! **Parallelism:** safe — every fixture relation is unique to one test.
 
 #![cfg(test)]
 #![allow(clippy::manual_let_else, clippy::print_stdout, clippy::print_stderr)] // Reason: test uses match for clarity in assertion context
@@ -264,8 +278,8 @@ async fn validate_rls_active_fails_on_a_table_with_no_policies() {
     let setup = setup_raw_connection(&db_url).await;
     setup
         .batch_execute(
-            "DROP TABLE IF EXISTS tb_rls_probe CASCADE; \
-             CREATE TABLE tb_rls_probe (id int, data jsonb);",
+            "DROP TABLE IF EXISTS tb_rls_probe_no_policies CASCADE; \
+             CREATE TABLE tb_rls_probe_no_policies (id int, data jsonb);",
         )
         .await
         .expect("fixture");
@@ -274,13 +288,16 @@ async fn validate_rls_active_fails_on_a_table_with_no_policies() {
     let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
 
-    let result = cached.validate_rls_active(&schema_reading("tb_rls_probe")).await;
-    setup.batch_execute("DROP TABLE IF EXISTS tb_rls_probe CASCADE").await.ok();
+    let result = cached.validate_rls_active(&schema_reading("tb_rls_probe_no_policies")).await;
+    setup
+        .batch_execute("DROP TABLE IF EXISTS tb_rls_probe_no_policies CASCADE")
+        .await
+        .ok();
 
     match result {
         Err(FraiseQLError::Configuration { message }) => {
             assert!(
-                message.contains("tb_rls_probe"),
+                message.contains("tb_rls_probe_no_policies"),
                 "the error must name the unprotected relation: {message}"
             );
             assert!(
@@ -307,9 +324,9 @@ async fn validate_rls_active_fails_when_rls_is_on_but_no_policy_exists() {
     let setup = setup_raw_connection(&db_url).await;
     setup
         .batch_execute(
-            "DROP TABLE IF EXISTS tb_rls_probe CASCADE; \
-             CREATE TABLE tb_rls_probe (id int, data jsonb); \
-             ALTER TABLE tb_rls_probe ENABLE ROW LEVEL SECURITY;",
+            "DROP TABLE IF EXISTS tb_rls_probe_rls_no_policy CASCADE; \
+             CREATE TABLE tb_rls_probe_rls_no_policy (id int, data jsonb); \
+             ALTER TABLE tb_rls_probe_rls_no_policy ENABLE ROW LEVEL SECURITY;",
         )
         .await
         .expect("fixture");
@@ -318,8 +335,11 @@ async fn validate_rls_active_fails_when_rls_is_on_but_no_policy_exists() {
     let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
 
-    let result = cached.validate_rls_active(&schema_reading("tb_rls_probe")).await;
-    setup.batch_execute("DROP TABLE IF EXISTS tb_rls_probe CASCADE").await.ok();
+    let result = cached.validate_rls_active(&schema_reading("tb_rls_probe_rls_no_policy")).await;
+    setup
+        .batch_execute("DROP TABLE IF EXISTS tb_rls_probe_rls_no_policy CASCADE")
+        .await
+        .ok();
 
     let Err(FraiseQLError::Configuration { message }) = result else {
         panic!("#762: RLS enabled with zero policies must not pass: {result:?}");
@@ -339,12 +359,12 @@ async fn validate_rls_active_fails_for_a_view_that_is_not_security_invoker() {
     let setup = setup_raw_connection(&db_url).await;
     setup
         .batch_execute(
-            "DROP VIEW IF EXISTS v_rls_probe CASCADE; \
-             DROP TABLE IF EXISTS tb_rls_probe CASCADE; \
-             CREATE TABLE tb_rls_probe (id int, tenant_id text, data jsonb); \
-             ALTER TABLE tb_rls_probe ENABLE ROW LEVEL SECURITY; \
-             CREATE POLICY p ON tb_rls_probe USING (true); \
-             CREATE VIEW v_rls_probe AS SELECT data FROM tb_rls_probe;",
+            "DROP VIEW IF EXISTS v_rls_probe_view CASCADE; \
+             DROP TABLE IF EXISTS tb_rls_probe_view CASCADE; \
+             CREATE TABLE tb_rls_probe_view (id int, tenant_id text, data jsonb); \
+             ALTER TABLE tb_rls_probe_view ENABLE ROW LEVEL SECURITY; \
+             CREATE POLICY p ON tb_rls_probe_view USING (true); \
+             CREATE VIEW v_rls_probe_view AS SELECT data FROM tb_rls_probe_view;",
         )
         .await
         .expect("fixture");
@@ -353,21 +373,24 @@ async fn validate_rls_active_fails_for_a_view_that_is_not_security_invoker() {
     let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "test".to_string());
 
-    let plain = cached.validate_rls_active(&schema_reading("v_rls_probe")).await;
+    let plain = cached.validate_rls_active(&schema_reading("v_rls_probe_view")).await;
 
     // The same view, redefined as security_invoker, must pass.
     setup
         .batch_execute(
-            "DROP VIEW v_rls_probe; \
-             CREATE VIEW v_rls_probe WITH (security_invoker = true) AS \
-               SELECT data FROM tb_rls_probe;",
+            "DROP VIEW v_rls_probe_view; \
+             CREATE VIEW v_rls_probe_view WITH (security_invoker = true) AS \
+               SELECT data FROM tb_rls_probe_view;",
         )
         .await
         .expect("redefine view");
-    let invoker = cached.validate_rls_active(&schema_reading("v_rls_probe")).await;
+    let invoker = cached.validate_rls_active(&schema_reading("v_rls_probe_view")).await;
 
     setup
-        .batch_execute("DROP VIEW IF EXISTS v_rls_probe; DROP TABLE IF EXISTS tb_rls_probe CASCADE")
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_rls_probe_view; \
+             DROP TABLE IF EXISTS tb_rls_probe_view CASCADE",
+        )
         .await
         .ok();
 
