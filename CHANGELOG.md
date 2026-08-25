@@ -20,6 +20,43 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Both Python clients raise `FraiseQLError` subclasses for every HTTP status, instead of
+  leaking `httpx.HTTPStatusError` (#1059).**
+
+  `resp.raise_for_status()` in `AsyncFraiseQLClient._send` and `FraiseQLClient.execute` raised
+  an httpx type, which is not a `FraiseQLError` and not in the default `retry_on` tuple. So the
+  catch-all that `errors.py` documents — `except fraiseql.FraiseQLError` — did not catch a 502,
+  and the retry feature could not fire for the most common transient server failure. The
+  server's own 429, 503 and 504 responses all took that path.
+
+  Every non-2xx status now maps into the hierarchy, and the mapping is what decides
+  retryability:
+
+  | Status | Raises | Retried |
+  |---|---|---|
+  | 401, 403 | `AuthenticationError` | no |
+  | 408 | `TimeoutError` | yes |
+  | 429 | `RateLimitError`, carrying `retry_after` | no |
+  | other 4xx | `HTTPStatusError` | no |
+  | 5xx | `NetworkError` | yes |
+
+  **What breaks:** code catching `httpx.HTTPStatusError` around a FraiseQL call no longer sees
+  it. Catch `fraiseql.HTTPStatusError` (or the base `fraiseql.FraiseQLError`) instead. Code that
+  already followed the documented catch-all gains coverage rather than losing it.
+
+  `RateLimitError` and `HTTPStatusError` are new exports. `RateLimitError` is distinct from the
+  sync client's `FraiseQLRateLimitError`, which classifies a GraphQL `extensions.code` rather
+  than a transport status.
+
+- **The TypeScript client stops retrying 4xx (#1059).**
+
+  `client.ts` turned every non-ok status into a retryable `NetworkError`, so a 400, 404 or 409
+  was re-sent up to `maxAttempts` times — directly against ADR-0015 §3, which treats a
+  4xx-class response as permanent and dead-letters it immediately. 4xx now raises the new
+  non-retryable `HttpStatusError` (with `.status`), 408 raises `TimeoutError`, and only 5xx
+  remains a retryable `NetworkError`. Callers matching on `NetworkError` to detect a bad
+  request must match `HttpStatusError` instead.
+
 - **Every SDK's subscription authoring surface moves to the compiler's shape, dropping
   `nullable` and `operation` (#1024).**
 
@@ -3348,6 +3385,28 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **The TypeScript client's timeout bounds the response body, not only the headers (#1077).**
+
+  `clearTimeout(timer)` sat in the `finally` of the block wrapping `fetch` alone, so the
+  AbortController was disarmed the moment the headers arrived — before `await response.json()`
+  streamed the body. A server that answered `200 OK` and then stalled a chunked body left
+  `query()` and `mutate()` waiting with no deadline armed, regardless of `timeoutMs`.
+
+  On Node the wait ended only at undici's default 300 s `bodyTimeout` — a 60× overshoot of a
+  5 s `timeoutMs` — and in a browser, where fetch has no body timeout at all, it did not end.
+  Worse, that eventual rejection surfaced as `NetworkError('Failed to parse JSON response')`,
+  which is in the default `retryOn` list, so a configured retry repeated the whole unbounded
+  wait per attempt.
+
+  The timer now covers the body read, and an abort during the parse raises `TimeoutError`
+  rather than being mislabelled a malformed payload — mapping it to `NetworkError` would have
+  restored the deadline and still left it retryable.
+
+  ⚠ Why no gate caught it: the only timeout test injected a pre-made `AbortError` from a mock
+  fetch, so the timer itself was never exercised. The new test resolves headers immediately and
+  never settles the body, and races the call against a sentinel so a missing deadline fails an
+  assertion instead of hanging the runner.
 
 - **The Python AI adapters ask for fields, instead of reporting success with no data (#1076).**
 

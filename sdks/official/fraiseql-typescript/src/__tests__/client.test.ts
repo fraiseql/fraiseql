@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { FraiseQLClient } from '../client';
 import {
   GraphQLError,
+  HttpStatusError,
   NetworkError,
   TimeoutError,
   AuthenticationError,
@@ -200,6 +201,54 @@ describe('FraiseQLClient', () => {
 
       await expect(client.query('{ data }')).rejects.toBeInstanceOf(NetworkError);
     });
+
+    it('throws HttpStatusError on a client-side 4xx', async () => {
+      const fetchMock = makeFetch({ status: 404, ok: false, statusText: 'Not Found' });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      const err = await client.query('{ data }').catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpStatusError);
+      expect((err as HttpStatusError).status).toBe(404);
+    });
+
+    it('throws TimeoutError on 408', async () => {
+      const fetchMock = makeFetch({ status: 408, ok: false, statusText: 'Request Timeout' });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await expect(client.query('{ data }')).rejects.toBeInstanceOf(TimeoutError);
+    });
+  });
+
+  describe('retry classification (ADR-0015 §3: 4xx is permanent)', () => {
+    it('does not retry a 4xx', async () => {
+      const fetchMock = makeFetch({ status: 400, ok: false, statusText: 'Bad Request' });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        retry: { maxAttempts: 3, baseDelayMs: 0, jitter: false },
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await expect(client.query('{ data }')).rejects.toBeInstanceOf(HttpStatusError);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a 5xx', async () => {
+      const fetchMock = makeFetch({ status: 503, ok: false, statusText: 'Service Unavailable' });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        retry: { maxAttempts: 3, baseDelayMs: 0, jitter: false },
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await expect(client.query('{ data }')).rejects.toBeInstanceOf(NetworkError);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
   });
 
   describe('mutate', () => {
@@ -232,6 +281,50 @@ describe('FraiseQLClient', () => {
       });
 
       await expect(client.query('{ slow }')).rejects.toBeInstanceOf(TimeoutError);
+    });
+
+    it('bounds the response body read, not only the header round-trip', async () => {
+      // Headers arrive at once; the body never completes unless the request is
+      // aborted — the shape of a hung upstream or a half-closed socket. If the
+      // deadline only covers `fetch`, nothing ever aborts and this never settles.
+      const fetchMock = vi.fn((_url: string, init: { signal: AbortSignal }) =>
+        Promise.resolve({
+          status: 200,
+          statusText: 'OK',
+          ok: true,
+          headers: { get: () => null },
+          json: () =>
+            new Promise((_resolve, reject) => {
+              init.signal.addEventListener('abort', () => {
+                reject(
+                  Object.assign(new Error('The operation was aborted'), {
+                    name: 'AbortError',
+                  })
+                );
+              });
+            }),
+        })
+      );
+
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        timeoutMs: 50,
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      // Race against a sentinel so a missing deadline fails an assertion rather
+      // than hanging until the runner's own timeout.
+      const outcome = await Promise.race([
+        client.query('{ slow }').then(
+          () => 'RESOLVED' as unknown,
+          (error: unknown) => error
+        ),
+        new Promise<unknown>((resolve) =>
+          setTimeout(() => resolve('NO_DEADLINE'), 1000)
+        ),
+      ]);
+
+      expect(outcome).toBeInstanceOf(TimeoutError);
     });
   });
 });

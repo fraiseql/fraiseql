@@ -17,10 +17,10 @@ from typing import Any
 import httpx
 
 from fraiseql.errors import (
-    AuthenticationError,
     GraphQLError,
     NetworkError,
     TimeoutError,
+    raise_for_status,
 )
 from fraiseql.retry import RetryConfig  # noqa: TC001 — used at runtime for method calls
 
@@ -87,8 +87,10 @@ class AsyncFraiseQLClient:
             GraphQLError: When the response contains a non-null ``errors``
                 array.
             AuthenticationError: On HTTP 401 or 403.
-            TimeoutError: When the request times out.
-            NetworkError: On other transport-level failures.
+            RateLimitError: On HTTP 429, carrying ``retry_after``.
+            HTTPStatusError: On any other 4xx.
+            TimeoutError: When the request times out, or on HTTP 408.
+            NetworkError: On 5xx and other transport-level failures.
         """
         return await self._execute(query, variables, operation_name)
 
@@ -115,8 +117,10 @@ class AsyncFraiseQLClient:
             GraphQLError: When the response contains a non-null ``errors``
                 array.
             AuthenticationError: On HTTP 401 or 403.
-            TimeoutError: When the request times out.
-            NetworkError: On other transport-level failures.
+            RateLimitError: On HTTP 429, carrying ``retry_after``.
+            HTTPStatusError: On any other 4xx.
+            TimeoutError: When the request times out, or on HTTP 408.
+            NetworkError: On 5xx and other transport-level failures.
         """
         return await self._execute(mutation, variables, operation_name)
 
@@ -180,10 +184,7 @@ class AsyncFraiseQLClient:
         except httpx.RequestError as exc:
             raise NetworkError(str(exc)) from exc
 
-        if resp.status_code in (401, 403):
-            raise AuthenticationError(resp.status_code)
-
-        resp.raise_for_status()
+        raise_for_status(resp.status_code, resp.headers.get("Retry-After"))
         body: dict[str, Any] = resp.json()
 
         errors = body.get("errors")

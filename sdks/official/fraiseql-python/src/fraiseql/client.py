@@ -26,6 +26,7 @@ from fraiseql.errors import (
     FraiseQLError,
     FraiseQLRateLimitError,
     FraiseQLUnsupportedError,
+    raise_for_status,
 )
 
 __all__ = [
@@ -109,8 +110,11 @@ class FraiseQLClient:
             The full GraphQL response dict (with "data" and optional "errors" keys).
 
         Raises:
-            FraiseQLError: On GraphQL-level errors.
-            httpx.HTTPError: On network/transport errors.
+            FraiseQLError: On GraphQL-level errors, and on every non-2xx
+                status — 401/403 as ``AuthenticationError``, 408 as
+                ``TimeoutError``, 429 as ``RateLimitError``, other 4xx as
+                ``HTTPStatusError``, 5xx as ``NetworkError`` (#1059).
+            httpx.HTTPError: On network/transport failures below HTTP.
         """
         payload: dict[str, Any] = {"query": query}
         if variables is not None:
@@ -119,7 +123,7 @@ class FraiseQLClient:
             payload["operationName"] = operation_name
 
         resp = await self._client.post(self.url, json=payload)
-        resp.raise_for_status()
+        raise_for_status(resp.status_code, resp.headers.get("Retry-After"))
         body: dict[str, Any] = resp.json()
 
         if body.get("errors"):

@@ -7,7 +7,9 @@ from fraiseql.async_client import AsyncFraiseQLClient
 from fraiseql.errors import (
     AuthenticationError,
     GraphQLError,
+    HTTPStatusError,
     NetworkError,
+    RateLimitError,
     TimeoutError,
 )
 from fraiseql.retry import RetryConfig
@@ -170,7 +172,14 @@ async def test_http_403_raises_authentication_error():
 
 
 @pytest.mark.anyio
-async def test_http_500_raises_httpx_error():
+async def test_http_500_raises_network_error():
+    """5xx is a transport-class failure inside the FraiseQL hierarchy (#1059).
+
+    It used to escape as ``httpx.HTTPStatusError``, so the documented
+    ``except fraiseql.FraiseQLError`` catch-all missed the single most common
+    transient server failure.
+    """
+
     def handler(request):
         return httpx.Response(500)
 
@@ -178,7 +187,125 @@ async def test_http_500_raises_httpx_error():
         "http://test/graphql",
         client=httpx.AsyncClient(transport=_mock_transport(handler)),
     ) as client:
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(NetworkError):
+            await client.query("{ x }")
+
+
+@pytest.mark.anyio
+async def test_http_503_is_retried_by_default():
+    """A 503 is retryable without the caller importing an httpx type."""
+    attempts = 0
+
+    def handler(request):
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(503)
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        retry=RetryConfig(max_attempts=3, base_delay=0.0, jitter=False),
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(NetworkError):
+            await client.query("{ x }")
+    assert attempts == 3
+
+
+@pytest.mark.anyio
+async def test_http_429_raises_rate_limit_error_with_retry_after():
+    def handler(request):
+        return httpx.Response(429, headers={"Retry-After": "12"})
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(RateLimitError) as exc_info:
+            await client.query("{ x }")
+    assert exc_info.value.retry_after == 12.0
+
+
+@pytest.mark.anyio
+async def test_http_429_is_not_retried():
+    """Rate limiting is not a transient transport blip — respect the server."""
+    attempts = 0
+
+    def handler(request):
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(429)
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        retry=RetryConfig(max_attempts=3, base_delay=0.0, jitter=False),
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(RateLimitError):
+            await client.query("{ x }")
+    assert attempts == 1
+
+
+@pytest.mark.anyio
+async def test_http_404_raises_http_status_error():
+    def handler(request):
+        return httpx.Response(404)
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(HTTPStatusError) as exc_info:
+            await client.query("{ x }")
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_client_side_4xx_is_not_retried():
+    """ADR-0015 §3: a 4xx-class error is permanent, never retried."""
+    attempts = 0
+
+    def handler(request):
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(400)
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        retry=RetryConfig(max_attempts=3, base_delay=0.0, jitter=False),
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(HTTPStatusError):
+            await client.query("{ x }")
+    assert attempts == 1
+
+
+@pytest.mark.anyio
+async def test_http_408_raises_timeout_error():
+    def handler(request):
+        return httpx.Response(408)
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(TimeoutError):
+            await client.query("{ x }")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 408, 409, 429, 500, 502, 503])
+async def test_every_status_stays_inside_the_fraiseql_hierarchy(status):
+    """H27, made falsifiable: drive real responses, not ``issubclass`` tautologies."""
+    import fraiseql
+
+    def handler(request):
+        return httpx.Response(status)
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(fraiseql.FraiseQLError):
             await client.query("{ x }")
 
 

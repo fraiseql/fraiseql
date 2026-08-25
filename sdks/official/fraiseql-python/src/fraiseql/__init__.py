@@ -66,7 +66,9 @@ from fraiseql.decorators import union as union_decorator
 from fraiseql.errors import (
     AuthenticationError,
     GraphQLError,
+    HTTPStatusError,
     NetworkError,
+    RateLimitError,
     TimeoutError,
 )
 from fraiseql.registry import SchemaRegistry, generate_schema_json
@@ -122,9 +124,11 @@ __all__ = [
     "FraiseQLRateLimitError",
     "FraiseQLUnsupportedError",
     "GraphQLError",
+    "HTTPStatusError",
     "HalfVector",
     "Json",
     "NetworkError",
+    "RateLimitError",
     "RetryConfig",
     "ScalarValidationError",
     "SchemaRegistry",

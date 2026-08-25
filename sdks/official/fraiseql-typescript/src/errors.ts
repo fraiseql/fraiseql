@@ -56,3 +56,20 @@ export class RateLimitError extends FraiseQLError {
     this.retryAfterMs = retryAfterMs;
   }
 }
+
+/**
+ * A non-2xx response that is permanent rather than transient.
+ *
+ * Covers the 4xx statuses not classified more specifically (401/403 →
+ * {@link AuthenticationError}, 408 → {@link TimeoutError}, 429 →
+ * {@link RateLimitError}). Per ADR-0015 §3 a 4xx means the request itself was
+ * rejected, so — unlike {@link NetworkError} — it is never retried.
+ */
+export class HttpStatusError extends FraiseQLError {
+  readonly status: number;
+  constructor(status: number, statusText?: string) {
+    super(`HTTP ${status}${statusText ? `: ${statusText}` : ''}`);
+    this.name = 'HttpStatusError';
+    this.status = status;
+  }
+}

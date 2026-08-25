@@ -195,6 +195,7 @@ export type { FraiseQLClientConfig, HttpRetryConfig } from "./client";
 export {
   FraiseQLError,
   GraphQLError,
+  HttpStatusError,
   NetworkError,
   TimeoutError,
   AuthenticationError,
