@@ -12,6 +12,23 @@
 //! the mock works. The Dagger `integration` leg names this module explicitly;
 //! the database-less `test` leg skips it by name rather than letting it
 //! self-skip into a green that asserted nothing.
+//!
+//! ## Why every test names its own bucket
+//!
+//! These are lib unit tests, so `cargo test --lib` runs them concurrently. They
+//! used to share one bucket, `docs`, and each `rig()` opened by truncating
+//! `_fraiseql_storage_policies` outright — deleting the rows the siblings were
+//! mid-assertion about. One test then asserted the whole table was empty, which
+//! is a claim about the *other* tests rather than about its own behaviour. The
+//! result was a suite whose pass count depended on interleaving: 7/0, 6/1 and
+//! 5/2 across consecutive runs of one unchanged commit, with a different member
+//! failing each time (#1114, #1167, #1186 — three filings of this one defect).
+//!
+//! `--test-threads=1` cannot be scoped to a module, so "this suite runs
+//! single-threaded" was never something it could arrange for itself. Each test
+//! now owns a bucket name; the reset and every store assertion are scoped to it.
+//! A new test here gets its own name — do not reintroduce a shared one, and do
+//! not assert on the table as a whole.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test module.
 
@@ -33,7 +50,6 @@ use crate::{server::Server, server_config::ServerConfig};
 
 const WRITE_TOKEN: &str = "admin-write-token-that-is-long-enough-1234";
 const READ_TOKEN: &str = "admin-readonly-token-that-is-long-enough-5678";
-const BUCKET: &str = "docs";
 
 /// A bucket whose configured policy permits authenticated reads under `a/`.
 fn configured_policy() -> fraiseql_storage::BucketPolicy {
@@ -60,16 +76,33 @@ fn rules_body(prefix: &str) -> serde_json::Value {
 }
 
 struct Rig {
-    app:   Router,
-    state: StorageState,
+    app:    Router,
+    state:  StorageState,
+    /// The bucket this test owns. Every test passes a distinct name, so no two
+    /// tests share a row of `_fraiseql_storage_policies`.
+    bucket: String,
     // Held for the test's lifetime: the temp backend dir and the harness
     // service guard.
-    _keep: (tempfile::TempDir, fraiseql_test_support::Service),
+    _keep:  (tempfile::TempDir, fraiseql_test_support::Service),
+}
+
+impl Rig {
+    /// A request against *this* rig's bucket.
+    fn request(
+        &self,
+        method: &str,
+        token: Option<&str>,
+        body: Option<serde_json::Value>,
+    ) -> Request<Body> {
+        request(&self.bucket, method, token, body)
+    }
 }
 
 /// Build a server whose admin API is split-token and whose storage carries a
 /// configured policy, then mount it exactly as `build_router` does.
-async fn rig() -> Rig {
+///
+/// `bucket` must be unique to the calling test — see the module header.
+async fn rig(bucket: &str) -> Rig {
     let svc = fraiseql_test_support::postgres()
         .await
         .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
@@ -80,9 +113,12 @@ async fn rig() -> Rig {
             sqlx::query(trimmed).execute(&pool).await.unwrap();
         }
     }
-    // The suite shares one database and runs single-threaded; start from no
-    // stored policies so a previous test cannot decide this one.
-    sqlx::query("DELETE FROM _fraiseql_storage_policies")
+    // Start from no stored policy *for this bucket*, so a previous run of this
+    // same test cannot decide it. Scoped rather than a whole-table DELETE: the
+    // tests run in parallel, and truncating the table removed rows the siblings
+    // were still asserting against (#1114, #1167, #1186).
+    sqlx::query("DELETE FROM _fraiseql_storage_policies WHERE bucket = $1")
+        .bind(bucket)
         .execute(&pool)
         .await
         .unwrap();
@@ -90,9 +126,9 @@ async fn rig() -> Rig {
     let tmp = tempfile::tempdir().unwrap();
     let mut buckets = HashMap::new();
     buckets.insert(
-        BUCKET.to_string(),
+        bucket.to_string(),
         BucketConfig {
-            name: BUCKET.to_string(),
+            name: bucket.to_string(),
             access: BucketAccess::Private,
             policies: Some(configured_policy()),
             ..BucketConfig::default()
@@ -130,14 +166,20 @@ async fn rig() -> Rig {
     Rig {
         app,
         state,
+        bucket: bucket.to_string(),
         _keep: (tmp, svc),
     }
 }
 
-fn request(method: &str, token: Option<&str>, body: Option<serde_json::Value>) -> Request<Body> {
+fn request(
+    bucket: &str,
+    method: &str,
+    token: Option<&str>,
+    body: Option<serde_json::Value>,
+) -> Request<Body> {
     let mut builder = Request::builder()
         .method(method)
-        .uri(format!("/api/v1/admin/storage/{BUCKET}/policies"));
+        .uri(format!("/api/v1/admin/storage/{bucket}/policies"));
     if let Some(token) = token {
         builder = builder.header(http::header::AUTHORIZATION, format!("Bearer {token}"));
     }
@@ -166,14 +208,14 @@ async fn json_of(response: axum::response::Response) -> serde_json::Value {
 /// map, the same map every storage request reads.
 #[tokio::test]
 async fn an_unparseable_policy_is_refused_and_leaves_the_running_one_in_place() {
-    let rig = rig().await;
+    let rig = rig("docs-unparseable").await;
 
     // Establish a stored policy first, so the refusal has something other than
     // the configured policy to preserve.
     let ok = rig
         .app
         .clone()
-        .oneshot(request("PUT", Some(WRITE_TOKEN), Some(rules_body("live/"))))
+        .oneshot(rig.request("PUT", Some(WRITE_TOKEN), Some(rules_body("live/"))))
         .await
         .unwrap();
     assert_eq!(ok.status(), StatusCode::OK);
@@ -191,7 +233,7 @@ async fn an_unparseable_policy_is_refused_and_leaves_the_running_one_in_place() 
     let response = rig
         .app
         .clone()
-        .oneshot(request("PUT", Some(WRITE_TOKEN), Some(bad)))
+        .oneshot(rig.request("PUT", Some(WRITE_TOKEN), Some(bad)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -202,7 +244,7 @@ async fn an_unparseable_policy_is_refused_and_leaves_the_running_one_in_place() 
 
     // The live map still carries the accepted policy — not the refused one, and
     // not nothing.
-    let effective = rig.state.buckets.load().get(BUCKET).unwrap().policies.clone().unwrap();
+    let effective = rig.state.buckets.load().get(&rig.bucket).unwrap().policies.clone().unwrap();
     assert_eq!(
         effective.rules.first().unwrap().key_prefix.as_deref(),
         Some("live/"),
@@ -211,7 +253,7 @@ async fn an_unparseable_policy_is_refused_and_leaves_the_running_one_in_place() 
 
     // And the store was not written either, so a restart agrees with what is
     // being enforced.
-    let stored = rig.state.policy_store.get(BUCKET).await.unwrap().unwrap();
+    let stored = rig.state.policy_store.get(&rig.bucket).await.unwrap().unwrap();
     assert_eq!(
         stored.parse().unwrap().rules.first().unwrap().key_prefix.as_deref(),
         Some("live/"),
@@ -222,7 +264,7 @@ async fn an_unparseable_policy_is_refused_and_leaves_the_running_one_in_place() 
 /// policy, not silently stripped of it.
 #[tokio::test]
 async fn a_rule_with_an_unknown_field_is_refused() {
-    let rig = rig().await;
+    let rig = rig("docs-unknown-field").await;
     let body = serde_json::json!({
         "rules": [
             { "methods": ["read"], "principal": "authenticated", "require_unexpird": true },
@@ -231,7 +273,7 @@ async fn a_rule_with_an_unknown_field_is_refused() {
     let response = rig
         .app
         .clone()
-        .oneshot(request("PUT", Some(WRITE_TOKEN), Some(body)))
+        .oneshot(rig.request("PUT", Some(WRITE_TOKEN), Some(body)))
         .await
         .unwrap();
     assert_eq!(
@@ -246,7 +288,7 @@ async fn a_rule_with_an_unknown_field_is_refused() {
         "the refusal must name the offending field: {json}"
     );
     assert!(
-        rig.state.policy_store.get(BUCKET).await.unwrap().is_none(),
+        rig.state.policy_store.get(&rig.bucket).await.unwrap().is_none(),
         "nothing was persisted"
     );
 }
@@ -255,10 +297,15 @@ async fn a_rule_with_an_unknown_field_is_refused() {
 /// source governs, and `DELETE` hands the bucket back.
 #[tokio::test]
 async fn put_get_delete_round_trip_reports_the_governing_source() {
-    let rig = rig().await;
+    let rig = rig("docs-round-trip").await;
 
     // Before any push: the configured policy governs.
-    let response = rig.app.clone().oneshot(request("GET", Some(READ_TOKEN), None)).await.unwrap();
+    let response = rig
+        .app
+        .clone()
+        .oneshot(rig.request("GET", Some(READ_TOKEN), None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_of(response).await;
     assert_eq!(body["source"], "config_file");
@@ -271,7 +318,7 @@ async fn put_get_delete_round_trip_reports_the_governing_source() {
     let response = rig
         .app
         .clone()
-        .oneshot(request("PUT", Some(WRITE_TOKEN), Some(rules_body("b/"))))
+        .oneshot(rig.request("PUT", Some(WRITE_TOKEN), Some(rules_body("b/"))))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -281,9 +328,14 @@ async fn put_get_delete_round_trip_reports_the_governing_source() {
     assert_eq!(body["rules"].as_array().unwrap().len(), 1, "the push replaced, it did not add");
     assert_eq!(body["rules"][0]["key_prefix"], "b/");
 
-    let body =
-        json_of(rig.app.clone().oneshot(request("GET", Some(READ_TOKEN), None)).await.unwrap())
-            .await;
+    let body = json_of(
+        rig.app
+            .clone()
+            .oneshot(rig.request("GET", Some(READ_TOKEN), None))
+            .await
+            .unwrap(),
+    )
+    .await;
     assert_eq!(body["source"], "store");
     assert_eq!(body["rules"][0]["key_prefix"], "b/");
 
@@ -291,14 +343,14 @@ async fn put_get_delete_round_trip_reports_the_governing_source() {
     let response = rig
         .app
         .clone()
-        .oneshot(request("DELETE", Some(WRITE_TOKEN), None))
+        .oneshot(rig.request("DELETE", Some(WRITE_TOKEN), None))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_of(response).await;
     assert_eq!(body["source"], "config_file");
     assert_eq!(body["rules"][0]["key_prefix"], "a/");
-    assert!(rig.state.policy_store.get(BUCKET).await.unwrap().is_none());
+    assert!(rig.state.policy_store.get(&rig.bucket).await.unwrap().is_none());
 }
 
 /// The token split is real in both directions: reading which policy governs is
@@ -310,12 +362,12 @@ async fn put_get_delete_round_trip_reports_the_governing_source() {
 /// bucket's access control.
 #[tokio::test]
 async fn the_read_token_can_inspect_but_cannot_change_a_policy() {
-    let rig = rig().await;
+    let rig = rig("docs-token-split").await;
 
     assert_eq!(
         rig.app
             .clone()
-            .oneshot(request("GET", Some(READ_TOKEN), None))
+            .oneshot(rig.request("GET", Some(READ_TOKEN), None))
             .await
             .unwrap()
             .status(),
@@ -327,7 +379,7 @@ async fn the_read_token_can_inspect_but_cannot_change_a_policy() {
     assert_eq!(
         rig.app
             .clone()
-            .oneshot(request("PUT", Some(READ_TOKEN), Some(rules_body("b/"))))
+            .oneshot(rig.request("PUT", Some(READ_TOKEN), Some(rules_body("b/"))))
             .await
             .unwrap()
             .status(),
@@ -337,7 +389,7 @@ async fn the_read_token_can_inspect_but_cannot_change_a_policy() {
     assert_eq!(
         rig.app
             .clone()
-            .oneshot(request("DELETE", Some(READ_TOKEN), None))
+            .oneshot(rig.request("DELETE", Some(READ_TOKEN), None))
             .await
             .unwrap()
             .status(),
@@ -345,11 +397,11 @@ async fn the_read_token_can_inspect_but_cannot_change_a_policy() {
         "nor delete one"
     );
     assert!(
-        rig.state.policy_store.get(BUCKET).await.unwrap().is_none(),
+        rig.state.policy_store.get(&rig.bucket).await.unwrap().is_none(),
         "and neither refusal wrote anything"
     );
     assert_eq!(
-        rig.app.clone().oneshot(request("GET", None, None)).await.unwrap().status(),
+        rig.app.clone().oneshot(rig.request("GET", None, None)).await.unwrap().status(),
         StatusCode::UNAUTHORIZED,
         "and an unauthenticated caller cannot even read"
     );
@@ -360,7 +412,7 @@ async fn the_read_token_can_inspect_but_cannot_change_a_policy() {
 /// like it did.
 #[tokio::test]
 async fn an_unknown_bucket_is_refused_on_every_verb() {
-    let rig = rig().await;
+    let rig = rig("docs-unknown-bucket").await;
     let uri = "/api/v1/admin/storage/nope/policies";
     for (method, body) in [
         ("GET", None),
@@ -383,18 +435,29 @@ async fn an_unknown_bucket_is_refused_on_every_verb() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} on an unknown bucket");
     }
     assert!(rig.state.policy_store.get("nope").await.unwrap().is_none());
-    assert!(rig.state.policy_store.list().await.unwrap().is_empty());
+
+    // The orphan-row check is scoped to the two names this test could have
+    // produced. It used to assert the whole table was empty, which is a claim
+    // about the *siblings* — each of which legitimately stores a row for its own
+    // bucket — and so failed depending on interleaving rather than on behaviour
+    // (#1114, #1167, #1186).
+    let rows = rig.state.policy_store.list().await.unwrap();
+    assert!(
+        !rows.iter().any(|row| row.bucket == "nope" || row.bucket == rig.bucket),
+        "a refused push must not leave an orphan row; stored buckets: {:?}",
+        rows.iter().map(|row| &row.bucket).collect::<Vec<_>>()
+    );
 }
 
 /// An empty rule list is a lock-down an operator can express, and it is not the
 /// same as deleting the policy.
 #[tokio::test]
 async fn an_empty_rule_list_locks_the_bucket_down() {
-    let rig = rig().await;
+    let rig = rig("docs-lockdown").await;
     let response = rig
         .app
         .clone()
-        .oneshot(request("PUT", Some(WRITE_TOKEN), Some(serde_json::json!({"rules": []}))))
+        .oneshot(rig.request("PUT", Some(WRITE_TOKEN), Some(serde_json::json!({"rules": []}))))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -402,7 +465,7 @@ async fn an_empty_rule_list_locks_the_bucket_down() {
     assert_eq!(body["source"], "store");
     assert_eq!(body["rules"].as_array().unwrap().len(), 0);
 
-    let effective = rig.state.buckets.load().get(BUCKET).unwrap().policies.clone().unwrap();
+    let effective = rig.state.buckets.load().get(&rig.bucket).unwrap().policies.clone().unwrap();
     assert!(
         effective.rules.is_empty(),
         "an empty list is a policy that permits nothing, not an absent policy"
@@ -431,6 +494,11 @@ async fn the_endpoint_is_absent_without_storage() {
     let app_state = server.build_app_state();
     let app = server.mount_base_and_admin_routes(Router::new(), &app_state);
 
-    let response = app.oneshot(request("GET", Some(READ_TOKEN), None)).await.unwrap();
+    // No rig here: this server configures no storage at all, so the bucket name
+    // only has to be well-formed.
+    let response = app
+        .oneshot(request("docs-no-storage", "GET", Some(READ_TOKEN), None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
