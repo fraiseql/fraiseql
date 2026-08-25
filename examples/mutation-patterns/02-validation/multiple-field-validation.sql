@@ -16,6 +16,7 @@ RETURNS mutation_response AS $$
 DECLARE
     result mutation_response;
     validation_errors jsonb := '[]'::jsonb;
+    user_record record;
 
     -- Input variables
     user_email text := input_payload->>'email';

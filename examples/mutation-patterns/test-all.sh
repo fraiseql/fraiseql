@@ -10,7 +10,7 @@
 set -e  # Exit on any error
 
 DB_NAME="fraiseql_patterns"
-PSQL="psql -d $DB_NAME -q"
+PSQL="psql -d $DB_NAME -q -v ON_ERROR_STOP=1"
 
 echo "🧪 Testing FraiseQL Mutation Patterns"
 echo "====================================="
@@ -30,6 +30,17 @@ $PSQL -c "SELECT 1 FROM users LIMIT 1;" 2>/dev/null || {
     $PSQL -f schema.sql
     echo "✅ Schema loaded"
 }
+
+# Load the pattern functions this script exercises.
+#
+# schema.sql creates the tables, the mutation_response type and the shared
+# validation helpers; the mutation functions themselves live one per pattern file,
+# because each file is meant to be read and copied on its own. Without this the
+# script asserted against four functions that were never defined (#1051).
+echo "📦 Loading the pattern functions under test..."
+$PSQL -f 01-basic-crud/create-user.sql > /dev/null
+$PSQL -f 02-validation/multiple-field-validation.sql > /dev/null
+echo "✅ Pattern functions loaded"
 
 # Test basic create function
 echo ""

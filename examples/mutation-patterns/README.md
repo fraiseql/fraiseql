@@ -40,10 +40,13 @@ Additional patterns planned for future releases:
 # Create test database
 createdb fraiseql_patterns
 
-# Load schema
-psql fraiseql_patterns < schema.sql
+# Load schema. `-f`, not `<`: schema.sql includes the shared validation helpers
+# with `\ir`, which resolves relative to the SCRIPT — and psql only knows which
+# script it is reading when it opens the file itself. ON_ERROR_STOP so a missing
+# include is a failure rather than a line of output.
+psql -v ON_ERROR_STOP=1 -d fraiseql_patterns -f schema.sql
 
-# Test all examples
+# Test all examples (loads the pattern functions it exercises)
 ./test-all.sh
 ```
 

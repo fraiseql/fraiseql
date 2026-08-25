@@ -84,8 +84,13 @@ CREATE TYPE mutation_response AS (
 -- Helper Functions
 -- ============================================================================
 
--- Include validation helpers
-\i sql/helpers/mutation_validation.sql
+-- Include the shared validation helpers.
+--
+-- `\ir`, not `\i`: `\i` resolves against the process's working directory, so the
+-- include only ever landed for someone who happened to run psql from the repository
+-- root — and since the documented command set no ON_ERROR_STOP, the miss printed one
+-- error, kept going, and exited 0 with the helpers absent (#1051).
+\ir ../../sql/helpers/mutation_validation.sql
 
 -- ============================================================================
 -- Sample Data
