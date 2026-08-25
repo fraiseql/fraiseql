@@ -269,6 +269,102 @@ describe('FraiseQLClient', () => {
     });
   });
 
+  describe('idempotency (#1060)', () => {
+    function headersOf(fetchMock: ReturnType<typeof vi.fn>, call: number): Record<string, string> {
+      return (fetchMock.mock.calls[call]?.[1] as { headers: Record<string, string> }).headers;
+    }
+
+    it('sends an explicit idempotencyKey as the Idempotency-Key header', async () => {
+      const fetchMock = makeFetch({ body: { data: { createOrder: { id: '1' } } } });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await client.mutate('mutation { createOrder { id } }', undefined, undefined, {
+        idempotencyKey: 'order-4711',
+      });
+
+      expect(headersOf(fetchMock, 0)['Idempotency-Key']).toBe('order-4711');
+    });
+
+    it('reuses one generated key across every retry attempt of a mutation', async () => {
+      // The whole point: the server dedups by key, so the retries of ONE logical
+      // call must not each look like a new request.
+      const fetchMock = makeFetch({ status: 503, ok: false, statusText: 'Service Unavailable' });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        retry: { maxAttempts: 3, baseDelayMs: 0, jitter: false },
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await client.mutate('mutation { createOrder { id } }').catch(() => undefined);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      const keys = [0, 1, 2].map((i) => headersOf(fetchMock, i)['Idempotency-Key']);
+      expect(keys[0]).toBeTruthy();
+      expect(new Set(keys).size).toBe(1);
+    });
+
+    it('generates two different keys for two separate mutate() calls', async () => {
+      const fetchMock = makeFetch({ body: { data: { createOrder: { id: '1' } } } });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        retry: { maxAttempts: 3, baseDelayMs: 0, jitter: false },
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await client.mutate('mutation { createOrder { id } }');
+      await client.mutate('mutation { createOrder { id } }');
+
+      expect(headersOf(fetchMock, 0)['Idempotency-Key']).not.toBe(
+        headersOf(fetchMock, 1)['Idempotency-Key']
+      );
+    });
+
+    it('does not generate a key when retry is not enabled', async () => {
+      const fetchMock = makeFetch({ body: { data: { createOrder: { id: '1' } } } });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await client.mutate('mutation { createOrder { id } }');
+
+      expect(headersOf(fetchMock, 0)['Idempotency-Key']).toBeUndefined();
+    });
+
+    it('does not generate a key for a query, which is already safe to repeat', async () => {
+      const fetchMock = makeFetch({ body: { data: { users: [] } } });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        retry: { maxAttempts: 3, baseDelayMs: 0, jitter: false },
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await client.query('{ users { id } }');
+
+      expect(headersOf(fetchMock, 0)['Idempotency-Key']).toBeUndefined();
+    });
+
+    it('merges per-call headers over the client-level ones', async () => {
+      const fetchMock = makeFetch({ body: { data: { users: [] } } });
+      const client = new FraiseQLClient({
+        url: 'http://localhost:4000/graphql',
+        headers: { 'X-Trace': 'client', 'X-Kept': 'yes' },
+        fetch: fetchMock as unknown as typeof fetch,
+      });
+
+      await client.query('{ users { id } }', undefined, undefined, {
+        headers: { 'X-Trace': 'per-call' },
+      });
+
+      const headers = headersOf(fetchMock, 0);
+      expect(headers['X-Trace']).toBe('per-call');
+      expect(headers['X-Kept']).toBe('yes');
+    });
+  });
+
   describe('timeout', () => {
     it('throws TimeoutError when AbortError is raised', async () => {
       const fetchMock = vi.fn().mockRejectedValue(

@@ -12,6 +12,7 @@ Example::
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import httpx
@@ -71,13 +72,23 @@ class AsyncFraiseQLClient:
         query: str,
         variables: dict[str, Any] | None = None,
         operation_name: str | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Execute a GraphQL query.
+
+        No idempotency key is generated here: repeating a read is already safe,
+        and a key would make the server store a response that never needs
+        replaying.  Pass one explicitly if you want that anyway.
 
         Args:
             query: GraphQL query string.
             variables: Optional query variables.
             operation_name: Optional operation name.
+            headers: Extra headers for this call only; they win over the
+                client-level ones.
+            idempotency_key: Optional ``Idempotency-Key`` header value.
 
         Returns:
             The full GraphQL response dict (``data`` key always present on
@@ -92,23 +103,40 @@ class AsyncFraiseQLClient:
             TimeoutError: When the request times out, or on HTTP 408.
             NetworkError: On 5xx and other transport-level failures.
         """
-        return await self._execute(query, variables, operation_name)
+        return await self._execute(
+            query,
+            variables,
+            operation_name,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
 
     async def mutate(
         self,
         mutation: str,
         variables: dict[str, Any] | None = None,
         operation_name: str | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Execute a GraphQL mutation.
 
-        Semantically identical to :meth:`query`; provided as a convenience
-        to make call sites self-documenting.
+        When retry is configured and no *idempotency_key* is given, one is
+        generated per call and reused across every attempt.  The server
+        executes a mutation carrying a key at most once per key per tenant and
+        replays the stored response on a repeat, so an ambiguous failure —
+        connection reset after the write committed — is retried without
+        committing twice (#1060).
 
         Args:
             mutation: GraphQL mutation string.
             variables: Optional mutation variables.
             operation_name: Optional operation name.
+            headers: Extra headers for this call only; they win over the
+                client-level ones.
+            idempotency_key: Explicit ``Idempotency-Key``.  Pass one to tie the
+                key to your own unit of work; otherwise see above.
 
         Returns:
             The full GraphQL response dict.
@@ -122,7 +150,16 @@ class AsyncFraiseQLClient:
             TimeoutError: When the request times out, or on HTTP 408.
             NetworkError: On 5xx and other transport-level failures.
         """
-        return await self._execute(mutation, variables, operation_name)
+        key = idempotency_key
+        if key is None and self._retry is not None and self._retry.max_attempts > 1:
+            key = str(uuid.uuid4())
+        return await self._execute(
+            mutation,
+            variables,
+            operation_name,
+            headers=headers,
+            idempotency_key=key,
+        )
 
     async def close(self) -> None:
         """Close the underlying HTTP client and release connections."""
@@ -141,6 +178,9 @@ class AsyncFraiseQLClient:
         document: str,
         variables: dict[str, Any] | None,
         operation_name: str | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"query": document}
         if variables is not None:
@@ -148,13 +188,17 @@ class AsyncFraiseQLClient:
         if operation_name is not None:
             payload["operationName"] = operation_name
 
+        request_headers: dict[str, str] = dict(headers or {})
+        if idempotency_key is not None:
+            request_headers["Idempotency-Key"] = idempotency_key
+
         cfg = self._retry
         max_attempts = cfg.max_attempts if cfg is not None else 1
 
         last_exc: Exception | None = None
         for attempt in range(max_attempts):
             try:
-                return await self._send(payload)
+                return await self._send(payload, request_headers)
             except Exception as exc:  # noqa: PERF203 — try/except in loop is required for retry logic
                 # Catch broadly and let RetryConfig decide: the configured
                 # retry_on tuple is honoured for any exception type, not only
@@ -176,9 +220,13 @@ class AsyncFraiseQLClient:
         msg = "max_attempts must be >= 1"
         raise ValueError(msg)
 
-    async def _send(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def _send(
+        self,
+        payload: dict[str, Any],
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         try:
-            resp = await self._client.post(self._url, json=payload)
+            resp = await self._client.post(self._url, json=payload, headers=headers or None)
         except httpx.TimeoutException as exc:
             raise TimeoutError("Request timed out") from exc
         except httpx.RequestError as exc:

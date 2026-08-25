@@ -3386,6 +3386,39 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A retried mutation no longer commits twice: both SDKs can send an `Idempotency-Key`, and
+  generate one when retry is enabled (#1060).**
+
+  `mutate()` shared one retry path and one config with `query()`, so a caller who enabled
+  retries for reads got them for writes too. When a mutation's response was lost — connection
+  reset after the server committed, or a proxy answering 502 on a committed upstream — the
+  identical body was re-POSTed with nothing to tie the attempts together, and three orders were
+  created for one user action. Neither SDK had any per-request header API, so the server's own
+  at-least-once mutation contract (#747: `Idempotency-Key`, tenant-scoped, replays the stored
+  response, 409 on a body mismatch) was unreachable from either official client.
+
+  `query()` and `mutate()` now take a per-call options argument carrying extra headers and an
+  `idempotencyKey` / `idempotency_key`. When retry is configured and no key is given, `mutate()`
+  generates one **per logical call** and reuses it across every attempt, so enabling retry is
+  safe by default rather than silently duplicating writes:
+
+  ```ts
+  await client.mutate('mutation { createOrder { id } }', vars, undefined, {
+    idempotencyKey: 'order-4711',   // or omit it and let the SDK generate one
+  });
+  ```
+
+  ```python
+  await client.mutate("mutation { createOrder { id } }", idempotency_key="order-4711")
+  ```
+
+  No key is generated for `query()` — repeating a read is already safe, and a key would make the
+  server store a response that never needs replaying. Per-call headers win over the
+  client-level ones; `Authorization` continues to be resolved by the client.
+
+  The other half of the duplicate-write hazard, TypeScript retrying 4xx, is under **Breaking**
+  above (#1059).
+
 - **The TypeScript client's timeout bounds the response body, not only the headers (#1077).**
 
   `clearTimeout(timer)` sat in the `finally` of the block wrapping `fetch` alone, so the

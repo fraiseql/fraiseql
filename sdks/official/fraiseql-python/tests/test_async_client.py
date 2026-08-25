@@ -490,3 +490,117 @@ async def test_injected_client_receives_authorization_header():
     await client.query("{ x }")
     await client.close()
     assert captured["auth"] == "Bearer xyz"
+
+
+# ─── Idempotency (#1060) ──────────────────────────────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_explicit_idempotency_key_is_sent():
+    seen: list[str | None] = []
+
+    def handler(request):
+        seen.append(request.headers.get("Idempotency-Key"))
+        return _json_response({"data": {"createOrder": {"id": "1"}}})
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        await client.mutate("mutation { createOrder { id } }", idempotency_key="order-4711")
+    assert seen == ["order-4711"]
+
+
+@pytest.mark.anyio
+async def test_one_generated_key_is_reused_across_retry_attempts():
+    """The server dedups by key, so retries of one logical call must share it."""
+    seen: list[str | None] = []
+
+    def handler(request):
+        seen.append(request.headers.get("Idempotency-Key"))
+        return httpx.Response(503)
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        retry=RetryConfig(max_attempts=3, base_delay=0.0, jitter=False),
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        with pytest.raises(NetworkError):
+            await client.mutate("mutation { createOrder { id } }")
+
+    assert len(seen) == 3
+    assert seen[0] is not None
+    assert len(set(seen)) == 1
+
+
+@pytest.mark.anyio
+async def test_separate_mutate_calls_get_different_keys():
+    seen: list[str | None] = []
+
+    def handler(request):
+        seen.append(request.headers.get("Idempotency-Key"))
+        return _json_response({"data": {"createOrder": {"id": "1"}}})
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        retry=RetryConfig(max_attempts=3, base_delay=0.0, jitter=False),
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        await client.mutate("mutation { createOrder { id } }")
+        await client.mutate("mutation { createOrder { id } }")
+
+    assert seen[0] != seen[1]
+
+
+@pytest.mark.anyio
+async def test_no_key_generated_without_retry():
+    seen: list[str | None] = []
+
+    def handler(request):
+        seen.append(request.headers.get("Idempotency-Key"))
+        return _json_response({"data": {"createOrder": {"id": "1"}}})
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        await client.mutate("mutation { createOrder { id } }")
+    assert seen == [None]
+
+
+@pytest.mark.anyio
+async def test_no_key_generated_for_a_query():
+    seen: list[str | None] = []
+
+    def handler(request):
+        seen.append(request.headers.get("Idempotency-Key"))
+        return _json_response({"data": {"users": []}})
+
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        retry=RetryConfig(max_attempts=3, base_delay=0.0, jitter=False),
+        client=httpx.AsyncClient(transport=_mock_transport(handler)),
+    ) as client:
+        await client.query("{ users { id } }")
+    assert seen == [None]
+
+
+@pytest.mark.anyio
+async def test_per_call_headers_win_over_client_headers():
+    seen: dict[str, str] = {}
+
+    def handler(request):
+        seen["trace"] = request.headers.get("X-Trace", "")
+        seen["auth"] = request.headers.get("Authorization", "")
+        return _json_response({"data": {"users": []}})
+
+    transport = _mock_transport(handler)
+    async with AsyncFraiseQLClient(
+        "http://test/graphql",
+        authorization="Bearer t",
+        client=httpx.AsyncClient(transport=transport, headers={"X-Trace": "client"}),
+    ) as client:
+        await client.query("{ users { id } }", headers={"X-Trace": "per-call"})
+
+    assert seen["trace"] == "per-call"
+    assert seen["auth"] == "Bearer t"

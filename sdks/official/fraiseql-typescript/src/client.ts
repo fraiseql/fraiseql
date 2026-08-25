@@ -19,6 +19,21 @@ import { executeWithRetry } from './http-retry';
 
 export type { HttpRetryConfig };
 
+/** Per-call overrides for a single `query()` or `mutate()`. */
+export interface RequestOptions {
+  /** Extra headers for this call only. They win over the client-level ones. */
+  headers?: Record<string, string>;
+  /**
+   * Idempotency key for this call.
+   *
+   * A mutation carrying one executes at most once per key per tenant: a repeat
+   * with the same body replays the stored response, a repeat with a different
+   * body is a 409 conflict. `mutate()` generates one automatically when retry
+   * is enabled, so pass this only to tie the key to your own unit of work.
+   */
+  idempotencyKey?: string;
+}
+
 export interface FraiseQLClientConfig {
   url: string;
   authorization?: string | (() => string | Promise<string>);
@@ -36,6 +51,17 @@ interface GraphQLResponse {
     path?: Array<string | number>;
     extensions?: Record<string, unknown>;
   }> | null;
+}
+
+/** A fresh idempotency key for one logical mutation. */
+function newIdempotencyKey(): string {
+  const webCrypto = globalThis.crypto as Crypto | undefined;
+  if (typeof webCrypto?.randomUUID === 'function') {
+    return webCrypto.randomUUID();
+  }
+  // Runtimes without WebCrypto: still unique per call, which is all the server
+  // needs — it only compares keys for equality within a tenant.
+  return `fraiseql-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 /** Whether a thrown value is the AbortController firing rather than a real fault. */
@@ -74,20 +100,34 @@ export class FraiseQLClient {
     return this.authorization();
   }
 
-  private async buildHeaders(): Promise<Record<string, string>> {
+  private async buildHeaders(
+    options?: RequestOptions,
+    idempotencyKey?: string
+  ): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...this.extraHeaders,
+      ...options?.headers,
     };
     const auth = await this.resolveAuth();
     if (auth !== undefined) {
       headers['Authorization'] = auth;
     }
+    if (idempotencyKey !== undefined) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
     return headers;
   }
 
+  /** Whether this client is configured to send a request more than once. */
+  private retriesEnabled(): boolean {
+    return (this.retry.maxAttempts ?? 1) > 1;
+  }
+
   private async executeRequest(
-    body: string
+    body: string,
+    options?: RequestOptions,
+    idempotencyKey?: string
   ): Promise<Record<string, unknown>> {
     return executeWithRetry(async () => {
       const controller = new AbortController();
@@ -102,7 +142,7 @@ export class FraiseQLClient {
         try {
           response = await this.fetchFn(this.url, {
             method: 'POST',
-            headers: await this.buildHeaders(),
+            headers: await this.buildHeaders(options, idempotencyKey),
             body,
             signal: controller.signal,
           });
@@ -180,27 +220,41 @@ export class FraiseQLClient {
   async query<T = Record<string, unknown>>(
     query: string,
     variables?: Record<string, unknown>,
-    operationName?: string
+    operationName?: string,
+    options?: RequestOptions
   ): Promise<T> {
     const body = JSON.stringify({
       query,
       variables,
       ...(operationName && { operationName }),
     });
-    return this.executeRequest(body) as Promise<T>;
+    // No generated key: repeating a read is already safe, and a key would make
+    // the server store a response for something that does not need replaying.
+    return this.executeRequest(
+      body,
+      options,
+      options?.idempotencyKey
+    ) as Promise<T>;
   }
 
   async mutate<T = Record<string, unknown>>(
     mutation: string,
     variables?: Record<string, unknown>,
-    operationName?: string
+    operationName?: string,
+    options?: RequestOptions
   ): Promise<T> {
     const body = JSON.stringify({
       query: mutation,
       variables,
       ...(operationName && { operationName }),
     });
-    return this.executeRequest(body) as Promise<T>;
+    // One key per *logical* call, shared by every attempt. Without it a retry
+    // of a lost response re-executes the mutation and commits twice; with it
+    // the server replays the first response instead (#1060).
+    const idempotencyKey =
+      options?.idempotencyKey ??
+      (this.retriesEnabled() ? newIdempotencyKey() : undefined);
+    return this.executeRequest(body, options, idempotencyKey) as Promise<T>;
   }
 }
 
