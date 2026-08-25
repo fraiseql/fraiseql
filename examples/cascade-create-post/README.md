@@ -143,8 +143,8 @@ function applyCascade(cache: ApolloCache<unknown>, cascade: CascadeUpdates) {
 
 ```bash
 createdb cascade_create_example
-fraiseql setup --database-url postgres:///cascade_create_example   # installs fraiseql.* helpers
-psql -d cascade_create_example -f schema.sql
+fraiseql setup --database postgres:///cascade_create_example   # installs fraiseql.* helpers
+psql -v ON_ERROR_STOP=1 -d cascade_create_example -f schema.sql
 ```
 
 ## Key Learning Points

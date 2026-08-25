@@ -11,7 +11,10 @@ CREATE SCHEMA IF NOT EXISTS app;
 -- Users table
 CREATE TABLE tb_user (
     pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    id UUID DEFAULT gen_random_uuid(),
+    -- UNIQUE NOT NULL inline, not as a CREATE UNIQUE INDEX further down: tb_post's
+    -- foreign key references this column, and PostgreSQL resolves an FK's target
+    -- uniqueness at CREATE TABLE time (#1072).
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     name TEXT NOT NULL,
     post_count INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
@@ -20,15 +23,14 @@ CREATE TABLE tb_user (
 -- Posts table
 CREATE TABLE tb_post (
     pk_post INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    id UUID DEFAULT gen_random_uuid(),
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     title TEXT NOT NULL,
     content TEXT,
     author_id UUID NOT NULL REFERENCES tb_user(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
-CREATE UNIQUE INDEX idx_user_id ON tb_user(id);
-CREATE UNIQUE INDEX idx_post_id ON tb_post(id);
+-- tb_user(id) and tb_post(id) are indexed by their UNIQUE constraints already.
 CREATE INDEX idx_post_author ON tb_post(author_id);
 
 -- Read views. The `data` JSONB uses snake_case source keys; FraiseQL projects
