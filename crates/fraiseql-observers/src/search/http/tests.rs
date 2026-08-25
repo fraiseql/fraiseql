@@ -15,16 +15,26 @@ fn test_http_search_backend_url() {
     assert_eq!(backend.es_url, "http://elasticsearch:9200");
 }
 
+// `HttpSearchBackend::new` calls the SSRF guard, so these two are rejection
+// assertions and must take the bypass pin — the `queue`/`actions` tests pin it ON
+// process-globally, and a bare call observes that and passes its private URL
+// (#1165). `new_unchecked` above does not consult the guard, so those tests need
+// nothing.
+
 #[test]
 fn test_new_rejects_private_url() {
-    let result = HttpSearchBackend::new("http://10.0.0.1:9200".to_string());
-    assert!(result.is_err(), "private IP must be rejected");
+    crate::ssrf_test_env::with_ssrf_env_cleared(|| {
+        let result = HttpSearchBackend::new("http://10.0.0.1:9200".to_string());
+        assert!(result.is_err(), "private IP must be rejected");
+    });
 }
 
 #[test]
 fn test_new_rejects_loopback_url() {
-    let result = HttpSearchBackend::new("http://localhost:9200".to_string());
-    assert!(result.is_err(), "loopback must be rejected");
+    crate::ssrf_test_env::with_ssrf_env_cleared(|| {
+        let result = HttpSearchBackend::new("http://localhost:9200".to_string());
+        assert!(result.is_err(), "loopback must be rejected");
+    });
 }
 
 // --- S11-3: wiremock integration tests ---

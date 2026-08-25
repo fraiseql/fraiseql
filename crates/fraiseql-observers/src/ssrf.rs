@@ -204,25 +204,23 @@ mod corpus {
     use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
 
     use super::validate_outbound_url;
+    use crate::ssrf_test_env::with_ssrf_env_cleared;
 
-    /// Clear every bypass so the guard is actually exercised.
-    fn engaged<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> T {
-        let mut out = None;
-        temp_env::with_vars(
-            [
-                ("FRAISEQL_OBSERVERS_ALLOW_INSECURE", None::<&str>),
-                ("FRAISEQL_ENV", None),
-                ("FRAISEQL_PROFILE", None),
-                ("KUBERNETES_SERVICE_HOST", None),
-            ],
-            || out = Some(f()),
-        );
-        out.expect("temp_env ran the closure")
-    }
+    // These went through a local `engaged()` helper that cleared
+    // `FRAISEQL_OBSERVERS_ALLOW_INSECURE` and friends with `temp_env`. That was the
+    // right mechanism once, and stopped being it: the bypass decision now comes from
+    // the injectable `insecure_guard::test_override`, which env does not reach. So
+    // `engaged()` took no lock, and the `queue`/`actions` tests that pin the bypass
+    // ON with `force(true)` ran straight through it — under `--all-features`, where
+    // `job_queue` is compiled in, these rejection assertions saw the bypass active
+    // and failed (#1165).
+    //
+    // `with_ssrf_env_cleared` is the one way to call a guard from a test: it pins the
+    // decision OFF and holds the same lock every other pin takes.
 
     #[test]
     fn refuses_every_blocked_address_in_the_corpus() {
-        engaged(|| {
+        with_ssrf_env_cleared(|| {
             for (addr, why) in MUST_BLOCK {
                 let url = format!("https://{}/hook", url_host(addr));
                 assert!(validate_outbound_url(&url).is_err(), "must refuse {addr} ({why})");
@@ -232,7 +230,7 @@ mod corpus {
 
     #[test]
     fn refuses_every_blocked_host_in_the_corpus() {
-        engaged(|| {
+        with_ssrf_env_cleared(|| {
             for (host, why) in MUST_BLOCK_HOSTS {
                 let url = format!("https://{host}/hook");
                 assert!(validate_outbound_url(&url).is_err(), "must refuse {host} ({why})");
@@ -242,7 +240,11 @@ mod corpus {
 
     #[test]
     fn permits_every_allowed_address_in_the_corpus() {
-        engaged(|| {
+        // Green throughout, in both directions — a pinned-ON bypass permits
+        // everything, so this one could never have caught the race. It earns its
+        // place only now that the pin is OFF: it is what stops the guard from
+        // refusing traffic it must carry.
+        with_ssrf_env_cleared(|| {
             for addr in MUST_ALLOW {
                 let url = format!("https://{}/hook", url_host(addr));
                 assert!(validate_outbound_url(&url).is_ok(), "must permit {addr}");
