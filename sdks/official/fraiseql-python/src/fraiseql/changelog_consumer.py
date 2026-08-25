@@ -4,6 +4,12 @@ Provides :class:`ChangelogConsumer` — a high-level event loop that polls the
 FraiseQL server's changelog REST endpoint, dispatches events to registered
 handlers, and persists cursor state for durable at-least-once delivery.
 
+At-least-once holds on both axes. A crash between dispatch and the checkpoint
+save replays the batch, and a handler that *raises* leaves the cursor where it
+was, so the event is redelivered rather than recorded as processed — bounded by
+``max_redelivery_attempts``, after which it is dead-lettered. Set
+``on_handler_error="skip"`` to advance past failures instead.
+
 Example::
 
     import asyncio
@@ -189,6 +195,13 @@ Handler = Any  # Callable[[ChangelogEvent], Awaitable[None]]
 # PollErrorHandler = an async callable (exception, consecutive_failures) -> None
 PollErrorHandler = Any  # Callable[[Exception, int], Awaitable[None]]
 
+# DeadLetterHandler = an async callable (event, exception) -> None
+DeadLetterHandler = Any  # Callable[[ChangelogEvent, Exception], Awaitable[None]]
+
+# on_handler_error policies
+_ON_ERROR_HALT = "halt"
+_ON_ERROR_SKIP = "skip"
+
 # Registry key: (object_type, modification_type)  — "*" means wildcard
 _RegistryKey = tuple[str, str]
 
@@ -220,7 +233,22 @@ class ChangelogConsumer:
             one on the programmatic surface, since :meth:`run` never returns and
             never raises (#1061).  See also
             :attr:`consecutive_poll_failures` and :attr:`last_poll_error`.
+        on_handler_error: What a raised handler means for the checkpoint.
+            ``"halt"`` (default) stops the batch and leaves the cursor where it
+            was, so the event is redelivered — the behaviour
+            ``docs/operations/observer-idempotency.md`` describes.  ``"skip"``
+            logs and advances anyway, which is the pre-#1078 behaviour.
+        max_redelivery_attempts: How many times a failing event is redelivered
+            under ``"halt"`` before it is dead-lettered and the cursor moves on
+            (default ``5``).  Without a bound, one poison event blocks the
+            consumer permanently.
+        on_dead_letter: Optional async callback ``(event, exc)`` invoked when an
+            event exhausts its redelivery attempts.  Register one to avoid
+            losing the event at that point.
         client: Injectable :class:`httpx.AsyncClient` for testing.
+
+    Raises:
+        ValueError: If *on_handler_error* is neither ``"halt"`` nor ``"skip"``.
     """
 
     def __init__(  # noqa: PLR0913 — constructor genuinely needs all connection/polling params
@@ -237,9 +265,22 @@ class ChangelogConsumer:
         authorization: str | None = None,
         timeout: float = 30.0,
         on_poll_error: PollErrorHandler | None = None,
+        on_handler_error: str = _ON_ERROR_HALT,
+        max_redelivery_attempts: int = 5,
+        on_dead_letter: DeadLetterHandler | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        if on_handler_error not in (_ON_ERROR_HALT, _ON_ERROR_SKIP):
+            msg = (
+                f"on_handler_error must be {_ON_ERROR_HALT!r} or {_ON_ERROR_SKIP!r}, "
+                f"got {on_handler_error!r}"
+            )
+            raise ValueError(msg)
         self._on_poll_error = on_poll_error
+        self._on_handler_error = on_handler_error
+        self._max_redelivery_attempts = max_redelivery_attempts
+        self._on_dead_letter = on_dead_letter
+        self._redelivery_attempts: dict[int, int] = {}
         self._consecutive_poll_failures = 0
         self._last_poll_error: Exception | None = None
         self._base_url = base_url.rstrip("/")
@@ -333,16 +374,26 @@ class ChangelogConsumer:
                         self._max_poll_interval,
                     )
                 elif entries:
-                    for event in entries:
-                        await self._dispatch(event)
+                    last_ok, halted = await self._process_batch(entries)
 
-                    # Persist checkpoint at the last cursor in the batch
-                    last_cursor = entries[-1]._cursor
-                    self._cursor = last_cursor
-                    await self._checkpoint_store.save(self._listener_id, last_cursor)
+                    # Checkpoint at the last event that was actually processed,
+                    # not the last one received. If the first event of the batch
+                    # failed there is nothing to record, and the batch is
+                    # redelivered whole.
+                    if last_ok is not None:
+                        self._cursor = last_ok
+                        await self._checkpoint_store.save(self._listener_id, last_ok)
 
-                    # Reset backoff on successful fetch
-                    current_interval = self._poll_interval
+                    if halted:
+                        # Back off while the downstream recovers. This also
+                        # stretches the redelivery window: at the defaults, the
+                        # attempt budget spans ~30s of outage rather than ~5s.
+                        current_interval = min(
+                            current_interval * self._backoff_factor,
+                            self._max_poll_interval,
+                        )
+                    else:
+                        current_interval = self._poll_interval
                 else:
                     # Exponential backoff on empty results
                     current_interval = min(
@@ -364,6 +415,49 @@ class ChangelogConsumer:
                 await self._client.aclose()
 
     # ─── Internal ────────────────────────────────────────────────────────────
+
+    async def _process_batch(
+        self,
+        entries: list[ChangelogEvent],
+    ) -> tuple[int | None, bool]:
+        """Dispatch a batch, stopping at the first event a handler could not process.
+
+        Returns:
+            ``(last_processed_cursor, halted)``.  *last_processed_cursor* is the
+            newest event safe to checkpoint — ``None`` when the very first event
+            failed.  *halted* says the batch stopped early, so the remainder is
+            still pending.
+        """
+        last_ok: int | None = None
+
+        for event in entries:
+            failure = await self._dispatch(event)
+
+            if failure is None:
+                self._redelivery_attempts.pop(event._cursor, None)
+                last_ok = event._cursor
+                continue
+
+            if self._on_handler_error == _ON_ERROR_SKIP:
+                # Explicit opt-out: the caller has said a failed handler should
+                # not hold the cursor back.
+                last_ok = event._cursor
+                continue
+
+            attempts = self._redelivery_attempts.get(event._cursor, 0) + 1
+            self._redelivery_attempts[event._cursor] = attempts
+
+            if attempts >= self._max_redelivery_attempts:
+                # Bounded: without this, one poison event blocks the consumer
+                # forever — head-of-line blocking dressed up as durability.
+                await self._dead_letter(event, failure)
+                self._redelivery_attempts.pop(event._cursor, None)
+                last_ok = event._cursor
+                continue
+
+            return last_ok, True
+
+        return last_ok, False
 
     async def _initialise_cursor(self, stop_event: asyncio.Event | None = None) -> None:
         """Set the initial cursor based on startup_mode and checkpoint.
@@ -514,8 +608,18 @@ class ChangelogConsumer:
         except Exception:
             logger.exception("on_poll_error callback failed")
 
-    async def _dispatch(self, event: ChangelogEvent) -> None:
-        """Dispatch an event to all matching handlers (per-handler isolation)."""
+    async def _dispatch(self, event: ChangelogEvent) -> Exception | None:
+        """Dispatch an event to all matching handlers (per-handler isolation).
+
+        Every matching handler runs even if an earlier one raised — isolation
+        between handlers is deliberate.  What changed is that the failure is now
+        *reported* rather than only logged: the caller decides what a raised
+        handler means for the checkpoint (#1078).
+
+        Returns:
+            The first exception raised by any handler, or ``None`` if they all
+            succeeded.
+        """
         keys_to_try: list[_RegistryKey] = [
             (event.object_type, event.modification_type),
             (event.object_type, "*"),
@@ -523,13 +627,32 @@ class ChangelogConsumer:
             ("*", "*"),
         ]
 
+        first_failure: Exception | None = None
         for key in keys_to_try:
             for handler in self._handlers.get(key, []):
                 try:
                     await handler(event)
-                except Exception:  # noqa: PERF203 — intentional per-handler isolation
+                except Exception as exc:  # noqa: PERF203 — intentional per-handler isolation
                     logger.exception(
                         "Handler %s failed for event %s",
                         getattr(handler, "__name__", repr(handler)),
                         event.id,
                     )
+                    if first_failure is None:
+                        first_failure = exc
+        return first_failure
+
+    async def _dead_letter(self, event: ChangelogEvent, exc: Exception) -> None:
+        """Hand a repeatedly-failing event to *on_dead_letter* and give up on it."""
+        logger.error(
+            "Event %s (cursor=%d) failed %d times; dead-lettering and advancing",
+            event.id,
+            event._cursor,
+            self._max_redelivery_attempts,
+        )
+        if self._on_dead_letter is None:
+            return
+        try:
+            await self._on_dead_letter(event, exc)
+        except Exception:
+            logger.exception("on_dead_letter callback failed")

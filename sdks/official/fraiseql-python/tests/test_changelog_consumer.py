@@ -445,6 +445,209 @@ class TestPollingLoop:
         assert poll_count >= 2  # Survived the 500 error
 
     @pytest.mark.anyio
+    async def test_checkpoint_does_not_advance_past_a_failed_handler(self):
+        """A raised handler must not be recorded as successful processing (#1078)."""
+        _skip_unless_asyncio()
+        saved = []
+        stop = asyncio.Event()
+        polls = 0
+
+        def handler(request):
+            nonlocal polls
+            url = str(request.url)
+            if "/checkpoint" in url and request.method == "GET":
+                return httpx.Response(404)
+            if "/checkpoint" in url:
+                saved.append(json.loads(request.content)["last_cursor"])
+                return _json_response({"message": "ok"})
+            polls += 1
+            if polls == 1:
+                return _json_response(
+                    {
+                        "entries": [
+                            _make_changelog_row(cursor=10),
+                            _make_changelog_row(cursor=11),
+                            _make_changelog_row(cursor=12),
+                        ],
+                        "next_cursor": 12,
+                    }
+                )
+            return _json_response({"entries": [], "next_cursor": None})
+
+        async def on_order(event):
+            if event._cursor == 11:
+                msg = "downstream database unreachable"
+                raise RuntimeError(msg)
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=0.01,
+            max_poll_interval=0.02,
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        consumer.on("Order", "INSERT", on_order)
+
+        async def stop_after():
+            while polls < 2:
+                await asyncio.sleep(0.01)
+            stop.set()
+
+        await asyncio.gather(consumer.run(stop), stop_after())
+
+        # 10 succeeded and is durably processed; 11 failed, so neither it nor 12
+        # may be checkpointed away.
+        assert saved == [10]
+        assert consumer._cursor == 10
+
+    @pytest.mark.anyio
+    async def test_a_poison_event_is_dead_lettered_and_does_not_block_forever(self):
+        """Halt-before-advance is bounded, or one bad row stops the consumer (#1078)."""
+        _skip_unless_asyncio()
+        dead_lettered = []
+        stop = asyncio.Event()
+        attempts = 0
+
+        def handler(request):
+            url = str(request.url)
+            if "/checkpoint" in url and request.method == "GET":
+                return httpx.Response(404)
+            if "/checkpoint" in url:
+                return _json_response({"message": "ok"})
+            return _json_response({"entries": [_make_changelog_row(cursor=11)], "next_cursor": 11})
+
+        async def always_fails(event):
+            nonlocal attempts
+            attempts += 1
+            msg = "poison"
+            raise RuntimeError(msg)
+
+        async def on_dead_letter(event, exc):
+            dead_lettered.append((event._cursor, str(exc)))
+            stop.set()
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=0.01,
+            max_poll_interval=0.02,
+            max_redelivery_attempts=3,
+            on_dead_letter=on_dead_letter,
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        consumer.on("Order", "INSERT", always_fails)
+
+        await consumer.run(stop)
+
+        assert dead_lettered == [(11, "poison")]
+        assert attempts == 3
+        # Having dead-lettered it, the consumer moves past rather than stalling.
+        assert consumer._cursor == 11
+
+    @pytest.mark.anyio
+    async def test_skip_policy_keeps_the_old_advance_behaviour(self):
+        """`on_handler_error="skip"` is the documented opt-out (#1078)."""
+        _skip_unless_asyncio()
+        saved = []
+        stop = asyncio.Event()
+        polls = 0
+
+        def handler(request):
+            nonlocal polls
+            url = str(request.url)
+            if "/checkpoint" in url and request.method == "GET":
+                return httpx.Response(404)
+            if "/checkpoint" in url:
+                saved.append(json.loads(request.content)["last_cursor"])
+                return _json_response({"message": "ok"})
+            polls += 1
+            if polls == 1:
+                return _json_response(
+                    {
+                        "entries": [
+                            _make_changelog_row(cursor=10),
+                            _make_changelog_row(cursor=11),
+                        ],
+                        "next_cursor": 11,
+                    }
+                )
+            return _json_response({"entries": [], "next_cursor": None})
+
+        async def on_order(event):
+            if event._cursor == 11:
+                msg = "boom"
+                raise RuntimeError(msg)
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=0.01,
+            max_poll_interval=0.02,
+            on_handler_error="skip",
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        consumer.on("Order", "INSERT", on_order)
+
+        async def stop_after():
+            while polls < 2:
+                await asyncio.sleep(0.01)
+            stop.set()
+
+        await asyncio.gather(consumer.run(stop), stop_after())
+        assert saved == [11]
+
+    @pytest.mark.anyio
+    async def test_a_clean_batch_still_checkpoints_at_the_last_cursor(self):
+        """The control: halting must not slow down the healthy path (#1078)."""
+        _skip_unless_asyncio()
+        saved = []
+        stop = asyncio.Event()
+        polls = 0
+        seen = []
+
+        def handler(request):
+            nonlocal polls
+            url = str(request.url)
+            if "/checkpoint" in url and request.method == "GET":
+                return httpx.Response(404)
+            if "/checkpoint" in url:
+                saved.append(json.loads(request.content)["last_cursor"])
+                return _json_response({"message": "ok"})
+            polls += 1
+            if polls == 1:
+                return _json_response(
+                    {
+                        "entries": [
+                            _make_changelog_row(cursor=10),
+                            _make_changelog_row(cursor=11),
+                        ],
+                        "next_cursor": 11,
+                    }
+                )
+            return _json_response({"entries": [], "next_cursor": None})
+
+        async def on_order(event):
+            seen.append(event._cursor)
+
+        consumer = ChangelogConsumer(
+            base_url="http://test",
+            listener_id="test",
+            poll_interval=0.01,
+            max_poll_interval=0.02,
+            client=httpx.AsyncClient(transport=_mock_transport(handler)),
+        )
+        consumer.on("Order", "INSERT", on_order)
+
+        async def stop_after():
+            while polls < 2:
+                await asyncio.sleep(0.01)
+            stop.set()
+
+        await asyncio.gather(consumer.run(stop), stop_after())
+        assert seen == [10, 11]
+        assert saved == [11]
+
+    @pytest.mark.anyio
     async def test_failed_poll_is_distinguishable_from_an_empty_changelog(self):
         """A failure must not look like "no new events" (#1061)."""
 

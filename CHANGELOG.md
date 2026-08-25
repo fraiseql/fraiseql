@@ -3386,6 +3386,31 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A handler that raises no longer has its event checkpointed away (#1078).**
+
+  `_dispatch` swallowed every handler exception and returned normally, so `run()` saved the
+  checkpoint at the last cursor **in the batch** regardless. A downstream outage that made
+  `persist_order` raise for cursors 11–20 advanced the server-side checkpoint to 20 anyway;
+  when the database recovered, the next poll asked for `after_cursor=20` and those ten events
+  were never redelivered. The module promised "durable at-least-once delivery" and
+  `docs/operations/observer-idempotency.md` states the opposite standard — "Database write fails
+  before acknowledgment → Event is NOT acknowledged; will be redelivered".
+
+  Per-handler isolation is unchanged: every matching handler still runs even if an earlier one
+  raised. What changed is that the failure is now *reported* rather than only logged, and the
+  cursor decision follows from it. The checkpoint records the last event actually **processed**,
+  not the last one received — if the first event of a batch fails, nothing is saved and the batch
+  is redelivered whole.
+
+  Halting alone would trade a silent drop for head-of-line blocking, so it is bounded.
+  `max_redelivery_attempts` (default `5`) caps redeliveries of any one event, after which
+  `on_dead_letter(event, exc)` is invoked and the cursor moves past it. A halted batch also backs
+  off exponentially, which both spares the recovering downstream and stretches the attempt budget
+  across roughly 30 s of outage at the defaults rather than 5 s.
+
+  `on_handler_error="skip"` restores the previous advance-anyway behaviour as an explicit
+  opt-out. An invalid value raises `ValueError` at construction rather than being ignored.
+
 - **A failed changelog poll is no longer indistinguishable from an empty one (#1061).**
 
   `_poll_once` caught every `httpx.HTTPError` and returned `[]`, which `run()` read as "no new
