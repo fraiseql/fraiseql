@@ -39,6 +39,7 @@ Example:
 """
 
 from fraiseql.async_client import AsyncFraiseQLClient
+from fraiseql.changelog_consumer import ChangelogConsumer, ChangelogEvent
 from fraiseql.client import (
     FraiseQLAuthError,
     FraiseQLClient,
@@ -111,6 +112,8 @@ __all__ = [
     "AsyncFraiseQLClient",
     "AuthenticationError",
     "BitVector",
+    "ChangelogConsumer",
+    "ChangelogEvent",
     "CustomScalar",
     "Date",
     "DateTime",

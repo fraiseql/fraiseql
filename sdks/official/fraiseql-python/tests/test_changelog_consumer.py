@@ -16,6 +16,34 @@ from fraiseql.changelog_consumer import (
     HttpCheckpointStore,
 )
 
+# ── The documented import ────────────────────────────────────────────────────
+
+
+def test_the_documented_import_works() -> None:
+    """The module docstring's own example must run.
+
+    Every test above imports from ``fraiseql.changelog_consumer``, which is why
+    the suite could not notice that ``from fraiseql import ChangelogConsumer`` —
+    the form the class documents — raised ImportError on every supported Python
+    version (#1185). Executing the documented path is the only thing that keeps
+    the example and the export from drifting apart again, so this stays a real
+    import statement rather than a check of ``__all__``.
+    """
+    from fraiseql import ChangelogConsumer as ExportedConsumer
+    from fraiseql import ChangelogEvent as ExportedEvent
+
+    assert ExportedConsumer is ChangelogConsumer
+    assert ExportedEvent is ChangelogEvent
+
+
+def test_the_documented_names_are_in_the_public_surface() -> None:
+    """``__all__`` governs ``from fraiseql import *`` and what tooling advertises."""
+    import fraiseql
+
+    assert "ChangelogConsumer" in fraiseql.__all__
+    assert "ChangelogEvent" in fraiseql.__all__
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
