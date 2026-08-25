@@ -3386,6 +3386,41 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`JobWorkerPool::stop()` returns instead of hanging forever (#1063).**
+
+  `stop()` cleared `is_running` and then awaited each worker task. The task checked that flag
+  only *before* calling `JobWorker::run()`, and `run()` was an unconditional `loop` with no
+  `break`, no `return` and no `?` — so the check was evaluated exactly once per worker by
+  construction and `handle.await` never resolved. Not a race: it hung deterministically for any
+  pool whose workers had been polled at least once. The `break` and the retry sleep in the
+  spawned task were unreachable, and `is_running()` reported `false` while every worker was
+  still dequeuing.
+
+  `JobWorker` now carries a run flag — its own by default, or the pool's via `with_run_flag` —
+  which `run()` reads at the top of each pass and which `stop()` clears. Shutdown latency is
+  bounded by the current idle or error back-off (100 ms / 1 s).
+
+  ⚠ Why no gate caught it: `mod worker_tests {}` in `queue/tests.rs` was **empty** — a module
+  named for the coverage it did not contain. It now holds four lifecycle tests. Two of them
+  wait for the workers to actually reach their loop before stopping; the two that do not
+  passed even against the broken code, because a pool stopped before its tasks are ever polled
+  shuts down fine. Only the waiting ones prove anything.
+
+- **`EventBridge` can be shut down by awaiting its handle, as its own docs promise (#1064).**
+
+  The struct held both halves of its channel and `run(mut self)` took ownership, so `self.sender`
+  kept the channel open for the whole loop. `self.receiver.recv()` therefore never yielded `None`
+  no matter how many external senders were dropped, `info!("EventBridge stopped")` was dead code,
+  and the clean shutdown documented on `spawn` — "callers should either `.await` it for a clean
+  shutdown or explicitly `.abort()` it" — was unreachable. `abort()` was the only way to stop it,
+  so a process that starts and stops servers repeatedly leaked an immortal task per bridge, each
+  holding an `Arc<SubscriptionManager>`.
+
+  `run` now destructures and drops its own sender before entering the loop, so the bridge drains
+  what is queued and exits once the last external sender goes. The `spawn` docs state that
+  precondition explicitly, including that a long-lived holder like
+  `ObserverRuntime::event_bridge_sender` keeps the bridge alive by design.
+
 - **A handler that raises no longer has its event checkpointed away (#1078).**
 
   `_dispatch` swallowed every handler exception and returned normally, so `run()` saved the

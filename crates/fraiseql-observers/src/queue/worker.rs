@@ -34,6 +34,9 @@ where
     worker_id:      String,
     retry_policy:   P,
     job_timeout_ms: u64,
+    /// Cleared to ask [`JobWorker::run`] to return. Shared with the owning
+    /// [`JobWorkerPool`] so one flag stops every worker (#1063).
+    is_running:     Arc<AtomicBool>,
 }
 
 impl<Q, E, P> JobWorker<Q, E, P>
@@ -59,7 +62,26 @@ where
             worker_id,
             retry_policy,
             job_timeout_ms,
+            is_running: Arc::new(AtomicBool::new(true)),
         }
+    }
+
+    /// Share an existing run flag, so one signal stops a whole pool.
+    #[must_use]
+    pub fn with_run_flag(mut self, is_running: Arc<AtomicBool>) -> Self {
+        self.is_running = is_running;
+        self
+    }
+
+    /// Ask this worker's [`run`](Self::run) loop to return after the job in
+    /// flight completes.
+    pub fn stop(&self) {
+        self.is_running.store(false, Ordering::SeqCst);
+    }
+
+    /// Whether this worker's loop is still running.
+    pub fn is_running(&self) -> bool {
+        self.is_running.load(Ordering::SeqCst)
     }
 
     /// Get worker ID.
@@ -67,15 +89,21 @@ where
         &self.worker_id
     }
 
-    /// Run the worker (continuously process jobs).
+    /// Run the worker, processing jobs until it is asked to stop.
     ///
-    /// This method runs indefinitely, fetching and processing jobs from the queue.
+    /// Returns once [`stop`](Self::stop) has been called — or the shared flag
+    /// from [`with_run_flag`](Self::with_run_flag) cleared — and the job in
+    /// flight has finished. It previously had no exit path at all, which made
+    /// [`JobWorkerPool::stop`] block forever (#1063).
+    ///
+    /// Shutdown latency is bounded by the current idle or error back-off (100ms
+    /// and 1s respectively), since the flag is read at the top of each pass.
     ///
     /// # Errors
     ///
     /// Returns error if queue operations fail fatally.
     pub async fn run(&self) -> Result<()> {
-        loop {
+        while self.is_running.load(Ordering::SeqCst) {
             match self.queue.dequeue(&self.worker_id).await {
                 Ok(Some(job)) => {
                     if let Err(e) = self.process_job(job).await {
@@ -93,6 +121,8 @@ where
                 },
             }
         }
+
+        Ok(())
     }
 
     /// Process a single job.
@@ -245,15 +275,13 @@ where
             let is_running = Arc::clone(&self.is_running);
 
             let handle = tokio::spawn(async move {
-                let worker = JobWorker::new(queue, executor, retry_policy, job_timeout_ms);
+                let worker = JobWorker::new(queue, executor, retry_policy, job_timeout_ms)
+                    .with_run_flag(Arc::clone(&is_running));
 
-                // Run until stopped
-                loop {
-                    if !is_running.load(Ordering::SeqCst) {
-                        break;
-                    }
-
-                    // Try to process jobs
+                // Restart on a fatal queue error, but only while still running.
+                // `run()` itself now honours the flag, so this loop is about
+                // error recovery rather than shutdown.
+                while is_running.load(Ordering::SeqCst) {
                     if let Err(e) = worker.run().await {
                         error!(error = %e, "Worker error");
                         // Continue running despite errors

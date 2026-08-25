@@ -409,4 +409,181 @@ mod redis_tests {
 }
 
 #[cfg(test)]
-mod worker_tests {}
+mod worker_tests {
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        time::Duration,
+    };
+
+    use async_trait::async_trait;
+
+    use crate::{
+        config::ActionConfig,
+        error::Result,
+        event::EntityEvent,
+        queue::{FixedBackoffPolicy, Job, JobQueue, JobResult, QueueStats, worker::JobWorkerPool},
+        traits::{ActionExecutor, ActionResult},
+    };
+
+    /// A queue that never has work. Enough to drive the worker's idle path,
+    /// which is the one that matters for shutdown.
+    #[derive(Clone)]
+    struct IdleQueue {
+        dequeues: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl JobQueue for IdleQueue {
+        async fn enqueue(&self, _job: &Job) -> Result<String> {
+            Ok("job-1".to_string())
+        }
+
+        async fn dequeue(&self, _worker_id: &str) -> Result<Option<Job>> {
+            self.dequeues.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn mark_processing(&self, _job_id: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn mark_success(&self, _job_id: &str, _result: &JobResult) -> Result<()> {
+            Ok(())
+        }
+
+        async fn mark_retry(&self, _job_id: &str, _next_retry_at: i64) -> Result<()> {
+            Ok(())
+        }
+
+        async fn mark_deadletter(&self, _job_id: &str, _reason: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_stats(&self) -> Result<QueueStats> {
+            Ok(QueueStats {
+                pending_jobs:           0,
+                processing_jobs:        0,
+                retry_jobs:             0,
+                successful_jobs:        0,
+                failed_jobs:            0,
+                avg_processing_time_ms: 0.0,
+            })
+        }
+    }
+
+    #[derive(Clone)]
+    struct NoopExecutor;
+
+    // Reason: `ActionExecutor` is async because real executors dispatch over the
+    // network; a no-op test executor still implements it.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
+    impl ActionExecutor for NoopExecutor {
+        async fn execute(
+            &self,
+            _event: &EntityEvent,
+            _action: &ActionConfig,
+        ) -> Result<ActionResult> {
+            Ok(ActionResult {
+                action_type: "test".to_string(),
+                success:     true,
+                message:     "ok".to_string(),
+                duration_ms: 0.0,
+                status_code: None,
+            })
+        }
+    }
+
+    fn pool(
+        dequeues: &Arc<AtomicUsize>,
+    ) -> JobWorkerPool<IdleQueue, NoopExecutor, FixedBackoffPolicy> {
+        JobWorkerPool::new(
+            IdleQueue {
+                dequeues: Arc::clone(dequeues),
+            },
+            NoopExecutor,
+            FixedBackoffPolicy::default(),
+            2,
+            1_000,
+        )
+    }
+
+    /// `stop()` must return. `JobWorker::run` was an unconditional `loop` with
+    /// no exit, so the pool's `is_running` check ran exactly once per worker,
+    /// before `run()` was entered, and `handle.await` never resolved (#1063).
+    #[tokio::test]
+    async fn stop_returns_once_workers_have_started() {
+        let dequeues = Arc::new(AtomicUsize::new(0));
+        let mut p = pool(&dequeues);
+        p.start().unwrap();
+
+        // Let the workers actually reach their loop, so the is_running check at
+        // spawn time cannot be what saves us.
+        while dequeues.load(Ordering::SeqCst) == 0 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+
+        tokio::time::timeout(Duration::from_secs(5), p.stop())
+            .await
+            .expect("stop() hung: workers never observed the shutdown signal")
+            .unwrap();
+    }
+
+    /// `is_running()` reported false while the workers were still dequeuing.
+    #[tokio::test]
+    async fn is_running_is_false_only_after_workers_have_stopped() {
+        let dequeues = Arc::new(AtomicUsize::new(0));
+        let mut p = pool(&dequeues);
+        p.start().unwrap();
+        assert!(p.is_running());
+
+        while dequeues.load(Ordering::SeqCst) == 0 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+
+        tokio::time::timeout(Duration::from_secs(5), p.stop())
+            .await
+            .expect("stop() hung")
+            .unwrap();
+
+        assert!(!p.is_running());
+
+        // No worker may dequeue after stop() returned.
+        let after_stop = dequeues.load(Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(
+            dequeues.load(Ordering::SeqCst),
+            after_stop,
+            "a worker was still running after stop() returned"
+        );
+    }
+
+    #[tokio::test]
+    async fn stop_is_idempotent_and_returns_without_workers() {
+        let dequeues = Arc::new(AtomicUsize::new(0));
+        let mut p = pool(&dequeues);
+        p.start().unwrap();
+        tokio::time::timeout(Duration::from_secs(5), p.stop())
+            .await
+            .expect("first stop() hung")
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), p.stop())
+            .await
+            .expect("second stop() hung")
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn start_twice_is_rejected() {
+        let dequeues = Arc::new(AtomicUsize::new(0));
+        let mut p = pool(&dequeues);
+        p.start().unwrap();
+        assert!(p.start().is_err());
+        tokio::time::timeout(Duration::from_secs(5), p.stop())
+            .await
+            .expect("stop() hung")
+            .unwrap();
+    }
+}

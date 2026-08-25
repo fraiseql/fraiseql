@@ -193,17 +193,29 @@ impl EventBridge {
 
     /// Run the event bridge loop (spawned in background)
     #[allow(clippy::cognitive_complexity)] // Reason: event loop with multi-source message routing and reconnection handling
-    pub async fn run(mut self) {
+    pub async fn run(self) {
+        // Destructure so the bridge's OWN sender is dropped before the loop.
+        // Held, it kept the channel open no matter how many external senders
+        // went away, so `recv()` never returned `None`, the loop had no exit,
+        // `info!("EventBridge stopped")` was dead code, and the `.await` clean
+        // shutdown promised by `spawn` could never happen (#1064).
+        let Self {
+            manager,
+            mut receiver,
+            sender,
+        } = self;
+        drop(sender);
+
         info!("EventBridge started");
 
-        while let Some(entity_event) = self.receiver.recv().await {
+        while let Some(entity_event) = receiver.recv().await {
             debug!("EventBridge received entity event: {}", entity_event.entity_type);
 
             // Convert entity event to subscription event
             let subscription_event = Self::convert_event(entity_event);
 
             // Publish to subscription manager
-            let matched = self.manager.publish_event(subscription_event);
+            let matched = manager.publish_event(subscription_event);
 
             if matched > 0 {
                 debug!("EventBridge matched {} subscriptions", matched);
@@ -219,6 +231,12 @@ impl EventBridge {
     /// should either `.await` it for a clean shutdown or explicitly `.abort()`
     /// it when the bridge is no longer needed.  Dropping the handle detaches
     /// the task, making it impossible to observe panics or coordinate shutdown.
+    ///
+    /// The `.await` branch returns once **every** sender handed out by
+    /// [`sender`](Self::sender) / [`get_sender`](Self::get_sender) has been
+    /// dropped; the loop drains what is queued first.  A long-lived holder —
+    /// `ObserverRuntime::event_bridge_sender`, for one — keeps the bridge alive
+    /// by design, so `.abort()` remains the way to stop it early.
     #[must_use = "dropping the JoinHandle detaches the task; store or abort it to control lifecycle"]
     pub fn spawn(self) -> tokio::task::JoinHandle<()> {
         tokio::spawn(self.run())

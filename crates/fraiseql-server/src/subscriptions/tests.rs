@@ -144,6 +144,57 @@ mod event_bridge_tests {
         handle.abort();
     }
 
+    /// The `spawn` docstring promises callers may `.await` the handle "for a
+    /// clean shutdown". `EventBridge` kept its own `sender` alive inside `run`,
+    /// so `recv()` never yielded `None` and that await could never return —
+    /// `abort()` was the only way to stop it (#1064).
+    #[tokio::test]
+    async fn awaiting_the_handle_returns_once_every_external_sender_is_dropped() {
+        let schema = Arc::new(CompiledSchema::new());
+        let manager = Arc::new(SubscriptionManager::new(schema));
+        let config = EventBridgeConfig::new();
+
+        let bridge = EventBridge::new(manager, config);
+        let sender = bridge.sender();
+        let handle = bridge.spawn();
+
+        drop(sender);
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+            .await
+            .expect("the documented clean-shutdown await never returned")
+            .expect("bridge task panicked");
+    }
+
+    /// Draining before exit: an event already in the channel must still be
+    /// delivered when the sender is dropped straight after.
+    #[tokio::test]
+    async fn a_queued_event_is_still_delivered_before_shutdown() {
+        let schema = Arc::new(CompiledSchema::new());
+        let manager = Arc::new(SubscriptionManager::new(schema));
+        let config = EventBridgeConfig::new();
+
+        let bridge = EventBridge::new(manager, config);
+        let sender = bridge.sender();
+        let handle = bridge.spawn();
+
+        sender
+            .send(EntityEvent::new(
+                "Order",
+                "order_1",
+                SubscriptionOperation::Create,
+                serde_json::json!({"id": "order_1"}),
+            ))
+            .await
+            .expect("channel should be open");
+        drop(sender);
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), handle)
+            .await
+            .expect("bridge did not shut down after its last sender was dropped")
+            .expect("bridge task panicked");
+    }
+
     #[tokio::test]
     async fn test_event_bridge_end_to_end_forwarding() {
         let schema = Arc::new(CompiledSchema::new());
