@@ -1,10 +1,11 @@
 # Streaming Example: Live Messages
-# Get recent messages with user activity status
+# Get recent messages with their author's name
 
 query LiveMessages($limit: Int) {
   messages(limit: $limit) {
     id
     userId
+    username
     content
     timestamp
     reactions

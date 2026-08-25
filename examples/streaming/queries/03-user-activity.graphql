@@ -1,9 +1,9 @@
 # Streaming Example: User Activity Status
 # Check presence and status of a specific user
 
-query UserActivity($userId: Int!) {
-  userActivity(userId: $userId) {
-    userId
+query UserActivity($id: ID!) {
+  userActivity(id: $id) {
+    id
     username
     status
     lastSeen

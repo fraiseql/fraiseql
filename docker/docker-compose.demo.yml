@@ -38,7 +38,13 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres-blog-data:/var/lib/postgresql/data
-      - ./examples/basic/sql/setup.sql:/docker-entrypoint-initdb.d/01-init.sql
+      # `../examples/…`, not `./examples/…`: Compose resolves a relative host path
+      # against the PROJECT DIRECTORY, which defaults to the directory of the first
+      # `-f` file — this one, `docker/`. `./examples/basic` therefore resolved to
+      # `docker/examples/basic`, which does not exist, so Docker created an empty
+      # directory and mounted that (#1052). The `build: context: ..` below is the
+      # same rule seen from the other side.
+      - ../examples/basic/sql/setup.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql -d blog_fraiseql"]
       interval: 5s
@@ -65,7 +71,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./examples/basic:/app/schemas/blog:ro
+      - ../examples/basic:/app/schemas/blog:ro
     depends_on:
       postgres-blog:
         condition: service_healthy

@@ -54,21 +54,28 @@ while IFS= read -r compose; do
     dir="$(dirname "$compose")"
     while IFS= read -r src; do
         [ -n "$src" ] || continue
+        # Resolved the way Compose resolves it, then normalised so the exemption
+        # list and the message read as repository paths.
+        resolved="$(cd "$dir" 2>/dev/null && realpath -m --relative-to="$REPO_ROOT" "$src")"
         # Generated-before-use artifacts. Each entry needs a reason: the mount is
         # legitimate only because a documented step writes the file before the
         # service that mounts it is started. `docker compose up` on its own still
         # creates an empty DIRECTORY here, so keep this list short.
-        case "$dir/$src" in
+        case "$resolved" in
             # `make supergraph` (rover) writes this before `make run` starts the router.
             examples/async-jobs-subgraph/router/supergraph.graphql) continue ;;
         esac
         if [ ! -e "$dir/$src" ]; then
             fail "$compose mounts a host path that does not exist: $src" \
-                 "resolved against the compose file's directory as $dir/$src" \
+                 "resolved against the compose file's directory as $resolved" \
                  "Compose would create an empty directory here and mount that."
         fi
-    done < <(grep -oE '^[[:space:]]*-[[:space:]]*\./[^:]+:' "$compose" \
-             | sed -E 's|^[[:space:]]*-[[:space:]]*\./||; s|:$||')
+    # Match every RELATIVE host path, `./x` and `../x` alike. Matching only `./`
+    # would make this check blind the moment the fix is applied — the repair for
+    # #1052 turns each of these into `../examples/…`, and a gate that stops looking
+    # at what it just fixed is the gate-cannot-fail shape one layer up.
+    done < <(grep -oE '^[[:space:]]*-[[:space:]]*\.\.?/[^:]+:' "$compose" \
+             | sed -E 's|^[[:space:]]*-[[:space:]]*||; s|:$||')
 done < <(find docker examples -name 'docker-compose*.yml' -o -name 'compose*.yml' | sort)
 
 # ---------------------------------------------------------------------------

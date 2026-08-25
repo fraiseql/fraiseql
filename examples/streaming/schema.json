@@ -1,87 +1,261 @@
 {
-  "version": "1.0.0",
-  "types": {
-    "Event": {
-      "fields": {
-        "id": "Int!",
-        "type": "String!",
-        "timestamp": "DateTime!",
-        "data": "String!"
-      }
+  "types": [
+    {
+      "name": "Event",
+      "sql_source": "v_event",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "timestamp",
+          "type": "DateTime",
+          "nullable": false
+        },
+        {
+          "name": "data",
+          "type": "Json",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "Something that happened, as recorded on the event stream."
     },
-    "Message": {
-      "fields": {
-        "id": "Int!",
-        "userId": "Int!",
-        "content": "String!",
-        "timestamp": "DateTime!",
-        "reactions": "Int!"
-      }
+    {
+      "name": "Message",
+      "sql_source": "v_message",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "username",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "timestamp",
+          "type": "DateTime",
+          "nullable": false
+        },
+        {
+          "name": "reactions",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A chat message, denormalized with its author's name."
     },
-    "UserActivity": {
-      "fields": {
-        "userId": "Int!",
-        "username": "String!",
-        "status": "String!",
-        "lastSeen": "DateTime!",
-        "activeNow": "Boolean!"
-      }
+    {
+      "name": "UserActivity",
+      "sql_source": "v_user_activity",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "username",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "lastSeen",
+          "type": "DateTime",
+          "nullable": false
+        },
+        {
+          "name": "activeNow",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A user's presence: where they are and when they were last seen."
     },
-    "LiveMetrics": {
-      "fields": {
-        "id": "Int!",
-        "metric": "String!",
-        "value": "Float!",
-        "timestamp": "DateTime!",
-        "source": "String!"
-      }
+    {
+      "name": "LiveMetrics",
+      "sql_source": "v_metric",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "metric",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "value",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "timestamp",
+          "type": "DateTime",
+          "nullable": false
+        },
+        {
+          "name": "source",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "One sample of a named system metric."
     }
-  },
-  "queries": {
-    "events": {
-      "args": { "limit": "Int", "type": "String" },
-      "return": "[Event!]!",
-      "description": "Get recent events with optional filtering"
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "events",
+      "return_type": "Event",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "type",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Get recent events, optionally of one type.",
+      "sql_source": "v_event"
     },
-    "event": {
-      "args": { "id": "Int!" },
-      "return": "Event",
-      "description": "Get a specific event by ID"
+    {
+      "name": "event",
+      "return_type": "Event",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "Get a specific event by ID.",
+      "sql_source": "v_event"
     },
-    "messages": {
-      "args": { "limit": "Int" },
-      "return": "[Message!]!",
-      "description": "Get recent messages"
+    {
+      "name": "messages",
+      "return_type": "Message",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get recent messages.",
+      "sql_source": "v_message"
     },
-    "userActivity": {
-      "args": { "userId": "Int!" },
-      "return": "UserActivity",
-      "description": "Get user activity status"
+    {
+      "name": "userActivity",
+      "return_type": "UserActivity",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "Get one user's presence.",
+      "sql_source": "v_user_activity"
     },
-    "metrics": {
-      "args": { "metric": "String", "limit": "Int" },
-      "return": "[LiveMetrics!]!",
-      "description": "Get live system metrics"
+    {
+      "name": "metrics",
+      "return_type": "LiveMetrics",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "metric",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Get live system metrics, optionally for one metric name.",
+      "sql_source": "v_metric"
     }
-  },
-  "subscriptions": {
-    "onEvent": {
-      "args": { "type": "String" },
-      "return": "Event!",
-      "description": "Subscribe to new events in real-time"
+  ],
+  "mutations": [],
+  "subscriptions": [
+    {
+      "name": "onEvent",
+      "return_type": "Event",
+      "arguments": [],
+      "description": "Subscribe to new events as they are recorded.",
+      "topic": "event_events"
     },
-    "onMessage": {
-      "return": "Message!",
-      "description": "Subscribe to new messages as they arrive"
+    {
+      "name": "onMessage",
+      "return_type": "Message",
+      "arguments": [],
+      "description": "Subscribe to new messages as they arrive.",
+      "topic": "message_events"
     },
-    "onUserStatusChange": {
-      "return": "UserActivity!",
-      "description": "Subscribe to user status changes"
+    {
+      "name": "onUserStatusChange",
+      "return_type": "UserActivity",
+      "arguments": [],
+      "description": "Subscribe to presence changes.",
+      "topic": "user_activity_events"
     },
-    "onMetricUpdate": {
-      "args": { "metric": "String" },
-      "return": "LiveMetrics!",
-      "description": "Subscribe to real-time metric updates"
+    {
+      "name": "onMetricUpdate",
+      "return_type": "LiveMetrics",
+      "arguments": [],
+      "description": "Subscribe to metric samples as they land.",
+      "topic": "metric_events"
     }
-  }
+  ],
+  "naming_convention": "camelCase"
 }

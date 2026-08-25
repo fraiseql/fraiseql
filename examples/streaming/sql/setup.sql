@@ -14,18 +14,10 @@ CREATE TABLE tb_event (
     id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
     type VARCHAR(50) NOT NULL,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    data TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create message table for real-time messaging (Trinity Pattern)
-CREATE TABLE tb_message (
-    pk_message SERIAL PRIMARY KEY,
-    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
-    fk_user_activity INTEGER NOT NULL REFERENCES tb_user_activity(pk_user_activity),
-    content TEXT NOT NULL,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    reactions INTEGER DEFAULT 0,
+    -- The event payload is a JSON document, so store one. As TEXT it reached the
+    -- GraphQL surface as a String field carrying serialized JSON, which is not
+    -- what the schema said it was (#1052).
+    data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -38,6 +30,17 @@ CREATE TABLE tb_user_activity (
     last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     active_now BOOLEAN DEFAULT FALSE,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create message table for real-time messaging (Trinity Pattern)
+CREATE TABLE tb_message (
+    pk_message SERIAL PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+    fk_user_activity INTEGER NOT NULL REFERENCES tb_user_activity(pk_user_activity),
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    reactions INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create live_metrics table for system metrics (Trinity Pattern)
@@ -65,10 +68,13 @@ CREATE INDEX idx_tb_metric_timestamp ON tb_metric(timestamp DESC);
 CREATE INDEX idx_tb_metric_id ON tb_metric(id);
 
 -- Create views (Trinity Pattern v_* naming)
--- Each view returns pk_* (for internal joins) and data (JSONB for GraphQL)
+-- Each view returns pk_* (for internal joins), the entity's public `id` as a
+-- native column (so ID-typed query arguments resolve against an indexed
+-- column rather than a JSONB extraction), and data (JSONB for GraphQL).
 CREATE VIEW v_event AS
 SELECT
     pk_event,
+    id,
     jsonb_build_object(
         'id', id,
         'type', type,
@@ -81,6 +87,7 @@ FROM tb_event;
 CREATE VIEW v_message AS
 SELECT
     m.pk_message,
+    m.id,
     jsonb_build_object(
         'id', m.id,
         'user_id', u.id,
@@ -96,6 +103,7 @@ JOIN tb_user_activity u ON m.fk_user_activity = u.pk_user_activity;
 CREATE VIEW v_user_activity AS
 SELECT
     pk_user_activity,
+    id,
     jsonb_build_object(
         'id', id,
         'username', username,
@@ -109,6 +117,7 @@ FROM tb_user_activity;
 CREATE VIEW v_metric AS
 SELECT
     pk_metric,
+    id,
     jsonb_build_object(
         'id', id,
         'metric', metric,
