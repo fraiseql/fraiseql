@@ -1,26 +1,31 @@
--- Users database initialization (Trinity Pattern)
--- Used by users-service (owns User entity)
--- Pattern: tb_* (table), pk_* (INTEGER primary key), id (federation ID), v_* (view)
+-- Users subgraph database (Trinity Pattern).
+--
+-- This subgraph OWNS the User entity: it holds the identity and profile fields, and
+-- the router resolves `User` here by its `@key(fields: "id")`.
+--
+-- Pattern: tb_* (table), pk_* (INTEGER surrogate key, never leaves the database),
+-- id (UUID, the public/federation identity), v_* (view exposing `id` natively plus a
+-- JSONB `data` column with snake_case keys that FraiseQL projects to camelCase).
 
+DROP VIEW IF EXISTS v_user;
 DROP TABLE IF EXISTS tb_user CASCADE;
 
 CREATE TABLE tb_user (
-    pk_user SERIAL PRIMARY KEY,
-    id VARCHAR(50) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    pk_user    SERIAL PRIMARY KEY,
+    id         UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    name       VARCHAR(255) NOT NULL,
+    email      VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Index key fields for federation and performance
-CREATE INDEX idx_tb_user_id ON tb_user(id);
 CREATE INDEX idx_tb_user_email ON tb_user(email);
 
--- Create view (Trinity Pattern v_* naming)
--- Returns pk_* (for internal joins) and data (JSONB for GraphQL)
+-- `id` is selected as a native column, not only as a JSONB key: an ID-typed query
+-- argument compiles to `WHERE id = $1::uuid`, which needs the column to exist.
 CREATE VIEW v_user AS
 SELECT
     pk_user,
+    id,
     jsonb_build_object(
         'id', id,
         'name', name,
@@ -29,10 +34,9 @@ SELECT
     ) AS data
 FROM tb_user;
 
--- Insert test data
+-- Fixed UUIDs so the orders subgraph's seed can reference them and so the queries in
+-- README.md can be copied verbatim.
 INSERT INTO tb_user (id, name, email) VALUES
-    ('user1', 'Alice Johnson', 'alice@example.com'),
-    ('user2', 'Bob Smith', 'bob@example.com'),
-    ('user3', 'Charlie Brown', 'charlie@example.com'),
-    ('user4', 'Diana Prince', 'diana@example.com'),
-    ('user5', 'Eve Adams', 'eve@example.com');
+    ('11111111-1111-4111-8111-111111111111', 'Alice Johnson',  'alice@example.com'),
+    ('22222222-2222-4222-8222-222222222222', 'Bob Smith',      'bob@example.com'),
+    ('33333333-3333-4333-8333-333333333333', 'Charlie Brown',  'charlie@example.com');

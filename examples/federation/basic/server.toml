@@ -1,0 +1,12 @@
+# Runtime configuration shared by both subgraphs.
+#
+# CORS is off because nothing reaches a subgraph from a browser: the router calls it
+# server-to-server, and rover fetches its SDL from the host. That has to be said
+# explicitly — the server runs in production mode unless FRAISEQL_ENV says otherwise,
+# and production mode refuses to boot with CORS enabled and no origin list:
+#
+#   Error: cors_enabled is true but cors_origins is empty in production mode.
+#
+# Do not "fix" that by setting FRAISEQL_ENV=development; it turns off the whole
+# production check set, not just this one.
+cors_enabled = false

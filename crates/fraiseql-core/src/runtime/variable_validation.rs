@@ -166,6 +166,18 @@ pub fn validate_variable_uses(
     Ok(())
 }
 
+/// Input-position type names a federated subgraph's SDL declares but introspection
+/// does not publish as scalars, so no other source in this function can learn them.
+///
+/// A router's `_entities` call is invariably
+/// `query($representations: [_Any!]!)`, so refusing `_Any` refused every federated
+/// fan-out. `_FieldSet` is the other one — it is the argument type of `@key`,
+/// `@requires` and `@provides`.
+///
+/// Only accepted when the schema is actually a subgraph: to a non-federated schema
+/// these names mean nothing and are as wrong as any other unknown type.
+const FEDERATION_INPUT_BUILTINS: &[&str] = &["_Any", "_FieldSet"];
+
 /// Check that every variable definition names a type the schema publishes as an
 /// input type (GraphQL § 5.8.2).
 ///
@@ -199,10 +211,12 @@ pub fn validate_variable_types(
     }
 
     let scalars = crate::schema::published_scalar_names();
+    let federated = schema.federation.as_ref().is_some_and(|f| f.enabled);
 
     for def in definitions {
         let type_name = innermost_type_name(&def.var_type.name);
         let known = scalars.iter().any(|s| s == type_name)
+            || (federated && FEDERATION_INPUT_BUILTINS.contains(&type_name))
             || schema.find_enum(type_name).is_some()
             || schema.find_input_type(type_name).is_some()
             || schema_declares_type_name(schema, type_name);

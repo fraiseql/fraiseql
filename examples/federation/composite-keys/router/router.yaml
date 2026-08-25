@@ -1,0 +1,13 @@
+# Apollo Router runtime configuration.
+#
+# Serves the composed supergraph on :4010 and fans queries out to the two subgraphs.
+# CORS is scoped to the demo origin; add origins to the allow-list rather than
+# reaching for allow_any_origin.
+supergraph:
+  listen: 0.0.0.0:4010
+cors:
+  origins:
+    - http://localhost:3000
+health_check:
+  listen: 0.0.0.0:8088
+  path: /health

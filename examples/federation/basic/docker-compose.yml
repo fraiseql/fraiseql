@@ -1,92 +1,91 @@
-version: '3.8'
+# Basic two-subgraph federation.
+#
+#   client ──► router (:4000)   Apollo Federation v2 supergraph
+#                 │
+#                 ├─► users-service  (:4001) ── postgres-users   owns User
+#                 └─► orders-service (:4002) ── postgres-orders  owns Order,
+#                                                                extends User
+#
+# The router needs a composed supergraph schema before it can serve. `make run` boots
+# the subgraphs, composes with rover, then starts the router — in that order, and it
+# waits for the subgraphs to answer rather than assuming they have.
 
 services:
-  # PostgreSQL for users service
-  postgres1:
+  # Local demo backing stores — weak credentials by design, ports bound to 127.0.0.1
+  # (locally usable, not network-reachable). Override POSTGRES_PASSWORD before any
+  # non-local use.
+  postgres-users:
     image: postgres:16-alpine
-    container_name: federation-postgres-users
     environment:
-      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
       POSTGRES_DB: users
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
-      - postgres1_data:/var/lib/postgresql/data
-      - ./init-users.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init-users.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_users_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
 
-  # PostgreSQL for orders service
-  postgres2:
+  postgres-orders:
     image: postgres:16-alpine
-    container_name: federation-postgres-orders
     environment:
-      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
       POSTGRES_DB: orders
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
-      - postgres2_data:/var/lib/postgresql/data
-      - ./init-orders.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init-orders.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_orders_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
 
-  # Users Service (Subgraph 1)
+  # Both subgraph images build from the REPOSITORY ROOT: the Dockerfile needs the
+  # workspace (to build the CLI and the server) and the in-repo authoring SDK.
   users-service:
     build:
-      context: ./users-service
-      dockerfile: Dockerfile
-    container_name: federation-users-service
+      context: ../../..
+      dockerfile: examples/federation/basic/users-service/Dockerfile
     environment:
-      DATABASE_URL: postgresql://postgres:fraiseql@postgres1:5432/users
-      PORT: 4001
-      FEDERATION_ENABLED: "true"
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-devpass}@postgres-users:5432/users
     ports:
       - "4001:4001"
     depends_on:
-      postgres1:
+      postgres-users:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # Orders Service (Subgraph 2)
   orders-service:
     build:
-      context: ./orders-service
-      dockerfile: Dockerfile
-    container_name: federation-orders-service
+      context: ../../..
+      dockerfile: examples/federation/basic/orders-service/Dockerfile
     environment:
-      DATABASE_URL: postgresql://postgres:fraiseql@postgres2:5432/orders
-      PORT: 4002
-      FEDERATION_ENABLED: "true"
-      # For HTTP federation to users service
-      USERS_SERVICE_URL: http://users-service:4001/graphql
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-devpass}@postgres-orders:5432/orders
     ports:
       - "4002:4002"
     depends_on:
-      postgres2:
+      postgres-orders:
         condition: service_healthy
-      users-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4002/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
+  router:
+    image: ghcr.io/apollographql/router:v1.59.0
+    command: ["--config", "/config/router.yaml", "--supergraph", "/config/supergraph.graphql"]
+    volumes:
+      - ./router/router.yaml:/config/router.yaml:ro
+      - ./router/supergraph.graphql:/config/supergraph.graphql:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      - users-service
+      - orders-service
 
 volumes:
-  postgres1_data:
-  postgres2_data:
-
-networks:
-  default:
-    name: federation_network
+  postgres_users_data:
+  postgres_orders_data:

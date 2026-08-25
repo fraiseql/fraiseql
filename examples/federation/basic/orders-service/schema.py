@@ -1,74 +1,66 @@
+#!/usr/bin/env python3
+"""Orders subgraph — owns Order, and extends the User that the users subgraph owns.
+
+Two entities, two different roles:
+
+* `Order` is owned here: this subgraph holds the rows and resolves the whole type.
+* `User` is **extended** here: `extends=True` renders `extend type User @key(...)`,
+  and the borrowed key field is marked `field(external=True)` because another
+  subgraph owns it. This subgraph contributes exactly one field, `orders`, and the
+  router stitches it onto the User the users subgraph returned.
+
+There is no users table in this database. The only thing this subgraph ever learns
+about a user is the `id` the router passes in an `_entities` representation.
+
+Run: python3 schema.py
+Output: schema.json (consumed by `fraiseql-cli compile`)
 """
-Orders Service Schema
-Owns the Order entity and extends User
-"""
 
-from fraiseql import type, key, extends, external
-from typing import Optional
+from pathlib import Path
+from typing import Annotated
 
-
-@type
-@extends
-@key("id")
-class User:
-    """
-    User entity (extended from users-service)
-    Only certain fields are resolved locally
-    """
-    id: str = external()
-    email: str = external()
-    orders: list["Order"]
+import fraiseql
+from fraiseql import ID, DateTime, Decimal, Federation
 
 
-@type
-@key("id")
+@fraiseql.type(sql_source="v_order", key_fields=["id"])
 class Order:
-    """
-    Order entity
-    Owned by orders-service
-    References User from users-service
-    """
-    id: str
-    user_id: str
+    """An order. Owned by this subgraph."""
+
+    id: ID
+    user_id: ID
     status: str
-    total: float
+    total: Decimal
+    created_at: DateTime
 
 
-@type
-class Query:
-    """Root query type"""
+@fraiseql.type(sql_source="v_user", key_fields=["id"], extends=True)
+class User:
+    """The User this subgraph borrows, to hang its orders on."""
 
-    def order(self, id: str) -> Optional[Order]:
-        """Get a single order by ID"""
-        # FraiseQL automatically resolves from database
-        pass
-
-    def orders(self) -> list[Order]:
-        """Get all orders"""
-        # FraiseQL automatically resolves from database
-        pass
-
-    def user_orders(self, user_id: str) -> list[Order]:
-        """Get orders for a specific user"""
-        # FraiseQL automatically resolves with WHERE user_id = ?
-        pass
+    id: Annotated[ID, fraiseql.field(external=True)]
+    orders: list[Order]
 
 
-@type
-class Mutation:
-    """Root mutation type"""
+@fraiseql.query(sql_source="v_order")
+def orders() -> list[Order]:
+    """Get all orders."""
+    ...
 
-    def create_order(self, user_id: str, total: float) -> Order:
-        """Create a new order"""
-        # FraiseQL automatically handles INSERT
-        pass
 
-    def update_order_status(self, id: str, status: str) -> Optional[Order]:
-        """Update order status"""
-        # FraiseQL automatically handles UPDATE
-        pass
+@fraiseql.query(sql_source="v_order")
+def order(id: ID) -> Order | None:
+    """Get an order by ID."""
+    ...
 
-    def cancel_order(self, id: str) -> bool:
-        """Cancel an order"""
-        # FraiseQL automatically handles UPDATE with status='cancelled'
-        pass
+
+@fraiseql.query(sql_source="v_order")
+def user_orders(user_id: ID) -> list[Order]:
+    """Get every order belonging to one user."""
+    ...
+
+
+if __name__ == "__main__":
+    output_path = Path(__file__).parent / "schema.json"
+    fraiseql.export_schema(str(output_path), federation=Federation(service_name="orders"))
+    print(f"Schema exported to: {output_path}")

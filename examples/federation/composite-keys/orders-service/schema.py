@@ -1,90 +1,65 @@
+#!/usr/bin/env python3
+"""Orders subgraph — owns Order, extends the composite-keyed User.
+
+The extension borrows BOTH halves of the key: `organization_id` and `user_id` are each
+`field(external=True)`, because the users subgraph owns them. An order therefore cannot
+be attached to a user without naming the tenant.
+
+Run: python3 schema.py
+Output: schema.json (consumed by `fraiseql-cli compile`)
 """
-Multi-tenant Orders Service Schema
-Extends User with composite key federation
-"""
 
-from fraiseql import type, key, extends, external, requires
-from typing import Optional
+from pathlib import Path
+from typing import Annotated
 
-
-@type
-@extends
-@key(fields=["organization_id", "user_id"])
-class User:
-    """
-    User entity extended from users-service
-    Composite key: (organizationId, userId)
-    """
-    organization_id: str = external()
-    user_id: str = external()
-    orders: list["Order"] = requires(fields=["organization_id", "user_id"])
+import fraiseql
+from fraiseql import ID, DateTime, Decimal, Federation
 
 
-@type
-@key(fields=["organization_id", "order_id"])
+@fraiseql.type(sql_source="v_order", key_fields=["id"])
 class Order:
-    """
-    Order entity with composite key
-    Identifies orders uniquely within organization
-    """
-    organization_id: str
-    order_id: str
-    user_id: str
+    """An order. Owned by this subgraph."""
+
+    id: ID
+    organization_id: ID
+    user_id: ID
     status: str
-    amount: float
+    total: Decimal
+    created_at: DateTime
 
 
-@type
-class Query:
-    """Root query type"""
+@fraiseql.type(
+    sql_source="v_user",
+    key_fields=["organization_id", "user_id"],
+    extends=True,
+)
+class User:
+    """The User this subgraph borrows, to hang its orders on."""
 
-    def order(
-        self,
-        organization_id: str,
-        order_id: str,
-    ) -> Optional[Order]:
-        """Get single order (composite key)"""
-        pass
-
-    def orders(self, organization_id: str) -> list[Order]:
-        """Get all orders in organization"""
-        pass
-
-    def user_orders(
-        self,
-        organization_id: str,
-        user_id: str,
-    ) -> list[Order]:
-        """Get orders for specific user in organization"""
-        pass
+    organization_id: Annotated[ID, fraiseql.field(external=True)]
+    user_id: Annotated[ID, fraiseql.field(external=True)]
+    orders: list[Order]
 
 
-@type
-class Mutation:
-    """Root mutation type"""
+@fraiseql.query(sql_source="v_order")
+def orders(organization_id: ID) -> list[Order]:
+    """Get every order in one organization."""
+    ...
 
-    def create_order(
-        self,
-        organization_id: str,
-        user_id: str,
-        amount: float,
-    ) -> Order:
-        """Create order for user in organization"""
-        pass
 
-    def update_order_status(
-        self,
-        organization_id: str,
-        order_id: str,
-        status: str,
-    ) -> Optional[Order]:
-        """Update order status (composite key)"""
-        pass
+@fraiseql.query(sql_source="v_order")
+def order(id: ID) -> Order | None:
+    """Get an order by ID."""
+    ...
 
-    def cancel_order(
-        self,
-        organization_id: str,
-        order_id: str,
-    ) -> bool:
-        """Cancel order in organization"""
-        pass
+
+@fraiseql.query(sql_source="v_order")
+def user_orders(organization_id: ID, user_id: ID) -> list[Order]:
+    """Get every order belonging to one user, within their organization."""
+    ...
+
+
+if __name__ == "__main__":
+    output_path = Path(__file__).parent / "schema.json"
+    fraiseql.export_schema(str(output_path), federation=Federation(service_name="orders"))
+    print(f"Schema exported to: {output_path}")

@@ -1,0 +1,78 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A user of the platform. Owned by this subgraph."
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get all users.",
+      "sql_source": "v_user"
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "Get a user by ID.",
+      "sql_source": "v_user"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "naming_convention": "camelCase",
+  "federation": {
+    "enabled": true,
+    "service_name": "users",
+    "version": "v2",
+    "apollo_version": 2,
+    "entities": [
+      {
+        "name": "User",
+        "key_fields": [
+          "id"
+        ]
+      }
+    ]
+  }
+}

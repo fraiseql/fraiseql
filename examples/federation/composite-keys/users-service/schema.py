@@ -1,93 +1,67 @@
+#!/usr/bin/env python3
+"""Users subgraph — multi-tenant, composite-key federation.
+
+`key_fields=["organization_id", "user_id"]` renders
+`@key(fields: "organizationId userId")`. A user's identity is the PAIR, so no subgraph
+can resolve one without naming the tenant, and a cross-tenant reference is not
+expressible in the graph.
+
+Run: python3 schema.py
+Output: schema.json (consumed by `fraiseql-cli compile`)
 """
-Multi-tenant Users Service Schema
-Composite key federation with (organizationId, userId)
-"""
 
-from fraiseql import type, key, ID
-from typing import Optional
+from pathlib import Path
+
+import fraiseql
+from fraiseql import ID, DateTime, Federation
 
 
-@type
-@key(fields=["organization_id", "user_id"])
+@fraiseql.type(sql_source="v_organization", key_fields=["id"])
+class Organization:
+    """A tenant. Owned by this subgraph."""
+
+    id: ID
+    name: str
+    created_at: DateTime
+
+
+@fraiseql.type(sql_source="v_user", key_fields=["organization_id", "user_id"])
 class User:
-    """
-    User entity in multi-tenant system
-    Composite key ensures data isolation per organization
-    """
-    organization_id: str
-    user_id: str
+    """A user within one organization. Owned by this subgraph."""
+
+    organization_id: ID
+    user_id: ID
     name: str
     email: str
     role: str
+    created_at: DateTime
 
 
-@type
-class Organization:
-    """Organization entity"""
-    id: str
-    name: str
-    users: list[User]
+@fraiseql.query(sql_source="v_organization")
+def organizations() -> list[Organization]:
+    """Get all organizations."""
+    ...
 
 
-@type
-class Query:
-    """Root query type"""
-
-    def user(
-        self,
-        organization_id: str,
-        user_id: str,
-    ) -> Optional[User]:
-        """Get user by organizationId and userId (composite key)"""
-        pass
-
-    def users(self, organization_id: str) -> list[User]:
-        """Get all users in organization"""
-        pass
-
-    def organization(self, id: str) -> Optional[Organization]:
-        """Get organization by ID"""
-        pass
-
-    def organizations(self) -> list[Organization]:
-        """Get all organizations"""
-        pass
+@fraiseql.query(sql_source="v_organization")
+def organization(id: ID) -> Organization | None:
+    """Get an organization by ID."""
+    ...
 
 
-@type
-class Mutation:
-    """Root mutation type"""
+@fraiseql.query(sql_source="v_user")
+def users(organization_id: ID) -> list[User]:
+    """Get every user in one organization."""
+    ...
 
-    def create_user(
-        self,
-        organization_id: str,
-        user_id: str,
-        name: str,
-        email: str,
-        role: str,
-    ) -> User:
-        """Create user in organization"""
-        pass
 
-    def update_user(
-        self,
-        organization_id: str,
-        user_id: str,
-        name: Optional[str] = None,
-        email: Optional[str] = None,
-        role: Optional[str] = None,
-    ) -> Optional[User]:
-        """Update user (composite key)"""
-        pass
+@fraiseql.query(sql_source="v_user")
+def user(organization_id: ID, user_id: ID) -> User | None:
+    """Get one user by the composite key."""
+    ...
 
-    def delete_user(
-        self,
-        organization_id: str,
-        user_id: str,
-    ) -> bool:
-        """Delete user from organization"""
-        pass
 
-    def create_organization(self, id: str, name: str) -> Organization:
-        """Create organization"""
-        pass
+if __name__ == "__main__":
+    output_path = Path(__file__).parent / "schema.json"
+    fraiseql.export_schema(str(output_path), federation=Federation(service_name="users"))
+    print(f"Schema exported to: {output_path}")

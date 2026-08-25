@@ -62,8 +62,10 @@ while IFS= read -r compose; do
         # service that mounts it is started. `docker compose up` on its own still
         # creates an empty DIRECTORY here, so keep this list short.
         case "$resolved" in
-            # `make supergraph` (rover) writes this before `make run` starts the router.
+            # `make supergraph` (rover) writes these before `make run` starts the router.
             examples/async-jobs-subgraph/router/supergraph.graphql) continue ;;
+            examples/federation/basic/router/supergraph.graphql) continue ;;
+            examples/federation/composite-keys/router/supergraph.graphql) continue ;;
         esac
         if [ ! -e "$dir/$src" ]; then
             fail "$compose mounts a host path that does not exist: $src" \

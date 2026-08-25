@@ -467,3 +467,42 @@ def test_export_types_strips_federation_only_keys(tmp_path: Path):
             assert leaked not in type_def
         for field_def in type_def["fields"]:
             assert "federation" not in field_def
+
+
+def test_federation_key_fields_use_the_published_field_names():
+    """`@key(fields: …)` names GraphQL fields, so it must use the published spelling.
+
+    A multi-word key field authored as `organization_id` reached the SDL verbatim while
+    the field itself was published as `organizationId`, and Apollo composition refused
+    the whole supergraph:
+
+        KEY_INVALID_FIELDS: On type "User", for @key(fields: "organization_id user_id"):
+        Cannot query field "organization_id" on type "User"
+
+    Single-word keys — every key in the SDK's own tests, and `id`, the default — are
+    spelled identically in both cases, so nothing here could see it. The sibling
+    `external_fields` list was always camelCased, because it is derived from the field
+    names themselves; only `key_fields` was carried through verbatim.
+    """
+
+    @fraiseql.type(sql_source="v_user", key_fields=["organization_id", "user_id"])
+    class User:
+        organization_id: ID
+        user_id: ID
+        name: str
+
+    block = fraiseql.get_schema_dict(federation=fraiseql.Federation(service_name="users"))[
+        "federation"
+    ]
+    assert block["entities"][0]["key_fields"] == ["organizationId", "userId"]
+
+
+def test_federation_default_key_fields_are_published_names_too():
+    @fraiseql.type(sql_source="v_thing")
+    class Thing:
+        tenant_id: ID
+        name: str
+
+    fed = fraiseql.Federation(service_name="things", default_key_fields=["tenant_id"])
+    block = fraiseql.get_schema_dict(federation=fed)["federation"]
+    assert block["entities"][0]["key_fields"] == ["tenantId"]

@@ -1,0 +1,125 @@
+{
+  "types": [
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "total",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "An order. Owned by this subgraph."
+    },
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "orders",
+          "type": "[Order!]",
+          "nullable": false
+        }
+      ],
+      "description": "The User this subgraph borrows, to hang its orders on."
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get all orders.",
+      "sql_source": "v_order"
+    },
+    {
+      "name": "order",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "Get an order by ID.",
+      "sql_source": "v_order"
+    },
+    {
+      "name": "userOrders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "userId",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "Get every order belonging to one user.",
+      "sql_source": "v_order"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "naming_convention": "camelCase",
+  "federation": {
+    "enabled": true,
+    "service_name": "orders",
+    "version": "v2",
+    "apollo_version": 2,
+    "entities": [
+      {
+        "name": "Order",
+        "key_fields": [
+          "id"
+        ]
+      },
+      {
+        "name": "User",
+        "key_fields": [
+          "id"
+        ],
+        "extends": true,
+        "external_fields": [
+          "id"
+        ]
+      }
+    ]
+  }
+}

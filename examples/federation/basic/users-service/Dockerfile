@@ -1,48 +1,61 @@
-FROM rust:1.94.1 AS builder
+# Users subgraph.
+#
+# Runs the whole v2 pipeline, in the order the architecture prescribes:
+#
+#   authoring (Python)  ->  schema.json
+#   compilation (CLI)   ->  schema.compiled.json
+#   runtime (server)    ->  serves the compiled schema, no authoring tools present
+#
+# Build context is the REPOSITORY ROOT, so the workspace and the in-repo authoring SDK
+# are both available. docker-compose.yml sets that for you; by hand it is:
+#
+#   docker build -f examples/federation/basic/users-service/Dockerfile .
+#
+# The previous version of this file copied a `fraiseql-cli` directory into a context
+# holding only `Dockerfile` and `schema.py`, and could not have built (#1050). Copying
+# that one directory would not have helped either: fraiseql-cli is a workspace member
+# whose manifest inherits its dependencies with `workspace = true`, so it cannot be
+# compiled standalone.
 
-WORKDIR /app
-
-# Copy FraiseQL CLI
-COPY fraiseql-cli ./fraiseql-cli
-
-# Build FraiseQL CLI
-RUN cargo build --release --manifest-path fraiseql-cli/Cargo.toml
-
-# Runtime stage
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y \
-    curl \
-    postgresql-client \
+# Builder and runtime pin the same Debian release. `rust:1-slim` floats — it is Debian
+# 13 today — and a binary linked against a newer glibc than the runtime base fails when
+# the container starts, not when it builds.
+FROM rust:1-slim-bookworm AS builder
+WORKDIR /repo
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        pkg-config libssl-dev python3 python3-pip \
     && rm -rf /var/lib/apt/lists/*
+COPY . .
 
+# `federation` is not a default feature. Without it the server boots, answers ordinary
+# queries and reports healthy, and returns `Federation is not enabled in this build` for
+# `query { _service { sdl } }` — the one query that makes it a subgraph.
+RUN cargo build --release -p fraiseql-cli -p fraiseql-server \
+    --features fraiseql-server/federation
+
+# The SDK is installed from this repository rather than PyPI so the example always
+# builds against the version it ships with, and installed rather than put on PYTHONPATH
+# so its declared dependencies come with it.
+RUN pip install --break-system-packages --no-cache-dir ./sdks/official/fraiseql-python
+WORKDIR /repo/examples/federation/basic/users-service
+RUN python3 schema.py
+RUN /repo/target/release/fraiseql-cli compile schema.json -o schema.compiled.json
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-
-# Create non-root user
+# Runtime carries the server and the compiled schema — no CLI, no Python, no authoring
+# sources. That separation is the point of the architecture.
+COPY --from=builder /repo/target/release/fraiseql-server /usr/local/bin/fraiseql-server
+COPY --from=builder /repo/examples/federation/basic/users-service/schema.compiled.json ./
+COPY examples/federation/basic/server.toml ./
 RUN groupadd -r app && useradd -r -g app app
-
-# Copy schema
-COPY --chown=app:app schema.py .
-
-# Copy compiled CLI
-COPY --from=builder /app/target/release/fraiseql-cli /usr/local/bin/fraiseql
-
-# Compile schema
-RUN fraiseql compile schema.py && chown app:app schema.compiled.json
-
-# Switch to non-root user
 USER app
-
-# Expose port
+ENV FRAISEQL_CONFIG=/app/server.toml
+ENV FRAISEQL_SCHEMA_PATH=/app/schema.compiled.json
+ENV FRAISEQL_BIND_ADDR=0.0.0.0:4001
 EXPOSE 4001
-
-# Health check
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
     CMD curl -f http://localhost:4001/health || exit 1
-
-# Start FraiseQL server
-CMD ["fraiseql", "server", \
-     "--schema", "schema.compiled.json", \
-     "--database", "${DATABASE_URL}", \
-     "--port", "4001", \
-     "--federation"]
+CMD ["fraiseql-server"]

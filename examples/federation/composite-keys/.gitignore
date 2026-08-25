@@ -1,0 +1,3 @@
+*-service/schema.compiled.json
+router/supergraph.graphql
+router/supergraph.graphql.tmp

@@ -1,55 +1,42 @@
+#!/usr/bin/env python3
+"""Users subgraph — owns the User entity.
+
+`key_fields=["id"]` makes User a federation entity: the router resolves it here by
+its key, and any other subgraph may extend it (see ../orders-service/schema.py).
+
+Run: python3 schema.py
+Output: schema.json (consumed by `fraiseql-cli compile`)
 """
-Users Service Schema
-Owns the User entity in federation
-"""
 
-from fraiseql import type, key
-from typing import Optional
+from pathlib import Path
+
+import fraiseql
+from fraiseql import ID, DateTime, Federation
 
 
-@type
-@key("id")
+@fraiseql.type(sql_source="v_user", key_fields=["id"])
 class User:
-    """
-    User entity
-    Owned by users-service
-    Can be extended by other subgraphs
-    """
-    id: str
+    """A user of the platform. Owned by this subgraph."""
+
+    id: ID
     name: str
     email: str
+    created_at: DateTime
 
 
-@type
-class Query:
-    """Root query type"""
-
-    def user(self, id: str) -> Optional[User]:
-        """Get a single user by ID"""
-        # FraiseQL automatically resolves from database
-        pass
-
-    def users(self) -> list[User]:
-        """Get all users"""
-        # FraiseQL automatically resolves from database
-        pass
+@fraiseql.query(sql_source="v_user")
+def users() -> list[User]:
+    """Get all users."""
+    ...
 
 
-@type
-class Mutation:
-    """Root mutation type"""
+@fraiseql.query(sql_source="v_user")
+def user(id: ID) -> User | None:
+    """Get a user by ID."""
+    ...
 
-    def create_user(self, name: str, email: str) -> User:
-        """Create a new user"""
-        # FraiseQL automatically handles INSERT
-        pass
 
-    def update_user(self, id: str, name: Optional[str] = None, email: Optional[str] = None) -> Optional[User]:
-        """Update a user"""
-        # FraiseQL automatically handles UPDATE
-        pass
-
-    def delete_user(self, id: str) -> bool:
-        """Delete a user"""
-        # FraiseQL automatically handles DELETE
-        pass
+if __name__ == "__main__":
+    output_path = Path(__file__).parent / "schema.json"
+    fraiseql.export_schema(str(output_path), federation=Federation(service_name="users"))
+    print(f"Schema exported to: {output_path}")

@@ -1,92 +1,88 @@
-version: '3.8'
+# Multi-tenant federation with a composite entity key.
+#
+#   client ──► router (:4010)   Apollo Federation v2 supergraph
+#                 │
+#                 ├─► users-service  (:4011) ── postgres-users   owns Organization, User
+#                 └─► orders-service (:4012) ── postgres-orders  owns Order, extends User
+#
+# Ports differ from ../basic/ so both examples can run side by side.
 
 services:
-  tenants-postgres1:
-    image: postgres:16
-    container_name: tenants-postgres1
+  # Local demo backing stores — weak credentials by design, ports bound to 127.0.0.1
+  # (locally usable, not network-reachable). Override POSTGRES_PASSWORD before any
+  # non-local use.
+  postgres-users:
+    image: postgres:16-alpine
     environment:
-      POSTGRES_DB: tenants_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      POSTGRES_DB: users
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5442:5432"
     volumes:
-      - tenants_postgres1_data:/var/lib/postgresql/data
-      - ./init-users.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./init-users.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_users_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
-    networks:
-      - fraiseql-network
 
-  tenants-postgres2:
-    image: postgres:16
-    container_name: tenants-postgres2
+  postgres-orders:
+    image: postgres:16-alpine
     environment:
-      POSTGRES_DB: orders_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      POSTGRES_DB: orders
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5443:5432"
     volumes:
-      - tenants_postgres2_data:/var/lib/postgresql/data
-      - ./init-orders.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./init-orders.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_orders_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
-    networks:
-      - fraiseql-network
 
-  tenants-users-service:
+  # Both subgraph images build from the REPOSITORY ROOT: the Dockerfile needs the
+  # workspace (to build the CLI and the server) and the in-repo authoring SDK.
+  users-service:
     build:
-      context: ./users-service
-      dockerfile: Dockerfile
-    container_name: tenants-users-service
+      context: ../../..
+      dockerfile: examples/federation/composite-keys/users-service/Dockerfile
     environment:
-      DATABASE_URL: postgresql://postgres:fraiseql@tenants-postgres1:5432/tenants_db
-      RUST_LOG: info
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-devpass}@postgres-users:5432/users
     ports:
-      - "4001:4000"
+      - "4011:4011"
     depends_on:
-      tenants-postgres1:
+      postgres-users:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - fraiseql-network
 
-  tenants-orders-service:
+  orders-service:
     build:
-      context: ./orders-service
-      dockerfile: Dockerfile
-    container_name: tenants-orders-service
+      context: ../../..
+      dockerfile: examples/federation/composite-keys/orders-service/Dockerfile
     environment:
-      DATABASE_URL: postgresql://postgres:fraiseql@tenants-postgres2:5432/orders_db
-      RUST_LOG: info
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-devpass}@postgres-orders:5432/orders
     ports:
-      - "4002:4000"
+      - "4012:4012"
     depends_on:
-      tenants-postgres2:
+      postgres-orders:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - fraiseql-network
+
+  router:
+    image: ghcr.io/apollographql/router:v1.59.0
+    command: ["--config", "/config/router.yaml", "--supergraph", "/config/supergraph.graphql"]
+    volumes:
+      - ./router/router.yaml:/config/router.yaml:ro
+      - ./router/supergraph.graphql:/config/supergraph.graphql:ro
+    ports:
+      - "4010:4010"
+    depends_on:
+      - users-service
+      - orders-service
 
 volumes:
-  tenants_postgres1_data:
-  tenants_postgres2_data:
-
-networks:
-  fraiseql-network:
-    driver: bridge
+  postgres_users_data:
+  postgres_orders_data:

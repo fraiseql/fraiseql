@@ -1,329 +1,156 @@
-# Composite Keys Federation Example
+# Composite-Key Federation — one entity, two identifying fields
 
-Multi-tenant SaaS federation with composite key entity resolution.
-
-## Architecture
+Multi-tenant federation where a user's identity is the **pair**
+`(organizationId, userId)`, not a single column.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    Apollo Router/Gateway                     │
-│                      (Port 4000)                             │
-└────────┬───────────────────────────────────────┬─────────────┘
-         │                                       │
-    ┌────▼─────────┐                      ┌──────▼────────┐
-    │TenantUsers   │                      │TenantOrders   │
-    │Service       │                      │Service        │
-    │(Port 4001)   │                      │(Port 4002)    │
-    └────┬─────────┘                      └──────┬────────┘
-         │                                       │
-    ┌────▼──────────────────────┐         ┌──────▼────────────────┐
-    │PostgreSQL: tenants_db     │         │PostgreSQL: orders_db  │
-    │(Port 5432)               │         │(Port 5433)           │
-    │                          │         │                       │
-    │ organizations            │         │ tenant_orders         │
-    │ ├─ id (PK)              │         │ ├─ organization_id    │
-    │ └─ name                 │         │ ├─ order_id (PK)      │
-    │                          │         │ ├─ user_id           │
-    │ organization_users       │         │ ├─ status            │
-    │ ├─ organization_id (PK)  │         │ └─ amount            │
-    │ ├─ user_id (PK)         │         │                       │
-    │ ├─ name                 │         │ Composite Key:        │
-    │ ├─ email                │         │ (organization_id,     │
-    │ └─ role                 │         │  order_id)            │
-    └────────────────────────┘         └───────────────────────┘
+        client
+          │
+        router (:4010)          Apollo Federation v2 supergraph
+          │
+    ┌─────┴─────┐
+    │           │
+users-service  orders-service    (:4011, :4012)
+    │           │
+ postgres    postgres            two databases, no foreign key between them
 ```
 
-## Key Features
+## What it demonstrates
 
-- **Composite Key Federation**: Entities identified by multiple fields (organizationId, userId)
-- **Multi-Tenant Data Isolation**: Complete separation by organizationId
-- **Cross-Tenant Safety**: Mutations automatically filtered by tenant context
-- **SaaS Architecture**: Scalable multi-tenant pattern
+A federation key can name more than one field. `users-service` owns `User`, keyed on
+both halves:
 
-## Setup
+```graphql
+type User @key(fields: "organizationId userId") {
+  organizationId: ID
+  userId: ID
+  name: String
+  email: String
+  role: String
+  createdAt: DateTime
+}
+```
 
-### Prerequisites
+`orders-service` owns `Order` and extends that same `User`, borrowing **both** key
+fields as `@external`:
+
+```graphql
+extend type User @key(fields: "organizationId userId") {
+  organizationId: ID @external
+  userId: ID @external
+  orders: [Order]
+}
+```
+
+The tenancy consequence is the point: no subgraph can resolve a user without naming the
+organization, so a cross-tenant reference is not expressible in the graph at all. The
+router's `_entities` representation carries both halves:
+
+```json
+{"__typename": "User",
+ "organizationId": "00000000-0000-4000-8000-00000000000a",
+ "userId": "10000000-0000-4000-8000-000000000001"}
+```
+
+Composed, the two halves are one type:
+
+```graphql
+type User
+  @join__type(graph: ORDERS, key: "organizationId userId", extension: true)
+  @join__type(graph: USERS, key: "organizationId userId")
+{
+  organizationId: ID
+  userId: ID
+  orders: [Order]     @join__field(graph: ORDERS)
+  name: String        @join__field(graph: USERS)
+  email: String       @join__field(graph: USERS)
+  role: String        @join__field(graph: USERS)
+  createdAt: DateTime @join__field(graph: USERS)
+}
+```
+
+## Run it
+
+Prerequisites: docker + docker compose, and the Apollo
+[`rover`](https://www.apollographql.com/docs/rover/getting-started) CLI. Ports differ
+from [`../basic/`](../basic/) so both examples can run side by side.
 
 ```bash
-docker --version      # Docker 20.10+
-docker-compose --version  # Docker Compose 1.29+
+cd examples/federation/composite-keys
+make run    # boots both subgraphs, composes the supergraph, starts the router
+make demo   # one tenant-scoped query, answered from two databases
+make down   # tears everything down
 ```
 
-### Start Services
+## The federated query
 
 ```bash
-# Build images
-docker-compose build
-
-# Start all services
-docker-compose up -d
-
-# Wait for services to be ready
-sleep 10
-
-# Check status
-docker-compose ps
+curl -X POST http://localhost:4010/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"{ users(organizationId: \"00000000-0000-4000-8000-00000000000a\") { userId name orders { id status total } } }"}'
 ```
 
-All services should show "healthy" status.
+Two hops: `users-service` answers `users(organizationId:)`, then the router calls
+`_entities` on `orders-service` once per user, passing both key fields.
 
-### Expected Output
+## Each subgraph on its own
 
-```
-NAME                    STATUS
-tenants-postgres1       running (healthy)
-tenants-postgres2       running (healthy)
-tenants-users-service   running (healthy)
-tenants-orders-service  running (healthy)
+```bash
+make demo-subgraphs
 ```
 
-## Database Schema
+```bash
+curl -X POST http://localhost:4011/graphql -H 'Content-Type: application/json' \
+  -d '{"query":"{ organizations { id name } }"}'
+```
 
-### TenantUsers Service (PostgreSQL 1)
+```json
+{"data":{"organizations":[
+  {"id":"00000000-0000-4000-8000-00000000000a","name":"Acme Corp"},
+  {"id":"00000000-0000-4000-8000-00000000000b","name":"Globex"}]}}
+```
+
+```bash
+curl -X POST http://localhost:4011/graphql -H 'Content-Type: application/json' \
+  -d '{"query":"{ user(organizationId: \"00000000-0000-4000-8000-00000000000a\", userId: \"10000000-0000-4000-8000-000000000001\") { organizationId userId name role } }"}'
+```
+
+```json
+{"data":{"user":{
+  "organizationId":"00000000-0000-4000-8000-00000000000a",
+  "userId":"10000000-0000-4000-8000-000000000001",
+  "name":"Alice Johnson","role":"admin"}}}
+```
+
+## The database side
+
+Each subgraph follows the Trinity pattern: `tb_*` tables with an integer surrogate key
+that never leaves the database, the public identity as UUID column(s), and a `v_*` view
+exposing those identity columns natively next to a JSONB `data` column.
+
+`tb_user` carries `UNIQUE (organization_id, user_id)` — the composite identity stated in
+the schema rather than implied — and `orders-service`'s extended `v_user` groups by the
+same pair:
 
 ```sql
-CREATE TABLE organizations (
-  id VARCHAR(50) PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE organization_users (
-  organization_id VARCHAR(50) NOT NULL,
-  user_id VARCHAR(50) NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  role VARCHAR(50) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (organization_id, user_id),
-  FOREIGN KEY (organization_id) REFERENCES organizations(id)
-);
-
-CREATE INDEX idx_org_id ON organization_users(organization_id);
+CREATE VIEW v_user AS
+SELECT o.organization_id, o.user_id,
+       jsonb_build_object('organization_id', o.organization_id,
+                          'user_id', o.user_id,
+                          'orders', jsonb_agg(...)) AS data
+FROM tb_order o
+GROUP BY o.organization_id, o.user_id;
 ```
 
-### TenantOrders Service (PostgreSQL 2)
+Note the casing: the SQL keys are snake_case and FraiseQL projects them to camelCase on
+the GraphQL surface, so `@key(fields: …)` names `organizationId userId` — the published
+spelling, which is what Apollo composition resolves against.
 
-```sql
-CREATE TABLE tenant_orders (
-  organization_id VARCHAR(50) NOT NULL,
-  order_id VARCHAR(50) NOT NULL,
-  user_id VARCHAR(50) NOT NULL,
-  status VARCHAR(50) NOT NULL DEFAULT 'pending',
-  amount DECIMAL(10, 2) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (organization_id, order_id)
-);
+## Extending this
 
-CREATE INDEX idx_org_order ON tenant_orders(organization_id, order_id);
-CREATE INDEX idx_org_user ON tenant_orders(organization_id, user_id);
-```
-
-## Example Queries
-
-### Get User with Orders (Same Tenant)
-
-```graphql
-query GetUserOrders($orgId: ID!, $userId: ID!) {
-  user(organizationId: $orgId, userId: $userId) {
-    organizationId
-    userId
-    name
-    email
-    orders {
-      organizationId
-      orderId
-      status
-      amount
-    }
-  }
-}
-```
-
-Variables:
-
-```json
-{
-  "orgId": "org1",
-  "userId": "user1"
-}
-```
-
-Expected Response:
-
-```json
-{
-  "data": {
-    "user": {
-      "organizationId": "org1",
-      "userId": "user1",
-      "name": "Alice Johnson",
-      "email": "alice@example.com",
-      "orders": [
-        {
-          "organizationId": "org1",
-          "orderId": "order1",
-          "status": "completed",
-          "amount": "149.99"
-        },
-        {
-          "organizationId": "org1",
-          "orderId": "order2",
-          "status": "pending",
-          "amount": "299.99"
-        }
-      ]
-    }
-  }
-}
-```
-
-### Get All Users in Organization
-
-```graphql
-query GetOrgUsers($orgId: ID!) {
-  organization(id: $orgId) {
-    id
-    name
-    users {
-      userId
-      name
-      email
-      role
-    }
-  }
-}
-```
-
-Variables:
-
-```json
-{
-  "orgId": "org1"
-}
-```
-
-### Create Order for User
-
-```graphql
-mutation CreateOrder($orgId: ID!, $userId: ID!, $amount: Float!) {
-  createOrder(organizationId: $orgId, userId: $userId, amount: $amount) {
-    organizationId
-    orderId
-    status
-    amount
-  }
-}
-```
-
-Variables:
-
-```json
-{
-  "orgId": "org1",
-  "userId": "user1",
-  "amount": 199.99
-}
-```
-
-## Test API
-
-### Test Users Service
-
-```bash
-curl -X POST http://localhost:4001/graphql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "{ users { organizationId userId name } }"
-  }'
-```
-
-### Test Orders Service
-
-```bash
-curl -X POST http://localhost:4002/graphql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "{ orders { organizationId orderId status } }"
-  }'
-```
-
-### Test Federated Query
-
-```bash
-curl -X POST http://localhost:4001/graphql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "query { user(organizationId: \"org1\", userId: \"user1\") { userId name orders { orderId status } } }"
-  }'
-```
-
-## Performance Expectations
-
-| Scenario | Latency | Notes |
-|----------|---------|-------|
-| Get single user | <5ms | Direct local DB |
-| Get user with orders | 10-20ms | Cross-subgraph federation |
-| List all users | <10ms | Local batch query |
-| List all orders | <10ms | Local batch query |
-| Create order | 15-25ms | Local write + federation sync |
-| Batch 100 users | ~20ms | Batched local queries |
-
-## Troubleshooting
-
-### Services won't start
-
-```bash
-# Check logs
-docker-compose logs tenants-users-service
-docker-compose logs tenants-orders-service
-
-# Verify databases are healthy
-docker-compose logs tenants-postgres1
-docker-compose logs tenants-postgres2
-```
-
-### Connection errors
-
-```bash
-# Verify services can communicate
-docker-compose exec tenants-users-service curl http://tenants-orders-service:4000/health
-
-# Check network
-docker-compose exec tenants-users-service ping tenants-postgres1
-```
-
-### Slow queries
-
-```bash
-# Check database connection pools
-curl http://localhost:4001/metrics | grep pool
-
-# Check query logs
-docker-compose logs tenants-users-service | grep "query"
-```
-
-## Cleanup
-
-```bash
-# Stop services
-docker-compose down
-
-# Remove volumes (delete data)
-docker-compose down -v
-```
-
-## Next Steps
-
-1. **Modify Schemas**: Update `schema.py` files to add your own types
-2. **Add Mutations**: Create custom mutations in schema definitions
-3. **Deploy to Cloud**: Use `../multi-cloud/` as reference for cloud deployment
-4. **Monitor Performance**: Use metrics endpoint at `/metrics` for monitoring
-
-## Multi-Tenant Best Practices
-
-- Always include `organizationId` in query filters
-- Validate tenant context in mutations
-- Use composite keys consistently across services
-- Monitor per-tenant latency and error rates
-- Implement backup/recovery per tenant
+- **A tenant-scoped mutation.** Declare it with `@fraiseql.mutation` and back it with a
+  PostgreSQL function that takes the organization as its first argument.
+- **Row-level security.** The views are the natural place: make them
+  `security_invoker = true` and let base-table RLS decide which tenant's rows a role can
+  see.
+- **A single-field key** is the simpler shape — see [`../basic/`](../basic/).

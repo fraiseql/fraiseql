@@ -434,3 +434,49 @@ fn a_declared_but_unsupplied_variable_is_still_used() {
     validate_variables_used(Some("Q"), &defined(source), &references(source))
         .expect("use is about references, not supplied values");
 }
+
+/// A federated subgraph must accept the one variable type a router ever sends.
+///
+/// Apollo's `_entities` call is always
+/// `query($representations: [_Any!]!) { _entities(representations: $representations) … }`.
+/// `_Any` is a federation built-in: the subgraph SDL declares it, introspection does
+/// not publish it as a scalar, and no author writes it — so it was in none of the three
+/// sources this function resolves against, and every `_entities` call was refused with
+/// `Variable '$representations' declares unknown type '_Any'`.
+///
+/// It went unseen because the function does not adjudicate a schema with no enums and
+/// no input objects, and the federation integration fixture has neither. Any real
+/// subgraph has both — the compiler generates a `*WhereInput` per type — so the defect
+/// appeared on every schema except the one that tested it.
+#[test]
+fn a_federated_schema_accepts_the_router_s_representations_variable() {
+    let mut schema = schema_with_input_types();
+    schema.federation = Some(crate::schema::FederationConfig {
+        enabled: true,
+        ..Default::default()
+    });
+
+    validate_variable_types(
+        &schema,
+        None,
+        &var_defs(
+            "query($representations: [_Any!]!) { \
+             _entities(representations: $representations) { ... on User { id } } }",
+        ),
+    )
+    .expect("`_Any` is the federation built-in every router sends");
+}
+
+/// The federation built-ins are accepted *because* the schema is federated, not
+/// unconditionally: a non-federated schema has no `_entities` and no `_Any`, and a
+/// variable typed with one is as wrong as any other unknown name.
+#[test]
+fn a_non_federated_schema_still_refuses_the_federation_builtins() {
+    let schema = schema_with_input_types();
+    validate_variable_types(
+        &schema,
+        Some("Q"),
+        &var_defs("query Q($r: [_Any!]!) { orders(where: $r) { id } }"),
+    )
+    .expect_err("`_Any` means nothing to a schema that is not a subgraph");
+}

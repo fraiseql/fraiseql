@@ -1,0 +1,14 @@
+# Apollo Router runtime configuration.
+#
+# The router serves the composed supergraph (router/supergraph.graphql, produced by
+# `rover supergraph compose`) on :4000 and fans queries out to the two subgraphs. CORS
+# is scoped to the demo origin so a browser client can call it; add origins to the
+# allow-list rather than reaching for allow_any_origin.
+supergraph:
+  listen: 0.0.0.0:4000
+cors:
+  origins:
+    - http://localhost:3000
+health_check:
+  listen: 0.0.0.0:8088
+  path: /health

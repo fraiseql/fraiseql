@@ -1,0 +1,20 @@
+# Rover supergraph composition config.
+#
+# `make supergraph` runs rover on the HOST, and rover fetches each subgraph's SDL
+# itself. That is why the two URLs per subgraph differ, and the difference is
+# load-bearing:
+#
+#   routing_url  — who calls it: the ROUTER, from inside the compose network, so it
+#                  must be the compose service name.
+#   subgraph_url — who calls it: ROVER, from the host, so it must be the published
+#                  port. The service names do not resolve there.
+federation_version: =2.7.0
+subgraphs:
+  users:
+    routing_url: http://users-service:4001/graphql
+    schema:
+      subgraph_url: http://localhost:4001/graphql
+  orders:
+    routing_url: http://orders-service:4002/graphql
+    schema:
+      subgraph_url: http://localhost:4002/graphql

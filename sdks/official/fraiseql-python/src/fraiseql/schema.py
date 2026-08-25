@@ -14,7 +14,7 @@ __all__ = [
 import json
 from typing import Any
 
-from fraiseql.registry import SchemaRegistry
+from fraiseql.registry import SchemaRegistry, _snake_to_camel
 
 
 def _fields_with_directive(type_def: dict[str, Any], directive: str) -> list[str]:
@@ -109,7 +109,17 @@ def _build_federation_block(federation: Federation, schema: dict[str, Any]) -> d
 
         entity: dict[str, Any] = {
             "name": name,
-            "key_fields": type_def.get("key_fields", federation.default_key_fields),
+            # `@key(fields: …)` names GRAPHQL fields, so the published spelling is the
+            # only correct one — the same reason `external_fields` (derived from the
+            # field names themselves) has always been camelCase. Carried through
+            # verbatim, a key authored as `organization_id` made Apollo refuse the whole
+            # supergraph with KEY_INVALID_FIELDS while the field was published as
+            # `organizationId`. Every single-word key, `id` included, is spelled
+            # identically either way, which is why it stayed hidden.
+            "key_fields": [
+                _snake_to_camel(f)
+                for f in type_def.get("key_fields", federation.default_key_fields)
+            ],
         }
         # Additive keys only when set, so the no-directive entity is unchanged.
         if type_def.get("extends"):
