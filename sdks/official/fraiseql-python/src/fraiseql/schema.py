@@ -30,6 +30,43 @@ def _fields_with_directive(type_def: dict[str, Any], directive: str) -> list[str
     ]
 
 
+# Federation directives an author writes on a type or a field. They are INPUTS to
+# `_build_federation_block`, not part of the document the compiler reads: the Rust
+# `IntermediateType` is `deny_unknown_fields` and knows none of them, so a schema.json
+# still carrying them fails to compile with `unknown field \`key_fields\`` — which is
+# every federated Python schema ever exported (#1188). They are stripped at the export
+# boundary, once the federation block has been derived from them.
+_FEDERATION_ONLY_TYPE_KEYS = ("key_fields", "extends", "shareable")
+
+
+def _declares_federation_directives(schema: dict[str, Any]) -> list[str]:
+    """Names of types that carry a federation directive, on the type or on a field."""
+    return [
+        type_def["name"]
+        for type_def in schema.get("types", [])
+        if any(key in type_def for key in _FEDERATION_ONLY_TYPE_KEYS)
+        or any("federation" in field for field in type_def.get("fields", []))
+    ]
+
+
+def _strip_federation_authoring_keys(types: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return `types` with the federation authoring keys removed.
+
+    Copies rather than mutates: the registry hands out its live dictionaries, and an
+    exporter that emptied them would leave a second `export_*` call in the same process
+    with nothing to derive a federation block from.
+    """
+    cleaned: list[dict[str, Any]] = []
+    for type_def in types:
+        copy = {k: v for k, v in type_def.items() if k not in _FEDERATION_ONLY_TYPE_KEYS}
+        copy["fields"] = [
+            {k: v for k, v in field.items() if k != "federation"}
+            for field in type_def.get("fields", [])
+        ]
+        cleaned.append(copy)
+    return cleaned
+
+
 def _build_federation_block(federation: Federation, schema: dict[str, Any]) -> dict[str, Any]:
     """Build the ``federation`` block for schema output.
 
@@ -341,8 +378,21 @@ def export_schema(
         - Pretty formatting is recommended for version control
     """
     schema = SchemaRegistry.get_schema()
+    federated_types = _declares_federation_directives(schema)
+    if federation is None and federated_types:
+        # Stripping the directives silently here would export a document that compiles
+        # cleanly and is not federated at all — the failure mode this whole change
+        # exists to remove. Say so instead.
+        msg = (
+            "these types declare federation directives but export_schema() was called "
+            f"without federation metadata: {', '.join(federated_types)}. "
+            "Pass federation=Federation(service_name=...) so the directives reach the "
+            "compiled schema, or remove key_fields/extends/shareable/field(external=...)."
+        )
+        raise ValueError(msg)
     if federation is not None:
         schema["federation"] = _build_federation_block(federation, schema)
+    schema = {**schema, "types": _strip_federation_authoring_keys(schema.get("types", []))}
     if not include_custom_scalars:
         # The registry emits "custom_scalars", matching the compiler's key. "customScalars"
         # stays in this tuple only so an older in-tree caller cannot resurrect the block:
@@ -398,11 +448,15 @@ def export_types(output_path: str, pretty: bool = True) -> None:
     # Extract only types, enums, input_types, interfaces
     # (no queries/mutations/federation/security/observers/analytics)
     minimal_schema = {
-        "types": full_schema.get("types", []),
+        "types": _strip_federation_authoring_keys(full_schema.get("types", [])),
         "enums": full_schema.get("enums", []),
         "input_types": full_schema.get("input_types", []),
         "interfaces": full_schema.get("interfaces", []),
     }
+    # In this workflow the federation block comes from `[federation]` in fraiseql.toml,
+    # so directives written in Python have nowhere to go. Say which types were affected
+    # rather than dropping them in silence.
+    federated_types = _declares_federation_directives(full_schema)
 
     # Write to file
     with open(output_path, "w", encoding="utf-8") as f:
@@ -420,6 +474,13 @@ def export_types(output_path: str, pretty: bool = True) -> None:
         print(f"   Input types: {len(minimal_schema['input_types'])}")
     if minimal_schema["interfaces"]:
         print(f"   Interfaces: {len(minimal_schema['interfaces'])}")
+    if federated_types:
+        print(
+            "   ⚠ federation directives on "
+            f"{', '.join(federated_types)} are not carried by types.json — declare the "
+            "entities under [federation] in fraiseql.toml, or export with "
+            "export_schema(..., federation=Federation(...)) instead."
+        )
     print(f"   → Use with: fraiseql compile fraiseql.toml --types {output_path}")
 
 
@@ -441,4 +502,5 @@ def get_schema_dict(federation: Federation | None = None) -> dict[str, Any]:
     schema = SchemaRegistry.get_schema()
     if federation is not None:
         schema["federation"] = _build_federation_block(federation, schema)
-    return schema
+    # Same boundary as export_schema: what this returns is the compiler's input.
+    return {**schema, "types": _strip_federation_authoring_keys(schema.get("types", []))}

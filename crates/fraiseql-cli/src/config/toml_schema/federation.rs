@@ -67,6 +67,13 @@ pub struct FederationConfig {
     pub apollo_version:  Option<u32>,
     /// Federated entities
     pub entities:        Vec<FederationEntity>,
+    /// Keyless `@shareable` value types — types every subgraph may define identically.
+    ///
+    /// They are not entities: no `@key`, never members of the `_Entity` union. Without
+    /// them a value type defined in two subgraphs fails composition with
+    /// `INVALID_FIELD_SHARING`.
+    #[serde(default)]
+    pub shareable_types: Vec<String>,
     /// Circuit breaker configuration for federation fan-out requests
     pub circuit_breaker: Option<FederationCircuitBreakerConfig>,
 }
@@ -80,6 +87,7 @@ impl Default for FederationConfig {
             schema_url:      None,
             apollo_version:  Some(2),
             entities:        vec![],
+            shareable_types: vec![],
             circuit_breaker: None,
         }
     }
@@ -112,14 +120,16 @@ impl FederationConfig {
             version:         self.effective_version(),
             service_name:    self.service_name.clone(),
             schema_url:      self.schema_url.clone(),
-            shareable_types: Vec::new(),
+            shareable_types: self.shareable_types.clone(),
             entities:        self
                 .entities
                 .iter()
                 .map(|e| core::FederationEntity {
-                    name: e.name.clone(),
-                    key_fields: e.key_fields.clone(),
-                    ..Default::default()
+                    name:             e.name.clone(),
+                    key_fields:       e.key_fields.clone(),
+                    extends:          e.extends,
+                    external_fields:  e.external_fields.clone(),
+                    shareable_fields: e.shareable_fields.clone(),
                 })
                 .collect(),
             circuit_breaker: self.circuit_breaker.as_ref().map(|cb| core::CircuitBreakerConfig {
@@ -143,11 +153,26 @@ impl FederationConfig {
 }
 
 /// Federation entity
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FederationEntity {
     /// Entity name
-    pub name:       String,
+    pub name:             String,
     /// Key fields for entity resolution
-    pub key_fields: Vec<String>,
+    pub key_fields:       Vec<String>,
+    /// This subgraph `extend`s an entity another subgraph owns.
+    ///
+    /// Renders `extend type Name @key(...)` instead of `type Name @key(...)`, which is
+    /// how a subgraph contributes fields to an entity it does not own — the central
+    /// pattern of Apollo Federation. The compiled schema and the SDL renderer have
+    /// always carried it; this surface could not express it (#1195).
+    #[serde(default)]
+    pub extends:          bool,
+    /// Fields owned by another subgraph and only referenced here — typically the
+    /// borrowed `@key` field of an extended entity. Rendered `@external`.
+    #[serde(default)]
+    pub external_fields:  Vec<String>,
+    /// Fields resolvable in more than one subgraph. Rendered `@shareable`.
+    #[serde(default)]
+    pub shareable_fields: Vec<String>,
 }

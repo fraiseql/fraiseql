@@ -45,8 +45,9 @@ fn schema_with_federation_entity() -> TomlSchema {
         ..TomlSchema::default()
     };
     schema.federation.entities.push(FederationEntity {
-        name:       "Product".to_string(),
+        name: "Product".to_string(),
         key_fields: vec!["id".to_string()],
+        ..FederationEntity::default()
     });
     schema
 }
@@ -132,8 +133,9 @@ fn diagnostic_query_type_typo_suggests_correction() {
 fn diagnostic_federation_entity_undefined_type() {
     let mut schema = base_schema_with_user();
     schema.federation.entities.push(FederationEntity {
-        name:       "Product".to_string(),
+        name: "Product".to_string(),
         key_fields: vec!["id".to_string()],
+        ..FederationEntity::default()
     });
 
     let err = schema.validate().unwrap_err();
@@ -528,8 +530,9 @@ fn diagnostic_federation_entity_typo_suggests_correction() {
     let mut schema = base_schema_with_user();
     // "Usar" is close to "User"
     schema.federation.entities.push(FederationEntity {
-        name:       "Usar".to_string(),
+        name: "Usar".to_string(),
         key_fields: vec!["id".to_string()],
+        ..FederationEntity::default()
     });
 
     let err = schema.validate().unwrap_err();

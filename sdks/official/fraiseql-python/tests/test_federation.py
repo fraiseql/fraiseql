@@ -380,3 +380,90 @@ def test_federation_emits_version_string():
     fed = fraiseql.Federation(service_name="users")
     block = fraiseql.get_schema_dict(federation=fed)["federation"]
     assert block["version"] == "v2"
+
+
+# ---------------------------------------------------------------------------
+# The exported document is the compiler's input (#1188)
+#
+# `key_fields`, `extends` and `shareable` on a type, and a field's `federation`
+# sub-dict, are INPUTS to the federation block. The compiler's `IntermediateType` is
+# `deny_unknown_fields` and knows none of them, so leaving them in the type objects
+# made every federated Python schema uncompilable — `unknown field \`key_fields\``
+# — while the federation block the SDK derived from them was perfectly correct.
+# ---------------------------------------------------------------------------
+
+
+def _federated_pair():
+    @fraiseql.type(sql_source="v_user", key_fields=["id"])
+    class User:
+        id: ID
+        name: str
+
+    @fraiseql.type(sql_source="v_order", key_fields=["id"], extends=True)
+    class Order:
+        id: Annotated[ID, fraiseql.field(external=True)]
+        total: int
+
+    @fraiseql.type(shareable=True)
+    class Money:
+        amount: int
+        currency: str
+
+    return User, Order, Money
+
+
+def test_export_schema_strips_federation_only_keys_from_types(tmp_path: Path):
+    _federated_pair()
+
+    output = tmp_path / "schema.json"
+    fraiseql.export_schema(str(output), federation=fraiseql.Federation(service_name="users"))
+    data = json.loads(output.read_text())
+
+    for type_def in data["types"]:
+        for leaked in ("key_fields", "extends", "shareable"):
+            assert leaked not in type_def, (
+                f"{type_def['name']} still carries {leaked!r}; the compiler refuses it"
+            )
+        for field_def in type_def["fields"]:
+            assert "federation" not in field_def, (
+                f"{type_def['name']}.{field_def['name']} still carries a federation sub-dict"
+            )
+
+
+def test_export_schema_keeps_the_derived_federation_block(tmp_path: Path):
+    _federated_pair()
+
+    output = tmp_path / "schema.json"
+    fraiseql.export_schema(str(output), federation=fraiseql.Federation(service_name="users"))
+    block = json.loads(output.read_text())["federation"]
+
+    assert block["entities"] == [
+        {"name": "User", "key_fields": ["id"]},
+        {"name": "Order", "key_fields": ["id"], "extends": True, "external_fields": ["id"]},
+    ]
+    assert block["shareable_types"] == ["Money"]
+
+
+def test_export_schema_refuses_federation_directives_without_federation(tmp_path: Path):
+    @fraiseql.type(sql_source="v_user", key_fields=["id"])
+    class User:
+        id: ID
+
+    output = tmp_path / "schema.json"
+    with pytest.raises(ValueError, match="federation=Federation"):
+        fraiseql.export_schema(str(output))
+    assert not output.exists()
+
+
+def test_export_types_strips_federation_only_keys(tmp_path: Path):
+    _federated_pair()
+
+    output = tmp_path / "types.json"
+    fraiseql.export_types(str(output))
+    data = json.loads(output.read_text())
+
+    for type_def in data["types"]:
+        for leaked in ("key_fields", "extends", "shareable"):
+            assert leaked not in type_def
+        for field_def in type_def["fields"]:
+            assert "federation" not in field_def

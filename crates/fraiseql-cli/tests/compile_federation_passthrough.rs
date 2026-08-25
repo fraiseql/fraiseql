@@ -308,3 +308,70 @@ async fn compile_to_schema_legacy_json_carries_federation_end_to_end() {
         "the real compile pipeline must write a top-level `federation` key"
     );
 }
+
+/// The TOML surface must be able to declare an EXTENDED entity (#1195).
+///
+/// The compiled schema and the SDL renderer have always supported
+/// `extend type User @key(fields: "id") { id: ID! @external }` — `FederationEntity`
+/// carries `extends` / `external_fields` / `shareable_fields`, and `service_sdl`
+/// renders them. The TOML struct declared only `name` and `key_fields`, so every
+/// other spelling was refused at parse and the capability was unreachable from the
+/// workflow every in-repo example uses.
+///
+/// Asserts the rendered SDL, not the struct: a test that only checks the compiled
+/// fields cannot see a renderer that ignores them.
+#[test]
+fn toml_federation_declares_an_extended_entity_and_renders_it() {
+    let mut f = NamedTempFile::new().unwrap();
+    f.write_all(
+        br#"
+        [schema]
+        name = "orders"
+
+        [types.Order]
+        sql_source = "v_orders"
+
+        [types.User]
+        sql_source = "v_users"
+
+        [federation]
+        enabled = true
+        service_name = "orders"
+        version = "v2"
+        shareable_types = ["Money"]
+
+        [[federation.entities]]
+        name = "Order"
+        key_fields = ["id"]
+
+        [[federation.entities]]
+        name = "User"
+        key_fields = ["id"]
+        extends = true
+        external_fields = ["id"]
+        shareable_fields = ["email"]
+    "#,
+    )
+    .unwrap();
+    f.flush().unwrap();
+
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
+    let fed = compiled.federation.as_ref().expect("compiled schema must carry federation");
+
+    let user = fed.entities.iter().find(|e| e.name == "User").expect("User entity");
+    assert!(user.extends, "`extends = true` must reach the compiled entity");
+    assert_eq!(user.external_fields, vec!["id".to_string()]);
+    assert_eq!(user.shareable_fields, vec!["email".to_string()]);
+    assert_eq!(fed.shareable_types, vec!["Money".to_string()]);
+
+    let order = fed.entities.iter().find(|e| e.name == "Order").expect("Order entity");
+    assert!(!order.extends, "an entity that declares nothing stays a plain owned entity");
+
+    let metadata = compiled.federation_metadata().expect("federation metadata");
+    let sdl = fraiseql_core::federation::generate_service_sdl(&compiled.raw_schema(), &metadata);
+    assert!(
+        sdl.contains("extend type User"),
+        "an extended entity must render as `extend type`, got:\n{sdl}"
+    );
+}
