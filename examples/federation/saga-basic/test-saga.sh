@@ -32,24 +32,71 @@ print_info() {
     echo -e "${YELLOW}ℹ${NC} $1"
 }
 
-# Function to wait for service
+# Wait for a service to report healthy.
+#
+# Reads the container's health state directly instead of grepping the human-readable
+# `ps` table. `docker compose ps | grep "$service" | grep -q "healthy"` returned SUCCESS
+# for a container reported `Up (unhealthy)` — "healthy" is a substring of "unhealthy" —
+# so this gate passed for services that had never come up, and printed a ✓ for each
+# (#1073). A service with no healthcheck at all is reported as such rather than waited
+# on: its health can never be observed, so spinning here would only fail later and
+# somewhere else.
 wait_for_service() {
     local service=$1
     local retries=0
     local max_retries=30
+    local cid state=""
 
     print_info "Waiting for $service to be healthy..."
 
     while [ $retries -lt $max_retries ]; do
-        if docker-compose ps | grep "$service" | grep -q "healthy"; then
-            print_status "$service is healthy"
+        cid=$(docker compose ps -q "$service" 2>/dev/null || true)
+        if [ -n "$cid" ]; then
+            state=$(docker inspect \
+                -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
+                "$cid" 2>/dev/null || echo unknown)
+            case "$state" in
+                healthy)
+                    print_status "$service is healthy"
+                    return 0
+                    ;;
+                no-healthcheck)
+                    print_error "$service declares no healthcheck — its health cannot be observed."
+                    return 1
+                    ;;
+            esac
+        fi
+        retries=$((retries + 1))
+        sleep 2
+    done
+
+    print_error "$service failed to become healthy after ${max_retries} retries (last state: ${state:-not created})"
+    return 1
+}
+
+# Wait for the router by asking it the question the tests are about to ask.
+#
+# The router declares no healthcheck, so wait_for_service can say nothing about it.
+# Probing the endpoint is the condition that actually gates the tests, and unlike a
+# grep over `ps` output it cannot succeed while the container is down.
+wait_for_router() {
+    local retries=0
+    local max_retries=30
+
+    print_info "Waiting for the router to answer at $ROUTER_URL..."
+
+    while [ $retries -lt $max_retries ]; do
+        if curl -sf -X POST "$ROUTER_URL" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{__typename}"}' > /dev/null 2>&1; then
+            print_status "router is answering"
             return 0
         fi
         retries=$((retries + 1))
         sleep 2
     done
 
-    print_error "$service failed to become healthy after ${max_retries} retries"
+    print_error "router did not answer at $ROUTER_URL after $((max_retries * 2))s"
     return 1
 }
 
@@ -66,7 +113,7 @@ execute_query() {
 # Cleanup function
 cleanup() {
     print_info "Cleaning up..."
-    docker-compose down -v || true
+    docker compose down -v || true
 }
 
 # Register cleanup on exit
@@ -74,7 +121,7 @@ trap cleanup EXIT
 
 # Start services
 print_info "Starting Docker Compose services..."
-docker-compose up -d
+docker compose up -d
 
 # Wait for all services to be healthy
 print_info "Waiting for services to become healthy..."
@@ -82,7 +129,7 @@ wait_for_service "postgres"
 wait_for_service "users-service"
 wait_for_service "orders-service"
 wait_for_service "inventory-service"
-wait_for_service "apollo-router"
+wait_for_router
 
 print_status "All services are healthy!"
 

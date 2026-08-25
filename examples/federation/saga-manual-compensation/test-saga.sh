@@ -18,24 +18,40 @@ print_info() { echo -e "${YELLOW}ℹ${NC} $1"; }
 
 cleanup() {
     print_info "Cleaning up..."
-    docker-compose down -v || true
+    docker compose down -v || true
 }
 
 trap cleanup EXIT
 
 # Start services
 print_info "Starting services..."
-docker-compose up -d
+docker compose up -d
 
-# Wait for health
+# Wait for health.
+#
+# Read the container's health state rather than grepping the `ps` table:
+# `grep -q "bank-service.*healthy"` matched `Up (unhealthy)` too — `.*` absorbs the
+# `(un` — so this loop announced healthy services that had never come up (#1073).
+# The loop also has to FAIL when the wait runs out; it used to fall through to the
+# first test, which then failed somewhere unrelated.
 print_info "Waiting for services to become healthy..."
-for i in {1..30}; do
-    if docker-compose ps | grep -q "bank-service.*healthy"; then
+bank_healthy=0
+for _ in $(seq 1 30); do
+    cid=$(docker compose ps -q bank-service 2>/dev/null || true)
+    if [ -n "$cid" ] && [ "$(docker inspect \
+            -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
+            "$cid" 2>/dev/null)" = "healthy" ]; then
         print_status "Services are healthy"
+        bank_healthy=1
         break
     fi
     sleep 2
 done
+if [ "$bank_healthy" -ne 1 ]; then
+    print_error "bank-service did not become healthy after 60s"
+    docker compose ps
+    exit 1
+fi
 
 sleep 3
 

@@ -33,7 +33,11 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      # curl is not in python:3.11-slim and this image never installs it, so a
+      # `curl -f` probe failed at exec and the container stayed unhealthy forever
+      # (#1073). The interpreter the image does have is enough. urlopen raises on
+      # a non-2xx status, so the exit code carries the verdict.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 5
