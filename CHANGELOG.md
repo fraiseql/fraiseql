@@ -2108,6 +2108,62 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`examples/` is a set of examples that run (#1054).** The top-level
+  `examples/README.md` walked a newcomer through seven directories that had never
+  existed — `basic-query`, `subscriptions`, `error-handling`, `performance`,
+  `authentication`, `complex-queries` and the `python` Arrow Flight client. The first
+  command of the first walkthrough failed. All seven are now written, plus
+  `examples/ecommerce`, the v2 replacement for the FastAPI directory removed under
+  `### Removed`.
+
+  The six Rust examples are workspace **members** with `publish = false`, so
+  `cargo check --workspace --all-targets` and `cargo clippy --workspace` compile and
+  lint them on every push. That is deliberate: the async-jobs subgraph sits outside
+  the workspace and lost its clippy gate for a whole release when the legacy ci.yml
+  was retired (#951). Each carries a `run.sh`, because `schema.compiled.json` is a
+  build artifact and is gitignored, so `cargo run` on a fresh clone has nothing to
+  load.
+
+  Two of them are worth singling out. `examples/error-handling` runs seven
+  deliberately broken queries and prints what the engine in **this tree** actually
+  does with each, including the two cases where that is wrong (#1197) — an example
+  that agreed with the documentation instead of with the binary would be the
+  fixture-that-agrees shape. `examples/python` performs the Flight `handshake` and
+  sends the session token on every `do_get`, which is the protocol the R and Rust
+  clients in the same tree both skip (#1200).
+
+  `examples/ecommerce` carries the domain the README has always advertised —
+  `Category`, `Product`, `Customer`, `Order`, `OrderItem`, 5/12/5/7 rows — with
+  nested objects and a nested list built by the views, so
+  `order { items { product { name } } }` resolves in one statement.
+
+- **The examples gate, in three tiers, and all three now run in CI (#1054).** Before
+  this release the entire CI coverage of `examples/` was one clippy run over the
+  single example that is a Rust crate, plus three greps; a nine-issue audit then
+  found essentially every documented entry point dead, and nothing would have
+  noticed. Repairing them without a gate buys a state that rots by the next release.
+
+  | Tier | Runs in | Checks |
+  |---|---|---|
+  | `tools/check-examples-integrity.sh` | preflight (**required**) | compose mounts resolve, `COPY` sources exist in the build context, no `\|\| true` around a build step, no health grep that also matches `unhealthy`, every documented `cd` lands somewhere |
+  | `tools/check-examples-compile.sh` | `integration --suite=examples` | every `schema.py` runs and every `fraiseql.toml`/`schema.json` compiles, each from its own directory |
+  | `tools/examples-smoke.sh` | `integration --suite=examples` | each example's SQL loads under `ON_ERROR_STOP=1`, its schema compiles, **every** `queries/*.graphql` resolves against a real PostgreSQL, and a real `fraiseql-server` boots on it and answers a real query over HTTP |
+
+  Also `make lint-examples-integrity`, `make examples-compile` and
+  `make examples-smoke`.
+
+  The HTTP step is the one that matters: compiling an artifact is not testing an
+  example, and a healthy container is not a working one. #1071's image built, then
+  refused to boot, then booted healthy and answered ordinary queries while refusing
+  the single query that made it a subgraph. The check also rejects a 200 carrying an
+  in-band `errors` array.
+
+  Neither static gate skips, and where either is red for a defect that predates it
+  the exemption **names its issue and is checked in both directions** — an exemption
+  that stops firing fails the gate, so closing the issue also deletes its row. A
+  required gate nobody can turn green is one the next reader learns to skip, which is
+  what `check-feature-chains.sh` cost (#1055/#990).
+
 - **MCP Resources and Prompts (#967, partial).** Alongside tools, the MCP server now
   advertises every exposed **query** as a readable Resource at `fraiseql://query/{name}`,
   publishes a `similarity-search` resource *template* for each vector-backed query, and
@@ -3314,6 +3370,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Removed
 
+- **`examples/ecommerce_api/`, replaced by `examples/ecommerce` (#1054).** It was a
+  FastAPI/uvicorn **runtime** product: `uvicorn app:app` in both its Dockerfile and
+  its compose file, against an `app.py` the directory had never contained, over
+  `fastapi`/`uvicorn`/`asyncpg` requirements describing a v1-era service. Python is
+  an authoring language in v2; the runtime is Rust. Its 4408 lines of SQL carried two
+  competing layouts (`db/0_schema/**` and `db/{views,functions,migrations,seeds}/`),
+  `_with_cdc` and `_updated` duplicates of the same objects, and plural v1 table
+  names. The domain is carried forward into `examples/ecommerce`; that tree is not.
+
+  If you were reading it for the mutation-function pattern, `examples/mutation-patterns`
+  is the maintained version and now loads (#1051).
+
 - **`fraiseql-db`'s collation modules and `DatabaseCapabilities` (#1009).**
   `collation_config` (`CollationConfig`, `DatabaseCollationOverrides`,
   `InvalidLocaleStrategy`, `PostgresCollationConfig`) and `collation` (`CollationMapper`,
@@ -3385,6 +3453,91 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **Both federation examples are real, and composite keys compose (#1050).**
+  `examples/federation/basic` and `examples/federation/composite-keys` were v1-era
+  fiction: four Dockerfiles whose builder stage could not work, `@key` and `@extends`
+  from an SDK surface that has not existed for a major version,
+  `CMD ["fraiseql", "server", …]` naming a subcommand the CLI has never had, and a
+  README showing a federated `user { orders }` answered by a subgraph directly with
+  no router anywhere. Both are now authored, built, booted and composed.
+
+  **Two runtime defects were in the way, and both are engine fixes, not example
+  fixes.** `_entities` was refused on every real subgraph: a router's call is
+  invariably `query($representations: [_Any!]!)`, and `_Any` is a federation built-in
+  that `validate_variable_types` resolved against none of its three sources. It
+  survived because that function does not adjudicate a schema with no enums and no
+  input objects — which the federation test fixture is, and no real subgraph is, since
+  the compiler generates a `*WhereInput` per type. And `@key(fields: …)` carried the
+  *authored* spelling into the SDL, so a key authored `organization_id` was published
+  as `organizationId` and Apollo refused the whole supergraph with
+  `KEY_INVALID_FIELDS`. Invisible for single-word keys, which is every key in the
+  SDK's own tests.
+
+- **`examples/mutation-patterns` loads its helpers, and its test script passes (#1051).**
+  `schema.sql` included the shared helpers with `\i`, which psql resolves against the
+  process's working directory — so the include landed only for someone running psql
+  from the repository root, never for a reader who followed the README's
+  `cd examples/mutation-patterns`. The documented command set no `ON_ERROR_STOP`, so
+  the miss printed one line, the load carried on to the seed rows, and psql **exited
+  0** with none of the seven helper functions defined. Now `\ir` (script-relative)
+  and `-f` with `ON_ERROR_STOP=1`. One helper had also never compiled —
+  `create_user_with_validation` used an undeclared `user_record`.
+
+- **The streaming example compiles, loads and answers its own queries (#1052).**
+  `examples/streaming/schema.json` declared `types`, `queries` and `subscriptions` as
+  JSON objects keyed by name where the compiler reads sequences, so the file had never
+  been compilable by any version of the CLI (`invalid type: map, expected a sequence`).
+  It is now generated from a `schema.py` like every other example. Running it found
+  three more: `sql/setup.sql` created a foreign key eleven lines before its target
+  table (a silent partial load under plain `psql -f`, the #1072 shape); no view exposed
+  `id` as a column, so an ID-argument query emitted `WHERE id = $1::uuid` against a
+  column that was not there; and `Event.data` was a TEXT column holding JSON declared
+  as `String!` and returned to the client as a parsed object.
+
+  Separately, **every relative bind mount in all four Docker Compose stacks pointed at
+  a directory Compose created empty.** Compose resolves a relative host path against
+  the project directory, which defaults to the directory of the first `-f` file —
+  `docker/` — so `./examples/basic` resolved to `docker/examples/basic`. All 16
+  mounts, not the three the issue named.
+
+- **The federation supergraph composes from the host (#1053).** `supergraph.yaml` gave
+  rover two Compose *service names* as `subgraph_url` while the Makefile runs rover as
+  a host CLI, so `make run` aborted at composition and the documented demo had never
+  worked. Both are now the published ports; both `routing_url` values stay on the
+  service names, because the router dials those from inside the network.
+
+  Building the image found three more defects stacked behind each other, each
+  invisible until the previous one was fixed: the image did not build (the SDK was on
+  `PYTHONPATH`, so its one dependency never came with it), then the server refused to
+  boot (a correct production CORS check — the image now carries a `server.toml` saying
+  `cors_enabled = false` and why, rather than switching off every production check),
+  then it booted, reported healthy, answered queries, and was **not a subgraph**:
+  `federation` is not a default cargo feature, so `{ _service { sdl } }` — the single
+  query rover asks — returned `Federation is not enabled in this build`.
+
+- **A federated schema can be authored, in Python and in TOML (#1188, #1195).** Neither
+  surface could express what the runtime has always supported.
+
+  `@fraiseql.type(key_fields=["id"], extends=True)` derived a correct federation block
+  and then left `key_fields` inside the type object, where `IntermediateType`'s
+  `deny_unknown_fields` refused it: `unknown field \`key_fields\``. No federated Python
+  schema had ever compiled. Those keys are *inputs* to the federation block, not part
+  of the document the compiler reads, so they are now stripped at the export boundary —
+  after the block is derived from them, and by copying rather than mutating, since the
+  registry hands out its live dictionaries.
+
+  Both silent-drop branches are closed rather than traded: `export_schema()` **raises**
+  when a type declares federation directives and no `federation=` was passed, because
+  stripping quietly there would emit a document that compiles cleanly and is not
+  federated at all; `export_types()` strips and names the affected types, since in that
+  workflow the entities are declared in `fraiseql.toml`.
+
+  The TOML surface declared only `name` and `key_fields` and refused `extends` by name,
+  so `extend type User { … @external }` — the shape `examples/federation/basic` is
+  built on — could not be authored at all. It now carries `extends`, `external_fields`
+  and `shareable_fields`, which `fraiseql-core` has held on `FederationEntity` all
+  along.
 
 - **The async-jobs federation example builds an image that can actually serve (#1071, #1168).**
 
@@ -7091,25 +7244,56 @@ disagreed, and the promise was the part that was wrong.
 Shipped knowingly, with preconditions, so an operator can decide rather than discover. Every
 number below is open at the time of this release.
 
-- **Ten HIGH-severity findings from the 2026-08-09 audit remain unfixed**: #1065 #1066
-  #1067 #1071 #1072 #1073 #1076 #1077 #1078 #1082. (#1074 and #1075 were on this list and
-  are fixed in this release — see `### Removed` and `### Fixed`.) ⚠ They are **provisionally
+- **Seven HIGH-severity findings from the 2026-08-09 audit remain unfixed**: #1065 #1066
+  #1067 #1076 #1077 #1078 #1082. (#1071, #1072, #1073, #1074 and #1075 were on this list
+  and are fixed in this release — see `### Removed` and `### Fixed`.) ⚠ They are **provisionally
   ranked**: their severity rests on the audit's own text and has not been re-verified against
   source. That caveat is not boilerplate — of the findings this release *did* act on, one
   (#1068) turned out to be **already fixed**, and two others' stated impact was wrong in the
   issue body. Treat the list as a place to look, not as a verified account.
-- **`examples/` largely does not build or run** — #1050 #1051 #1052 #1053 #1054 #1071 #1072
-  #1073. (#1074's `examples/ci/` is deleted, see `### Removed`.) The 2026-08-09 pass was the first audit to examine `examples/` at all. Nothing
-  in the shipped crates depends on them, but a reader following an example may not get a
-  working result.
-- **A cluster of CI gates cannot fail** — the remainder is #1071, #1072, #1073 (a health gate
-  that reads "unhealthy" as healthy, a Dockerfile hiding a compile failure behind `|| true`)
-  and #1082 (`check-suite-coverage` is blind to a file-level `#![cfg(feature)]`, so a suite
-  can run **zero** tests and read green — and one does today). Two of the cluster are fixed in
-  this release: #1075's `check-test-imports.sh`, whose BRE escapes made it unable to reject
-  anything, and #1074's `examples/ci` check, which is deleted along with the dead directory
-  around it. This release also fixed three gates of the same family (#1127, #1128, #1129) and
-  added several more; the cluster above is not yet done.
+- **Four example directories still do not run** — #1189 (`make demo-start` and
+  `make examples-start` build an `admin-dashboard/Dockerfile` that does not exist),
+  #1190 (`examples/federation/multi-cloud`: three services with no Dockerfile, four
+  missing mounts, three unimportable `schema.py` files and four dead `cd` lines in its
+  README), #1191 (`examples/ltree-hierarchical-data`: both authoring files use v1 API
+  names) and #1193 (`examples/federation/saga-complex`: all five services import Flask
+  on an image that has none). Each is named by an exemption in
+  `tools/check-examples-integrity.sh` or `tools/check-examples-compile.sh`, and those
+  exemptions fail the gate once the defect they describe stops firing.
+
+  The eight issues this bullet used to list — #1050 #1051 #1052 #1053 #1054 #1071 #1072
+  #1073 — are fixed in this release, and `examples/` now has a gate (see `### Added`).
+  Also open, found while fixing them: #1202 (both Docker Compose stacks point
+  `FRAISEQL_SCHEMA_PATH` at a compiled schema no step builds, so the server exits 1),
+  #1200 (both the R and Rust Arrow Flight clients skip the handshake, so every call is
+  refused) and #1196 (`_entities` returns nested object fields whole, ignoring the
+  router's selection set). Nothing in the shipped crates depends on `examples/`.
+- **A cluster of CI gates cannot fail** — the remainder is #1082
+  (`check-suite-coverage` is blind to a file-level `#![cfg(feature)]`, so a suite can run
+  **zero** tests and read green — and one does today) and #1199 (the rustdoc gate runs
+  only `--all-features`, so seven broken intra-doc links to feature-gated items go
+  unseen, and `cargo doc` on the default features — what docs.rs builds — fails). Four
+  of the cluster are fixed in this release: #1075's `check-test-imports.sh`, whose BRE
+  escapes made it unable to reject anything; #1074's `examples/ci` check, deleted along
+  with the dead directory around it; #1073's health gate, which read "unhealthy" as
+  healthy; and #1071's Dockerfile, which hid a certain compile failure behind
+  `|| true`. This release also fixed three gates of the same family (#1127, #1128,
+  #1129) and added several more, including the three-tier examples gate; the cluster
+  above is not yet done.
+- **A `limit` or `offset` the engine cannot read is silently dropped, not rejected
+  (#1197).** Nothing validates that an argument's *value* has the argument's *type* —
+  GraphQL §5.6.1 and §5.8.5 are both unimplemented, on the literal path and the
+  variable path alike. For the pagination auto-params the consequence is a silent
+  wrong result: `products(limit: "2")`, `limit: 2.5`, `limit: true`, or a variable
+  declared `String!` all return **every row**, with exit 0 and no `errors` array. A
+  client that asked to be bounded is not. Every other argument fails in the database
+  instead, as a 500-shaped `FraiseQLError::Database` whose message can carry a stored
+  value back to the caller — `{ events(type: 42) }` returned `invalid input syntax for
+  type numeric: "user_login"`, naming a row value. Until this is fixed, validate
+  pagination arguments at your edge and do not rely on the server rejecting a
+  mistyped one. Found while authoring `examples/error-handling`, which prints the
+  behaviour rather than describing it.
+
 - **Rate-limiter bucket exhaustion is still cheap to cause (#1143).** #1080's fix means a full
   bucket map recovers instead of locking out new clients permanently — it does **not** stop one
   unauthenticated client from filling the map: `X-Tenant-ID` is folded into the bucket key
