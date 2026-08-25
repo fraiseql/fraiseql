@@ -3386,6 +3386,31 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The async-jobs federation example builds an image that can actually serve (#1071, #1168).**
+
+  `examples/async-jobs-subgraph/fraiseql-side/Dockerfile` ended its compile step with
+  `|| true`, over a `schema.json` that no step in the build ever generated. The failure was
+  certain and the build was green, so the image shipped with no compiled schema while
+  `FRAISEQL_SCHEMA_PATH` pointed at it — the server could not boot, and nothing said why.
+  The Dockerfile now runs the pipeline the architecture prescribes, with every step able to
+  fail the build: `python3 schema.py` authors `types.json` against the in-repo SDK, the CLI
+  compiles it together with `fraiseql.toml`, and only the server and the compiled schema are
+  copied into the runtime image.
+
+  The same example's `fraiseql.toml` set `[database] pool_size`, which no version of the
+  config schema has accepted, so the file was refused at parse time before any validation ran
+  (`pool_max` is the knob it meant). Fixing that alone was not enough: the TOML declares a
+  federation entity `User` whose type is authored in Python, so a TOML-only compile then
+  failed with `Federation entity 'User' references undefined type`. The queries the subgraph
+  serves are now declared in the TOML beside the entity, and the type comes from the
+  authoring step — the two halves the compiler needs.
+
+  ⚠ Found while landing this, and filed separately: `@fraiseql.type(key_fields=[…])` — the
+  documented way to author a federation entity in Python — emits a `key_fields` key inside
+  the type, and the compiler's `IntermediateType` refuses it under `deny_unknown_fields`.
+  Both authoring workflows fail on it, so no federated type authored in Python could be
+  compiled at all; deleting that one key from the type makes the identical file compile.
+
 - **`from fraiseql import ChangelogConsumer, ChangelogEvent` works (#1185).**
 
   `ChangelogConsumer`'s own module docstring documents that import, but neither name was

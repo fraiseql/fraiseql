@@ -6,7 +6,7 @@
 # ../router/), not here — FraiseQL is a subgraph, not a gateway.
 
 [database]
-pool_size = 5
+pool_max = 5
 url = "${DATABASE_URL}"
 
 # Federation: this service participates as a subgraph named "users".
@@ -19,6 +19,22 @@ version = "v2"
 [[federation.entities]]
 key_fields = ["id"]
 name = "User"
+
+# The operations this subgraph serves. Types come from `types.json` (authored in
+# schema.py); queries bind them to a SQL relation here. Both halves are required:
+# a federation entity whose type has no source is refused at compile time, which
+# is what a TOML-only compile of this file used to hit.
+[queries.user]
+args = [{ name = "id", required = true, type = "ID" }]
+description = "Fetch a single user by ID."
+return_type = "User"
+sql_source = "v_user"
+
+[queries.users]
+description = "List all users."
+return_array = true
+return_type = "User"
+sql_source = "v_user"
 
 [schema]
 database_target = "postgresql"
