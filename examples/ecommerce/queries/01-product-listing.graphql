@@ -1,0 +1,18 @@
+# E-Commerce: Product listing
+# The catalogue with the category each product belongs to. `category` lives
+# inside v_product's `data` column, so this is still one SQL statement.
+
+query ProductListing($limit: Int) {
+  products(limit: $limit) {
+    id
+    sku
+    name
+    price
+    stock
+    inStock
+    category {
+      name
+      slug
+    }
+  }
+}

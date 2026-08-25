@@ -1,0 +1,447 @@
+{
+  "types": [
+    {
+      "name": "Category",
+      "sql_source": "v_category",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "String",
+          "nullable": true
+        },
+        {
+          "name": "productCount",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A catalogue section."
+    },
+    {
+      "name": "ProductSummary",
+      "embedded": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "sku",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "A product as it appears inside an order line: enough to identify it."
+    },
+    {
+      "name": "CategorySummary",
+      "embedded": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "A category as it appears on a product."
+    },
+    {
+      "name": "Product",
+      "sql_source": "v_product",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "sku",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "price",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "stock",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "inStock",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "isActive",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        },
+        {
+          "name": "category",
+          "type": "CategorySummary",
+          "nullable": false
+        }
+      ],
+      "description": "Something that can be bought, with the category it belongs to."
+    },
+    {
+      "name": "CustomerSummary",
+      "embedded": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "firstName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "lastName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "fullName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "country",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "A customer as it appears on an order."
+    },
+    {
+      "name": "Customer",
+      "sql_source": "v_customer",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "firstName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "lastName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "fullName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "country",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "orderCount",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "lifetimeValue",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "Someone who buys, with their order history rolled up."
+    },
+    {
+      "name": "OrderItem",
+      "sql_source": "v_order_item",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "quantity",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "unitPrice",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "totalPrice",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "product",
+          "type": "ProductSummary",
+          "nullable": false
+        }
+      ],
+      "description": "One line of an order."
+    },
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "orderNumber",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "OrderStatus",
+          "nullable": false
+        },
+        {
+          "name": "currency",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "placedAt",
+          "type": "DateTime",
+          "nullable": false
+        },
+        {
+          "name": "itemCount",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "total",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "customer",
+          "type": "CustomerSummary",
+          "nullable": false
+        },
+        {
+          "name": "items",
+          "type": "[OrderItem!]",
+          "nullable": false
+        }
+      ],
+      "description": "A placed order, with its customer and its lines."
+    }
+  ],
+  "enums": [
+    {
+      "name": "OrderStatus",
+      "values": [
+        {
+          "name": "PENDING"
+        },
+        {
+          "name": "PAID"
+        },
+        {
+          "name": "SHIPPED"
+        },
+        {
+          "name": "DELIVERED"
+        },
+        {
+          "name": "CANCELLED"
+        }
+      ],
+      "description": "Where an order is in its lifecycle."
+    }
+  ],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "categories",
+      "return_type": "Category",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Every catalogue section.",
+      "sql_source": "v_category"
+    },
+    {
+      "name": "category",
+      "return_type": "Category",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "One section by ID.",
+      "sql_source": "v_category"
+    },
+    {
+      "name": "products",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "The catalogue.",
+      "sql_source": "v_product"
+    },
+    {
+      "name": "product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "One product by ID.",
+      "sql_source": "v_product"
+    },
+    {
+      "name": "customers",
+      "return_type": "Customer",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Every customer, with order count and lifetime value.",
+      "sql_source": "v_customer"
+    },
+    {
+      "name": "customer",
+      "return_type": "Customer",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "One customer by ID.",
+      "sql_source": "v_customer"
+    },
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Every order, newest first when ordered by placedAt.",
+      "sql_source": "v_order"
+    },
+    {
+      "name": "order",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "One order by ID, with its customer and lines.",
+      "sql_source": "v_order"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "naming_convention": "camelCase"
+}

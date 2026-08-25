@@ -52,9 +52,10 @@ fn compile_schema(toml_path: &Path) -> Result<String, String> {
 
 // `examples/ecommerce` was removed in 0ef37210c (Python-ecosystem removal). The test
 // that compiled it survived the deletion and skipped silently for every release
-// since, because it looked the example up on a path that could not resolve. It is
-// deleted rather than repointed: `examples/ecommerce_api` is a SQL-only example with
-// no `fraiseql.toml` to compile.
+// since, because it looked the example up on a path that could not resolve. The v2
+// `examples/ecommerce` authored for #1054 is a legacy `schema.json` example with no
+// `fraiseql.toml`, so it is not compiled here — `tools/check-examples-compile.sh`
+// compiles every example artifact of both kinds, from the example's own directory.
 
 /// Test `SaaS` example with 4 domains
 #[test]

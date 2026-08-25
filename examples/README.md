@@ -21,7 +21,7 @@ Run with: `docker compose -f docker/docker-compose.demo.yml up -d`
 
 ### 2. E-Commerce Example (Intermediate)
 
-**Location**: `examples/ecommerce_api/`
+**Location**: `examples/ecommerce/`
 
 Real-world schema with complex relationships:
 
@@ -65,7 +65,7 @@ Run with: `docker compose -f docker/docker-compose.examples.yml up -d`
 # Single example (blog only)
 make demo-start
 
-# All examples (blog + ecommerce_api + streaming)
+# All examples (blog + ecommerce + streaming)
 make examples-start
 
 # Check status

@@ -1,0 +1,28 @@
+# E-Commerce: Order analysis
+# The full nesting: order → customer, and order → items → product. Three levels
+# in one query, all projected out of v_order's `data` column.
+
+query OrderAnalysis($limit: Int) {
+  orders(orderBy: {placedAt: DESC}, limit: $limit) {
+    orderNumber
+    status
+    currency
+    total
+    itemCount
+    placedAt
+    customer {
+      fullName
+      email
+      country
+    }
+    items {
+      quantity
+      unitPrice
+      totalPrice
+      product {
+        sku
+        name
+      }
+    }
+  }
+}

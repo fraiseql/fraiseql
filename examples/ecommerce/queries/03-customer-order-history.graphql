@@ -1,0 +1,19 @@
+# E-Commerce: Customer order history
+# One customer, then their orders. `lifetimeValue` counts only orders that were
+# paid for (see the v_customer definition in sql/setup.sql).
+
+query CustomerOrderHistory($customerId: ID!) {
+  customer(id: $customerId) {
+    fullName
+    email
+    country
+    orderCount
+    lifetimeValue
+  }
+  orders(where: {customer: {id: {eq: $customerId}}}, orderBy: {placedAt: DESC}) {
+    orderNumber
+    status
+    total
+    itemCount
+  }
+}

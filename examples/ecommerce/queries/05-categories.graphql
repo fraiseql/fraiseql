@@ -1,0 +1,12 @@
+# E-Commerce: Catalogue sections
+# `productCount` is computed by the view, not by a second round trip.
+
+query Categories {
+  categories {
+    id
+    name
+    slug
+    description
+    productCount
+  }
+}

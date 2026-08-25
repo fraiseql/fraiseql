@@ -1,0 +1,12 @@
+# E-Commerce: Inventory management
+# Everything that cannot currently be shipped. `where` is an auto-param the
+# compiler adds to every list query — nothing declares it in schema.py.
+
+query OutOfStock {
+  products(where: {inStock: {eq: false}}) {
+    sku
+    name
+    stock
+    isActive
+  }
+}
