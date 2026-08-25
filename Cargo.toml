@@ -44,7 +44,17 @@ members = [
   "crates/fraiseql-federation",  # Apollo Federation v2 support
   "crates/fraiseql-functions",  # Serverless functions runtime
   "crates/fraiseql-storage",  # Object storage backends
-  "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
+  "crates/fraiseql-wire",  # Streaming JSON query engine for Postgres
+  # Runnable examples. They are workspace members so `cargo check --workspace
+  # --all-targets` and `cargo clippy --workspace` compile and lint them on every
+  # push; nothing else in CI would. They set `publish = false` and deliberately do
+  # NOT opt into `[lints] workspace = true` — illustrative code, not engine code.
+  "examples/authentication",
+  "examples/basic-query",
+  "examples/complex-queries",
+  "examples/error-handling",
+  "examples/performance",
+  "examples/subscriptions"
 ]
 resolver = "2"
 

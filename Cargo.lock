@@ -3878,6 +3878,66 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-example-authentication"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "fraiseql-auth",
+ "jsonwebtoken",
+ "serde_json",
+]
+
+[[package]]
+name = "fraiseql-example-basic-query"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "fraiseql-core",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "fraiseql-example-complex-queries"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "fraiseql-core",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "fraiseql-example-error-handling"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "fraiseql-core",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "fraiseql-example-performance"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "fraiseql-core",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "fraiseql-example-subscriptions"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "fraiseql-core",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "fraiseql-federation"
 version = "2.15.0"
 dependencies = [

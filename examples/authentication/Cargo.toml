@@ -1,0 +1,22 @@
+[package]
+name = "fraiseql-example-authentication"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Mint a JWT, validate it, and read the identity out of it"
+
+# Illustrative code, not part of the shipped engine: these crates deliberately do
+# not opt into `[lints] workspace = true`. They are workspace MEMBERS so that
+# `cargo check --workspace --all-targets` and `cargo clippy --workspace` compile
+# and lint them on every push — the async-jobs subgraph sat outside the workspace
+# and lost its clippy gate for a whole release when ci.yml was retired (#951).
+
+[[bin]]
+name = "authentication"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = {workspace = true}
+fraiseql-auth = {workspace = true}
+jsonwebtoken = {workspace = true}
+serde_json = {workspace = true}
