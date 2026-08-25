@@ -1,0 +1,7 @@
+# Arrow Flight needs the full pyarrow wheel — `pyarrow-core` does not ship the
+# Flight (gRPC) module.
+pyarrow>=17
+
+# Optional, and only for prettier console output. Everything works without it;
+# the client prints the Arrow table directly when pandas is absent.
+pandas>=2.0
