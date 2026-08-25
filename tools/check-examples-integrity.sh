@@ -260,17 +260,58 @@ if hits=$(grep -rn '^\\i ' --include='*.sql' examples/ || true); [ -n "$hits" ];
 fi
 
 # ---------------------------------------------------------------------------
-# 8. A documented `cd examples/<dir>` must land somewhere.
+# 8. A documented `cd` must land somewhere.
 #
 # #1054: examples/README.md walks a newcomer through six directories that do not exist,
 # plus a seventh for the Arrow client. The first command of the first walkthrough fails.
+#
+# TWO shapes, and the first version of this check saw only one. A doc anywhere in the
+# repo writes the repo-root path (`cd examples/basic-query`); a README sitting INSIDE
+# examples/ has no reason to repeat the prefix and writes the relative one (`cd python`,
+# `cd deployment/aws`). #1054 named `cd python` at examples/README.md:99 explicitly, and
+# the `cd examples/` pattern could never have matched it — the gate was blind to exactly
+# the line the issue cited.
+#
+# The relative form is resolved against the FILE's own directory, and only for files
+# under examples/. Doing it for docs/ would flag every `cd my-project` that follows a
+# `mkdir my-project` in a tutorial.
 # ---------------------------------------------------------------------------
 echo "→ every documented example directory exists"
+check_cd() {
+    local file="$1" line="$2" target resolved
+    target="$(printf '%s' "$line" | sed -E 's|^[[:space:]]*cd[[:space:]]+([^[:space:];&|]+).*|\1|')"
+    target="${target%/}"
+    case "$target" in
+        # Placeholders, shell expansions, and navigation outside this check's remit.
+        ''|.|..|-|/*|*'$'*|*'<'*|*'example-name'*|*'~'*|*'your-'*|*'my-'*) return ;;
+        # A `cd ../x` is relative to wherever the PREVIOUS command left the reader,
+        # not to the file — examples/federation/README.md's "run all" block is
+        # `cd basic` … `cd ../composite-keys` …, which is correct as a sequence and
+        # wrong resolved against the README. The gate cannot know the reader's CWD,
+        # so it does not guess. Coverage lost: an upward path to a directory that
+        # does not exist.
+        ../*) return ;;
+    esac
+    case "$target" in
+        examples/*) resolved="$target" ;;
+        *) resolved="$(realpath -m --relative-to="$REPO_ROOT" "$(dirname "$file")/$target")" ;;
+    esac
+    [ -d "$REPO_ROOT/$resolved" ] || \
+        fail "documented directory does not exist: $resolved" "$file: $line"
+}
+
+# Shape 1: the repo-root form, in any markdown under examples/, docs/, or the root.
 while IFS= read -r hit; do
-    dir="$(printf '%s' "$hit" | sed -E 's|.*cd[[:space:]]+(examples/[A-Za-z0-9_./-]+).*|\1|')"
-    case "$dir" in *'example-name'*|*'<'*) continue ;; esac
-    [ -d "$dir" ] || fail "documented directory does not exist: $dir" "$hit"
+    file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
+    check_cd "$file" "$line"
 done < <(grep -rn '^[[:space:]]*cd examples/' --include='*.md' examples/ README.md docs/ 2>/dev/null || true)
+
+# Shape 2: the relative form, only in markdown that lives under examples/.
+while IFS= read -r hit; do
+    file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
+    case "$line" in *'cd examples/'*) continue ;; esac
+    check_cd "$file" "$line"
+done < <(grep -rn '^[[:space:]]*cd [^[:space:]]' --include='*.md' examples/ 2>/dev/null || true)
 
 # ---------------------------------------------------------------------------
 # 9. A composition tool that runs on the HOST must be given host-reachable URLs.

@@ -1,403 +1,182 @@
 # FraiseQL Examples
 
-This directory contains example projects demonstrating FraiseQL usage patterns and best practices.
+Every `cd` in this file lands somewhere that exists, and every example it names has
+been run. Where something does not work, it says so and names the issue.
 
-## Docker Newcomer Onboarding Examples
+FraiseQL compiles a schema to SQL ahead of time. Python (or TypeScript) declares the
+types, `fraiseql compile` turns them into `schema.compiled.json`, and the Rust
+runtime executes queries against it. That shape is why most examples here have a
+`schema.py`, a `sql/setup.sql` and no application server of their own.
 
-Complete, runnable reference applications for learning FraiseQL without local compilation:
-
-### 1. Blog Example (Basic)
-
-**Location**: `examples/basic/`
-
-Introductory example with simple schema:
-
-- 2 types: `User`, `Post`
-- 1-to-many relationship
-- 5 sample users, 10 sample posts
-- Basic filtering and listing queries
-
-Run with: `docker compose -f docker/docker-compose.demo.yml up -d`
-
-### 2. E-Commerce Example (Intermediate)
-
-**Location**: `examples/ecommerce/`
-
-Real-world schema with complex relationships:
-
-- 5 types: `Category`, `Product`, `Customer`, `Order`, `OrderItem`
-- Multiple nested relationships
-- 5 categories, 12 products, 5 customers, 7 orders
-- Advanced filtering, aggregation, and relationship traversal
-
-**Queries**:
-
-- Product listing and filtering
-- Customer order history
-- Inventory management
-- Order analysis
-
-Run with: `docker compose -f docker/docker-compose.examples.yml up -d`
-
-### 3. Streaming Example (Advanced)
-
-**Location**: `examples/streaming/`
-
-Real-time event-driven architecture:
-
-- 4 types: `Event`, `Message`, `UserActivity`, `LiveMetrics`
-- 4 GraphQL subscriptions for real-time data
-- Event streaming patterns
-- Metrics aggregation
-
-**Subscriptions**:
-
-- `onEvent` - System events
-- `onMessage` - Real-time messaging
-- `onUserStatusChange` - Presence tracking
-- `onMetricUpdate` - Performance metrics
-
-Run with: `docker compose -f docker/docker-compose.examples.yml up -d`
-
-### Quick Start
+## Start here
 
 ```bash
-# Single example (blog only)
-make demo-start
+createdb fraiseql_example
+psql -v ON_ERROR_STOP=1 -d fraiseql_example -f basic/sql/setup.sql
+export DATABASE_URL=postgresql://localhost/fraiseql_example
 
-# All examples (blog + ecommerce + streaming)
-make examples-start
-
-# Check status
-make examples-status
-
-# View logs
-make examples-logs
+cd basic-query && ./run.sh
 ```
 
-Access:
-
-- Blog IDE: http://localhost:3000
-- E-Commerce IDE: http://localhost:3100
-- Streaming IDE: http://localhost:3200
-- Tutorial: http://localhost:3001
-- Admin Dashboard: http://localhost:3002
-
-See `.docker-phase4-status.md` for comprehensive Phase 4 documentation.
+`ON_ERROR_STOP=1` is not decoration: without it psql prints an error, keeps going,
+and exits 0 on a half-loaded schema.
 
 ---
 
-## Arrow Flight Client Examples
+## Rust examples
 
-Production-ready clients demonstrating zero-copy columnar data delivery via Apache Arrow Flight:
+Six runnable crates, in the order they are worth reading. Each is a workspace member,
+so `cargo run` works from inside it; each also has a `run.sh` that compiles the
+schema it reads first, because `schema.compiled.json` is a build artifact and is
+gitignored.
 
-### Python Client (`python/`)
-
-PyArrow + Polars integration for data science workflows.
-
-```bash
-cd python
-pip install -r requirements.txt
-python fraiseql_client.py query "{ users { id name } }"
-python fraiseql_client.py events Order --limit 10000 --output events.parquet
-```
-
-**Features**: GraphQL queries, event streaming, batch processing, CSV/Parquet export
-
-### R Client (`r/`)
-
-Arrow R package for statistical analysis and data manipulation.
-
-```bash
-cd r
-Rscript -e "source('fraiseql_client.R'); client <- connect_fraiseql(); print(query_graphql(client, '{ users { id } }'))"
-```
-
-**Features**: Native data.frame integration, dplyr compatibility, batch processing
-
-### Rust Flight Client (`rust/flight_client/`)
-
-Native Rust client with async/await and direct Arrow Flight protocol support.
-
-```bash
-cd rust/flight_client
-cargo run --release
-```
-
-**Features**: Type-safe client, Tokio async, direct RecordBatch consumption, 100k+ rows/sec throughput
-
-### ClickHouse Integration (`clickhouse/`)
-
-SQL analytics on Arrow events ingested via Phase 9.4's ClickHouseSink.
-
-```bash
-clickhouse-client < clickhouse/arrow_integration.sql
-```
-
-**Features**: Real-time aggregations, materialized views, JSON analysis, performance optimization
-
----
-
-## Quick Start Examples
-
-### 1. Basic Query Example
-
-The most basic example showing how to:
-
-- Load a compiled schema
-- Create an executor
-- Execute a simple GraphQL query
+| Example | Needs a database | Shows |
+|---------|:----------------:|-------|
+| [`basic-query/`](basic-query) | yes | load a compiled schema, connect, execute, print — four calls |
+| [`error-handling/`](error-handling) | yes | the three places a query can fail, including the one that raises nothing |
+| [`complex-queries/`](complex-queries) | yes | nesting, variables, filtering, ordering, two root fields in one operation |
+| [`performance/`](performance) | yes | repeated timings, a phase trace that accounts for its own total, structured SQL logs |
+| [`subscriptions/`](subscriptions) | no | the subscription manager end to end in one process |
+| [`authentication/`](authentication) | no | mint a JWT, validate it, and five tokens that must be rejected |
 
 ```bash
 cd examples/basic-query
-cargo run
+./run.sh
 ```
 
-**What it demonstrates:**
+`basic-query`, `error-handling` and `performance` read `examples/basic`;
+`complex-queries` reads `examples/ecommerce`; `subscriptions` reads
+`examples/streaming`. Load that example's `sql/setup.sql` first — each README says
+which.
 
-- Schema loading from JSON
-- Creating an Executor
-- Executing a basic `{ users { id name } }` query
-- Parsing results
+---
 
-### 2. Subscription Example
+## Schema examples
 
-Real-time subscription support with WebSocket:
+Three schemas of increasing size. Each carries `schema.py` (authoring),
+`schema.json` (generated), `sql/setup.sql` and a `queries/` directory of runnable
+operations.
+
+### [`basic/`](basic) — a blog
+
+`User` and `Post`, one-to-many, denormalized author identity. 3 users, 4 posts.
+
+### [`ecommerce/`](ecommerce) — a catalogue and its orders
+
+`Category`, `Product`, `Customer`, `Order`, `OrderItem`, plus the `OrderStatus`
+enum. Nested objects and a nested list, all built by the views, so
+`order { items { product { name } } }` is still one SQL statement. 5 categories,
+12 products, 5 customers, 7 orders.
+
+### [`streaming/`](streaming) — events, messages, presence, metrics
+
+Four types and the four subscriptions that push them.
+
+Run any of their queries without a server:
 
 ```bash
-cd examples/subscriptions
-cargo run
+cd examples/ecommerce
+psql -v ON_ERROR_STOP=1 -d ecommerce_example -f sql/setup.sql
+cargo run -p fraiseql-cli -- compile schema.json -o schema.compiled.json
+DATABASE_URL=postgresql://localhost/ecommerce_example \
+  cargo run -p fraiseql-cli -- query "$(cat queries/04-order-analysis.graphql)"
 ```
 
-**What it demonstrates:**
+`fraiseql query` boots the compiled schema in-process, runs one operation and exits
+non-zero if it does not resolve. It is the cheapest end-to-end check there is.
 
-- Setting up WebSocket connection
-- Subscribing to real-time events
-- Handling subscription messages
-- Disconnecting gracefully
+### Docker
 
-### 3. Error Handling Example
+`docker/docker-compose.demo.yml` and `docker-compose.examples.yml` bring these up
+with a Postgres and a GraphQL IDE per example. **Neither works today**: they mount
+an example directory and point `FRAISEQL_SCHEMA_PATH` at a `schema.compiled.json`
+that no step in the stack builds ([#1202](https://github.com/fraiseql/fraiseql/issues/1202)),
+and both build an `admin-dashboard/Dockerfile` that does not exist
+([#1189](https://github.com/fraiseql/fraiseql/issues/1189)). Use the `psql` +
+`fraiseql query` path above until those close.
 
-Comprehensive error handling patterns:
+---
+
+## Arrow Flight clients
+
+Pull query results as Arrow record batches over gRPC — no JSON on the wire, no
+row-by-row deserialization.
+
+Authentication is **not optional**. The server's `do_get` validates a session token
+before it decodes the ticket, so every call needs one.
+
+### [`python/`](python) — pyarrow
 
 ```bash
-cd examples/error-handling
-cargo run
+cd examples/python
+pip install -r requirements.txt
+export FRAISEQL_FLIGHT_TOKEN='<a JWT from your identity provider>'
+python3 fraiseql_client.py query '{ users { id name } }'
+python3 fraiseql_client.py query '{ posts { title } }' --output posts.parquet
 ```
 
-**What it demonstrates:**
+Handshake, session token, `query` and `view`; Parquet, CSV and Arrow IPC output.
+Verified against a live Flight server.
 
-- Handling query validation errors
-- Database connection errors
-- Timeout errors
-- Custom error messages
-- Error recovery patterns
+### [`r/`](r) and [`rust/flight_client/`](rust/flight_client)
 
-### 4. Performance Example
+Both call `do_get` with no handshake and no `authorization` header, so every call
+they can make is refused; both also headline `stream_events`, and `ObserverEvents`
+is unimplemented on the server. Tracked as
+[#1200](https://github.com/fraiseql/fraiseql/issues/1200). Read `python/` for the
+protocol they are missing.
 
-Measuring and optimizing query performance:
+### [`clickhouse/`](clickhouse)
+
+SQL analytics over Arrow events ingested by the ClickHouse sink.
 
 ```bash
-cd examples/performance
-cargo run
+clickhouse-client < examples/clickhouse/arrow_integration.sql
 ```
 
-**What it demonstrates:**
+---
 
-- Query tracing and timing
-- Result caching
-- Batch query execution
-- Performance monitoring
-- Identifying bottlenecks
+## Also in this tree
 
-### 5. Authentication Example
+| Directory | What it is |
+|-----------|------------|
+| [`async-jobs-subgraph/`](async-jobs-subgraph) | a federation subgraph for non-SQL mutations, with a Docker image that builds |
+| [`cascade-create-post/`](cascade-create-post) | the cascade mutation pattern, end to end |
+| [`changelog-sidecar/`](changelog-sidecar) | consuming the change-log outbox |
+| [`federation/basic/`](federation/basic), [`federation/composite-keys/`](federation/composite-keys) | Apollo Federation v2 subgraphs that compose |
+| [`multitenant/`](multitenant), [`saas/`](saas) | multi-domain schemas driven by `fraiseql.toml` |
+| [`mutation-patterns/`](mutation-patterns) | 18 PL/pgSQL mutation patterns with a test script |
+| [`typescript-client/`](typescript-client) | generated TypeScript client |
 
-Implementing JWT authentication:
+Known broken, tracked, not repaired yet:
+[`federation/multi-cloud/`](federation/multi-cloud) ([#1190](https://github.com/fraiseql/fraiseql/issues/1190)),
+[`federation/saga-complex/`](federation/saga-complex) ([#1193](https://github.com/fraiseql/fraiseql/issues/1193)),
+[`ltree-hierarchical-data/`](ltree-hierarchical-data) ([#1191](https://github.com/fraiseql/fraiseql/issues/1191)).
 
-```bash
-cd examples/authentication
-cargo run
-```
+---
 
-**What it demonstrates:**
+## What keeps this file honest
 
-- OIDC configuration
-- JWT validation
-- User context extraction
-- Field-level authorization
-- Protected queries
+Three gates, because a repaired example rots again by the next release:
 
-### 6. Complex Queries Example
+| Gate | Checks |
+|------|--------|
+| `tools/check-examples-integrity.sh` | static: compose mounts resolve, `COPY` sources exist, no `\|\| true` around a build, no unanchored `healthy` grep, and every documented `cd` lands somewhere |
+| `tools/check-examples-compile.sh` | every `schema.py` runs and every `fraiseql.toml`/`schema.json` compiles, each from its own directory |
+| `make examples-smoke` | loads each example's SQL under `ON_ERROR_STOP=1`, compiles its schema, runs its `queries/*.graphql`, boots the server and asks it a question |
 
-Advanced query patterns:
+Run all three before changing anything here.
 
-```bash
-cd examples/complex-queries
-cargo run
-```
+## Next steps
 
-**What it demonstrates:**
+- [Architecture](../docs/architecture/)
+- [Authoring guide](../docs/authoring.md)
+- [Performance](../docs/performance.md)
+- [Linting](../docs/linting.md)
 
-- Nested field selection
-- Variable binding
-- Aggregations
-- Window functions
-- Complex filtering
+## Contributing an example
 
-## Project Structure
-
-Each example follows this structure:
-
-```
-examples/
-├── basic-query/           # Simple query execution
-│   ├── Cargo.toml
-│   ├── src/
-│   │   └── main.rs
-│   └── schema.compiled.json
-├── subscriptions/         # Real-time subscriptions
-├── error-handling/        # Error patterns
-├── performance/           # Performance optimization
-├── authentication/        # JWT and OIDC
-├── complex-queries/       # Advanced queries
-└── README.md              # This file
-```
-
-## Running Examples
-
-### Prerequisites
-
-```bash
-# PostgreSQL running
-docker run -d \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=fraiseql_examples \
-  -p 5432:5432 \
-  postgres:15
-
-# Set database URL
-export DATABASE_URL="postgresql://postgres:password@localhost:5432/fraiseql_examples"
-```
-
-### Running Any Example
-
-```bash
-cd examples/example-name
-cargo run
-
-# Or with logging
-RUST_LOG=debug cargo run
-
-# Or with specific database
-DATABASE_URL="postgresql://..." cargo run
-```
-
-## Common Patterns
-
-### Error Handling
-
-```rust
-use fraiseql_core::error::FraiseQLError;
-
-fn handle_error(err: &FraiseQLError) {
-    match err {
-        FraiseQLError::Parse { message, location } => {
-            eprintln!("Parse error: {} at {:?}", message, location);
-        }
-        FraiseQLError::Validation { message, path } => {
-            eprintln!("Validation error: {} at {:?}", message, path);
-        }
-        FraiseQLError::Database { message, code } => {
-            eprintln!("Database error: {} ({})", message, code.unwrap_or("unknown"));
-        }
-        FraiseQLError::Timeout => {
-            eprintln!("Query timeout - increase timeout or optimize query");
-        }
-    }
-}
-```
-
-### Performance Monitoring
-
-```rust
-use fraiseql_core::runtime::query_tracing::QueryTraceBuilder;
-
-fn monitor_query(query: &str) {
-    let mut trace = QueryTraceBuilder::new("query_123", query);
-
-    // Execute query
-    let phase_start = std::time::Instant::now();
-    execute_query();
-    trace.record_phase_success("execute", phase_start.elapsed().as_micros() as u64);
-
-    // Get metrics
-    let finished = trace.finish(true, None, Some(100)).unwrap();
-    println!("Query took {} μs", finished.total_duration_us);
-    println!("Slowest phase: {:?}", finished.slowest_phase());
-}
-```
-
-### SQL Logging
-
-```rust
-use fraiseql_core::runtime::sql_logger::SqlQueryLogBuilder;
-
-fn log_sql_query(query: &str) {
-    let builder = SqlQueryLogBuilder::new("query_123", query, 2)
-        .with_slow_threshold(10_000); // 10ms slow threshold
-
-    let log = builder.finish_success(Some(100));
-    println!("{}", log.to_log_string());
-}
-```
-
-### Rate Limiting
-
-```rust
-use fraiseql_server::middleware::{RateLimiter, RateLimitConfig};
-
-async fn check_rate_limit() {
-    let config = RateLimitConfig {
-        enabled: true,
-        rps_per_ip: 100,
-        rps_per_user: 1000,
-        burst_size: 500,
-        cleanup_interval_secs: 300,
-    };
-
-    let limiter = RateLimiter::new(config);
-    
-    // Check IP rate limit
-    if limiter.check_ip_limit("192.168.1.1").await {
-        println!("Request allowed");
-    } else {
-        println!("Rate limit exceeded");
-    }
-}
-```
-
-## Next Steps
-
-- Review [Architecture documentation](../docs/architecture/)
-- Read [Developer Guide](../docs/DEVELOPER_GUIDE.md)
-- Check [Profiling Guide](../docs/PROFILING_GUIDE.md)
-- Check [Linting Guide](../docs/LINTING.md)
-
-## Contributing
-
-Have a useful example pattern? Submit a PR!
-
-Requirements for example PRs:
-
-- Working example code
-- Clear documentation
-- Follows project style guide
-- Includes error handling
-- Has tests if applicable
-
-## Questions?
-
-- Check example source code comments
-- Review relevant documentation
-- Open an issue with your question
-- Ask in project Slack channel
+An example PR needs: code that runs, a README that names the prerequisites, and a
+green `tools/check-examples-integrity.sh` and `tools/check-examples-compile.sh`. If
+it ships SQL, it needs a `sql/setup.sql` that loads clean under `ON_ERROR_STOP=1`;
+if it ships a schema, `make examples-smoke` has to be able to ask it a question.
