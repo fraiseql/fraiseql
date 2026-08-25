@@ -215,6 +215,90 @@ required-features = ["federation"]
 name = "e2e_typescript_authoring"
 required-features = ["federation"]
 
+# Suites that import `fraiseql_core::db::postgres`, which the `postgres` feature
+# provides. `postgres` is a default feature, so these build and run exactly as
+# before in every configuration CI uses — but without the declaration,
+# `--no-default-features` did not merely skip them, it failed to compile the
+# crate's test targets at all: 11 binaries, 219 errors, 11 of them
+# `E0432: unresolved import` and the remaining 208 `E0282` fallout from the
+# failed imports (#1083).
+#
+# `required-features` rather than a file-level `#![cfg]`: it is the form
+# `tools/check-suite-coverage.py` can see, and the one #1082 settled on. Same
+# declaration the `adapter_comparison` and `full_pipeline_comparison` benches
+# above already carry for the same reason.
+[[test]]
+name = "cache_rls_isolation_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "cache_transparency_invariant"
+required-features = ["postgres"]
+
+[[test]]
+name = "changelog_e2e"
+required-features = ["postgres"]
+
+[[test]]
+name = "changelog_outbox_e2e"
+required-features = ["postgres"]
+
+[[test]]
+name = "e2e_aggregate_queries"
+required-features = ["postgres"]
+
+[[test]]
+name = "e2e_query_execution"
+required-features = ["postgres"]
+
+[[test]]
+name = "e2e_window_functions"
+required-features = ["postgres"]
+
+[[test]]
+name = "error_real_cache"
+required-features = ["postgres"]
+
+[[test]]
+name = "error_real_database"
+required-features = ["postgres"]
+
+[[test]]
+name = "mutation_projection_parity"
+required-features = ["postgres"]
+
+[[test]]
+name = "nested_list_query_integration"
+required-features = ["postgres"]
+
+[[test]]
+name = "property"
+required-features = ["postgres"]
+
+[[test]]
+name = "query_alias_projection_parity"
+required-features = ["postgres"]
+
+[[test]]
+name = "selection_conformance_postgres"
+required-features = ["postgres"]
+
+[[test]]
+name = "session_variables_integration"
+required-features = ["postgres"]
+
+[[test]]
+name = "sql_behavioral"
+required-features = ["postgres"]
+
+[[test]]
+name = "sql_snapshots"
+required-features = ["postgres"]
+
+[[test]]
+name = "window_function_snapshots"
+required-features = ["postgres"]
+
 [lints]
 workspace = true
 
