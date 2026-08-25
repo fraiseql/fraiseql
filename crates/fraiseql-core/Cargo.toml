@@ -192,10 +192,6 @@ name = "federation_observability_integration"
 required-features = ["federation"]
 
 [[test]]
-name = "federation_observability_perf"
-required-features = ["federation"]
-
-[[test]]
 name = "federation_provides_enforcement"
 required-features = ["federation"]
 
