@@ -14,10 +14,34 @@ have those files next to it.
 
 ---
 
-## ⭐ Active — Fix the whole backlog before v2.15.0 (2026-08-22)
+## ⭐ Active — Make the delivery artifact a gated object (2026-08-26)
 
-`2026-08-22-pre-2.15.0-backlog/`, in the program worktree — currently
-**`/home/lionel/code/fraiseql-phase06`** (branch `fix/phase08-test-hygiene`).
+`2026-08-26-delivery-artifact-gating/`, in the program worktree —
+**`/home/lionel/code/fraiseql-phase06`** (branch `fix/phase01-workflow-reachability`).
+
+Every gate in this repository checks a property of the **source**; almost nothing checks the
+**thing we ship**. Phase 10 of the backlog program found the two worst consequences within a
+week of each other — the release image could not be built at all (#1205) and
+`cargo deny check licenses` was red (#1204) — both invisible to all eleven legs, because **no
+workflow builds the release Dockerfile before the tag**. Eight phases: gate trust, then a
+Dagger image build, then boot-and-query, artifact properties, the chart, one Compose stack,
+post-publish crate installability, and a delivery manifest.
+
+It adds **no product surface**. Every phase must cover something already shipped, or be cut.
+
+**Status: Phase 01 complete** (`1e241c721`, not pushed). **Next: Phase 02 — the substrate
+builds the image, before the tag.** The live handoff is
+`2026-08-26-delivery-artifact-gating/NEXT-AGENT-PROMPT.md` in the program worktree.
+
+⚠ Phase 01 opened **#1208 — no secret scanner runs anywhere in CI.** The TruffleHog job that
+`.dagger/security.go` and `dagger-security.yml` both defer to as authoritative was gated on a
+`pull_request` its workflow has not received since 2026-05-31. The unreachable job is deleted;
+the hole is a founder decision. Also open from that phase: **#1207** (17 step-level conditions
+of the same class), **#1209**, **#1210**.
+
+## Deferred behind the above — Fix the whole backlog before v2.15.0 (2026-08-22)
+
+`2026-08-22-pre-2.15.0-backlog/`, in the same worktree.
 
 **Decision of record (2026-08-22):** the founder chose to burn the **entire open backlog down
 to zero before the v2.15.0 tag**, having been shown that it contains multi-week epics and that
@@ -28,8 +52,8 @@ closes.** Do not relitigate.
 integrity first (a gate that cannot fail turns every later "green" into an unverified claim),
 then runtime correctness, surfaces, examples, docs; epics last.
 
-**Status: phases 01–08 complete**, plus #1169 out-of-phase. **Next: Phase 09 — examples that
-do not work** (#1050 #1051 #1052 #1053 #1054 #1071 #1072 #1073, plus #1168).
+**Status: phases 01–10 complete**, plus #1169 out-of-phase. **Next: Phase 11 — storage**,
+deferred behind the delivery-artifact program above.
 
 - **The live handoff is
   `2026-08-22-pre-2.15.0-backlog/NEXT-AGENT-PROMPT.md`** in the program worktree.
@@ -43,7 +67,8 @@ do not work** (#1050 #1051 #1052 #1053 #1054 #1071 #1072 #1073, plus #1168).
 
 [2026-08-16-v2.15.0-release/](2026-08-16-v2.15.0-release/) — take `dev` to a tagged, published
 release. P00–P08 are merged; only [P09, the cut](2026-08-16-v2.15.0-release/phase-09-release-execution.md)
-remains, and it is **held** by the 2026-08-22 decision above until the backlog program closes.
+remains, and it is **held** by the 2026-08-22 decision above until the backlog program closes,
+which is in turn behind the 2026-08-26 program.
 
 Its two human decisions are answered and recorded in
 [P00](2026-08-16-v2.15.0-release/phase-00-baseline-decisions-and-filings.md): **V — 2.15.0**,
