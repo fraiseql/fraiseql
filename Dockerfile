@@ -19,10 +19,11 @@ RUN case "${TARGETARCH:-amd64}" in \
     echo "$TARGET" > /tmp/rust_target.txt && \
     rustup target add "$TARGET"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+# No apt build dependencies: the PostgreSQL driver is the pure-Rust tokio-postgres
+# + rustls stack, so nothing here links libpq (pq-sys / libpq-sys / diesel appear
+# nowhere in Cargo.lock) and no -sys crate in the default feature set needs
+# pkg-config. If a feature is ever added that DOES link a system library, its
+# build dependency belongs here — see #1133.
 
 ARG CARGO_FEATURES=""
 
@@ -55,8 +56,10 @@ LABEL org.opencontainers.image.version="2.15.0" \
       security.hardenings="non-root,readonly-capable,capabilities-dropped"
 
 # Security updates
+# ca-certificates for outbound TLS; curl for the HEALTHCHECK below. libpq5 was here
+# for a driver this binary does not use — the built image's only dynamic
+# dependencies are libc, libm and libgcc_s (#1133).
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
-    libpq5 \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
