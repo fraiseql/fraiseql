@@ -1,0 +1,178 @@
+# gitleaks configuration — the repository's only executing secret scanner.
+#
+# Runs as `dagger call secret-scan` inside the `security` umbrella, over the
+# working tree (not git history: the Dagger source mount ignores `.git`). It
+# replaces the TruffleHog `secrets-scan` job deleted in #1206, which was gated on
+# a `pull_request` its workflow could not receive and had therefore never run —
+# leaving the repository with no secret scanner at all (#1208).
+#
+# ── Why gitleaks, and why not `--only-verified` ───────────────────────────────
+#
+# Measured on this tree at 315827425 (fresh-checkout shape, 3952 files):
+#   gitleaks 8.28.0                    42 findings, 1.2s
+#   trufflehog 3.90.8 --no-verification 163 findings, 2.1s
+# TruffleHog's verified mode calls the provider's API to prove a credential is
+# live. That needs network egress from the CI container, and — decisively — a
+# planted FAKE credential never verifies, so a `--only-verified` gate cannot be
+# proved RED without committing a real live secret. A gate that cannot be proved
+# RED is exactly what #1206 deleted. gitleaks is pattern/entropy based, so it is
+# offline, deterministic, and provable. tools/tests/gitleaks_allowlist_test.sh
+# is that proof, and it runs on every scan.
+#
+# ── How exemptions are scoped ─────────────────────────────────────────────────
+#
+# Every allowlist below hangs off a `[[rules]]` block naming ONE rule id, so it
+# suppresses that rule alone on those paths. The ~100 other default rules stay
+# live everywhere, including in test sources — a planted AWS key inside an
+# allowlisted test file still fails the gate, and the self-test asserts it.
+#
+# ⚠ Do NOT write these as top-level `[[allowlists]]` blocks with a `targetRules`
+# key. Measured against this tree on gitleaks 8.28.0, one path exemption, four
+# config shapes:
+#
+#   [[allowlists]] + paths                    suppresses EVERY rule on the path
+#   [[allowlists]] + paths + targetRules      suppresses NOTHING — block dropped
+#   [[allowlists]] + paths + an unknown key   suppresses every rule — key ignored
+#   [[rules]] id + [[rules.allowlists]]       suppresses the named rule only  ← used here
+#
+# So the obvious spelling of "exempt this path for this one rule" is accepted by
+# the parser and silently discarded, while an outright typo is tolerated and the
+# block applies to everything. Neither shape announces itself. This one fails
+# loudly at least — the exemption stops working and the gate reddens on its own
+# test data — but it is not what it reads as, and
+# tools/tests/gitleaks_allowlist_test.sh case D is what pins the difference.
+#
+# ── Adding an exemption ───────────────────────────────────────────────────────
+#
+# ⚠ Path regexes are matched against the path as the scanner saw it, which under
+# Dagger is absolute (`/src/crates/…`). A `^`-anchored regex therefore matches
+# nothing there while looking correct locally; every path below uses `(^|/)` so
+# it holds under both scan roots.
+#
+# State why the value is not a credential. "It is test data" is a claim about
+# the value, so prefer a `regexes` entry pinning the literal over a `paths`
+# entry retiring a whole file. Path exemptions are for material that is
+# definitionally test key material (generated `.pem` fixtures, fuzz corpora).
+
+[extend]
+useDefault = true
+
+# ── Trees that are not part of the repository ─────────────────────────────────
+#
+# Build output and fetched dependencies: gitignored, so nothing in them can be
+# committed, and absent from a CI checkout entirely. The Dagger source mount
+# already drops `target`, so without this block the SAME gate reports 42 findings
+# on a developer's tree and none in CI — and the developer, reasonably, stops
+# running it. Everything here was observed in this working tree (rdkafka-sys test
+# fixtures, pkcs8 rmeta, vendored composer/mix deps, generated dev certs).
+#
+# This is the one blanket exemption in the file — a top-level block, every rule.
+# That is deliberate and it is a different claim from the ones below: not "this
+# value is not a credential" but "this path is not in the repository". Anything
+# that IS committed must not be exempted here.
+[[allowlists]]
+description = "Build output and fetched dependencies (gitignored, absent in CI)"
+paths = [
+  '''(^|/)target/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)sdks/official/[^/]+/vendor/''',
+  '''(^|/)sdks/official/[^/]+/deps/''',
+  '''(^|/)docker/tls/certs/''',
+]
+
+# ── private-key ───────────────────────────────────────────────────────────────
+
+[[rules]]
+id = "private-key"
+
+  # RSA/EC keys generated for the test suite. These are real keys by
+  # construction — a JWT signing test needs one that actually signs — and they
+  # protect nothing: they are generated for the fixture and never leave it.
+  [[rules.allowlists]]
+  description = "Key material generated as test fixtures"
+  paths = [
+    '''(^|/)crates/[^/]+/test_data/.*\.pem$''',
+    '''(^|/)crates/[^/]+/src/.*tests\.rs$''',
+    '''(^|/)crates/[^/]+/tests/.*\.rs$''',
+  ]
+
+  # ⚠ These two are REAL private keys committed to a public repository. They
+  # serve the local TLS Postgres rig and nothing in production, but a key in a
+  # public tree should be generated at container build instead of tracked.
+  # That is a change to the TLS rig, not to this gate, so it is #1211 and this
+  # exemption names the two exact files rather than the directory — a third key
+  # appearing there still fails.
+  [[rules.allowlists]]
+  description = "Dev TLS rig keys, tracked pending #1211"
+  paths = [
+    '''(^|/)docker/tls-postgres/certs/ca\.key$''',
+    '''(^|/)docker/tls-postgres/certs/server\.key$''',
+  ]
+
+# ── jwt ───────────────────────────────────────────────────────────────────────
+
+[[rules]]
+id = "jwt"
+
+  # JWT test vectors: hand-built headers/payloads asserted against, plus the
+  # fuzz seed corpus, where every byte is part of the input under test.
+  [[rules.allowlists]]
+  description = "JWT test vectors and fuzz seeds"
+  paths = [
+    '''(^|/)crates/[^/]+/src/.*tests\.rs$''',
+    '''(^|/)crates/[^/]+/tests/.*\.rs$''',
+    '''(^|/)crates/[^/]+/benches/.*\.rs$''',
+    '''(^|/)crates/[^/]+/fuzz/seed_corpus/.*''',
+    '''(^|/)docs/.*\.md$''',
+  ]
+
+# ── generic-api-key ───────────────────────────────────────────────────────────
+
+[[rules]]
+id = "generic-api-key"
+
+  # An environment variable NAME read as its own value: `secret_env =
+  # "FRAISEQL_HS256_SECRET"` names where the secret is read from, and is the
+  # opposite of a hardcoded one. Pinned to the literal, so a value assigned to
+  # one of these still fires.
+  [[rules.allowlists]]
+  description = "FraiseQL env var names, not values"
+  regexes = ['''^FRAISEQL_[A-Z0-9_]+$''']
+
+  [[rules.allowlists]]
+  description = "Test vectors, fixtures and documentation placeholders"
+  paths = [
+    '''(^|/)crates/[^/]+/src/.*tests\.rs$''',
+    '''(^|/)crates/[^/]+/tests/.*\.rs$''',
+    '''(^|/)crates/[^/]+/benches/.*\.rs$''',
+    '''(^|/)docs/.*\.md$''',
+  ]
+
+# ── curl-auth-header ──────────────────────────────────────────────────────────
+
+[[rules]]
+id = "curl-auth-header"
+
+  # release-smoke.yml boots the server with tokens it invents in the same file;
+  # the literals say so. Pinned to the prefix rather than the workflow path, so
+  # a real token pasted into that file still fires.
+  [[rules.allowlists]]
+  description = "release-smoke.yml's self-declared throwaway tokens"
+  regexes = ['''^smoke-test-only-''']
+
+  # Documentation placeholders the reader is told to replace.
+  [[rules.allowlists]]
+  description = "Documentation placeholders"
+  regexes = ['''^YOUR_[A-Z0-9_]+$''']
+
+# ── stripe-access-token ───────────────────────────────────────────────────────
+
+[[rules]]
+id = "stripe-access-token"
+
+  # Two fixtures asserting that a Stripe-shaped key is REDACTED by the error
+  # sanitizer and the audit log. Pinned to the two literals: `sk_live_` is a
+  # high-signal prefix and stays live everywhere else, tests included.
+  [[rules.allowlists]]
+  description = "Redaction-test literals"
+  regexes = ['''^sk_live_abc123(def456|xyz789)$''']

@@ -6350,6 +6350,59 @@ disagreed, and the promise was the part that was wrong.
   generates. Most are report-the-result steps whose right repair may be restoring the
   trigger rather than deleting the step — a CI-load decision, not a defect to sweep up.
 
+- **A secret scanner runs again, and it is provable that it does (#1208).** Deleting the
+  unreachable TruffleHog job left the repository with no executing secret check at all —
+  only a `grep` its own comments described as warn-only. `dagger call secret-scan` closes
+  that: gitleaks over the working tree, governed by `.gitleaks.toml`, inside the `security`
+  umbrella that already runs on every in-repo branch push.
+
+  It is not a port of the deleted job, because that job's design is what could not be
+  gated. TruffleHog's `--only-verified` mode calls the provider's API to prove a credential
+  is live, which needs network egress from CI and, decisively, means a planted **fake**
+  credential never fires — so the gate could not be proved RED without committing a real
+  secret. gitleaks is pattern- and entropy-based, so it is offline, deterministic, and
+  provable. Measured on a fresh-checkout tree (3952 files): gitleaks 42 findings in 1.2s,
+  TruffleHog unverified 163 in 2.1s.
+
+  All 42 were triaged rather than baselined: JWT test vectors, fuzz seed corpus, generated
+  `.pem` fixtures, documentation placeholders, four `sk_live_`-shaped redaction fixtures,
+  and env var **names** matched as their own values. Each exemption is scoped to a single
+  rule, so the ~100 other detectors stay live everywhere including in test sources — an AWS
+  key planted inside an exempted test file still fails the gate, which was verified against
+  the real tree, not only a fixture.
+
+  ⚠ That scoping has a trap worth recording. Measured against this tree, one path exemption,
+  four config shapes: a top-level `[[allowlists]]` block with `paths` suppresses **every**
+  rule on that path; the same block plus `targetRules` — the documented way to say "this one
+  rule" — suppresses **nothing**, the block is dropped; the same block plus an outright typo
+  is tolerated and applies to everything; only `[[rules]]` + `[[rules.allowlists]]`
+  suppresses the named rule alone. Two of those four shapes are silent, and the natural
+  spelling is one of them.
+
+  So the config gets a self-test rather than a review: `tools/tests/gitleaks_allowlist_test.sh`
+  (18 assertions, `make test-secret-scan-gate`) runs **on every scan**, before the scan. A
+  secret scanner is trivially green — exempt everything and it never fires again — and the
+  previous one reported nothing for three months because "no findings" and "not running"
+  produce identical output. Every exemption therefore carries a positive case (it does what
+  it claims) and a negative one (it reaches no further); stripping the exemptions fails six
+  assertions, and writing one in the ignored `targetRules` form fails another.
+
+  Proved RED in the container's shape: a planted AWS key in an ordinary source file and a
+  second inside an allowlisted test file each took `dagger call secret-scan` to exit 1
+  naming the rule, file and line, and both files were restored byte-identically
+  (`git hash-object` before and after). The scan runs `--verbose --redact` together and for
+  opposite reasons — under `--no-banner` alone a failure reports `leaks found: 1` and
+  nothing else, which is unactionable enough to get a gate switched off, while these CI logs
+  are public and a scanner that echoes the secret into one makes the leak worse.
+
+  **Scope, stated because it is a real limit:** this reads the working tree, not git history
+  — a credential committed and later deleted is not found. That is the trade for needing no
+  diff base, which is the wiring the deleted job got wrong. A history audit is a one-off,
+  not a gate. Two findings turned up while triaging and are filed rather than folded in:
+  `docker/tls-postgres/` tracks two private keys its own `generate-certs.sh` would produce
+  (#1211), and `.secrets.baseline` is a hand-written env var list wearing another tool's
+  filename, read by nothing (#1212).
+
 ### Security
 
 - **The `aws-*` client stack no longer resolves rustls 0.21, and four accepted advisories

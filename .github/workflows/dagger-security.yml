@@ -16,8 +16,12 @@ name: Dagger — security
 # workflow_dispatch as the porting spec / GH-native home.
 #
 # secrets-scan (TruffleHog) was on that list until #1206: it was gated on a
-# pull_request its workflow could not receive and had never run. It is deleted and
-# unreplaced — no secret scanner executes in any leg. See #1208.
+# pull_request its workflow could not receive and had never run. It is deleted, and
+# `secret-scan` in this umbrella replaces it (#1208) — gitleaks over the working
+# tree, governed by .gitleaks.toml. It runs HERE rather than GitHub-native because
+# TruffleHog's verified mode needs network egress and a live credential to fire, so
+# it could not be proved RED without committing a real secret; the trade is that
+# this reads the tree, not git history.
 #
 # push-only by design: push events are inherently same-repo (forks cannot push
 # here), so the self-hosted runner never sees fork code — `pull_request` is

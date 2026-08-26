@@ -24,7 +24,9 @@ jobs:
   # pull_request this workflow has not received since 2026-05-31, so it had never run
   # — while .dagger/security.go and dagger-security.yml both deferred to it as the
   # authoritative secret gate. Deleted with the rest of that class (#1206). The hole
-  # it leaves — no secret scanner runs anywhere — is #1208.
+  # it left is closed by `secret-scan` in the Dagger security umbrella (#1208), which
+  # runs on every in-repo branch push. Do not re-add a secret job here: this workflow
+  # is workflow_dispatch-only, which is what made the last one invisible.
 
   license-scan:
     name: License Compliance
@@ -237,7 +239,8 @@ jobs:
         if [ -n "$POTENTIAL_SECRETS" ]; then
           echo "⚠️  Potential hardcoded secrets found (manual review needed):"
           echo "$POTENTIAL_SECRETS"
-          # Don't fail — warn only; TruffleHog (secrets-scan job) is the authoritative gate
+          # Don't fail — warn only. The authoritative secret gate is `dagger call
+          # secret-scan` (gitleaks, .gitleaks.toml, #1208); this grep is a hint.
           exit 0
         else
           echo "✅ No hardcoded secrets found in source code"
@@ -263,9 +266,11 @@ jobs:
     steps:
       - name: Security compliance check
         run: |
-          # Check if all security jobs passed. No secret scan is listed: this
-          # gate tolerated `secrets-scan` being skipped, which is how a job that
-          # never ran at all stayed invisible here (#1206, #1208).
+          # Check if all security jobs passed. No secret scan is listed, and that
+          # is now correct rather than an omission: it runs in the Dagger security
+          # leg (#1208). What this gate must never do again is what it did before —
+          # tolerate a `secrets-scan` result of `skipped`, which is how a job that
+          # never ran at all stayed invisible here (#1206).
           if [[ "${{ needs.license-scan.result }}" != "success" ]]; then
             echo "❌ License compliance failed - Security gate blocked"
             exit 1

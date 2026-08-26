@@ -15,8 +15,10 @@ package main
 //   - dependency-review (GitHub Dependency-Graph API, PR-only)
 // The TruffleHog secrets-scan job was in this list too. It was gated on a
 // pull_request its workflow could not receive, so it had never run; it is deleted
-// (#1206) and NOTHING replaces it yet — no secret scanner executes anywhere in CI.
-// That is #1208, not a deferral this file can lean on.
+// (#1206). `secret-scan` below replaces it (#1208) — gitleaks over the working
+// tree, in this leg rather than GitHub-native, because TruffleHog's verified mode
+// needs network egress and a LIVE credential to fire, and a gate that cannot be
+// proved RED without committing a real secret is the gate #1206 deleted.
 // See parity-notes.md.
 
 import (
@@ -31,6 +33,16 @@ import (
 // the local toolchain so `dagger call cargo-deny` and a developer's `cargo deny
 // check` agree byte-for-byte (local==CI). (Later: pin by digest — parity-notes.md.)
 const denyVersion = "0.19.0"
+
+// gitleaksVersion / gitleaksSHA256 pin the secret scanner. The checksum is the
+// one published in gitleaks_<version>_checksums.txt and is verified before the
+// binary is installed: this gate's own supply chain is the one place where
+// "downloaded it over the network and ran it" is least defensible.
+// (Later: pin by digest — parity-notes.md, same note as cargo-deny.)
+const (
+	gitleaksVersion = "8.28.0"
+	gitleaksSHA256  = "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"
+)
 
 // Security runs every portable security/compliance gate in cheap-first, fail-fast
 // order: the shell compliance checks (instant) before cargo-deny (advisory-db
@@ -47,6 +59,7 @@ func (m *FraiseqlCi) Security(
 		run  func(context.Context, *dagger.Directory) (string, error)
 	}{
 		{"compliance", m.Compliance},
+		{"secret-scan", m.SecretScan},
 		{"crypto-providers", m.CryptoProviders},
 		{"advisory-paths", m.AdvisoryPaths},
 		{"default-build-minimums", m.DefaultBuildMinimums},
@@ -186,10 +199,13 @@ func (m *FraiseqlCi) DefaultBuildMinimums(
 
 // Compliance mirrors security-compliance.yml's compliance-check job: required
 // security/policy files must exist (hard fail), plus two advisory greps (nginx
-// security headers, hardcoded-secret patterns) that warn but never fail. They were
-// advisory because TruffleHog was the authoritative secret gate; that job could not
-// run and is gone (#1206), so this warn-only grep is currently the ONLY secret check
-// in CI and it blocks nothing. #1208.
+// security headers, hardcoded-secret patterns) that warn but never fail.
+//
+// The secret grep stays advisory, and that is now a defensible choice rather than
+// a hole: SecretScan is the blocking secret gate (#1208). This grep matches four
+// literal assignment shapes over two directories, so it is kept only for the
+// narrow case of a `password = "…"` that gitleaks' entropy rules score too low to
+// report — it is a hint in the log, not a check.
 // Pure shell, so it runs on the lightweight shellBase, not the Rust container.
 func (m *FraiseqlCi) Compliance(
 	ctx context.Context,
@@ -230,6 +246,86 @@ func (m *FraiseqlCi) Compliance(
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
+}
+
+// SecretScan is the repository's secret gate: gitleaks over the working tree,
+// governed by .gitleaks.toml. It replaces the TruffleHog job deleted in #1206,
+// which had been gated on an event its workflow could not receive and had
+// therefore never run (#1208).
+//
+// Two execs, in this order, and the order is the point:
+//
+//  1. tools/tests/gitleaks_allowlist_test.sh — 14 assertions that the allowlist
+//     still discriminates. A secret scanner is trivially green (exempt
+//     everything and it never fires again), and the previous one reported
+//     nothing for three months without anyone noticing, because "no findings"
+//     and "not running" produce identical output. Every exemption in the config
+//     has both a positive case here (it does what it claims) and a negative one
+//     (it reaches no further). This runs on every scan, not once at review time.
+//
+//  2. The scan itself, over /src.
+//
+// Scope, stated because it is a real limit: this reads the working TREE, not git
+// history — the source mount ignores `.git` — so a credential committed and then
+// deleted is not found. That is the trade for not needing a diff base, which is
+// the wiring the deleted job got wrong. History is a one-off audit, not a gate.
+//
+// --redact --verbose, together and for opposite reasons. Under --no-banner alone
+// gitleaks reports a failure as "leaks found: 1" and nothing else — no rule, no
+// file, no line — which is unactionable enough that the gate would get switched
+// off rather than fixed. --verbose restores the finding block; --redact masks the
+// value inside it. CI logs here are public, and a scanner that echoes the secret
+// it found into one makes the leak worse than it was. Verified: the planted key
+// appears nowhere in the failing run's output, and its file and line do.
+func (m *FraiseqlCi) SecretScan(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	// 2>&1: gitleaks writes its verdict — "no leaks found" as much as a finding —
+	// to STDERR, and this function returns Stdout. Without the redirect the gate
+	// passes silently and its report shows the self-test alone, which is the shape
+	// where "it ran and found nothing" and "it did not run" look identical again.
+	script := strings.Join([]string{
+		"set -e",
+		"bash tools/tests/gitleaks_allowlist_test.sh",
+		"echo",
+		"gitleaks dir /src --config /src/.gitleaks.toml --no-banner --redact --verbose --exit-code 1 2>&1",
+	}, "\n")
+
+	return m.gitleaksBase().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// gitleaksBase is the container for SecretScan: the mirrored ubuntu base plus the
+// pinned gitleaks binary, checksum-verified before install. Pure shell, no
+// toolchain — it follows denyBase's fetch-a-prebuilt-binary pattern rather than
+// adding an image constant, so .github/workflows/mirror-base-images.yml does not
+// gain an entry.
+func (m *FraiseqlCi) gitleaksBase() *dagger.Container {
+	install := strings.Join([]string{
+		"set -euo pipefail",
+		"base=gitleaks_" + gitleaksVersion + "_linux_x64",
+		"url=https://github.com/gitleaks/gitleaks/releases/download/v" + gitleaksVersion + "/${base}.tar.gz",
+		"curl -fsSL \"$url\" -o /tmp/gitleaks.tgz",
+		"echo \"" + gitleaksSHA256 + "  /tmp/gitleaks.tgz\" | sha256sum -c -",
+		"tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks",
+		"install -m0755 /tmp/gitleaks /usr/local/bin/gitleaks",
+		"rm -f /tmp/gitleaks.tgz /tmp/gitleaks",
+		"gitleaks version",
+	}, "\n")
+
+	return dag.Container().
+		From(ubuntuImage).
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{
+			"apt-get", "install", "-y", "--no-install-recommends",
+			"curl", "ca-certificates",
+		}).
+		WithExec([]string{"bash", "-c", install})
 }
 
 // denyBase is the container for cargo-deny: the pinned MSRV rust image (cargo on

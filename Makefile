@@ -755,6 +755,15 @@ lint-workflow-reachability:
 test-workflow-reachability-gate:
 	@bash tools/tests/workflow_job_reachability_test.sh
 
+# Red-capability pin for .gitleaks.toml, the config behind the repository's only
+# executing secret scanner (#1208). Runs inside the Dagger `secret-scan` gate on
+# every push; this target is the local half, and needs `gitleaks` on PATH.
+# Deliberately NOT in `preflight`: preflight must not require a tool that only the
+# security leg's container installs.
+.PHONY: test-secret-scan-gate
+test-secret-scan-gate:
+	@bash tools/tests/gitleaks_allowlist_test.sh
+
 .PHONY: lint-preflight-parity
 lint-preflight-parity:
 	@python3 tools/check-preflight-parity.py
