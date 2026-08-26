@@ -55,7 +55,9 @@ jobs:
       uses: taiki-e/install-action@cargo-deny
 
     - name: Check licenses, advisories, bans, and sources
-      run: cargo deny check
+      # -D unmatched-skip-root / -D unmatched-skip: both default to WARN, so a stale
+      # exact-version skip pin covers nothing and this step still passes (#1020).
+      run: cargo deny check -D unmatched-skip-root -D unmatched-skip
 
   container-security:
      name: Container Security Scan (Government Grade)

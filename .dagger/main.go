@@ -401,6 +401,12 @@ func (m *FraiseqlCi) ShellGates(
 		// 1 test out of 2828 (#1169). Bidirectional — a local-only extra line
 		// falsifies the target's claim in the other direction.
 		"python3 tools/check-integration-parity.py",
+		// cargo-deny's unmatched-skip lints default to WARN, so a stale exact-version
+		// [[bans.skip-tree]] pin covers NOTHING while `cargo deny check` still exits 0.
+		// The level cannot be set in deny.toml, so `-D` lives on three command lines;
+		// this keeps them in lockstep (#1020, #933).
+		"python3 tools/check-deny-lint-flags.py",
+		"bash tools/tests/deny_lint_flags_test.sh",
 		"make test-integration-parity",
 		// The bare-DATABASE_URL gate above ran here for its whole life without ever
 		// being able to reject anything (#1075). Its red capability is now pinned.

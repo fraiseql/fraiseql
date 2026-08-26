@@ -791,7 +791,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity lint-deny-flags test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-deny-flags-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1064,6 +1064,23 @@ audit:
 lint-deadlines:
 	bash tools/check-deadlines.sh
 
+# Gate: every `cargo deny check` invocation that covers `bans` must escalate
+# cargo-deny's unmatched-skip lints to errors. Both default to WARN, so a
+# [[bans.skip-tree]]/[[bans.skip]] entry whose exact-version pin has gone stale
+# covers nothing and the run still exits 0 (#1020; #933 is what that looks like
+# downstream). The level cannot be set in deny.toml, so it lives on three command
+# lines — which is the drift shape this gate exists to pin.
+.PHONY: lint-deny-flags
+lint-deny-flags:
+	@python3 tools/check-deny-lint-flags.py
+
+# Unit tests for the gate above. Its red capability is worth pinning: two of its
+# assertions cover verdicts an earlier draft got silently wrong (a substring match,
+# and a neighbouring command's flags counting toward a flagless invocation).
+.PHONY: test-deny-flags-gate
+test-deny-flags-gate:
+	@bash tools/tests/deny_lint_flags_test.sh
+
 # Gate: the default fraiseql-server build must link exactly one rustls crypto
 # provider (ring) and one rustls major (M-dual-crypto). cargo-deny cannot express
 # this — ring and aws-lc-rs are distinct crates, so a dual-provider build looks fine
@@ -1079,7 +1096,8 @@ security:
 	bash tools/check-audit-lockstep.sh
 	bash tools/check-deadlines.sh
 	bash tools/check-crypto-providers.sh
-	cargo deny check
+	python3 tools/check-deny-lint-flags.py
+	cargo deny check -D unmatched-skip-root -D unmatched-skip
 	cargo audit
 	@echo "Security checks passed"
 
