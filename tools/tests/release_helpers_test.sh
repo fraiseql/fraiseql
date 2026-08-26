@@ -310,6 +310,95 @@ check "bump-docs: no stale released-version claim remains" \
 bump_doc_status_lines 2.16.0 "$WORK/does-not-exist.md"
 check "bump-docs: a missing file is skipped, not fatal" "$?" "0"
 
+# ── bump_readme_install_snippet ────────────────────────────────────────────────
+#
+# The step this replaces was either a no-op or a corruption of the release record, and
+# which one you got was decided by prose elsewhere in the file (#1146). Both halves are
+# asserted here, against a README carrying the exact two lines that produced the defect.
+
+cat >"$WORK/README.md" <<'FIXTURE'
+# FraiseQL
+
+Non-PostgreSQL adapters were removed in v2.15.0 — they had never been exercised
+against a real database and failed on the primary query shape.
+
+```toml
+[dependencies]
+fraiseql = { version = "2.8", features = ["server"] }
+```
+FIXTURE
+
+bump_readme_install_snippet 2.16.0 "$WORK/README.md"
+
+check "bump-readme: install snippet pinned to the release version" \
+    "$(grep -c 'fraiseql = { version = "2.16.0", features = \["server"\] }' "$WORK/README.md")" "1"
+check "bump-readme: the stale 2.8 pin is gone" \
+    "$(grep -c 'version = "2.8"' "$WORK/README.md")" "0"
+# THE one that matters. The old step's blanket `s/vX.Y.Z/v${VERSION}/g` rewrote this
+# sentence about a PAST removal — corrupting the release record — whenever its guard
+# happened not to fire.
+check "bump-readme: the historical 'removed in v2.15.0' sentence is untouched" \
+    "$(grep -c 'removed in v2.15.0' "$WORK/README.md")" "1"
+
+# And the other half: the old guard was `grep -qF "v${VERSION}"`, which that same
+# historical sentence satisfies — so cutting 2.15.0 printed "already at v2.15.0 —
+# skipping" and did nothing. The anchored helper has no guard to be fooled.
+cat >"$WORK/README-guard.md" <<'FIXTURE'
+Non-PostgreSQL adapters were removed in v2.15.0 — a past change.
+fraiseql = { version = "2.8", features = ["server"] }
+FIXTURE
+bump_readme_install_snippet 2.15.0 "$WORK/README-guard.md"
+check "bump-readme: a historical mention of the SAME version does not skip the bump" \
+    "$(grep -c 'version = "2.15.0"' "$WORK/README-guard.md")" "1"
+
+bump_readme_install_snippet 2.16.0 "$WORK/no-such-readme.md"
+check "bump-readme: a missing file is skipped, not fatal" "$?" "0"
+
+# ── rotate_changelog_links ─────────────────────────────────────────────────────
+#
+# Without the link definitions every `## [x.y.z]` heading is a dead link on GitHub and
+# on the release page (#1131). Writing the block once is not enough — it goes stale one
+# release later, which is how #1129, #1134 and #1146 all happened. So the rotation is
+# part of the cut, and it is asserted here.
+
+REPO_URL="https://example.invalid/o/r"
+cat >"$WORK/CHANGELOG.md" <<FIXTURE
+## [Unreleased]
+
+## [2.14.1] - 2026-07-24
+
+[Unreleased]: ${REPO_URL}/compare/v2.14.1...HEAD
+[2.14.1]: ${REPO_URL}/compare/v2.14.0...v2.14.1
+FIXTURE
+
+rotate_changelog_links 2.15.0 "$WORK/CHANGELOG.md" "$REPO_URL"
+
+check "rotate-links: the cut version gets a compare definition" \
+    "$(grep -c "^\[2.15.0\]: ${REPO_URL}/compare/v2.14.1...v2.15.0$" "$WORK/CHANGELOG.md")" "1"
+check "rotate-links: [Unreleased] now compares from the version just cut" \
+    "$(grep -c "^\[Unreleased\]: ${REPO_URL}/compare/v2.15.0...HEAD$" "$WORK/CHANGELOG.md")" "1"
+check "rotate-links: the previous release's definition is left alone" \
+    "$(grep -c "^\[2.14.1\]: ${REPO_URL}/compare/v2.14.0...v2.14.1$" "$WORK/CHANGELOG.md")" "1"
+check "rotate-links: exactly one [Unreleased] definition remains" \
+    "$(grep -c '^\[Unreleased\]: ' "$WORK/CHANGELOG.md")" "1"
+
+# Idempotent: tools/release.sh is re-run after a partial failure, and every other step
+# here checks whether it is already done before acting.
+rotate_changelog_links 2.15.0 "$WORK/CHANGELOG.md" "$REPO_URL"
+check "rotate-links: re-running does not duplicate the version definition" \
+    "$(grep -c '^\[2.15.0\]: ' "$WORK/CHANGELOG.md")" "1"
+check "rotate-links: re-running leaves [Unreleased] where it is" \
+    "$(grep -c "^\[Unreleased\]: ${REPO_URL}/compare/v2.15.0...HEAD$" "$WORK/CHANGELOG.md")" "1"
+
+# A missing block is a hard error, not a silent skip: cutting without it ships every
+# heading as a dead link again, which is the state #1131 was filed for.
+printf '## [Unreleased]\n\n## [2.14.1] - 2026-07-24\n' >"$WORK/CHANGELOG-noblock.md"
+set +e
+rotate_changelog_links 2.15.0 "$WORK/CHANGELOG-noblock.md" "$REPO_URL" >/dev/null 2>&1
+rc=$?
+set -e
+check "rotate-links: a missing link block fails loudly" "$rc" "1"
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""

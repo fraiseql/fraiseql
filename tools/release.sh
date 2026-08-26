@@ -9,7 +9,7 @@
 #   1. Validates VERSION as a semver string.
 #   2. Bumps version in workspace Cargo.toml and all crate Cargo.toml files.
 #   3. Updates CHANGELOG.md — promotes [Unreleased] to a versioned section.
-#   4. Updates the version badge in README.md.
+#   4. Pins README.md's install snippet to the version being released.
 #   5. Commits all changes.
 #   6. Creates an annotated git tag with the CHANGELOG notes as the message.
 #
@@ -141,18 +141,25 @@ else
     echo "      Added ${VERSIONED_HEADER} to CHANGELOG.md"
 fi
 
-# ── Step 3: Update README.md version badge ────────────────────────────────────
+# Rotate the Keep a Changelog link definitions so the new heading is not a dead
+# link and [Unreleased] stops comparing from the previous release (#1131).
+# Idempotent, like every other step here.
+rotate_changelog_links "$VERSION" "$CHANGELOG"
+echo "      Rotated CHANGELOG link definitions."
 
-echo "[3/7] Updating README.md version badge..."
+# ── Step 3: Pin README.md's install snippet ───────────────────────────────────
+
+echo "[3/7] Pinning README.md install snippet..."
 
 README="README.md"
-if grep -qF "v${VERSION}" "$README"; then
-    echo "      README.md badge already at v${VERSION} — skipping."
-else
-    # Replace version strings in badge URLs (shields.io badge format)
-    sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+\(-[a-zA-Z0-9.]*\)\?/v${VERSION}/g" "$README"
-    echo "      Updated version references in README.md"
-fi
+# The README has no version badge — the only version-tracking text on the page is the
+# Rust install snippet. This step used to guard on `grep -qF "v${VERSION}"`, which a
+# HISTORICAL sentence about a past removal satisfied, so it printed "already at
+# v${VERSION} — skipping" and did nothing; and its blanket `sed` would have rewritten
+# that same historical sentence had the guard ever missed. Anchored now, on what the
+# line means (#1146).
+bump_readme_install_snippet "$VERSION" "$README"
+echo "      README install snippet pinned to ${VERSION}."
 
 # ── Step 4: cargo check to validate version bump didn't break anything ─────────
 

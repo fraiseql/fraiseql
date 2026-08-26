@@ -12608,3 +12608,39 @@ transforms schema definitions into optimized SQL at build time.
 - 19 E2E SQL injection prevention tests
 - 27 auth bypass and JWT tampering detection tests
 - No internal details leaked in error responses (verified by property tests)
+
+<!--
+Keep a Changelog link definitions. Every `## [x.y.z]` heading above resolves through
+one of these; without them each heading renders as a dead link on GitHub and on the
+release page (#1131).
+
+`tools/release.sh` rotates the top two lines at cut time (rotate_changelog_links in
+tools/lib/release_helpers.sh), so this block does not go stale one release after
+being written.
+
+2.1.6 has NO definition on purpose: no v2.1.6 tag exists in this repository, so any
+link for it would be a guaranteed 404. An undefined reference renders as literal
+text, which is the honest outcome; a broken link is not.
+-->
+[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.14.1...HEAD
+[2.15.0]: https://github.com/fraiseql/fraiseql/compare/v2.14.1...v2.15.0
+[2.14.1]: https://github.com/fraiseql/fraiseql/compare/v2.14.0...v2.14.1
+[2.14.0]: https://github.com/fraiseql/fraiseql/compare/v2.13.1...v2.14.0
+[2.13.1]: https://github.com/fraiseql/fraiseql/compare/v2.13.0...v2.13.1
+[2.13.0]: https://github.com/fraiseql/fraiseql/compare/v2.12.0...v2.13.0
+[2.12.0]: https://github.com/fraiseql/fraiseql/compare/v2.11.0...v2.12.0
+[2.11.0]: https://github.com/fraiseql/fraiseql/compare/v2.10.0...v2.11.0
+[2.10.0]: https://github.com/fraiseql/fraiseql/compare/v2.9.0...v2.10.0
+[2.9.0]: https://github.com/fraiseql/fraiseql/compare/v2.8.0...v2.9.0
+[2.8.0]: https://github.com/fraiseql/fraiseql/compare/v2.7.0...v2.8.0
+[2.7.0]: https://github.com/fraiseql/fraiseql/compare/v2.5.0...v2.7.0
+[2.5.0]: https://github.com/fraiseql/fraiseql/compare/v2.4.0...v2.5.0
+[2.4.0]: https://github.com/fraiseql/fraiseql/compare/v2.3.2...v2.4.0
+[2.3.2]: https://github.com/fraiseql/fraiseql/compare/v2.3.1...v2.3.2
+[2.3.1]: https://github.com/fraiseql/fraiseql/compare/v2.3.0...v2.3.1
+[2.3.0]: https://github.com/fraiseql/fraiseql/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/fraiseql/fraiseql/compare/v2.1.5...v2.2.0
+[2.1.5]: https://github.com/fraiseql/fraiseql/compare/v2.1.4...v2.1.5
+[2.1.4]: https://github.com/fraiseql/fraiseql/compare/v2.1.3...v2.1.4
+[2.1.3]: https://github.com/fraiseql/fraiseql/compare/v2.1.0...v2.1.3
+[2.1.0]: https://github.com/fraiseql/fraiseql/releases/tag/v2.1.0

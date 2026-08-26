@@ -4,7 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/fraiseql.svg)](https://crates.io/crates/fraiseql)
 [![Test Coverage](https://img.shields.io/badge/tests-10000%2B-brightgreen.svg)](./crates/fraiseql-core/tests/)
-![Build](https://github.com/fraiseql/fraiseql/actions/workflows/ci.yml/badge.svg)
+[![preflight](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-preflight.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-preflight.yml)
+[![security](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-security.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/dagger-security.yml)
 
 **Compiled GraphQL execution engine.** Define schemas in Python or TypeScript, compile to optimized SQL at build time, execute with predictable sub-10ms latency.
 

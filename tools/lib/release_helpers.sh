@@ -201,6 +201,72 @@ bump_doc_status_lines() {
     done
 }
 
+# Rewrite README.md's install snippet to the version being released.
+#
+# Replaces tools/release.sh's step 3, which could not do this and was worse than
+# nothing (#1146). That step was:
+#
+#     if grep -qF "v${VERSION}" "$README"; then  skip  else  sed -i "s/vX.Y.Z/v${VERSION}/g"
+#
+# Two independent defects, and which one you got was decided by prose elsewhere in the
+# file:
+#
+#   – The guard was satisfied by a HISTORICAL mention. README.md carries the sentence
+#     "…v2.15.0 — they had never been exercised against a real database…", about a past
+#     removal. `grep -qF "v2.15.0"` matches it, so a 2.15.0 cut printed "badge already at
+#     v2.15.0 — skipping" and did nothing. Observed in the #1134 rehearsal.
+#   – When it did run, the pattern could not match the snippet anyway (`version = "2.8"`
+#     has no `v` prefix and two components), while the blanket `/g` WOULD have rewritten
+#     that historical sentence — corrupting the release record.
+#
+# The README has no version badge at all; the only version-tracking text is the install
+# snippet. So this is anchored on what the line MEANS, like bump_deploy_artifacts and
+# bump_doc_status_lines, and never on a bare version shape.
+#
+# Usage: bump_readme_install_snippet <version> <README.md>
+bump_readme_install_snippet() {
+    local version="$1" readme="$2"
+    [ -f "$readme" ] || return 0
+    sed -i -E "s|^(fraiseql = \{ *version *= *)\"[^\"]*\"|\1\"${version}\"|" "$readme"
+}
+
+# Rotate CHANGELOG.md's Keep a Changelog link definitions at cut time.
+#
+# The file follows Keep a Changelog — `## [Unreleased]` and `## [x.y.z]` headings — but
+# defined none of the link targets the convention specifies, so every version heading
+# rendered as a dead link on GitHub and on every release page (#1131). The block is now
+# in the file; this keeps it from going stale one release later, which is the state that
+# produced #1129, #1134 and #1146.
+#
+# Idempotent, like every other step in tools/release.sh: if the version already has a
+# definition, only the `[Unreleased]` anchor is re-pointed.
+#
+# Usage: rotate_changelog_links <version> <CHANGELOG.md> [repo_url]
+rotate_changelog_links() {
+    local version="$1" changelog="$2"
+    local repo="${3:-https://github.com/fraiseql/fraiseql}"
+    [ -f "$changelog" ] || return 0
+
+    # The current anchor: `[Unreleased]: <repo>/compare/vPREV...HEAD`.
+    local prev
+    prev="$(sed -nE 's|^\[Unreleased\]: .*/compare/v([^.]+\.[^.]+\.[^.]+)\.\.\.HEAD[[:space:]]*$|\1|p' "$changelog" | head -1)"
+
+    if [ -z "$prev" ]; then
+        echo "ERROR: rotate_changelog_links: no '[Unreleased]: …/compare/vX.Y.Z...HEAD' line in $changelog." >&2
+        echo "       The link-definition block is missing or malformed. Restore it before cutting," >&2
+        echo "       or every version heading ships as a dead link again (#1131)." >&2
+        return 1
+    fi
+
+    if ! grep -qE "^\[${version//./\.}\]: " "$changelog"; then
+        # Insert the new version's line directly after the [Unreleased] anchor.
+        sed -i -E "s|^(\[Unreleased\]: .*)$|\1\n[${version}]: ${repo}/compare/v${prev}...v${version}|" "$changelog"
+    fi
+
+    # Re-point [Unreleased] at the version just cut.
+    sed -i -E "s|^\[Unreleased\]: .*/compare/v[^.]+\.[^.]+\.[^.]+\.\.\.HEAD[[:space:]]*$|[Unreleased]: ${repo}/compare/v${version}...HEAD|" "$changelog"
+}
+
 # Honesty gate for the SDK publish jobs: refuse to publish when the SDK manifest
 # version does not match the release version being published. This is the exact
 # frozen state — the manifest stuck at 2.1.6 while v2.3.0–v2.6.0 tags were cut —
