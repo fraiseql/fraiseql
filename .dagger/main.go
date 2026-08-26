@@ -405,6 +405,11 @@ func (m *FraiseqlCi) ShellGates(
 		// [[bans.skip-tree]] pin covers NOTHING while `cargo deny check` still exits 0.
 		// The level cannot be set in deny.toml, so `-D` lives on three command lines;
 		// this keeps them in lockstep (#1020, #933).
+		// A Rust base image older than [workspace.package] rust-version cannot build
+		// this workspace at all, and docker-build.yml is tag-only — so without this
+		// the first witness to a stale pin is the release itself (#1107).
+		"bash tools/check-dockerfile-msrv.sh",
+		"bash tools/tests/dockerfile_msrv_test.sh",
 		"python3 tools/check-deny-lint-flags.py",
 		"bash tools/tests/deny_lint_flags_test.sh",
 		"make test-integration-parity",

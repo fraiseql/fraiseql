@@ -791,7 +791,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity lint-deny-flags test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-deny-flags-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-deny-flags-gate test-dockerfile-msrv-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1063,6 +1063,22 @@ audit:
 .PHONY: lint-deadlines
 lint-deadlines:
 	bash tools/check-deadlines.sh
+
+# Gate: no Dockerfile's Rust base image may be older than [workspace.package]
+# rust-version. The release Dockerfile pinned rust:1.92-slim against a 1.94 MSRV and
+# could not have built the workspace at all; docker-build.yml is tag-only, so the
+# first witness would have been the release (#1107). Floating tags (rust:latest,
+# rust:1-slim) are deliberately allowed — they cannot be older than the MSRV.
+.PHONY: lint-dockerfile-msrv
+lint-dockerfile-msrv:
+	@bash tools/check-dockerfile-msrv.sh
+
+# Unit tests for the gate above — its boundaries are what matter: rust:1.94 floats
+# the patch and must pass a 1.94.1 MSRV, rust:1.94.0 must not, and 1.100.0 must
+# compare as a version rather than a string.
+.PHONY: test-dockerfile-msrv-gate
+test-dockerfile-msrv-gate:
+	@bash tools/tests/dockerfile_msrv_test.sh
 
 # Gate: every `cargo deny check` invocation that covers `bans` must escalate
 # cargo-deny's unmatched-skip lints to errors. Both default to WARN, so a
