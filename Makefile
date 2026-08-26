@@ -739,6 +739,22 @@ lint-sdk-workflows:
 # Gate: `make preflight` must run everything the Dagger ShellGates leg runs, or
 # its "Safe to push" line is false. Two lists maintained by hand in two files
 # drift silently, and did twice (#1135).
+# Gate: no job may be gated on an event or a ref its own workflow cannot receive.
+# The 2026-05-31 Dagger migration stripped push-to-branch and pull_request triggers
+# and left the job conditions that referenced them behind, so docker-build.yml kept
+# two jobs that read as image coverage and had never once run — an unreachable job
+# is absent from the checks list, not reported as skipped (#1206).
+.PHONY: lint-workflow-reachability
+lint-workflow-reachability:
+	@python3 tools/check-workflow-job-reachability.py
+
+# Red-capability pin for the gate above, in both directions: it must flag the
+# shapes that cannot run, and must NOT flag any trigger form this repo uses — a
+# false positive there costs a real job.
+.PHONY: test-workflow-reachability-gate
+test-workflow-reachability-gate:
+	@bash tools/tests/workflow_job_reachability_test.sh
+
 .PHONY: lint-preflight-parity
 lint-preflight-parity:
 	@python3 tools/check-preflight-parity.py
@@ -791,7 +807,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

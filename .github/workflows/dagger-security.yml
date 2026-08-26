@@ -11,9 +11,13 @@ name: Dagger — security
 # advisory-db cache volume. See parity-notes.md.
 #
 # NOT ported (stay GitHub-native / dispatch-only, same precedent as CodeQL):
-# secrets-scan (TruffleHog PR-diff), container-security (Trivy + SARIF upload to GH
-# Code Scanning), dependency-review (GH Dependency-Graph API). security.yml and
-# security-compliance.yml remain workflow_dispatch as the porting spec / GH-native home.
+# container-security (Trivy + SARIF upload to GH Code Scanning), dependency-review
+# (GH Dependency-Graph API). security.yml and security-compliance.yml remain
+# workflow_dispatch as the porting spec / GH-native home.
+#
+# secrets-scan (TruffleHog) was on that list until #1206: it was gated on a
+# pull_request its workflow could not receive and had never run. It is deleted and
+# unreplaced — no secret scanner executes in any leg. See #1208.
 #
 # push-only by design: push events are inherently same-repo (forks cannot push
 # here), so the self-hosted runner never sees fork code — `pull_request` is

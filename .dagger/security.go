@@ -11,9 +11,12 @@ package main
 //
 // NOT ported — these bind to GitHub infrastructure, same precedent as the plan
 // keeping CodeQL GitHub-native (README "Out of scope"); they stay dispatch-only:
-//   - secrets-scan      (TruffleHog, scans the PR diff via GH event SHAs)
 //   - container-security (Trivy 45-min image scan + SARIF upload to GH Code Scanning)
 //   - dependency-review (GitHub Dependency-Graph API, PR-only)
+// The TruffleHog secrets-scan job was in this list too. It was gated on a
+// pull_request its workflow could not receive, so it had never run; it is deleted
+// (#1206) and NOTHING replaces it yet — no secret scanner executes anywhere in CI.
+// That is #1208, not a deferral this file can lean on.
 // See parity-notes.md.
 
 import (
@@ -183,8 +186,10 @@ func (m *FraiseqlCi) DefaultBuildMinimums(
 
 // Compliance mirrors security-compliance.yml's compliance-check job: required
 // security/policy files must exist (hard fail), plus two advisory greps (nginx
-// security headers, hardcoded-secret patterns) that warn but never fail — the
-// TruffleHog secrets-scan is the authoritative secret gate and stays GitHub-native.
+// security headers, hardcoded-secret patterns) that warn but never fail. They were
+// advisory because TruffleHog was the authoritative secret gate; that job could not
+// run and is gone (#1206), so this warn-only grep is currently the ONLY secret check
+// in CI and it blocks nothing. #1208.
 // Pure shell, so it runs on the lightweight shellBase, not the Rust container.
 func (m *FraiseqlCi) Compliance(
 	ctx context.Context,

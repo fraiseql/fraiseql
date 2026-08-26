@@ -849,23 +849,29 @@ class _Lines:
         while body and not body[-1].strip():
             body.pop()
         if style.startswith(">"):
-            # Folded: a run of non-empty lines joins with spaces; a blank line is a
-            # newline. Indented continuation lines are literal in real YAML; nothing
-            # in these workflows relies on that, and treating them as folded would
-            # silently reshape a command, so refuse instead.
+            # Folded: a run of non-empty lines at the block indent joins with
+            # spaces; a blank line is a newline. A MORE-INDENTED line keeps its
+            # own line break on both sides — that is real YAML, not a special
+            # case, and it is how a multi-line `if:` indents its parenthesised
+            # arms (docker-build.yml). Folding those into the run would reshape a
+            # `run:` script, so they are emitted verbatim instead.
             folded, run = [], []
+
+            def _flush():
+                if run:
+                    folded.append(" ".join(run))
+                    run.clear()
+
             for line in body:
                 if not line.strip():
-                    if run:
-                        folded.append(" ".join(run))
-                        run = []
+                    _flush()
                     folded.append("")
                 elif line.startswith(" "):
-                    raise YamlError("indented line inside a folded (>) scalar")
+                    _flush()
+                    folded.append(line.rstrip())
                 else:
                     run.append(line.strip())
-            if run:
-                folded.append(" ".join(run))
+            _flush()
             text = "\n".join(folded)
         else:
             text = "\n".join(body)

@@ -1,11 +1,12 @@
 name: Performance Baseline
 
-# Runs on every push to main/dev to establish a regression baseline.
-# Results are archived as artifacts for trend analysis over time.
+# Runs the k6 load test against a release build and archives the result.
 #
-# On pushes to main/dev the job FAILS when thresholds are exceeded, preventing
-# performance regressions from landing. On labeled PRs, threshold failures are
-# advisory because runner hardware varies between CI runs.
+# Dispatch-only since the 2026-05-31 Dagger migration stripped its push/PR triggers.
+# The job kept a `push || PR-labelled-perf` condition that no dispatch can satisfy,
+# so pressing Run executed nothing and reported success (#1206); the condition is
+# gone. The steps that download, compare and save a baseline are still push/PR-gated
+# and so are still dead — tracked in #1207.
 #
 # To run locally:
 #   docker compose -f docker/docker-compose.test.yml up -d postgres
@@ -26,8 +27,6 @@ jobs:
     name: Load test (k6)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Only run if this is a push or a PR with the "perf" label
-    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'perf')
 
     services:
       postgres:

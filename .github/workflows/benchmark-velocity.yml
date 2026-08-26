@@ -11,9 +11,11 @@ name: Velocitybench Regression Gate
 #   5. Compare the JSON output against benchmarks/baseline.json
 #   6. Post a before/after table as a PR comment; fail the job on regression
 #
-# Triggered:
-#   - Push to dev (establishes new baseline artifact)
-#   - PRs labeled "perf" (compares against dev baseline)
+# Triggered by manual dispatch only, since the 2026-05-31 Dagger migration stripped
+# the push and PR triggers. The job kept a `push || PR-labelled-perf` condition that
+# no dispatch can satisfy, so pressing Run executed nothing and reported success
+# (#1206); the condition is gone. The PR-comment and baseline-artifact steps are
+# still event-gated and so are still dead — tracked in #1207.
 #
 # To update the stored baseline after an intentional perf change:
 #   make bench-update-baseline
@@ -47,9 +49,6 @@ jobs:
     name: Velocitybench (fraiseql-tv, 30s)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: >
-      github.event_name == 'push' ||
-      contains(github.event.pull_request.labels.*.name, 'perf')
 
     steps:
       - name: Checkout fraiseql

@@ -19,27 +19,12 @@ jobs:
   # NOTE: dependency-review-action requires Dependency Graph enabled in repo settings
   # (https://github.com/fraiseql/fraiseql/settings/security_analysis).
   # Re-enable this job once the setting is turned on.
-
-  secrets-scan:
-    name: Secrets Detection
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # Only run on pull requests where there's always a diff to scan
-    # Push events to main can have BASE=HEAD which causes TruffleHog to error
-    if: github.event_name == 'pull_request'
-    steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-      with:
-        fetch-depth: 0
-
-    - name: Run TruffleHog OSS
-      # SECURITY: pinned to v3.93.7 to prevent supply-chain attacks via @main
-      uses: trufflesecurity/trufflehog@c3e599b7163e8198a55467f3133db0e7b2a492cb # v3.93.7
-      with:
-        path: ./
-        base: ${{ github.event.pull_request.base.sha }}
-        head: ${{ github.event.pull_request.head.sha }}
-        extra_args: --debug --only-verified
+  #
+  # The TruffleHog `secrets-scan` job that used to head this list was gated on a
+  # pull_request this workflow has not received since 2026-05-31, so it had never run
+  # — while .dagger/security.go and dagger-security.yml both deferred to it as the
+  # authoritative secret gate. Deleted with the rest of that class (#1206). The hole
+  # it leaves — no secret scanner runs anywhere — is #1208.
 
   license-scan:
     name: License Compliance
@@ -273,17 +258,14 @@ jobs:
     name: Security Gate ✅
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [secrets-scan, license-scan, container-security, dependency-audit, compliance-check]
+    needs: [license-scan, container-security, dependency-audit, compliance-check]
     if: always()
     steps:
       - name: Security compliance check
         run: |
-          # Check if all security jobs passed
-          # secrets-scan is skipped on push events (only runs on PRs) - that's OK
-          if [[ "${{ needs.secrets-scan.result }}" != "success" && "${{ needs.secrets-scan.result }}" != "skipped" ]]; then
-            echo "❌ Secrets scan failed - Security gate blocked"
-            exit 1
-          fi
+          # Check if all security jobs passed. No secret scan is listed: this
+          # gate tolerated `secrets-scan` being skipped, which is how a job that
+          # never ran at all stayed invisible here (#1206, #1208).
           if [[ "${{ needs.license-scan.result }}" != "success" ]]; then
             echo "❌ License compliance failed - Security gate blocked"
             exit 1

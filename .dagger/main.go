@@ -388,6 +388,13 @@ func (m *FraiseqlCi) ShellGates(
 		// suppresses every branch push; one was post-merge-only; and the official
 		// Ruby SDK's tests ran nowhere at all (#1119).
 		"python3 tools/check-sdk-workflow-coverage.py",
+		// A job `if:` may not name an event or a ref its own workflow cannot
+		// receive. The 2026-05-31 migration stripped triggers and left the
+		// conditions: docker-build.yml kept two jobs that read as image coverage
+		// and had never run, because an unreachable job is absent from the checks
+		// list rather than reported as skipped (#1206).
+		"python3 tools/check-workflow-job-reachability.py",
+		"bash tools/tests/workflow_job_reachability_test.sh",
 		// This list and the Makefile's `preflight:` target are two hand-maintained
 		// copies of one thing, so they drift, and `make preflight` says "Safe to
 		// push" over the difference. It had drifted twice when this landed (#1135).

@@ -148,6 +148,39 @@ PY
 then echo "PASS  \`on:\` is read as a key, not the boolean true"
 else echo "FAIL  \`on:\` is read as a key, not the boolean true"; TESTS_FAILED=$((TESTS_FAILED + 1)); fi
 
+# ── 3b. A folded scalar keeps its more-indented lines ────────────────────────
+#
+# `>` folds lines at the block indent into spaces, but a MORE-indented line is
+# literal — that is plain YAML, and it is how a multi-line `if:` indents its
+# parenthesised arms (docker-build.yml). The parser used to refuse that shape
+# rather than reshape it, which was harmless here (this gate skips workflows with
+# no `cargo test`) and FATAL for tools/check-workflow-job-reachability.py, which
+# reads every workflow. Folding those lines into the run would silently rewrite a
+# `run:` script, so what is asserted is that they are KEPT, not merely accepted.
+TESTS_RUN=$((TESTS_RUN + 1))
+if python3 - "$GATE" <<'PYX'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sc", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+sys.modules["sc"] = m
+spec.loader.exec_module(m)
+doc = m.parse_yaml(
+    "jobs:\n"
+    "  a:\n"
+    "    if: >-\n"
+    "      one && (\n"
+    "        two ||\n"
+    "        three\n"
+    "      )\n"
+)
+got = doc["jobs"]["a"]["if"]
+assert got == "one && (\n  two ||\n  three\n)", repr(got)
+folded = m.parse_yaml("k: >\n  a\n  b\n")["k"]
+assert folded == "a b\n", repr(folded)
+PYX
+then echo "PASS  a folded scalar keeps more-indented lines and folds the rest"
+else echo "FAIL  a folded scalar keeps more-indented lines and folds the rest"; TESTS_FAILED=$((TESTS_FAILED + 1)); fi
+
 # ── 4. A path filter that does not reach the suite's own source ──────────────
 #
 # The suite can then be broken in the same commit that fails to run it.

@@ -562,7 +562,9 @@ disagreed, and the promise was the part that was wrong.
   being stored; `None` stores unconditionally and is only correct when the value cannot have
   raced a mutation — a fixture, or a synchronous re-population. This is a parameter rather
   than a second "fenced" method on purpose: an unfenced overload left in place is a fail-open
-  default that every future caller can reach for by accident. See `### Fixed`
+  default that every future caller can reach for by accident. See `### Fixed` for the race
+  it closes.
+
 - **The release Docker image can be built again, and both stages stop installing a driver
   library nothing links (#1205, #1133).**
 
@@ -610,8 +612,6 @@ disagreed, and the promise was the part that was wrong.
   They were workspace members with no `license` field, so `cargo deny check licenses`
   reported `error[unlicensed]` for each and the full `cargo deny check` exited non-zero.
   Only cargo-deny evaluates this, in the `security` leg, so no compile could have caught it.
- for the race it
-  closes.
 
 - **`fraiseql_core::schema::BUILTIN_SCALARS` is now the compiler's own table, and the
   list it replaces is gone (#959).** It was `&[&str]`; it is now
@@ -6299,6 +6299,56 @@ disagreed, and the promise was the part that was wrong.
   Making the suites genuinely parallel-safe would cut local wall-clock substantially and
   remains worth doing; it is a much larger change and is deliberately not a prerequisite
   for this.
+
+- **Five CI jobs that could never run are gone, and the shape is now rejected mechanically
+  (#1206).** The 2026-05-31 Dagger migration stripped the `push`-to-branch and
+  `pull_request` **triggers** from a dozen workflows and left the **job conditions that
+  referenced them** in place. Nine such conditions survived. Nothing reported them: an
+  unreachable job is not skipped-and-reported, it is absent from the checks list entirely,
+  which is indistinguishable from a workflow that simply has fewer jobs.
+
+  Three were in `docker-build.yml`, the file that builds and publishes every image this
+  project ships, and they read as image coverage. `test-images` was `if: github.event_name
+  == 'pull_request'` in a workflow whose only triggers are a `v*` tag push and a dispatch.
+  `verify-deployment` required `github.ref == 'refs/heads/main'`, and the only push events
+  there are tag pushes, so the ref is never a branch. `publish-to-docker-hub`'s `main` and
+  `release/*` arms were dead for the same reason. Both jobs are **deleted rather than
+  repaired**: `test-images` asserted `docker image inspect` — that the image exists —
+  and `verify-deployment` swallowed compose failure with `|| true`, asserted
+  `{ __typename }`, which the GraphQL layer answers without touching the database, and
+  piped the response to `jq .` without inspecting it. Repairing them in place would have
+  preserved the impression that the tag path is covered.
+
+  Two more were whole workflows that did nothing at all. `perf-baseline.yml` and
+  `benchmark-velocity.yml` each have exactly one job, gated `push || PR-labelled-perf`
+  under a dispatch-only trigger: pressing **Run workflow** ran zero jobs and reported
+  success. Their conditions are gone, so a dispatch now runs what the file describes.
+
+  The fifth is the TruffleHog `secrets-scan` job, and it is the reason a deleted job can
+  matter more than a dead one: `.dagger/security.go` and `dagger-security.yml` both name
+  it the authoritative secret gate and skip secret scanning *because* of it, while the only
+  executing secret check in CI is a `grep` documented as warn-only. **No secret scanner
+  runs anywhere**, tracked as #1208; the comments that deferred to it now say so.
+
+  `tools/check-workflow-job-reachability.py` (preflight + `ShellGates`) makes the class
+  mechanical. It models the (event, ref-space) worlds a workflow's `on:` block can deliver
+  — `push` split by branch and tag filters, `pull_request`, `workflow_dispatch` on any
+  branch or tag, `release` on a tag, `workflow_call` as the caller's context — then
+  evaluates each job `if:` over them in three-valued logic, reporting a condition false in
+  every world, an arm that can never contribute (which is how a dead arm inside a job that
+  *can* run is caught), and an arm that is constant across every world. Anything the model
+  cannot decide is MAYBE and never produces a finding, so the gate can fail to report but
+  cannot report a job that is reachable; a ref pattern or an expression it cannot translate
+  is fatal rather than guessed. Its self-test (`tools/tests/workflow_job_reachability_test.sh`,
+  19 assertions) pins both directions — every trigger form this repo uses must stay
+  unflagged, since a false positive here costs a real job — plus the vacuous-scan guard:
+  an empty or missing workflow directory is a failure, not a pass.
+
+  Step-level `if:` conditions of the same class are **not** covered and are filed as #1207:
+  17 of them are dead, including all five in `benchmarks.yml`, which therefore benchmarks
+  and discards, and both in `generate-d2-diagrams.yml`, which cannot persist what it
+  generates. Most are report-the-result steps whose right repair may be restoring the
+  trigger rather than deleting the step — a CI-load decision, not a defect to sweep up.
 
 ### Security
 

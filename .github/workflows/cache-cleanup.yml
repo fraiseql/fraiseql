@@ -1,12 +1,13 @@
 name: Cache Cleanup
 
-# Two cleanup strategies:
-#   - PR closed/merged   → delete all caches for that PR's ref
-#   - Nightly (06:00 UTC) → delete caches older than 7 days, except dev/main
-# Manual dispatch is also supported via the Actions tab.
-
-# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). PR/schedule triggers
-# stripped; workflow_dispatch (with inputs) retained as porting spec. See .phases/dagger-adoption/.
+# Deletes caches older than N days, keeping refs/heads/dev and refs/heads/main.
+#
+# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). The PR and schedule
+# triggers were stripped and workflow_dispatch kept, so this runs only when a human
+# presses Run. The PR-close job that survived that strip was gated on a pull_request
+# this workflow could no longer receive and had never run since; it was deleted with
+# the rest of that class (#1206), and the second job's `!= 'pull_request'` guard — a
+# constant once the first job was gone — went with it.
 on:
   workflow_dispatch:
     inputs:
@@ -21,37 +22,8 @@ permissions:
   contents: read
 
 jobs:
-  pr-cleanup:
-    name: Delete caches for closed PR
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete caches for ${{ github.event.pull_request.head.ref }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
-        run: |
-          set -euo pipefail
-          echo "Listing caches for $PR_REF"
-          ids=$(gh cache list --ref "$PR_REF" --limit 100 --json id --jq '.[].id' || true)
-          if [ -z "$ids" ]; then
-            echo "No caches found for $PR_REF"
-            exit 0
-          fi
-          count=0
-          for id in $ids; do
-            if gh cache delete "$id"; then
-              count=$((count + 1))
-            else
-              echo "::warning::Failed to delete cache $id (may have been evicted concurrently)"
-            fi
-          done
-          echo "Deleted $count cache(s) for $PR_REF"
-
   age-cleanup:
     name: Delete caches older than N days
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Delete old caches (excluding dev/main)
