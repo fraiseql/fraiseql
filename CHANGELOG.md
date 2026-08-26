@@ -562,7 +562,55 @@ disagreed, and the promise was the part that was wrong.
   being stored; `None` stores unconditionally and is only correct when the value cannot have
   raced a mutation — a fixture, or a synchronous re-population. This is a parameter rather
   than a second "fenced" method on purpose: an unfenced overload left in place is a fail-open
-  default that every future caller can reach for by accident. See `### Fixed` for the race it
+  default that every future caller can reach for by accident. See `### Fixed`
+- **The release Docker image can be built again, and both stages stop installing a driver
+  library nothing links (#1205, #1133).**
+
+  `cargo build -p fraiseql-server` loads the whole workspace manifest before building
+  anything, so the six runnable example crates joining `[workspace] members` while the
+  builder stage copied only `crates/` and `deploy/` meant the image failed at its first
+  cargo invocation — `failed to load manifest for workspace member`. Not a partial build:
+  it could not be built at all.
+
+  Separately, `libpq-dev` + `pkg-config` (builder) and `libpq5` (runtime) were installed
+  for a driver this binary does not use — the PostgreSQL driver is the pure-Rust
+  `tokio-postgres` + rustls stack, and the built binary's only dynamic dependencies are
+  `libc`, `libm` and `libgcc_s`.
+
+  ⚠ Nothing in CI builds this file before a tag: `docker-build.yml` triggers only on
+  `push: tags`, and `release-smoke.yml` builds with `cargo build`. Both defects are now
+  covered by static gates in the required preflight leg
+  (`check-dockerfile-workspace-members.sh`, `check-dockerfile-msrv.sh`).
+
+- **A Dockerfile Rust base older than the workspace MSRV now fails on push (#1107).**
+
+  Nothing coupled `FROM …rust:<version>` to `[workspace.package] rust-version`, so the
+  release image once pinned `rust:1.92-slim` against a 1.94 MSRV — a pin that could not
+  build the workspace, invisible until the next tag. Floating tags (`rust:latest`,
+  `rust:1-slim`) stay allowed, and a two-component tag is compared on major.minor because
+  Docker resolves it to the newest patch.
+
+- **README.md's install snippet and CHANGELOG.md's version links are maintained rather
+  than merely written (#1146, #1131).**
+
+  The README's Rust install snippet pinned a version six minors behind the crate, and
+  `tools/release.sh`'s README step could not fix it: its guard was satisfied by a
+  *historical* sentence elsewhere on the page, so it skipped; and when it did run, its
+  blanket substitution rewrote that historical sentence while still failing to match the
+  snippet. It is now an anchored rewrite, gated by `check-docs-version.sh`.
+
+  `CHANGELOG.md` defined none of the Keep a Changelog link targets its headings reference,
+  so every version heading rendered as a dead link on GitHub and on every release page.
+  The definitions are now present and `tools/release.sh` rotates them at cut time.
+  The README's build badge pointed at `ci.yml`, retired in #951 — a badge that could never
+  be green — and now points at the two required Dagger checks.
+
+- **The six example crates declare the licence they are offered under (#1204).**
+
+  They were workspace members with no `license` field, so `cargo deny check licenses`
+  reported `error[unlicensed]` for each and the full `cargo deny check` exited non-zero.
+  Only cargo-deny evaluates this, in the `security` leg, so no compile could have caught it.
+ for the race it
   closes.
 
 - **`fraiseql_core::schema::BUILTIN_SCALARS` is now the compiler's own table, and the
@@ -6253,6 +6301,38 @@ disagreed, and the promise was the part that was wrong.
   for this.
 
 ### Security
+
+- **The `aws-*` client stack no longer resolves rustls 0.21, and four accepted advisories
+  are deleted rather than re-dated (#1111).**
+
+  `aws-sdk-s3` and `aws-sdk-kinesis` list `rustls` in their **own `default` feature**, and
+  that feature is `aws-smithy-runtime/tls-rustls` → `aws-smithy-http-client/legacy-rustls-ring`
+  → rustls 0.21.12 (EOL), with `hyper 0.14`, `h2 0.3.27` and `rustls-webpki 0.101.7` behind
+  it. Selecting the SDKs' default sets by name, minus `rustls`, removes all of it:
+  `Cargo.lock` now carries `rustls 0.23.42`, `hyper 1.10.1` and `h2 0.4.16` only.
+
+  RUSTSEC-2026-0098, -0099, -0104 (rustls-webpki certificate-validation defects) and
+  **-0258** (h2 unbounded empty DATA frames) are therefore **removed** from `deny.toml`,
+  `.cargo/audit.toml` and `docs/dependency-risk-policy.md` — the vulnerable crates are
+  gone, not tolerated. Accepted advisories drop from nine to five.
+
+  ⚠ The prior record said this needed a custom `hyper-rustls 0.27` `HttpClient` and that
+  "no feature selection fixes it". That was measured on `aws-config`'s features, which never
+  enable the legacy connector; and `default-https-client` had since become rustls 0.23 in
+  `aws-smithy-http-client` 1.3.0. No code changed — three dependency declarations did.
+
+  ⚠ Operators who enable `aws-s3` or `cdc-kinesis` now talk to AWS over rustls 0.23. The
+  handshake is exercised against real AWS, not only against a plaintext LocalStack.
+
+- **A stale `deny.toml` skip pin now fails the security gate instead of warning under a
+  storm of unrelated errors (#1020).**
+
+  cargo-deny reports `unmatched-skip-root` / `unmatched-skip` when a `[[bans.skip-tree]]`
+  or `[[bans.skip]]` entry matches nothing — but both default to WARN, so the run still
+  exits 0 while the entry silently skips nothing. Every `cargo deny check` invocation that
+  covers `bans` now passes `-D` for both, and `tools/check-deny-lint-flags.py` keeps the
+  three call sites in lockstep. The gate caught four stale entries on its first real change
+  (#1111's), which had been hiding three duplicate crates.
 
 - **The shared webhook freshness gate no longer does unchecked arithmetic on an
   unauthenticated timestamp header (#1049).**
