@@ -408,6 +408,10 @@ func (m *FraiseqlCi) ShellGates(
 		// A Rust base image older than [workspace.package] rust-version cannot build
 		// this workspace at all, and docker-build.yml is tag-only — so without this
 		// the first witness to a stale pin is the release itself (#1107).
+		// An uncopied [workspace] member means `cargo build -p fraiseql-server` cannot
+		// even load the manifest, so the release image cannot be built at all (#1205).
+		"bash tools/check-dockerfile-workspace-members.sh",
+		"bash tools/tests/dockerfile_workspace_members_test.sh",
 		"bash tools/check-dockerfile-msrv.sh",
 		"bash tools/tests/dockerfile_msrv_test.sh",
 		"python3 tools/check-deny-lint-flags.py",

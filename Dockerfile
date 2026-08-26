@@ -30,6 +30,11 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY deploy ./deploy
+# cargo loads the WHOLE workspace manifest before building anything, so every
+# [workspace] members entry must be present or `-p fraiseql-server` fails to
+# resolve. The example crates are members so `cargo clippy --workspace` covers
+# them; they are not built here. Gated by tools/check-dockerfile-workspace-members.sh.
+COPY examples ./examples
 
 RUN TARGET=$(cat /tmp/rust_target.txt) && \
     if [ -n "$CARGO_FEATURES" ]; then \

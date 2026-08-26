@@ -791,7 +791,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-deny-flags-gate test-dockerfile-msrv-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1063,6 +1063,20 @@ audit:
 .PHONY: lint-deadlines
 lint-deadlines:
 	bash tools/check-deadlines.sh
+
+# Gate: every [workspace] members entry must reach the release Dockerfile's builder
+# stage. cargo loads the whole workspace manifest before building anything, so an
+# uncopied member is not a partial build — the image cannot be built at all (#1205).
+.PHONY: lint-dockerfile-members
+lint-dockerfile-members:
+	@bash tools/check-dockerfile-workspace-members.sh
+
+# Unit tests for the gate above. The verdicts worth pinning are the silent ones: a
+# `COPY --from=` is a stage copy, a COPY in a later stage does not feed the builder,
+# and a member excluded by .dockerignore is copied as nothing.
+.PHONY: test-dockerfile-members-gate
+test-dockerfile-members-gate:
+	@bash tools/tests/dockerfile_workspace_members_test.sh
 
 # Gate: no Dockerfile's Rust base image may be older than [workspace.package]
 # rust-version. The release Dockerfile pinned rust:1.92-slim against a 1.94 MSRV and
