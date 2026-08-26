@@ -6350,6 +6350,30 @@ disagreed, and the promise was the part that was wrong.
   generates. Most are report-the-result steps whose right repair may be restoring the
   trigger rather than deleting the step — a CI-load decision, not a defect to sweep up.
 
+- **The examples-integrity gate stops failing in CI and passing everywhere else (#1213).**
+  `docker-compose.test.yml` bound `./tls/certs`, which is gitignored and produced by
+  `docker/tls/gen-certs.sh`. So the directory existed on every machine the gate was
+  developed on and on none of CI's, and the gate — which checks that a mounted host path
+  exists — was red on the runner and green for every developer. It was the only fatal
+  finding; the other 14 are known-broken and tolerated identically in both places.
+
+  The mount now names `./tls`, which is tracked, so the check passes on the tree rather
+  than on the machine. That alone would only move the problem, so the condition the empty
+  mount used to hide is now fatal: `00-tls.sh` refuses to start when the certificates are
+  absent, naming the generator to run, instead of bringing up a plaintext server that
+  every TLS assertion then fails against for a reason nothing states. Verified by parking
+  the certificates — the container exits 1 with that message and does not come up.
+
+  The certificates stay **host**-generated rather than being produced by an init
+  container, because the host-side tests verify-full against this server using the same CA
+  via `TLS_TEST_CA_CERT`; one chain has to be visible to both. `make db-up` already runs
+  the generator.
+
+  Recorded because it is the inverse of the usual lesson: the standing rule is to prove a
+  gate RED in the container's shape, since `git ls-files` returns nothing there. Here the
+  container's tree was *narrower* than the developer's, and the gate had only ever been
+  proved GREEN — on a tree carrying files no clone has.
+
 - **A secret scanner runs again, and it is provable that it does (#1208).** Deleting the
   unreachable TruffleHog job left the repository with no executing secret check at all —
   only a `grep` its own comments described as warn-only. `dagger call secret-scan` closes

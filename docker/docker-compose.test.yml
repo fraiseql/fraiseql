@@ -122,7 +122,19 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
     volumes:
-      - ./tls/certs:/tls-certs:ro
+      # ./tls, not ./tls/certs — the certs are GENERATED (gitignored) by
+      # ./tls/gen-certs.sh, so ./tls/certs does not exist in a fresh checkout.
+      # Binding it directly made Compose create an empty directory and mount that:
+      # the server then came up without TLS instead of failing, and the check that
+      # a mounted host path exists passed on any machine that had ever run the rig
+      # and failed everywhere else (#1213). ./tls is tracked, so this mount is
+      # honest in both places, and 00-tls.sh fails loudly if the certs are absent.
+      #
+      # They must be generated on the HOST rather than by an init container: the
+      # host-side tests verify-full against this server using the SAME CA via
+      # TLS_TEST_CA_CERT, so one chain has to be visible to both. `make db-up`
+      # runs the generator; run it directly if bringing this stack up by hand.
+      - ./tls:/tls-host:ro
       - ./init/postgres-tls-init.sh:/docker-entrypoint-initdb.d/00-tls.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
