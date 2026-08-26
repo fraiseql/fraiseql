@@ -8,7 +8,7 @@
 # 0.19.0, it leaves `advisories FAILED`). So when an advisory matches two instances of a
 # crate and only one of them is acceptable, ignoring it by id silences BOTH.
 #
-# RUSTSEC-2026-0258 is that case. `h2` appeared twice:
+# RUSTSEC-2026-0258 was that case. `h2` appeared twice:
 #
 #   h2 0.3.27  ← aws-smithy-http-client (hyper 0.14) ← aws-config   opt-in aws-* only,
 #              no fix exists in the 0.3 series → accepted in deny.toml with a deadline
@@ -16,9 +16,14 @@
 #              `axum::serve` speaks HTTP/2 by prior knowledge, so the unbounded empty-DATA-
 #              frame DoS was remotely triggerable → FIXED by bumping to 0.4.16
 #
-# deny.toml's ignore covers the first but necessarily also covers the second. This gate is
-# what keeps the second honest: if a dependency change ever drags an h2 older than 0.4.16
-# back into the default build, `cargo deny` will stay green and THIS will fail.
+# ⚠ THAT ACCEPTANCE IS GONE (#1111): the aws-* stack no longer resolves hyper 0.14, so
+# h2 0.3.27 has left the graph and deny.toml ignores RUSTSEC-2026-0258 no longer. The floor
+# below is therefore no longer COMPENSATING for an over-broad ignore — `cargo deny check
+# advisories` would now catch a regression directly. It is kept anyway, on its own merits:
+# the floor is on the shipped GraphQL listener, it was verified load-bearing when it
+# mattered, and re-deriving it after the next such acceptance is more expensive than
+# holding it. Do not read the paragraph above as a live constraint; read it as why the
+# mechanism exists.
 #
 # Scope note: this is deliberately about the DEFAULT feature set with normal edges — what a
 # default deployment actually compiles and ships. A crate that appears only behind an opt-in
@@ -43,8 +48,10 @@ fi
 # Every entry needs a comment naming WHY the floor exists, so a future reader can tell a
 # live constraint from a stale one and knows what to re-check before removing it.
 DEFAULT_MINIMUMS=(
-  # RUSTSEC-2026-0258 (unbounded empty DATA frames, GHSA-q83h-524g-xf6h). deny.toml accepts
-  # this advisory for the opt-in aws-* h2 0.3.27 only; the default build must stay patched.
+  # RUSTSEC-2026-0258 (unbounded empty DATA frames, GHSA-q83h-524g-xf6h) on the GraphQL
+  # listener. The deny.toml acceptance this once compensated for is gone (#1111); the floor
+  # stands on its own — `axum::serve` speaks HTTP/2 by prior knowledge, so an h2 below
+  # 0.4.16 in the default build is remotely triggerable.
   "h2@0.4.16"
 )
 

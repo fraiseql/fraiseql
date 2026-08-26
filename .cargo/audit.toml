@@ -30,15 +30,6 @@ ignore = [
   # fraiseql-server in the DEFAULT build. Accepted as a maintenance risk, not on absence.
   # deadline: 2026-10-01 — matches deny.toml; migrate fraiseql-wire off rustls-pemfile.
   "RUSTSEC-2025-0134",
-  # rustls-webpki name-constraint bugs; transitive via aws-smithy-http-client (rustls 0.21);
-  # opt-in aws-s3 and cdc-kinesis features only, absent from the default build.
-  # Re-assessed 2026-08-13 (#1103); the real fix is tracked as #1111.
-  # deadline: 2026-12-01 — matches deny.toml.
-  "RUSTSEC-2026-0098",
-  "RUSTSEC-2026-0099",
-  # rustls-webpki 0.101.7 CRL parsing panic; same root cause as 0098/0099.
-  # deadline: 2026-12-01 — matches deny.toml.
-  "RUSTSEC-2026-0104",
   # quick-xml DoS pair (published 2026-07-02); transitive via samael 0.0.21 (auth-saml opt-in
   # only, NOT default build); samael pins quick-xml 0.37.5, no fix in range.
   # deadline: 2026-10-01 — matches deny.toml.
@@ -49,14 +40,7 @@ ignore = [
   # ⚠ CORRECTED 2026-08-16 (#1137): "transitive via rayon (criterion dev-deps)" was false —
   # it arrives via moka 0.12 -> fraiseql-core in the DEFAULT build. Accepted on usage.
   # deadline: 2026-10-01 — matches deny.toml.
-  "RUSTSEC-2026-0204",
-  # ⚠ Unavoidably BROADER than deny.toml's entry. cargo-audit's ignore list is keyed by
-  # advisory id alone and cannot be scoped to a crate version, whereas deny.toml scopes this
-  # to `h2@0.3.27` (the opt-in aws-* path, which has no 0.3-series fix). The default build's
-  # h2 is 0.4.16 and unaffected, so the two agree today — but if a future change drags a
-  # vulnerable h2 back under hyper, `cargo deny` will still catch it and `make audit` will
-  # NOT. deny.toml is the gate that matters here; keep this entry in lockstep, not in charge.
-  "RUSTSEC-2026-0258"
+  "RUSTSEC-2026-0204"
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.

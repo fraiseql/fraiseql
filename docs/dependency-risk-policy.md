@@ -42,10 +42,12 @@ scope an advisory ignore to one crate version: `[advisories] ignore` accepts onl
 vulnerability at all. So when one advisory matches two resolved versions of a crate and only
 one of them is acceptable, ignoring it by id silences both. Where that happens, the
 default-build half must be pinned by `tools/check-default-build-minimums.sh`, which fails when
-a crate in the default build falls below a declared floor. RUSTSEC-2026-0258 is the case on
-record: `h2@0.3.27` is accepted below, while `h2` under hyper/axum is held at ≥ 0.4.16 by that
-gate — verified load-bearing, since restoring 0.4.15 leaves `cargo deny check advisories`
-reporting `advisories ok` and only the floor gate red.
+a crate in the default build falls below a declared floor. RUSTSEC-2026-0258 was the case on
+record — `h2@0.3.27` accepted for the opt-in aws-* path while `h2` under hyper/axum was held at
+≥ 0.4.16 by that gate. That acceptance is **resolved** (see *Resolved acceptances* below) and no
+current row has this shape, but the `h2@0.4.16` floor is kept: it was verified load-bearing
+(restoring 0.4.15 left `cargo deny check advisories` reporting `advisories ok` and only the
+floor gate red), and a security floor on the shipped listener is worth holding on its own.
 
 The **Exposure** column is machine-readable, and is checked against the real dependency graph
 on every run of the Dagger `security` leg:
@@ -59,19 +61,16 @@ on every run of the Dagger `security` leg:
 `-e normal` excludes dev- and build-dependency edges, so "not in the shipped binary" is
 established by construction rather than asserted in prose. Every crate is named **with its
 version**: two versions of the same crate can coexist, and an unqualified spec is ambiguous
-(see the RUSTSEC-2026-0098 row).
+— `deny.toml` carries two `hashbrown` and two `getrandom` acceptances for exactly
+that reason.
 
 | Advisory | Crate | Path | Exposure | Mitigation | Deadline |
 |----------|-------|------|----------|------------|---------|
 | RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 → `fraiseql-auth` | `default-build` | No fixed `rsa` release exists. The exposure is RS256 access-token signing (`session_postgres.rs:175`), an attacker-triggerable private-key operation — the shape Marvin targets. Re-argue on this path by the deadline; do not re-approve on the old `sqlx-mysql` text | 2026-10-01 |
 | RUSTSEC-2025-0134 | `rustls-pemfile@2.2.0` | direct dependency of `fraiseql-wire`; optional in `fraiseql-db` | `default-build` | Deprecated/unmaintained-crate advisory, not an exploitable defect, so presence in the build is not itself an exploit path. Blocked on `bollard` migrating off `pem` 0.x upstream | 2026-10-01 |
-| RUSTSEC-2026-0098 | `rustls-webpki@0.101.7` | `aws-smithy-http-client` (rustls 0.21) → `aws-config` | `feature-gated:aws-s3` | Certificate-validation defect reachable only on a TLS handshake an `aws-*` client makes against a hostile or misissued chain. Not in the default build; not remotely triggerable by a FraiseQL client. Blocked on the aws stack reaching rustls 0.23 (#1111) | 2026-12-01 |
-| RUSTSEC-2026-0099 | `rustls-webpki@0.101.7` | `aws-smithy-http-client` (rustls 0.21) → `aws-config` | `feature-gated:aws-s3` | Same root cause and same reasoning as RUSTSEC-2026-0098 | 2026-12-01 |
-| RUSTSEC-2026-0104 | `rustls-webpki@0.101.7` | `aws-smithy-http-client` (rustls 0.21) → `aws-config` | `feature-gated:aws-s3` | CRL-parsing panic; same root cause and same reasoning as RUSTSEC-2026-0098 | 2026-12-01 |
 | RUSTSEC-2026-0194 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Quadratic run time checking a start tag for duplicate attribute names. SAML SP only, opt-in; `samael` pins `quick-xml` 0.37.5 and no fix is in range | 2026-10-01 |
 | RUSTSEC-2026-0195 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Unbounded namespace-declaration allocation in `NsReader`. Same path and same upstream block as RUSTSEC-2026-0194 | 2026-10-01 |
 | RUSTSEC-2026-0204 | `crossbeam-epoch@0.9.18` | `moka` 0.12 → `fraiseql-core` | `default-build` | Invalid-pointer dereference reachable only when `fmt::Pointer` Debug-formats an invalid `Atomic`/`Shared`, which `moka` does not do. Accepted on usage grounds, not on absence from the build | 2026-10-01 |
-| RUSTSEC-2026-0258 | `h2@0.3.27` | `aws-smithy-http-client` (hyper 0.14) → `aws-config` | `feature-gated:aws-s3` | Unbounded empty-DATA-frame queueing (DoS). No fix exists in the 0.3 series and `aws-smithy-http-client` pins hyper 0.14. **The default build is not affected** — its `h2` was bumped to 0.4.16 rather than accepted, so this acceptance is scoped to `h2@0.3.27` in `deny.toml`. Blocked on the same aws-stack migration as RUSTSEC-2026-0098 (#1111) | 2026-12-01 |
 
 ⚠ Three of these rows were corrected on 2026-08-16 after being checked against `cargo tree`
 rather than trusted: RUSTSEC-2023-0071 claimed `sqlx-mysql` (gone since #374, and `rsa` in
@@ -123,34 +122,6 @@ resolution path.
 **Review action by 2026-10-01**: migrate `fraiseql-wire` off `rustls-pemfile`, or re-accept
 with the maintenance risk stated.
 
-### RUSTSEC-2026-0098 / -0099 / -0104 (rustls-webpki 0.101.7)
-
-**Root cause**: `aws-smithy-http-client` pulls `rustls 0.21`, which pulls
-`rustls-webpki 0.101.7` — two name-constraint bugs and a CRL-parsing panic.
-
-**Status**: `feature-gated:aws-s3`. Verified by construction, not assertion: with default
-features `cargo tree -i rustls-webpki@0.101.7 -e normal` does not resolve the package at all,
-and the default build carries only `rustls-webpki@0.103.13` via `rustls 0.23`. All three
-defects are certificate-**validation** bugs, reachable only on a TLS handshake an `aws-*`
-client makes against a hostile or misissued chain — an operator who opted into S3 or Kinesis
-*and* whose AWS endpoint is already being impersonated. They are not reachable by a FraiseQL
-client.
-
-**Blocked on**: the aws stack reaching rustls 0.23. **Ruled out — do not retry**: the #975
-coordinated bump moved `aws-sdk-kinesis` to 1.112, `aws-config` to 1.10.1, `aws-sdk-s3` to
-1.141 and `aws-smithy-http-client` to 1.3.0, and `rustls 0.21.12` survived all of it. Every
-`aws-config` HTTP-client feature (`default-https-client` / `client-hyper` / `rustls`) routes
-to `aws-smithy-runtime`'s legacy rustls-0.21 connector. The fix is a code-level custom
-`hyper-rustls 0.27` `HttpClient`, tracked as **#1111**.
-
-**Review action by 2026-12-01** — deliberately staggered off the 2026-10-01 cluster so that
-six acceptances do not lapse on one day and block every open branch at once:
-
-1. Check whether `aws-smithy-http-client` has a rustls-0.23 path
-2. If it does: upgrade and remove the `[[bans.skip]]` entries for `hyper-rustls 0.24.2`,
-   `tokio-rustls 0.24.1`, `rustls 0.21.12`
-3. If not: progress #1111, or state why the opt-in exposure remains acceptable
-
 ### RUSTSEC-2026-0194 / -0195 (quick-xml DoS pair)
 
 **Root cause**: quadratic duplicate-attribute checking, and unbounded namespace-declaration
@@ -181,40 +152,43 @@ invalid pointer, which `moka` does not do and FraiseQL does not do.
 **Review action by 2026-10-01**: re-check `moka`'s dependency range for a fixed
 `crossbeam-epoch`.
 
-### RUSTSEC-2026-0258 (h2 unbounded empty DATA frames)
+## Resolved acceptances
 
-**Root cause**: `h2` accepts and queues empty DATA frames without limit, so a peer can drive
-memory growth on an HTTP/2 connection — a remote DoS wherever the affected `h2` terminates
-untrusted connections.
+Kept as a record, not as acceptances. Nothing below is ignored in `deny.toml` or
+`.cargo/audit.toml` any more.
 
-**This advisory matched two instances, and they were resolved differently.**
+### RUSTSEC-2026-0098 / -0099 / -0104 (rustls-webpki 0.101.7) and -0258 (h2 0.3.27) — resolved
 
-`h2@0.4.15` was in the **default build**, via `hyper 1.10 ← axum ← fraiseql-server`. That is the
-GraphQL listener itself: `axum::serve` (`server/lifecycle.rs:883`) serves HTTP/2 by prior
-knowledge, so the defect was reachable by any client that could open a connection. It was
-**fixed, not accepted** — `cargo update -p h2@0.4.15 --precise 0.4.16`.
+All four had one root cause: the `aws-*` client stack resolved `rustls 0.21.12` and, with it,
+`hyper 0.14`, `h2 0.3.27` and `rustls-webpki 0.101.7`. Removing that stack removed all four
+advisories at once. `Cargo.lock` now carries `rustls 0.23.42` only, `hyper 1.10.1` only and
+`h2 0.4.16` only; `cargo tree -i rustls@0.21` under `--all-features` reports
+"did not match any packages".
 
-`h2@0.3.27` is the acceptance recorded above. It is reached only through
-`aws-smithy-http-client 1.3.0`, which pins hyper 0.14, which pins the 0.3 series — where no
-fixed release exists (the advisory's remedy is `>= 0.4.16`, and `--precise 0.3.28` resolves to
-"no matching package named `h2`"). Exposure is `feature-gated:aws-s3`, established by
-construction rather than asserted: `cargo tree -i h2@0.3.27 -e normal` reports "did not match
-any packages", while the same query under `--features fraiseql-server/aws-s3` resolves it.
+**⚠ The "ruled out — do not retry" note recorded here was wrong, and it is why this sat
+open.** It read: *"Every `aws-config` HTTP-client feature (`default-https-client` /
+`client-hyper` / `rustls`) routes to `aws-smithy-runtime`'s legacy rustls-0.21 connector...
+The fix is a code-level custom `hyper-rustls 0.27` `HttpClient`."*
 
-**Why the scoping matters**: an unscoped `{id = …}` ignore would have silenced the default-build
-path too, including a future regression that reintroduces a vulnerable `h2` under hyper.
-`deny.toml` therefore pins the acceptance to `h2@0.3.27`. `.cargo/audit.toml` cannot express
-that — cargo-audit ignores by advisory id alone — so `cargo deny` is the authoritative gate for
-this row.
+Two things were true of `aws-config` and false of the graph:
 
-**Residual risk**: an operator who opts into `aws-s3` or `cdc-kinesis` runs an HTTP/2 client
-against AWS endpoints. Triggering the defect requires that endpoint to be hostile or
-impersonated; it is not reachable by a FraiseQL client.
+1. **`aws-config`'s features were the wrong place to look.** The legacy connector was
+   requested by the **`aws-sdk-*` crates' own `default` feature**, which includes
+   `rustls = ["aws-smithy-runtime/tls-rustls"]` → `aws-smithy-http-client/legacy-rustls-ring`
+   → `rustls 0.21`. `aws-config` itself never enables it, and pulls all of its sub-SDKs
+   (`sso`, `ssooidc`, `sts`) with `default-features = false`.
+2. **`default-https-client` is no longer the legacy connector.** In
+   `aws-smithy-http-client` 1.3.0 it maps to `rustls-aws-lc` — rustls 0.23 — which was
+   *already* compiled in alongside the legacy stack. The spike that produced the note
+   predates that crate being split out.
 
-**Blocked on**: the aws-* stack moving off hyper 0.14 — the same migration that holds
-RUSTSEC-2026-0098/-0099/-0104 (#1111).
+So no custom `HttpClient` was needed. The fix is `default-features = false` on `aws-sdk-s3`
+and `aws-sdk-kinesis`, restoring every member of their default set **except** `rustls`.
 
-**Review action by 2026-12-01**: re-check whether `aws-smithy-http-client` has reached hyper 1.x.
+⚠ Cargo unifies features across the graph, so **every** declaration of an `aws-sdk-*`
+dependency must carry it. One of the three (`fraiseql-server`'s `aws-sdk-s3`) was missed on
+the first pass and re-enabled the legacy connector for the whole workspace, with the other
+two already correct.
 
 ## Dependency Upgrade Policy
 

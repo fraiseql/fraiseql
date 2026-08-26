@@ -21,7 +21,15 @@ async-trait = "0.1"
 aws-config = {version = "1", optional = true}
 # AWS S3 (optional)
 # V3: rustls 0.21 transitive via aws-smithy-http-client; blocked on AWS upstream
-aws-sdk-s3 = {version = "1", optional = true}
+# Must mirror fraiseql-storage's declaration exactly. Cargo UNIFIES features across
+# the graph, so one declaration left on default features re-enables the legacy
+# rustls 0.21 connector for every crate — which is what happened here (#1111).
+aws-sdk-s3 = {version = "1", optional = true, default-features = false, features = [
+  "sigv4a",
+  "http-1x",
+  "default-https-client",
+  "rt-tokio",
+]}
 # HTTP server
 axum = {workspace = true, features = ["macros", "ws"]}
 base64 = "0.22"

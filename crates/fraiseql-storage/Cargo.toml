@@ -35,7 +35,17 @@ uuid = { workspace = true }
 walkdir = "2"
 
 # Storage backends (feature-gated)
-aws-sdk-s3 = { version = "1", optional = true }
+# default-features = false drops ONLY the SDK's `rustls` feature, which is
+# `aws-smithy-runtime/tls-rustls` -> `aws-smithy-http-client/legacy-rustls-ring`
+# -> rustls 0.21 (EOL, RUSTSEC-2026-0098/-0099/-0104). Every other member of the
+# crate's default set is restored by name. HTTPS is unaffected: it comes from
+# `default-https-client`, which resolves to rustls 0.23 (#1111).
+aws-sdk-s3 = { version = "1", optional = true, default-features = false, features = [
+  "sigv4a",
+  "http-1x",
+  "default-https-client",
+  "rt-tokio",
+] }
 aws-config = { version = "1", optional = true }
 
 # GCS backend (feature-gated)
