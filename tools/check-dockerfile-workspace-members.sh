@@ -118,8 +118,10 @@ done
 
 if [ "$fail" -ne 0 ]; then
   echo "" >&2
-  echo "  docker-build.yml is tag-only and release-smoke.yml builds with cargo, so" >&2
-  echo "  nothing else in CI builds this file before the release." >&2
+  echo "  This is the #1205 shape. It is now caught twice: here statically, and by" >&2
+  echo "  \`dagger call images\`, which builds this Dockerfile before the tag." >&2
+  echo "  Verified: with this COPY removed, the build fails at the cargo step with" >&2
+  echo "  'failed to load manifest for workspace member /build/examples/...'." >&2
   exit 1
 fi
 

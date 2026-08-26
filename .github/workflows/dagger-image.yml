@@ -1,0 +1,63 @@
+name: Dagger — image
+
+# Builds every image `docker-build.yml` publishes, on a trigger that PRECEDES the
+# tag. Until this leg existed, `docker-build.yml` was the only thing that built a
+# shipped image and it first ran after a `v*` tag already existed — which is how
+# the release image stayed unbuildable for weeks without a single red check
+# (#1205, #1107).
+#
+# ⚠ This workflow BUILDS and never pushes. `docker-build.yml` remains the only
+# publisher, and its `build-and-push` step hardcodes `push: true` — correct only
+# because that workflow's sole push trigger is a `v*` tag. Do NOT solve "build
+# before the tag" by giving THAT file a branch trigger: the literal would start
+# pushing branch builds to ghcr.io, and because it is a build-push-action input
+# rather than a job `if:`, tools/check-workflow-job-reachability.py does not watch
+# it and nothing would report the change (#1206's lesson, one layer down).
+#
+# One job calling one umbrella, not a matrix: a matrix here would be a fourth copy
+# of the variant list, and tools/check-image-parity.py already holds the three
+# that exist (both docker-build.yml matrices and .dagger/image.go) to each other.
+# `dagger call images` iterates that table.
+#
+# Cost, measured 2026-08-26 on this runner: fraiseql-server 245s,
+# fraiseql-server-full 260s, tutorial 12s; 8m00s for all three end to end. A re-run with a
+# byte-identical context is 2s, but that is not what a push produces: Dagger keys
+# the build on the whole context digest, so any change to a non-ignored file
+# rebuilds everything (a docs-only edit cost a full 236s). Budget the full number.
+#
+# push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
+# runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+on:
+  push:
+    branches: [dev, 'release/*']
+  workflow_dispatch:
+
+# packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image
+# mirror (.github/workflows/mirror-base-images.yml); contents: read for checkout.
+# No packages: write — this leg builds and publishes nothing.
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: dagger-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: image
+    runs-on: [self-hosted, fraiseql-8core]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # The Dagger engine pulls the private ghcr.io/fraiseql/* base images via the
+      # host's docker credentials; authenticate with the job's GITHUB_TOKEN first.
+      - name: Log in to ghcr.io (private base-image mirror)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: dagger call images
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call images --source=.

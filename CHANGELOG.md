@@ -6350,6 +6350,59 @@ disagreed, and the promise was the part that was wrong.
   generates. Most are report-the-result steps whose right repair may be restoring the
   trigger rather than deleting the step — a CI-load decision, not a defect to sweep up.
 
+- **Every published image is built before the tag, not after it (#1205, #1107).**
+  `docker-build.yml` was the only thing in this repository that built a shipped image,
+  and its only triggers are a `v*` tag push and a dispatch — so the first build of a
+  release image happened once the release already existed. That is how the image stayed
+  unbuildable for weeks without a single red check: there was nothing that could be red.
+
+  `dagger call images` now builds all three published variants — `fraiseql-server`,
+  `fraiseql-server-full` (`CARGO_FEATURES=rest,arrow`) and `tutorial` — in a new
+  `Dagger — image` leg on push to `dev` and `release/*`, plus dispatch. It builds and
+  publishes nothing; `docker-build.yml` remains the only publisher.
+
+  **The variant list is not a fourth copy.** It already existed three times: both of
+  `docker-build.yml`'s matrices (ghcr and Docker Hub) and now `.dagger/image.go`.
+  `tools/check-image-parity.py` holds all three to each other **bidirectionally** — a
+  variant published but not built pre-tag fails, so does one built but published nowhere,
+  so does any disagreement about `dockerfile`, `build-context` or `build-args`, and so
+  does a variant present in one registry's matrix and not the other. A row it cannot
+  parse is fatal rather than skipped. It imports the YAML-subset parser from
+  `check-suite-coverage.py` rather than carrying a third copy of it — the gate container
+  is bare Ubuntu plus python3 — and its own red capability is pinned by
+  `tools/tests/image_parity_test.sh` (10 assertions, both directions).
+
+  **Cost, measured on the runner rather than guessed**, because the trigger decision
+  turned on it: `fraiseql-server` 245s, `fraiseql-server-full` 260s, `tutorial` 12s —
+  and 8m00s for the three end to end via `dagger call images` (they share the base and
+  COPY layers). The important half of that measurement is what a
+  *re-run* costs. A byte-identical context rebuilds in 2s, but that is not what a push
+  produces: Dagger keys the build on the whole context digest, so any change to a
+  non-ignored file rebuilds every layer regardless of whether the Dockerfile copies it.
+  Touching `docs/architecture/overview.md`, which no `COPY` names, cost a full 236s. The
+  Dockerfile's `COPY` granularity buys nothing here, and the budget is the full number.
+
+  **Proved RED in both tiers.** Commenting out `COPY examples ./examples` — the literal
+  #1205 state — fails the static gate *and* fails the build, at the cargo step, with
+  `failed to load manifest for workspace member /build/examples/authentication`. Both had
+  to fire: if only the static one did, this leg would not be looking at the same thing
+  the tag path builds. `check-dockerfile-workspace-members.sh` told the reader that
+  "nothing else in CI builds this file before the release"; that sentence is now false
+  and says so instead.
+
+  Two notes for whoever touches this next. `fraiseql-server-full` had never been built on
+  any branch and was expected to fail — it does not, so there is nothing to file. And
+  every variant is **required** by this leg although `docker-build.yml` marks two
+  `optional`: that flag exists so a broken best-effort image does not block the publish of
+  a working one at tag time, and before the tag there is no publish to protect. A leg that
+  tolerates a failing build is the shape that let an unreachable job pass for coverage for
+  three months (#1206).
+
+  ⚠ This closes "is it buildable", not "does it work". The leg's claim is exactly that the
+  Dockerfile builds — the deleted `test-images` job asserted `docker image inspect`, that
+  the artifact exists, and that is why #1206 deleted it rather than repairing it. Booting
+  the image and asking it something only a working engine can answer is the next phase.
+
 - **The examples-integrity gate stops failing in CI and passing everywhere else (#1213).**
   `docker-compose.test.yml` bound `./tls/certs`, which is gitignored and produced by
   `docker/tls/gen-certs.sh`. So the directory existed on every machine the gate was

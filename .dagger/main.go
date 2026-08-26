@@ -336,6 +336,11 @@ func (m *FraiseqlCi) ShellGates(
 		// fraiseql-server it was tolerated by the pre-tag dry-run and fatal to the
 		// real publish. Nothing compared the two lists before this gate.
 		"python3 tools/check-publish-parity.py",
+		// The pre-tag image leg must build exactly what docker-build.yml publishes,
+		// in both directions and across both of its matrices. Static — it reads the
+		// two lists; building the images is the heavy leg's job (#1205).
+		"python3 tools/check-image-parity.py",
+		"make test-image-parity-gate",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",
