@@ -3,6 +3,7 @@ name = "fraiseql-example-subscriptions"
 version = "0.0.0"
 edition = "2021"
 publish = false
+license.workspace = true
 description = "Fan an event out to matching subscribers, in-process"
 
 # Illustrative code, not part of the shipped engine: these crates deliberately do

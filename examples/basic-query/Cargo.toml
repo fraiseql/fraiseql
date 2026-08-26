@@ -3,6 +3,7 @@ name = "fraiseql-example-basic-query"
 version = "0.0.0"
 edition = "2021"
 publish = false
+license.workspace = true
 description = "Load a compiled schema, build an executor, run one GraphQL query"
 
 # Illustrative code, not part of the shipped engine: these crates deliberately do

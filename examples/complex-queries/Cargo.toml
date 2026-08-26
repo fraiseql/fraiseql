@@ -3,6 +3,7 @@ name = "fraiseql-example-complex-queries"
 version = "0.0.0"
 edition = "2021"
 publish = false
+license.workspace = true
 description = "Nested selections, variables, filtering, ordering and pagination"
 
 # Illustrative code, not part of the shipped engine: these crates deliberately do

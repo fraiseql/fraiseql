@@ -3,6 +3,7 @@ name = "fraiseql-example-error-handling"
 version = "0.0.0"
 edition = "2021"
 publish = false
+license.workspace = true
 description = "Every way a FraiseQL query can fail, and what each one looks like"
 
 # Illustrative code, not part of the shipped engine: these crates deliberately do

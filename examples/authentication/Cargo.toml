@@ -3,6 +3,7 @@ name = "fraiseql-example-authentication"
 version = "0.0.0"
 edition = "2021"
 publish = false
+license.workspace = true
 description = "Mint a JWT, validate it, and read the identity out of it"
 
 # Illustrative code, not part of the shipped engine: these crates deliberately do

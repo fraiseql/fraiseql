@@ -3,6 +3,7 @@ name = "fraiseql-example-performance"
 version = "0.0.0"
 edition = "2021"
 publish = false
+license.workspace = true
 description = "Time a query, trace its phases, log its SQL"
 
 # Illustrative code, not part of the shipped engine: these crates deliberately do
