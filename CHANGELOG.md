@@ -3502,6 +3502,53 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The shipped image now answers a question only a working engine can answer (#1206, #1071).**
+  `dagger call images` proves a Dockerfile builds, and deliberately claims nothing more. The
+  jobs it replaced claimed more and delivered less: `test-images` built three images and
+  asserted `docker image inspect` — that the artifact exists — and `verify-deployment` booted
+  a Compose stack behind `|| true`, asserted `{ __typename }`, which the GraphQL layer answers
+  without ever touching the database, and piped the response to `jq .` without reading it, so
+  an `errors` payload passed.
+
+  `dagger call image-boots` boots each shipped server image — `fraiseql-server` and
+  `fraiseql-server-full` — **on its own declared CMD**, against a real PostgreSQL bound as a
+  Dagger service, and requires: the fixture to load into a freshly created schema under
+  `ON_ERROR_STOP=1` with its row count asserted; `/health` to report `database.connected: true`
+  rather than merely returning 200; and `{ users { id name } }` to resolve **through SQL to
+  rows**, with the rows themselves checked rather than the presence of a `data` key.
+
+  **Then it changes the database behind the engine's back and asks again.** A uniquely named
+  row is inserted by a client the server knows nothing about, and the re-query must return it.
+  Every assertion before that one is satisfiable by a cached, replayed or fabricated response;
+  only this one is not. Proved by mutation: with the server left fully alive, healthy, and
+  answering the correct seeded rows, serving the *previous* response to the re-query turns the
+  tier red — on that assertion alone, with steps 1–5 all passing. Also proved red against a
+  deliberately broken image, where a bad `FRAISEQL_SCHEMA_PATH` makes the container exit
+  before it serves — the #1071 shape, reproduced against the artifact this project ships.
+
+  **The fixture is loaded defensively because it needs to be**, re-measured against PG16
+  rather than assumed: applied to a dirty, incompatible table without `ON_ERROR_STOP` — which
+  is what `release-smoke.yml` does — `psql` **exits 0 having inserted nothing**; applied twice
+  to a clean schema it exits 0 and silently leaves **six** rows. A tier that seeded through
+  the Postgres entrypoint and asserted `length >= 1` would be green in both cases.
+
+  **⚠ Dagger caches a module function call on its arguments**, which is why `--run-id` is
+  load-bearing rather than decoration. Called twice on a byte-identical context, the second
+  call returned in **2.1s and printed the first run's marker verbatim**: no container started,
+  nothing asserted, exit 0 — and a cache-buster computed *inside* the function cannot help,
+  because the function is what gets skipped. For a build that replay is sound and is left
+  alone: a build is a pure function of its context, so "this context builds" stays true. A
+  claim that the artifact *answered* is a claim about an execution, and cannot be replayed
+  honestly. CI passes `run_id`-`run_attempt`, so re-dispatching an unchanged commit — the way
+  anyone re-verifies after fixing infrastructure — executes for real.
+
+  It extends the existing `Dagger — image` leg rather than adding a workflow (same trigger,
+  same build, one starved runner), and costs **5.8s** for both variants, because they are the
+  images that leg built one step earlier and the engine cache is shared. The variants booted
+  are **derived** from the table in `.dagger/image.go` — every variant built from the root
+  `Dockerfile` — so a server variant added to `docker-build.yml`'s matrix is booted without
+  anyone remembering to add it. `make image-boot` runs the same tier locally.
+
 - **Both federation examples are real, and composite keys compose (#1050).**
   `examples/federation/basic` and `examples/federation/composite-keys` were v1-era
   fiction: four Dockerfiles whose builder stage could not work, `@key` and `@extends`

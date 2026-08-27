@@ -121,7 +121,7 @@ func (m *FraiseqlCi) Images(
 	return report.String(), nil
 }
 
-// Image builds one published image variant from `source`.
+// buildVariant builds one variant and returns the built container.
 //
 // Every variant's build-context is the repository root, matching the matrix, so
 // `source` is the context for all three and `tutorial/Dockerfile` is addressed by
@@ -131,6 +131,29 @@ func (m *FraiseqlCi) Images(
 // unevaluated container would produce a function that always "succeeds" without
 // building anything — a gate that cannot fail, which is the shape this whole
 // program exists to remove.
+//
+// Shared with image_boot.go so the tier that BOOTS an image boots the same
+// artifact this file builds, from one construction site. Two call sites building
+// "the same" image from two copies of the build-args logic is how a gate ends up
+// asserting against something the publish path never produces.
+func buildVariant(ctx context.Context, source *dagger.Directory, v imageVariant) (*dagger.Container, error) {
+	opts := dagger.DirectoryDockerBuildOpts{Dockerfile: v.dockerfile}
+	if v.buildArgs != "" {
+		name, value, ok := strings.Cut(v.buildArgs, "=")
+		if !ok {
+			return nil, fmt.Errorf("variant %q: malformed build-args %q, want NAME=VALUE", v.name, v.buildArgs)
+		}
+		opts.BuildArgs = []dagger.BuildArg{{Name: name, Value: value}}
+	}
+
+	built, err := source.DockerBuild(opts).Sync(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("variant %q (%s) failed to build: %w", v.name, v.dockerfile, err)
+	}
+	return built, nil
+}
+
+// Image builds one published image variant from `source`.
 func (m *FraiseqlCi) Image(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -143,18 +166,9 @@ func (m *FraiseqlCi) Image(
 		return "", err
 	}
 
-	opts := dagger.DirectoryDockerBuildOpts{Dockerfile: v.dockerfile}
-	if v.buildArgs != "" {
-		name, value, ok := strings.Cut(v.buildArgs, "=")
-		if !ok {
-			return "", fmt.Errorf("variant %q: malformed build-args %q, want NAME=VALUE", v.name, v.buildArgs)
-		}
-		opts.BuildArgs = []dagger.BuildArg{{Name: name, Value: value}}
-	}
-
-	built, err := source.DockerBuild(opts).Sync(ctx)
+	built, err := buildVariant(ctx, source, v)
 	if err != nil {
-		return "", fmt.Errorf("variant %q (%s) failed to build: %w", v.name, v.dockerfile, err)
+		return "", err
 	}
 
 	// Read the entrypoint back out of the built image. This is NOT an assertion

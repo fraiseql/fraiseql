@@ -61,3 +61,29 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           dagger version
           dagger call images --source=.
+
+      # What `images` above claims is exactly "these Dockerfiles build". This step
+      # is what makes that mean something: it boots each server image on its own
+      # CMD against a real Postgres, requires /health to report the database
+      # connected, runs a GraphQL query that resolves THROUGH SQL to rows — and
+      # then inserts a row behind the engine's back and requires it in the answer.
+      #
+      # That last check is the one that matters. The deleted `verify-deployment`
+      # job asserted `{ __typename }`, which the GraphQL layer answers without
+      # touching the database. Only "mutate the world, re-ask, require the answer
+      # to change" separates a working engine from a healthy container.
+      #
+      # ⚠ `--run-id` is load-bearing, not decoration. Dagger caches a module
+      # function call on its ARGUMENTS: called twice on a byte-identical context,
+      # the second call returned in 2.1s replaying the first run's output, having
+      # started no container and asserted nothing. Passing run_id + run_attempt
+      # means a re-dispatch of an unchanged commit — how anyone re-verifies after
+      # fixing infrastructure — executes for real instead of replaying a green.
+      #
+      # Cost: 5.8s measured for both variants, because the images this step boots
+      # are the ones the step above just built and the engine cache is shared.
+      - name: dagger call image-boots
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger call image-boots --source=. \
+            --run-id="${{ github.run_id }}-${{ github.run_attempt }}"

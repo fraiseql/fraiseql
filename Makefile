@@ -768,6 +768,24 @@ lint-image-parity:
 test-image-parity-gate:
 	@bash tools/tests/image_parity_test.sh
 
+# Boot each shipped server image against a real Postgres and require an answer
+# only a working engine can give: /health reporting the database connected, a
+# GraphQL query resolved THROUGH SQL to rows, and — the assertion that matters —
+# a row inserted behind the engine's back coming back in a re-query.
+#
+# Deliberately NOT in `preflight`: it builds images. Same reason as the build
+# itself (see .dagger/image.go); it runs on dagger-image.yml's trigger.
+#
+# RUN_ID defaults to a fresh timestamp because Dagger caches a module function
+# call on its arguments — with a constant id, a second run replays the first
+# run's output in ~2s without starting anything. Override it only to deliberately
+# re-read a previous run's result.
+#   make image-boot                 # boot both server variants, for real
+#   make image-boot RUN_ID=abc123   # replay/pin a specific run id
+.PHONY: image-boot
+image-boot:
+	dagger call image-boots --source=. --run-id=$(or $(RUN_ID),local-$(shell date +%s%N))
+
 # Red-capability pin for .gitleaks.toml, the config behind the repository's only
 # executing secret scanner (#1208). Runs inside the Dagger `secret-scan` gate on
 # every push; this target is the local half, and needs `gitleaks` on PATH.
