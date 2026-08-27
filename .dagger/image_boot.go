@@ -59,10 +59,17 @@ const (
 	// and rebuilt below, which would be a hostile thing to do to a shared service.
 	imageBootPgBindHost = "postgres-image-boot"
 
-	// imageBootPort mirrors the Dockerfile's EXPOSE / the FRAISEQL_BIND_ADDR set
-	// below. Asserting that the image DECLARES this port is Phase 04's job; this
-	// tier only needs to reach it.
-	imageBootPort = 8815
+	// imageBootPort is the port the image's own ENV binds and its own EXPOSE
+	// declares. Nothing below sets FRAISEQL_BIND_ADDR — see the server
+	// construction — so this constant is only how the CLIENT addresses the
+	// service; that the IMAGE declares it is asserted by image_props.go.
+	//
+	// ⚠ It was 8815, matching a Dockerfile that named a port its own process
+	// never listened on (#1216). This tier supplied FRAISEQL_BIND_ADDR=0.0.0.0:8815
+	// and so agreed with the mistake for as long as it existed: a fixture that
+	// agrees with the artifact cannot see the artifact's defect. That is why the
+	// override is gone rather than merely corrected.
+	imageBootPort = 8000
 
 	// imageBootFixtureRows is the number of rows docker/e2e/init-postgres.sql
 	// seeds into tb_user. Hardcoded on purpose: the point of the assertion is to
@@ -213,7 +220,11 @@ func (m *FraiseqlCi) ImageBoot(
 		WithEnvVariable("DATABASE_URL", fmt.Sprintf(
 			"postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, imageBootPgBindHost, pgDatabase)).
 		WithEnvVariable("FRAISEQL_SCHEMA_PATH", "/schema.compiled.json").
-		WithEnvVariable("FRAISEQL_BIND_ADDR", fmt.Sprintf("0.0.0.0:%d", imageBootPort)).
+		// No FRAISEQL_BIND_ADDR. DATABASE_URL and FRAISEQL_SCHEMA_PATH are supplied
+		// by every deployment of this image and supplying them is faithful; the
+		// address it listens on is the image's own business, and a tier that sets
+		// it is a tier that agrees with itself about the one thing the image's
+		// EXPOSE and HEALTHCHECK hardcode (#1216).
 		WithEnvVariable("FRAISEQL_ENV", "development").
 		WithEnvVariable("RUST_LOG", "info").
 		WithExposedPort(imageBootPort).

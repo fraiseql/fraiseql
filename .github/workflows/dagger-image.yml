@@ -87,3 +87,28 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           dagger call image-boots --source=. \
             --run-id="${{ github.run_id }}-${{ github.run_attempt }}"
+
+      # The two steps above claim "these Dockerfiles build" and "the artifact
+      # answers". This one claims what the artifact IS — the properties the
+      # v2.15.0 release-readiness pass verified BY HAND and wrote into #1133 and
+      # #1129, which is to say the properties nothing has re-checked since.
+      #
+      # It reads the BUILT IMAGE, never the Dockerfile: linkage from `ldd` on the
+      # binary the image's own CMD names, the package list from dpkg, the uid
+      # from the process the image starts, the OCI label and the healthcheck from
+      # the image config. tools/check-deploy-versions.sh greps the Dockerfile
+      # text and stays the cheap floor; this asserts the text produced what it
+      # describes.
+      #
+      # The HEALTHCHECK is EXECUTED: required to fail before the server exists,
+      # pass while it serves, and fail again once it is killed. Without that last
+      # state the tier is green for `HEALTHCHECK CMD true`.
+      #
+      # `--run-id` for the same reason as the step above: this tier's healthcheck
+      # assertion is a claim about an execution, and Dagger will happily replay a
+      # module function call it has seen these arguments for.
+      - name: dagger call image-properties-all
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger call image-properties-all --source=. \
+            --run-id="${{ github.run_id }}-${{ github.run_attempt }}"

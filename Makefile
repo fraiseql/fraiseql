@@ -786,6 +786,26 @@ test-image-parity-gate:
 image-boot:
 	dagger call image-boots --source=. --run-id=$(or $(RUN_ID),local-$(shell date +%s%N))
 
+# Assert what each shipped server image IS, on the built artifact rather than on
+# the Dockerfile that describes it: the dynamic linkage #1133 measured by hand,
+# no libpq package, uid 65532 non-root, the OCI version label and the binary's
+# own reported version both equal to the workspace version, an image-size budget
+# whose failure names the delta — and the image's own HEALTHCHECK executed,
+# required to fail before the server starts, pass while it serves, and fail again
+# once it is killed.
+#
+# Deliberately NOT in `preflight`, for the same reason as image-boot: it builds
+# images. It runs as dagger-image.yml's third step, where the images are already
+# in the engine cache.
+#
+# RUN_ID as for image-boot: this tier executes the healthcheck, and a replayed
+# execution claim is the class of green this program exists to delete.
+#   make image-properties
+#   make image-properties RUN_ID=abc123
+.PHONY: image-properties
+image-properties:
+	dagger call image-properties-all --source=. --run-id=$(or $(RUN_ID),local-$(shell date +%s%N))
+
 # Red-capability pin for .gitleaks.toml, the config behind the repository's only
 # executing secret scanner (#1208). Runs inside the Dagger `secret-scan` gate on
 # every push; this target is the local half, and needs `gitleaks` on PATH.

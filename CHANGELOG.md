@@ -20,6 +20,34 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The published container image serves on port 8000, not 8815, and binds `0.0.0.0` (#1216).**
+
+  A container started from the published image with the environment every deployment supplies
+  — `DATABASE_URL` and `FRAISEQL_SCHEMA_PATH` — was reported **unhealthy by Docker and was
+  reachable from nothing outside its own network namespace**. Three values disagreed, and the
+  one the binary actually used appeared in none of them: `EXPOSE` said 8815, the `HEALTHCHECK`
+  curled 8815, and `default_bind_addr()` is `127.0.0.1:8000`. The check was refused, and after
+  the start period plus interval × retries (10s + 30s × 3) Docker marked the container
+  unhealthy — permanently, since nothing was ever going to listen on 8815. Anything waiting on
+  that health, such as a Compose `depends_on: condition: service_healthy`, waited forever.
+
+  The image now sets `FRAISEQL_BIND_ADDR=0.0.0.0:8000`, `EXPOSE 8000`, and healthchecks 8000:
+  the port `default_bind_addr()` uses, and the one every compose file, both Kubernetes
+  manifests and every runbook already pinned. `0.0.0.0` rather than the process default is
+  deliberate — without it the healthcheck would *pass*, because it runs inside the network
+  namespace, while the container served nobody, which is worse than failing. #874 made the
+  process default to loopback so a bare-metal run is not exposed by accident; a container's
+  network namespace is the boundary that argument asks for.
+
+  **Migration:** none for the shipped compose files, Kubernetes manifests or runbook commands
+  — they all set `0.0.0.0:8000` explicitly and always did, which is why nothing noticed.
+  Anyone publishing the container as `-p …:8815` should publish 8000 instead; the image was
+  not serving on 8815 either way.
+
+  8815 is Arrow Flight's conventional port. It arrived in a February 2026 deployment
+  scaffolding commit that also moved the healthcheck off the 8000 the original Dockerfile
+  used, and no gate has built the release image on a branch since (#1206, #1205).
+
 - **Both Python clients raise `FraiseQLError` subclasses for every HTTP status, instead of
   leaking `httpx.HTTPStatusError` (#1059).**
 
@@ -3501,6 +3529,37 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **The shipped image's properties are now asserted on the artifact, and its own HEALTHCHECK is
+  executed rather than assumed (#1133, #1129, #1216).**
+  Every property the v2.15.0 release-readiness pass verified *by hand* — the dynamic linkage,
+  the absence of libpq, the non-root uid, the OCI version label — was a photograph of one
+  moment. `dagger call image-properties-all` turns them into assertions on the built image, as
+  a third step on the `Dagger — image` leg, next to the build and the boot.
+
+  It reads the **artifact**, never the Dockerfile that describes it:
+  `ldd` on the binary the image's own `CMD` names; the package list from `dpkg`; the uid of
+  the process the image starts; the OCI label, the exposed port and the healthcheck out of the
+  image config. `tools/check-deploy-versions.sh` greps the Dockerfile text and stays the cheap
+  floor that fires before anything is built; this asserts the text produced the artifact it
+  describes. The pair is not redundant — **the binary is asked its own version too**, because a
+  shared `CARGO_TARGET_DIR` once left the wrong binary in `target/release/` behind a
+  `Finished in 0.23s` line, and a correct label proves nothing about what is next to it.
+
+  **The HEALTHCHECK is run, in three states.** The command comes out of the image config, is
+  executed under the per-attempt timeout the image itself declares, and is required to **fail**
+  before the server exists, **pass** while it serves, and **fail again** once the server is
+  killed. Only the third state distinguishes a real check from `HEALTHCHECK CMD true` — the
+  artifact-level version of asserting `{ __typename }`. That is the assertion that found
+  #1216: the published image's healthcheck could never pass at all.
+
+  An image-size budget is stated per variant in bytes of the uncompressed OCI tarball, with a
+  two-sided ±15% tolerance; failure names the delta and which way. Two-sided because
+  `apt-get upgrade -y` moves the base layer on its own, and because an artifact that suddenly
+  lost 40 MiB is the same shape as #1205's "the artifact does not exist".
+
+  Every assertion is proved red by ONE inverted image at a time — a batch revert proves only
+  that something failed. See the commit message for the eight.
 
 - **The shipped image now answers a question only a working engine can answer (#1206, #1071).**
   `dagger call images` proves a Dockerfile builds, and deliberately claims nothing more. The

@@ -77,12 +77,27 @@ WORKDIR /app
 COPY --from=builder --chown=fraiseql:fraiseql /build/target/*/release/fraiseql-server .
 
 USER fraiseql
-EXPOSE 8815
 
-ENV RUST_LOG=info
+# 8000, not 8815. `default_bind_addr()` is 127.0.0.1:8000, and every compose file,
+# both k8s manifests and every runbook already pin 8000; 8815 is Arrow Flight's
+# conventional port and matched nothing this binary serves. An image whose EXPOSE
+# and HEALTHCHECK named a port its own process never listened on was reported
+# UNHEALTHY forever and published a dead port (#1216).
+EXPOSE 8000
 
-# Health check
+# 0.0.0.0 rather than the process default, deliberately. #874 made the server
+# default to loopback so a bare-metal run is not exposed by accident; a
+# container's network namespace is the boundary that argument asks for, which is
+# why every deployment in this repository already overrides it the same way.
+# Without it the HEALTHCHECK below would pass — it runs INSIDE the namespace —
+# while the container served nobody, which is worse than failing.
+ENV RUST_LOG=info \
+    FRAISEQL_BIND_ADDR=0.0.0.0:8000
+
+# Health check. Executed, not merely written: `dagger call image-properties` runs
+# this exact command out of the built image's config and requires it to fail
+# before the server starts, pass while it serves, and fail again once it is killed.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8815/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["./fraiseql-server"]
