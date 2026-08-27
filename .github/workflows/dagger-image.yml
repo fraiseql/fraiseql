@@ -112,3 +112,41 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           dagger call image-properties-all --source=. \
             --run-id="${{ github.run_id }}-${{ github.run_attempt }}"
+
+      # The three steps above cover the IMAGE. This one covers the Helm chart —
+      # the other artifact an operator consumes, and the one `helm.yml` claimed
+      # to check by running `helm lint` and rendering into /dev/null. A lint
+      # never resolves an image, which is how the chart shipped
+      # `repository: fraiseql` (docker.io/library/fraiseql, a namespace this
+      # project cannot publish to) for several releases (#1129).
+      #
+      # Fixing that reference alone would have changed nothing: measured
+      # 2026-08-27, `helm install` on the shipped defaults could not start a pod
+      # for five further reasons — a Secret no template created, no mounted
+      # schema, probes on a port the image does not bind (#1216 again), four
+      # value toggles that rendered nothing, and no fraiseql.toml, without which
+      # the server exits on cors_origins in production mode. So this step
+      # deploys the chart into a throwaway k3s cluster, on the image the step
+      # above built, and requires it to answer a GraphQL query through its
+      # Service — then inserts a row behind it and requires that row back.
+      #
+      # ⚠ Not a `dagger call`, and that is measured rather than preferred: a
+      # kubelet cannot start inside a Dagger exec on this engine, because the
+      # exec's cgroup.controllers is empty (the engine's own cgroup root
+      # delegates nothing). k3s exits with "failed to find cpu cgroup (v2)". The
+      # cluster therefore runs under host docker, which does get delegation. The
+      # image under test still comes from Dagger — `dagger call image-tarball`
+      # exports what `buildVariant` builds, so this does not become a fourth
+      # copy of the build arguments.
+      #
+      # `--run-id` names every docker object the script creates, so concurrent
+      # or repeated runs cannot collide or silently reuse a stale cluster.
+      - name: chart deploys into k3s and answers
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p target/chart-deploy
+          dagger call image-tarball --source=. --variant=fraiseql-server \
+            export --path=target/chart-deploy/fraiseql-server.tar
+          bash tools/chart-deploy-test.sh \
+            --run-id="${{ github.run_id }}-${{ github.run_attempt }}" \
+            --image-tarball=target/chart-deploy/fraiseql-server.tar

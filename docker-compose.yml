@@ -3,8 +3,12 @@ version: '3.8'
 services:
   fraiseql:
     build: .
+    # 8000, not 8815. The image binds 0.0.0.0:8000 (Dockerfile ENV
+    # FRAISEQL_BIND_ADDR), so publishing 8815:8815 mapped the host to a container
+    # port nothing listened on. #1216 corrected the image and left every consumer
+    # of it behind; this is one of them.
     ports:
-      - "8815:8815"
+      - "8000:8000"
     environment:
       RUST_LOG: debug
       DATABASE_URL: postgresql://fraiseql:fraiseql@postgres:5432/fraiseql

@@ -1,5 +1,10 @@
 # Hardened FraiseQL Kubernetes Manifests
 # Security-first deployment with zero-trust principles
+#
+# ⚠ NOT CI-VERIFIED. The Helm chart under helm/fraiseql is the Kubernetes artifact
+# this repository gates (tools/chart-deploy-test.sh deploys it into a throwaway
+# k3s cluster and queries it). This file is a third hand-maintained copy of the
+# same deployment and nothing executes it.
 
 ---
 # Pod Security Policy (for K8s < 1.25)
@@ -54,14 +59,14 @@ spec:
           app: fraiseql
     ports:
     - protocol: TCP
-      port: 8815
+      port: 8000
   - from:
     - namespaceSelector:
         matchLabels:
           name: ingress-nginx
     ports:
     - protocol: TCP
-      port: 8815
+      port: 8000
   egress:
   # Allow DNS
   - to:
@@ -126,8 +131,10 @@ spec:
 
       containers:
       - name: fraiseql
-        # Pinned for reproducible deploys (never :latest). Bump on upgrade.
-        image: fraiseql:2.8.0
+        # Pinned for reproducible deploys (never :latest). Bumped by tools/release.sh.
+        # `fraiseql:2.8.0` resolved to docker.io/library/fraiseql — the Docker Hub
+        # official-images namespace, which this project cannot publish to (#1129).
+        image: ghcr.io/fraiseql/server:2.15.0
         imagePullPolicy: IfNotPresent
 
         # Container security context
@@ -145,9 +152,14 @@ spec:
             type: RuntimeDefault
 
         ports:
-        - containerPort: 8815
+        - containerPort: 8000
           name: http
           protocol: TCP
+
+        volumeMounts:
+        - name: schema
+          mountPath: /etc/fraiseql/schema
+          readOnly: true
 
         # Environment variables
         env:
@@ -158,6 +170,17 @@ spec:
             secretKeyRef:
               name: fraiseql-db
               key: url
+        # The published image bakes no compiled schema, and fraiseql-server exits
+        # at startup when FRAISEQL_SCHEMA_PATH names no file. Create it first:
+        #   kubectl create configmap fraiseql-schema \
+        #     --from-file=schema.compiled.json=schema.compiled.json
+        - name: FRAISEQL_SCHEMA_PATH
+          value: /etc/fraiseql/schema/schema.compiled.json
+        # 8000 is the port the image binds. Every port above was 8815 — including
+        # the NetworkPolicy rules, which would have dropped the traffic even once
+        # the container listened (#1216).
+        - name: FRAISEQL_BIND_ADDR
+          value: "0.0.0.0:8000"
 
         # Resource constraints
         resources:
@@ -169,19 +192,26 @@ spec:
             memory: 1Gi
 
         # Probes
+        # tcpSocket, not /health. /health answers 503 whenever the database health
+        # check fails (routes/health.rs determine_status), so a liveness probe on
+        # it restarts every pod for as long as Postgres is unreachable — turning a
+        # failover into a restart storm. Liveness must detect a broken process,
+        # not a broken dependency.
         livenessProbe:
-          httpGet:
-            path: /health
+          tcpSocket:
             port: http
-            scheme: HTTP
           initialDelaySeconds: 10
           periodSeconds: 30
           timeoutSeconds: 5
           failureThreshold: 3
 
+        # /readiness, not /health. Both answer 503 when the database is down, so
+        # this is not about admitting a broken pod — it is that /readiness is the
+        # endpoint built for the question, and that liveness must NOT be an
+        # endpoint which fails on a dependency (see the livenessProbe comment).
         readinessProbe:
           httpGet:
-            path: /health
+            path: /readiness
             port: http
             scheme: HTTP
           initialDelaySeconds: 5
@@ -198,6 +228,11 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 3
           failureThreshold: 30
+
+      volumes:
+      - name: schema
+        configMap:
+          name: fraiseql-schema
 
       # Pod affinity for distribution
       affinity:
@@ -241,6 +276,6 @@ spec:
     app: fraiseql
   ports:
   - port: 80
-    targetPort: 8815
+    targetPort: 8000
     protocol: TCP
     name: http

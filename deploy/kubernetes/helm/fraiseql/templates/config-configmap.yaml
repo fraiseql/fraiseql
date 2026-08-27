@@ -1,0 +1,11 @@
+{{- if and .Values.config.content (not .Values.config.existingConfigMap) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "fraiseql.configConfigMapName" . }}
+  labels:
+    {{- include "fraiseql.labels" . | nindent 4 }}
+data:
+  {{ include "fraiseql.configKey" . }}: |
+{{ .Values.config.content | indent 4 }}
+{{- end }}

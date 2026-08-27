@@ -1,271 +1,137 @@
 # FraiseQL Helm Chart
 
-High-performance GraphQL framework for PostgreSQL with CQRS, APQ, and sub-millisecond responses.
+Deploys `fraiseql-server` — the compiled GraphQL execution engine — against a
+PostgreSQL database you provide.
 
-## Features
+## What this chart creates
 
-- ✅ **Kubernetes-native** deployment with HPA, PDB, health checks
-- ✅ **Production-ready** with Sentry, OpenTelemetry, Prometheus metrics
-- ✅ **Secure by default** with RBAC, security contexts, network policies
-- ✅ **Highly configurable** with 50+ configuration options
+Exactly these objects, and nothing else:
 
-## Prerequisites
+| Object | Always? |
+|---|---|
+| `Deployment` | yes |
+| `Service` (ClusterIP) | yes |
+| `ConfigMap` (compiled schema) | unless `schema.existingConfigMap` is set |
+| `ConfigMap` (`fraiseql.toml`) | when `config.content` is set |
+| `Secret` (database URL) | unless `database.existingSecret` is set |
+| `HorizontalPodAutoscaler` | when `autoscaling.enabled` |
+| `ServiceAccount` | when `serviceAccount.create` |
 
-- Kubernetes 1.21+
-- Helm 3.8+
-- PostgreSQL 13+ (external or in-cluster)
+There is **no Ingress, PodDisruptionBudget, PersistentVolumeClaim or
+NetworkPolicy template**, and no value pretending there is. An earlier version of
+this chart shipped `ingress.enabled`, `podDisruptionBudget.enabled`,
+`persistence.enabled` and `serviceAccount.create` with no templates behind them:
+rendering with all four set to `true` produced output byte-identical to the
+default render. If you need an Ingress, write one — it will be correct, which is
+more than a value that silently does nothing was.
 
-## Quick Start
+`tools/chart-deploy-test.sh` enforces this: for every `<path>.enabled` key in
+`values.yaml` it renders the chart both ways and requires the renders to differ.
 
-```bash
-# Add FraiseQL Helm repository (when published)
-helm repo add fraiseql https://helm.fraiseql.com
-helm repo update
+## Requirements
 
-# Install with default values
-helm install my-fraiseql fraiseql/fraiseql
+- Kubernetes 1.21+, Helm 3.8+ (CI pins helm 3.21.4; helm 4 is untested)
+- A reachable PostgreSQL database
+- A **compiled** schema — `fraiseql-cli compile schema.json` — because the
+  published image bakes none
 
-# Or install from local chart
-helm install my-fraiseql ./deploy/kubernetes/helm/fraiseql
-```
+## Install
 
-## Configuration
-
-### Minimal Production Configuration
-
-```yaml
-# values-production.yaml
-image:
-  tag: "0.11.0"
-
-replicaCount: 3
-
-autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 20
-
-database:
-  host: "postgresql.default.svc.cluster.local"
-  name: "fraiseql"
-  existingSecret: "fraiseql-db-credentials"
-
-ingress:
-  enabled: true
-  className: "nginx"
-  hosts:
-    - host: api.yourdomain.com
-      paths:
-        - path: /graphql
-          pathType: Prefix
-  tls:
-    - secretName: fraiseql-tls
-      hosts:
-        - api.yourdomain.com
-
-sentry:
-  enabled: true
-  # DSN should be in existingSecret
-
-secrets:
-  existingSecret: "fraiseql-secrets"
-```
-
-Install with custom values:
+The chart refuses to render until it can produce a pod that starts. Three inputs
+are required; each missing one fails at template time with an instruction rather
+than installing something that never serves.
 
 ```bash
-helm install my-fraiseql fraiseql/fraiseql -f values-production.yaml
+# 1. Compile your schema
+fraiseql-cli compile schema.json          # -> schema.compiled.json
+
+# 2. Minimal fraiseql.toml. cors_origins has no environment variable, and
+#    fraiseql-server refuses to start in production mode without it.
+cat > fraiseql.toml <<'EOF'
+cors_origins = ["https://app.example.com"]
+EOF
+
+# 3. Install
+helm install fraiseql ./deploy/kubernetes/helm/fraiseql \
+  --set-file schema.compiled=schema.compiled.json \
+  --set-file config.content=fraiseql.toml \
+  --set database.existingSecret=fraiseql-db-credentials
 ```
 
-### Key Configuration Options
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `replicaCount` | Number of replicas | `3` |
-| `image.repository` | Image repository | `fraiseql/fraiseql` |
-| `image.tag` | Image tag | `Chart.appVersion` |
-| `autoscaling.enabled` | Enable HPA | `true` |
-| `autoscaling.minReplicas` | Min replicas | `3` |
-| `autoscaling.maxReplicas` | Max replicas | `20` |
-| `database.host` | PostgreSQL host | `postgresql.default.svc.cluster.local` |
-| `database.existingSecret` | Secret with DB credentials | `""` |
-| `ingress.enabled` | Enable ingress | `true` |
-| `sentry.enabled` | Enable Sentry error tracking | `true` |
-| `config.apq.enabled` | Enable APQ | `true` |
-
-See [values.yaml](./values.yaml) for all configuration options.
-
-## Secrets Management
-
-### Create Database Secret
+with the database Secret created out of band:
 
 ```bash
 kubectl create secret generic fraiseql-db-credentials \
-  --from-literal=DB_USER=fraiseql \
-  --from-literal=DB_PASSWORD=your-secure-password
+  --from-literal=url='postgresql://user:password@postgres:5432/fraiseql'
 ```
 
-### Create Application Secrets
+For a throwaway cluster you can let the chart create the Secret instead — the URL
+then lives in your values file and in Helm's release storage:
 
 ```bash
-kubectl create secret generic fraiseql-secrets \
-  --from-literal=JWT_SECRET=$(openssl rand -base64 32) \
-  --from-literal=CSRF_SECRET=$(openssl rand -base64 32) \
-  --from-literal=SENTRY_DSN=https://your-sentry-dsn
+  --set-string database.url='postgresql://user:password@postgres:5432/fraiseql'
 ```
 
-## Health Checks
+Outside production, `--set env.FRAISEQL_ENV=development` removes the
+`config.content` requirement.
 
-FraiseQL uses composable health check utilities:
+## Configuration
 
-### Application Implementation
+`values.yaml` documents every key, and every key is read by a template. Two of
+them carry most of the configuration surface:
 
-```python
-from fraiseql.monitoring import HealthCheck
-from fraiseql.monitoring.health_checks import check_database, check_pool_stats
+- **`env`** — a map passed to the container verbatim. This is how you set any
+  `FRAISEQL_*` variable (`FRAISEQL_RATE_LIMITING_ENABLED`,
+  `FRAISEQL_INTROSPECTION_ENABLED`, `RUST_LOG`, …). There are no typed value
+  blocks mirroring a subset of them; the previous chart had some, they were wired
+  to nothing, and they could never have covered the list.
+- **`config.content`** — `fraiseql.toml`, for everything with no environment
+  variable, `cors_origins` above all.
 
-health = HealthCheck()
-health.add_check("database", check_database)
-health.add_check("pool", check_pool_stats)
+### Ports
 
-@app.get("/health")  # Liveness probe
-async def liveness():
-    return {"status": "healthy"}
+`application.port` (default **8000**) is the single number: the container's named
+port, the port the Service targets, the port every probe hits, and the address
+the server is told to bind. The Deployment derives `FRAISEQL_BIND_ADDR` from it,
+so changing it moves everything together. It was previously four independent
+numbers and the image's own was not among them (#1216).
 
-@app.get("/ready")   # Readiness probe
-async def readiness():
-    result = await health.run_checks()
-    status_code = 200 if result["status"] == "healthy" else 503
-    return Response(content=json.dumps(result), status_code=status_code)
-```
+### Probes
 
-### Kubernetes Configuration
+- **startup** → `GET /health`. Before a pod has served, an unreachable database
+  is a startup failure.
+- **liveness** → **`tcpSocket`**, not `/health`. `/health` answers 503 whenever
+  the database check fails, so a liveness probe on it restarts every pod for as
+  long as PostgreSQL is unreachable — a failover becomes a restart storm on top
+  of the outage. Liveness must detect a broken process, not a broken dependency.
+- **readiness** → `GET /readiness`. 503 while the database is unreachable, so an
+  affected pod leaves the Service's endpoints without being killed.
 
-The Helm chart automatically configures:
+## What CI verifies
 
-- **Liveness probe**: `/health` - Simple check, pod is alive
-- **Readiness probe**: `/ready` - Full health checks (DB, cache, etc.)
-- **Startup probe**: `/health` - Allows slow startup (up to 150s)
+`tools/chart-deploy-test.sh`, on the `Dagger — image` leg, on every push to `dev`
+and `release/*`:
 
-## Monitoring
+1. every `image:` the default chart renders names a repository this project
+   publishes;
+2. every values toggle changes the render;
+3. the chart refuses to render without a database, a schema, or (in production
+   mode) a config;
+4. every rendered object is accepted by a real Kubernetes API server;
+5. the chart **installs into a throwaway k3s cluster** on the image that build
+   produced, and answers a GraphQL query through its Service;
+6. a row inserted into PostgreSQL *after* the pod is serving comes back out of
+   the next query.
 
-### Prometheus Metrics
+Step 6 is the one that matters. Everything before it is satisfiable by a release
+serving a cached or fabricated answer.
 
-Metrics are exposed at `/metrics` on port 8000. Configure Prometheus scraping:
-
-```yaml
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8000"
-  prometheus.io/path: "/metrics"
-```
-
-### OpenTelemetry Tracing
-
-Enable distributed tracing:
-
-```yaml
-opentelemetry:
-  enabled: true
-  serviceName: "fraiseql"
-  exportEndpoint: "http://jaeger-collector:4317"
-  sampleRate: 0.1
-```
-
-## Scaling
-
-### Horizontal Pod Autoscaling
-
-```yaml
-autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 20
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
-```
-
-### Pod Disruption Budget
-
-Ensures high availability during node maintenance:
-
-```yaml
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 2  # Always keep 2 pods running
-```
-
-## Security
-
-### Pod Security
-
-```yaml
-podSecurityContext:
-  fsGroup: 1000
-  runAsNonRoot: true
-  runAsUser: 1000
-
-securityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-    - ALL
-```
-
-### Network Policy
-
-```yaml
-networkPolicy:
-  enabled: true
-  ingress:
-    - from:
-      - podSelector:
-          matchLabels:
-            app: nginx-ingress
-  egress:
-    - to:
-      - podSelector:
-          matchLabels:
-            app: postgresql
-```
-
-## Upgrade
-
-```bash
-helm upgrade my-fraiseql fraiseql/fraiseql -f values-production.yaml
-```
+`helm.yml` — which ran `helm lint` and rendered into `/dev/null` — was deleted
+rather than repaired. A lint never resolves an image, and that is how this chart
+shipped an unpullable default for several releases (#1129).
 
 ## Uninstall
 
 ```bash
-helm uninstall my-fraiseql
+helm uninstall fraiseql
 ```
-
-## Troubleshooting
-
-### Check Pod Status
-
-```bash
-kubectl get pods -l app.kubernetes.io/name=fraiseql
-kubectl logs -l app.kubernetes.io/name=fraiseql --tail=100
-```
-
-### Check Health
-
-```bash
-kubectl port-forward svc/my-fraiseql 8000:80
-curl http://localhost:8000/health
-curl http://localhost:8000/ready
-```
-
-### Check Metrics
-
-```bash
-curl http://localhost:8000/metrics
-```
-
-## Support
-
-- 📚 Documentation: https://fraiseql.com/docs
-- 💬 GitHub Issues: https://github.com/fraiseql/fraiseql/issues
-- 🏢 Enterprise Support: contact@fraiseql.com

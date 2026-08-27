@@ -1,0 +1,11 @@
+{{- if not .Values.schema.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "fraiseql.schemaConfigMapName" . }}
+  labels:
+    {{- include "fraiseql.labels" . | nindent 4 }}
+data:
+  {{ include "fraiseql.schemaKey" . }}: |
+{{ .Values.schema.compiled | indent 4 }}
+{{- end }}

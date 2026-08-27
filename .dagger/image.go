@@ -189,3 +189,44 @@ func (m *FraiseqlCi) Image(
 	fmt.Fprintf(&report, "  cmd:        %s\n", strings.Join(cmd, " "))
 	return report.String(), nil
 }
+
+// ImageTarball builds one variant and returns it as a docker-format image
+// archive, for a consumer that needs the artifact OUTSIDE the Dagger engine.
+//
+// It exists because of a measured limit, not a preference. Phase 05 deploys the
+// chart into a real Kubernetes cluster, and a kubelet cannot run inside a Dagger
+// exec on this engine: the exec's cgroup has an EMPTY `cgroup.controllers`,
+// because the engine container's own cgroup root delegates nothing through
+// `cgroup.subtree_control`. k3s exits at startup with "failed to find cpu cgroup
+// (v2)" and there is no in-container fix — delegation has to come from the
+// parent. So the cluster runs under host docker (which does get delegation) and
+// this function is how it gets the artifact.
+//
+// ⚠ The point is that `tools/chart-deploy-test.sh` deploys THE IMAGE THIS
+// REPOSITORY BUILDS, from `buildVariant` — the same construction site as
+// `images`, `image-boots` and `image-properties`. A `docker build` in that shell
+// script would have been shorter and would have been a FOURTH copy of the build
+// arguments, which is the drift `tools/check-image-parity.py` exists to prevent.
+//
+// DockerMediaTypes rather than the OCI default: the consumer is `docker load`.
+func (m *FraiseqlCi) ImageTarball(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+	// The variant to export: one of the names in docker-build.yml's matrix.
+	// +optional
+	// +default="fraiseql-server"
+	variant string,
+) (*dagger.File, error) {
+	v, err := lookupVariant(variant)
+	if err != nil {
+		return nil, err
+	}
+	built, err := buildVariant(ctx, source, v)
+	if err != nil {
+		return nil, err
+	}
+	return built.AsTarball(dagger.ContainerAsTarballOpts{
+		MediaTypes: dagger.ImageMediaTypesDockerMediaTypes,
+	}), nil
+}

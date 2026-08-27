@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-failover-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-failover-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all chart-deploy changelog changelog-full
 
 # Default target
 help:
@@ -33,7 +33,7 @@ help:
 	@echo "  make fmt                - Format code with rustfmt"
 	@echo "  make check              - Run all checks (fmt + clippy + test)"
 	@echo "  make preflight          - Run the Dagger preflight gate locally before pushing (fmt+clippy+rustdoc + policy lint gates)"
-	@echo "  make helm-lint          - Lint and template-test the Helm chart"
+	@echo "  make chart-deploy       - Deploy the Helm chart into a throwaway k3s cluster and query it"
 	@echo "  make changelog          - Preview unreleased changelog entries (git-cliff)"
 	@echo "  make changelog-full     - Generate full changelog (overwrites CHANGELOG.md)"
 	@echo "  make clean              - Clean build artifacts"
@@ -975,9 +975,33 @@ load-test-all:
 # ============================================================================
 
 ## Lint and template-test the Helm chart
-helm-lint:
-	helm lint deploy/kubernetes/helm/fraiseql/
-	helm template test deploy/kubernetes/helm/fraiseql/ > /dev/null
+# The Helm chart resolves to an image that exists, and deploys into a real
+# cluster that answers a real query — then a row is inserted behind the deployed
+# release and required back out of it.
+#
+# This replaces `helm-lint`, which ran `helm lint` plus a render into /dev/null.
+# A lint never resolves an image, which is how the chart shipped an unpullable
+# default for several releases (#1129) — and fixing that alone would still have
+# left a chart that could not start a pod for five other reasons.
+#
+# ⚠ Needs docker, and does NOT run inside Dagger: a kubelet cannot start in a
+# Dagger exec on this engine (empty cgroup.controllers — see the script header).
+# The IMAGE still comes from Dagger, so the chart is deployed against the
+# artifact `buildVariant` builds rather than a second `docker build`.
+#
+#   make chart-deploy
+#   make chart-deploy RUN_ID=abc123
+#
+# target/ is in the Dagger +ignore list, so parking the tarball there does not
+# invalidate the image build cache.
+.PHONY: chart-deploy
+chart-deploy:
+	@mkdir -p target/chart-deploy
+	dagger call image-tarball --source=. --variant=fraiseql-server \
+		export --path=target/chart-deploy/fraiseql-server.tar
+	bash tools/chart-deploy-test.sh \
+		--run-id=$(or $(RUN_ID),local-$(shell date +%s%N)) \
+		--image-tarball=target/chart-deploy/fraiseql-server.tar
 
 # Watch for changes and run tests
 watch:

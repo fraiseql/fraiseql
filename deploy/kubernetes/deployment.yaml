@@ -1,3 +1,8 @@
+# ⚠ NOT CI-VERIFIED. The Helm chart under helm/fraiseql is the Kubernetes artifact
+# this repository gates (tools/chart-deploy-test.sh deploys it into a throwaway
+# k3s cluster and queries it). These plain manifests are a second, hand-maintained
+# copy of the same deployment and nothing executes them — they are kept for
+# operators who do not use Helm, and they carry the risk that implies.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,8 +29,11 @@ spec:
         fsGroup: 65532
       containers:
       - name: fraiseql
-        # Pinned for reproducible deploys (never :latest). Bump on upgrade.
-        image: fraiseql:2.8.0
+        # Pinned for reproducible deploys (never :latest). Bumped by tools/release.sh.
+        # `fraiseql:2.8.0` resolved to docker.io/library/fraiseql — the Docker Hub
+        # official-images namespace, which this project cannot publish to — so this
+        # manifest pulled nothing at all (#1129, the half of it outside the chart).
+        image: ghcr.io/fraiseql/server:2.15.0
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
@@ -36,9 +44,13 @@ spec:
           runAsNonRoot: true
           runAsUser: 65532
         ports:
-        - containerPort: 8815
+        - containerPort: 8000
           name: http
           protocol: TCP
+        volumeMounts:
+        - name: schema
+          mountPath: /etc/fraiseql/schema
+          readOnly: true
         env:
         - name: RUST_LOG
           value: info
@@ -47,17 +59,37 @@ spec:
             secretKeyRef:
               name: fraiseql-db
               key: url
+        # The published image bakes no compiled schema, and fraiseql-server exits
+        # at startup when FRAISEQL_SCHEMA_PATH names no file. Create the ConfigMap
+        # this mounts before applying:
+        #   kubectl create configmap fraiseql-schema \
+        #     --from-file=schema.compiled.json=schema.compiled.json
+        - name: FRAISEQL_SCHEMA_PATH
+          value: /etc/fraiseql/schema/schema.compiled.json
+        # 8000 is what the image binds; the container listened there while this
+        # manifest published, probed and served 8815 (#1216). Derived from the
+        # containerPort above so the two cannot drift again.
+        - name: FRAISEQL_BIND_ADDR
+          value: "0.0.0.0:8000"
+        # tcpSocket, not /health. /health answers 503 whenever the database health
+        # check fails (routes/health.rs determine_status), so a liveness probe on
+        # it restarts every pod for as long as Postgres is unreachable — turning a
+        # failover into a restart storm. Liveness must detect a broken process,
+        # not a broken dependency.
         livenessProbe:
-          httpGet:
-            path: /health
+          tcpSocket:
             port: http
           initialDelaySeconds: 10
           periodSeconds: 30
           timeoutSeconds: 5
           failureThreshold: 3
+        # /readiness, not /health. Both answer 503 when the database is down, so
+        # this is not about admitting a broken pod — it is that /readiness is the
+        # endpoint built for the question, and that liveness above must NOT be an
+        # endpoint which fails on a dependency (see the livenessProbe comment).
         readinessProbe:
           httpGet:
-            path: /health
+            path: /readiness
             port: http
           initialDelaySeconds: 5
           periodSeconds: 10
@@ -70,6 +102,10 @@ spec:
           requests:
             cpu: 250m
             memory: 512Mi
+      volumes:
+      - name: schema
+        configMap:
+          name: fraiseql-schema
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

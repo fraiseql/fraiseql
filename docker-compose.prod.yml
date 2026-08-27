@@ -1,6 +1,6 @@
 # FraiseQL production stack.
 #
-# Security posture (H46): only the application's own port (8815) is published to
+# Security posture (H46): only the application's own port (8000) is published to
 # host interfaces. The backing services (PostgreSQL, Redis, Prometheus) are bound
 # to loopback (127.0.0.1) so they are NOT reachable from the network — Docker's
 # port publishing bypasses host firewalls (ufw/iptables), so an unqualified
@@ -25,8 +25,9 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
+    # 8000, not 8815 — the port the image actually binds (#1216).
     ports:
-      - "8815:8815"
+      - "8000:8000"
     environment:
       RUST_LOG: warn
       DATABASE_URL: postgresql://fraiseql:${DB_PASSWORD:?DB_PASSWORD must be set}@postgres:5432/fraiseql
@@ -36,7 +37,7 @@ services:
     networks:
       - fraiseql-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8815/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 3

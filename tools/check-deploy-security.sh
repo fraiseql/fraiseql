@@ -7,7 +7,7 @@
 # runs in the minimal ShellGates container.
 #
 # Checks:
-#   A. Root compose files publish only loopback (127.0.0.1) or the app port (8815)
+#   A. Root compose files publish only loopback (127.0.0.1) or the app port (8000)
 #      to host interfaces — Docker port publishing bypasses host firewalls, so an
 #      unqualified "5432:5432" exposes a backing service to the network (H46).
 #   B. The production compose runs Redis with --requirepass (no unauthenticated Redis).
@@ -19,7 +19,13 @@ set -euo pipefail
 
 # The app's own public port — the one mapping a compose file is allowed to publish
 # to all interfaces.
-APP_PORT="8815:8815"
+#
+# ⚠ 8000, and it was 8815. This constant is why the port half of #1216 could not
+# be fixed piecemeal: the image was corrected to bind 0.0.0.0:8000 while this gate
+# still REQUIRED the compose files to publish 8815:8815, so correcting them turned
+# the security gate red. A gate that pins a number must move with the artifact that
+# defines it — here, the Dockerfile's EXPOSE and FRAISEQL_BIND_ADDR.
+APP_PORT="8000:8000"
 
 # Root compose files subject to the loopback port rule (every shipped compose).
 COMPOSE_PORT_FILES=(docker-compose.prod.yml docker-compose.yml)

@@ -11,6 +11,6 @@ spec:
     app: fraiseql
   ports:
   - port: 80
-    targetPort: 8815
+    targetPort: 8000
     protocol: TCP
     name: http

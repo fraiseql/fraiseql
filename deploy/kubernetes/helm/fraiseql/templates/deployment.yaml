@@ -1,3 +1,4 @@
+{{- include "fraiseql.requireProductionConfig" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,8 +14,13 @@ spec:
       {{- include "fraiseql.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        {{/* Roll the pods when the schema changes. Without this a `helm upgrade`
+        that only changes the compiled schema rewrites the ConfigMap and leaves
+        every running pod serving the previous schema — kubelet eventually
+        refreshes the mounted file, but the server reads it once, at startup. */}}
+        fraiseql.io/schema-checksum: {{ include (print $.Template.BasePath "/schema-configmap.yaml") . | sha256sum }}
+      {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
@@ -45,6 +51,15 @@ spec:
           {{- toYaml .Values.readinessProbe | nindent 12 }}
         resources:
           {{- toYaml .Values.resources | nindent 12 }}
+        volumeMounts:
+        - name: schema
+          mountPath: {{ include "fraiseql.schemaMountDir" . }}
+          readOnly: true
+        {{- if include "fraiseql.configConfigMapName" . }}
+        - name: config
+          mountPath: {{ include "fraiseql.configMountDir" . }}
+          readOnly: true
+        {{- end }}
         env:
         {{- range $key, $value := .Values.env }}
         - name: {{ $key }}
@@ -53,12 +68,42 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: {{ include "fraiseql.fullname" . }}-db
-              key: url
+              name: {{ include "fraiseql.databaseSecretName" . }}
+              key: {{ include "fraiseql.databaseSecretKey" . }}
+        {{/* The compiled schema the server validates before it serves. The image
+        bakes none; without this the container exits at startup. */}}
+        - name: FRAISEQL_SCHEMA_PATH
+          value: {{ include "fraiseql.schemaPath" . | quote }}
+        {{/* Derived from application.port so the value means something. The image
+        defaults to 0.0.0.0:8000; if the chart only set containerPort, changing
+        application.port would move the probes and the Service off the port the
+        process actually listens on — silently, which is exactly how #1216 was
+        invisible for six months.
+
+        0.0.0.0 rather than loopback for the reason the Dockerfile gives: the
+        pod's network namespace is the boundary #874's loopback default asks for,
+        and a probe runs INSIDE that namespace — so a loopback bind would let
+        every probe pass over a pod that serves no traffic through the Service,
+        which is worse than failing. */}}
+        - name: FRAISEQL_BIND_ADDR
+          value: "0.0.0.0:{{ .Values.application.port }}"
+        {{- if include "fraiseql.configConfigMapName" . }}
+        - name: FRAISEQL_CONFIG
+          value: {{ include "fraiseql.configPath" . | quote }}
+        {{- end }}
         {{- if .Values.tracing.otlpEndpoint }}
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: {{ .Values.tracing.otlpEndpoint | quote }}
         {{- end }}
+      volumes:
+      - name: schema
+        configMap:
+          name: {{ include "fraiseql.schemaConfigMapName" . }}
+      {{- if include "fraiseql.configConfigMapName" . }}
+      - name: config
+        configMap:
+          name: {{ include "fraiseql.configConfigMapName" . }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -39,14 +39,60 @@ disagreed, and the promise was the part that was wrong.
   process default to loopback so a bare-metal run is not exposed by accident; a container's
   network namespace is the boundary that argument asks for.
 
-  **Migration:** none for the shipped compose files, Kubernetes manifests or runbook commands
-  — they all set `0.0.0.0:8000` explicitly and always did, which is why nothing noticed.
-  Anyone publishing the container as `-p …:8815` should publish 8000 instead; the image was
-  not serving on 8815 either way.
+  **Migration:** anyone publishing the container as `-p …:8815` should publish 8000 instead;
+  the image was not serving on 8815 either way.
+
+  ⚠ **Correction.** This entry originally said the migration was "none for the shipped compose
+  files, Kubernetes manifests or runbook commands — they all set `0.0.0.0:8000` explicitly and
+  always did". That was measured only over `docker/*.yml` and the runbooks. It was **wrong for
+  every other consumer in the repository**, and they are corrected in the entry below: the two
+  root compose files published `8815:8815` against an image that binds 8000 and set no
+  `FRAISEQL_BIND_ADDR`, all three plain Kubernetes manifests declared 8815 (including the
+  hardened file's NetworkPolicy rules, which would have dropped the traffic even once something
+  listened), the Helm chart declared 8815 on its container port and all three probes, and
+  `tools/check-deploy-security.sh` **required** `8815:8815` as the only mapping a compose file
+  was allowed to publish — so correcting the compose files turned a security gate red.
 
   8815 is Arrow Flight's conventional port. It arrived in a February 2026 deployment
   scaffolding commit that also moved the healthcheck off the 8000 the original Dockerfile
   used, and no gate has built the release image on a branch since (#1206, #1205).
+
+- **Every consumer of the image now uses port 8000, and the Helm chart's values interface
+  changed (#1216, #1129).**
+
+  Fixing the image alone left the fix half-applied for six months' worth of consumers. Now
+  corrected: `docker-compose.yml` and `docker-compose.prod.yml` publish `8000:8000` (and the
+  production healthcheck curls 8000), `deploy/kubernetes/{deployment,service,fraiseql-hardened}.yaml`
+  declare 8000 throughout, `.env.example` says `PORT=8000`, and
+  `tools/check-deploy-security.sh`'s `APP_PORT` moved with them.
+
+  **The Helm chart could not start a pod at all**, and fixing its image reference — the only
+  part of #1129 that had been fixed — would not have changed that. Measured by deploying it:
+  it mounted `DATABASE_URL` from a Secret no template created, mounted no compiled schema (so
+  the container exited at startup validation), probed port 8815, supplied no `fraiseql.toml`
+  (so the server exited on `cors_origins` in production mode), and pointed its liveness probe
+  at `/health`, which answers 503 whenever the database is unreachable — restarting every pod
+  for the duration of a database outage.
+
+  **Migration.** `helm install` now requires three inputs and fails at template time with an
+  instruction if any is missing, rather than installing a release that never serves:
+
+  ```bash
+  helm install fraiseql ./deploy/kubernetes/helm/fraiseql \
+    --set-file schema.compiled=schema.compiled.json \
+    --set-file config.content=fraiseql.toml \
+    --set database.existingSecret=fraiseql-db-credentials
+  ```
+
+  Outside production, `--set env.FRAISEQL_ENV=development` removes the `config.content`
+  requirement. Values removed because **no template read them** — rendering with all of them
+  flipped produced byte-identical output — are `ingress`, `podDisruptionBudget`, `persistence`,
+  `monitoring`, `security`, `database.{host,port,name,pool,timeout_seconds}`,
+  `application.{graphql,admin}`, `service.targetPort`, and the environment ConfigMap the
+  Deployment never referenced. Anything the server reads can be set through the `env` map;
+  anything with no environment variable goes in `config.content`. `application.port` is now the
+  single number the container port, the Service target, every probe and `FRAISEQL_BIND_ADDR`
+  are all derived from. `serviceAccount.create` now creates a ServiceAccount.
 
 - **Both Python clients raise `FraiseQLError` subclasses for every HTTP status, instead of
   leaking `httpx.HTTPStatusError` (#1059).**
@@ -3529,6 +3575,44 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **The Helm chart is deployed into a real cluster and queried, instead of linted (#1129).**
+
+  `helm.yml` ran `helm lint` plus a render into `/dev/null`, on `workflow_dispatch` only. **A
+  lint never resolves an image**, which is how the chart shipped `repository: fraiseql` —
+  `docker.io/library/fraiseql`, the Docker Hub official-images namespace this project cannot
+  publish to — for several releases. That workflow is deleted rather than repaired; repairing a
+  check that cannot fail for the reason you care about only makes it look more convincing.
+
+  `tools/chart-deploy-test.sh` runs as a fourth step on the `Dagger — image` leg and asserts, in
+  order: every `image:` the default chart renders names a repository this project publishes;
+  every values toggle **changes the render** (the generalisation of the four dead toggles, and
+  it discovers them from `values.yaml` rather than listing them); the chart refuses to render
+  without a database, a schema, or a production-mode config, *and* that the documented
+  `FRAISEQL_ENV=development` escape hatch works; every rendered object is accepted by a real
+  Kubernetes API server via `--dry-run=server`; the chart installs into a throwaway k3s cluster
+  **on the image that leg just built**; and it answers `{ users { id name } }` through its
+  Service.
+
+  Then the assertion that is not satisfiable by a cached or fabricated response: a row is
+  inserted into PostgreSQL behind the running release and required back out of the next query.
+  Proved by inversion — with the pod serving correctly and every prior step green, answering the
+  re-query with the pre-insert body turns the tier red on that check alone.
+
+  Seven inversions, one broken chart each: an unpublishable repository, a toggle no template
+  reads, the database guard removed, no Secret created, no `FRAISEQL_SCHEMA_PATH`, port 8815
+  against an image binding 8000, and a stale answer. An eighth pins the toggle parser: every
+  `enabled:` line in `values.yaml` must be *classified*, so a key the parser cannot read fails
+  the gate instead of being silently skipped — which it was, until the first inversion showed
+  `docker run -i` inside the loop eating the remaining toggles.
+
+  ⚠ **This step is not a `dagger call`, and that is measured rather than preferred.** A kubelet
+  cannot start inside a Dagger exec on this engine: the exec's `cgroup.controllers` is empty,
+  because the engine container's own cgroup root delegates nothing through
+  `cgroup.subtree_control`, and k3s exits with `failed to find cpu cgroup (v2)`. The cluster
+  runs under host docker, which does get delegation. The image still comes from Dagger —
+  `dagger call image-tarball` exports what `buildVariant` builds — so this did not become a
+  fourth copy of the build arguments.
 
 - **The shipped image's properties are now asserted on the artifact, and its own HEALTHCHECK is
   executed rather than assumed (#1133, #1129, #1216).**

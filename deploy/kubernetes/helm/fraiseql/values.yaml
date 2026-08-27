@@ -1,6 +1,16 @@
-# Default values for fraiseql Helm chart
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+# Default values for the fraiseql Helm chart.
+#
+# ⚠ Every key below is READ BY A TEMPLATE. That is a property this chart did not
+# have: it once shipped `ingress`, `podDisruptionBudget`, `persistence`,
+# `monitoring`, `security`, `database.pool`, `service.targetPort` and a whole
+# ConfigMap of environment variables that no template referenced and the server
+# does not read. Rendering with every one of those toggles flipped to `true`
+# produced output BYTE-IDENTICAL to the default render. They are gone rather than
+# implemented — a value that does nothing is worse than an absent one, because it
+# is configuration an operator believes they have set.
+#
+# tools/chart-deploy-test.sh holds this property: for every `<path>.enabled` key
+# here it renders the chart both ways and requires the two renders to DIFFER.
 
 # Image configuration
 image:
@@ -20,7 +30,8 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Replica configuration
+# Replica configuration. Ignored while autoscaling.enabled is true — the HPA owns
+# the replica count then, and setting both is how a Deployment and an HPA fight.
 replicaCount: 3
 
 # Pod annotations for metrics, logging, etc.
@@ -43,24 +54,16 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 65532
 
-# Service configuration
+# Service configuration.
+#
+# `targetPort` is deliberately absent: the Service targets the container's NAMED
+# port `http`, which is application.port below. A second number here could
+# disagree with the container's, and a `targetPort` that no template read is
+# exactly what this chart shipped.
 service:
   type: ClusterIP
   port: 80
-  targetPort: 8815
   annotations: {}
-
-# Ingress configuration
-ingress:
-  enabled: false
-  className: "nginx"
-  annotations: {}
-  hosts:
-    - host: fraiseql.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
 
 # Resource requests and limits
 resources:
@@ -79,7 +82,28 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
-# Health probes
+# Health probes. All three pointed at /health, and all three were wrong for it.
+#
+# ⚠ /health is NOT a process-liveness endpoint, despite its own doc comment in
+# crates/fraiseql-server/src/routes/health.rs claiming it is "always 200 while
+# the process is alive". determine_status() returns "unhealthy" whenever the
+# database health check fails, and the handler answers 503 for "unhealthy". The
+# code and the comment above it disagree; the code is what runs.
+#
+# So a livenessProbe on /health makes the kubelet RESTART every pod for as long
+# as Postgres is unreachable — a failover or a brief blip becomes a cluster-wide
+# restart storm on top of the outage it was reacting to. A liveness probe must
+# detect a broken PROCESS, never a broken dependency. There is no endpoint that
+# reports process health alone, so liveness is a tcpSocket check: the process is
+# up and holding its port.
+#
+# readinessProbe is /readiness, the endpoint built for it: 503 while the database
+# is unreachable, so an affected pod leaves the Service's endpoints and stops
+# receiving traffic — without being killed.
+#
+# startupProbe stays on /health deliberately. Before a pod has ever served,
+# "cannot reach the database" IS a startup failure, and restarting is the right
+# response to it.
 startupProbe:
   httpGet:
     path: /health
@@ -90,8 +114,7 @@ startupProbe:
   failureThreshold: 30    # 30 * 5s = 150s max startup time
 
 livenessProbe:
-  httpGet:
-    path: /health
+  tcpSocket:
     port: http
   initialDelaySeconds: 0
   periodSeconds: 30
@@ -100,7 +123,7 @@ livenessProbe:
 
 readinessProbe:
   httpGet:
-    path: /health
+    path: /readiness
     port: http
   initialDelaySeconds: 5
   periodSeconds: 10
@@ -114,64 +137,87 @@ affinity: {}
 
 tolerations: []
 
-# Pod disruption budget
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
-
-# Environment variables and config
+# Environment variables passed to the container verbatim.
+#
+# This map is the configuration escape hatch, and it is deliberately the ONLY
+# one. fraiseql-server is configured by FRAISEQL_* environment variables (see
+# `docs/` or `fraiseql-server --help` for the full list); typed value blocks that
+# mapped onto a subset of them — `security.rate_limiting`, `monitoring.prometheus`
+# — were removed because they were wired to nothing and could never cover the
+# list. Anything the server reads can be set here:
+#
+#   env:
+#     RUST_LOG: info
+#     FRAISEQL_RATE_LIMITING_ENABLED: "true"
+#     FRAISEQL_INTROSPECTION_ENABLED: "false"
 env:
   RUST_LOG: info
 
-# Database configuration
+# Database connection. Set EXACTLY ONE of `url` or `existingSecret`.
+#
+#   url             the chart creates a Secret containing it. Convenient for a
+#                   throwaway or in-cluster database; the value lands in your
+#                   values file and in Helm's release storage.
+#   existingSecret  you create the Secret out of band; the chart only references
+#                   it. This is the production shape.
+#
+# There is no default. The chart previously mounted DATABASE_URL from a Secret
+# named `<release>-fraiseql-db` that no template created, so the shipped defaults
+# installed cleanly and the pod never started (see _helpers.tpl).
 database:
-  host: postgres
-  port: 5432
-  name: fraiseql
-  pool:
-    min_size: 5
-    max_size: 20
-  timeout_seconds: 30
+  url: ""
+  existingSecret: ""
+  existingSecretKey: url
 
-# Application configuration
+# Compiled schema. Set EXACTLY ONE of `compiled` or `existingConfigMap`.
+#
+#   compiled           the compiled schema JSON itself. Supply it with
+#                      `--set-file schema.compiled=schema.compiled.json` rather
+#                      than pasting it; the chart creates the ConfigMap.
+#   existingConfigMap  you create the ConfigMap; the chart mounts it.
+#
+# `key` is both the ConfigMap key and the file name it is mounted as. The
+# published image bakes no schema, so without this the container exits at
+# startup — fraiseql-server validates FRAISEQL_SCHEMA_PATH before it serves.
+schema:
+  compiled: ""
+  existingConfigMap: ""
+  key: schema.compiled.json
+
+# Server configuration file (fraiseql.toml), mounted and passed as
+# FRAISEQL_CONFIG. Set EXACTLY ONE of `content` or `existingConfigMap`.
+#
+# This is where everything the `env` map cannot express lives — cors_origins
+# above all, which has no environment variable and which fraiseql-server
+# REQUIRES before it will start in production mode. A minimal one:
+#
+#   cors_origins = ["https://app.example.com"]
+#
+# Supply it with `--set-file config.content=fraiseql.toml`. Required unless
+# env.FRAISEQL_ENV is "development"; see fraiseql.requireProductionConfig in
+# _helpers.tpl for why the chart refuses rather than deploying a pod that
+# CrashLoopBackOffs.
+config:
+  content: ""
+  existingConfigMap: ""
+  key: fraiseql.toml
+
+# Application configuration.
+#
+# `port` is the one number: the container's named port `http`, the port the
+# Service targets, the port every probe hits, AND the address the server is told
+# to bind (the Deployment derives FRAISEQL_BIND_ADDR from it). Those were four
+# independent numbers, and the image's own was not among them — the chart said
+# 8815 while the image binds 8000, so every probe was refused and the pod
+# CrashLoopBackOff'd (#1216).
 application:
-  port: 8815
-  graphql:
-    path: /graphql
-    complexity_limit: 1000
-  admin:
-    path: /admin
-    enabled: true
+  port: 8000
 
 # Distributed tracing (OpenTelemetry)
 tracing:
   # Set to an OTLP collector endpoint to enable distributed tracing.
   # When empty, no OTLP export occurs (zero overhead).
   otlpEndpoint: ""
-
-# Monitoring and observability
-monitoring:
-  enabled: true
-  prometheus:
-    port: 9090
-    path: /metrics
-
-# Security configuration
-security:
-  rate_limiting:
-    enabled: true
-    auth_start_max_requests: 100
-    auth_start_window_secs: 60
-  audit_logging:
-    enabled: true
-    log_level: info
-
-# Persistence
-persistence:
-  enabled: false
-  storageClassName: "standard"
-  accessMode: ReadWriteOnce
-  size: 10Gi
 
 # Service account configuration
 serviceAccount:
