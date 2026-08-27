@@ -33,8 +33,14 @@ CARGO_TOML="Cargo.toml"
 DOCKERFILE="Dockerfile"
 CHART="deploy/kubernetes/helm/fraiseql/Chart.yaml"
 VALUES="deploy/kubernetes/helm/fraiseql/values.yaml"
+# The canonical Compose stack pins the same version, for the same reason the chart
+# does: a stack naming a version this repository is not building names an image that
+# does not exist. Added 2026-08-28, when the six shipped stacks were collapsed to one
+# — the deleted ones pinned `fraiseql/server:latest` and `fraiseql/dashboard:latest`,
+# the second of which has never been published at all.
+COMPOSE="docker-compose.yml"
 
-for f in "$CARGO_TOML" "$DOCKERFILE" "$CHART" "$VALUES"; do
+for f in "$CARGO_TOML" "$DOCKERFILE" "$CHART" "$VALUES" "$COMPOSE"; do
   if [ ! -f "$f" ]; then
     echo "ERROR: deploy-version scan target not found: $f" >&2
     exit 1
@@ -102,7 +108,31 @@ if [ "$repo_ok" -ne 1 ]; then
   echo "        the Docker Hub official-images namespace — and pulls nothing.)"
 fi
 
+# ── docker-compose.yml ───────────────────────────────────────────────────────
+# The service name is not assumed: the reference is taken from whichever `image:`
+# line names a repository this project publishes, and it is an error to find none —
+# otherwise a renamed service would make this check silently pass on nothing.
+compose_ref=""
+while IFS= read -r ref; do
+  for img in $PUBLISHED_IMAGES; do
+    case "$ref" in "$img":*) compose_ref="$ref" ;; esac
+  done
+done < <(grep -oE '^[[:space:]]*image:[[:space:]]*"?[^"[:space:]]+' "$COMPOSE" \
+         | sed -E 's/^[[:space:]]*image:[[:space:]]*"?//')
+
+if [ -z "$compose_ref" ]; then
+  fail "$COMPOSE names no image from a repository this project publishes."
+  echo "       Published server images: $PUBLISHED_IMAGES"
+  echo "       (A bare name like 'fraiseql' resolves to docker.io/library/fraiseql —"
+  echo "        the Docker Hub official-images namespace — and pulls nothing.)"
+else
+  compose_tag="${compose_ref##*:}"
+  [ "$compose_tag" = "$version" ] \
+    || fail "$COMPOSE pins '$compose_ref', workspace is '$version'."
+fi
+
 if [ "$status" -eq 0 ]; then
-  echo "OK: deploy artifacts all name v${version}, and the chart image is a published one."
+  echo "OK: deploy artifacts all name v${version}, and the chart and compose images are"
+  echo "    published ones."
 fi
 exit "$status"

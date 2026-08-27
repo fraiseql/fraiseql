@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-failover-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all chart-deploy changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-failover-reset db-status federation-up federation-down e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all chart-deploy compose-stack changelog changelog-full
 
 # Default target
 help:
@@ -33,7 +33,6 @@ help:
 	@echo "  make fmt                - Format code with rustfmt"
 	@echo "  make check              - Run all checks (fmt + clippy + test)"
 	@echo "  make preflight          - Run the Dagger preflight gate locally before pushing (fmt+clippy+rustdoc + policy lint gates)"
-	@echo "  make chart-deploy       - Deploy the Helm chart into a throwaway k3s cluster and query it"
 	@echo "  make changelog          - Preview unreleased changelog entries (git-cliff)"
 	@echo "  make changelog-full     - Generate full changelog (overwrites CHANGELOG.md)"
 	@echo "  make clean              - Clean build artifacts"
@@ -45,31 +44,11 @@ help:
 	@echo "  make bench              - Run benchmarks"
 	@echo "  make install            - Install CLI tool"
 	@echo ""
-	@echo "Docker Demo (Newcomers):"
-	@echo "  make demo-start         - Start single-example stack (blog only)"
-	@echo "  make demo-stop          - Stop demo stack"
-	@echo "  make demo-logs          - View demo logs"
-	@echo "  make demo-status        - Check demo health"
-	@echo "  make demo-restart       - Restart demo stack"
-	@echo "  make demo-clean         - Remove demo volumes and stop"
-	@echo ""
-	@echo "Docker Examples (Advanced - with local build):"
-	@echo "  make examples-start     - Start multi-example stack (blog, ecommerce, streaming)"
-	@echo "  make examples-stop      - Stop examples stack"
-	@echo "  make examples-logs      - View examples logs"
-	@echo "  make examples-status    - Check examples health"
-	@echo "  make examples-clean     - Remove examples volumes and stop"
-	@echo ""
-	@echo "Docker Production (Pre-built Images - No Local Build):"
-	@echo "  make prod-start         - Start production demo (single example, pre-built)"
-	@echo "  make prod-stop          - Stop production demo"
-	@echo "  make prod-status        - Check production health"
-	@echo "  make prod-logs          - View production logs"
-	@echo "  make prod-clean         - Remove production volumes"
-	@echo "  make prod-examples-start - Start production multi-example (all 3, pre-built)"
-	@echo "  make prod-examples-stop  - Stop production multi-example"
-	@echo "  make prod-examples-status - Check multi-example health"
-	@echo "  make prod-examples-clean  - Remove multi-example volumes"
+	@echo "Delivery artifacts (what an operator consumes):"
+	@echo "  make compose-stack      - Bring up docker-compose.yml on this branch's image and query it"
+	@echo "  make chart-deploy       - Deploy the Helm chart into a throwaway k3s cluster and query it"
+	@echo "  make image-boot         - Boot each server image on its own CMD and query it"
+	@echo "  make image-properties   - Assert what the built image IS (linkage, user, labels, size)"
 	@echo ""
 
 # Build all crates
@@ -1003,6 +982,34 @@ chart-deploy:
 		--run-id=$(or $(RUN_ID),local-$(shell date +%s%N)) \
 		--image-tarball=target/chart-deploy/fraiseql-server.tar
 
+## Bring up the canonical Compose stack and query it
+# docker-compose.yml is the ONE Compose stack this repository verifies. Five other
+# operator-facing stacks shipped beside it and, measured 2026-08-28, not one of the
+# six could serve a query — see the file's own header for the six causes.
+#
+# The stack is brought up on the image THIS BRANCH builds (loaded under the tag the
+# compose file names, so no registry is needed before the tag exists), required to
+# become healthy on the IMAGE's own HEALTHCHECK, queried through the published host
+# port, and then a row is inserted behind the running engine and required back.
+#
+# ⚠ Needs docker, and is not a `dagger call`: `docker compose` needs a docker
+# daemon, and the same host-docker reasoning as chart-deploy applies. The IMAGE
+# still comes from Dagger, so this is not a second copy of the build arguments.
+#
+#   make compose-stack
+#   make compose-stack RUN_ID=abc123
+#
+# target/ is in the Dagger +ignore list, so parking the tarball there does not
+# invalidate the image build cache.
+.PHONY: compose-stack
+compose-stack:
+	@mkdir -p target/compose-stack
+	dagger call image-tarball --source=. --variant=fraiseql-server \
+		export --path=target/compose-stack/fraiseql-server.tar
+	bash tools/compose-stack-test.sh \
+		--run-id=$(or $(RUN_ID),local-$(shell date +%s%N)) \
+		--image-tarball=target/compose-stack/fraiseql-server.tar
+
 # Watch for changes and run tests
 watch:
 	cargo watch -x 'test --all-features'
@@ -1420,67 +1427,6 @@ test-parity-strict:
 	@sdks/official/tests/run_parity.sh
 
 # ============================================================================
-# Docker Demo Platform (Newcomer Onboarding)
-# ============================================================================
-
-## Start demo stack (GraphQL IDE, tutorial, server, database)
-demo-start:
-	@echo "🚀 Starting FraiseQL demo stack..."
-	@docker compose -f docker/docker-compose.demo.yml up -d
-	@echo ""
-	@echo "⏳ Waiting for services to be healthy..."
-	@sleep 5
-	@docker compose -f docker/docker-compose.demo.yml ps
-	@echo ""
-	@echo "✅ Demo stack is running!"
-	@echo ""
-	@echo "Open your browser:"
-	@echo "  🖥️  GraphQL IDE:      http://localhost:3000"
-	@echo "  📚 Tutorial:          http://localhost:3001"
-	@echo "  📊 Admin Dashboard:   http://localhost:3002"
-	@echo "  🔌 API Server:        http://localhost:8000"
-	@echo ""
-	@echo "📖 Quick start: See docs/docker-quickstart.md"
-	@echo ""
-
-## Stop demo stack
-demo-stop:
-	@echo "🛑 Stopping FraiseQL demo stack..."
-	@docker compose -f docker/docker-compose.demo.yml down
-	@echo "✅ Demo stack stopped"
-
-## View demo logs
-demo-logs:
-	@docker compose -f docker/docker-compose.demo.yml logs -f
-
-## Check demo health status
-demo-status:
-	@echo "📊 Demo Stack Status:"
-	@docker compose -f docker/docker-compose.demo.yml ps
-	@echo ""
-	@echo "Service Health:"
-	@echo -n "  FraiseQL Server: "
-	@curl -s http://localhost:8000/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  GraphQL IDE: "
-	@curl -s http://localhost:3000/ > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Tutorial: "
-	@curl -s http://localhost:3001/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  PostgreSQL: "
-	@docker compose -f docker/docker-compose.demo.yml exec -T postgres-blog pg_isready -U fraiseql > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
-
-## Restart demo stack
-demo-restart: demo-stop demo-start
-	@echo "✅ Demo stack restarted"
-
-## Remove demo volumes and stop (fresh start)
-demo-clean:
-	@echo "🧹 Cleaning up demo stack (removing volumes)..."
-	@docker compose -f docker/docker-compose.demo.yml down -v
-	@echo "✅ Demo stack cleaned"
-	@echo ""
-	@echo "💡 Run 'make demo-start' to start fresh"
-
-# ============================================================================
 # examples/ gate — the two tiers that need a toolchain
 #
 # The static tier (tools/check-examples-integrity.sh) runs in preflight as
@@ -1507,176 +1453,3 @@ examples-smoke:
 	 SERVER_BIN=$(CURDIR)/target/debug/fraiseql-server \
 	 bash tools/examples-smoke.sh
 
-# ============================================================================
-# Docker Multi-Example Stack (Blog + E-Commerce + Streaming)
-# ============================================================================
-
-## Start multi-example stack (all 3 domains simultaneously)
-examples-start:
-	@echo "🚀 Starting FraiseQL multi-example stack..."
-	@echo "   Running: Blog, E-Commerce, and Streaming examples"
-	@docker compose -f docker/docker-compose.examples.yml up -d
-	@echo ""
-	@echo "⏳ Waiting for services to be healthy..."
-	@sleep 8
-	@docker compose -f docker/docker-compose.examples.yml ps
-	@echo ""
-	@echo "✅ Multi-example stack is running!"
-	@echo ""
-	@echo "Open your browser:"
-	@echo "  📝 Blog IDE:           http://localhost:3000"
-	@echo "  🛒 E-Commerce IDE:     http://localhost:3100"
-	@echo "  ⚡ Streaming IDE:       http://localhost:3200"
-	@echo "  📚 Tutorial:           http://localhost:3001"
-	@echo "  📊 Admin Dashboard:    http://localhost:3002"
-	@echo ""
-	@echo "📖 Quick reference:"
-	@echo "  - Blog: Simple product management (5 users, 10 posts)"
-	@echo "  - E-Commerce: Orders & inventory (5 categories, 12 products, 7 orders)"
-	@echo "  - Streaming: Real-time events (subscriptions, metrics, activity)"
-	@echo ""
-
-## Stop multi-example stack
-examples-stop:
-	@echo "🛑 Stopping FraiseQL multi-example stack..."
-	@docker compose -f docker/docker-compose.examples.yml down
-	@echo "✅ Multi-example stack stopped"
-
-## View multi-example logs
-examples-logs:
-	@docker compose -f docker/docker-compose.examples.yml logs -f
-
-## Check multi-example health status
-examples-status:
-	@echo "📊 Multi-Example Stack Status:"
-	@docker compose -f docker/docker-compose.examples.yml ps
-	@echo ""
-	@echo "Service Health:"
-	@echo -n "  Blog Server: "
-	@curl -s http://localhost:8000/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  E-Commerce Server: "
-	@curl -s http://localhost:8001/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Streaming Server: "
-	@curl -s http://localhost:8002/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Tutorial: "
-	@curl -s http://localhost:3001/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Admin Dashboard: "
-	@curl -s http://localhost:3002/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-
-## Remove multi-example volumes and stop (fresh start)
-examples-clean:
-	@echo "🧹 Cleaning up multi-example stack (removing volumes)..."
-	@docker compose -f docker/docker-compose.examples.yml down -v
-	@echo "✅ Multi-example stack cleaned"
-	@echo ""
-	@echo "💡 Run 'make examples-start' to start fresh"
-
-# ============================================================================
-# Docker Production Stack (Pre-built Images from Docker Hub)
-# ============================================================================
-
-## Start production demo stack (pre-built images, no local build)
-prod-start:
-	@echo "🚀 Starting FraiseQL production demo stack (pre-built images)..."
-	@docker compose -f docker/docker-compose.prod.yml up -d
-	@echo ""
-	@echo "⏳ Waiting for services to be healthy..."
-	@sleep 5
-	@docker compose -f docker/docker-compose.prod.yml ps
-	@echo ""
-	@echo "✅ Production demo stack is running!"
-	@echo ""
-	@echo "Open your browser:"
-	@echo "  🖥️  GraphQL IDE:      http://localhost:3000"
-	@echo "  📚 Tutorial:          http://localhost:3001"
-	@echo "  📊 Admin Dashboard:   http://localhost:3002"
-	@echo "  🔌 API Server:        http://localhost:8000"
-	@echo ""
-
-## Stop production demo stack
-prod-stop:
-	@echo "🛑 Stopping FraiseQL production demo stack..."
-	@docker compose -f docker/docker-compose.prod.yml down
-	@echo "✅ Production demo stack stopped"
-
-## View production demo logs
-prod-logs:
-	@docker compose -f docker/docker-compose.prod.yml logs -f
-
-## Check production demo health status
-prod-status:
-	@echo "📊 Production Demo Stack Status:"
-	@docker compose -f docker/docker-compose.prod.yml ps
-	@echo ""
-	@echo "Service Health:"
-	@echo -n "  FraiseQL Server: "
-	@curl -s http://localhost:8000/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  GraphQL IDE: "
-	@curl -s http://localhost:3000/ > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Tutorial: "
-	@curl -s http://localhost:3001/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  PostgreSQL: "
-	@docker compose -f docker/docker-compose.prod.yml exec -T postgres-blog pg_isready -U fraiseql > /dev/null 2>&1 && echo "✅ Healthy" || echo "❌ Unhealthy"
-
-## Clean production demo stack
-prod-clean:
-	@echo "🧹 Cleaning up production demo stack (removing volumes)..."
-	@docker compose -f docker/docker-compose.prod.yml down -v
-	@echo "✅ Production demo stack cleaned"
-	@echo ""
-	@echo "💡 Run 'make prod-start' to start fresh"
-
-## Start production multi-example stack (all 3 examples with pre-built images)
-prod-examples-start:
-	@echo "🚀 Starting FraiseQL production multi-example stack..."
-	@echo "   Running: Blog, E-Commerce, and Streaming examples (pre-built images)"
-	@docker compose -f docker/docker-compose.prod-examples.yml up -d
-	@echo ""
-	@echo "⏳ Waiting for services to be healthy..."
-	@sleep 8
-	@docker compose -f docker/docker-compose.prod-examples.yml ps
-	@echo ""
-	@echo "✅ Production multi-example stack is running!"
-	@echo ""
-	@echo "Open your browser:"
-	@echo "  📝 Blog IDE:           http://localhost:3000"
-	@echo "  🛒 E-Commerce IDE:     http://localhost:3100"
-	@echo "  ⚡ Streaming IDE:       http://localhost:3200"
-	@echo "  📚 Tutorial:           http://localhost:3001"
-	@echo "  📊 Admin Dashboard:    http://localhost:3002"
-	@echo ""
-
-## Stop production multi-example stack
-prod-examples-stop:
-	@echo "🛑 Stopping FraiseQL production multi-example stack..."
-	@docker compose -f docker/docker-compose.prod-examples.yml down
-	@echo "✅ Production multi-example stack stopped"
-
-## View production multi-example logs
-prod-examples-logs:
-	@docker compose -f docker/docker-compose.prod-examples.yml logs -f
-
-## Check production multi-example health status
-prod-examples-status:
-	@echo "📊 Production Multi-Example Stack Status:"
-	@docker compose -f docker/docker-compose.prod-examples.yml ps
-	@echo ""
-	@echo "Service Health:"
-	@echo -n "  Blog Server: "
-	@curl -s http://localhost:8000/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  E-Commerce Server: "
-	@curl -s http://localhost:8001/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Streaming Server: "
-	@curl -s http://localhost:8002/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Tutorial: "
-	@curl -s http://localhost:3001/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "  Admin Dashboard: "
-	@curl -s http://localhost:3002/health > /dev/null && echo "✅ Healthy" || echo "❌ Unhealthy"
-
-## Clean production multi-example stack
-prod-examples-clean:
-	@echo "🧹 Cleaning up production multi-example stack (removing volumes)..."
-	@docker compose -f docker/docker-compose.prod-examples.yml down -v
-	@echo "✅ Production multi-example stack cleaned"
-	@echo ""
-	@echo "💡 Run 'make prod-examples-start' to start fresh"

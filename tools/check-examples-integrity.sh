@@ -30,6 +30,21 @@ cd "$REPO_ROOT"
 
 found=0
 
+# Every compose file a reader may run, root included.
+#
+# ⚠ This used to be `find docker examples`, and the omission was load-bearing: the
+# root production template bind-mounted `./tools/prometheus.yml`, a path that does
+# not exist (the real file is deploy/docker/prometheus.yml), and no gate saw it
+# because the root files were outside the search. `find`, not `git ls-files` — the
+# Dagger ShellGates leg runs `git init` on copied source, so the index is empty
+# there and every `git ls-files` loop iterates over nothing.
+compose_files() {
+    find . \( -name 'docker-compose*.yml' -o -name 'docker-compose*.yaml' \
+            -o -name 'compose.yml' -o -name 'compose.yaml' \) \
+        -not -path './target/*' -not -path './.git/*' -not -path '*/node_modules/*' \
+      | sed 's|^\./||' | sort
+}
+
 # ---------------------------------------------------------------------------
 # Known-broken, each with the issue that owns it.
 #
@@ -46,8 +61,6 @@ found=0
 # looked. That is what stops this list from becoming permanent.
 # ---------------------------------------------------------------------------
 declare -A KNOWN_BROKEN=(
-    ["docker/docker-compose.demo.yml names a Dockerfile that does not exist: admin-dashboard/Dockerfile"]="#1189"
-    ["docker/docker-compose.examples.yml names a Dockerfile that does not exist: admin-dashboard/Dockerfile"]="#1189"
     ["examples/federation/multi-cloud/docker-compose-local.yml names a Dockerfile that does not exist: Dockerfile"]="#1190"
     ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-users.sql"]="#1190"
     ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-orders.sql"]="#1190"
@@ -79,14 +92,14 @@ fail() {
 # ---------------------------------------------------------------------------
 # 1. Compose bind-mount sources must exist, resolved the way Compose resolves them.
 #
-# #1052: `make demo-start` runs `docker compose -f docker/docker-compose.demo.yml up`.
-# Compose resolves relative host paths against the PROJECT DIRECTORY, which defaults to
-# the directory of the first `-f` file — `docker/` — not the current directory. So
-# `./examples/basic` resolved to `docker/examples/basic`, which does not exist, and
-# Docker silently created an empty directory and mounted that. Every documented Docker
-# onboarding path in the repo was serving an empty schema directory. Proven with
-# `docker compose -f docker/docker-compose.demo.yml config`, which printed the resolved
-# source path.
+# #1052: `make demo-start` ran `docker compose -f docker/docker-compose.demo.yml up`
+# (both were deleted 2026-08-28; the defect class was not). Compose resolves relative
+# host paths against the PROJECT DIRECTORY, which defaults to the directory of the
+# first `-f` file — `docker/` — not the current directory. So `./examples/basic`
+# resolved to `docker/examples/basic`, which does not exist, and Docker silently
+# created an empty directory and mounted that. Every documented Docker onboarding path
+# in the repo was serving an empty schema directory. Proven with `docker compose …
+# config`, which printed the resolved source path.
 # ---------------------------------------------------------------------------
 echo "→ compose bind-mount sources resolve to something that exists"
 while IFS= read -r compose; do
@@ -117,7 +130,7 @@ while IFS= read -r compose; do
     # at what it just fixed is the gate-cannot-fail shape one layer up.
     done < <(grep -oE '^[[:space:]]*-[[:space:]]*\.\.?/[^:]+:' "$compose" \
              | sed -E 's|^[[:space:]]*-[[:space:]]*||; s|:$||')
-done < <(find docker examples -name 'docker-compose*.yml' -o -name 'compose*.yml' | sort)
+done < <(compose_files)
 
 # ---------------------------------------------------------------------------
 # 2. A health gate must not match the string it exists to reject.
@@ -216,7 +229,7 @@ while IFS= read -r compose; do
         fi
         CLAIMED["$abs_df"]="$abs_ctx"
     done < <(compose_builds "$compose")
-done < <(find docker examples -name 'docker-compose*.yml' -o -name 'compose*.yml' | sort)
+done < <(compose_files)
 
 while IFS= read -r dockerfile; do
     abs_df="$REPO_ROOT/$dockerfile"

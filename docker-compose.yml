@@ -1,17 +1,105 @@
-version: '3.8'
+# FraiseQL — the canonical Compose stack.
+#
+# This is the ONE Compose stack this repository verifies. `tools/compose-stack-test.sh`
+# brings it up on the image the current branch builds, requires the container to become
+# healthy on the image's own HEALTHCHECK, queries it through the published port, and
+# then inserts a row behind the engine's back and requires that row in the answer. It
+# runs as a step on the `Dagger — image` leg.
+#
+# Five other operator-facing stacks used to ship beside it. Measured 2026-08-28, NONE of
+# the six could serve a query:
+#
+#   * every one of them ran the server in production mode with no fraiseql.toml, so it
+#     exited on its first line with "cors_enabled is true but cors_origins is empty"
+#     (cors_origins has no environment variable). That fires BEFORE the schema check,
+#     so it was the first failure in all six;
+#   * the two root files mounted no compiled schema at all, and the image bakes none;
+#   * `docker/docker-compose.{demo,examples}.yml` built `admin-dashboard/Dockerfile`,
+#     which exists nowhere in the repository (#1189);
+#   * `docker/docker-compose.prod{,-examples}.yml` pulled `fraiseql/dashboard:latest`,
+#     which has never been published — `docker manifest inspect` answers
+#     "no such manifest";
+#   * all four `docker/` stacks pointed FRAISEQL_SCHEMA_PATH at a `schema.compiled.json`
+#     that is gitignored and that no step builds (#1202);
+#   * all four ran `graphql/graphql-playground`, a repository Docker Hub no longer serves.
+#
+# They were deleted rather than repaired, for the reason `helm.yml` was: five near-copies
+# of a stack that cannot start are not five artifacts, they are five claims. One stack
+# that is executed in CI is worth more than six that are read.
+#
+# ── The three inputs you must supply ─────────────────────────────────────────────────
+#
+# Compose reads `.env` from this directory. Copy `.env.example` and fill in:
+#
+#   DB_PASSWORD           the database password
+#   FRAISEQL_SCHEMA_FILE  host path to your compiled schema (`fraiseql compile schema.json`)
+#   FRAISEQL_CONFIG_FILE  host path to your fraiseql.toml
+#
+# Two inputs are optional: FRAISEQL_HOST_PORT (default 8000) and
+# FRAISEQL_DB_HOST_PORT (default 5432) move the HOST side of each published port when
+# something else on the host already holds it. The container sides are fixed.
+#
+# Each is `${VAR:?...}` below, so an unset one aborts `docker compose up` with an
+# instruction instead of starting a container that exits. There is no default for any of
+# them: a default password is a vulnerability, and a default schema is a server answering
+# for somebody else's data.
+#
+# ⚠ FRAISEQL_SCHEMA_FILE and FRAISEQL_CONFIG_FILE must name files that EXIST. Docker
+# creates a DIRECTORY for a missing bind-mount source, which is how #1052 and #1213 both
+# stayed invisible; the server then fails on a parse error rather than on the real cause.
+#
+# A minimal fraiseql.toml, which is the smallest thing that satisfies production mode:
+#
+#   cors_origins = ["https://app.example.com"]
+#
+# Outside production, `FRAISEQL_ENV=development` in the environment below removes that
+# requirement — the same escape hatch the Helm chart documents.
+#
+# ── What this file deliberately does not set ─────────────────────────────────────────
+#
+# No `healthcheck:` on the fraiseql service, and no FRAISEQL_BIND_ADDR. Both belong to
+# the image, which sets `FRAISEQL_BIND_ADDR=0.0.0.0:8000` and carries a HEALTHCHECK on
+# 8000. Restating them here would mean the gate agrees with the image by construction and
+# can never disagree with it — which is exactly how the boot tier stayed green through the
+# six months the published image was UNHEALTHY forever, its EXPOSE and HEALTHCHECK naming
+# 8815 while the process listened on 8000 (#1216). `tools/compose-stack-test.sh` asserts
+# their ABSENCE.
+#
+# ── Security posture (H46) ───────────────────────────────────────────────────────────
+#
+# Only the application's own port is published to host interfaces. PostgreSQL is bound to
+# 127.0.0.1, because Docker's port publishing bypasses host firewalls (ufw/iptables) — an
+# unqualified "5432:5432" exposes the database to the internet regardless of ufw rules.
+# Containers reach each other by service name over `fraiseql-net`, so the loopback binding
+# costs nothing in-stack while keeping host access for admin and migration tooling.
+# Gated by tools/check-deploy-security.sh.
 
 services:
   fraiseql:
-    build: .
-    # 8000, not 8815. The image binds 0.0.0.0:8000 (Dockerfile ENV
-    # FRAISEQL_BIND_ADDR), so publishing 8815:8815 mapped the host to a container
-    # port nothing listened on. #1216 corrected the image and left every consumer
-    # of it behind; this is one of them.
+    # Pinned, never :latest — reproducible deploys, and gated by
+    # tools/check-deploy-security.sh. The tag must equal the workspace version;
+    # tools/check-deploy-versions.sh holds this file, the Dockerfile's OCI label and
+    # the Helm chart to Cargo.toml together, which is the drift #1129 was.
+    image: fraiseql/server:2.15.0
+    restart: always
     ports:
-      - "8000:8000"
+      # The CONTAINER side is fixed at 8000 and must stay a literal: it is the port
+      # the image's process binds and the port the image's own HEALTHCHECK addresses,
+      # and an image whose EXPOSE named a port its process never listened on is
+      # exactly #1216. tools/compose-stack-test.sh asserts that this half is not
+      # parameterised, and that the image's own ExposedPorts agrees with it.
+      #
+      # The HOST side has a default and can be moved, because port collisions on a
+      # shared host are the ordinary reason a stack will not start and nothing about
+      # the artifact depends on which host port is used.
+      - "${FRAISEQL_HOST_PORT:-8000}:8000"
     environment:
-      RUST_LOG: debug
-      DATABASE_URL: postgresql://fraiseql:fraiseql@postgres:5432/fraiseql
+      DATABASE_URL: postgresql://fraiseql:${DB_PASSWORD:?DB_PASSWORD must be set — see .env.example}@postgres:5432/fraiseql
+      FRAISEQL_SCHEMA_PATH: /etc/fraiseql/schema.compiled.json
+      FRAISEQL_CONFIG: /etc/fraiseql/fraiseql.toml
+    volumes:
+      - ${FRAISEQL_SCHEMA_FILE:?FRAISEQL_SCHEMA_FILE must name your compiled schema — run `fraiseql compile schema.json`, see .env.example}:/etc/fraiseql/schema.compiled.json:ro
+      - ${FRAISEQL_CONFIG_FILE:?FRAISEQL_CONFIG_FILE must name your fraiseql.toml — production mode refuses to start without cors_origins, which has no environment variable, see .env.example}:/etc/fraiseql/fraiseql.toml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -20,28 +108,23 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    restart: always
     environment:
       POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set — see .env.example}
       POSTGRES_DB: fraiseql
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
     ports:
-      # Loopback-only: reachable for local dev tooling, not from the network.
-      - "127.0.0.1:5432:5432"
+      # Loopback-only: reachable on the host for admin/migrations, never the network.
+      # Host side movable for the same reason as the app's, container side fixed.
+      - "127.0.0.1:${FRAISEQL_DB_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - fraiseql-net
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      # Loopback-only: reachable for local dev tooling, not from the network.
-      - "127.0.0.1:6379:6379"
+      retries: 12
     networks:
       - fraiseql-net
 

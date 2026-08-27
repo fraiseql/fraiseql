@@ -20,6 +20,43 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **One Compose stack ships, not six. `docker-compose.prod.yml` and the four `docker/docker-compose.*` demo stacks are deleted (#1189, #1202).**
+
+  Measured 2026-08-28 against a real Docker: **not one of the six operator-facing Compose
+  stacks in this repository could serve a query.** The blocker they all shared was in neither
+  issue filed against them — none of them set `FRAISEQL_ENV` or mounted a `fraiseql.toml`, so
+  the server exited on its first line with `cors_enabled is true but cors_origins is empty in
+  production mode`. That check fires *before* the schema check, so compiling the schema first
+  — the fix #1202 proposes — would have changed nothing observable; it only moves the error.
+
+  Beyond that: the two root files mounted no compiled schema at all and the image bakes none;
+  `docker/docker-compose.{demo,examples}.yml` built an `admin-dashboard/Dockerfile` that exists
+  nowhere in the repository (#1189); `docker/docker-compose.prod{,-examples}.yml` pulled
+  `fraiseql/dashboard:latest`, which has never been published (`docker manifest inspect` →
+  `no such manifest`); all four `docker/` stacks pointed `FRAISEQL_SCHEMA_PATH` at a
+  `schema.compiled.json` that is gitignored and that no step builds (#1202); all four ran
+  `graphql/graphql-playground`, a repository Docker Hub no longer serves; and
+  `docker-compose.prod.yml` bind-mounted `./tools/prometheus.yml`, a path that does not exist
+  — Docker creates an empty directory for those and mounts it.
+
+  Five were deleted rather than repaired, for the reason `helm.yml` was: near-copies of a stack
+  that cannot start are not artifacts, they are claims. The root **`docker-compose.yml` is now
+  the single canonical stack**, production-shaped and gated end to end on every push
+  (`tools/compose-stack-test.sh`). It is FraiseQL plus PostgreSQL on a version-pinned published
+  image, and it requires three inputs an operator supplies — `DB_PASSWORD`,
+  `FRAISEQL_SCHEMA_FILE`, `FRAISEQL_CONFIG_FILE` — each declared `${VAR:?…}`, so an unset one
+  aborts `docker compose up` with an instruction rather than starting a container that exits.
+  See `.env.example`.
+
+  **Migration.** `make demo-start`, `make examples-start`, `make prod-start`,
+  `make prod-examples-start` and their `-stop`/`-logs`/`-status`/`-clean` variants are gone;
+  none of them could bring a stack up. For a Docker deployment use the root
+  `docker-compose.yml` with your own compiled schema and `fraiseql.toml`. For running the
+  examples, `examples/README.md` documents the `psql` + `fraiseql query` path, which works. The
+  Redis and Prometheus services the old production template declared are also gone: the server
+  binary reads no `REDIS_URL` (only tests do), and the Prometheus config it mounted did not
+  exist. `docker/docker-compose.test.yml` — the test rig behind `make db-up` — is unchanged.
+
 - **The published container image serves on port 8000, not 8815, and binds `0.0.0.0` (#1216).**
 
   A container started from the published image with the environment every deployment supplies
@@ -3575,6 +3612,38 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **The canonical Compose stack is brought up on the image being released and queried, on every push.**
+
+  Nothing in CI had ever run a Compose stack. The only job that claimed to — `verify-deployment`
+  in `docker-build.yml` — was structurally unreachable, ran `docker compose up -d 2>&1 || true`,
+  and asserted `{ __typename }`, a query the GraphQL layer answers without touching the database.
+  That is how six stacks reached a release candidate with none of them able to start.
+
+  `tools/compose-stack-test.sh` (`make compose-stack`) runs as a fifth step on the
+  `Dagger — image` leg. Offline first, so it fails before starting anything: the stack refuses to
+  resolve with each required input missing, and names the missing one; every image is pinned,
+  never `:latest`, and the server image is a repository this project publishes at the workspace
+  version; every bind-mount source exists; the container side of each published port is a literal
+  and the default host port equals it; **the stack restates nothing the image owns** — no
+  `healthcheck:`, no `FRAISEQL_BIND_ADDR`; every Compose file in the repository is classified as
+  canonical, CI-driven, or explicitly `Not CI-verified`, with an unclassifiable one failing rather
+  than being skipped; and nothing in the tier swallows an exit status.
+
+  Then it runs. The image this branch built is loaded under the tag the stack names, the image's
+  own `ExposedPorts` is required to agree with the container port the stack maps (#1216, stated
+  directly — and neither half is supplied by the gate), the stack must become **healthy on the
+  image's own `HEALTHCHECK`**, and it must answer `{ users { id name } }` through its **published
+  host port** with the seeded rows. Finally the discriminator: a row is inserted into PostgreSQL
+  behind the running stack and required back out of the next query. Proved by inversion — with the
+  container healthy, `/health` reporting the database connected and the correct three rows
+  returned, serving the pre-insert body to the re-query turns the tier red on that check alone.
+
+  Twelve inversions in total, one broken stack each. Measured cost: **16s** with the image already
+  built. Two gates were widened as a consequence: `tools/check-examples-integrity.sh` now scans the
+  root Compose files (its `find docker examples` scope is why the non-existent `tools/prometheus.yml`
+  mount never fired), and `tools/check-deploy-security.sh` resolves `${VAR:-default}` in a published
+  port rather than skipping the mapping, and fails on a variable it cannot resolve.
 
 - **The Helm chart is deployed into a real cluster and queried, instead of linted (#1129).**
 

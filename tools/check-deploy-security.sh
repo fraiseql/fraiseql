@@ -7,14 +7,23 @@
 # runs in the minimal ShellGates container.
 #
 # Checks:
-#   A. Root compose files publish only loopback (127.0.0.1) or the app port (8000)
-#      to host interfaces — Docker port publishing bypasses host firewalls, so an
-#      unqualified "5432:5432" exposes a backing service to the network (H46).
-#   B. The production compose runs Redis with --requirepass (no unauthenticated Redis).
-#   C. The production compose guards ${DB_PASSWORD} with a fail-loud `:?` (no empty
-#      default that yields a passwordless database).
-#   D. No prod/k8s/deploy manifest pins an image to :latest (reproducible deploys).
-#   E. No k8s/deploy manifest sets readOnlyRootFilesystem: false.
+#   A. The canonical compose stack publishes only loopback (127.0.0.1) or the app
+#      port (8000) to host interfaces — Docker port publishing bypasses host
+#      firewalls, so an unqualified "5432:5432" exposes a backing service to the
+#      network (H46).
+#   B. It guards ${DB_PASSWORD} with a fail-loud `:?` (no empty default that yields
+#      a passwordless database).
+#   C. No compose/k8s/deploy manifest pins an image to :latest (reproducible deploys).
+#   D. No k8s/deploy manifest sets readOnlyRootFilesystem: false.
+#
+# ⚠ There used to be a check E: "the production compose runs Redis with
+# --requirepass". It is GONE rather than kept, because as of 2026-08-28 no shipped
+# stack runs Redis at all — the server binary reads no REDIS_URL, only tests do, so
+# the service the deleted docker-compose.prod.yml ran was one nothing connected to.
+# The check was written `if grep -q redis-server; then ...`, so with no subject it
+# would have SKIPPED silently while still printing its name in this file's success
+# line — a gate that cannot fail, reported as coverage. If Redis returns to a
+# shipped stack, so does the rule.
 set -euo pipefail
 
 # The app's own public port — the one mapping a compose file is allowed to publish
@@ -27,11 +36,20 @@ set -euo pipefail
 # defines it — here, the Dockerfile's EXPOSE and FRAISEQL_BIND_ADDR.
 APP_PORT="8000:8000"
 
-# Root compose files subject to the loopback port rule (every shipped compose).
-COMPOSE_PORT_FILES=(docker-compose.prod.yml docker-compose.yml)
+# The canonical compose stack — the ONE stack this repository ships and verifies
+# (tools/compose-stack-test.sh). Five others were deleted on 2026-08-28: measured
+# against a real docker, not one of the six could serve a query.
+#
+# A list rather than a scalar so adding a second shipped stack is a one-line change
+# here, and so `[ -f ]` below cannot silently reduce this gate to nothing.
+COMPOSE_PORT_FILES=(docker-compose.yml)
+PROD_COMPOSE="docker-compose.yml"
 
-# The production compose, subject to the stricter auth/secret rules.
-PROD_COMPOSE="docker-compose.prod.yml"
+# The subject must exist. Every check below is guarded by `[ -f ]`, so a renamed or
+# deleted stack would turn this gate into a no-op that still prints "OK".
+for f in "${COMPOSE_PORT_FILES[@]}" "$PROD_COMPOSE"; do
+  [ -f "$f" ] || { echo "FAIL: $f does not exist; this gate would check nothing."; exit 1; }
+done
 
 # Manifest files (k8s + deploy/kubernetes, recursive incl. the Helm chart) subject
 # to the :latest and readOnlyRootFilesystem rules. `.example` templates are skipped.
@@ -45,8 +63,25 @@ for f in "${COMPOSE_PORT_FILES[@]}"; do
   # Inspect only YAML sequence entries (`  - "..."`), so prose/comments are
   # ignored, then keep only host:container port mappings (`[ip:]hostport:
   # containerport`, all numeric) — excludes volume mounts and command arrays.
-  while IFS= read -r mapping; do
-    [ -n "$mapping" ] || continue
+  while IFS= read -r raw; do
+    [ -n "$raw" ] || continue
+    # ⚠ Resolve `${VAR:-default}` to its DEFAULT before classifying, and only then.
+    # The host side of each published port is a variable with a default so a port
+    # collision on a shared host does not make the stack unstartable; the numeric
+    # filter below would have silently SKIPPED those mappings, which would leave the
+    # app port and the database port unchecked while this gate still printed OK.
+    mapping="$(printf '%s' "$raw" | sed -E 's/\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}/\1/g')"
+    # A variable with NO default cannot be resolved, so it cannot be classified —
+    # and an unclassifiable mapping must fail rather than be skipped.
+    case "$mapping" in
+      *'${'*)
+        echo "FAIL (H46): $f publishes '$raw', which this gate cannot resolve."
+        echo "    A published port may use \${VAR:-default}; a variable with no default"
+        echo "    leaves the mapping unknowable here and therefore unchecked."
+        rc=1
+        continue
+        ;;
+    esac
     case "$mapping" in
       127.0.0.1:*) ;;      # loopback — OK
       "$APP_PORT") ;;      # the app's public port — OK
@@ -58,25 +93,17 @@ for f in "${COMPOSE_PORT_FILES[@]}"; do
     esac
   done < <(grep -E '^[[:space:]]*-[[:space:]]*"[^"]+"[[:space:]]*$' "$f" \
              | grep -oE '"[^"]+"' | tr -d '"' \
-             | grep -E '^([0-9.]+:)?[0-9]+:[0-9]+$' || true)
+             | grep -E '^([0-9.]+:)?(\$\{[^}]*\}|[0-9]+):(\$\{[^}]*\}|[0-9]+)$' || true)
 done
 
-# ── B. Redis requires a password in the production compose ───────────────────
-if [ -f "$PROD_COMPOSE" ] && grep -q 'redis-server' "$PROD_COMPOSE"; then
-  if ! grep -q 'requirepass' "$PROD_COMPOSE"; then
-    echo "FAIL (H46): $PROD_COMPOSE runs redis-server without --requirepass."
-    rc=1
-  fi
-fi
-
-# ── C. DB_PASSWORD must fail loud (no empty default) in the production compose ─
+# ── B. DB_PASSWORD must fail loud (no empty default) in the production compose ─
 if [ -f "$PROD_COMPOSE" ] && grep -qE '\$\{DB_PASSWORD\}|\$\{DB_PASSWORD:-' "$PROD_COMPOSE"; then
   echo "FAIL: $PROD_COMPOSE uses \${DB_PASSWORD} without a fail-loud guard."
   echo "    Use \${DB_PASSWORD:?DB_PASSWORD must be set} so an unset password aborts startup."
   rc=1
 fi
 
-# ── D. no :latest image tags in prod/k8s/deploy manifests ───────────────────
+# ── C. no :latest image tags in compose/k8s/deploy manifests ────────────────
 latest_targets=("$PROD_COMPOSE" "${MANIFEST_FILES[@]}")
 for f in "${latest_targets[@]}"; do
   [ -f "$f" ] || continue
@@ -88,7 +115,7 @@ for f in "${latest_targets[@]}"; do
   fi
 done
 
-# ── E. no readOnlyRootFilesystem: false in k8s/deploy manifests ─────────────
+# ── D. no readOnlyRootFilesystem: false in k8s/deploy manifests ─────────────
 for f in "${MANIFEST_FILES[@]}"; do
   [ -f "$f" ] || continue
   if grep -nE 'readOnlyRootFilesystem:[[:space:]]*false' "$f"; then
@@ -103,5 +130,5 @@ if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
-echo "OK: deployment artifacts publish only loopback/app ports, Redis is authenticated,"
-echo "    DB_PASSWORD fails loud, no :latest pins, no readOnlyRootFilesystem: false."
+echo "OK: deployment artifacts publish only loopback/app ports, DB_PASSWORD fails loud,"
+echo "    no :latest pins, no readOnlyRootFilesystem: false."

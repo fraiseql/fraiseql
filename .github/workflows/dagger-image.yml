@@ -150,3 +150,40 @@ jobs:
           bash tools/chart-deploy-test.sh \
             --run-id="${{ github.run_id }}-${{ github.run_attempt }}" \
             --image-tarball=target/chart-deploy/fraiseql-server.tar
+
+      # The four steps above cover the IMAGE and the Helm chart. This one covers the
+      # third thing an operator consumes: the Compose stack.
+      #
+      # Six operator-facing Compose stacks used to ship. Measured 2026-08-28,
+      # NOT ONE of the six could serve a query, and the shared cause was in
+      # neither issue filed against them: none set FRAISEQL_ENV or mounted a
+      # fraiseql.toml, so the server exited on its first line with "cors_enabled
+      # is true but cors_origins is empty in production mode" — before it ever
+      # reached the missing-schema defect #1202 describes. Five were deleted; this
+      # step covers the one that remains.
+      #
+      # It supplies what an operator supplies — a password, a schema path, a
+      # config path — and NOT the port, the bind address or a healthcheck. Those
+      # belong to the image, and a gate that supplies them agrees with the image
+      # by construction: that is how the boot tier stayed green through the six
+      # months the published image could never become healthy (#1216). The stack
+      # must become healthy on the IMAGE's own healthcheck, answer through its
+      # PUBLISHED host port, and then return a row inserted after it was already
+      # serving.
+      #
+      # ⚠ Not a `dagger call`: `docker compose` needs a docker daemon, so the
+      # orchestration runs under host docker, exactly as the chart step does. The
+      # image under test still comes from Dagger via `image-tarball`, so this is
+      # not a second copy of the build arguments.
+      #
+      # `--run-id` names the compose project and the image tag, so concurrent or
+      # repeated runs cannot collide or silently reuse a stale container.
+      - name: the canonical Compose stack comes up and answers
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p target/compose-stack
+          dagger call image-tarball --source=. --variant=fraiseql-server \
+            export --path=target/compose-stack/fraiseql-server.tar
+          bash tools/compose-stack-test.sh \
+            --run-id="${{ github.run_id }}-${{ github.run_attempt }}" \
+            --image-tarball=target/compose-stack/fraiseql-server.tar

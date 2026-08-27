@@ -87,13 +87,19 @@ non-zero if it does not resolve. It is the cheapest end-to-end check there is.
 
 ### Docker
 
-`docker/docker-compose.demo.yml` and `docker-compose.examples.yml` bring these up
-with a Postgres and a GraphQL IDE per example. **Neither works today**: they mount
-an example directory and point `FRAISEQL_SCHEMA_PATH` at a `schema.compiled.json`
-that no step in the stack builds ([#1202](https://github.com/fraiseql/fraiseql/issues/1202)),
-and both build an `admin-dashboard/Dockerfile` that does not exist
-([#1189](https://github.com/fraiseql/fraiseql/issues/1189)). Use the `psql` +
-`fraiseql query` path above until those close.
+There is no per-example Docker stack. `docker/docker-compose.{demo,examples}.yml`
+used to be one, and were deleted on 2026-08-28 rather than repaired: neither could
+start, and neither had ever been run by CI. They pointed `FRAISEQL_SCHEMA_PATH` at a
+`schema.compiled.json` no step builds ([#1202](https://github.com/fraiseql/fraiseql/issues/1202)),
+built an `admin-dashboard/Dockerfile` that exists nowhere
+([#1189](https://github.com/fraiseql/fraiseql/issues/1189)), ran a
+`graphql/graphql-playground` image Docker Hub no longer serves, and — like every
+other stack in the repository — ran the server in production mode with no
+`fraiseql.toml`, so it exited on its first line.
+
+Use the `psql` + `fraiseql query` path above for examples. For a Docker deployment,
+the root [`docker-compose.yml`](../docker-compose.yml) is the one stack CI brings up
+and queries on every push; point it at your own compiled schema.
 
 ---
 

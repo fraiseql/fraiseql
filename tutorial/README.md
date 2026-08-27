@@ -96,13 +96,22 @@ tutorial/
 
 ## Running the Tutorial
 
-### Via Docker Compose (Recommended)
+### Via Docker
+
+The `ghcr.io/fraiseql/tutorial` image is published on every release tag:
 
 ```bash
-docker compose -f docker/docker-compose.demo.yml up -d
+docker run --rm -p 3001:3001 \
+  -e FRAISEQL_API_URL=http://host.docker.internal:8000 \
+  ghcr.io/fraiseql/tutorial:2.15.0
 ```
 
 Then open: http://localhost:3001
+
+⚠ The demo Compose stack that used to wrap this was deleted on 2026-08-28 — it could
+not start, and no CI leg had ever run it. `FRAISEQL_API_URL` must point at a FraiseQL
+server you are already running; the root [`docker-compose.yml`](../docker-compose.yml)
+is the supported way to get one.
 
 ### Locally (Development)
 
@@ -342,7 +351,7 @@ environment:
 Check logs:
 
 ```bash
-docker compose -f docker/docker-compose.demo.yml logs tutorial
+docker logs <tutorial container>
 ```
 
 ### Queries fail to execute

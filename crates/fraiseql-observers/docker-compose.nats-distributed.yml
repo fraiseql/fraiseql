@@ -1,3 +1,9 @@
+# Not CI-verified. Nothing in CI brings this stack up, so it may have stopped
+# working without anyone noticing — the state all six operator-facing stacks were
+# in on 2026-08-28, none of which could serve a query. The one stack this
+# repository does verify end to end is the root `docker-compose.yml`
+# (tools/compose-stack-test.sh, a step on the `Dagger — image` leg).
+#
 # Docker Compose for Topology 3: NATS Distributed
 # ==================================================
 #
