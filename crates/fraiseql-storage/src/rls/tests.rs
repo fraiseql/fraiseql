@@ -121,6 +121,7 @@ fn test_rls_generic_admin_role_is_not_storage_admin() {
         !eval.can_write_object(
             &caller(Some("attacker"), &generic_admin),
             &private_bucket(),
+            &obj.key,
             Some(&obj)
         ),
         "generic 'admin' role must not overwrite another user's object",
@@ -132,6 +133,7 @@ fn test_rls_generic_admin_role_is_not_storage_admin() {
     assert!(eval.can_write_object(
         &caller(Some("ops"), &admin_roles()),
         &private_bucket(),
+        &obj.key,
         Some(&obj)
     ));
 }
@@ -140,13 +142,13 @@ fn test_rls_generic_admin_role_is_not_storage_admin() {
 fn test_rls_denies_upload_without_permission() {
     let eval = StorageRlsEvaluator::new();
     // Anonymous user cannot write
-    assert!(!eval.can_write(&caller(None, &[]), &private_bucket()));
+    assert!(!eval.can_write_key(&caller(None, &[]), &private_bucket(), "f.txt"));
 }
 
 #[test]
 fn test_rls_allows_authenticated_upload() {
     let eval = StorageRlsEvaluator::new();
-    assert!(eval.can_write(&caller(Some("user-1"), &user_roles()), &private_bucket()));
+    assert!(eval.can_write_key(&caller(Some("user-1"), &user_roles()), &private_bucket(), "f.txt"));
 }
 
 #[test]
@@ -175,13 +177,18 @@ fn test_rls_allows_admin_delete() {
 #[test]
 fn test_can_write_object_create_allows_authenticated() {
     let eval = StorageRlsEvaluator::new();
-    assert!(eval.can_write_object(&caller(Some("user-1"), &user_roles()), &private_bucket(), None));
+    assert!(eval.can_write_object(
+        &caller(Some("user-1"), &user_roles()),
+        &private_bucket(),
+        "new.txt",
+        None
+    ));
 }
 
 #[test]
 fn test_can_write_object_create_denies_anonymous() {
     let eval = StorageRlsEvaluator::new();
-    assert!(!eval.can_write_object(&caller(None, &[]), &private_bucket(), None));
+    assert!(!eval.can_write_object(&caller(None, &[]), &private_bucket(), "new.txt", None));
 }
 
 #[test]
@@ -191,6 +198,7 @@ fn test_can_write_object_overwrite_allows_owner() {
     assert!(eval.can_write_object(
         &caller(Some("user-1"), &user_roles()),
         &private_bucket(),
+        &obj.key,
         Some(&obj)
     ));
 }
@@ -203,6 +211,7 @@ fn test_can_write_object_overwrite_denies_non_owner() {
         !eval.can_write_object(
             &caller(Some("user-2"), &user_roles()),
             &private_bucket(),
+            &obj.key,
             Some(&obj)
         ),
         "H9: a non-owner must not overwrite another user's object"
@@ -216,6 +225,7 @@ fn test_can_write_object_overwrite_allows_admin() {
     assert!(eval.can_write_object(
         &caller(Some("admin-user"), &admin_roles()),
         &private_bucket(),
+        &obj.key,
         Some(&obj)
     ));
 }
@@ -224,7 +234,7 @@ fn test_can_write_object_overwrite_allows_admin() {
 fn test_can_write_object_overwrite_denies_anonymous() {
     let eval = StorageRlsEvaluator::new();
     let obj = object_owned_by("user-1");
-    assert!(!eval.can_write_object(&caller(None, &[]), &private_bucket(), Some(&obj)));
+    assert!(!eval.can_write_object(&caller(None, &[]), &private_bucket(), &obj.key, Some(&obj)));
 }
 
 #[test]
@@ -279,4 +289,127 @@ fn test_rls_list_public_bucket_shows_all() {
     // Anonymous user on public bucket sees everything
     let visible = eval.filter_visible(&caller(None, &[]), &public_bucket(), objects);
     assert_eq!(visible.len(), 5);
+}
+
+// ── #1100: a key_prefix-scoped write rule must permit creates under it ───────
+//
+// `can_write_object`'s CREATE branch decided against an empty key, so
+// `"".starts_with("uploads/")` was false and a prefixed `write` rule permitted
+// no create anywhere. The motivating shape from #371 — "members may write under
+// `uploads/`" — was inexpressible, while the `overwrite` half of the same rule
+// honoured the prefix (it is decided against `object.key`). One rule, two
+// behaviours.
+//
+// Fail-closed, so this was a usability/correctness defect rather than a hole —
+// and the fix WIDENS a security control, which is why it carries its own matrix
+// here and at all three write doors in `routes::tests`.
+
+use crate::policy::{BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRule};
+
+/// A bucket whose only grant is `write` under `prefix`, to any authenticated
+/// caller. No condition narrows it further, so the prefix is the only thing the
+/// decision can turn on.
+fn bucket_with_write_under(prefix: &str) -> BucketConfig {
+    BucketConfig {
+        policies: Some(BucketPolicy {
+            rules: vec![PolicyRule {
+                methods:           vec![PolicyMethod::Write],
+                principal:         PolicyPrincipal::Authenticated,
+                key_prefix:        Some(prefix.to_string()),
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
+            }],
+        }),
+        ..private_bucket()
+    }
+}
+
+#[test]
+fn a_prefixed_write_rule_permits_a_create_under_its_prefix() {
+    let eval = StorageRlsEvaluator::new();
+    assert!(
+        eval.can_write_object(
+            &caller(Some("user-1"), &user_roles()),
+            &bucket_with_write_under("uploads/"),
+            "uploads/f.txt",
+            None,
+        ),
+        "#1100: `write` under `uploads/` must permit creating `uploads/f.txt`"
+    );
+}
+
+#[test]
+fn a_prefixed_write_rule_still_denies_a_create_outside_its_prefix() {
+    let eval = StorageRlsEvaluator::new();
+    assert!(
+        !eval.can_write_object(
+            &caller(Some("user-1"), &user_roles()),
+            &bucket_with_write_under("uploads/"),
+            "other/f.txt",
+            None,
+        ),
+        "the prefix must still narrow: widening the create path must not widen it past the rule"
+    );
+}
+
+#[test]
+fn a_prefixed_write_rule_denies_an_anonymous_create_under_its_prefix() {
+    let eval = StorageRlsEvaluator::new();
+    assert!(
+        !eval.can_write_object(
+            &caller(None, &[]),
+            &bucket_with_write_under("uploads/"),
+            "uploads/f.txt",
+            None
+        ),
+        "`principal = authenticated` still decides; the key only narrows"
+    );
+}
+
+#[test]
+fn a_prefixed_write_rule_does_not_permit_an_overwrite_under_its_prefix() {
+    let eval = StorageRlsEvaluator::new();
+    let mut obj = object_owned_by("user-2");
+    obj.key = "uploads/f.txt".to_string();
+    assert!(
+        !eval.can_write_object(
+            &caller(Some("user-1"), &user_roles()),
+            &bucket_with_write_under("uploads/"),
+            "uploads/f.txt",
+            Some(&obj),
+        ),
+        "H9/B4: replacing an EXISTING object is `overwrite`, never `write` — threading the \
+         key through the create branch must not let a `write` grant clobber another \
+         user's object"
+    );
+}
+
+#[test]
+fn an_unprefixed_write_rule_still_permits_a_create_anywhere() {
+    let eval = StorageRlsEvaluator::new();
+    let bucket = BucketConfig {
+        policies: Some(BucketPolicy {
+            rules: vec![PolicyRule {
+                methods:           vec![PolicyMethod::Write],
+                principal:         PolicyPrincipal::Authenticated,
+                key_prefix:        None,
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
+            }],
+        }),
+        ..private_bucket()
+    };
+    assert!(
+        eval.can_write_object(
+            &caller(Some("user-1"), &user_roles()),
+            &bucket,
+            "anywhere/at/all.txt",
+            None,
+        ),
+        "an absent prefix means the whole bucket, as it always did"
+    );
 }

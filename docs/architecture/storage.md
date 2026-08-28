@@ -208,6 +208,11 @@ Without the split, the natural rule *"authenticated callers may write"* would
 let any authenticated caller clobber any other user's object by writing to its
 key — the overwrite IDOR the object-level checks exist to prevent.
 
+A `key_prefix` narrows both halves, against the key each one is about: a `write`
+rule is decided against the key being created, an `overwrite` rule against the
+key that already exists. So `methods = ["write"], key_prefix = "uploads/"` is
+the grant *"may create anything under `uploads/`, and replace nothing"*.
+
 **An unparseable policy does not boot.** An unknown method or principal
 spelling, an empty `methods` list, or a misspelled field is a startup error, so
 a typo can never become a rule that silently denies (or one that silently

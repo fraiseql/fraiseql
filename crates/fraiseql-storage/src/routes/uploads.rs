@@ -127,10 +127,12 @@ pub(super) async fn create_upload_handler(
         Ok(existing) => existing,
         Err(e) => return with_tus(storage_error_response(&e)),
     };
-    if !state
-        .rls
-        .can_write_object(&user.caller(chrono::Utc::now()), bucket, existing.as_ref())
-    {
+    if !state.rls.can_write_object(
+        &user.caller(chrono::Utc::now()),
+        bucket,
+        &key,
+        existing.as_ref(),
+    ) {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,

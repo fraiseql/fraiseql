@@ -20,6 +20,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`StorageRlsEvaluator::can_write_object` takes the object key; `can_write` is gone (#1100).**
+
+  `can_write_object(caller, bucket, key, existing)` — the new third argument is the key being
+  written. It decides the **create** branch only; an overwrite is still decided against
+  `existing.key`, so no caller can widen its own grant by naming a different key.
+
+  `can_write` is removed rather than kept as a key-less form. Its whole body was
+  `can_write_key(caller, bucket, "")`, and the empty string is a key no `key_prefix` can match
+  — which is the defect below, not an incidental detail. "May this caller write *somewhere* in
+  this bucket" is a question no door asks.
+
+  **Migration.** Pass the key you are about to write: all three write doors already had it in
+  hand. A `can_write(caller, bucket)` call becomes `can_write_key(caller, bucket, key)`.
+
 - **One Compose stack ships, not six. `docker-compose.prod.yml` and the four `docker/docker-compose.*` demo stacks are deleted (#1189, #1202).**
 
   Measured 2026-08-28 against a real Docker: **not one of the six operator-facing Compose
@@ -3612,6 +3626,27 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **A `key_prefix`-scoped `write` rule permitted no create anywhere, so "members may write under `uploads/`" was inexpressible (#1100).**
+
+  `can_write_object` routed every create through `can_write`, which asked the policy about the
+  empty string. `"".starts_with("uploads/")` is false, so the rule was skipped, the permit-only
+  policy fell through to denied, and every upload under the prefix answered `403` — including
+  uploads squarely inside the grant. The `overwrite` half of the same rule honoured the prefix
+  correctly, because that branch is decided against `object.key`: one rule, two behaviours,
+  depending on whether the object already existed.
+
+  Fail-closed, so it denied rather than permitted — a usability and correctness defect, not a
+  hole. But it made a documented capability unusable and left `can_write_key`'s key parameter
+  dead on every path that reached it.
+
+  The fix widens a security control, so it carries a matrix rather than a single test: create
+  under the prefix vs outside it, on **all three write doors** (`PUT`, presign-upload, resumable
+  creation), plus the guarantee the widening must not touch — a `write` grant still cannot
+  *replace* another user's object under its own prefix (H9/B4). Each half was proved to
+  discriminate by mutation: disabling prefix narrowing reddens all four "outside the prefix"
+  assertions, and bypassing the overwrite branch reddens both H9 assertions. Restoring the
+  original empty-key call reddens all five "under the prefix" assertions.
 
 - **`pre-commit.ci` would have rewritten two ledgers and corrupted a line of prose on the
   first pull request opened against this work.**

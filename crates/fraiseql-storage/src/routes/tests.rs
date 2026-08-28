@@ -2451,11 +2451,11 @@ mod hot_reload {
     /// Reads under `prefix` for any authenticated caller, plus an unprefixed
     /// create grant.
     ///
-    /// The create grant is deliberately unprefixed: `can_write_object` decides
-    /// a *create* against an empty key, so a `write` rule carrying a
-    /// `key_prefix` permits no create anywhere. That is #371 behaviour, filed
-    /// separately — these tests discriminate on the READ prefix, which is not
-    /// affected.
+    /// The create grant stays unprefixed so these tests keep discriminating on
+    /// the READ prefix alone — the seeding writes must succeed wherever the
+    /// test puts them. (It was originally unprefixed because it had to be: a
+    /// prefixed `write` rule permitted no create anywhere until #1100. The
+    /// create/prefix matrix lives in `prefixed_write` below.)
     fn read_under(prefix: &str) -> BucketPolicy {
         BucketPolicy {
             rules: vec![
@@ -2807,5 +2807,160 @@ mod hot_reload {
             StatusCode::OK,
             "clearing the policy hands the bucket back to PublicRead"
         );
+    }
+}
+
+// ── #1100: a key_prefix-scoped `write` rule permits creates under its prefix ──
+//
+// The create branch of `can_write_object` decided against an empty key, so
+// `"".starts_with("uploads/")` was false and a prefixed `write` rule permitted
+// no create anywhere — while the `overwrite` half of the same rule honoured the
+// prefix, because that one is decided against `object.key`.
+//
+// The fix WIDENS a security control, so the matrix is (under the prefix ×
+// outside it) on all THREE write doors, plus the guarantee the widening must
+// not touch: replacing an existing object is still `overwrite`, never `write`.
+mod prefixed_write {
+    use tower::ServiceExt;
+
+    use super::{
+        BucketAccess, StatusCode, policy_state, presign_upload_req, put_req, router_for,
+        tus_create_req,
+    };
+    use crate::policy::{BucketPolicy, PolicyMethod, PolicyPrincipal, PolicyRule};
+
+    /// A PERMITTED presign(upload) does not have one status across builds: `200`
+    /// with a signable S3 backend, `501` without the `aws-s3` feature, `500`
+    /// with `aws-s3` compiled in but a bucket served by the local backend this
+    /// harness uses. All three are *past* the RLS gate, which runs before any
+    /// signing work and is the only thing this matrix is about — so the question
+    /// to ask the presign door is "did the gate refuse", not "what did the
+    /// signer do next".
+    ///
+    /// Asserting one exact permitted status here was wrong twice over: it
+    /// pinned an answer that changes with the feature set, and no CI leg runs
+    /// `routes::tests` with `aws-s3` on, so the wrong arm would have been
+    /// invisible.
+    fn assert_gate_permitted(status: StatusCode, door: &str) {
+        assert!(
+            status != StatusCode::FORBIDDEN && status != StatusCode::UNAUTHORIZED,
+            "#1100: the {door} must reach past the RLS gate for a key inside the grant, \
+             got a refusal: {status}"
+        );
+    }
+
+    /// The motivating shape from #371: "members may write under `uploads/`."
+    /// One rule, no conditions — so the key prefix is the only thing any
+    /// decision below can turn on.
+    fn write_under(prefix: &str) -> BucketPolicy {
+        BucketPolicy {
+            rules: vec![PolicyRule {
+                methods:           vec![PolicyMethod::Write],
+                principal:         PolicyPrincipal::Authenticated,
+                key_prefix:        Some(prefix.to_string()),
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    crate::policy::ClaimValues::new(),
+            }],
+        }
+    }
+
+    #[tokio::test]
+    async fn put_creates_under_the_prefix_and_is_refused_outside_it() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, write_under("uploads/")).await;
+        let app = router_for(state, "user-a", &["user"]);
+
+        assert_eq!(
+            app.clone()
+                .oneshot(put_req("docs", "uploads/f.txt", b"A"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK,
+            "#1100: `write` under `uploads/` must permit PUT of `uploads/f.txt`"
+        );
+        assert_eq!(
+            app.oneshot(put_req("docs", "other/f.txt", b"A")).await.unwrap().status(),
+            StatusCode::FORBIDDEN,
+            "the prefix must still narrow: `other/f.txt` is outside the grant"
+        );
+    }
+
+    #[tokio::test]
+    async fn presign_upload_signs_under_the_prefix_and_is_refused_outside_it() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, write_under("uploads/")).await;
+        let app = router_for(state, "user-a", &["user"]);
+
+        let under = app
+            .clone()
+            .oneshot(presign_upload_req("docs", "uploads/f.txt"))
+            .await
+            .unwrap()
+            .status();
+        assert_gate_permitted(under, "presign door");
+        assert_eq!(
+            app.oneshot(presign_upload_req("docs", "other/f.txt")).await.unwrap().status(),
+            StatusCode::FORBIDDEN,
+            "the prefix must still narrow the presign door"
+        );
+    }
+
+    #[tokio::test]
+    async fn resumable_creation_is_allowed_under_the_prefix_and_refused_outside_it() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, write_under("uploads/")).await;
+        let app = router_for(state, "user-a", &["user"]);
+
+        assert_eq!(
+            app.clone()
+                .oneshot(tus_create_req("docs", "uploads/f.bin", 10))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CREATED,
+            "#1100: the resumable door must permit creating a session inside the grant"
+        );
+        assert_eq!(
+            app.oneshot(tus_create_req("docs", "other/f.bin", 10)).await.unwrap().status(),
+            StatusCode::FORBIDDEN,
+            "the prefix must still narrow the resumable door"
+        );
+    }
+
+    /// The guarantee the widening must not touch. `write` grants a CREATE;
+    /// replacing an object that already exists is `overwrite`, which this
+    /// policy does not grant at all (H9/B4). Without this, threading the key
+    /// into the create branch would let any authenticated caller clobber
+    /// another user's object anywhere under the prefix.
+    #[tokio::test]
+    async fn a_prefixed_write_grant_still_cannot_overwrite_under_its_prefix() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, write_under("uploads/")).await;
+
+        assert_eq!(
+            router_for(state.clone(), "user-a", &["user"])
+                .oneshot(put_req("docs", "uploads/owned.txt", b"A"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK,
+            "user-a creates the object under the prefix"
+        );
+        assert_eq!(
+            router_for(state.clone(), "user-b", &["user"])
+                .oneshot(put_req("docs", "uploads/owned.txt", b"PWNED"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN,
+            "H9: a `write` grant under the prefix must not permit REPLACING another user's object"
+        );
+
+        let row = state.metadata.get("docs", "uploads/owned.txt").await.unwrap().unwrap();
+        assert_eq!(row.owner_id.as_deref(), Some("user-a"), "user-a's ownership survives");
+        assert_eq!(row.size_bytes, 1, "user-a's bytes survive");
     }
 }

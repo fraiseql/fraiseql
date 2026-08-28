@@ -126,19 +126,20 @@ impl StorageRlsEvaluator {
         }
     }
 
-    /// Check if the user can write (upload) to the bucket.
+    /// Check if the user can write (upload) `key` into the bucket.
     ///
-    /// Rules:
+    /// The key is what lets a policy's `key_prefix` narrow the grant.
+    ///
+    /// Rules, once no policy decides:
     /// - Must be authenticated (`user_id` present)
     /// - Admin role always allowed
-    #[must_use]
-    pub fn can_write(&self, caller: &StorageCaller<'_>, bucket: &BucketConfig) -> bool {
-        self.can_write_key(caller, bucket, "")
-    }
-
-    /// [`can_write`](Self::can_write) for a known key, so a policy's
-    /// `key_prefix` can narrow the grant. The key-less form is the whole-bucket
-    /// question (a prefix-scoped rule does not answer it).
+    ///
+    /// There is deliberately no key-less form. `can_write` used to be one, and
+    /// answered by passing the empty string — which no `key_prefix` can match,
+    /// so a prefix-scoped `write` rule permitted no create anywhere (#1100).
+    /// "May this caller write *somewhere* in this bucket" is not a question any
+    /// door asks, and answering it with a key the policy then rejects is how
+    /// that defect read as correct for three releases.
     #[must_use]
     pub fn can_write_key(
         &self,
@@ -157,24 +158,31 @@ impl StorageRlsEvaluator {
         caller.user_id.is_some()
     }
 
-    /// Check if the user can write (create or overwrite) the given object.
+    /// Check if the user can write (create or overwrite) the object at `key`.
     ///
-    /// Object-aware counterpart of [`can_write`](Self::can_write):
-    /// - **Create** (no `existing` object): same as [`can_write`](Self::can_write) — admin or any
-    ///   authenticated user may create a new object.
+    /// Object-aware counterpart of [`can_write_key`](Self::can_write_key):
+    /// - **Create** (no `existing` object): [`can_write_key`](Self::can_write_key) for `key` —
+    ///   admin, or a `write` grant that covers this key. Passing the real key is what makes a
+    ///   `key_prefix`-scoped grant usable for creates at all (#1100); before that the branch asked
+    ///   about the empty string and no prefixed rule could ever match.
     /// - **Overwrite** (an `existing` object): owner match or admin role required, mirroring
     ///   [`can_delete`](Self::can_delete). Without this, any authenticated user could clobber
     ///   another user's object data by writing to its key — an overwrite IDOR (H9; and via the
     ///   presign-upload door, B4).
+    ///
+    /// `key` decides only the **create** branch. An overwrite is decided against
+    /// `existing.key`, which is the key that actually exists — a caller cannot
+    /// widen its own grant by naming a different one.
     #[must_use]
     pub fn can_write_object(
         &self,
         caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
+        key: &str,
         existing: Option<&StorageMetadataRow>,
     ) -> bool {
         match existing {
-            None => self.can_write(caller, bucket),
+            None => self.can_write_key(caller, bucket, key),
             Some(object) => {
                 // #371: overwriting an EXISTING object is `overwrite`, never
                 // `write`. Otherwise the natural rule "authenticated callers

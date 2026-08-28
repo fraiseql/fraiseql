@@ -474,10 +474,12 @@ async fn put_handler(
     };
 
     // RLS: create requires authentication; overwrite requires owner or admin.
-    if !state
-        .rls
-        .can_write_object(&user.caller(chrono::Utc::now()), bucket, existing.as_ref())
-    {
+    if !state.rls.can_write_object(
+        &user.caller(chrono::Utc::now()),
+        bucket,
+        &key,
+        existing.as_ref(),
+    ) {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,
@@ -862,6 +864,7 @@ async fn presign_handler(
         if !state.rls.can_write_object(
             &user.caller(chrono::Utc::now()).through_signed_url(),
             bucket,
+            &key,
             existing.as_ref(),
         ) {
             tracing::warn!(
