@@ -871,6 +871,60 @@ fn resolve_storage_section_parses_bucket_policies() {
     assert_eq!(policy.rules[1].principal, PolicyPrincipal::Owner);
 }
 
+/// #1099: the TOML door reaches `set_metadata` and `require_metadata`. Both are
+/// carried by one spec type shared with the admin API, so this asserts what an
+/// operator actually writes rather than what the evaluator accepts — the door
+/// where a `deny_unknown_fields` mismatch would have refused the boot outright.
+#[test]
+fn resolve_storage_section_parses_metadata_grants_and_conditions() {
+    use fraiseql_storage::PolicyMethod;
+
+    let toml_str = r#"
+        [storage.docs]
+        backend = "local"
+        path = "/tmp/docs"
+
+        [[storage.docs.policies]]
+        methods = ["set_metadata"]
+        principal = "role:curator"
+
+        [[storage.docs.policies]]
+        methods = ["read"]
+        principal = "authenticated"
+        require_metadata = { classification = "public" }
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let resolved = resolve_storage_section(&config).unwrap().unwrap();
+    let policy = resolved.bucket.policies.expect("policies reach the bucket config");
+
+    assert_eq!(policy.rules[0].methods, vec![PolicyMethod::SetMetadata]);
+    assert_eq!(
+        policy.rules[1].require_metadata.get("classification").map(String::as_str),
+        Some("public"),
+        "require_metadata must survive the TOML door, not just the admin API"
+    );
+}
+
+/// #1099: the one policy shape that cannot exist. `require_metadata` is answered
+/// by asking whether the caller may SET metadata, so a rule granting
+/// `set_metadata` that also carries the condition would decide itself. Refused
+/// at boot, like every other malformed policy.
+#[test]
+fn a_self_deciding_metadata_rule_refuses_to_boot() {
+    let toml_str = r#"
+        [storage.docs]
+        backend = "local"
+        path = "/tmp/docs"
+        [[storage.docs.policies]]
+        methods = ["set_metadata"]
+        principal = "authenticated"
+        require_metadata = { classification = "public" }
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let err = resolve_storage_section(&config).expect_err("a self-deciding rule must not boot");
+    assert!(err.contains("decide itself"), "{err}");
+}
+
 /// #371: a policy that does not parse REFUSES TO BOOT. Accepting a rule with
 /// an unknown method or principal would either deny everything silently or —
 /// worse, in a multi-rule policy — drop the narrowing rule while the

@@ -1658,7 +1658,12 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		"cargo test -p fraiseql-server --lib -- server_config::tests::transform_presets --test-threads=1",
 		// #371: bucket policies reach BucketConfig parsed, and an unparseable
 		// policy refuses to boot rather than becoming a silently-denying rule.
-		"cargo test -p fraiseql-server --lib -- server_config::tests::resolve_storage_section_parses_bucket_policies server_config::tests::unparseable_policies --test-threads=1",
+		// #1099 adds the metadata half: `set_metadata` and `require_metadata`
+		// reach BucketConfig through the TOML door (one spec type is shared with
+		// the admin API, so a mismatch there refuses the boot outright), and the
+		// one rule that cannot exist — granting `set_metadata` while also
+		// carrying `require_metadata`, which would decide itself — is refused.
+		"cargo test -p fraiseql-server --lib -- server_config::tests::resolve_storage_section_parses_bucket_policies server_config::tests::unparseable_policies server_config::tests::resolve_storage_section_parses_metadata_grants_and_conditions server_config::tests::a_self_deciding_metadata_rule_refuses_to_boot --test-threads=1",
 		// #973: the render keys are validated at BOOT — a misspelt mode or
 		// gravity, a quality on a losslessly-encoded format, an unreadable
 		// watermark font, a bucket named after a reserved namespace. The

@@ -969,6 +969,13 @@ async fn presign_handler(
     // Yields the row the decision was made against — `None` meaning "no object
     // here", which is what makes the claim below a create rather than an
     // overwrite.
+    // Reason: read only in the `aws-s3` arm below, which is the only build with a
+    // backend to sign against — without the feature this door answers 501 and
+    // claims nothing, so there is no row to attach metadata to. The GATE that
+    // assigns this still runs in both builds deliberately: an unauthorised
+    // metadata attempt is refused identically whether or not the binary could
+    // have signed the URL.
+    #[cfg_attr(not(feature = "aws-s3"), allow(unused_assignments, unused_variables))]
     let mut supplied_metadata: Option<MetadataValues> = None;
     let authorised_against: Option<i64> = if operation == "upload" {
         // B4: a presign(upload) that would overwrite an existing object must be gated
@@ -1001,17 +1008,23 @@ async fn presign_handler(
         // #1099: the bytes bypass the server entirely on this door, so metadata
         // supplied here is attached to the claimed row below — the last moment
         // at which this request can record anything about the object.
-        supplied_metadata = match authorise_upload_metadata(
-            &state,
-            &user,
-            bucket,
-            &key,
-            existing.as_ref(),
-            &headers,
-        ) {
-            Ok(metadata) => metadata,
-            Err(response) => return *response,
-        };
+        // Reason: see the declaration — read only in the `aws-s3` arm, but the
+        // gate runs in both builds so authorization does not depend on whether
+        // this binary could have signed a URL.
+        #[cfg_attr(not(feature = "aws-s3"), allow(unused_assignments))]
+        {
+            supplied_metadata = match authorise_upload_metadata(
+                &state,
+                &user,
+                bucket,
+                &key,
+                existing.as_ref(),
+                &headers,
+            ) {
+                Ok(metadata) => metadata,
+                Err(response) => return *response,
+            };
+        }
 
         existing.as_ref().map(|row| row.pk_storage_object)
     } else {
