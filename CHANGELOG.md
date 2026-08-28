@@ -3613,6 +3613,40 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Two published SDKs shipped a lockfile pinning the previous version; a gate now makes that impossible (#1225).**
+
+  The 2.15.0 bump edited the SDK *manifests* and left two *lockfiles* behind.
+  `sdks/official/fraiseql-python/uv.lock` and `sdks/official/fraiseql-rust/Cargo.lock` still
+  recorded `2.14.1` against manifests declaring `2.15.0`, which fails any reproducible install:
+  measured on scratch copies, `uv lock --check` exited 1 and `cargo metadata --locked` exited
+  101, against 0 once regenerated. Both lockfiles are corrected.
+
+  Nothing could have caught it. Every `--locked` in this repository was `cargo install <tool>
+  --locked` — the *tooling* pinned, an SDK's own lockfile never checked. The asymmetry is the
+  argument: `fraiseql-typescript` stayed correct only because `typescript-sdk.yml` runs
+  `npm ci`, which refuses a lockfile disagreeing with its manifest, while Python ran `uv sync`
+  and Rust ran `cargo test` without `--locked`. One SDK was gated by accident of tooling and
+  two were not.
+
+  Two layers now cover it, and neither subsumes the other.
+  `tools/check-sdk-lockfile-freshness.py` compares each manifest's version against the version
+  recorded in its lockfile. It is pure text — no toolchain, no network — so it runs in preflight
+  and in the Dagger ShellGates leg on every push, rather than behind the SDK workflows' path
+  filters; `make lint-sdk-lockfile-freshness` runs it locally. SDKs are discovered from
+  `sdks/official/`, so a new one arrives automatically, and a lock format nobody has classified
+  is **fatal rather than skipped** — which is not hypothetical: writing the gate turned up a
+  tracked `bun.lock` that a hand-written format list had missed. Separately, `--locked` is now
+  set on `python-sdk.yml`'s `uv sync` and on `rust-sdk.yml`'s `cargo clippy`, `cargo test` and
+  `cargo build`, which additionally catches *dependency* drift. It is on clippy deliberately:
+  cargo may rewrite `Cargo.lock`, so a bare first step would quietly repair a stale lock and let
+  a later `--locked` step pass on the lock it had just fixed.
+
+  `tools/tests/sdk_lockfile_freshness_test.sh` pins the gate's red capability with 16
+  assertions, scoring a finding and the gate's own fatal as distinct outcomes. The load-bearing
+  one changes only `package-lock.json`'s `.packages[""].version` while leaving the top-level
+  `.version` correct — npm records the root version twice, and a gate reading one site is green
+  on an artifact that is genuinely inconsistent.
+
 - **What this project ships, and what proves each of those things works, is now a file CI checks.**
 
   Every gate here checked a property of the source. Almost nothing checked the thing we ship, and

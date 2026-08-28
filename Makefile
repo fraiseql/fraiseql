@@ -763,6 +763,23 @@ lint-delivery-coverage:
 test-delivery-coverage-gate:
 	@bash tools/tests/delivery_coverage_test.sh
 
+# A published SDK's lockfile may not pin a version its own manifest no longer claims.
+# #1225: the 2.15.0 bump edited the SDK manifests and left fraiseql-python's uv.lock and
+# fraiseql-rust's Cargo.lock at 2.14.1, while fraiseql-typescript stayed correct only
+# because `npm ci` refuses a disagreeing lockfile. Pure text (python3, stdlib), so it
+# runs everywhere on every push; dependency drift is the `--locked` flags on the SDK legs.
+.PHONY: lint-sdk-lockfile-freshness
+lint-sdk-lockfile-freshness:
+	@python3 tools/check-sdk-lockfile-freshness.py
+
+# Red-capability pin for the gate above. Load-bearing: package-lock.json records the root
+# version TWICE and only one site drifting must still go red, and an unclassified lock
+# format must be FATAL rather than skipped — which is not hypothetical, since writing the
+# gate turned up a tracked bun.lock a hand-written format list had missed.
+.PHONY: test-sdk-lockfile-freshness-gate
+test-sdk-lockfile-freshness-gate:
+	@bash tools/tests/sdk_lockfile_freshness_test.sh
+
 # Boot each shipped server image against a real Postgres and require an answer
 # only a working engine can give: /health reporting the database connected, a
 # GraphQL query resolved THROUGH SQL to rows, and — the assertion that matters —
@@ -862,7 +879,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

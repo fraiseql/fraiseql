@@ -350,6 +350,16 @@ func (m *FraiseqlCi) ShellGates(
 		// only coverage if some run: step invokes it (#1205's hole, one level up).
 		"python3 tools/check-delivery-coverage.py",
 		"make test-delivery-coverage-gate",
+		// A published SDK's lockfile may not pin a version its manifest no longer
+		// claims (#1225): the 2.15.0 bump edited the SDK manifests and left
+		// fraiseql-python's uv.lock and fraiseql-rust's Cargo.lock at 2.14.1.
+		// fraiseql-typescript stayed correct only because typescript-sdk.yml runs
+		// `npm ci`, which refuses a disagreeing lockfile — one SDK gated by accident
+		// of tooling and two not. Pure text, so it runs here on every push rather
+		// than behind the SDK legs' path filters; dependency drift is covered by the
+		// `--locked` flags on those legs, and neither subsumes the other.
+		"python3 tools/check-sdk-lockfile-freshness.py",
+		"make test-sdk-lockfile-freshness-gate",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",

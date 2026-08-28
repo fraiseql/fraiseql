@@ -43,13 +43,17 @@ jobs:
         run: cargo fmt --check
 
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        # --locked on the FIRST lock-touching command, not just the last: cargo
+        # resolves and may REWRITE Cargo.lock, so a bare clippy here would quietly
+        # repair a stale lock and let a later `--locked` step pass on the lock it
+        # had just fixed (#1225).
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
       - name: Tests
-        run: cargo test --all-features
+        run: cargo test --locked --all-features
 
       - name: Build (release)
-        run: cargo build --release
+        run: cargo build --locked --release
 
   publish:
     name: Publish to crates.io

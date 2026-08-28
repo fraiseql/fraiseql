@@ -40,7 +40,11 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        # --locked: fail on a lockfile that disagrees with pyproject.toml rather
+        # than silently re-resolving it. This is the first uv command in the job,
+        # so a stale lock stops it here instead of being repaired for the `uv run`
+        # steps below (#1225).
+        run: uv sync --all-extras --locked
 
       # `conformance` and `examples` are linted too: they are shipped Python that
       # authors copy, and leaving them out is how three examples rotted into code
