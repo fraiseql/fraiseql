@@ -2281,6 +2281,67 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **Object metadata, and `set_metadata` as a permission of its own (#1099).**
+
+  Objects now carry a user-defined string-to-string `metadata` map, and a policy rule can match
+  on it with `require_metadata`. #974 listed that condition alongside `require_claims` and shipped
+  the other three, because there was no metadata to compare against — it would have been
+  permanently false.
+
+  Set it at upload time with `x-fraiseql-meta-<name>` headers on `PUT`, presign-upload or
+  resumable creation, or afterwards through `GET|PUT /storage/v1/metadata/{bucket}/{key}`.
+  Replacement is wholesale on every door. Limits: 32 keys, 128-byte names, 1024-byte values, over
+  `a-z 0-9 - _ .`; keys are lower-cased because header names are case-insensitive, and two keys
+  differing only in case are a `400` rather than a silent last-one-wins.
+
+  **What took the design work is not the storage, it is making the condition mean something.**
+  Metadata is caller-supplied, so a rule matching on it is normally a rule the gated caller
+  authors — they write the value that decides their own access. The obvious fix is a reserved key
+  namespace that ingestion refuses to let callers write. That was rejected: a namespace is only as
+  good as its enforcement, and that enforcement is one check at one door. It holds until the first
+  migration that backfills keys or the first internal caller that reaches the table another way —
+  and when it breaks it breaks *silently*, with a caller-written key now load-bearing for access.
+
+  What ships instead is a write-permission split, which is what S3 landed on: object tags are
+  caller-writable, IAM conditions match on them, and the whole thing is held together by
+  `PutObjectTagging` being a separate permission from `PutObject`. So `set_metadata` is its own
+  `PolicyMethod` — implied by nothing, not by `write`, not by `overwrite`, not by all five
+  existing methods together, and held by nobody but the storage admin absent a policy — and
+  `require_metadata` **refuses to hold for any caller who holds it**.
+
+  ```toml
+  # Curators classify documents; nobody else can.
+  [[storage.docs.policies]]
+  methods = ["set_metadata"]
+  principal = "role:curator"
+
+  # Anyone authenticated may read what a curator marked public.
+  [[storage.docs.policies]]
+  methods = ["read"]
+  principal = "authenticated"
+  require_metadata = { classification = "public" }
+  ```
+
+  A curator reading through the second rule is denied — a curator could have written
+  `classification = "public"` themselves. The guarantee is a property of the permission system
+  rather than of a validation check, so no ingestion path present or future can undermine it, and
+  it degrades in the safe direction: **widening who may set metadata narrows what a
+  metadata-gated rule permits.** It can never quietly hand those callers the ability to grant
+  themselves access.
+
+  The upload headers are a convenience path, not a second authority: sending them without the
+  grant is a `403`, never a silent drop — a `200` that stored none of the metadata the caller sent
+  would leave the object missing exactly what a policy gates on. An upload carrying no metadata
+  headers leaves what the object already had, so an ordinary overwrite cannot clear a value a
+  policy reads.
+
+  A rule that both grants `set_metadata` and carries `require_metadata` is refused at boot: the
+  condition is answered by asking whether the caller may set metadata, so the rule would decide
+  itself. Refused at the door rather than guarded at runtime, because a runtime guard is behaviour
+  an operator cannot read off their own config; and such a rule can never hold for anyone it
+  grants.
+
+
 - **`examples/` is a set of examples that run (#1054).** The top-level
   `examples/README.md` walked a newcomer through seven directories that had never
   existed — `basic-query`, `subscriptions`, `error-handling`, `performance`,

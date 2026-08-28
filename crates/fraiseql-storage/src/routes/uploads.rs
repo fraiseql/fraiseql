@@ -148,6 +148,20 @@ pub(super) async fn create_upload_handler(
     }
     let authorised_against = existing.as_ref().map(|row| row.pk_storage_object);
 
+    // #1099: metadata on the creation request needs its own grant, decided
+    // before anything is claimed or staged.
+    let supplied_metadata = match super::authorise_upload_metadata(
+        &state,
+        &user,
+        bucket,
+        &key,
+        existing.as_ref(),
+        &headers,
+    ) {
+        Ok(metadata) => metadata,
+        Err(response) => return with_tus(*response),
+    };
+
     // #866: claim the metadata row BEFORE any bytes exist, so the key carries
     // an owner for the whole (possibly days-long) upload.
     let claim = NewStorageObject {
@@ -170,6 +184,17 @@ pub(super) async fn create_upload_handler(
         Err(e) => return with_tus(storage_error_response(&e)),
     };
     let created_reservation = authorised_against.is_none();
+
+    // Attached to the claimed row now rather than at completion: the row exists
+    // and is owned from this moment, so a policy gating on the metadata decides
+    // correctly for the whole (possibly days-long) upload rather than only
+    // after the last chunk.
+    if let Some(metadata) = supplied_metadata {
+        if let Err(e) = state.metadata.set_metadata(&bucket_name, &key, &metadata).await {
+            release_if_created(&state, pk, created_reservation).await;
+            return with_tus(storage_error_response(&e));
+        }
+    }
 
     // Begin backend staging. On failure, release a claim this request created.
     let object_key = backend_object_key(&bucket_name, &key);

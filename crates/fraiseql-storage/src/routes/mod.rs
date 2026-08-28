@@ -6,6 +6,7 @@
 //! - `DELETE /storage/v1/object/{bucket}/{*key}` — delete
 //! - `GET /storage/v1/list/{bucket}` — list
 //! - `POST /storage/v1/presign/{bucket}/{*key}` — presigned URL
+//! - `GET|PUT /storage/v1/metadata/{bucket}/{*key}` — user-defined metadata (#1099)
 //!
 //! There is no transform/render route: `ImageTransformer` is a library-level
 //! capability with no HTTP surface (#901).
@@ -37,7 +38,7 @@ use crate::{
     backend::StorageBackend,
     config::BucketConfig,
     metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow},
-    policy::{BucketPolicy, StoragePolicyStore},
+    policy::{BucketPolicy, MetadataValues, StoragePolicyStore, validate_metadata},
     rls::StorageRlsEvaluator,
     uploads::UploadSessionRepo,
 };
@@ -422,6 +423,12 @@ pub fn storage_router(state: StorageState) -> Router {
             put(put_handler).get(get_handler).delete(delete_handler),
         )
         .route("/storage/v1/list/{bucket}", get(list_handler))
+        // User-defined object metadata (#1099). Reading it is gated on `read`;
+        // writing it on `set_metadata`, which nothing else implies.
+        .route(
+            "/storage/v1/metadata/{bucket}/{*key}",
+            get(get_metadata_handler).put(put_metadata_handler),
+        )
         .route("/storage/v1/presign/{bucket}/{*key}", post(presign_handler))
         // Image renders (#370): present only when the `transforms` feature is
         // compiled in; without it the path 404s like any unknown route.
@@ -438,6 +445,96 @@ pub fn storage_router(state: StorageState) -> Router {
         )
         .layer(DefaultBodyLimit::max(body_limit))
         .with_state(state)
+}
+
+// ---------------------------------------------------------------------------
+// User-defined metadata (#1099)
+// ---------------------------------------------------------------------------
+
+/// The prefix identifying a user-defined metadata header on an upload.
+///
+/// A FraiseQL-specific name rather than `x-amz-meta-*`: the resumable door
+/// already carries Tus's own `Upload-Metadata`, and a header that looks like
+/// another vendor's invites the assumption that it behaves like it. Here,
+/// writing metadata is a separate permission.
+pub const METADATA_HEADER_PREFIX: &str = "x-fraiseql-meta-";
+
+/// Collect `x-fraiseql-meta-<name>` headers into a metadata map.
+///
+/// Returns `None` when the request carries none at all, which is what lets a
+/// caller without the `set_metadata` grant keep uploading: the permission is
+/// checked only when metadata is actually supplied.
+///
+/// A non-UTF-8 header value is an error rather than a skipped key. Dropping it
+/// would store a subset of what the caller sent and report success, and the
+/// caller would have no way to see which keys survived.
+fn metadata_from_headers(headers: &HeaderMap) -> Option<Result<MetadataValues, String>> {
+    let mut raw = MetadataValues::new();
+    for (name, value) in headers {
+        let Some(key) = name.as_str().strip_prefix(METADATA_HEADER_PREFIX) else {
+            continue;
+        };
+        match value.to_str() {
+            Ok(v) => {
+                raw.insert(key.to_string(), v.to_string());
+            },
+            Err(_) => {
+                return Some(Err(format!(
+                    "metadata header {METADATA_HEADER_PREFIX}{key} is not valid UTF-8"
+                )));
+            },
+        }
+    }
+    if raw.is_empty() {
+        return None;
+    }
+    Some(validate_metadata(&raw))
+}
+
+/// Decide whether an upload carrying `x-fraiseql-meta-*` headers may attach
+/// them, and return the validated map.
+///
+/// `Ok(None)` means "no metadata supplied" — the ordinary case, and the reason
+/// this gate never affects an upload that does not use the feature.
+///
+/// Refuses loudly on a missing grant rather than dropping the headers. A silent
+/// drop would answer `200` to a request that did not do what it asked, and the
+/// object would then be missing exactly the metadata a policy might gate on.
+fn authorise_upload_metadata(
+    state: &StorageState,
+    user: &StorageUser,
+    bucket: &BucketConfig,
+    key: &str,
+    existing: Option<&StorageMetadataRow>,
+    headers: &HeaderMap,
+) -> Result<Option<MetadataValues>, Box<Response>> {
+    let Some(parsed) = metadata_from_headers(headers) else {
+        return Ok(None);
+    };
+    let metadata = parsed
+        .map_err(|message| error_response(StatusCode::BAD_REQUEST, "invalid_metadata", &message))?;
+    if !state
+        .rls
+        .can_set_metadata(&user.caller(chrono::Utc::now()), bucket, key, existing)
+    {
+        tracing::warn!(
+            bucket = %bucket.name,
+            key = %key,
+            user_id = ?user.user_id,
+            "Upload metadata denied: no set_metadata grant"
+        );
+        return Err(Box::new(if user.user_id.is_none() {
+            error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
+        } else {
+            error_response(
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                "Setting object metadata requires the set_metadata permission, which write \
+                 does not imply",
+            )
+        }));
+    }
+    Ok(Some(metadata))
 }
 
 // ---------------------------------------------------------------------------
@@ -495,6 +592,15 @@ async fn put_handler(
             error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied")
         };
     }
+
+    // #1099: metadata supplied on the upload needs its own grant. Decided here,
+    // beside the write gate and before any backend work, so a refusal costs no
+    // upload and leaves no object.
+    let supplied_metadata =
+        match authorise_upload_metadata(&state, &user, bucket, &key, existing.as_ref(), &headers) {
+            Ok(metadata) => metadata,
+            Err(response) => return *response,
+        };
 
     // Validate size
     if let Some(max_bytes) = bucket.max_object_bytes {
@@ -557,6 +663,15 @@ async fn put_handler(
     };
     if let Err(e) = state.metadata.upsert(&new_obj).await {
         return storage_error_response(&e);
+    }
+    // Applied after the row exists, and only when supplied: an upload that
+    // sends no metadata headers leaves whatever the object already carried,
+    // rather than silently clearing it on every overwrite.
+    if let Some(metadata) = supplied_metadata {
+        if let Err(e) = state.metadata.set_metadata(&new_obj.bucket, &new_obj.key, &metadata).await
+        {
+            return storage_error_response(&e);
+        }
     }
 
     let mut headers = HeaderMap::new();
@@ -813,6 +928,7 @@ async fn presign_handler(
     State(state): State<StorageState>,
     user: Option<Extension<StorageUser>>,
     Path((bucket_name, key)): Path<(String, String)>,
+    headers: HeaderMap,
     axum::Json(request): axum::Json<PresignRequest>,
 ) -> Response {
     if let Some(rejection) = reject_unsafe_key(&key) {
@@ -853,6 +969,7 @@ async fn presign_handler(
     // Yields the row the decision was made against — `None` meaning "no object
     // here", which is what makes the claim below a create rather than an
     // overwrite.
+    let mut supplied_metadata: Option<MetadataValues> = None;
     let authorised_against: Option<i64> = if operation == "upload" {
         // B4: a presign(upload) that would overwrite an existing object must be gated
         // on ownership, exactly like put_handler — otherwise a leaked/guessed key lets
@@ -880,6 +997,21 @@ async fn presign_handler(
                 error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied")
             };
         }
+
+        // #1099: the bytes bypass the server entirely on this door, so metadata
+        // supplied here is attached to the claimed row below — the last moment
+        // at which this request can record anything about the object.
+        supplied_metadata = match authorise_upload_metadata(
+            &state,
+            &user,
+            bucket,
+            &key,
+            existing.as_ref(),
+            &headers,
+        ) {
+            Ok(metadata) => metadata,
+            Err(response) => return *response,
+        };
 
         existing.as_ref().map(|row| row.pk_storage_object)
     } else {
@@ -962,6 +1094,18 @@ async fn presign_handler(
                     );
                 },
                 Err(e) => return storage_error_response(&e),
+            }
+
+            // #1099: attached to the claimed row, because the bytes bypass the
+            // server and this request is the last one that can record anything
+            // about the object.
+            if let Some(metadata) = supplied_metadata.as_ref() {
+                if let Err(e) = state.metadata.set_metadata(&bucket_name, &key, metadata).await {
+                    if let Some((pk, true)) = reservation {
+                        let _ = state.metadata.release_reservation(pk).await;
+                    }
+                    return storage_error_response(&e);
+                }
             }
 
             state.backend.presign_put(&object_key, &content_type, expires_in).await
@@ -1138,6 +1282,132 @@ fn storage_error_response(err: &FraiseQLError) -> Response {
 ///
 /// A `PublicRead` bucket has no boundary to leak — `can_read` is unconditional
 /// there — so it keeps the plain `404`.
+/// The body of `PUT /storage/v1/metadata/{bucket}/{*key}`, and what `GET`
+/// answers with.
+///
+/// `deny_unknown_fields`, for the reason [`PolicyRuleSpec`](crate::PolicyRuleSpec)
+/// is: a misspelt field would otherwise deserialize into an empty map and clear
+/// the object's metadata, answering `200` to a request that did the opposite of
+/// what it said.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObjectMetadataBody {
+    /// The object's user-defined metadata, wholesale.
+    pub metadata: MetadataValues,
+}
+
+/// Read an object's user-defined metadata (#1099).
+///
+/// Gated on `read`, not on `set_metadata`: metadata is part of what an object
+/// *is*, so anyone who may read the object may see it. A missing object and one
+/// the caller may not read answer identically, so this door is not an existence
+/// oracle either (#876).
+#[tracing::instrument(skip(state, user), fields(bucket = %bucket_name, key = %key))]
+async fn get_metadata_handler(
+    State(state): State<StorageState>,
+    user: Option<Extension<StorageUser>>,
+    Path((bucket_name, key)): Path<(String, String)>,
+) -> Response {
+    if let Some(rejection) = reject_unsafe_key(&key) {
+        return rejection;
+    }
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
+        return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
+    };
+    let user = user.map(|Extension(u)| u).unwrap_or_default();
+
+    let row = match state.metadata.get(&bucket_name, &key).await {
+        Ok(Some(row)) => row,
+        Ok(None) => return object_not_visible(bucket, &user),
+        Err(e) => return storage_error_response(&e),
+    };
+    if !state.rls.can_read(&user.caller(chrono::Utc::now()), bucket, &row) {
+        return object_not_visible(bucket, &user);
+    }
+    axum::Json(ObjectMetadataBody {
+        metadata: row.metadata,
+    })
+    .into_response()
+}
+
+/// Replace an object's user-defined metadata (#1099).
+///
+/// Gated on `set_metadata` — a grant no `write` or `overwrite` rule implies,
+/// because a policy's `require_metadata` condition matches on what this writes.
+/// The `x-fraiseql-meta-*` upload headers are the convenience path for the same
+/// permission; this is the door for an object that already exists.
+///
+/// The replacement is wholesale, like a policy push: the body *is* the object's
+/// metadata afterwards. A per-key merge would make "what does this object
+/// carry" a question answered by replaying history, and that answer decides
+/// access.
+#[tracing::instrument(skip(state, user, body), fields(bucket = %bucket_name, key = %key))]
+async fn put_metadata_handler(
+    State(state): State<StorageState>,
+    user: Option<Extension<StorageUser>>,
+    Path((bucket_name, key)): Path<(String, String)>,
+    axum::Json(body): axum::Json<ObjectMetadataBody>,
+) -> Response {
+    if let Some(rejection) = reject_unsafe_key(&key) {
+        return rejection;
+    }
+    let buckets = state.buckets.load();
+    let Some(bucket) = buckets.get(&bucket_name) else {
+        return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
+    };
+    let user = user.map(|Extension(u)| u).unwrap_or_default();
+
+    let metadata = match validate_metadata(&body.metadata) {
+        Ok(metadata) => metadata,
+        Err(message) => {
+            return error_response(StatusCode::BAD_REQUEST, "invalid_metadata", &message);
+        },
+    };
+
+    // The object is loaded before the decision because a `key_prefix`-scoped or
+    // owner-scoped `set_metadata` rule is decided against the row, exactly as
+    // the overwrite gate is.
+    let existing = match state.metadata.get(&bucket_name, &key).await {
+        Ok(existing) => existing,
+        Err(e) => return storage_error_response(&e),
+    };
+    if !state.rls.can_set_metadata(
+        &user.caller(chrono::Utc::now()),
+        bucket,
+        &key,
+        existing.as_ref(),
+    ) {
+        tracing::warn!(
+            bucket = %bucket_name,
+            key = %key,
+            user_id = ?user.user_id,
+            "Storage set-metadata denied"
+        );
+        return if user.user_id.is_none() {
+            error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")
+        } else {
+            error_response(
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                "Setting object metadata requires the set_metadata permission, which write \
+                 does not imply",
+            )
+        };
+    }
+    // Answered only after the authorization decision, so a caller who may not
+    // set metadata here learns nothing about whether the object exists.
+    if existing.is_none() {
+        return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found");
+    }
+
+    match state.metadata.set_metadata(&bucket_name, &key, &metadata).await {
+        Ok(true) => axum::Json(ObjectMetadataBody { metadata }).into_response(),
+        Ok(false) => error_response(StatusCode::NOT_FOUND, "not_found", "Object not found"),
+        Err(e) => storage_error_response(&e),
+    }
+}
+
 fn object_not_visible(bucket: &BucketConfig, user: &StorageUser) -> Response {
     if !bucket.allows_anonymous_read() && user.user_id.is_none() {
         error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required")

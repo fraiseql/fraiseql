@@ -165,7 +165,7 @@ impl StorageRlsEvaluator {
         caller.user_id.is_some()
     }
 
-    /// Check if the user can write `key`\'s user-defined metadata (#1099).
+    /// Check if the user can write the user-defined metadata at `key` (#1099).
     ///
     /// A grant of its own: no `write` or `overwrite` rule implies it, and
     /// without a policy nobody but the storage admin holds it. That is
@@ -179,22 +179,30 @@ impl StorageRlsEvaluator {
     /// authenticated caller", which is what `can_write_key` falls back to: a
     /// bucket with no policy has nothing that reads metadata, so granting the
     /// write by default would only ever widen what a policy added later means.
+    ///
+    /// `existing` is `None` when the object does not exist yet — the
+    /// `x-fraiseql-meta-*` headers on an upload ask this question before the row
+    /// is written. That case is decided with no owner and no metadata, exactly
+    /// as [`can_write_key`](Self::can_write_key) decides a create: an object
+    /// with no owner has nobody to match `principal = "owner"` against, and
+    /// inventing one would let a caller satisfy an owner-scoped grant by
+    /// choosing a key.
     #[must_use]
     pub fn can_set_metadata(
         &self,
         caller: &StorageCaller<'_>,
         bucket: &BucketConfig,
         key: &str,
-        object: &StorageMetadataRow,
+        existing: Option<&StorageMetadataRow>,
     ) -> bool {
         if let Some(decision) = policy_decision(
             PolicyMethod::SetMetadata,
             caller,
             bucket,
             key,
-            object.owner_id.as_deref(),
-            object.expires_at,
-            &object.metadata,
+            existing.and_then(|o| o.owner_id.as_deref()),
+            existing.and_then(|o| o.expires_at),
+            existing.map_or(&EMPTY_METADATA, |o| &o.metadata),
         ) {
             return decision;
         }

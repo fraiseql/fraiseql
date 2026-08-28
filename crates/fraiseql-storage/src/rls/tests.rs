@@ -480,7 +480,7 @@ mod set_metadata {
                 &caller(Some("user-1"), &user_roles()),
                 &bucket,
                 &object.key,
-                &object,
+                Some(&object),
             ),
             "read+write+overwrite+delete+list must not add up to set_metadata"
         );
@@ -494,7 +494,7 @@ mod set_metadata {
             &caller(Some("user-1"), &user_roles()),
             &bucket,
             &object.key,
-            &object,
+            Some(&object),
         ));
     }
 
@@ -510,13 +510,13 @@ mod set_metadata {
             &caller(Some("user-1"), &user_roles()),
             &private_bucket(),
             &object.key,
-            &object,
+            Some(&object),
         ));
         assert!(eval.can_set_metadata(
             &caller(Some("ops"), &admin_roles()),
             &private_bucket(),
             &object.key,
-            &object,
+            Some(&object),
         ));
     }
 
@@ -587,11 +587,11 @@ mod set_metadata {
 
         let mut inside = object_owned_by("user-1");
         inside.key = "uploads/f.txt".to_string();
-        assert!(eval.can_set_metadata(&who, &bucket, &inside.key, &inside));
+        assert!(eval.can_set_metadata(&who, &bucket, &inside.key, Some(&inside)));
 
         let mut outside = object_owned_by("user-1");
         outside.key = "other/f.txt".to_string();
-        assert!(!eval.can_set_metadata(&who, &bucket, &outside.key, &outside));
+        assert!(!eval.can_set_metadata(&who, &bucket, &outside.key, Some(&outside)));
     }
 
     #[test]
@@ -602,7 +602,7 @@ mod set_metadata {
             &caller(None, &[]),
             &bucket,
             &object.key,
-            &object,
+            Some(&object),
         ));
         let _ = MetadataValues::new();
     }

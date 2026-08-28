@@ -2971,3 +2971,380 @@ mod prefixed_write {
         assert_eq!(row.size_bytes, 1, "user-a's bytes survive");
     }
 }
+
+// ── #1099: user-defined metadata, end to end ────────────────────────────────
+//
+// The permission split is only real if it holds on the live surface. This
+// codebase's recurring defect is an evaluator that decided correctly while some
+// door never asked it (#762, #743, #966), so every one of these drives a real
+// request.
+mod object_metadata {
+    use tower::ServiceExt;
+
+    use super::{
+        Body, BucketAccess, HashMap, Request, StatusCode, StorageState, header, policy_state,
+        presign_upload_req, put_req, router_for, test_state, tus_create_req,
+    };
+    use crate::policy::{
+        BucketPolicy, ClaimValues, MetadataValues, PolicyMethod, PolicyPrincipal, PolicyRule,
+    };
+
+    fn rule(methods: Vec<PolicyMethod>) -> PolicyRule {
+        PolicyRule {
+            methods,
+            principal: PolicyPrincipal::Authenticated,
+            key_prefix: None,
+            not_before: None,
+            not_after: None,
+            require_unexpired: false,
+            require_claims: ClaimValues::new(),
+            require_metadata: MetadataValues::new(),
+        }
+    }
+
+    /// Everything an uploader needs EXCEPT `set_metadata`.
+    fn everything_but_set_metadata() -> BucketPolicy {
+        BucketPolicy {
+            rules: vec![rule(vec![
+                PolicyMethod::Read,
+                PolicyMethod::Write,
+                PolicyMethod::Overwrite,
+                PolicyMethod::Delete,
+                PolicyMethod::List,
+            ])],
+        }
+    }
+
+    fn also_set_metadata() -> BucketPolicy {
+        let mut policy = everything_but_set_metadata();
+        policy.rules.push(rule(vec![PolicyMethod::SetMetadata]));
+        policy
+    }
+
+    fn put_with_meta(bucket: &str, key: &str, pairs: &[(&str, &str)]) -> Request<Body> {
+        let mut builder = Request::builder()
+            .method("PUT")
+            .uri(format!("/storage/v1/object/{bucket}/{key}"))
+            .header(header::CONTENT_TYPE, "text/plain");
+        for (name, value) in pairs {
+            builder = builder.header(format!("x-fraiseql-meta-{name}"), *value);
+        }
+        builder.body(Body::from(b"A".to_vec())).unwrap()
+    }
+
+    fn get_meta_req(bucket: &str, key: &str) -> Request<Body> {
+        Request::builder()
+            .method("GET")
+            .uri(format!("/storage/v1/metadata/{bucket}/{key}"))
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    fn put_meta_req(bucket: &str, key: &str, body: &str) -> Request<Body> {
+        Request::builder()
+            .method("PUT")
+            .uri(format!("/storage/v1/metadata/{bucket}/{key}"))
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    }
+
+    async fn metadata_of(state: &StorageState, bucket: &str, key: &str) -> MetadataValues {
+        state.metadata.get(bucket, key).await.unwrap().expect("object exists").metadata
+    }
+
+    // ── the upload headers are a convenience path, not a second authority ──
+
+    /// The whole point of the split, on the live surface: the caller may create
+    /// the object and may not attach metadata to it.
+    #[tokio::test]
+    async fn upload_headers_are_refused_without_the_set_metadata_grant() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, everything_but_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        assert_eq!(
+            app.clone().oneshot(put_req("docs", "plain.txt", b"A")).await.unwrap().status(),
+            StatusCode::OK,
+            "control: the same caller may create an object with no metadata"
+        );
+        assert_eq!(
+            app.oneshot(put_with_meta("docs", "tagged.txt", &[("classification", "public")]))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN,
+            "#1099: write does not imply set_metadata, even on the caller's own upload"
+        );
+    }
+
+    /// Refused, not silently dropped. A `200` carrying none of the metadata the
+    /// caller sent is a lie, and the object would then be missing exactly what
+    /// a policy might gate on.
+    #[tokio::test]
+    async fn a_refused_upload_creates_no_object_at_all() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, everything_but_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        assert_eq!(
+            app.oneshot(put_with_meta("docs", "tagged.txt", &[("k", "v")]))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+        assert!(
+            state.metadata.get("docs", "tagged.txt").await.unwrap().is_none(),
+            "the refusal must happen before the object is written, not after"
+        );
+    }
+
+    #[tokio::test]
+    async fn upload_headers_are_accepted_with_the_grant() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, also_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        assert_eq!(
+            app.oneshot(put_with_meta("docs", "tagged.txt", &[("classification", "public")]))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            metadata_of(&state, "docs", "tagged.txt")
+                .await
+                .get("classification")
+                .map(String::as_str),
+            Some("public"),
+            "the metadata must reach the row, not just the request"
+        );
+    }
+
+    /// An upload that sends no metadata headers leaves what the object already
+    /// carried. Otherwise every ordinary overwrite would silently clear
+    /// metadata a policy gates on — and the caller doing the clearing would be
+    /// one who never held `set_metadata`.
+    #[tokio::test]
+    async fn an_upload_without_headers_does_not_clear_existing_metadata() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, also_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        app.clone()
+            .oneshot(put_with_meta("docs", "f.txt", &[("classification", "public")]))
+            .await
+            .unwrap();
+        assert_eq!(
+            app.oneshot(put_req("docs", "f.txt", b"B")).await.unwrap().status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            metadata_of(&state, "docs", "f.txt")
+                .await
+                .get("classification")
+                .map(String::as_str),
+            Some("public"),
+            "an overwrite carrying no metadata headers must leave the metadata alone"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_resumable_door_enforces_the_same_grant() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, everything_but_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        assert_eq!(
+            app.clone()
+                .oneshot(tus_create_req("docs", "plain.bin", 10))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CREATED,
+            "control: creation without metadata is permitted"
+        );
+
+        let mut req = tus_create_req("docs", "tagged.bin", 10);
+        req.headers_mut().insert("x-fraiseql-meta-k", "v".parse().unwrap());
+        assert_eq!(app.oneshot(req).await.unwrap().status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn the_presign_door_enforces_the_same_grant() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, everything_but_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+
+        let mut req = presign_upload_req("docs", "tagged.txt");
+        req.headers_mut().insert("x-fraiseql-meta-k", "v".parse().unwrap());
+        assert_eq!(app.oneshot(req).await.unwrap().status(), StatusCode::FORBIDDEN);
+    }
+
+    // ── the standalone endpoint ────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn the_endpoint_enforces_the_same_grant() {
+        let (state, _keep) =
+            policy_state("docs", BucketAccess::Private, everything_but_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+        app.clone().oneshot(put_req("docs", "f.txt", b"A")).await.unwrap();
+
+        assert_eq!(
+            app.oneshot(put_meta_req("docs", "f.txt", r#"{"metadata":{"k":"v"}}"#))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN,
+            "#1099: the standalone door is the same permission as the header path"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_endpoint_writes_and_reads_back_with_the_grant() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, also_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+        app.clone().oneshot(put_req("docs", "f.txt", b"A")).await.unwrap();
+
+        assert_eq!(
+            app.clone()
+                .oneshot(put_meta_req("docs", "f.txt", r#"{"metadata":{"tier":"gold"}}"#))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            metadata_of(&state, "docs", "f.txt").await.get("tier").map(String::as_str),
+            Some("gold")
+        );
+
+        let response = app.oneshot(get_meta_req("docs", "f.txt")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(parsed["metadata"]["tier"], "gold");
+    }
+
+    /// Wholesale, like a policy push. A `PUT` carrying one key leaves exactly
+    /// that key — a merge would make "what does this object carry" a question
+    /// answered by replaying history, and that answer decides access.
+    #[tokio::test]
+    async fn the_endpoint_replaces_rather_than_merges() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, also_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+        app.clone().oneshot(put_req("docs", "f.txt", b"A")).await.unwrap();
+
+        app.clone()
+            .oneshot(put_meta_req("docs", "f.txt", r#"{"metadata":{"a":"1","b":"2"}}"#))
+            .await
+            .unwrap();
+        app.clone()
+            .oneshot(put_meta_req("docs", "f.txt", r#"{"metadata":{"a":"9"}}"#))
+            .await
+            .unwrap();
+
+        let stored = metadata_of(&state, "docs", "f.txt").await;
+        assert_eq!(stored.get("a").map(String::as_str), Some("9"));
+        assert!(!stored.contains_key("b"), "the replacement is wholesale, not a merge");
+    }
+
+    /// A misspelt field would deserialize into an empty map and CLEAR the
+    /// object's metadata while answering `200` — the exact shape
+    /// `deny_unknown_fields` exists to prevent on a policy rule.
+    #[tokio::test]
+    async fn a_misspelt_body_field_is_refused_rather_than_clearing_the_metadata() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, also_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+        app.clone().oneshot(put_req("docs", "f.txt", b"A")).await.unwrap();
+        app.clone()
+            .oneshot(put_meta_req("docs", "f.txt", r#"{"metadata":{"a":"1"}}"#))
+            .await
+            .unwrap();
+
+        let status = app
+            .oneshot(put_meta_req("docs", "f.txt", r#"{"metadatas":{"a":"2"}}"#))
+            .await
+            .unwrap()
+            .status();
+        assert!(status.is_client_error(), "a misspelt field must be refused, got {status}");
+        assert_eq!(
+            metadata_of(&state, "docs", "f.txt").await.get("a").map(String::as_str),
+            Some("1"),
+            "the refused request must not have cleared anything"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_boundary_limits_are_enforced_at_the_endpoint() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, also_set_metadata()).await;
+        let app = router_for(state.clone(), "user-a", &["user"]);
+        app.clone().oneshot(put_req("docs", "f.txt", b"A")).await.unwrap();
+
+        let huge = "v".repeat(2048);
+        assert_eq!(
+            app.oneshot(put_meta_req(
+                "docs",
+                "f.txt",
+                &format!(r#"{{"metadata":{{"k":"{huge}"}}}}"#)
+            ))
+            .await
+            .unwrap()
+            .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+
+    /// Reading metadata is gated on `read`, not on `set_metadata`: metadata is
+    /// part of what an object is.
+    #[tokio::test]
+    async fn reading_metadata_needs_only_read() {
+        let (state, _keep) = policy_state("docs", BucketAccess::Private, also_set_metadata()).await;
+        let writer = router_for(state.clone(), "user-a", &["user"]);
+        writer.clone().oneshot(put_req("docs", "f.txt", b"A")).await.unwrap();
+        writer
+            .oneshot(put_meta_req("docs", "f.txt", r#"{"metadata":{"tier":"gold"}}"#))
+            .await
+            .unwrap();
+
+        let (reader_state, _keep2) = {
+            let mut buckets = HashMap::new();
+            let mut bucket = state.buckets.load().get("docs").unwrap().clone();
+            bucket.policies = Some(everything_but_set_metadata());
+            buckets.insert("docs".to_string(), bucket);
+            (state.clone().with_buckets(buckets), ())
+        };
+        let reader = router_for(reader_state, "user-b", &["user"]);
+        let response = reader.oneshot(get_meta_req("docs", "f.txt")).await.unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "a caller with read but not set_metadata must still see the metadata"
+        );
+    }
+
+    /// A caller who may not read the object learns nothing from this door —
+    /// not even whether it exists (#876).
+    #[tokio::test]
+    async fn the_read_door_is_not_an_existence_oracle() {
+        let (state, _keep) = test_state("docs", BucketAccess::Private).await;
+        let owner = router_for(state.clone(), "user-a", &["user"]);
+        owner.oneshot(put_req("docs", "secret.txt", b"A")).await.unwrap();
+
+        let stranger = router_for(state.clone(), "user-b", &["user"]);
+        assert_eq!(
+            stranger
+                .clone()
+                .oneshot(get_meta_req("docs", "secret.txt"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            stranger.oneshot(get_meta_req("docs", "absent.txt")).await.unwrap().status(),
+            StatusCode::NOT_FOUND,
+            "an object that exists and one that does not must answer identically"
+        );
+    }
+}

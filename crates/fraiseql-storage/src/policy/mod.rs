@@ -34,15 +34,28 @@
 //! - [`PolicyRule::not_before`] / [`PolicyRule::not_after`] — the grant's own validity window.
 //! - [`PolicyRule::require_unexpired`] — the object's own expiry, `now < object.expires_at`.
 //! - [`PolicyRule::require_claims`] — exact-match equality against the caller's token claims.
+//! - [`PolicyRule::require_metadata`] — exact-match equality against the object's user-defined
+//!   metadata (#1099).
 //!
 //! Every condition **narrows**. A rule permits only when its method, key
 //! prefix, *every* condition, and its principal all match; a rule that fails
 //! any of them is skipped, and the next rule is considered. Since rules are
 //! permit-only, skipping a rule can never widen access.
 //!
-//! `require_metadata` from the issue is deliberately absent: objects carry no
-//! user-defined metadata yet, so a field matching against it would have
-//! nothing to compare. Tracked separately.
+//! # Why `require_metadata` is not a condition the caller can author (#1099)
+//!
+//! Object metadata is caller-supplied, so matching on it would normally mean
+//! matching on a value the gated caller chose. The guarantee here is not a
+//! reserved key namespace enforced at the upload door — a namespace is only as
+//! good as its enforcement, holds until the first backfill or internal caller
+//! that reaches the table another way, and fails *silently* when it breaks.
+//!
+//! Instead writing metadata is its own permission,
+//! [`PolicyMethod::SetMetadata`], and `require_metadata` refuses to hold for any
+//! caller who holds it. The guarantee is therefore a property of the permission
+//! system, and it degrades in the safe direction: widening who may set metadata
+//! NARROWS what a metadata-gated rule permits. This is the split S3 draws
+//! between `PutObjectTagging` and `PutObject`.
 
 pub mod spec;
 pub mod store;

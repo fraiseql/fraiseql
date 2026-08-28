@@ -96,6 +96,8 @@ bucket.
 | `GET` | `/storage/v1/object/{bucket}/{key}` | Download |
 | `DELETE` | `/storage/v1/object/{bucket}/{key}` | Delete |
 | `GET` | `/storage/v1/list/{bucket}` | List (`prefix`, `limit`, `offset`) |
+| `GET` | `/storage/v1/metadata/{bucket}/{key}` | Read user-defined metadata |
+| `PUT` | `/storage/v1/metadata/{bucket}/{key}` | Replace user-defined metadata |
 | `POST` | `/storage/v1/presign/{bucket}/{key}` | Presigned upload or download URL |
 | `GET` | `/storage/v1/render/{bucket}/{key}` | Rendered image (`transforms` feature) |
 | `POST` | `/storage/v1/uploads/{bucket}/{key}` | Create a resumable (Tus) upload |
@@ -141,6 +143,7 @@ Access is evaluated by `StorageRlsEvaluator` against the object's metadata row.
 | Overwrite (object exists) | owner, or `fraiseql:storage:admin` | owner, or `fraiseql:storage:admin` |
 | Delete | owner, or `fraiseql:storage:admin` | owner, or `fraiseql:storage:admin` |
 | List | filtered to owned objects (all, for an admin) | all objects in the bucket |
+| Set metadata | `fraiseql:storage:admin` only | `fraiseql:storage:admin` only |
 
 The owner is the `sub` claim of the token that created the object. There is no
 tenant column and no tenant scoping: two users of the same tenant do not see
@@ -152,6 +155,29 @@ this document's model as the floor, not the ceiling.
 The admin role is the explicit `fraiseql:storage:admin`, never a generic
 `admin` scope, so an unrelated application scope of that name cannot
 accidentally grant full storage access.
+
+### User-defined metadata
+
+An object carries a string-to-string `metadata` map, which a policy can match on
+with `require_metadata`. It is set either at upload time — `x-fraiseql-meta-<name>`
+headers on `PUT`, presign-upload or resumable creation — or afterwards through
+`PUT /storage/v1/metadata/{bucket}/{key}`.
+
+Both are the **same permission**: `set_metadata`, which no other grant implies
+and which, absent a policy, only the storage admin holds. The upload headers are
+a convenience path, not a second authority — sending them without the grant is a
+`403`, never a silent drop, because a `200` that stored none of the metadata the
+caller sent would leave the object missing exactly what a policy gates on. See
+the policy section below for why the permission is what makes `require_metadata`
+trustworthy.
+
+Replacement is wholesale on every door. Limits are 32 keys, 128-byte key names,
+1024-byte values, over the charset `a-z 0-9 - _ .`; keys are lower-cased because
+header names are case-insensitive, and two keys differing only in case are a
+`400` rather than a silent last-one-wins. Values are strings: they exist to be
+compared, and every other JSON shape needs an equality nobody can predict.
+
+Reading metadata needs only `read` — it is part of what an object is.
 
 ### Presigned uploads own their object
 
@@ -193,11 +219,11 @@ methods = ["read", "write", "overwrite", "delete", "list"]
 principal = "owner"
 ```
 
-- `methods`: `read` | `write` | `overwrite` | `delete` | `list`.
+- `methods`: `read` | `write` | `overwrite` | `delete` | `list` | `set_metadata`.
 - `principal`: `owner` | `authenticated` | `anonymous` | `role:<name>`.
 - `key_prefix` (optional) narrows a rule to keys under that prefix.
 
-Three properties are deliberate:
+Four properties are deliberate:
 
 **Denial is structural.** There is no `effect = "deny"`. A request is permitted
 only when some rule matches it; every other path falls through to denied. An
@@ -212,6 +238,42 @@ A `key_prefix` narrows both halves, against the key each one is about: a `write`
 rule is decided against the key being created, an `overwrite` rule against the
 key that already exists. So `methods = ["write"], key_prefix = "uploads/"` is
 the grant *"may create anything under `uploads/`, and replace nothing"*.
+
+**`set_metadata` is its own grant, and that is what makes `require_metadata`
+mean anything.** Object metadata is caller-supplied, so a condition matching on
+it is, in general, a condition the gated caller authors — they can write the
+value that decides their own access. FraiseQL does not solve that with a
+reserved key namespace policed at the upload door, because a namespace is only
+as good as its enforcement: it holds until the first backfill or internal caller
+that reaches the table another way, and it fails *silently* when it breaks.
+
+Instead, writing metadata is a separate permission — the split S3 draws between
+`PutObjectTagging` and `PutObject` — and `require_metadata` refuses to hold for
+any caller who holds it:
+
+```toml
+# Curators classify documents; nobody else can.
+[[storage.docs.policies]]
+methods = ["set_metadata"]
+principal = "role:curator"
+
+# Anyone authenticated may read what a curator marked public.
+[[storage.docs.policies]]
+methods = ["read"]
+principal = "authenticated"
+require_metadata = { classification = "public" }
+```
+
+A curator reading through the second rule is denied, because a curator could
+have written `classification = "public"` themselves. That is the guarantee, and
+it degrades in the safe direction: widening who may set metadata *narrows* what
+a metadata-gated rule permits. It can never quietly hand those callers the
+ability to grant themselves access.
+
+The granularity is the object, because the permission's is — a `set_metadata`
+grant covers an object's whole metadata map. A rule that both grants
+`set_metadata` and carries `require_metadata` is refused at boot: it would
+decide itself, and it can never hold for anyone it grants.
 
 **An unparseable policy does not boot.** An unknown method or principal
 spelling, an empty `methods` list, or a misspelled field is a startup error, so
