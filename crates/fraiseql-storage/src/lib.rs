@@ -50,9 +50,10 @@ pub use config::{BucketAccess, BucketConfig, StorageConfig};
 pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 pub use metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
 pub use policy::{
-    BucketPolicy, ClaimValues, PolicyMethod, PolicyPrincipal, PolicyRequest, PolicyRule,
-    PolicyRuleSpec, PolicySource, PolicySpecError, StoragePolicyStore, StoredPolicyRow,
-    normalise_claims, parse_policy, policy_source, policy_to_specs,
+    BucketPolicy, ClaimValues, MAX_METADATA_KEY_LEN, MAX_METADATA_KEYS, MAX_METADATA_VALUE_LEN,
+    MetadataValues, PolicyMethod, PolicyPrincipal, PolicyRequest, PolicyRule, PolicyRuleSpec,
+    PolicySource, PolicySpecError, StoragePolicyStore, StoredPolicyRow, normalise_claims,
+    parse_policy, policy_source, policy_to_specs, validate_metadata,
 };
 pub use rls::{STORAGE_ADMIN_ROLE, StorageCaller, StorageRlsEvaluator};
 pub use routes::{

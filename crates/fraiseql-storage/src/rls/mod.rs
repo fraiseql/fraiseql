@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use crate::{
     config::{BucketAccess, BucketConfig},
     metadata::StorageMetadataRow,
-    policy::{ClaimValues, PolicyMethod, PolicyRequest},
+    policy::{ClaimValues, MetadataValues, PolicyMethod, PolicyRequest},
 };
 
 /// The storage admin role that bypasses all object-level access checks.
@@ -81,6 +81,12 @@ impl<'a> StorageCaller<'a> {
     }
 }
 
+/// The metadata a decision that is not about one existing object compares
+/// against: a create (there is no object yet) and a listing (there is no single
+/// object). Empty, and `require_metadata` fails on an absent key, so such a rule
+/// never permits through this path — which is the fail-closed reading.
+static EMPTY_METADATA: MetadataValues = MetadataValues::new();
+
 /// Storage RLS evaluator.
 ///
 /// Stateless evaluator that checks access policies:
@@ -117,6 +123,7 @@ impl StorageRlsEvaluator {
             &object.key,
             object.owner_id.as_deref(),
             object.expires_at,
+            &object.metadata,
         ) {
             return decision;
         }
@@ -148,7 +155,7 @@ impl StorageRlsEvaluator {
         key: &str,
     ) -> bool {
         if let Some(decision) =
-            policy_decision(PolicyMethod::Write, caller, bucket, key, None, None)
+            policy_decision(PolicyMethod::Write, caller, bucket, key, None, None, &EMPTY_METADATA)
         {
             return decision;
         }
@@ -156,6 +163,42 @@ impl StorageRlsEvaluator {
             return true;
         }
         caller.user_id.is_some()
+    }
+
+    /// Check if the user can write `key`\'s user-defined metadata (#1099).
+    ///
+    /// A grant of its own: no `write` or `overwrite` rule implies it, and
+    /// without a policy nobody but the storage admin holds it. That is
+    /// deliberate — metadata is matchable by
+    /// [`require_metadata`](crate::PolicyRule::require_metadata), so the set of
+    /// callers who can write it is the set who could influence an access
+    /// decision, and it should be one an operator names rather than one that
+    /// comes along with uploading.
+    ///
+    /// It is also the reason the fallback is *deny* rather than "any
+    /// authenticated caller", which is what `can_write_key` falls back to: a
+    /// bucket with no policy has nothing that reads metadata, so granting the
+    /// write by default would only ever widen what a policy added later means.
+    #[must_use]
+    pub fn can_set_metadata(
+        &self,
+        caller: &StorageCaller<'_>,
+        bucket: &BucketConfig,
+        key: &str,
+        object: &StorageMetadataRow,
+    ) -> bool {
+        if let Some(decision) = policy_decision(
+            PolicyMethod::SetMetadata,
+            caller,
+            bucket,
+            key,
+            object.owner_id.as_deref(),
+            object.expires_at,
+            &object.metadata,
+        ) {
+            return decision;
+        }
+        is_admin(caller.roles)
     }
 
     /// Check if the user can write (create or overwrite) the object at `key`.
@@ -195,6 +238,7 @@ impl StorageRlsEvaluator {
                     &object.key,
                     object.owner_id.as_deref(),
                     object.expires_at,
+                    &object.metadata,
                 ) {
                     return decision;
                 }
@@ -221,6 +265,7 @@ impl StorageRlsEvaluator {
             &object.key,
             object.owner_id.as_deref(),
             object.expires_at,
+            &object.metadata,
         ) {
             return decision;
         }
@@ -242,7 +287,7 @@ impl StorageRlsEvaluator {
         prefix: &str,
     ) -> bool {
         if let Some(decision) =
-            policy_decision(PolicyMethod::List, caller, bucket, prefix, None, None)
+            policy_decision(PolicyMethod::List, caller, bucket, prefix, None, None, &EMPTY_METADATA)
         {
             return decision;
         }
@@ -279,6 +324,7 @@ impl StorageRlsEvaluator {
                         &object.key,
                         object.owner_id.as_deref(),
                         object.expires_at,
+                        &object.metadata,
                     )
                     .unwrap_or(false)
                 })
@@ -316,24 +362,39 @@ fn policy_decision(
     key: &str,
     owner_id: Option<&str>,
     expires_at: Option<DateTime<Utc>>,
+    metadata: &MetadataValues,
 ) -> Option<bool> {
     let policy = bucket.policies.as_ref()?;
     if is_admin(caller.roles) {
         return Some(true);
     }
-    Some(policy.permits(
-        method,
-        &PolicyRequest {
-            user_id: caller.user_id,
-            roles: caller.roles,
-            key,
-            owner_id,
-            now: caller.now,
-            expires_at,
-            claims: caller.claims,
-            via_signed_url: caller.via_signed_url,
-        },
-    ))
+    let request = |may_write_metadata| PolicyRequest {
+        user_id: caller.user_id,
+        roles: caller.roles,
+        key,
+        owner_id,
+        now: caller.now,
+        expires_at,
+        claims: caller.claims,
+        via_signed_url: caller.via_signed_url,
+        metadata,
+        may_write_metadata,
+    };
+
+    // #1099: `require_metadata` holds only for a caller who could not have
+    // written what it matches on, so every decision first answers "may this
+    // caller set this object's metadata" against the same policy.
+    //
+    // This does not recurse. Evaluating the SetMetadata question only reaches
+    // the conditions of rules that grant SetMetadata, and `parse_policy`
+    // refuses any such rule that carries `require_metadata` — so the `false`
+    // passed here is never read. Computed unconditionally rather than only when
+    // some rule needs it: a short-circuit would silently supply `false` to any
+    // future condition that reads the flag, and one pass over a rule list is
+    // not worth that.
+    let may_write_metadata = policy.permits(PolicyMethod::SetMetadata, &request(false));
+
+    Some(policy.permits(method, &request(may_write_metadata)))
 }
 
 /// Check if the roles contain the storage admin role.

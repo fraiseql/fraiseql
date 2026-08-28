@@ -10,9 +10,13 @@
 use chrono::{DateTime, Utc};
 
 use super::{
-    BucketPolicy, ClaimValues, PolicyMethod, PolicyPrincipal, PolicyRequest, PolicyRule,
-    normalise_claims,
+    BucketPolicy, ClaimValues, MetadataValues, PolicyMethod, PolicyPrincipal, PolicyRequest,
+    PolicyRule, normalise_claims,
 };
+
+/// The metadata a request that is not about an object with metadata compares
+/// against.
+static NO_METADATA: MetadataValues = MetadataValues::new();
 
 /// The claim set for the cases whose decision does not turn on claims.
 static NO_CLAIMS: ClaimValues = ClaimValues::new();
@@ -28,15 +32,17 @@ fn permit(methods: Vec<PolicyMethod>, principal: PolicyPrincipal) -> PolicyRule 
         not_after: None,
         require_unexpired: false,
         require_claims: ClaimValues::new(),
+        require_metadata: MetadataValues::new(),
     }
 }
 
-const ALL_METHODS: [PolicyMethod; 5] = [
+const ALL_METHODS: [PolicyMethod; 6] = [
     PolicyMethod::Read,
     PolicyMethod::Write,
     PolicyMethod::Overwrite,
     PolicyMethod::Delete,
     PolicyMethod::List,
+    PolicyMethod::SetMetadata,
 ];
 
 /// The caller shapes that matter to a principal decision.
@@ -128,6 +134,8 @@ fn evaluation_matrix_is_exhaustive_and_denies_by_default() {
                         expires_at: None,
                         claims: &NO_CLAIMS,
                         via_signed_url,
+                        metadata: &NO_METADATA,
+                        may_write_metadata: false,
                     };
                     let expected = method == granted && principal_should_match(principal, caller);
                     assert_eq!(
@@ -161,6 +169,7 @@ fn empty_policy_permits_nothing() {
             not_after:         None,
             require_unexpired: false,
             require_claims:    ClaimValues::new(),
+            require_metadata:  MetadataValues::new(),
         }],
     };
     for caller in ALL_CALLERS {
@@ -174,6 +183,8 @@ fn empty_policy_permits_nothing() {
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url,
+            metadata: &NO_METADATA,
+            may_write_metadata: false,
         };
         for method in ALL_METHODS {
             assert!(!empty.permits(method, &request), "empty policy denies {method:?}");
@@ -202,6 +213,7 @@ fn key_prefix_narrows_the_rule() {
             not_after:         None,
             require_unexpired: false,
             require_claims:    ClaimValues::new(),
+            require_metadata:  MetadataValues::new(),
         }],
     };
     let roles: Vec<String> = vec![];
@@ -224,6 +236,8 @@ fn key_prefix_narrows_the_rule() {
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url: false,
+            metadata: &NO_METADATA,
+            may_write_metadata: false,
         };
         assert!(policy.permits(PolicyMethod::Read, &request), "{key} is inside the prefix");
     }
@@ -237,6 +251,8 @@ fn key_prefix_narrows_the_rule() {
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url: false,
+            metadata: &NO_METADATA,
+            may_write_metadata: false,
         };
         assert!(!policy.permits(PolicyMethod::Read, &request), "{key} is outside the prefix");
     }
@@ -256,6 +272,7 @@ fn owner_principal_never_matches_a_missing_side() {
             not_after:         None,
             require_unexpired: false,
             require_claims:    ClaimValues::new(),
+            require_metadata:  MetadataValues::new(),
         }],
     };
     let roles: Vec<String> = vec![];
@@ -274,6 +291,8 @@ fn owner_principal_never_matches_a_missing_side() {
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url: false,
+            metadata: &NO_METADATA,
+            may_write_metadata: false,
         };
         assert!(
             !policy.permits(PolicyMethod::Read, &request),
@@ -296,6 +315,7 @@ fn rules_are_a_union_of_permits() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    ClaimValues::new(),
+                require_metadata:  MetadataValues::new(),
             },
             PolicyRule {
                 methods:           vec![PolicyMethod::Read, PolicyMethod::Delete],
@@ -305,30 +325,35 @@ fn rules_are_a_union_of_permits() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    ClaimValues::new(),
+                require_metadata:  MetadataValues::new(),
             },
         ],
     };
     let auditor_roles = vec!["auditor".to_string()];
     let auditor = PolicyRequest {
-        user_id:        Some("stranger"),
-        roles:          &auditor_roles,
-        key:            "k",
-        owner_id:       Some("owner-1"),
-        now:            Utc::now(),
-        expires_at:     None,
-        claims:         &NO_CLAIMS,
-        via_signed_url: false,
+        user_id:            Some("stranger"),
+        roles:              &auditor_roles,
+        key:                "k",
+        owner_id:           Some("owner-1"),
+        now:                Utc::now(),
+        expires_at:         None,
+        claims:             &NO_CLAIMS,
+        via_signed_url:     false,
+        metadata:           &NO_METADATA,
+        may_write_metadata: false,
     };
     let no_roles: Vec<String> = vec![];
     let owner = PolicyRequest {
-        user_id:        Some("owner-1"),
-        roles:          &no_roles,
-        key:            "k",
-        owner_id:       Some("owner-1"),
-        now:            Utc::now(),
-        expires_at:     None,
-        claims:         &NO_CLAIMS,
-        via_signed_url: false,
+        user_id:            Some("owner-1"),
+        roles:              &no_roles,
+        key:                "k",
+        owner_id:           Some("owner-1"),
+        now:                Utc::now(),
+        expires_at:         None,
+        claims:             &NO_CLAIMS,
+        via_signed_url:     false,
+        metadata:           &NO_METADATA,
+        may_write_metadata: false,
     };
 
     assert!(policy.permits(PolicyMethod::Read, &auditor));
@@ -397,6 +422,8 @@ fn request_at(
         expires_at,
         claims,
         via_signed_url: false,
+        metadata: &NO_METADATA,
+        may_write_metadata: false,
     }
 }
 
@@ -648,7 +675,55 @@ mod spec {
             not_after:         None,
             require_unexpired: false,
             require_claims:    BTreeMap::new(),
+            require_metadata:  BTreeMap::new(),
         }
+    }
+
+    /// #1099: `require_metadata` is answered by asking whether the caller may
+    /// SET metadata — another decision by this same policy. A rule that grants
+    /// `set_metadata` and carries `require_metadata` would decide itself, so it
+    /// is refused at the door rather than guarded at evaluation time. A runtime
+    /// guard would be behaviour an operator cannot read off their own config.
+    #[test]
+    fn a_rule_that_grants_set_metadata_and_requires_metadata_is_refused() {
+        let mut rule = spec(&["set_metadata"], "authenticated");
+        rule.require_metadata.insert("classification".to_string(), "public".to_string());
+        let err = parse_policy(&[rule]).expect_err("a self-deciding rule must not parse");
+        assert!(format!("{err:?}").contains("decide itself"), "{err:?}");
+    }
+
+    /// Only the combination is refused. Each half alone is an ordinary rule,
+    /// and splitting them into two rules is the documented way to express the
+    /// intent.
+    #[test]
+    fn either_half_alone_parses() {
+        parse_policy(&[spec(&["set_metadata"], "authenticated")])
+            .expect("a plain set_metadata grant is ordinary");
+
+        let mut gated = spec(&["read"], "authenticated");
+        gated
+            .require_metadata
+            .insert("classification".to_string(), "public".to_string());
+        parse_policy(&[gated]).expect("a metadata-gated read is ordinary");
+
+        let mut split_a = spec(&["read"], "authenticated");
+        split_a
+            .require_metadata
+            .insert("classification".to_string(), "public".to_string());
+        parse_policy(&[split_a, spec(&["set_metadata"], "role:curator")])
+            .expect("two rules express what one may not");
+    }
+
+    /// The metadata boundary limits apply to what a POLICY asks for too, not
+    /// only to what an object carries. A rule requiring a key no ingestion path
+    /// could ever produce is a rule that can never hold, which is the
+    /// always-false condition #1099 was split out of #974 to avoid.
+    #[test]
+    fn a_require_metadata_key_outside_the_charset_is_refused() {
+        let mut rule = spec(&["read"], "authenticated");
+        rule.require_metadata.insert("a:b".to_string(), "v".to_string());
+        let err = parse_policy(&[rule]).expect_err("an unmatchable key must not parse");
+        assert!(format!("{err:?}").contains("outside a-z"), "{err:?}");
     }
 
     /// Every condition survives a render/parse round trip.
@@ -661,6 +736,8 @@ mod spec {
     fn policy_round_trips_through_the_spec_form() {
         let mut claims = BTreeMap::new();
         claims.insert("tier".to_string(), "gold".to_string());
+        let mut meta = BTreeMap::new();
+        meta.insert("classification".to_string(), "public".to_string());
         let original = BucketPolicy {
             rules: vec![
                 PolicyRule {
@@ -671,6 +748,7 @@ mod spec {
                     not_after:         Some("2027-01-01T00:00:00Z".parse().unwrap()),
                     require_unexpired: true,
                     require_claims:    claims,
+                    require_metadata:  meta,
                 },
                 PolicyRule {
                     methods:           vec![PolicyMethod::Read],
@@ -680,6 +758,7 @@ mod spec {
                     not_after:         None,
                     require_unexpired: false,
                     require_claims:    BTreeMap::new(),
+                    require_metadata:  BTreeMap::new(),
                 },
             ],
         };
@@ -763,5 +842,259 @@ mod spec {
     fn an_empty_rule_list_is_a_valid_lockdown() {
         let policy = parse_policy(&[]).unwrap();
         assert!(policy.rules.is_empty());
+    }
+}
+
+// ── #1099: set_metadata is its own permission ───────────────────────────────
+
+/// Every spelling in the vocabulary must survive `parse` -> `as_str` -> `parse` AND
+/// the serde derive, which are three different renderings of one name.
+/// `rename_all = "lowercase"` silently renders `SetMetadata` as `setmetadata`,
+/// a spelling `parse` refuses — so a policy could round-trip through the store
+/// into a rule that no longer parses.
+#[test]
+fn every_method_spelling_round_trips_through_parse_as_str_and_serde() {
+    for method in [
+        PolicyMethod::Read,
+        PolicyMethod::Write,
+        PolicyMethod::Overwrite,
+        PolicyMethod::Delete,
+        PolicyMethod::List,
+        PolicyMethod::SetMetadata,
+    ] {
+        let spelled = method.as_str();
+        assert_eq!(PolicyMethod::parse(spelled).unwrap(), method, "as_str -> parse: {spelled}");
+
+        let json = serde_json::to_string(&method).unwrap();
+        let bare = json.trim_matches('"');
+        assert_eq!(bare, spelled, "serde and as_str must agree on {method:?}");
+        assert_eq!(
+            PolicyMethod::parse(bare).unwrap(),
+            method,
+            "a serialised method must parse back: {bare}"
+        );
+    }
+}
+
+// ── #1099: the metadata boundary ────────────────────────────────────────────
+mod metadata_limits {
+    use super::super::{
+        MAX_METADATA_KEY_LEN, MAX_METADATA_KEYS, MAX_METADATA_VALUE_LEN, MetadataValues,
+        validate_metadata,
+    };
+
+    fn map(pairs: &[(&str, &str)]) -> MetadataValues {
+        pairs.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+    }
+
+    #[test]
+    fn an_ordinary_map_passes_through_unchanged() {
+        let input = map(&[("classification", "public"), ("retention-years", "7")]);
+        assert_eq!(validate_metadata(&input).unwrap(), input);
+    }
+
+    #[test]
+    fn keys_are_lower_cased_because_header_names_are_case_insensitive() {
+        let got = validate_metadata(&map(&[("Classification", "public")])).unwrap();
+        assert_eq!(got.get("classification").map(String::as_str), Some("public"));
+        assert!(!got.contains_key("Classification"), "the original casing must not survive");
+    }
+
+    /// Not last-one-wins. Two keys that differ only in case collapse to one, and
+    /// which value survives would depend on `BTreeMap` iteration order — i.e. on
+    /// the keys' bytes. A policy matching on the survivor would be deciding
+    /// access on that.
+    #[test]
+    fn two_keys_differing_only_in_case_are_a_conflict_not_a_silent_overwrite() {
+        let err = validate_metadata(&map(&[("Owner", "a"), ("owner", "b")])).unwrap_err();
+        assert!(err.contains("differ only in case"), "{err}");
+    }
+
+    #[test]
+    fn too_many_keys_is_refused_naming_the_count() {
+        let pairs: MetadataValues =
+            (0..=MAX_METADATA_KEYS).map(|i| (format!("k{i}"), "v".to_string())).collect();
+        let err = validate_metadata(&pairs).unwrap_err();
+        assert!(err.contains(&MAX_METADATA_KEYS.to_string()), "{err}");
+    }
+
+    #[test]
+    fn an_oversized_key_is_refused_naming_the_key() {
+        let long = "k".repeat(MAX_METADATA_KEY_LEN + 1);
+        let err = validate_metadata(&map(&[(long.as_str(), "v")])).unwrap_err();
+        assert!(err.contains("bytes"), "{err}");
+    }
+
+    #[test]
+    fn an_oversized_value_is_refused_naming_the_key() {
+        let long = "v".repeat(MAX_METADATA_VALUE_LEN + 1);
+        let err = validate_metadata(&map(&[("k", long.as_str())])).unwrap_err();
+        assert!(err.contains("\"k\""), "the refusal must name the offending key: {err}");
+    }
+
+    #[test]
+    fn an_empty_key_is_refused() {
+        assert!(validate_metadata(&map(&[("", "v")])).unwrap_err().contains("empty"));
+    }
+
+    /// The charset excludes every delimiter that would let a key look
+    /// structured. A key is a name, not a path or a namespace — nothing in this
+    /// design may come to depend on parsing one.
+    #[test]
+    fn keys_carrying_a_delimiter_are_refused() {
+        for bad in ["a:b", "a/b", "a b", "a=b", "a,b", "a\tb", "a\u{00e9}b"] {
+            let err = validate_metadata(&map(&[(bad, "v")]))
+                .expect_err("a key carrying a delimiter must be refused");
+            assert!(err.contains("outside a-z"), "{bad}: {err}");
+        }
+    }
+
+    /// The limits are refusals, not truncations. A value silently cut to
+    /// 1024 bytes is a value a policy would compare against and never match,
+    /// with nothing anywhere saying why.
+    #[test]
+    fn a_value_at_exactly_the_limit_is_accepted() {
+        let at_limit = "v".repeat(MAX_METADATA_VALUE_LEN);
+        let got = validate_metadata(&map(&[("k", at_limit.as_str())])).unwrap();
+        assert_eq!(got.get("k").map(String::len), Some(MAX_METADATA_VALUE_LEN));
+    }
+
+    #[test]
+    fn exactly_the_maximum_number_of_keys_is_accepted() {
+        let pairs: MetadataValues =
+            (0..MAX_METADATA_KEYS).map(|i| (format!("k{i}"), "v".to_string())).collect();
+        assert_eq!(validate_metadata(&pairs).unwrap().len(), MAX_METADATA_KEYS);
+    }
+}
+
+// ── #1099: require_metadata, and what makes it trustworthy ──────────────────
+//
+// Metadata is caller-writable, so a condition matching on it is in general a
+// condition the gated caller controls. What makes this one safe is not a
+// reserved key namespace policed at the upload door — it is that writing
+// metadata is its own grant, and the condition refuses to hold for anyone who
+// holds it.
+mod require_metadata {
+    use chrono::Utc;
+
+    use super::{
+        BucketPolicy, ClaimValues, MetadataValues, NO_CLAIMS, PolicyMethod, PolicyPrincipal,
+        PolicyRequest, PolicyRule,
+    };
+
+    fn meta(pairs: &[(&str, &str)]) -> MetadataValues {
+        pairs.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+    }
+
+    /// A `read` rule for any authenticated caller, narrowed by `require_metadata`.
+    fn read_requiring(pairs: &[(&str, &str)]) -> BucketPolicy {
+        BucketPolicy {
+            rules: vec![PolicyRule {
+                methods:           vec![PolicyMethod::Read],
+                principal:         PolicyPrincipal::Authenticated,
+                key_prefix:        None,
+                not_before:        None,
+                not_after:         None,
+                require_unexpired: false,
+                require_claims:    ClaimValues::new(),
+                require_metadata:  meta(pairs),
+            }],
+        }
+    }
+
+    fn request<'a>(
+        metadata: &'a MetadataValues,
+        may_write_metadata: bool,
+        roles: &'a [String],
+    ) -> PolicyRequest<'a> {
+        PolicyRequest {
+            user_id: Some("user-1"),
+            roles,
+            key: "k.txt",
+            owner_id: Some("someone-else"),
+            now: Utc::now(),
+            expires_at: None,
+            claims: &NO_CLAIMS,
+            via_signed_url: false,
+            metadata,
+            may_write_metadata,
+        }
+    }
+
+    #[test]
+    fn it_holds_when_the_object_carries_the_required_value() {
+        let object = meta(&[("classification", "public")]);
+        assert!(
+            read_requiring(&[("classification", "public")])
+                .permits(PolicyMethod::Read, &request(&object, false, &[])),
+            "an object carrying the required value must be readable"
+        );
+    }
+
+    #[test]
+    fn it_fails_when_the_value_differs() {
+        let object = meta(&[("classification", "secret")]);
+        assert!(
+            !read_requiring(&[("classification", "public")])
+                .permits(PolicyMethod::Read, &request(&object, false, &[]))
+        );
+    }
+
+    /// Fail-closed on absence, exactly like `require_claims`. An absent key is
+    /// not a wildcard — the alternative would make every object created before
+    /// the policy existed readable.
+    #[test]
+    fn an_absent_key_fails_rather_than_matching_anything() {
+        let object = MetadataValues::new();
+        assert!(
+            !read_requiring(&[("classification", "public")])
+                .permits(PolicyMethod::Read, &request(&object, false, &[]))
+        );
+    }
+
+    #[test]
+    fn every_required_key_must_match_not_just_one() {
+        let object = meta(&[("classification", "public"), ("tier", "bronze")]);
+        assert!(
+            !read_requiring(&[("classification", "public"), ("tier", "gold")])
+                .permits(PolicyMethod::Read, &request(&object, false, &[])),
+            "conditions are conjunctive"
+        );
+    }
+
+    /// **The guarantee.** The object carries exactly what the rule asks for, and
+    /// the rule would otherwise permit — but this caller may write the object's
+    /// metadata, so the value proves nothing about them. Denying is the only
+    /// answer that does not let a caller author the input to their own access
+    /// decision.
+    #[test]
+    fn it_fails_for_a_caller_who_may_write_the_metadata_it_matches_on() {
+        let object = meta(&[("classification", "public")]);
+        let policy = read_requiring(&[("classification", "public")]);
+
+        assert!(
+            policy.permits(PolicyMethod::Read, &request(&object, false, &[])),
+            "control: the same request permits when the caller cannot set metadata"
+        );
+        assert!(
+            !policy.permits(PolicyMethod::Read, &request(&object, true, &[])),
+            "#1099: a caller who may set this object's metadata cannot satisfy \
+             require_metadata with it"
+        );
+    }
+
+    /// The flag narrows only this condition. A rule that does not use
+    /// `require_metadata` is unaffected by who may write metadata — otherwise
+    /// granting `set_metadata` would silently revoke unrelated access.
+    #[test]
+    fn a_rule_without_require_metadata_is_unaffected_by_the_flag() {
+        let policy = read_requiring(&[]);
+        let object = MetadataValues::new();
+        for may_write in [false, true] {
+            assert!(
+                policy.permits(PolicyMethod::Read, &request(&object, may_write, &[])),
+                "an unconditioned rule must not depend on may_write_metadata ({may_write})"
+            );
+        }
     }
 }

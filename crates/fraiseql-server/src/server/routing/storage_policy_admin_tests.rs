@@ -62,6 +62,7 @@ fn configured_policy() -> fraiseql_storage::BucketPolicy {
             not_after:         None,
             require_unexpired: false,
             require_claims:    fraiseql_storage::ClaimValues::new(),
+            require_metadata:  fraiseql_storage::MetadataValues::new(),
         }],
     }
 }

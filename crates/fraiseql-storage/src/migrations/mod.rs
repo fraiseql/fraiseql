@@ -35,6 +35,8 @@ mod tests;
 /// | `pending` | `BOOLEAN NOT NULL DEFAULT FALSE` | An upload is in flight for this key |
 /// | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Row creation |
 /// | `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Last modification |
+/// | `expires_at` | `TIMESTAMPTZ` | Object expiry, read by `require_unexpired` (#974) |
+/// | `metadata` | `JSONB NOT NULL DEFAULT '{}'` | User-defined metadata, read by `require_metadata` (#1099) |
 ///
 /// `pending` exists because a presigned upload writes the object *directly to
 /// the backend*, so the server never sees the bytes (#866). The row is claimed
@@ -80,6 +82,18 @@ CREATE INDEX IF NOT EXISTS idx_storage_objects_owner
 -- never-expires — so adding the column cannot widen access on existing rows.
 ALTER TABLE _fraiseql_storage_objects
     ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+
+-- #1099: user-defined object metadata, matchable by the require_metadata policy
+-- condition. Defaults to an empty object, so adding the column cannot widen
+-- access on existing rows: require_metadata fails against a key that is absent,
+-- and every key is absent here.
+--
+-- Writing this column is its own permission (PolicyMethod::SetMetadata), never
+-- implied by write or overwrite. That split is what lets require_metadata mean
+-- a value the gated caller could not have written, without a reserved key
+-- namespace to police.
+ALTER TABLE _fraiseql_storage_objects
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS _fraiseql_storage_uploads (
     upload_id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

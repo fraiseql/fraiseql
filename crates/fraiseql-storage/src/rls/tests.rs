@@ -57,6 +57,7 @@ fn object_owned_by(owner: &str) -> StorageMetadataRow {
         created_at:        Utc::now(),
         updated_at:        Utc::now(),
         expires_at:        None,
+        metadata:          crate::policy::MetadataValues::new(),
     }
 }
 
@@ -256,6 +257,7 @@ fn test_rls_list_filters_to_visible_objects() {
                 created_at:        Utc::now(),
                 updated_at:        Utc::now(),
                 expires_at:        None,
+                metadata:          crate::policy::MetadataValues::new(),
             }
         })
         .collect();
@@ -283,6 +285,7 @@ fn test_rls_list_public_bucket_shows_all() {
             created_at:        Utc::now(),
             updated_at:        Utc::now(),
             expires_at:        None,
+            metadata:          crate::policy::MetadataValues::new(),
         })
         .collect();
 
@@ -320,6 +323,7 @@ fn bucket_with_write_under(prefix: &str) -> BucketConfig {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             }],
         }),
         ..private_bucket()
@@ -399,6 +403,7 @@ fn an_unprefixed_write_rule_still_permits_a_create_anywhere() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             }],
         }),
         ..private_bucket()
@@ -412,4 +417,193 @@ fn an_unprefixed_write_rule_still_permits_a_create_anywhere() {
         ),
         "an absent prefix means the whole bucket, as it always did"
     );
+}
+
+// ── #1099: set_metadata is its own grant, and it is what makes
+//          require_metadata trustworthy ──────────────────────────────────────
+mod set_metadata {
+    use super::{
+        BucketConfig, StorageMetadataRow, StorageRlsEvaluator, admin_roles, caller,
+        object_owned_by, private_bucket, user_roles,
+    };
+    use crate::policy::{
+        BucketPolicy, ClaimValues, MetadataValues, PolicyMethod, PolicyPrincipal, PolicyRule,
+    };
+
+    fn rule(methods: Vec<PolicyMethod>, require_metadata: &[(&str, &str)]) -> PolicyRule {
+        PolicyRule {
+            methods,
+            principal: PolicyPrincipal::Authenticated,
+            key_prefix: None,
+            not_before: None,
+            not_after: None,
+            require_unexpired: false,
+            require_claims: ClaimValues::new(),
+            require_metadata: require_metadata
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                .collect(),
+        }
+    }
+
+    fn bucket_with(rules: Vec<PolicyRule>) -> BucketConfig {
+        BucketConfig {
+            policies: Some(BucketPolicy { rules }),
+            ..private_bucket()
+        }
+    }
+
+    fn object_tagged(owner: &str, pairs: &[(&str, &str)]) -> StorageMetadataRow {
+        let mut object = object_owned_by(owner);
+        object.metadata = pairs.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
+        object
+    }
+
+    /// Not implied by anything. A policy granting every other method still does
+    /// not let a caller write metadata — which is the whole basis of the
+    /// guarantee below.
+    #[test]
+    fn no_other_grant_implies_it() {
+        let bucket = bucket_with(vec![rule(
+            vec![
+                PolicyMethod::Read,
+                PolicyMethod::Write,
+                PolicyMethod::Overwrite,
+                PolicyMethod::Delete,
+                PolicyMethod::List,
+            ],
+            &[],
+        )]);
+        let object = object_owned_by("user-1");
+        assert!(
+            !StorageRlsEvaluator::new().can_set_metadata(
+                &caller(Some("user-1"), &user_roles()),
+                &bucket,
+                &object.key,
+                &object,
+            ),
+            "read+write+overwrite+delete+list must not add up to set_metadata"
+        );
+    }
+
+    #[test]
+    fn an_explicit_grant_confers_it() {
+        let bucket = bucket_with(vec![rule(vec![PolicyMethod::SetMetadata], &[])]);
+        let object = object_owned_by("user-1");
+        assert!(StorageRlsEvaluator::new().can_set_metadata(
+            &caller(Some("user-1"), &user_roles()),
+            &bucket,
+            &object.key,
+            &object,
+        ));
+    }
+
+    /// With no policy at all the answer is deny, not "any authenticated caller"
+    /// — unlike `can_write_key`. A bucket with no policy has nothing that reads
+    /// metadata, so a permissive default could only ever widen what a policy
+    /// added later means.
+    #[test]
+    fn without_a_policy_only_the_storage_admin_holds_it() {
+        let eval = StorageRlsEvaluator::new();
+        let object = object_owned_by("user-1");
+        assert!(!eval.can_set_metadata(
+            &caller(Some("user-1"), &user_roles()),
+            &private_bucket(),
+            &object.key,
+            &object,
+        ));
+        assert!(eval.can_set_metadata(
+            &caller(Some("ops"), &admin_roles()),
+            &private_bucket(),
+            &object.key,
+            &object,
+        ));
+    }
+
+    /// **The wiring.** The policy-level tests hand `may_write_metadata` in as a
+    /// literal, so they cannot tell whether the evaluator computes it at all —
+    /// a hardcoded `false` would pass every one of them. This drives the whole
+    /// path: one policy, two callers separated only by whether a rule grants
+    /// them `set_metadata`, and the object carries exactly what the read rule
+    /// requires.
+    #[test]
+    fn a_caller_granted_set_metadata_cannot_read_via_require_metadata() {
+        let eval = StorageRlsEvaluator::new();
+        let object = object_tagged("someone-else", &[("classification", "public")]);
+
+        let gated_only = bucket_with(vec![rule(
+            vec![PolicyMethod::Read],
+            &[("classification", "public")],
+        )]);
+        assert!(
+            eval.can_read(&caller(Some("reader"), &user_roles()), &gated_only, &object),
+            "control: a caller who cannot write metadata reads it"
+        );
+
+        let also_writes_metadata = bucket_with(vec![
+            rule(vec![PolicyMethod::Read], &[("classification", "public")]),
+            rule(vec![PolicyMethod::SetMetadata], &[]),
+        ]);
+        assert!(
+            !eval.can_read(&caller(Some("reader"), &user_roles()), &also_writes_metadata, &object),
+            "#1099: adding a set_metadata grant must REVOKE the metadata-gated read — the \
+             caller could now write the value it matches on"
+        );
+    }
+
+    /// The degradation direction, stated as a test because it is the property
+    /// the design was chosen for: widening who may set metadata NARROWS what a
+    /// metadata-gated rule permits. It can never silently hand a caller the
+    /// ability to grant themselves access.
+    #[test]
+    fn widening_set_metadata_narrows_rather_than_widens() {
+        let eval = StorageRlsEvaluator::new();
+        let object = object_tagged("owner", &[("tier", "gold")]);
+        let read_rule = rule(vec![PolicyMethod::Read], &[("tier", "gold")]);
+
+        let before = bucket_with(vec![read_rule.clone()]);
+        let after = bucket_with(vec![read_rule, rule(vec![PolicyMethod::SetMetadata], &[])]);
+
+        let roles = user_roles();
+        let who = caller(Some("anyone"), &roles);
+        assert!(eval.can_read(&who, &before, &object));
+        assert!(
+            !eval.can_read(&who, &after, &object),
+            "a widened set_metadata grant must not leave the gated read standing"
+        );
+    }
+
+    /// `set_metadata` is decided per object, so a `key_prefix` narrows it like
+    /// any other grant — and therefore so does the trust the read rule places
+    /// in the metadata.
+    #[test]
+    fn the_grant_is_scoped_by_key_prefix_like_any_other() {
+        let eval = StorageRlsEvaluator::new();
+        let mut scoped = rule(vec![PolicyMethod::SetMetadata], &[]);
+        scoped.key_prefix = Some("uploads/".to_string());
+        let bucket = bucket_with(vec![scoped]);
+        let roles = user_roles();
+        let who = caller(Some("user-1"), &roles);
+
+        let mut inside = object_owned_by("user-1");
+        inside.key = "uploads/f.txt".to_string();
+        assert!(eval.can_set_metadata(&who, &bucket, &inside.key, &inside));
+
+        let mut outside = object_owned_by("user-1");
+        outside.key = "other/f.txt".to_string();
+        assert!(!eval.can_set_metadata(&who, &bucket, &outside.key, &outside));
+    }
+
+    #[test]
+    fn an_anonymous_caller_never_holds_it() {
+        let bucket = bucket_with(vec![rule(vec![PolicyMethod::SetMetadata], &[])]);
+        let object = object_owned_by("user-1");
+        assert!(!StorageRlsEvaluator::new().can_set_metadata(
+            &caller(None, &[]),
+            &bucket,
+            &object.key,
+            &object,
+        ));
+        let _ = MetadataValues::new();
+    }
 }

@@ -57,6 +57,20 @@ pub struct StorageMetadataRow {
     /// policy condition. `None` means no expiry was set, which that condition
     /// treats as a denial rather than as "never expires".
     pub expires_at:        Option<DateTime<Utc>>,
+    /// User-defined metadata, read by the
+    /// [`require_metadata`](crate::PolicyRule::require_metadata) policy
+    /// condition (#1099).
+    ///
+    /// Written only by a caller holding
+    /// [`PolicyMethod::SetMetadata`](crate::PolicyMethod::SetMetadata) — never
+    /// by `write` or `overwrite`. That is what lets a policy match on it
+    /// without the matched value being something the gated caller could have
+    /// chosen.
+    ///
+    /// Empty for every object that has never had metadata set, and an absent
+    /// key fails `require_metadata`, so the column cannot widen access on rows
+    /// that predate it.
+    pub metadata:          crate::policy::MetadataValues,
 }
 
 /// Data required to insert a new storage object record.
@@ -131,7 +145,8 @@ impl StorageMetadataRepo {
     ) -> Result<Option<StorageMetadataRow>, FraiseQLError> {
         let row = sqlx::query_as::<_, MetadataQueryRow>(
             "SELECT pk_storage_object, bucket, key, content_type, \
-                    size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at \
+                    size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at, \
+                    metadata \
              FROM _fraiseql_storage_objects \
              WHERE bucket = $1 AND key = $2",
         )
@@ -195,7 +210,8 @@ impl StorageMetadataRepo {
                 // literally and cannot be used to widen the match.
                 sqlx::query_as::<_, MetadataQueryRow>(
                     "SELECT pk_storage_object, bucket, key, content_type, \
-                            size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at \
+                            size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at, \
+                    metadata \
                      FROM _fraiseql_storage_objects \
                      WHERE bucket = $1 AND key LIKE $2 ESCAPE '\\' \
                      ORDER BY key ASC \
@@ -211,7 +227,8 @@ impl StorageMetadataRepo {
             None => {
                 sqlx::query_as::<_, MetadataQueryRow>(
                     "SELECT pk_storage_object, bucket, key, content_type, \
-                            size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at \
+                            size_bytes, etag, owner_id, pending, created_at, updated_at, expires_at, \
+                    metadata \
                      FROM _fraiseql_storage_objects \
                      WHERE bucket = $1 \
                      ORDER BY key ASC \
@@ -376,6 +393,62 @@ impl StorageMetadataRepo {
     ///
     /// # Errors
     ///
+    /// Replace an object's user-defined metadata (#1099).
+    ///
+    /// Wholesale, like a policy push: the supplied map *is* the object's
+    /// metadata afterwards. There is no per-key merge, because a merge makes
+    /// "what metadata does this object carry" a question you answer by
+    /// replaying history rather than by reading one value — and that value
+    /// decides access.
+    ///
+    /// Authorization is the caller's business and happens before this: the
+    /// route consults [`can_set_metadata`](crate::StorageRlsEvaluator::can_set_metadata),
+    /// which is a grant no `write` or `overwrite` rule implies. The map must
+    /// already have been through
+    /// [`validate_metadata`](crate::policy::validate_metadata).
+    ///
+    /// Returns `false` when no such object exists, so a caller can answer `404`
+    /// rather than reporting a write that touched nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the database query fails.
+    pub async fn set_metadata(
+        &self,
+        bucket: &str,
+        key: &str,
+        metadata: &crate::policy::MetadataValues,
+    ) -> Result<bool, FraiseQLError> {
+        let result = sqlx::query(
+            "UPDATE _fraiseql_storage_objects SET \
+                 metadata   = $3, \
+                 updated_at = now() \
+             WHERE bucket = $1 AND key = $2",
+        )
+        .bind(bucket)
+        .bind(key)
+        .bind(sqlx::types::Json(metadata))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Reconcile a claimed row against the object that actually landed.
+    ///
+    /// A reservation records ownership but cannot record size or etag, because
+    /// the bytes never passed through the server. The first successful read
+    /// has them, so it settles the row. Scoped to the primary key so a
+    /// concurrent server-side upload's own metadata is never overwritten by a
+    /// stale read.
+    ///
+    /// # Errors
+    ///
     /// Returns `FraiseQLError::File` if the database query fails.
     pub async fn confirm(
         &self,
@@ -428,6 +501,7 @@ struct MetadataQueryRow {
     created_at:        DateTime<Utc>,
     updated_at:        DateTime<Utc>,
     expires_at:        Option<DateTime<Utc>>,
+    metadata:          sqlx::types::Json<crate::policy::MetadataValues>,
 }
 
 impl From<MetadataQueryRow> for StorageMetadataRow {
@@ -444,6 +518,7 @@ impl From<MetadataQueryRow> for StorageMetadataRow {
             created_at:        row.created_at,
             updated_at:        row.updated_at,
             expires_at:        row.expires_at,
+            metadata:          row.metadata.0,
         }
     }
 }

@@ -2127,6 +2127,7 @@ async fn policies_govern_reads_writes_and_deletes_end_to_end() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             },
             // Owners have full control of their own objects.
             PolicyRule {
@@ -2143,6 +2144,7 @@ async fn policies_govern_reads_writes_and_deletes_end_to_end() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             },
             // Anyone authenticated may create new objects.
             PolicyRule {
@@ -2153,6 +2155,7 @@ async fn policies_govern_reads_writes_and_deletes_end_to_end() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             },
         ],
     };
@@ -2357,6 +2360,7 @@ async fn list_is_a_distinct_permission_under_policy() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             },
             PolicyRule {
                 methods:           vec![PolicyMethod::List, PolicyMethod::Read],
@@ -2366,6 +2370,7 @@ async fn list_is_a_distinct_permission_under_policy() {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             },
         ],
     };
@@ -2445,6 +2450,7 @@ mod hot_reload {
             not_after: None,
             require_unexpired: false,
             require_claims: crate::policy::ClaimValues::new(),
+            require_metadata: crate::policy::MetadataValues::new(),
         }
     }
 
@@ -2862,6 +2868,7 @@ mod prefixed_write {
                 not_after:         None,
                 require_unexpired: false,
                 require_claims:    crate::policy::ClaimValues::new(),
+                require_metadata:  crate::policy::MetadataValues::new(),
             }],
         }
     }

@@ -61,6 +61,89 @@ pub use store::{PolicySource, StoragePolicyStore, StoredPolicyRow, policy_source
 /// See [`normalise_claims`] for which JSON shapes become matchable.
 pub type ClaimValues = BTreeMap<String, String>;
 
+/// An object's user-defined metadata: string keys to string values (#1099).
+///
+/// String-to-string rather than arbitrary JSON, deliberately. The values exist
+/// to be *compared* by [`PolicyRule::require_metadata`], and every non-string
+/// JSON shape raises a question that comparison cannot answer without inventing
+/// an answer — is `42` the number equal to `"42"` the string, is `[a, b]` equal
+/// to `[b, a]`, is a missing key equal to `null`. [`normalise_claims`] answers
+/// them by *dropping* those shapes, which is safe for claims because a token is
+/// not written to be matched. Metadata is, so a dropped value would be a key an
+/// operator set, saw accepted, and could never match on.
+///
+/// Non-string values are therefore refused at the boundary with the offending
+/// key named, rather than normalised or dropped.
+pub type MetadataValues = BTreeMap<String, String>;
+
+/// The most metadata keys one object may carry.
+pub const MAX_METADATA_KEYS: usize = 32;
+/// The longest metadata key name, in bytes.
+pub const MAX_METADATA_KEY_LEN: usize = 128;
+/// The longest metadata value, in bytes.
+pub const MAX_METADATA_VALUE_LEN: usize = 1024;
+
+/// Validate and normalise one object's metadata against the boundary limits.
+///
+/// Keys are lower-cased, because the primary ingestion path is HTTP headers
+/// (`x-fraiseql-meta-<name>`) and header names are case-insensitive — without
+/// this, `X-Fraiseql-Meta-Owner` and `x-fraiseql-meta-owner` would be two keys,
+/// and which one a policy matched would depend on how a client happened to
+/// capitalise. A key that differs only in case is a conflict, not a silent
+/// last-one-wins.
+///
+/// The character set is deliberately narrow: `a-z`, `0-9`, `-`, `_`, `.`. It is
+/// what survives an HTTP header name unambiguously, and it excludes every
+/// delimiter that would make a key look structured.
+///
+/// # Errors
+///
+/// Returns a message naming the offending key, for the caller to answer `400`
+/// with. Unbounded caller-supplied JSONB on every object row is its own
+/// problem, so the limits are refusals rather than truncations.
+pub fn validate_metadata(raw: &MetadataValues) -> Result<MetadataValues, String> {
+    if raw.len() > MAX_METADATA_KEYS {
+        return Err(format!(
+            "{} metadata keys supplied; at most {MAX_METADATA_KEYS} are allowed",
+            raw.len()
+        ));
+    }
+    let mut out = MetadataValues::new();
+    for (name, value) in raw {
+        if name.is_empty() {
+            return Err("a metadata key may not be empty".to_string());
+        }
+        if name.len() > MAX_METADATA_KEY_LEN {
+            return Err(format!(
+                "metadata key {name:?} is {} bytes; at most {MAX_METADATA_KEY_LEN} are allowed",
+                name.len()
+            ));
+        }
+        if value.len() > MAX_METADATA_VALUE_LEN {
+            return Err(format!(
+                "metadata value for {name:?} is {} bytes; at most {MAX_METADATA_VALUE_LEN} are \
+                 allowed",
+                value.len()
+            ));
+        }
+        let lowered = name.to_ascii_lowercase();
+        if !lowered.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'-' | b'_' | b'.')
+        }) {
+            return Err(format!(
+                "metadata key {name:?} contains characters outside a-z, 0-9, '-', '_' and '.'"
+            ));
+        }
+        if out.insert(lowered.clone(), value.clone()).is_some() {
+            return Err(format!(
+                "metadata keys {name:?} and an earlier key differ only in case; they would \
+                 collapse to {lowered:?}"
+            ));
+        }
+    }
+    Ok(out)
+}
+
 /// Normalise raw JWT claims into the exact-match view [`PolicyRule::require_claims`] compares
 /// against.
 ///
@@ -116,6 +199,29 @@ pub enum PolicyMethod {
     Delete,
     /// List a bucket's objects.
     List,
+    /// Write an object's user-defined metadata (#1099).
+    ///
+    /// Separate from [`Write`](PolicyMethod::Write) and
+    /// [`Overwrite`](PolicyMethod::Overwrite) for the same reason those two are
+    /// separate from each other, one door further out: metadata is matchable by
+    /// the [`require_metadata`](PolicyRule::require_metadata) condition, so
+    /// whoever may write it may influence an access decision. Keeping it its own
+    /// grant is what makes "the gated caller could not have written this value"
+    /// a property of the permission system rather than of a validation check at
+    /// the upload door — the split S3 draws between `PutObjectTagging` and
+    /// `PutObject`.
+    ///
+    /// The `x-fraiseql-meta-*` upload headers are a convenience path, not a
+    /// second authority: they require this grant exactly as the standalone
+    /// metadata endpoint does. An uploader holding `write` alone may create an
+    /// object and may not attach metadata to it.
+    ///
+    /// Renamed explicitly: the enum's `rename_all = "lowercase"` would serialise
+    /// this as `setmetadata`, which [`parse`](PolicyMethod::parse) does not
+    /// accept back. Every other variant is a single word, so this is the first
+    /// spelling where the derive and the parser could disagree.
+    #[serde(rename = "set_metadata")]
+    SetMetadata,
 }
 
 impl PolicyMethod {
@@ -131,9 +237,10 @@ impl PolicyMethod {
             "overwrite" => Ok(Self::Overwrite),
             "delete" => Ok(Self::Delete),
             "list" => Ok(Self::List),
+            "set_metadata" => Ok(Self::SetMetadata),
             other => Err(format!(
                 "unknown policy method {other:?}; expected \"read\", \"write\", \
-                 \"overwrite\", \"delete\" or \"list\""
+                 \"overwrite\", \"delete\", \"list\" or \"set_metadata\""
             )),
         }
     }
@@ -147,6 +254,7 @@ impl PolicyMethod {
             Self::Overwrite => "overwrite",
             Self::Delete => "delete",
             Self::List => "list",
+            Self::SetMetadata => "set_metadata",
         }
     }
 }
@@ -265,6 +373,41 @@ pub struct PolicyRule {
     /// stops narrowing when the auth mode changes.
     #[serde(default)]
     pub require_claims: BTreeMap<String, String>,
+
+    /// Object metadata the object must carry, compared for exact equality
+    /// (#1099).
+    ///
+    /// Mirrors [`require_claims`](PolicyRule::require_claims): conjunctive,
+    /// exact string equality, and an absent key fails the requirement rather
+    /// than being treated as a wildcard.
+    ///
+    /// # It only holds for a caller who could not have written the value
+    ///
+    /// Metadata is caller-writable — that is the point of it — so a condition
+    /// matching on it is, in general, a condition the gated caller controls.
+    /// This one is not, because it is answered against
+    /// [`PolicyRequest::may_write_metadata`]: if the caller being gated holds
+    /// [`SetMetadata`](PolicyMethod::SetMetadata) on this object, the condition
+    /// **fails**, the rule is skipped, and — rules being permit-only — access
+    /// falls through to denied.
+    ///
+    /// The guarantee is therefore a property of the permission system, not of a
+    /// validation check at the upload door, and it degrades in the safe
+    /// direction: widening who may set metadata *narrows* what this condition
+    /// permits, instead of quietly handing those callers the ability to grant
+    /// themselves access. There is no reserved key namespace to defend, and no
+    /// ingestion path — a backfill, an internal caller, a future door — can
+    /// undermine it by writing a key it was not supposed to.
+    ///
+    /// The granularity is the object, because the permission's is: a
+    /// `set_metadata` grant covers an object's whole metadata map, so "could
+    /// this caller have written this key" has one answer for every key on it.
+    ///
+    /// A rule that both grants `set_metadata` and carries `require_metadata` is
+    /// refused at parse time — it would be self-referential, and it is
+    /// self-defeating in any case.
+    #[serde(default)]
+    pub require_metadata: MetadataValues,
 }
 
 /// The request a policy decision is made about.
@@ -298,6 +441,19 @@ pub struct PolicyRequest<'a> {
 
     /// Whether this request arrived through the signed-URL path.
     pub via_signed_url: bool,
+
+    /// The object's user-defined metadata, matched by
+    /// [`PolicyRule::require_metadata`]. Empty for a listing, and for any
+    /// object that has never had metadata set.
+    pub metadata: &'a MetadataValues,
+
+    /// Whether the caller being gated may write this object's metadata.
+    ///
+    /// When `true`, [`require_metadata`](PolicyRule::require_metadata) cannot
+    /// hold: the caller could have written the very value it would match on.
+    /// Computed by the evaluator, which is the layer that holds the policy —
+    /// see [`StorageRlsEvaluator::can_set_metadata`](crate::StorageRlsEvaluator::can_set_metadata).
+    pub may_write_metadata: bool,
 }
 
 impl PolicyRule {
@@ -326,9 +482,25 @@ impl PolicyRule {
                 _ => return false,
             }
         }
-        self.require_claims.iter().all(|(name, expected)| {
+        if !self.require_claims.iter().all(|(name, expected)| {
             request.claims.get(name).is_some_and(|actual| actual == expected)
-        })
+        }) {
+            return false;
+        }
+        if !self.require_metadata.is_empty() {
+            // The caller could have written what this would match on, so the
+            // match proves nothing. Fail closed rather than let a caller
+            // author the input to their own access decision (#1099).
+            if request.may_write_metadata {
+                return false;
+            }
+            if !self.require_metadata.iter().all(|(name, expected)| {
+                request.metadata.get(name).is_some_and(|actual| actual == expected)
+            }) {
+                return false;
+            }
+        }
+        true
     }
 }
 

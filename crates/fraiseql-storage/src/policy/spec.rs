@@ -54,6 +54,11 @@ pub struct PolicyRuleSpec {
     /// Token claims the caller must carry, compared for exact equality.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub require_claims:    BTreeMap<String, String>,
+    /// Object metadata the object must carry, compared for exact equality
+    /// (#1099). Holds only for a caller who could not have written it — see
+    /// [`PolicyRule::require_metadata`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub require_metadata:  BTreeMap<String, String>,
 }
 
 /// Why a policy was refused, and by which rule.
@@ -132,6 +137,27 @@ pub fn parse_policy(specs: &[PolicyRuleSpec]) -> Result<BucketPolicy, PolicySpec
                 ));
             }
         }
+        // #1099: `require_metadata` is answered against whether the gated
+        // caller may WRITE this object's metadata, which is another decision by
+        // this same policy. A rule that grants `set_metadata` and also carries
+        // `require_metadata` would make that decision depend on itself.
+        //
+        // Refused here rather than guarded at evaluation time, for the reason
+        // every other malformed policy is refused at the door: a runtime guard
+        // is a rule whose behaviour an operator cannot read off their config.
+        // Such a rule is self-defeating anyway — the condition can never hold
+        // for anyone the rule grants `set_metadata` to.
+        if methods.contains(&PolicyMethod::SetMetadata) && !spec.require_metadata.is_empty() {
+            return Err(PolicySpecError::rule(
+                index,
+                "grants \"set_metadata\" and also carries `require_metadata`; that condition is \
+                 answered by asking whether the caller may set metadata, so the rule would \
+                 decide itself. It can never hold for a caller this rule grants set_metadata \
+                 to — split it into two rules",
+            ));
+        }
+        let require_metadata = crate::policy::validate_metadata(&spec.require_metadata)
+            .map_err(|e| PolicySpecError::rule(index, e))?;
         rules.push(PolicyRule {
             methods,
             principal,
@@ -140,6 +166,7 @@ pub fn parse_policy(specs: &[PolicyRuleSpec]) -> Result<BucketPolicy, PolicySpec
             not_after,
             require_unexpired: spec.require_unexpired,
             require_claims: spec.require_claims.clone(),
+            require_metadata,
         });
     }
     Ok(BucketPolicy { rules })
@@ -164,6 +191,7 @@ pub fn policy_to_specs(policy: &BucketPolicy) -> Vec<PolicyRuleSpec> {
             not_after:         rule.not_after.map(render_instant),
             require_unexpired: rule.require_unexpired,
             require_claims:    rule.require_claims.clone(),
+            require_metadata:  rule.require_metadata.clone(),
         })
         .collect()
 }
