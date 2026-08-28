@@ -171,7 +171,7 @@ echo "── executes is the gated column ──"
 # leaves a bare `[[exempt]]` behind and the gate exits 2 on the malformed row — red, but
 # for parsing rather than for the missing coverage this case is about.
 expect fail E1 "an artifact with no executing leg and no exemption" \
-    python3 -c 'import re,pathlib;p=pathlib.Path("tools/delivery-artifacts.toml");p.write_text(re.sub(r"\[\[exempt\]\]\napplies_to = \"image:tutorial\"\n[^\n]*\n[^\n]*\n", "", p.read_text(), count=1))' 
+    python3 -c 'import re,pathlib;p=pathlib.Path("tools/delivery-artifacts.toml");p.write_text(re.sub(r"\[\[exempt\]\]\napplies_to = \"image:tutorial\"\n[^\n]*\n[^\n]*\n", "", p.read_text(), count=1))'
 
 echo
 echo "── exemptions, and the self-clearing half ──"
@@ -194,7 +194,7 @@ expect fail S4 "two exemptions matching the same artifact" \
 echo
 echo "── ledger hygiene ──"
 expect fail H1 "the same artifact declared twice" \
-    python3 -c 'import re,pathlib;p=pathlib.Path("tools/delivery-artifacts.toml");t=p.read_text();m=re.search(r"\[\[artifact\]\]\nid = \"chart:fraiseql\"\n(?:.*\n)*?executes = \[[^\]]*\]\n",t);p.write_text(t.replace(m.group(0),m.group(0)+"\n"+m.group(0),1))' 
+    python3 -c 'import re,pathlib;p=pathlib.Path("tools/delivery-artifacts.toml");t=p.read_text();m=re.search(r"\[\[artifact\]\]\nid = \"chart:fraiseql\"\n(?:.*\n)*?executes = \[[^\]]*\]\n",t);p.write_text(t.replace(m.group(0),m.group(0)+"\n"+m.group(0),1))'
 
 echo
 printf 'delivery-coverage self-test: %d run, %d failed\n' "$TESTS_RUN" "$TESTS_FAILED"

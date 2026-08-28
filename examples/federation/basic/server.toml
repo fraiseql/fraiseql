@@ -5,8 +5,9 @@
 # explicitly — the server runs in production mode unless FRAISEQL_ENV says otherwise,
 # and production mode refuses to boot with CORS enabled and no origin list:
 #
-#   Error: cors_enabled is true but cors_origins is empty in production mode.
+# Error: cors_enabled is true but cors_origins is empty in production mode.
 #
 # Do not "fix" that by setting FRAISEQL_ENV=development; it turns off the whole
 # production check set, not just this one.
+
 cors_enabled = false

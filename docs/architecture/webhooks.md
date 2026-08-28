@@ -145,8 +145,8 @@ own events, so the same event id turns up on both.
 Both dedup layers are therefore namespaced by **route** — the `/webhooks/{segment}`
 path segment, which is a route's `path` override or, absent one, its config key:
 
-* the delivery ledger claims `(route, event_id)`;
-* the durable spine claims `(source, "<route length>:<route>:<event id>")`.
+- the delivery ledger claims `(route, event_id)`;
+- the durable spine claims `(source, "<route length>:<route>:<event id>")`.
 
 The spine has to flatten its half into one column, and the sender chooses the event
 id — so the join is length-prefixed to keep it injective. A bare `<route>:<id>` join

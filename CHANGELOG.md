@@ -3613,6 +3613,26 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`pre-commit.ci` would have rewritten two ledgers and corrupted a line of prose on the
+  first pull request opened against this work.**
+
+  Its autofix hooks gate pull requests only, and this branch had never been in one, so 112
+  commits' worth of violations were queued to land at once as a commit nobody had read. What
+  they do was measured by running that hook set locally rather than predicted. `pretty-format-toml`
+  deleted `tools/delivery-artifacts.toml`'s section headers and flattened its aligned
+  leg-reference table until a wrapped entry read as a bare `# WORKFLOW ACTUALLY CALLS ...`
+  line — 144 lines net — and dropped the comment in `.gitleaks.toml` recording that two
+  allowlisted keys are real ones committed to a public tree (#1211). Both are ledgers whose
+  published reasons *are* the content, which is the argument that already excluded
+  `tools/suite-coverage-exemptions.toml`; both are now excluded too. The hook also alphabetises
+  keys, which in `.gitleaks.toml` reorders rules and allowlists inside a security gate that
+  silently discards a block it cannot use.
+
+  Separately, `markdownlint --fix` rewrote the prose `#1216 and the 2.15.0 changelog.` in
+  `deploy/kubernetes/README.md` into a literal `# 1216` heading, a line-initial issue reference
+  being indistinguishable from an H1 — and still failed `MD025` afterwards. That line is
+  reflowed rather than excluded; it was the only one of its shape in the repository.
+
 - **Two published SDKs shipped a lockfile pinning the previous version; a gate now makes that impossible (#1225).**
 
   The 2.15.0 bump edited the SDK *manifests* and left two *lockfiles* behind.

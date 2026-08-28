@@ -1485,4 +1485,3 @@ examples-smoke:
 	@FRAISEQL_BIN=$(CURDIR)/target/debug/fraiseql-cli \
 	 SERVER_BIN=$(CURDIR)/target/debug/fraiseql-server \
 	 bash tools/examples-smoke.sh
-

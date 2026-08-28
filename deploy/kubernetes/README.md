@@ -70,5 +70,5 @@ There is no `/ready` endpoint. The path is `/readiness`.
 ## Ports
 
 The image binds `0.0.0.0:8000` and declares `EXPOSE 8000`. Every manifest here
-uses 8000. It was 8815 in all of them while the process listened on 8000 — see
-#1216 and the 2.15.0 changelog.
+uses 8000. It was 8815 in all of them while the process listened on 8000 —
+see #1216 and the 2.15.0 changelog.

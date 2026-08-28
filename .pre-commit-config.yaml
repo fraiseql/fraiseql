@@ -67,12 +67,20 @@ repos:
         # these invariants by sorting table headers alphabetically.
         # suite-coverage-exemptions.toml is a documented ledger: the formatter
         # strips its section comments (the published reasons ARE the content).
+        # delivery-artifacts.toml and .gitleaks.toml are ledgers of the same kind, and
+        # were measured against this hook rather than assumed: it deletes the former's
+        # section headers and flattens the aligned leg-reference table so a wrapped
+        # entry becomes a bare `# WORKFLOW ACTUALLY CALLS ...` line (-144 lines net),
+        # and it drops the comment recording that two keys .gitleaks.toml allowlists
+        # are real ones committed to a public tree (#1211). Both also alphabetise keys,
+        # which in .gitleaks.toml reorders rules and allowlists inside a security gate
+        # that SILENTLY DISCARDS a block it cannot use.
         # uv.lock is `uv`'s own generated artifact, excluded for the same reason as
         # Cargo.lock: the tool that writes it owns its formatting. Without this the two
         # fight — `uv lock` writes its style, pre-commit.ci rewrites all 2586 lines into
         # another, and every PR carries a full-lockfile diff that hides real dependency
         # changes from review.
-        exclude: '((^|/)Cargo\.(toml|lock)|(^|/)uv\.lock|^tools/suite-coverage-exemptions\.toml)$'
+        exclude: '((^|/)Cargo\.(toml|lock)|(^|/)uv\.lock|^tools/suite-coverage-exemptions\.toml|^tools/delivery-artifacts\.toml|^\.gitleaks\.toml)$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli

@@ -29,4 +29,3 @@ reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + po
 # GitHub Actions `run:` blocks and sees that job directly, so the claim is
 # checked rather than asserted: delete a `--test` flag from that step and the
 # gate reports four orphans.
-
