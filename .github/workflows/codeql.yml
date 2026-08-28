@@ -2,7 +2,7 @@ name: CodeQL SAST
 
 # Per-push/PR CodeQL disabled 2026-05-31 — Dagger CI migration (Track 0).
 # Weekly cron RETAINED (security coverage at ~$0/week); push + PR stripped.
-# Re-add PR-time SAST later if desired. See .phases/dagger-adoption/.
+# Re-add PR-time SAST later if desired.
 on:
   schedule:
     # Weekly scan every Sunday at 3 AM UTC

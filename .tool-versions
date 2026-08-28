@@ -1,3 +1,3 @@
 # Pinned developer/CI tool versions (asdf / mise read this file).
-# Dagger drives FraiseQL CI on the self-hosted runner — see .phases/dagger-adoption/.
+# Dagger drives FraiseQL CI on the self-hosted runner (.github/workflows/dagger-*.yml).
 dagger 0.21.3

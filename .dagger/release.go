@@ -15,7 +15,6 @@ package main
 //     → PublishDryRun walks the same topological order as release.yml.
 //   - an accidental breaking public-API change → SemverNamed / SemverWorkspace.
 //
-// See .phases/dagger-adoption/parity-notes.md for the ported-vs-GitHub-native split.
 
 import (
 	"context"

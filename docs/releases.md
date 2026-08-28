@@ -75,3 +75,46 @@ opt-in at runtime configuration: Deno functions run only for the triggers your c
 schema declares, `/mcp` mounts only when the schema declares an `mcp` block, sources run
 only when declared, and metrics export only when `metrics` is configured. Compiled ≠
 enabled.
+
+## Which artifacts CI actually verifies
+
+An artifact can be published and never once have been run. This section says which of the
+things this project ships are proved to work by a CI leg, and which are only proved to
+exist — because an unstated gap is worse than a known one.
+
+The machine-readable ledger is [`tools/delivery-artifacts.toml`](../tools/delivery-artifacts.toml),
+checked on every push by `tools/check-delivery-coverage.py`. That gate makes this section
+hard to let rot: a new shipped artifact cannot arrive without a row, a row cannot outlive
+its artifact, and an artifact with no executing leg must carry an exemption naming the
+issue that owns the gap.
+
+**Executed — a leg runs it and requires an answer only a working artifact can give:**
+
+| Artifact | What proves it |
+|---|---|
+| `fraiseql-server` image | Boots on its own `CMD` against a real Postgres, answers a GraphQL query resolved through SQL, then returns a row inserted *after* it was already serving. Its linkage, uid, labels, `EXPOSE` and version are read off the built image, and its `HEALTHCHECK` is executed in three states. |
+| `fraiseql-server-full` image | Same boot and property tiers as above. |
+| Helm chart | Deployed into a throwaway k3s cluster on that image, queried through its Service, then re-queried after a row is inserted behind it. |
+| Compose stack (root `docker-compose.yml`) | Brought up on that image, becomes healthy on the image's *own* healthcheck, answers through its published port, then returns a row inserted after it was serving. |
+| `fraiseql-full-x86_64-unknown-linux-gnu.tar.gz` | Downloaded from the release, extracted, and the shipped `fraiseql-server` booted via `--config` against a real Postgres, asserting `/health` and a token-gated `/metrics`. |
+
+All but the last run on the `Dagger — image` leg, on every push to `dev` and `release/*` —
+that is, **before** the tag.
+
+**Not executed — published and checked for presence only:**
+
+| Artifact | What is actually checked | Issue |
+|---|---|---|
+| 18 crates on crates.io | An HTTP-200 probe per crate after publish. Nothing installs or compiles one from the registry. | [#1222](https://github.com/fraiseql/fraiseql/issues/1222) |
+| `fraiseql` on PyPI and npm | The same HTTP-200 probe. The SDK conformance suite runs the in-tree source, never the published package. | [#1222](https://github.com/fraiseql/fraiseql/issues/1222) |
+| The other 10 release binaries | Asserted present on the release **by name**. Never downloaded or run. | [#1222](https://github.com/fraiseql/fraiseql/issues/1222) |
+| `tutorial` image | Built before the tag; nothing starts it. | [#1221](https://github.com/fraiseql/fraiseql/issues/1221) |
+
+**Not published at all.** Nine of the eleven official schema-authoring SDKs are published
+to no registry at any version — only Python (PyPI) and TypeScript (npm) are. Seven of the
+nine have a working publish job gated on a `<sdk>/v*` tag, and no such tag has ever been
+cut; see [#1130](https://github.com/fraiseql/fraiseql/issues/1130). Two have defects of
+their own: the Dart job's only publish step is a `--dry-run`
+([#1223](https://github.com/fraiseql/fraiseql/issues/1223)), and the Go SDK's declared
+module path names a repository that does not exist
+([#1224](https://github.com/fraiseql/fraiseql/issues/1224)).

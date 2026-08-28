@@ -1,7 +1,7 @@
 // Package main is the FraiseQL CI Dagger module.
 //
 // It hosts the self-hosted CI pipeline that replaces the GitHub-hosted workflows
-// (Track 0, see .phases/dagger-adoption/). Phase 01 ports the smallest gate:
+// (Track 0). Phase 01 ports the smallest gate:
 // the axum `:param` route-syntax check (issue #316).
 package main
 
@@ -341,6 +341,15 @@ func (m *FraiseqlCi) ShellGates(
 		// two lists; building the images is the heavy leg's job (#1205).
 		"python3 tools/check-image-parity.py",
 		"make test-image-parity-gate",
+		// One level up from check-suite-coverage.py: every artifact this repository
+		// SHIPS maps to a leg that executes it, or to an exemption naming the issue
+		// that owns the gap. Discovery reads the same sources the four per-class
+		// parity gates read, so a new image variant, crate or SDK arrives here too;
+		// what this adds is that a row may not claim coverage that does not exist —
+		// `dagger:PublishDryRun` is a real function no workflow calls, and a leg is
+		// only coverage if some run: step invokes it (#1205's hole, one level up).
+		"python3 tools/check-delivery-coverage.py",
+		"make test-delivery-coverage-gate",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",
@@ -878,7 +887,7 @@ const (
 
 // TestIntegration runs one integration suite against Dagger-bound services. `suite`
 // selects which (default "postgres"). The suites come online incrementally as the
-// tiers converge onto the harness (see .phases/dagger-adoption/phase-04-…).
+// tiers converge onto the harness.
 func (m *FraiseqlCi) TestIntegration(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]

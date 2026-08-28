@@ -3613,6 +3613,57 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **What this project ships, and what proves each of those things works, is now a file CI checks.**
+
+  Every gate here checked a property of the source. Almost nothing checked the thing we ship, and
+  that asymmetry is what let the release image stay unbuildable for weeks with eleven legs green
+  (#1205). `tools/check-suite-coverage.py` made *test* execution a checked artifact after the
+  2026-07-27 retrospective; `tools/delivery-artifacts.toml` and `tools/check-delivery-coverage.py`
+  are the same move for delivery. It runs in preflight and in the Dagger ShellGates leg, and
+  `make lint-delivery-coverage` runs it locally.
+
+  The ledger carries **46 shipped artifacts** — three container images, eighteen crates, twelve
+  SDK packages, the Helm chart, the canonical Compose stack and eleven release binaries — each
+  with the leg that publishes it, the leg that builds it before the tag, and the leg that
+  **executes** it. Discovery reads the same sources the four existing per-class parity gates read
+  (`.dagger/image.go`'s variant table, the publishable workspace members, `sdks/official/`, the
+  chart, `CANONICAL=` in the Compose gate, release.yml's asset list), so this is an index rather
+  than a fifth copy of any of those lists: a new image variant, crate or SDK arrives here too.
+
+  The check is bidirectional and `executes` is the gated column. An artifact with no row fails —
+  a new thing cannot ship ungated. A row discovery no longer finds fails — a ledger that outlives
+  its subject reports coverage of nothing. A leg named here must **exist and be invoked by a
+  workflow `run:` step**: `.dagger/release.go`'s `PublishDryRun` is a real, working function that
+  no workflow calls, and a syntax accepting a bare name would record CI coverage that CI does not
+  perform. Comments are not invocations, so it reads parsed `run:` steps — `dagger-image.yml`'s
+  own header narrates `dagger call images` in prose, and a grep would have accepted it. An empty
+  `executes` requires an exemption naming an issue, and the exemption **self-clears**: it fails
+  when it matches nothing (stale) and when everything it matches has gained an executing leg (the
+  gap closed and the row became a lie). Proved by inversion in
+  `tools/tests/delivery_coverage_test.sh`, **17 assertions**, each a way the ledger could be false
+  while the gate printed OK.
+
+  What it says today is not comfortable and is not meant to be. **Five artifacts are executed** —
+  the two `fraiseql-server` images, the chart and the Compose stack (all on the `Dagger — image`
+  leg, before the tag), plus the one release asset `release-smoke.yml` downloads and boots. The
+  other 41 carry an exemption. Measured against every registry on 2026-08-28: all three images are
+  published to both registries, all 18 crates and the Python and TypeScript SDKs are published —
+  and **nine of the eleven official SDKs are published nowhere at any version**, with seven of
+  them gated on a `<sdk>/v*` tag that has never been cut (#1130, corrected there — its premise
+  that they have no publish job is wrong; they have one). Filed while measuring: #1221 (the
+  `tutorial` image is built and never started), #1222 (nothing consumes a published artifact as a
+  stranger would — crates.io, PyPI and npm are HTTP-200 probes, and ten of eleven release assets
+  are asserted by name only), #1223 (`dart-sdk.yml`'s "Publish to pub.dev" job's only publish step
+  is `--dry-run`), #1224 (the Go SDK's declared module path is a repository that does not exist).
+  `docs/releases.md` now states the same split in prose.
+
+- **19 files no longer point readers at `.phases/dagger-adoption/`, a directory no clone has.**
+
+  Thirteen workflows, `.tool-versions`, `.dagger/main.go` and `.dagger/release.go` cited that path
+  for the reasoning behind their stripped triggers. The explanations beside it were already
+  self-contained, so the dangling pointers are removed rather than repaired. Reduces #1210's
+  count from 26 tracked files to 7; that issue stays open for the rest.
+
 - **The canonical Compose stack is brought up on the image being released and queried, on every push.**
 
   Nothing in CI had ever run a Compose stack. The only job that claimed to — `verify-deployment`

@@ -1,0 +1,637 @@
+# What this repository ships, and what proves each of those things works.
+#
+# Read by tools/check-delivery-coverage.py, which runs in preflight and in the Dagger
+# ShellGates leg.
+#
+# ── Why this file exists ─────────────────────────────────────────────────────────────
+#
+# Every other gate here checks a property of the SOURCE. Almost nothing checked the thing
+# we ship, and the two worst findings of the pre-2.15.0 backlog program were both
+# "the artifact does not exist" defects that survived for weeks with eleven CI legs green:
+# the release image could not be built at all (#1205), and `cargo deny check licenses` was
+# red (#1204). No workflow built the release Dockerfile before the tag.
+#
+# `tools/check-suite-coverage.py` made TEST execution a checked artifact after the
+# 2026-07-27 retrospective ("execution coverage must be a checked artifact, not an
+# inference"). This file is that, one level up: DELIVERY coverage, as a checked artifact.
+# The property it buys is narrow and worth stating exactly — **a new shipped artifact
+# cannot arrive without a row, and a row cannot outlive the artifact it describes.**
+#
+# ── What it does NOT do ──────────────────────────────────────────────────────────────
+#
+# It is an INDEX, not a fifth parity gate. Four gates already hold the per-class lists
+# honest and this file must not become a copy of any of them:
+#
+#   * tools/check-image-parity.py       — the image variant list, across three copies
+#   * tools/check-publish-parity.py     — the crate set and its publish ORDER
+#   * tools/check-sdk-workflow-coverage.py — every official SDK is gated on a branch push
+#   * tools/check-suite-coverage.py     — every test suite maps to a leg that runs it
+#
+# So this gate DISCOVERS artifacts from the same sources those gates read, and then checks
+# one thing they do not: that each artifact is claimed by a leg which EXECUTES it, and that
+# every leg named here exists and is itself wired into CI. Anything else belongs in the gate
+# that already owns it.
+#
+# ── The three columns ────────────────────────────────────────────────────────────────
+#
+#   publishes  the leg that puts the artifact where a consumer gets it
+#   builds     the leg that produces it BEFORE the tag (the #1205 hole)
+#   executes   the leg that RUNS it and requires an answer only a working artifact gives
+#
+# `executes` is the gated column. "The artifact exists" is not a test — that was the whole
+# content of the two image jobs Phase 01 deleted, one of which asserted `docker image
+# inspect` and the other `{ __typename }`, a query the GraphQL layer answers without
+# touching a database. An empty `executes` is allowed only with an exemption carrying an
+# issue number, and the exemption SELF-CLEARS: the day its artifact gains an executing leg,
+# this gate fails until the row is narrowed or deleted. A stale exemption that quietly keeps
+# claiming a gap that closed is the failure mode this pattern exists to prevent.
+#
+# ── Leg reference syntax ─────────────────────────────────────────────────────────────
+#
+#   workflow:<file>:<job>   a job that exists in .github/workflows/<file>
+#   dagger:<Function>       a func (m *FraiseqlCi) <Function> in .dagger/, WHICH SOME
+#                           WORKFLOW ACTUALLY CALLS as `dagger call <kebab-name>`
+#   tool:<path>             a file that exists AND is invoked from a workflow run: block
+#
+# The "and is invoked" half is load-bearing and is not decoration. `.dagger/release.go`'s
+# `PublishDryRun` is a real, working function that no workflow calls — it runs only from
+# `make release-validate` on a developer's machine. A syntax that accepted a bare function
+# name would let this file record CI coverage that CI does not perform, which is precisely
+# the class of claim it was built to end (#1206: an unreachable job is invisible, not
+# skipped; #1055: a gate that runs in no leg at all).
+#
+# ── Status of the whole ledger, measured 2026-08-28 at ebaf83a5c ─────────────────────
+#
+# Of everything below, THREE artifacts are executed by a leg that requires a working
+# answer: the two fraiseql-server images, the Helm chart and the Compose stack (all four
+# on the `Dagger — image` leg), plus one release asset. Every other row is exempt. That is
+# not a comfortable picture and it is not meant to be — before this file, none of it was
+# visible at all.
+
+# ── Container images ─────────────────────────────────────────────────────────
+#
+# Discovered from `imageVariants` in .dagger/image.go — the same table
+# tools/check-image-parity.py holds against docker-build.yml's two publish matrices, so a
+# variant cannot reach a registry without arriving here as well.
+#
+# Two of the three carry the deepest coverage in this file: built before the tag, booted on
+# their own CMD against a real Postgres, asserted for what they ARE (linkage, uid, labels,
+# EXPOSE, an EXECUTED healthcheck), and — for fraiseql-server — deployed through both the
+# Helm chart and the Compose stack. All five tiers are steps of the one `Dagger — image`
+# leg, on push to dev and release/*.
+
+[[artifact]]
+id = "image:fraiseql-server"
+kind = "container-image"
+consumed_as = "ghcr.io/<owner>/server:<version> · docker.io/fraiseql/server:<version>"
+publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+builds = ["dagger:Images"]
+executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll", "tool:tools/chart-deploy-test.sh", "tool:tools/compose-stack-test.sh"]
+
+[[artifact]]
+id = "image:fraiseql-server-full"
+kind = "container-image"
+consumed_as = "ghcr.io/<owner>/server-full:<version> · docker.io/fraiseql/server-full:<version>"
+publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+builds = ["dagger:Images"]
+executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll"]
+
+[[artifact]]
+id = "image:tutorial"
+kind = "container-image"
+consumed_as = "ghcr.io/<owner>/tutorial:<version> · docker.io/fraiseql/tutorial:<version>"
+publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+builds = ["dagger:Images"]
+executes = []
+
+# ── Operator-facing deployment artifacts ─────────────────────────────────────
+#
+# Neither is published to a registry: both are consumed by cloning this repository, which
+# is why `publishes` is empty rather than omitted. That is a real property of how they
+# ship, not a gap — the gap would be an empty `executes`, and neither has one.
+#
+# The chart is discovered from deploy/**/Chart.yaml. Before Phase 05 its only gate was
+# `helm lint` + a render into /dev/null, and a lint never resolves an image: the chart
+# shipped `repository: fraiseql` (docker.io/library/fraiseql, a namespace this project
+# cannot publish to) for several releases (#1129). Measured 2026-08-27, fixing that
+# reference alone would have changed nothing — the chart could not start a pod for five
+# further reasons. It is now deployed into a throwaway k3s cluster and queried.
+#
+# The Compose stack is the ONE stack this repository ships and verifies. Five others were
+# deleted in Phase 06 after measurement: not one of the six could serve a query, and the
+# shared cause was in neither issue filed against them (#1189, #1202). Every other compose
+# file in the tree must classify itself as CI-driven or say "Not CI-verified" in its own
+# header — tools/compose-stack-test.sh fails on one it cannot classify.
+
+[[artifact]]
+id = "chart:fraiseql"
+kind = "helm-chart"
+consumed_as = "git clone · helm install fraiseql ./deploy/kubernetes/helm/fraiseql"
+publishes = []
+builds = []
+executes = ["tool:tools/chart-deploy-test.sh"]
+
+[[artifact]]
+id = "compose:docker-compose.yml"
+kind = "compose-stack"
+consumed_as = "git clone · docker compose up (root docker-compose.yml)"
+publishes = []
+builds = []
+executes = ["tool:tools/compose-stack-test.sh"]
+
+# ── Schema-authoring SDK packages ────────────────────────────────────────────
+#
+# Discovered from sdks/official/* (minus the conformance and tests directories, matching
+# tools/check-sdk-workflow-coverage.py's NOT_AN_SDK) plus any sdks/community/* directory a
+# workflow publishes — today only the Ruby gem.
+#
+# ⚠ These rows record coverage; they do not mandate a new tier. The delivery-artifact
+# program excludes the SDKs deliberately: they are the surface the 2026-07 ecosystem
+# assessment said to FREEZE, and they already have three gates (sdk-conformance.yml
+# compiles what each SDK authors on every push, check-sdk-workflow-coverage.py requires a
+# branch-push gate per SDK, check-sdk-dead-surface.sh watches for unread surface). Nothing
+# here adds SDK machinery. What it adds is the honest statement of where they ship to.
+#
+# And that statement is the finding: measured 2026-08-28 against each registry, using the
+# package id from each SDK's own manifest, TWO of the eleven official SDKs are published —
+# Python on PyPI and TypeScript on npm, both at 2.14.1. The other nine return 404 at every
+# version. Seven of the nine have a working publish job gated on a `<sdk>/v*` tag, and no
+# such tag has ever existed in this repository; see the correction on #1130.
+
+[[artifact]]
+id = "sdk:official/fraiseql-python"
+kind = "sdk-package"
+consumed_as = "pypi.org/project/fraiseql"
+publishes = ["workflow:release.yml:publish-python"]
+builds = ["workflow:python-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-typescript"
+kind = "sdk-package"
+consumed_as = "npmjs.com/package/fraiseql"
+publishes = ["workflow:npm-publish.yml:publish-npm"]
+builds = ["workflow:typescript-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-csharp"
+kind = "sdk-package"
+consumed_as = "nuget.org/packages/FraiseQL — NOT PUBLISHED at any version"
+publishes = ["workflow:csharp-sdk.yml:publish"]
+builds = ["workflow:csharp-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-dart"
+kind = "sdk-package"
+consumed_as = "pub.dev/packages/fraiseql — NOT PUBLISHED at any version"
+publishes = ["workflow:dart-sdk.yml:publish"]
+builds = ["workflow:dart-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-elixir"
+kind = "sdk-package"
+consumed_as = "hex.pm/packages/fraiseql — NOT PUBLISHED at any version"
+publishes = ["workflow:elixir-sdk.yml:publish"]
+builds = ["workflow:elixir-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-fsharp"
+kind = "sdk-package"
+consumed_as = "nuget.org/packages/FraiseQL.FSharp — NOT PUBLISHED at any version"
+publishes = ["workflow:fsharp-sdk.yml:publish"]
+builds = ["workflow:fsharp-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-go"
+kind = "sdk-package"
+consumed_as = "go get github.com/fraiseql/fraiseql-go — the repository does not exist (#1224)"
+publishes = []
+builds = ["workflow:go-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-java"
+kind = "sdk-package"
+consumed_as = "Maven Central com.fraiseql:fraiseql-java — NOT PUBLISHED at any version"
+publishes = ["workflow:java-sdk.yml:publish"]
+builds = ["workflow:java-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-php"
+kind = "sdk-package"
+consumed_as = "packagist.org/packages/fraiseql/fraiseql — NOT PUBLISHED at any version"
+publishes = ["workflow:php-sdk.yml:publish"]
+builds = ["workflow:php-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-ruby"
+kind = "sdk-package"
+consumed_as = "source only — no publish path, by decision (ruby-official-sdk.yml is test-only)"
+publishes = []
+builds = ["workflow:ruby-official-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:official/fraiseql-rust"
+kind = "sdk-package"
+consumed_as = "crates.io/crates/fraiseql_rust — NOT PUBLISHED at any version"
+publishes = ["workflow:rust-sdk.yml:publish"]
+builds = ["workflow:rust-sdk.yml:test"]
+executes = []
+
+[[artifact]]
+id = "sdk:community/fraiseql-ruby"
+kind = "sdk-package"
+consumed_as = "rubygems.org/gems/fraiseql — NOT PUBLISHED at any version"
+publishes = ["workflow:ruby-sdk.yml:publish"]
+builds = ["workflow:ruby-sdk.yml:test"]
+executes = []
+
+# ── Rust crates on crates.io ───────────────────────────────────────────────
+#
+# Discovered from the workspace manifest: every member whose Cargo.toml does not set
+# `publish = false`. Same source `tools/check-publish-parity.py` uses, so a crate that
+# joins the workspace arrives here too — that gate holds the publish ORDER honest, this
+# one holds the claim that something verifies the result.
+#
+# All 18 are exempt under `crate:*` (#1222): release.yml asks crates.io for HTTP 200 and
+# nothing installs them. Phase 07 of the delivery-artifact program closes it.
+
+[[artifact]]
+id = "crate:fraiseql"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-arrow"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-arrow"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-auth"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-auth"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-cdc-sinks"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-cdc-sinks"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-cli"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-cli"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-codegen"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-codegen"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-core"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-core"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-db"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-db"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-error"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-error"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-federation"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-federation"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-functions"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-functions"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-guard"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-guard"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-observers"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-observers"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-secrets"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-secrets"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-server"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-server"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-storage"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-storage"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-webhooks"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-webhooks"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
+id = "crate:fraiseql-wire"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-wire"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+# ── GitHub release binary assets ───────────────────────────────────────────
+#
+# Discovered from the EXPECTED array in release.yml's verify-release job, which is the
+# list that job asserts by NAME. Exactly one of the eleven is ever executed: the x86_64
+# Linux -full tarball, which release-smoke.yml downloads, extracts and boots against a
+# real Postgres. The other ten are exempt individually (#1222) rather than by wildcard,
+# so each one becomes visible the day it gains a leg.
+
+[[artifact]]
+id = "release-asset:fraiseql-x86_64-unknown-linux-gnu.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-x86_64-unknown-linux-gnu.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-x86_64-unknown-linux-musl.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-x86_64-unknown-linux-musl.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-aarch64-unknown-linux-gnu.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-aarch64-unknown-linux-gnu.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-x86_64-apple-darwin.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-x86_64-apple-darwin.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-aarch64-apple-darwin.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-aarch64-apple-darwin.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-x86_64-pc-windows-msvc.zip"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-x86_64-pc-windows-msvc.zip"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-full-x86_64-unknown-linux-gnu.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-full-x86_64-unknown-linux-gnu.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = ["workflow:release-smoke.yml:verify-published-full"]
+
+[[artifact]]
+id = "release-asset:fraiseql-full-aarch64-unknown-linux-gnu.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-full-aarch64-unknown-linux-gnu.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-full-x86_64-apple-darwin.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-full-x86_64-apple-darwin.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-full-aarch64-apple-darwin.tar.gz"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-full-aarch64-apple-darwin.tar.gz"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+
+[[artifact]]
+id = "release-asset:fraiseql-full-x86_64-pc-windows-msvc.zip"
+kind = "release-asset"
+consumed_as = "github release v<version> · fraiseql-full-x86_64-pc-windows-msvc.zip"
+publishes = ["workflow:release.yml:build-binaries"]
+builds = ["workflow:release.yml:build-binaries"]
+executes = []
+# ─────────────────────────────────────────────────────────────────────────────────────
+# Exemptions — an artifact with no executing leg, and the issue that owns the gap.
+#
+# `applies_to` is an exact artifact id or a `<kind>:*` wildcard. Two rules, both directions:
+#
+#   * an exemption matching ZERO artifacts fails — a stale row for something we stopped
+#     shipping, the ledger equivalent of the dead job Phase 01 deleted;
+#   * an exemption every one of whose artifacts HAS an executing leg fails — the gap it
+#     describes has closed and the row is now a lie. This is the self-clearing half. It is
+#     deliberately strict: a wildcard covering a class where SOME rows gain coverage must be
+#     narrowed, because "mostly still true" is how an exemption survives its own reason.
+# ─────────────────────────────────────────────────────────────────────────────────────
+
+[[exempt]]
+applies_to = "image:tutorial"
+issue = 1221
+reason = "published to both registries and built by `dagger call images`, but bootableVariants filters it out (dockerfile != \"Dockerfile\") so no leg starts it"
+
+[[exempt]]
+applies_to = "crate:*"
+issue = 1222
+reason = "release.yml verifies each crate with an HTTP-200 probe; nothing installs or compiles one from the registry. Phase 07 of the delivery-artifact program is this gap"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-python"
+issue = 1222
+reason = "published to PyPI and HTTP-200 probed; sdk-conformance runs the in-tree source, never the published wheel"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-typescript"
+issue = 1222
+reason = "published to npm and HTTP-200 probed; sdk-conformance runs the in-tree source, never the published package"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-csharp"
+issue = 1130
+reason = "NuGet FraiseQL + FraiseQL.Tool: not published at any version; publish job gated on a csharp-sdk/v* tag that has never existed"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-dart"
+issue = 1223
+reason = "pub.dev: not published; and the publish job's only publish step is `dart pub publish --dry-run`, so tagging would not change that"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-elixir"
+issue = 1130
+reason = "Hex: not published at any version; publish job gated on an elixir-sdk/v* tag that has never existed"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-fsharp"
+issue = 1130
+reason = "NuGet FraiseQL.FSharp + FraiseQL.Tool.FSharp: not published at any version; publish job gated on an fsharp-sdk/v* tag that has never existed"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-go"
+issue = 1224
+reason = "the declared module path github.com/fraiseql/fraiseql-go is a 404 repository, and the monorepo path has no versions, so `go get` cannot obtain it by any path"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-java"
+issue = 1130
+reason = "Maven Central com.fraiseql:fraiseql-java: not published at any version; publish job gated on a java-sdk/v* tag that has never existed"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-php"
+issue = 1130
+reason = "Packagist fraiseql/fraiseql: not published at any version; publish job gated on a php-sdk/v* tag that has never existed"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-ruby"
+issue = 1130
+reason = "deliberately has no publish job (ruby-official-sdk.yml is test-only; the community gem is the one with a publish path) — so it is shipped as source in this repository and nothing consumes it as a package"
+
+[[exempt]]
+applies_to = "sdk:official/fraiseql-rust"
+issue = 1130
+reason = "crates.io fraiseql_rust: not published at any version, although this SDK IS in release.sh's version-bump set; publish job gated on a rust-sdk/v* tag that has never existed"
+
+[[exempt]]
+applies_to = "sdk:community/fraiseql-ruby"
+issue = 1130
+reason = "RubyGems fraiseql: not published at any version; publish job gated on a ruby-sdk/v* tag that has never existed"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-x86_64-unknown-linux-gnu.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-x86_64-unknown-linux-musl.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-aarch64-unknown-linux-gnu.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-x86_64-apple-darwin.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-aarch64-apple-darwin.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-x86_64-pc-windows-msvc.zip"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-full-aarch64-unknown-linux-gnu.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-full-x86_64-apple-darwin.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-full-aarch64-apple-darwin.tar.gz"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+
+[[exempt]]
+applies_to = "release-asset:fraiseql-full-x86_64-pc-windows-msvc.zip"
+issue = 1222
+reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"

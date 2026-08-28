@@ -5,7 +5,7 @@ name: Dagger — preflight
 # fmt / clippy / documentation / check-test-imports / axum-route-syntax jobs.
 # `dagger call preflight` runs shell-gates → fmt → rustdoc → clippy fail-fast; the
 # clippy compile reuses the box's cargo/target/sccache cache volumes (shared with
-# local `dagger call` runs), so warm runs are fast. See .phases/dagger-adoption/.
+# local `dagger call` runs), so warm runs are fast.
 #
 # push-only by design: push events are inherently same-repo (forks cannot push
 # here), so the self-hosted runner never sees fork code — `pull_request` is

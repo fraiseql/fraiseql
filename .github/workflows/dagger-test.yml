@@ -7,8 +7,8 @@ name: Dagger — test
 # reusing the box's cargo/target/sccache cache volumes (warm = fast).
 #
 # Testcontainers-backed tests (storage/functions lib + fraiseql-wire tests/*) are
-# skipped here — the engine has no Docker socket; they're restored in Phase 04 via
-# Dagger-native service bindings. See .phases/dagger-adoption/parity-notes.md.
+# skipped here — the engine has no Docker socket. Dagger-native service bindings
+# restore the database-backed suites; see dagger-integration.yml.
 #
 # push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
 # runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
