@@ -4051,6 +4051,20 @@ disagreed, and the promise was the part that was wrong.
   `federation` is not a default cargo feature, so `{ _service { sdl } }` — the single
   query rover asks — returned `Federation is not enabled in this build`.
 
+- **The saga examples' health gates report health instead of asserting it (#1073).**
+  `docker-compose ps | grep "$service" | grep -q "healthy"` succeeds for a container
+  reported `Up (unhealthy)` — "healthy" is a substring of "unhealthy" — and the sibling
+  wrote it as `grep -q "bank-service.*healthy"`, where `.*` absorbs the `(un`. Both gates
+  were incapable of failing, and both printed a ✓ per service in either state.
+
+  What they were hiding: all four subgraphs healthcheck with `curl -f` on top of
+  `python:3.11-slim`, whose only install line is `pip install flask graphene
+  psycopg2-binary`. curl is not in that image, so every probe failed at exec
+  (`OCI runtime exec failed: exec: "curl": executable file not found in $PATH`) and every
+  container stayed unhealthy forever, with `FailingStreak 14` after two minutes. The
+  healthchecks now probe `/health` with the interpreter the image actually has, and the
+  gates read the container's health state rather than grepping for a substring of it.
+
 - **A federated schema can be authored, in Python and in TOML (#1188, #1195).** Neither
   surface could express what the runtime has always supported.
 
@@ -6662,6 +6676,57 @@ disagreed, and the promise was the part that was wrong.
   under default features and *not* under `--all-features`. The feature matrix leg does build
   many such arms by combo, but it is push-to-dev + dispatch, so a branch never sees it.
 
+- **`### Known issues` no longer counts as documenting a fix, and the heading-structure
+  check is no longer vacuous (#1203, #1228).** Two ways `tools/check-changelog-issues.sh`
+  reported OK over a wrong release record.
+
+  It asked whether an issue number appeared *anywhere* in this file. A mention under
+  `### Known issues` satisfied that — so an issue **fixed** in a release could be recorded
+  as a **known issue of that release** and the gate stayed green, with the record saying
+  the opposite of what shipped. It happened: at `7aa0d25df`, #1050 #1051 #1052 #1053 were
+  each closed by a commit in range, had no `### Fixed` entry, and were green because all
+  four appeared in one bullet of `### Known issues`; #1071 #1072 #1073 were wrong the same
+  way. The consequence for a reader is not symmetric — an operator who finds their defect
+  in that section defers the upgrade or applies a workaround for something they already
+  have, and a fix recorded only as a known issue is a fix nobody knows they have.
+
+  A number now counts as documented only outside a `### Known issues` block, and direction
+  1 reports the two shapes separately: mentioned nowhere, versus mentioned only under a
+  section that claims every number below it is still open. Turning that on found two live
+  cases in this release — #1073 and #1128 — each of which now has its own entry above.
+  #1128 shows the second-order damage: its exemption was correct ("CI wiring, no shipped
+  behaviour change") and was deleted as *stale* precisely because the known-issues mention
+  made it look documented. One defect removed a correct exemption and hid the issue in the
+  same move.
+
+  The apparent complement — "every number under `### Known issues` must be open" — is
+  deliberately **not** implemented, and the reason is recorded in the script so it is not
+  re-added: that section legitimately names closed issues in corrective prose ("the eight
+  issues this bullet used to list … are fixed in this release"), which is exactly the text
+  a reader needs, and no lexical rule tells a claim from a correction.
+
+  Found while fixing that: the heading-structure check was scoped to the first `## [...]`
+  section, which is the **empty** `## [Unreleased]` sitting above the prepared release, so
+  it exited at the next `## [` having examined zero headings. A duplicate `### Fixed` *and*
+  an unknown `### Totally Bogus Heading` injected into `[2.15.0]` were both green. That is
+  the file's ordinary state between a cut and a tag — the window in which the release record
+  is written. It now scopes to the first section that *has* headings.
+
+- **The scheduled fuzz matrix builds every target it names (#1128).** `fuzz.yml` declared
+  `{ crate: fraiseql-core, target: toml_config }`. That target was **moved, not deleted**:
+  #909 removed `fraiseql_core::config::FraiseQLConfig` — the TOML tree nothing read — and its
+  fuzz target with it, while a `toml_config` target fuzzing the config loader that *is* live
+  stayed in `crates/fraiseql-server/fuzz/`. Right target, wrong crate, so `cargo fuzz build`
+  failed with "no bin target named toml_config" on every scheduled run back to at least
+  2026-05-17.
+
+  ⚠ The other **12 of 13 targets were green every week** — `fail-fast: false` meant the broken
+  row never aborted them — so the cost is one target's missing coverage (the server's config
+  loader went unfuzzed) plus a permanently-red workflow, which cannot report that a *second*
+  leg has started failing. `tools/check-fuzz-targets.sh` now requires every matrix row to name
+  a `[[bin]]` and a `fuzz_targets/<target>.rs` in the crate it claims, and names the crate that
+  *does* have the target when one has moved.
+
 - **The bare-`DATABASE_URL` gate can now reject something (#1075).** `check-test-imports.sh`
   forbids test code from resolving `DATABASE_URL` itself instead of going through
   `fraiseql_test_support::database_url()`, which panics with an actionable message when the
@@ -8060,12 +8125,6 @@ number below is open at the time of this release.
   crates.io at any version. So the manifest bump is inert — the mirror image of the H30 defect
   where manifests stayed frozen while publish jobs ran. Do not read `sdks/official/fraiseql-rust`
   being at 2.15.0 as meaning a 2.15.0 Rust SDK is installable; it is not.
-- **Config-loader fuzzing has a shorter evidence window than the rest (#1128).** The scheduled
-  libFuzzer matrix named `toml_config` in the wrong crate, so that one target never built. ⚠ The
-  other **12 of 13 targets were green every week** — `fail-fast: false` meant the broken row
-  never aborted them — so this is one target's missing coverage plus a permanently-red run that
-  could not have reported a *second* leg breaking. Fixed in this release; the matrix is green
-  end to end for the first time in its visible history.
 
 **Gaps this release states rather than omits:**
 

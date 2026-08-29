@@ -22,6 +22,13 @@
 #      the exemption list rot into an allowlist nobody prunes.
 #   3. **Reason-less exemptions.** `#123` with no prose is indistinguishable from
 #      an oversight six months later.
+#   4. **`### Known issues` is not documentation (#1203).** A fix recorded only as a
+#      known issue of the release that fixed it makes the record say the opposite of
+#      what shipped, and the gate that exists to keep the record honest reported OK.
+#   5. **The structure check must be scoped to a section that HAS headings (#1228).**
+#      Between a cut and a tag the newest section sits below an EMPTY
+#      `## [Unreleased]`; scoping to the first section outright examined zero
+#      headings and passed unconditionally.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -240,6 +247,128 @@ HISTORICAL_MESS='## [Unreleased]
 - and again'
 d="$(mk_repo historical "$HISTORICAL_MESS" '# none')"
 assert "older sections are not structure-checked" "$d" 0 "OK:"
+
+# ── `### Known issues` is a claim, not documentation (#1203) ──────────────────
+# The observed shape: an issue closed in the range, with no entry under any change
+# heading, listed among the known issues OF THE RELEASE THAT FIXED IT. A whole-file
+# grep cannot tell the two apart, so the gate was green while the record was wrong.
+ONLY_KNOWN='## [Unreleased]
+
+### Fixed
+
+- another thing (#43)
+
+### Known issues
+
+- a thing that is definitely still open (#42)'
+d="$(mk_repo only_known "$ONLY_KNOWN" '# none')"
+assert "a closed issue named ONLY under Known issues fails" "$d" 1 "#42"
+d="$(mk_repo only_known_msg "$ONLY_KNOWN" '# none')"
+assert "...and the message names the section, not just the number" "$d" 1 "ONLY under"
+
+# The block ends at the next heading: a number after it counts again. Without this
+# the exclusion would swallow the rest of the section and turn every later entry
+# into a false failure.
+KNOWN_THEN_FIXED='## [Unreleased]
+
+### Known issues
+
+- something open
+
+### Fixed
+
+- a thing (#42)
+- another thing (#43)'
+d="$(mk_repo known_then_fixed "$KNOWN_THEN_FIXED" '# none')"
+assert "the Known issues block ends at the next ### heading" "$d" 0 "OK:"
+
+# ...and at the next `## ` too, so a section boundary is not a way back in.
+KNOWN_THEN_SECTION='## [Unreleased]
+
+### Fixed
+
+- another thing (#43)
+
+### Known issues
+
+- something open
+
+## [0.9.0] - 2020-01-01
+
+### Fixed
+
+- a thing (#42)'
+d="$(mk_repo known_then_section "$KNOWN_THEN_SECTION" '# none')"
+assert "the Known issues block ends at the next ## section" "$d" 0 "OK:"
+
+# The complement must NOT overreach: a known-issues bullet may keep naming an issue
+# that is properly recorded under a change heading. That prose is a correction the
+# reader needs, and a lexical rule cannot tell it from a claim — which is why the
+# strict "every number here must be open" form is deliberately not implemented.
+CORRECTION='## [Unreleased]
+
+### Fixed
+
+- a thing (#42)
+- another thing (#43)
+
+### Known issues
+
+- an open cluster — (#42 was on this list and is fixed in this release)'
+d="$(mk_repo correction "$CORRECTION" '# none')"
+assert "a corrective mention alongside a real entry still passes" "$d" 0 "OK:"
+
+# ── The structure check is scoped to a section that HAS headings (#1228) ──────
+# `## [Unreleased]` empty above a prepared release is the file's ordinary state
+# between a cut and a tag — i.e. exactly when the release record is being written.
+EMPTY_UNRELEASED_DUP='## [Unreleased]
+
+## [2.0.0] - 2020-02-02
+
+### Fixed
+
+- a thing (#42)
+
+### Fixed
+
+- another thing (#43)'
+d="$(mk_repo empty_unreleased_dup "$EMPTY_UNRELEASED_DUP" '# none')"
+assert "an empty [Unreleased] does not make the structure check vacuous" "$d" 1 "appears 2 times"
+
+EMPTY_UNRELEASED_UNKNOWN='## [Unreleased]
+
+## [2.0.0] - 2020-02-02
+
+### Fixed
+
+- a thing (#42)
+
+### Totally Bogus
+
+- another thing (#43)'
+d="$(mk_repo empty_unreleased_unknown "$EMPTY_UNRELEASED_UNKNOWN" '# none')"
+assert "...and an off-list heading below it is still caught" "$d" 1 "unknown heading"
+
+# The other direction: a POPULATED [Unreleased] is still the scoped section, and a
+# duplicate in the released section below it is still history, still left alone.
+POPULATED_UNRELEASED='## [Unreleased]
+
+### Fixed
+
+- a thing (#42)
+- another thing (#43)
+
+## [2.0.0] - 2020-02-02
+
+### Fixed
+
+- one
+
+### Fixed
+
+- and again'
+d="$(mk_repo populated_unreleased "$POPULATED_UNRELEASED" '# none')"
+assert "a populated [Unreleased] is still the scoped section" "$d" 0 "OK:"
 
 echo
 if [[ "$TESTS_FAILED" -gt 0 ]]; then
