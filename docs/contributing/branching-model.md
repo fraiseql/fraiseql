@@ -78,7 +78,7 @@ PostgreSQL) run **post-merge on the `dev` push** to spare the single runner; dis
 them manually (`gh workflow run dagger-<leg>.yml --ref <branch>`) when a change
 warrants full validation before merge. Locally, `make preflight` mirrors the fast gate.
 
-#### The one thing `make preflight` cannot see
+### The one thing `make preflight` cannot see
 
 `preflight` compiles the workspace twice and neither pass runs **clippy under a narrow
 feature set**: its clippy pass is `--all-features` (where a feature-OFF arm is not
