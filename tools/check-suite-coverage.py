@@ -247,15 +247,34 @@ class TestBinary:
 
 
 class LibTestModule:
-    def __init__(self, crate: str, module_path: str, features: set[str], path: Path):
+    def __init__(
+        self,
+        crate: str,
+        module_path: str,
+        features: set[str],
+        path: Path,
+        forbidden: frozenset[str] = frozenset(),
+        any_groups: tuple[frozenset[str], ...] = (),
+        label: str = "",
+    ):
         self.crate = crate
         self.module_path = module_path  # e.g. "inbound::email::tracking::tests"
         self.features = features  # gating features (all must be enabled)
         self.path = path
+        # A `#[cfg(not(feature = "x"))]` item compiles only where x is OFF. Under
+        # `--all-features` it compiles to nothing, so a crate whose only lib
+        # invocation is `--all-features` never executes its feature-OFF arms —
+        # the #1227 class one level over, and how #1179's refusal-path assertions
+        # went unrun while its parquet tests ran fine (#1179).
+        self.forbidden = forbidden
+        # Each group is an `any(feature = …, feature = …)`: at least one must be on.
+        self.any_groups = any_groups
+        # Distinguishes the virtual inner-gate targets from the module itself.
+        self.label = label
 
     @property
     def target_id(self) -> str:
-        return f"{self.crate}::lib::{self.module_path}"
+        return f"{self.crate}::lib::{self.module_path}{self.label}"
 
 
 def parse_cargo_toml(crate_dir: Path) -> dict:
@@ -412,12 +431,94 @@ def module_file_for(crate_src: Path, components: list[str]) -> Path | None:
     return None
 
 
-def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
-    """Feature-gated `tests.rs` unit-test modules under src/ (the #981 class).
+# A `#[cfg(…)]` attribute whose predicate mentions a feature, anywhere inside a
+# tests.rs. These gate individual test fns and inner blocks, which the module-chain
+# scan above cannot see.
+INNER_CFG = re.compile(r"#\[cfg\((?P<pred>[^\]]*feature\s*=[^\]]*)\)\]")
+ANY_GROUP = re.compile(r"any\s*\((?P<body>[^()]*)\)")
+NOT_ONE = re.compile(r'not\s*\(\s*feature\s*=\s*"([^"]+)"\s*\)')
 
-    For src/a/b/tests.rs the module path is a::b::tests; the gating features are
-    the union of `feature = "…"` cfgs on every `mod` declaration along the chain.
-    Ungated modules always run with the lib and are not tracked individually.
+
+# A `#[cfg(…)]` gating an inner `mod NAME {` names a real, filterable module path.
+# Recording it matters in BOTH directions: a leg filtering on `routes::tests::render_tests`
+# genuinely covers that module, and attributing its tests to the parent `routes::tests`
+# instead would report an orphan that is covered — a false positive costs a real leg line.
+INNER_MOD = re.compile(r"\A\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def inner_gate_requirements(
+    text: str,
+) -> list[tuple[str, frozenset[str], frozenset[str], tuple[frozenset[str], ...]]]:
+    """Distinct (submodule, required, forbidden, any-groups) gates inside one tests.rs.
+
+    A test fn behind `#[cfg(feature = "parquet")]` inside an UNGATED `mod tests` is
+    invisible to the module-chain scan: the module always compiles, so the gate counted
+    it covered while every test inside it was compiled out. #1179 is that shape — and
+    inverted, since the leg does enable the feature while nothing compiled the
+    `not(feature)` arms.
+
+    `submodule` is the inner `mod` the cfg gates, or "" when it gates a fn or a block.
+    """
+    out: dict[tuple, tuple[str, frozenset[str], frozenset[str], tuple[frozenset[str], ...]]] = {}
+    stripped = strip_line_comments(text)
+    for m in INNER_CFG.finditer(stripped):
+        pred = " ".join(m.group("pred").split())
+        # `any(a, b)` is a disjunction: at least one. Lift the groups out first so their
+        # members are not mistaken for hard requirements of the whole cfg.
+        groups: list[frozenset[str]] = []
+        for g in ANY_GROUP.finditer(pred):
+            members = frozenset(re.findall(r'feature\s*=\s*"([^"]+)"', g.group("body")))
+            if members:
+                groups.append(members)
+        rest = ANY_GROUP.sub("", pred)
+        forbidden = frozenset(NOT_ONE.findall(rest))
+        required = frozenset(re.findall(r'feature\s*=\s*"([^"]+)"', NOT_ONE.sub("", rest)))
+        if not (required or forbidden or groups):
+            continue
+        # What does this attribute gate? Skip any further attributes stacked below it
+        # (`#[cfg(...)]` then `#[test]` then `fn`), then look for `mod NAME`.
+        tail = stripped[m.end() :]
+        while True:
+            probe = tail.lstrip()
+            if probe.startswith("#["):
+                depth, i = 0, 0
+                for i, ch in enumerate(probe):
+                    if ch == "[":
+                        depth += 1
+                    elif ch == "]":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                tail = probe[i + 1 :]
+                continue
+            break
+        mod_match = INNER_MOD.match(tail)
+        submodule = mod_match.group(1) if mod_match else ""
+        key = (submodule, required, forbidden, tuple(sorted(groups, key=sorted)))
+        out[key] = (submodule, required, forbidden, tuple(sorted(groups, key=sorted)))
+    return sorted(out.values(), key=lambda r: (r[0], sorted(r[1]), sorted(r[2])))
+
+
+def _gate_label(required: frozenset[str], forbidden: frozenset[str], groups: tuple[frozenset[str], ...]) -> str:
+    parts = sorted(required)
+    parts += [f"!{f}" for f in sorted(forbidden)]
+    parts += ["|".join(sorted(g)) for g in groups]
+    return "[" + ",".join(parts) + "]"
+
+
+def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
+    """Feature-gated unit tests under src/ (the #981 class, and #1179's).
+
+    Two kinds of target come out of one `tests.rs`:
+
+    1. The module itself, when its `mod` chain is feature-gated. For src/a/b/tests.rs
+       the module path is a::b::tests and the features are the union of the
+       `feature = "…"` cfgs on every `mod` declaration along the chain. An ungated
+       module always compiles with the lib and needs no target of its own.
+    2. One virtual target per distinct `#[cfg(…feature…)]` requirement set found
+       INSIDE the file. These gate individual test fns, and they are invisible to
+       (1) — an ungated module full of `#[cfg(feature = "x")]` tests was counted as
+       covered while every test in it was compiled out.
     """
     src_root = crate_dir / "src"
     if not src_root.is_dir():
@@ -426,6 +527,7 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
     for tf in sorted(src_root.rglob("tests.rs")):
         rel = tf.relative_to(src_root)
         components = list(rel.parts[:-1]) + ["tests"]
+        module_path = "::".join(components)
         feats: set[str] = set()
         declared_everywhere = True
         for i, comp in enumerate(components):
@@ -438,8 +540,24 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
                 declared_everywhere = False
                 break
             feats.update(g)
-        if declared_everywhere and feats:
-            out.append(LibTestModule(crate, "::".join(components), feats, tf))
+        if not declared_everywhere:
+            continue
+        if feats:
+            out.append(LibTestModule(crate, module_path, feats, tf))
+        text = tf.read_text(encoding="utf-8", errors="replace")
+        for submodule, required, forbidden, groups in inner_gate_requirements(text):
+            path = f"{module_path}::{submodule}" if submodule else module_path
+            out.append(
+                LibTestModule(
+                    crate,
+                    path,
+                    feats | set(required),
+                    tf,
+                    forbidden=forbidden,
+                    any_groups=groups,
+                    label=_gate_label(required, forbidden, groups),
+                )
+            )
     return out
 
 
@@ -1229,6 +1347,21 @@ def features_enabled(
     return wanted <= enabled and not (forbidden & enabled)
 
 
+def any_groups_satisfied(
+    inv: Invocation, crate: str, groups: tuple[frozenset[str], ...]
+) -> bool:
+    """Every `any(feature = a, feature = b)` group needs at least one member on.
+
+    Modelled rather than skipped: dropping a predicate the gate cannot read is how
+    it would report coverage it never checked.
+    """
+    if inv.features is ALL_FEATURES:
+        return True
+    assert isinstance(inv.features, set)
+    enabled = expand_features(crate, inv.features, with_defaults=not inv.no_default_features)
+    return all(bool(g & enabled) for g in groups)
+
+
 def triggers_path(inv: Invocation, path: Path) -> bool:
     """Would editing `path` start the workflow this invocation runs in?
 
@@ -1295,7 +1428,9 @@ def covers_module(inv: Invocation, mod: LibTestModule) -> bool:
         return False
     if inv.crate is None and not inv.workspace:
         return False
-    if not features_enabled(inv, mod.crate, mod.features):
+    if not features_enabled(inv, mod.crate, mod.features, mod.forbidden):
+        return False
+    if mod.any_groups and not any_groups_satisfied(inv, mod.crate, mod.any_groups):
         return False
     if inv.filters and not any(mod.module_path.startswith(f.rstrip(":")) for f in inv.filters):
         return False
@@ -1381,9 +1516,14 @@ def main() -> int:
         if mod.target_id in exemptions:
             used_exemptions.add(mod.target_id)
             continue
+        want = f"features={sorted(mod.features)}"
+        if mod.forbidden:
+            want += f", requires OFF={sorted(mod.forbidden)}"
+        if mod.any_groups:
+            want += ", any=" + str([sorted(g) for g in mod.any_groups])
         failures.append(
-            f"ORPHAN {mod.target_id}: feature-gated (features={sorted(mod.features)}) and "
-            f"no lib invocation enables it un-filtered — compiled out reads as passing"
+            f"ORPHAN {mod.target_id}: feature-gated ({want}) and "
+            f"no lib invocation compiles it un-filtered — compiled out reads as passing"
         )
 
     # Direction C: every --test flag names an existing binary.

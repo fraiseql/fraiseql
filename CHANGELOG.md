@@ -6899,6 +6899,48 @@ disagreed, and the promise was the part that was wrong.
   Step-level `if:` conditions of the same class are covered too — see the entry below
   (#1207), which took the sixteen decisions and grew this gate to steps.
 
+- **The feature-OFF refusal paths now execute, and a gate can see when they do not
+  (#1179).** ⚠ The issue's premise was wrong in a way worth recording: it reported that
+  "no CI leg enables the parquet feature, so its tests compile but never run", from a grep
+  for `parquet` across the Makefile, `.dagger/main.go` and the workflows. That grep cannot
+  see `--all-features`, and `.dagger/main.go` has run `cargo test -p fraiseql-arrow
+  --all-features` since 2026-08-07 — seventeen days before the issue was filed. All four
+  parquet tests build and pass there, `multi_batch_parquet_export_is_a_single_file`
+  included.
+
+  What was true is the mirror image, and it is a larger class. `--all-features` compiles a
+  `#[cfg(not(feature = …))]` arm to **nothing**, and every lib invocation in the test leg
+  turns features on, so the assertions that guard the *refusal* paths ran nowhere at all:
+
+  - `test_kafka_stub_fails_loud` — the Kafka subscription stub must fail loudly when the
+    feature is off;
+  - `from_file_names_the_build_feature_for_a_compiled_out_section` — an `[observers]`
+    section in a build without the feature must be **refused by name**, not ignored;
+  - the `not(federation)` health-status arms, and arrow's own assertion that
+    `ExportFormat::from_str("parquet")` names the missing feature.
+
+  This is the #1227 blind spot one level over: a wide `--features` list and
+  `--all-features` are the same blindness to a feature-OFF arm.
+
+  `tools/check-suite-coverage.py` read feature gates only off the `mod tests;`
+  **declaration chain**, so a test behind an inner `#[cfg(feature = …)]` in an ungated
+  module was invisible — the module always compiles, so the gate counted it covered while
+  every test inside it was compiled out. It now models inner gates as well: positive
+  requirements, `not(...)` (which needs a leg with the feature **off**), `all(...)`, and
+  `any(...)` as a real disjunction rather than a dropped predicate. Where the cfg gates an
+  inner `mod`, the target carries that module's own path — attributing it to the parent
+  reported orphans that were covered, and a false positive here costs a real leg line.
+
+  Turning it on found **17 groups of feature-gated tests that no leg compiled**. All 17
+  are now covered, by four widenings that cost no extra compile (`audit-syslog` and
+  `audit-webhook` into the core lib set, `storage-transforms` into the server set,
+  `caching`/`nats`/`postgres` into the observers set, and the `routes::rest::openapi::`
+  filter that the streaming-only filter never reached) and four new invocations
+  (`fraiseql-arrow --lib`, `fraiseql-core --lib` and `fraiseql-server --lib` on **default**
+  features — the only configuration that compiles the refusal arms — plus
+  `cdc-kinesis` and `functions-runtime-deno` lib runs). Each was run before being added;
+  the arrow default run is 288 tests in 2s.
+
 - **`release-smoke.yml` can tell a loaded fixture from an empty one (#1214).** The workflow
   whose whole job is to catch "the binary compiles but the server does not work" applied its
   e2e fixture with a bare `psql -f` and **no `ON_ERROR_STOP`** — at all three sites, not the

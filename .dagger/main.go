@@ -41,12 +41,12 @@ const (
 
 	// SYNC:* feature sets — this file is the single authority since the legacy
 	// ci.yml was retired (#951); the SYNC tags mark every use site in this file.
-	coreTestFeatures = "arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
+	coreTestFeatures = "arrow,audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend"
 	dbTestFeatures   = "postgres,wire-backend"
 	// redis-pkce + redis-rate-limiting are compiled in so the #770/#777 boot-guard
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
 	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
-	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend"
+	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend"
 	// serverInProcessTests: every fraiseql-server tests/*.rs binary that runs
 	// in-process (no backing service) and is not already named by a dedicated
 	// line. Enumerated because fraiseql-server is excluded from the workspace
@@ -378,6 +378,11 @@ func (m *FraiseqlCi) ShellGates(
 		// …and the red-capability pin for its GitHub Actions side (#1120): a
 		// workflow can look like coverage and provide none.
 		"make test-suite-coverage-workflows",
+		// ...and the pin for its INNER feature-gate side (#1179): a test fn behind
+		// `#[cfg(feature = "x")]` in an ungated module was invisible to the gate,
+		// counted as covered while compiled out — and a `not(feature)` arm needs a
+		// leg with the feature OFF, which `--all-features` can never be.
+		"make test-suite-coverage-inner-gates",
 		// Comment-only #[test] bodies read as green coverage (#895/#748).
 		"bash tools/check-empty-tests.sh",
 		// Snapshot pairing, both directions (#986): every .snap registered, no
@@ -621,6 +626,14 @@ func (m *FraiseqlCi) Test(
 		// gracefully without DATABASE_URL, so the whole crate runs here.
 		"echo '### cargo test -p fraiseql-arrow --all-features (DB-backed binaries skip gracefully without DATABASE_URL)'",
 		"cargo test -p fraiseql-arrow --all-features",
+		// ...and again on the DEFAULT feature set, which is the only configuration that
+		// compiles the crate's `#[cfg(not(feature = "parquet"))]` arms — the assertions
+		// that the refusal path names the missing feature. `--all-features` compiles
+		// them to nothing, so with that as the crate's only lib invocation they had
+		// never executed (#1179; the issue had it backwards — the parquet tests DO run,
+		// it is the feature-OFF arms that did not). 288 lib tests in ~2s.
+		"echo '### cargo test -p fraiseql-arrow --lib (default features: the not(parquet) refusal arms)'",
+		"cargo test -p fraiseql-arrow --lib",
 		// fraiseql-functions including runtime-deno (#971): the old "V8 SIGSEGVs
 		// in the exec sandbox" diagnosis was wrong — the crash was the
 		// second-V8-isolate-per-process bug, fixed by #969; the sandbox was never
@@ -636,6 +649,13 @@ func (m *FraiseqlCi) Test(
 		// already --lib for the same reason.
 		"echo '### cargo test -p fraiseql-core --lib (SYNC:CORE_FEATURES; tests/* = testcontainer integration → Phase 04)'",
 		"cargo test -p fraiseql-core --lib --features '" + coreTestFeatures + "'",
+		// ...and on the DEFAULT feature set, which is the only configuration that
+		// compiles the `#[cfg(not(feature = …))]` arms — `test_kafka_stub_fails_loud`
+		// asserts the stub refuses loudly when `kafka` is off, and every lib run above
+		// turns it on, so it had never executed. Same blind spot as #1227, one level
+		// over: a wide `--features` list cannot see a feature-OFF arm (#1179).
+		"echo '### cargo test -p fraiseql-core --lib (default features: the feature-OFF arms)'",
+		"cargo test -p fraiseql-core --lib",
 		"echo '### cargo test -p fraiseql-db --lib (SYNC:DB_FEATURES; tests/* = testcontainer integration → Phase 04)'",
 		"cargo test -p fraiseql-db --lib --features '" + dbTestFeatures + "'",
 		// #974: server::routing::storage_policy_admin_tests drives the bucket
@@ -646,6 +666,13 @@ func (m *FraiseqlCi) Test(
 		// green that asserted nothing.
 		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES; storage_policy_admin_tests → integration leg)'",
 		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "' -- --skip server::routing::storage_policy_admin_tests",
+		// ...and on the DEFAULT feature set, for the same reason as the core line above:
+		// the `not(federation)` health-status arms and
+		// `from_file_names_the_build_feature_for_a_compiled_out_section` — which asserts
+		// that a `[observers]` section in a build without the feature is REFUSED by name
+		// rather than ignored — compile only where those features are off (#1179).
+		"echo '### cargo test -p fraiseql-server --lib (default features: the feature-OFF refusal arms)'",
+		"cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests",
 		// The MCP transport's Docker-free test binaries. They ran in
 		// feature-flags.yml's `feature-integration-tests` job, which has been
 		// dispatch-only since the Dagger migration (2026-05-31) — so no CI leg
@@ -681,14 +708,21 @@ func (m *FraiseqlCi) Test(
 		// omits — without these lines they compile out of every leg and read as
 		// passing (the #981 class).
 		"echo '### cargo test -p fraiseql-server --lib feature-gated modules with no service needs (#992)'",
-		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib routes::rest::streaming::",
+		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib -- routes::rest::streaming:: routes::rest::openapi::",
 		"cargo test -p fraiseql-server --features functions --lib routes::functions::",
+		// The function-runtime subsystem wiring: `functions = []` does not imply
+		// `functions-runtime`, so the line above compiles none of it. deno implies the
+		// base runtime, so one invocation covers both gates.
+		"cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::",
 		"cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::",
 		// #975: the same module again with the Kafka sink compiled in. Both runs
 		// are needed and neither substitutes for the other — validate_kind's
 		// accept-kafka and refuse-kafka-by-name halves are `cfg`-gated against
 		// each other, so each is invisible in the other's leg.
 		"cargo test -p fraiseql-server --features cdc-kafka --lib cdc_outbound::",
+		// #975's Kinesis sink mount: its own arm of ConfiguredSink/build_one, and
+		// the feature-ON half of validate_kind, compile only with this feature on.
+		"cargo test -p fraiseql-server --features cdc-kinesis --lib cdc_outbound::",
 		// #975: the cdc-sinks crate's own rdkafka-bound unit tests (partition-key
 		// contract, produce-error classification, and the broker-free proof that
 		// TLS is compiled in). The always-compiled endpoint guard runs in the
@@ -714,8 +748,8 @@ func (m *FraiseqlCi) Test(
 		// so these unit tests never executed in CI.
 		// arrow/checkpoint/dedup/metrics/search are pure lib features whose unit
 		// modules were compiled out of every leg before (#992).
-		"echo '### cargo test -p fraiseql-observers --lib --features cli,arrow,checkpoint,dedup,metrics,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
-		"cargo test -p fraiseql-observers --lib --features 'cli,arrow,checkpoint,dedup,metrics,search'",
+		"echo '### cargo test -p fraiseql-observers --lib --features caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
+		"cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,search'",
 		// #992: observers in-process test binaries — the crate is excluded from
 		// the workspace run, so these executed nowhere.
 		// queue,metrics,testing: job_queue_integration is cfg-gated on them and

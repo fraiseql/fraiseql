@@ -204,7 +204,7 @@ test-integration-postgres: db-up db-failover-reset
 	@echo "### toolchain: $$(rustc --version)"
 	@echo ""
 	@echo "### core/db --test '*' sweep (serialized: shared public schema)"
-	@cargo test -p fraiseql-core --features 'arrow,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test '*' -- --test-threads=1
+	@cargo test -p fraiseql-core --features 'arrow,audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test '*' -- --test-threads=1
 	@cargo test -p fraiseql-db --features 'postgres,wire-backend,test-postgres' --test '*' -- --test-threads=1
 	@echo ""
 	@echo "### live-PostgreSQL lib tests"
@@ -225,7 +225,7 @@ test-integration-postgres: db-up db-failover-reset
 	@echo "### inbound spine, storage policy admin, sources, functions runtime"
 	@cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1
 	@cargo test -p fraiseql-server --features inbound,inbound-email --lib inbound:: -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
 	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
 	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime,observers --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: --test-threads=1
@@ -728,6 +728,14 @@ lint-feature-matrix:
 test-feature-matrix-gate:
 	@bash tools/tests/feature_matrix_local_test.sh
 
+# Red-capability pin for the INNER feature-gate side of check-suite-coverage.py.
+# The gate read feature gates only off the `mod tests;` declaration chain, so a test
+# fn behind `#[cfg(feature = "x")]` inside an ungated module was invisible — counted
+# covered while compiled out (#1179). Pure text; no cargo, no toolchain.
+.PHONY: test-suite-coverage-inner-gates
+test-suite-coverage-inner-gates:
+	@bash tools/tests/suite_coverage_inner_gates_test.sh
+
 # Gate: a runaway-growth ratchet on each crate's src/ line count, and a check that
 # every crate HAS a budget. Ran in no leg at all until #1055/#990 — its only caller
 # was the orphaned tools/lint.sh — by which time four crates were over budget and
@@ -908,7 +916,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
