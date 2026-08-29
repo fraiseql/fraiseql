@@ -16,6 +16,13 @@
 #
 # Exit codes: 0 = clean, 1 = findings (or an empty scan), 2 = FATAL (a shape the
 # gate cannot read). A shape it cannot read is never silently clean.
+#
+# Step-level `if:` (#1207) is the same analysis one level down, and it needs its own
+# assertions because it has its own ways to go wrong: a step is reached through a
+# different part of the document, is named differently (`name:`, `uses:`, or neither),
+# and a job with no `steps:` at all must not fault. A dead STEP is also quieter than a
+# dead job — the job runs and reports success, and simply never does the part the step
+# was there for.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -91,7 +98,7 @@ jobs:
     steps:
       - run: echo hi
 YML
-)")" "every job can run"
+)")" "every one can run"
 
 # ── 3. A branch ref under a tags-only push: the verify-deployment shape ───────
 #
@@ -186,7 +193,7 @@ jobs:
     steps:
       - run: echo hi
 YML
-)")" "every job can run"
+)")" "every one can run"
 
 # ── 8. `push:` with only `paths` matches every branch AND every tag ──────────
 #
@@ -206,7 +213,7 @@ jobs:
     steps:
       - run: echo hi
 YML
-)")" "every job can run"
+)")" "every one can run"
 
 # ── 9. `release:` carries a tag ref ─────────────────────────────────────────
 #
@@ -227,7 +234,7 @@ jobs:
     steps:
       - run: echo hi
 YML
-)")" "every job can run"
+)")" "every one can run"
 
 # ── 10. workflow_dispatch can be pointed at any branch ──────────────────────
 expect "a dispatch can target any branch" 0 "$(fixture dispatch-branch "$(cat <<'YML'
@@ -241,7 +248,7 @@ jobs:
     steps:
       - run: echo hi
 YML
-)")" "every job can run"
+)")" "every one can run"
 
 # ── 11. A branch pattern that cannot produce the named branch ───────────────
 expect "a ref outside the push branch filter is dead" 1 "$(fixture branch-filter "$(cat <<'YML'
@@ -271,7 +278,7 @@ jobs:
     steps:
       - run: echo hi
 YML
-)")" "every job can run"
+)")" "every one can run"
 
 # ── 13. An unmodelled event decides nothing, and flags nothing ─────────────
 #
@@ -289,7 +296,7 @@ jobs:
     steps:
       - run: echo hi
 YML
-)")" "every job can run"
+)")" "every one can run"
 
 # ── 14. An `if:` the gate cannot parse is FATAL, never a pass ──────────────
 expect "an unreadable condition is FATAL" 2 "$(fixture unreadable "$(cat <<'YML'
@@ -335,7 +342,123 @@ jobs:
 YML
 )")" "teach the gate this shape"
 
-# ── 17. The vacuous-scan guard, both ways ────────────────────────────────
+# ── 17. Step-level `if:` — the same three checks, one level down (#1207) ─
+#
+# The shape that reached `dev`: a dispatch-only workflow whose report-the-result
+# step is `pull_request`-gated. The job runs, goes green, and silently never does
+# the thing the step was for.
+expect "a dead step condition is flagged" 1 "$(fixture step_dead "$(cat <<'YML'
+name: probe
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo build
+      - name: Post comparison as PR comment
+        if: github.event_name == 'pull_request'
+        run: echo comment
+YML
+)")" "step [Post comparison as PR comment]"
+
+# A step-level condition can also be a constant, and it reads as a guard.
+expect "a vacuous step condition is flagged" 1 "$(fixture step_vacuous "$(cat <<'YML'
+name: probe
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        run: echo login
+YML
+)")" "vacuous condition arm"
+
+# A dead ARM inside a step condition that can otherwise run.
+expect "a dead step arm is flagged" 1 "$(fixture step_dead_arm "$(cat <<'YML'
+name: probe
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        run: echo publish
+YML
+)")" "dead condition arm"
+
+# ...and the other direction, which is the one a false positive would cost: an
+# `always()` step, a step gated on another step's output, and a step gated on a
+# dispatch input are all undecidable and must stay unflagged.
+expect "undecidable step conditions are not flagged" 0 "$(fixture step_ok "$(cat <<'YML'
+name: probe
+on:
+  workflow_dispatch:
+    inputs:
+      save_baseline:
+        type: boolean
+        default: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure
+        id: measure
+        run: echo measure
+      - name: Compare
+        if: steps.measure.outputs.done == 'true'
+        run: echo compare
+      - name: Save baseline
+        if: inputs.save_baseline
+        run: echo save
+      - name: Always
+        if: always()
+        run: echo always
+YML
+)")" "every one can run"
+
+# A step named only by `uses:`, and a job with no `steps:` key at all — both are
+# ordinary, and neither may fault the gate.
+expect "a uses-only step is named, and a stepless job is fine" 1 "$(fixture step_uses "$(cat <<'YML'
+name: probe
+on:
+  workflow_dispatch:
+jobs:
+  nosteps:
+    uses: ./.github/workflows/other.yml
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        if: github.event_name == 'pull_request'
+YML
+)")" "step [actions/checkout@v6]"
+
+# A step `if:` the parser cannot read must be FATAL, exactly as a job's is: a
+# condition read as "undecidable" when it was never read at all is how a gate
+# goes quiet without saying so.
+expect "an unreadable step condition is FATAL" 2 "$(fixture step_fatal "$(cat <<'YML'
+name: probe
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Broken
+        if: github.event_name == = 'push'
+        run: echo hi
+YML
+)")" "cannot parse"
+
+# ── 18. The vacuous-scan guard, both ways ────────────────────────────────
 #
 # A gate that reports success having read nothing is the exact failure it
 # exists to catch: it would go quiet the moment the directory moved.
@@ -347,11 +470,11 @@ NOTHING="$WORK/nothing"
 mkdir -p "$NOTHING"
 expect "a missing workflow directory is not a pass" 1 "$NOTHING" "no workflow directory"
 
-# ── 18. The real tree is green ──────────────────────────────────────────
+# ── 19. The real tree is green ──────────────────────────────────────────
 #
 # Runs the gate against this repository, so the self-test cannot pass while the
 # checked-in workflows are red.
-expect "this repository's workflows are all reachable" 0 "$REPO_ROOT" "every job can run"
+expect "this repository's workflows are all reachable" 0 "$REPO_ROOT" "every one can run"
 
 echo
 if [ "$TESTS_FAILED" -gt 0 ]; then

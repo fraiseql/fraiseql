@@ -14,23 +14,28 @@ name: Velocitybench Regression Gate
 # Triggered by manual dispatch only, since the 2026-05-31 Dagger migration stripped
 # the push and PR triggers. The job kept a `push || PR-labelled-perf` condition that
 # no dispatch can satisfy, so pressing Run executed nothing and reported success
-# (#1206); the condition is gone. The PR-comment and baseline-artifact steps are
-# still event-gated and so are still dead — tracked in #1207.
+# (#1206); the condition is gone.
+#
+# #1207: the PR-comment and baseline-artifact steps were `pull_request`- and
+# push-to-dev-gated under a dispatch-only trigger, so neither could run. The comment
+# step is DELETED rather than re-triggered — the report it posted is already written
+# to `$GITHUB_STEP_SUMMARY` and uploaded as an artifact by the two steps below it, so
+# nothing is lost. The baseline save is now an explicit dispatch input, which is what
+# "save this run as the baseline" always meant.
 #
 # To update the stored baseline after an intentional perf change:
 #   make bench-update-baseline
 #   git add benchmarks/baseline.json && git commit
-
-# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR triggers
-# stripped; workflow_dispatch retained as porting spec.
 on:
   workflow_dispatch:
+    inputs:
+      save_baseline:
+        description: 'Upload this run as the velocitybench-baseline-dev artifact'
+        type: boolean
+        default: false
 
-# Repo default is least-privilege (contents: read). This workflow posts its
-# regression report as a PR comment, so it declares the extra scope explicitly.
 permissions:
   contents: read
-  pull-requests: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -136,13 +141,6 @@ jobs:
 
           echo "regression_detected=${REGRESSION_EXIT}" >> "$GITHUB_OUTPUT"
 
-      - name: Post benchmark results as PR comment
-        if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0  # v2
-        with:
-          header: velocitybench-results
-          message: ${{ steps.regression.outputs.report }}
-
       - name: Add benchmark summary to job
         if: always()
         run: |
@@ -161,8 +159,8 @@ jobs:
             ${{ env.BENCH_REPORT_FILE }}
           retention-days: 30
 
-      - name: Save baseline artifact (on push to dev)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+      - name: Save baseline artifact
+        if: inputs.save_baseline
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: velocitybench-baseline-dev

@@ -16,7 +16,7 @@ Neither had ever run. Nothing said so: an unreachable job is not skipped-and-
 reported, it is absent from the checks list entirely, which is indistinguishable
 from a workflow that simply has fewer jobs.
 
-What is checked, per workflow, for every job-level `if:`:
+What is checked, per workflow, for every job-level AND step-level `if:`:
 
   A. **unreachable** — the condition is FALSE under every event the workflow's
      `on:` can deliver. The job can never run.
@@ -29,11 +29,18 @@ What is checked, per workflow, for every job-level `if:`:
      in a workflow that has no `pull_request` trigger reads as "skipped on PRs"
      and is a constant.
 
-Deliberately NOT checked here: step-level `if:`, which has the same defect class
-and a larger, less mechanical blast radius (see #1206). Growing this gate to
-steps is a one-line change to `_job_conditions`; the reason it is not made here
-is that most of those steps are *comment-on-the-PR* steps whose right repair may
-be restoring the trigger, not deleting the step — a decision, not a defect.
+Steps were left out of the first pass because their repair is a decision, not a
+deletion: most of the dead ones are *report-the-result* steps (post a PR comment,
+save a baseline for the next comparison, commit regenerated diagrams), and
+deleting them leaves a workflow that measures and discards. #1207 took those
+seventeen decisions; the gate now covers steps so the class cannot come back.
+
+Sixteen of those seventeen could never run and one was a constant. Two were worth
+reading twice: `benchmarks.yml`'s `criterion-benchmarks` job had five conditional
+steps and ALL FIVE were dead, so the job ran `cargo bench` and did nothing with
+the result; and `generate-d2-diagrams.yml` regenerated the diagrams and could not
+persist them — its "Commit changes" step was push-only in a dispatch-only
+workflow, so dispatching it produced an artifact-free no-op.
 
 Modelling, and where it is deliberately conservative — a world is one
 (event, ref-space) pair the `on:` block can deliver:
@@ -604,7 +611,7 @@ def atoms(node: Node) -> list[Node]:
 class Finding:
     workflow: str
     line: int
-    job: str
+    subject: str
     kind: str
     detail: str
 
@@ -614,6 +621,28 @@ def job_line(text: str, job_id: str) -> int:
         if re.match(rf"^\s+{re.escape(job_id)}:\s*(#.*)?$", line):
             return lineno
     return 0
+
+
+def step_line(text: str, label: str, fallback: int) -> int:
+    """Line of `- name: <label>` (or `- uses: <label>`), else the job's line.
+
+    A wrong line number is worse than none, so this matches the whole scalar and
+    falls back rather than guessing.
+    """
+    for key in ("name", "uses"):
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if re.match(rf"^\s+-\s+{key}:\s+{re.escape(label)}\s*$", line):
+                return lineno
+    return fallback
+
+
+def step_label(step: dict, index: int) -> str:
+    """How a step is named in a finding. Every step has one of these three."""
+    for key in ("name", "uses"):
+        value = step.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return f"step #{index + 1}"
 
 
 def check_workflow(path: Path, yaml) -> tuple[list[Finding], int]:
@@ -637,22 +666,19 @@ def check_workflow(path: Path, yaml) -> tuple[list[Finding], int]:
 
     findings: list[Finding] = []
     conditional = 0
-    for job_id, job in jobs.items():
-        if not isinstance(job, dict):
-            die(f"{path.name}:{job_id}: unreadable job")
-        condition = job.get("if")
-        if condition is None:
-            continue
+
+    def analyse(condition, subject: str, line: int, never: str) -> None:
+        """Three checks over one `if:`. `never` names what cannot happen (A)."""
+        nonlocal conditional
         if not isinstance(condition, str):
-            die(f"{path.name}:{job_id}: `if:` is not a scalar: {condition!r}")
+            die(f"{path.name}:{subject}: `if:` is not a scalar: {condition!r}")
         conditional += 1
         source = strip_wrapper(condition)
         try:
             expr = Parser(source).parse()
         except ExprError as exc:
-            die(f"{path.name}:{job_id}: cannot parse `if:` ({exc}) — teach the gate this expression")
+            die(f"{path.name}:{subject}: cannot parse `if:` ({exc}) — teach the gate this expression")
 
-        line = job_line(text, job_id)
         collapsed = " ".join(source.split())
 
         if all(evaluate(expr, w) == FALSE for w in worlds):
@@ -660,12 +686,12 @@ def check_workflow(path: Path, yaml) -> tuple[list[Finding], int]:
                 Finding(
                     path.name,
                     line,
-                    job_id,
-                    "can never run",
+                    subject,
+                    never,
                     f"if: {collapsed}\n      this workflow receives: {trigger_summary}",
                 )
             )
-            continue
+            return
 
         for atom in atoms(expr):
             if not is_modelled_atom(atom, worlds):
@@ -679,7 +705,7 @@ def check_workflow(path: Path, yaml) -> tuple[list[Finding], int]:
                     Finding(
                         path.name,
                         line,
-                        job_id,
+                        subject,
                         "dead condition arm",
                         f"`{arm}` can never contribute\n      full: if: {collapsed}"
                         f"\n      this workflow receives: {trigger_summary}",
@@ -690,13 +716,42 @@ def check_workflow(path: Path, yaml) -> tuple[list[Finding], int]:
                     Finding(
                         path.name,
                         line,
-                        job_id,
+                        subject,
                         "vacuous condition arm",
                         f"`{arm}` is true under every trigger this workflow has"
                         f"\n      full: if: {collapsed}"
                         f"\n      this workflow receives: {trigger_summary}",
                     )
                 )
+
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            die(f"{path.name}:{job_id}: unreadable job")
+
+        line = job_line(text, job_id)
+        if job.get("if") is not None:
+            analyse(job["if"], f"job `{job_id}`", line, "can never run")
+
+        # Step-level `if:`. A dead step is quieter than a dead job — the job runs,
+        # reports success, and simply never does the part the step was for (#1207).
+        steps = job.get("steps")
+        if steps is None:
+            continue
+        if not isinstance(steps, list):
+            die(f"{path.name}:{job_id}: `steps:` is not a list — teach the gate this workflow shape")
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                die(f"{path.name}:{job_id}: unreadable step #{index + 1}")
+            if step.get("if") is None:
+                continue
+            label = step_label(step, index)
+            analyse(
+                step["if"],
+                f"job `{job_id}` step [{label}]",
+                step_line(text, label, line),
+                "can never run",
+            )
+
     return findings, conditional
 
 
@@ -723,21 +778,22 @@ def main() -> int:
         conditional += count
 
     if findings:
-        print("Workflow jobs gated on events their workflow cannot receive:\n")
+        print("Workflow jobs and steps gated on events their workflow cannot receive:\n")
         for f in findings:
-            print(f"  {f.workflow}:{f.line}  job `{f.job}` — {f.kind}")
+            print(f"  {f.workflow}:{f.line}  {f.subject} — {f.kind}")
             print(f"      {f.detail}\n")
         print(
             f"{len(findings)} finding(s) across {len(paths)} workflows "
-            f"({conditional} conditional jobs).\n"
-            "Delete the job or the arm. Restoring the trigger it names is a CI-load\n"
-            "decision, not a repair — take it deliberately, not to silence this gate."
+            f"({conditional} conditional jobs and steps).\n"
+            "Delete it, or give the workflow a result it keeps without the trigger.\n"
+            "Restoring the trigger it names is a CI-load decision, not a repair —\n"
+            "take it deliberately, not to silence this gate."
         )
         return 1
 
     print(
-        f"workflow job reachability: {len(paths)} workflows, {conditional} conditional jobs — "
-        "every job can run, every arm can matter"
+        f"workflow reachability: {len(paths)} workflows, {conditional} conditional jobs and steps — "
+        "every one can run, every arm can matter"
     )
     return 0
 

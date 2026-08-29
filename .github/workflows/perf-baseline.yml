@@ -5,18 +5,35 @@ name: Performance Baseline
 # Dispatch-only since the 2026-05-31 Dagger migration stripped its push/PR triggers.
 # The job kept a `push || PR-labelled-perf` condition that no dispatch can satisfy,
 # so pressing Run executed nothing and reported success (#1206); the condition is
-# gone. The steps that download, compare and save a baseline are still push/PR-gated
-# and so are still dead — tracked in #1207.
+# gone.
+#
+# #1207: the steps that download, compare and save a baseline were push/PR-gated under
+# that same dispatch-only trigger, so a dispatch ran a full k6 load test and threw the
+# comparison away. The trigger is NOT restored — this repository's own release notes
+# say its performance numbers are not trustworthy yet, and a merge gate on a
+# measurement we publish a disclaimer about would make CI assert what the notes deny.
+# The three steps are reachable by dispatch input instead, which is what "compare this
+# run against the stored baseline" and "store this run" always meant.
 #
 # To run locally:
 #   docker compose -f docker/docker-compose.test.yml up -d postgres
 #   cargo run --release -p fraiseql-cli -- run schema.compiled.json &
 #   k6 run benchmarks/load/basic.js
-
-# Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR triggers
-# stripped; workflow_dispatch retained as porting spec.
 on:
   workflow_dispatch:
+    inputs:
+      compare_against:
+        description: 'Baseline artifact suffix to compare against (blank = no comparison)'
+        type: string
+        default: 'dev'
+      save_baseline:
+        description: 'Store this run as the baseline under the name below'
+        type: boolean
+        default: false
+      baseline_name:
+        description: 'Name to store this run under'
+        type: string
+        default: 'dev'
 
 env:
   SCCACHE_GHA_ENABLED: "true"
@@ -121,16 +138,16 @@ jobs:
             -e BASE_URL=http://localhost:8000
 
       - name: Download baseline
-        if: github.event_name == 'pull_request'
+        if: inputs.compare_against != ''
         uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151  # v21
         with:
-          name: perf-baseline-${{ github.base_ref }}
+          name: perf-baseline-${{ inputs.compare_against }}
           path: /tmp/baseline
           search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Compare against baseline
-        if: github.event_name == 'pull_request'
+        if: inputs.compare_against != ''
         continue-on-error: true
         run: |
           if [ -f /tmp/baseline/summary-basic.json ]; then
@@ -176,10 +193,10 @@ jobs:
           tail -50 /tmp/fraiseql-server.log 2>/dev/null || true
 
       - name: Save baseline artifact
-        if: github.event_name == 'push'
+        if: inputs.save_baseline
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: perf-baseline-${{ github.ref_name }}
+          name: perf-baseline-${{ inputs.baseline_name }}
           path: |
             summary-basic.json
           retention-days: 30

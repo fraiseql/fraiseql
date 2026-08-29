@@ -1,6 +1,12 @@
 # Benchmarks
 
-FraiseQL uses [Criterion.rs](https://bheisler.github.io/criterion.rs/book/) for micro-benchmarks and [k6](https://k6.io/) for load tests. CI gates regressions automatically.
+FraiseQL uses [Criterion.rs](https://bheisler.github.io/criterion.rs/book/) for micro-benchmarks and [k6](https://k6.io/) for load tests.
+
+> **No benchmark gates a merge today.** The 2026-05-31 Dagger migration removed the push
+> and PR triggers from every benchmark workflow, and they have not been restored: this
+> project's own release notes state that its performance numbers are not yet trustworthy,
+> so gating merges on them would make CI assert what the notes deny. All three workflows
+> run on manual dispatch, and each takes the comparison and baseline decisions as inputs.
 
 ## Quick Reference
 
@@ -23,10 +29,23 @@ critcmp before after
 
 ## CI Regression Detection
 
-The `.github/workflows/bench.yml` workflow runs on every push to `dev`/`main` and on PRs:
+`.github/workflows/bench.yml` is **dispatch-only**. Run it from the Actions tab, or:
 
-1. **On `dev` push**: Runs all benchmarks and saves the result as the `dev` baseline in GitHub Actions cache.
-2. **On PR**: Restores the most recent `dev` baseline, runs benchmarks as the `pr` baseline, and compares.
+```bash
+# Compare this commit against the stored `dev` baseline
+gh workflow run bench.yml --ref <branch> -f compare_against=dev
+
+# Establish a new baseline
+gh workflow run bench.yml --ref dev -f save_baseline=true -f baseline_name=dev
+```
+
+1. Every run benchmarks the checked-out commit and saves it under the criterion baseline
+   name `run`.
+2. `compare_against` (default `dev`) restores that baseline from the GitHub Actions cache
+   and `critcmp`s against it. The table is written to the job summary; blank skips the
+   comparison. If no cached baseline of that name exists, the summary says so rather than
+   reporting a clean comparison.
+3. `save_baseline` stores the run under `baseline_name` for future comparisons.
 
 ### Thresholds
 
@@ -81,8 +100,10 @@ critcmp before after
 
 The `.github/workflows/perf-baseline.yml` workflow runs k6 load tests:
 
-- Triggered on pushes to `main`/`dev` and PRs labeled `perf`
+- **Dispatch-only.** `gh workflow run perf-baseline.yml --ref <branch>`
 - Builds a release binary, starts the server, and runs `benchmarks/load/basic.js`
+- `compare_against` (default `dev`) downloads that baseline artifact and diffs against it;
+  `save_baseline` stores the run under `baseline_name`
 - Results are archived as artifacts for 90 days
 
 ```bash

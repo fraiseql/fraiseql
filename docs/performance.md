@@ -3,8 +3,10 @@
 ## Benchmark Suite
 
 FraiseQL ships with a [Criterion](https://bheisler.github.io/criterion.rs/book/) benchmark suite
-for regression detection. Benchmarks run automatically on every push to `dev` and every pull
-request via the `bench.yml` CI workflow.
+for regression detection. The `bench.yml` CI workflow is **dispatch-only** — no benchmark
+gates a merge today, and none has since the 2026-05-31 Dagger migration removed the push
+and PR triggers. See [contributing/benchmarks.md](contributing/benchmarks.md) for why, and
+for how to run a comparison.
 
 ## Running Benchmarks
 
@@ -88,8 +90,8 @@ The CI workflow (`bench.yml`) applies different regression thresholds based on w
 | Pure computation (parser, cache, wire) | 5% | Low variance; tight threshold catches real regressions |
 | DB-connected (integration, pipeline) | 15% | Higher environmental variance due to I/O |
 
-Regressions are reported as warnings in pull request comments but do not block merging.
-Use `critcmp` locally to investigate before pushing.
+Regressions are reported as warnings in the dispatched run's job summary; nothing blocks a
+merge on them. Use `critcmp` locally to investigate before pushing.
 
 ## Performance Design Notes
 

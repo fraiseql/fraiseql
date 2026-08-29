@@ -2,14 +2,37 @@ name: Benchmarks
 
 # Hosted CI disabled 2026-05-31 — Dagger CI migration (Track 0). push/PR triggers
 # stripped; workflow_dispatch retained as porting spec.
+#
+# #1207: four steps here were `pull_request`- or push-to-dev-gated under that
+# dispatch-only trigger, so a dispatch ran the benchmarks and then discarded the
+# comparison they existed to produce. The trigger is NOT restored — this repository's
+# own release notes say its benchmark numbers are not trustworthy yet (the previous
+# load generator understated results by 2–3×), and gating merges on a measurement we
+# publish a disclaimer about would make CI assert what the release notes deny.
+# `benchmark-velocity.yml` is where that gate goes once the harness earns one.
+#
+# Instead the comparison is reachable the way a dispatch-only workflow makes anything
+# reachable: by an input. `compare_against` names a previously saved baseline; the
+# result goes to `$GITHUB_STEP_SUMMARY`, which needs no `pull-requests: write` and is
+# visible on the run itself.
 on:
   workflow_dispatch:
+    inputs:
+      compare_against:
+        description: 'Baseline name to critcmp this run against (blank = no comparison)'
+        type: string
+        default: 'dev'
+      save_baseline:
+        description: 'Save this run to the bench-baseline cache under the name below'
+        type: boolean
+        default: false
+      baseline_name:
+        description: 'Name to save this run under'
+        type: string
+        default: 'dev'
 
-# Repo default is least-privilege (contents: read). This workflow posts benchmark
-# results as a PR comment, so it declares the extra scope explicitly.
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   bench:
@@ -62,63 +85,63 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: target/criterion/
-          key: bench-baseline-${{ github.event.pull_request.base.sha || github.sha }}
-          restore-keys: bench-baseline-
+          key: bench-baseline-${{ inputs.compare_against }}-${{ github.sha }}
+          restore-keys: |
+            bench-baseline-${{ inputs.compare_against }}-
+            bench-baseline-
 
-      # On a PR: run benchmarks and save under the "pr" baseline name
-      # On a dev/main push: run benchmarks and save under the "dev" baseline name
+      # Always save under `run`, so the comparison below has a fixed name to read and
+      # does not depend on which event delivered the run.
       - name: Run benchmarks
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            cargo bench --workspace -- --save-baseline pr 2>&1 | tee bench.log
-          else
-            cargo bench --workspace -- --save-baseline dev 2>&1 | tee bench.log
-          fi
+          cargo bench --workspace -- --save-baseline run 2>&1 | tee bench.log
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
-      # Compare only on PRs where a baseline was successfully restored.
+      # Compare only when a baseline was restored AND the dispatch asked for it.
       # Micro benchmarks (pure computation, no DB I/O) use a tight 5% threshold.
       # Slow benchmarks (DB-connected, high variance) use a relaxed 15% threshold.
       - name: Compare micro benchmarks (5% threshold)
-        if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit == 'true'
+        if: inputs.compare_against != '' && steps.restore-baseline.outputs.cache-hit == 'true'
         run: |
-          critcmp dev pr --threshold 5 \
+          critcmp '${{ inputs.compare_against }}' run --threshold 5 \
             -f '(projection|federation|design_analysis|saga|typename|payload_size|complete_pipeline|cache_latency|cache_concurrent|cache_get_latency)' \
             | tee bench-comparison.txt || echo "::warning::Micro benchmarks regressed >5%"
 
       - name: Compare slow benchmarks (15% threshold)
-        if: github.event_name == 'pull_request' && steps.restore-baseline.outputs.cache-hit == 'true'
+        if: inputs.compare_against != '' && steps.restore-baseline.outputs.cache-hit == 'true'
         run: |
-          critcmp dev pr --threshold 15 \
+          critcmp '${{ inputs.compare_against }}' run --threshold 15 \
             -f '(10k_rows|100k_rows|1m_rows|where_clause|pagination|http_response_pipeline|graphql_transform|god_objects)' \
             | tee -a bench-comparison.txt || echo "::warning::Slow benchmarks regressed >15%"
 
-      # Save the new baseline after a successful dev push
-      - name: Save dev baseline
-        if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+      # The comparison is the point of the run, so say so where the run is read.
+      # `always()` on purpose: a missing file is reported, not silently skipped.
+      - name: Publish comparison to the job summary
+        if: always()
+        run: |
+          {
+            echo "## Benchmark comparison"
+            echo
+            if [ -s bench-comparison.txt ]; then
+              echo "Baseline: \`${{ inputs.compare_against }}\` — micro 5% / slow 15% thresholds"
+              echo
+              echo '```'
+              cat bench-comparison.txt
+              echo '```'
+            elif [ -z "${{ inputs.compare_against }}" ]; then
+              echo "No comparison requested (\`compare_against\` was blank)."
+            else
+              echo "No comparison produced: no cached baseline named \`${{ inputs.compare_against }}\` was restored."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save baseline
+        if: inputs.save_baseline
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: target/criterion/
-          key: bench-baseline-${{ github.sha }}
-
-      # Post the comparison table as a PR comment (informational, not blocking)
-      - name: Post comparison as PR comment
-        if: >
-          github.event_name == 'pull_request' &&
-          steps.restore-baseline.outputs.cache-hit == 'true'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
-        with:
-          script: |
-            const fs = require('fs');
-            if (!fs.existsSync('bench-comparison.txt')) return;
-            const body = fs.readFileSync('bench-comparison.txt', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## Benchmark Comparison\n\nMicro (pure computation): 5% threshold | Slow (DB-connected): 15% threshold\n\n\`\`\`\n${body}\n\`\`\``
-            });
+          key: bench-baseline-${{ inputs.baseline_name }}-${{ github.sha }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         if: always()

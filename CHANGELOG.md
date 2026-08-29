@@ -6896,11 +6896,57 @@ disagreed, and the promise was the part that was wrong.
   unflagged, since a false positive here costs a real job — plus the vacuous-scan guard:
   an empty or missing workflow directory is a failure, not a pass.
 
-  Step-level `if:` conditions of the same class are **not** covered and are filed as #1207:
-  17 of them are dead, including all five in `benchmarks.yml`, which therefore benchmarks
-  and discards, and both in `generate-d2-diagrams.yml`, which cannot persist what it
-  generates. Most are report-the-result steps whose right repair may be restoring the
-  trigger rather than deleting the step — a CI-load decision, not a defect to sweep up.
+  Step-level `if:` conditions of the same class are covered too — see the entry below
+  (#1207), which took the sixteen decisions and grew this gate to steps.
+
+- **Sixteen dead step-level `if:` conditions, and the gate that finds them (#1207).**
+  The same defect as #1206 one level down, and quieter: a dead *job* is absent from the
+  checks list, but a dead *step* leaves its job running and reporting success while
+  silently never doing the part the step was for. The 2026-05-31 Dagger migration stripped
+  the `push`-to-branch and `pull_request` triggers and left these conditions behind.
+
+  `benchmarks.yml` was the clearest case: **all five** of its conditional steps were dead,
+  so the job ran `cargo bench --workspace` and did nothing whatever with the result. It is
+  **deleted**, because it was also a strict inferior duplicate of `bench.yml` — the same
+  `cargo bench --workspace` under the same `dev` baseline name, but with no database
+  service (so every DB-connected benchmark in the workspace ran without `DATABASE_URL`),
+  no `critcmp`, and a regression check whose own comment says it is non-blocking.
+
+  `generate-d2-diagrams.yml` is **deleted** as well, and #1207 was generous to it: the
+  issue says it "regenerates the diagrams and cannot persist them", but it never
+  regenerated anything. `tools/embed-d2-diagrams.py` does not exist, `docs/` contains zero
+  ` ```d2 ` blocks and zero generated SVGs, and the generate step's own `if [ -f … ]`
+  printed "not found, skipping" and exited 0. Installing D2 and Python to no-op over
+  content that does not exist, with both of its remaining steps dead, is not a workflow.
+
+  **The triggers are not restored, and that is a decision, not an omission.** This
+  repository's release notes say plainly that its performance numbers are not yet
+  trustworthy — the previous load generator understated results by 2–3× — so wiring them
+  into a merge gate would make CI assert what the notes deny. `benchmark-velocity.yml` is
+  where that gate goes once the harness earns one. So the remaining three workflows take
+  their comparison and baseline decisions as **dispatch inputs**, which is what
+  "compare against the stored baseline" and "save this run as the baseline" always meant:
+  `bench.yml` and `perf-baseline.yml` gain `compare_against` / `save_baseline` /
+  `baseline_name`, and `benchmark-velocity.yml` gains `save_baseline`. `bench.yml` writes
+  its comparison to the job summary — and says so explicitly when no baseline was
+  restored, rather than reporting a clean comparison it never made. Two now-unneeded
+  `pull-requests: write` grants are dropped.
+
+  `tools/check-workflow-job-reachability.py` now analyses step-level `if:` with the same
+  three-valued model, naming the step by its `name:` or `uses:`. Its self-test gains six
+  assertions (25 total), including the two directions that matter: an `always()` step, a
+  step gated on another step's output and a step gated on a dispatch input must all stay
+  **unflagged**, and a step condition the parser cannot read must be FATAL rather than
+  quietly undecidable.
+
+  The seventeenth finding in #1207 — `docker-build.yml`'s vacuous `Log in to GHCR` guard —
+  had already gone with the step itself, and is not reintroduced to be deleted again.
+
+  **What this changes for a reader of the docs:** `docs/performance.md` claimed benchmarks
+  "run automatically on every push to `dev` and every pull request" and that regressions
+  are "reported as warnings in pull request comments"; `docs/contributing/benchmarks.md`
+  claimed the k6 load test is "triggered on pushes to `main`/`dev` and PRs labeled `perf`".
+  All three claims had been false since 2026-05-31. They now say what is true, and why.
 
 - **Every published image is built before the tag, not after it (#1205, #1107).**
   `docker-build.yml` was the only thing in this repository that built a shipped image,
