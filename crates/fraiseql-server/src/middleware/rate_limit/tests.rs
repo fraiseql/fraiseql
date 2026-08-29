@@ -1279,9 +1279,7 @@ mod verified_per_user_tests {
     use tower::ServiceExt;
 
     use super::super::{
-        RateLimitConfig,
-        dispatch::RateLimiter,
-        identity::{Hs256Subject, VerifiedSubject},
+        RateLimitConfig, dispatch::RateLimiter, identity::VerifiedSubject,
         middleware_fn::rate_limit_middleware,
     };
 
@@ -1302,8 +1300,8 @@ mod verified_per_user_tests {
     /// An audience is configured, because the core validator refuses a token that
     /// carries `aud` when none is expected (`JwtAudienceMismatch { expected: "(not
     /// configured)" }`). A deployment that means to accept these tokens declares it.
-    fn hs256_subject() -> Arc<dyn VerifiedSubject> {
-        Arc::new(Hs256Subject(Arc::new(AuthMiddleware::from_config(
+    fn hs256_subject() -> Arc<VerifiedSubject> {
+        Arc::new(VerifiedSubject::Hs256(Arc::new(AuthMiddleware::from_config(
             AuthConfig::with_hs256(SECRET).with_audience("fraiseql"),
         ))))
     }
@@ -1325,7 +1323,7 @@ mod verified_per_user_tests {
         fraiseql_auth::generate_hs256_token(&claims, secret.as_bytes()).expect("token")
     }
 
-    fn app(limiter: Arc<RateLimiter>, subject: Option<Arc<dyn VerifiedSubject>>) -> Router {
+    fn app(limiter: Arc<RateLimiter>, subject: Option<Arc<VerifiedSubject>>) -> Router {
         let mut app = Router::new()
             .route("/graphql", get(|| async { "ok" }))
             .layer(axum::middleware::from_fn(rate_limit_middleware))

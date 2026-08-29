@@ -173,7 +173,7 @@ pub async fn rate_limit_middleware(
     // `None` buckets on the IP — infrastructure-derived, and not inflatable by the
     // caller. gRPC has kept its per-user limit throughout, because it authenticates
     // first.
-    let verified_subject = match req.extensions().get::<Arc<dyn VerifiedSubject>>() {
+    let verified_subject = match req.extensions().get::<Arc<VerifiedSubject>>() {
         Some(identity) => identity.subject(req.headers()).await,
         None => None,
     };

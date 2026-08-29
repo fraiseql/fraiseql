@@ -26,20 +26,43 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use axum::http::{HeaderMap, header};
 use fraiseql_core::security::{AuthMiddleware, AuthRequest, OidcValidator};
 
-/// Resolves a request's **verified** subject, or `None`.
+/// The validator a per-user rate-limit decision verifies its subject with.
 ///
-/// `None` is the answer for every request that is not provably from a known caller:
-/// no credential, a malformed one, a bad signature, an expired token. Those bucket on
-/// the client address.
-#[async_trait]
-pub trait VerifiedSubject: Send + Sync {
-    /// The verified `sub`, or `None` when the request carries no credential this
-    /// deployment's validator accepts.
-    async fn subject(&self, headers: &HeaderMap) -> Option<String>;
+/// An enum rather than a trait object, because the set is closed and known: `attach_auth`
+/// picks between exactly these two modes, in this order. Adding a third auth mode should
+/// be a compile error here as well as there — a `dyn` seam would instead let the limiter
+/// silently keep bucketing everyone on their address.
+pub enum VerifiedSubject {
+    /// OIDC: signature, issuer, audience and expiry, against the deployment's JWKS.
+    Oidc(Arc<OidcValidator>),
+    /// HS256: the shared-secret twin, using the validator the `[auth_hs256]` transport
+    /// layer uses.
+    Hs256(Arc<AuthMiddleware>),
+}
+
+impl VerifiedSubject {
+    /// The verified `sub`, or `None`.
+    ///
+    /// `None` is the answer for every request that is not provably from a known caller:
+    /// no credential, a malformed one, a bad signature, an expired token. Those bucket on
+    /// the client address, which is what keeps #1143's fix intact.
+    pub async fn subject(&self, headers: &HeaderMap) -> Option<String> {
+        let token = bearer_token(headers)?;
+        match self {
+            Self::Oidc(validator) => validator
+                .validate_token(&token)
+                .await
+                .ok()
+                .map(|user| user.user_id.as_str().to_owned()),
+            Self::Hs256(validator) => validator
+                .validate_request(&AuthRequest::new(Some(format!("Bearer {token}"))))
+                .ok()
+                .map(|user| user.user_id.as_str().to_owned()),
+        }
+    }
 }
 
 /// The bearer token, from the `Authorization` header or the `__Host-access_token`
@@ -49,36 +72,5 @@ fn bearer_token(headers: &HeaderMap) -> Option<String> {
     match headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) {
         Some(value) => value.strip_prefix("Bearer ").map(ToOwned::to_owned),
         None => crate::middleware::oidc_auth::extract_access_token_cookie(headers),
-    }
-}
-
-/// OIDC: signature, issuer, audience and expiry, against the deployment's JWKS.
-pub struct OidcSubject(pub Arc<OidcValidator>);
-
-#[async_trait]
-impl VerifiedSubject for OidcSubject {
-    async fn subject(&self, headers: &HeaderMap) -> Option<String> {
-        let token = bearer_token(headers)?;
-        self.0
-            .validate_token(&token)
-            .await
-            .ok()
-            .map(|user| user.user_id.as_str().to_owned())
-    }
-}
-
-/// HS256: the shared-secret twin, using the same validator the `[auth_hs256]` transport
-/// layer uses.
-pub struct Hs256Subject(pub Arc<AuthMiddleware>);
-
-#[async_trait]
-impl VerifiedSubject for Hs256Subject {
-    async fn subject(&self, headers: &HeaderMap) -> Option<String> {
-        let token = bearer_token(headers)?;
-        let request = AuthRequest::new(Some(format!("Bearer {token}")));
-        self.0
-            .validate_request(&request)
-            .ok()
-            .map(|user| user.user_id.as_str().to_owned())
     }
 }

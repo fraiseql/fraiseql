@@ -10,9 +10,7 @@ use tracing::info;
 use super::super::{Server, metrics_middleware, trace_layer};
 use crate::{
     middleware::{
-        cors::cors_layer_restricted_with,
-        rate_limit::{Hs256Subject, OidcSubject, VerifiedSubject},
-        security_headers_middleware,
+        cors::cors_layer_restricted_with, rate_limit::VerifiedSubject, security_headers_middleware,
     },
     routes::graphql::AppState,
 };
@@ -116,12 +114,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// limiter and the transports never disagree about which credential is the real one.
     /// A deployment with no authentication has no verified subject to key on, and its
     /// requests keep bucketing on the client address.
-    fn rate_limit_subject(&self) -> Option<Arc<dyn VerifiedSubject>> {
+    fn rate_limit_subject(&self) -> Option<Arc<VerifiedSubject>> {
         if let Some(ref validator) = self.oidc_validator {
-            return Some(Arc::new(OidcSubject(Arc::clone(validator))));
+            return Some(Arc::new(VerifiedSubject::Oidc(Arc::clone(validator))));
         }
         if let Some(ref validator) = self.hs256_auth {
-            return Some(Arc::new(Hs256Subject(Arc::clone(validator))));
+            return Some(Arc::new(VerifiedSubject::Hs256(Arc::clone(validator))));
         }
         None
     }

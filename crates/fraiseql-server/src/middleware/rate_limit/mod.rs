@@ -21,7 +21,7 @@ mod token_bucket;
 pub use config::{CheckResult, RateLimitConfig, RateLimitOverrides, RateLimitingSecurityConfig};
 pub(crate) use config::{DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS};
 pub use dispatch::RateLimiter;
-pub use identity::{Hs256Subject, OidcSubject, VerifiedSubject};
+pub use identity::VerifiedSubject;
 pub use key::build_rate_limit_key;
 pub use middleware_fn::{RateLimitExceeded, rate_limit_middleware};
 // Re-export redis metrics for use by the metrics endpoint
