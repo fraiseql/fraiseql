@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::{
     error::{FraiseQLError, Result},
     graphql::{FieldSelection, ParsedQuery, parse_query_with_operation_name, selection_set},
-    runtime::argument_validation,
+    runtime::{argument_validation, argument_value_validation},
     schema::{CompiledSchema, QueryDefinition},
 };
 
@@ -281,13 +281,35 @@ impl QueryMatcher {
         //     200. Unlike 5b this applies to relay and count queries too: their
         //     argument surfaces differ from a plain list query's, and
         //     `accepted_argument_names` is what encodes each one.
+        //
+        //     5d. #1197: and the *value* written against each of those names must
+        //     have that name's type (GraphQL § 5.6.1, § 5.8.5), as must every
+        //     supplied variable against its own declaration (§ 6.1.2). The same
+        //     failure mode one level down: `limit: "2"` was read with `as_u64()`,
+        //     answered `None`, and `None` is indistinguishable from "the client
+        //     did not paginate" — so a request for two rows returned the table.
+        //     Argument *types* come from `graphql_arguments`, which is where the
+        //     auto-wired `limit`/`offset` acquire theirs; `accepted_argument_names`
+        //     above is deliberately wider and carries no types.
         if let Some(root) = final_selections.first() {
+            let field_label = format!("Query.{}", self.schema.display_name(&query_def.name));
             argument_validation::validate_argument_names(
-                &format!("Query.{}", self.schema.display_name(&query_def.name)),
+                &field_label,
                 &query_def.accepted_argument_names(&self.schema),
                 &root.arguments,
             )?;
+            argument_value_validation::validate_argument_values(
+                &field_label,
+                &query_def.graphql_arguments(&self.schema),
+                &root.arguments,
+                &parsed.variables,
+            )?;
         }
+        argument_value_validation::validate_variable_values(
+            parsed.operation_name.as_deref(),
+            &parsed.variables,
+            variables,
+        )?;
 
         // 6. Extract field names for backward compatibility
         let fields = self.extract_field_names(&final_selections);

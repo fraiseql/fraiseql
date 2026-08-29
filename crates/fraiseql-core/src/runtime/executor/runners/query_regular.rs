@@ -9,8 +9,8 @@ use super::{
     super::{null_masked_fields, resolve_inject_value},
     query::QueryRunner,
     query_params::{
-        combine_explicit_arg_where, compute_projection_reduction, enforce_max_page_size,
-        inject_param_where_clause, nearest_order_and_limit,
+        coerce_pagination_arg, combine_explicit_arg_where, compute_projection_reduction,
+        enforce_max_page_size, inject_param_where_clause, nearest_order_and_limit,
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, merge_computed_fields,
@@ -458,11 +458,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // The top-level page size is capped (#421: unbounded-pagination DoS guard).
         let limit = enforce_max_page_size(
             if query_match.query_def.auto_params.has_limit {
-                query_match
-                    .arguments
-                    .get("limit")
-                    .and_then(|v| v.as_u64())
-                    .and_then(|v| u32::try_from(v).ok())
+                coerce_pagination_arg("limit", query_match.arguments.get("limit"))?
             } else {
                 None
             },
@@ -471,11 +467,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         )?;
 
         let offset = if query_match.query_def.auto_params.has_offset {
-            query_match
-                .arguments
-                .get("offset")
-                .and_then(|v| v.as_u64())
-                .and_then(|v| u32::try_from(v).ok())
+            coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
         } else {
             None
         };
@@ -851,11 +843,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // The top-level page size is capped (#421: unbounded-pagination DoS guard).
         let limit = enforce_max_page_size(
             if query_match.query_def.auto_params.has_limit {
-                query_match
-                    .arguments
-                    .get("limit")
-                    .and_then(|v| v.as_u64())
-                    .and_then(|v| u32::try_from(v).ok())
+                coerce_pagination_arg("limit", query_match.arguments.get("limit"))?
             } else {
                 None
             },
@@ -864,11 +852,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         )?;
 
         let offset = if query_match.query_def.auto_params.has_offset {
-            query_match
-                .arguments
-                .get("offset")
-                .and_then(|v| v.as_u64())
-                .and_then(|v| u32::try_from(v).ok())
+            coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
         } else {
             None
         };
@@ -1155,20 +1139,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // The top-level page size is capped (#421: unbounded-pagination DoS guard).
         let limit = enforce_max_page_size(
-            query_match
-                .arguments
-                .get("limit")
-                .and_then(|v| v.as_u64())
-                .and_then(|v| u32::try_from(v).ok()),
+            coerce_pagination_arg("limit", query_match.arguments.get("limit"))?,
             self.ctx.config.max_page_size,
             "limit",
         )?;
 
-        let offset = query_match
-            .arguments
-            .get("offset")
-            .and_then(|v| v.as_u64())
-            .and_then(|v| u32::try_from(v).ok());
+        let offset = coerce_pagination_arg("offset", query_match.arguments.get("offset"))?;
 
         let order_by_clauses = query_match
             .arguments

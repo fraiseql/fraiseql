@@ -16,6 +16,71 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Breaking
+
+- **An argument value that contradicts its argument's type is now refused, and a mistyped `limit`/`offset` no longer widens the result set (#1197).**
+
+  Nothing validated that an argument's **value** had the argument's type — GraphQL § 5.6.1
+  (*Values of Correct Type*) and § 5.8.5 (*All Variable Usages Are Allowed*) were both
+  unimplemented, on the literal path and the variable path alike. The consequence was not a
+  lenient server. `limit` and `offset` were read out of the merged argument map with
+  `as_u64()`, and every `None` that produced was indistinguishable from *the client did not
+  paginate*, so the clause was simply not emitted:
+
+  | operation (`examples/ecommerce`, 12 products) | before | after |
+  |---|---|---|
+  | `{ products(limit: 2) { sku } }` | 2 rows | 2 rows |
+  | `{ products(limit: "2") { sku } }` | **12 rows**, exit 0, no `errors` | refused |
+  | `{ products(limit: 2.5) { sku } }` | **12 rows** | refused |
+  | `{ products(limit: true) { sku } }` | **12 rows** | refused |
+  | `{ products(limit: -1) { sku } }` | **12 rows** | refused |
+  | `{ products(limit: 99999999999999) { sku } }` | **12 rows** | refused |
+  | `query($n: String!) { products(limit: $n) }`, `{"n":"2"}` | **12 rows** | refused |
+  | `query($n: Int!) { products(limit: $n) }`, `{"n":"2"}` | **12 rows** | refused |
+  | `query($n: Int!) { products(limit: $n) }`, no variables | **12 rows** | refused |
+
+  A request that explicitly asked to be bounded came back unbounded, under a valid GraphQL
+  success with no `errors` array — the same unbounded response #421 clamped a *maximum* for,
+  reached by a route that bypasses the client's own limit rather than the server's. The last
+  three rows are the half a § 5.6.1/§ 5.8.5 fix alone would have missed: the declaration is
+  impeccable and the supplied **value** is wrong, or absent, which is § 6.1.2
+  (*`CoerceVariableValues`*). Two of them are not in the issue that reported this.
+
+  Every other mistyped argument instead reached PostgreSQL as a 500-shaped
+  `FraiseQLError::Database` — and `{ events(type: 42) }` against a `String` column made the
+  engine coerce the *column* to `numeric`, so PostgreSQL reported the **stored row value** it
+  choked on. A malformed query from an unauthenticated caller returned data in an error
+  message. Those are now `Validation` errors raised before any SQL runs, and they describe the
+  offending value's *shape* rather than quoting it back.
+
+  **What this refuses is narrow, on purpose.** A mismatch is reported only when both sides are
+  one of ten built-in scalars (`Int`, `Float`, `String`, `Boolean`, `ID`, `UUID`, `DateTime`,
+  `Date`, `Time`, `Decimal`) — the ones whose value space is a property of the spec rather than
+  of a project's own scalar wiring. Custom scalars, enums, input objects, lists, vectors, and
+  the fields *inside* a `where:` predicate are unchanged, as is nullability: an explicit `null`
+  is still accepted everywhere it was. A variable declared `String!` for a `UUID` argument is
+  still accepted too — that is what a code generator emits for a custom scalar, not the mistake
+  this rule exists to catch.
+
+  **Migration.** A client sending `limit: "10"`, or declaring `$limit: String!`, or declaring
+  `$limit: Int!` and never supplying it, now receives a `Validation` error naming the argument
+  instead of the whole table. Send an integer. A **variable named `limit` or `offset` is read
+  as that argument even when the document never writes it** — the matcher merges the request's
+  variables into the argument map — so a variable of either name must now carry an integer or
+  be omitted.
+
+### Fixed
+
+- **`first`/`last` on a relay connection and `limit`/`offset` under `@stream` fail closed too (#1197).**
+
+  Both read their bound with the same `as_u64()` and lost it the same way, though not to the
+  same size: a relay `first: "2"` fell through to the connection's **default page size of 20**
+  — ten times what was asked for, with `pageInfo` describing a page the client did not request
+  — while an SSE `@stream` with no usable `limit` has no budget at all and delivers every row.
+  All four now go through one `coerce_pagination_arg`, so a transport cannot disagree with the
+  engine about what a row count is. The REST transport already parsed and rejected these
+  (`Invalid \`limit\` value`) and is unchanged.
+
 ## [2.15.0] - 2026-08-22
 
 ### Breaking

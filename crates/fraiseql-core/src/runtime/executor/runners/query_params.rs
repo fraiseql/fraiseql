@@ -551,6 +551,75 @@ pub fn combine_explicit_arg_where(
 ///
 /// Returns [`FraiseQLError::Validation`] when `value > max`, naming the argument and
 /// the ceiling.
+/// Read a pagination argument as a row count, refusing anything that is not one
+/// (#1197).
+///
+/// The predecessor of this function was `.get(name).and_then(|v| v.as_u64())
+/// .and_then(|v| u32::try_from(v).ok())`, and every `None` it produced was
+/// indistinguishable from *the client did not paginate*. So `limit: "2"`,
+/// `limit: 2.5`, `limit: true`, `limit: -1` and `limit: 99999999999999` each
+/// emitted no `LIMIT` clause at all and answered a request that asked for two
+/// rows with the whole table, under `exit 0` and an empty `errors` array. That
+/// is the one outcome a pagination bug must not have: a mistyped bound has to
+/// fail **closed**, never widen.
+///
+/// Three inputs are legitimately "no bound", and stay so:
+///
+/// * the argument is absent — the query's compiled default applies;
+/// * the argument is an explicit `null` — the auto-wired `limit`/`offset` are nullable, and null is
+///   how a client says *no bound* on purpose;
+/// * a declared variable was not supplied, which drops the argument before it reaches here (§ 6.1.2
+///   leaves it absent).
+///
+/// [`crate::runtime::validate_argument_values`] rejects most of these
+/// documents earlier and with a better diagnostic. This is the guard rather than
+/// the diagnostic: it sits on the read itself, so a caller that reaches the
+/// runtime by another route — REST embedding, a subscription, a hand-built
+/// `QueryMatch` — cannot silently lose the bound either.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the argument and the kind of
+/// value received. The value itself is not quoted back.
+pub fn coerce_pagination_arg(
+    arg_name: &str,
+    value: Option<&serde_json::Value>,
+) -> Result<Option<u32>> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    if let Some(n) = value.as_u64() {
+        if let Ok(v) = u32::try_from(n) {
+            return Ok(Some(v));
+        }
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "`{arg_name}` {n} is larger than the maximum row count ({})",
+                u32::MAX
+            ),
+            path:    Some(arg_name.to_string()),
+        });
+    }
+    let received = match value {
+        serde_json::Value::Number(n) if n.is_f64() => "a fractional number".to_string(),
+        serde_json::Value::Number(_) => "a negative number".to_string(),
+        serde_json::Value::String(_) => "a string".to_string(),
+        serde_json::Value::Bool(_) => "a boolean".to_string(),
+        serde_json::Value::Array(_) => "a list".to_string(),
+        serde_json::Value::Object(_) | serde_json::Value::Null => "an object".to_string(),
+    };
+    Err(FraiseQLError::Validation {
+        message: format!(
+            "`{arg_name}` must be a non-negative Int, but received {received}. Refusing rather \
+             than returning an unpaginated result."
+        ),
+        path:    Some(arg_name.to_string()),
+    })
+}
+
 pub fn enforce_max_page_size(
     value: Option<u32>,
     max: Option<u32>,

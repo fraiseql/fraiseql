@@ -277,6 +277,22 @@ impl<A: DatabaseAdapter> Executor<A> {
                     source:  None,
                 })?;
                 if pipeline::is_multi_root(&parsed) {
+                    // § 6.1.2 for the one shape `QueryMatcher` structurally
+                    // cannot check: `field_selection_to_query` re-serialises
+                    // each root into a synthetic single-root document that
+                    // re-emits `$name` references but carries no variable
+                    // *definitions*, so the matcher's copy of this check sees
+                    // an empty declaration list and passes. Not in
+                    // `classify_query_with_parse` with its siblings: that
+                    // function's verdict is memoised in the parse cache, which
+                    // is keyed on the document and not on the variables, so a
+                    // value-dependent check there would answer the first
+                    // request's question for every later one (#1197).
+                    crate::runtime::validate_variable_values(
+                        parsed.operation_name.as_deref(),
+                        &parsed.variables,
+                        variables,
+                    )?;
                     let pr = self.execute_parallel(&parsed, variables, security_context).await?;
                     let data = pr.merge_into_data_map();
                     return Ok(serde_json::json!({ "data": data }));

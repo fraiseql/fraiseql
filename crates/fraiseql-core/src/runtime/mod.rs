@@ -49,6 +49,8 @@ mod aggregate_projector;
 pub mod aggregation;
 /// Argument-name validation for a root field (GraphQL § 5.4.1).
 mod argument_validation;
+/// Argument-value validation for a root field (GraphQL § 5.6.1, § 5.8.5, § 6.1.2).
+mod argument_value_validation;
 pub mod cascade;
 mod executor;
 pub mod executor_adapter;
@@ -79,10 +81,12 @@ pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use argument_validation::validate_argument_names;
+pub use argument_value_validation::{validate_argument_values, validate_variable_values};
 pub(crate) use executor::field_type_to_where_type;
 pub use executor::{
     Executor,
     JsonRowStream,
+    coerce_pagination_arg,
     pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},
     // Exported so the admin SQL console's RLS preview (#962) resolves an
     // identity's session variables with the *same* function that sets them on a

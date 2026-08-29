@@ -6,7 +6,8 @@ use super::{
     super::resolve_inject_value,
     query::QueryRunner,
     query_params::{
-        compute_projection_reduction, enforce_max_page_size, inject_param_where_clause,
+        coerce_pagination_arg, compute_projection_reduction, enforce_max_page_size,
+        inject_param_where_clause,
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, selections_contain_field,
@@ -183,14 +184,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                  list query for similarity search",
             ));
         }
-        let first: Option<u32> = args
-            .get("first")
-            .and_then(serde_json::Value::as_u64)
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
-        let last: Option<u32> = args
-            .get("last")
-            .and_then(serde_json::Value::as_u64)
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+        // A mistyped cursor window is refused, not dropped (#1197). `first: "2"`
+        // used to answer `None` here and fall through to the default page size
+        // of 20 below — ten times what the client asked for, under a 200 and
+        // with `pageInfo` describing the page it did not request.
+        let first = coerce_pagination_arg("first", args.get("first"))?;
+        let last = coerce_pagination_arg("last", args.get("last"))?;
         // Cap the requested page size before it reaches SQL (#421: unbounded-pagination DoS guard).
         let first = enforce_max_page_size(first, self.ctx.config.max_page_size, "first")?;
         let last = enforce_max_page_size(last, self.ctx.config.max_page_size, "last")?;

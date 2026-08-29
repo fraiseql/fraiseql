@@ -186,6 +186,11 @@ mod execution;
 mod mutation;
 mod runners;
 
+/// One definition of "is this argument a row count", re-exported so every
+/// transport that reads `limit`/`offset`/`first`/`last` fails closed the same
+/// way (#1197). A second, lenient reading of the same argument is how the
+/// bound got dropped in the first place.
+pub use runners::query_params::coerce_pagination_arg;
 /// One definition of "what cast does a comparison against this field need",
 /// re-exported to the schema layer so `where_keys_of` types a nested key with the
 /// same function that types a top-level one (#1157). Two mappings would drift, and

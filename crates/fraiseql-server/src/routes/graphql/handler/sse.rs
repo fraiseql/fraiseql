@@ -36,7 +36,7 @@ use fraiseql_core::{
         defer, parse_query_with_operation_name, selection_set, selection_set::variables_map,
         stream_split, types::FieldSelection, value_json,
     },
-    runtime::QueryMatcher,
+    runtime::{QueryMatcher, coerce_pagination_arg},
     security::SecurityContext,
 };
 use futures::{StreamExt as _, stream};
@@ -786,8 +786,16 @@ fn plan_stream<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         ));
     }
 
-    let client_limit = matched.arguments.get("limit").and_then(Value::as_u64);
-    let client_offset = matched.arguments.get("offset").and_then(Value::as_u64).unwrap_or(0);
+    // Read the client's own budget with the engine's reading, not a second one.
+    // `as_u64()` answered `None` for a negative or oversized value, and `None`
+    // here means *no budget* — so `limit: -1` streamed the whole table to a
+    // request that asked to be bounded (#1197).
+    let client_limit = coerce_pagination_arg("limit", matched.arguments.get("limit"))
+        .map_err(|e| bad_request(&format!("@stream planning failed: {e}")))?
+        .map(u64::from);
+    let client_offset = coerce_pagination_arg("offset", matched.arguments.get("offset"))
+        .map_err(|e| bad_request(&format!("@stream planning failed: {e}")))?
+        .map_or(0, u64::from);
 
     Ok(Some(StreamPlan {
         response_key: matched.response_key().to_string(),

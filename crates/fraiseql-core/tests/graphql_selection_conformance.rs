@@ -1226,10 +1226,17 @@ async fn the_json_spelling_introspection_publishes_is_accepted() {
 #[tokio::test]
 async fn declared_input_types_are_accepted_as_variable_types() {
     let (exec, _) = typed_variable_executor();
+    // The wrapped case declares `[ID!]` rather than `[ID!]!`: each of these
+    // documents supplies no variables, and § 6.1.2 refuses a **non-null**
+    // variable that carries no value (#1197 — that was a third route to the
+    // unbounded page, and it is asserted next door in
+    // `argument_value_types_postgres`). A nullable wrapper is still a wrapped
+    // built-in, which is the only thing this control is about: the *type name*
+    // resolving through § 5.8.2.
     for doc in [
         "query Q($s: UserStatus) { users(where: $s, limit: 1) { id } }",
         "query Q($f: UserFilter) { users(where: $f, limit: 1) { id } }",
-        "query Q($ids: [ID!]!) { users(where: $ids, limit: 1) { id } }",
+        "query Q($ids: [ID!]) { users(where: $ids, limit: 1) { id } }",
     ] {
         exec.execute(doc, None).await.unwrap_or_else(|e| panic!("{doc} must run: {e}"));
     }
