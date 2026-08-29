@@ -18,6 +18,27 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`QueryExecutor::execute_with_security` returns `FraiseQLError`, not `String` (#1201).**
+
+  The Arrow Flight executor seam stringified every failure at the trait boundary
+  (`.map_err(|e| e.to_string())`), which is where the transport's error classification died.
+  By the time `execute_graphql_query` saw a failure there was nothing left to match on, so all
+  of them became gRPC `INTERNAL` (13).
+
+  **Migration.** Drop the `.to_string()`: implementors of this trait now return the error they
+  already had. `PolicyGatedExecutor`'s hand-built `String` refusals became typed variants
+  (`Authorization` for a forbidden ad-hoc document, the gates' own errors passed through).
+
+- **`FraiseQLError::CostExceeded` is a 4xx, not a 500 (#1201).**
+
+  It matched no arm of `status_code()` and fell to the `_ => 500` default, so an over-budget
+  request was reported as a server fault on every HTTP surface that routes on it. It now splits
+  on the distinction the variant's own documentation draws: an exhausted rolling budget window
+  (`retry_after_secs: Some`) is **429**, retryable once the window resets; a per-request ceiling
+  (`None`) is **400**, because retrying the same query cannot succeed. The GraphQL transport is
+  unaffected — it maps this through `ErrorCode::OperationCostExceeded`, which is deliberately
+  HTTP 200 with the error in the body.
+
 - **`EventHandler::handle` returns `Handled`, not `Value` (#1176).**
 
   ```rust
@@ -92,6 +113,29 @@ disagreed, and the promise was the part that was wrong.
   be omitted.
 
 ### Fixed
+
+- **Arrow Flight reports a client's mistake as a client error, not a retryable server fault (#1201).**
+
+  `execute_graphql_query` mapped every executor failure to `Status::internal` — gRPC `INTERNAL`
+  (13). gRPC clients and proxies retry `INTERNAL` by default, and a retried validation error
+  can never succeed: a dashboard whose query named a field the schema no longer had retried
+  forever, showing the operator a server-side fault rate that no server-side change could fix.
+
+  ```
+  before  flight error: … "Query 'nosuchfield' not found in schema"   grpc_status: 13 INTERNAL
+  after                                                               grpc_status:  3 INVALID_ARGUMENT
+  HTTP (unchanged)                                                    "code": "VALIDATION_ERROR"
+  ```
+
+  The codes are **derived** from `FraiseQLError::status_code()` — the classification the HTTP
+  transport already routes on — rather than re-matched variant by variant. Two classifications
+  drift, and this defect *is* that drift. Deriving also means a new error variant arrives
+  classified, and `status_code()` fails closed (`500`) on one it does not know, so an unmapped
+  variant is still `INTERNAL`.
+
+  `Database` and `ConnectionPool` remain `INTERNAL` — the half that was always right. Raw-SQL
+  failures on the export paths are `DatabaseError`, which classifies as server-side by any
+  route, and are unchanged.
 
 - **Arrow schema inference unions the key set across all rows (#1180).**
 

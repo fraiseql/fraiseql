@@ -58,20 +58,31 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> QueryExecutor for Polic
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
-    ) -> Result<serde_json::Value, String> {
+    ) -> Result<serde_json::Value, fraiseql_core::error::FraiseQLError> {
         // 1. Trusted documents / `persisted_queries_only`. Flight carries no `documentId`, so every
         //    Flight GraphQL request is ad-hoc text by construction — which is exactly what a store
         //    in strict mode must refuse. Passing `None` as the document ID is not a shortcut: it is
         //    the honest statement that this transport has no persisted-document channel.
         if let Some(ref store) = self.state.trusted_docs {
+            // #1201: typed, so the transport can say *which* refusal this is. A
+            // forbidden ad-hoc document is an authorization decision — the caller
+            // is not allowed to ask this way — not a server fault the client
+            // should retry.
             store.resolve(None, Some(query)).map_err(|e| match e {
                 crate::trusted_documents::TrustedDocumentError::ForbiddenRawQuery => {
                     crate::trusted_documents::record_rejected();
-                    "Ad-hoc GraphQL documents are forbidden (persisted queries only). The Arrow \
-                     Flight transport cannot supply a persisted document ID."
-                        .to_string()
+                    fraiseql_core::error::FraiseQLError::Authorization {
+                        message:  "Ad-hoc GraphQL documents are forbidden (persisted queries \
+                                  only). The Arrow Flight transport cannot supply a persisted \
+                                  document ID."
+                            .to_string(),
+                        resource: None,
+                        action:   None,
+                    }
                 },
-                other => format!("Trusted document rejection: {other}"),
+                other => fraiseql_core::error::FraiseQLError::validation(format!(
+                    "Trusted document rejection: {other}"
+                )),
             })?;
         }
 
@@ -83,15 +94,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> QueryExecutor for Polic
             &self.state,
             Some(security_context),
             &HeaderMap::new(),
-        )
-        .map_err(|e| format!("Tenant resolution failed: {e}"))?;
+        )?;
 
         // 3. Dispatch: the suspended-tenant gate and per-tenant concurrency/RPS quotas. `dispatch`
         //    holds the concurrency permit for the rest of this call and releases it on drop. An
         //    unregistered key errors here — never a silent fallback to the default executor, which
         //    would serve another tenant's data.
-        let dispatch = tenant_dispatch::dispatch_to_tenant(&self.state, tenant_key.as_deref())
-            .map_err(|e| format!("Tenant dispatch refused: {e}"))?;
+        let dispatch = tenant_dispatch::dispatch_to_tenant(&self.state, tenant_key.as_deref())?;
         let executor = &dispatch.executor;
 
         // 4. Per-tenant cost budget, charged at the same chokepoint as the other quotas and from
@@ -102,14 +111,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> QueryExecutor for Polic
             tenant_key.as_deref(),
             Some(security_context),
             estimated_cost,
-        )
-        .map_err(|e| format!("Cost budget refused: {e}"))?;
+        )?;
 
         // 5. Execute on the *tenant's* executor, not the default one.
-        executor
-            .execute_with_security(query, variables, security_context)
-            .await
-            .map_err(|e| e.to_string())
+        executor.execute_with_security(query, variables, security_context).await
     }
 }
 

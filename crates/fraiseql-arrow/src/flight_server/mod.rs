@@ -47,7 +47,7 @@ use fraiseql_core::security::OidcValidator;
 use futures::Stream; // Stream required for type aliases
 use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
-use tonic::Status;
+use tonic::{Code, Status};
 
 // Re-export auth helpers for use across submodules
 pub(crate) use self::auth::{
@@ -97,13 +97,66 @@ pub trait QueryExecutor: Send + Sync {
     ///
     /// # Returns
     /// * `Ok(serde_json::Value)` - JSON result from query execution
-    /// * `Err(String)` - Error message if execution fails
+    /// * `Err(FraiseQLError)` - the **typed** failure
+    ///
+    /// # Why typed (#1201)
+    ///
+    /// This used to be `Err(String)`, and the stringification was where the
+    /// Flight transport's error classification died: by the time
+    /// `execute_graphql_query` saw the failure there was nothing left to match
+    /// on, so every one of them — a query naming a field the schema no longer
+    /// has, an unauthenticated caller, an exhausted quota — became gRPC
+    /// `INTERNAL` (13). gRPC clients and proxies treat `INTERNAL` as a server
+    /// fault and retry it, and a retried validation error can never succeed.
+    ///
+    /// [`fraiseql_core::error::FraiseQLError::status_code`] is the classification the HTTP
+    /// transport already routes on, so carrying the error here lets both transports answer
+    /// from one source rather than two that can drift.
     async fn execute_with_security(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &fraiseql_core::security::SecurityContext,
-    ) -> Result<serde_json::Value, String>;
+    ) -> Result<serde_json::Value, fraiseql_core::error::FraiseQLError>;
+}
+
+/// The gRPC status a failure should be reported as, derived from the same
+/// classification the HTTP transport routes on (#1201).
+///
+/// Derived rather than re-matched on purpose. A second variant-by-variant match
+/// is a second classification, and two classifications drift — which is how the
+/// Flight transport came to report a client's parse error as a server fault
+/// while HTTP called the same error `PARSE_ERROR`. Deriving also means a new
+/// `FraiseQLError` variant arrives here already classified, and
+/// [`fraiseql_core::error::FraiseQLError::status_code`] fails closed on one it does not know
+/// (`500`), so an unmapped variant is reported as `INTERNAL` — conservative, and the same
+/// answer HTTP gives.
+#[must_use]
+pub const fn grpc_code_for(error: &fraiseql_core::error::FraiseQLError) -> Code {
+    match error.status_code() {
+        400 => Code::InvalidArgument,
+        401 => Code::Unauthenticated,
+        403 => Code::PermissionDenied,
+        404 => Code::NotFound,
+        // A timeout and a cancellation are both "the deadline ran out".
+        408 => Code::DeadlineExceeded,
+        // `Aborted`, not `AlreadyExists`: the latter is specifically a creation
+        // collision, while `Conflict` here is the general "retry at a higher
+        // level" case gRPC gives `Aborted` for.
+        409 => Code::Aborted,
+        429 => Code::ResourceExhausted,
+        501 => Code::Unimplemented,
+        503 => Code::Unavailable,
+        // 500 and anything unmapped. Server-side, and the only class for which
+        // `INTERNAL` was ever the right answer.
+        _ => Code::Internal,
+    }
+}
+
+/// Render a typed failure as the gRPC `Status` a client should act on (#1201).
+#[must_use]
+pub fn grpc_status(context: &str, error: &fraiseql_core::error::FraiseQLError) -> Status {
+    Status::new(grpc_code_for(error), format!("{context}: {error}"))
 }
 
 pub(crate) type HandshakeStream =

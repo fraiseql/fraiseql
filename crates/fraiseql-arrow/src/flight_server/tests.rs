@@ -28,7 +28,7 @@ impl QueryExecutor for DummyExecutor {
         _query: &str,
         _variables: Option<&serde_json::Value>,
         _security_context: &fraiseql_core::security::SecurityContext,
-    ) -> std::result::Result<serde_json::Value, String> {
+    ) -> std::result::Result<serde_json::Value, fraiseql_core::error::FraiseQLError> {
         Ok(serde_json::json!({"data": {"test": "ok"}}))
     }
 }
@@ -349,4 +349,201 @@ async fn test_do_action_unknown_action() {
         assert!(result.is_err(), "Unknown action should return error");
     })
     .await;
+}
+
+mod grpc_error_classification {
+    //! #1201: the Flight transport must report *who is at fault*.
+    //!
+    //! Every executor failure used to become `Status::internal` — gRPC
+    //! `INTERNAL` (13), a server-fault code that clients and proxies retry by
+    //! default. A retried validation error can never succeed, so the operator's
+    //! error budget showed a server-side fault rate that no server-side change
+    //! could fix, for a query naming a field the schema no longer has.
+    //!
+    //! The codes are derived from [`FraiseQLError::status_code`] — the same
+    //! classification the HTTP transport routes on — rather than re-matched, so
+    //! the two transports cannot drift.
+
+    use fraiseql_core::error::FraiseQLError;
+    use tonic::Code;
+
+    use crate::flight_server::grpc_code_for;
+
+    fn parse() -> FraiseQLError {
+        FraiseQLError::Parse {
+            message:  "unexpected token".to_string(),
+            location: "1:1".to_string(),
+        }
+    }
+
+    /// The issue's own reproduction: a query naming a field the schema no longer
+    /// has is the client's mistake.
+    #[test]
+    fn a_validation_error_is_invalid_argument_not_internal() {
+        let error = FraiseQLError::validation("Query 'nosuchfield' not found in schema");
+        assert_eq!(grpc_code_for(&error), Code::InvalidArgument);
+    }
+
+    #[test]
+    fn a_parse_error_is_invalid_argument() {
+        assert_eq!(grpc_code_for(&parse()), Code::InvalidArgument);
+    }
+
+    #[test]
+    fn an_unknown_field_or_type_is_invalid_argument() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::UnknownField {
+                field:     "nope".to_string(),
+                type_name: "User".to_string(),
+            }),
+            Code::InvalidArgument
+        );
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::UnknownType {
+                type_name: "Nope".to_string(),
+            }),
+            Code::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn an_authentication_failure_is_unauthenticated() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::Authentication {
+                message: "token expired".to_string(),
+            }),
+            Code::Unauthenticated
+        );
+    }
+
+    #[test]
+    fn an_authorization_failure_is_permission_denied() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::Authorization {
+                message:  "forbidden".to_string(),
+                action:   None,
+                resource: None,
+            }),
+            Code::PermissionDenied
+        );
+    }
+
+    #[test]
+    fn a_rate_limit_is_resource_exhausted() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::RateLimited {
+                message:          "slow down".to_string(),
+                retry_after_secs: 30,
+            }),
+            Code::ResourceExhausted
+        );
+    }
+
+    /// A cost ceiling splits on whether asking again can ever work — the
+    /// distinction the variant's own documentation draws, and one the issue's
+    /// suggested mapping (`resource_exhausted` for both) would have lost.
+    /// `ResourceExhausted` is retryable in gRPC, and a **per-request** ceiling is
+    /// permanent: retrying it is the same wasted round trip `INTERNAL` caused.
+    #[test]
+    fn a_cost_ceiling_is_retryable_only_when_the_budget_window_resets() {
+        let windowed = FraiseQLError::CostExceeded {
+            message:          "budget spent".to_string(),
+            cost:             10,
+            limit:            5,
+            retry_after_secs: Some(60),
+        };
+        assert_eq!(grpc_code_for(&windowed), Code::ResourceExhausted);
+
+        let per_request = FraiseQLError::CostExceeded {
+            message:          "too expensive".to_string(),
+            cost:             10,
+            limit:            5,
+            retry_after_secs: None,
+        };
+        assert_eq!(
+            grpc_code_for(&per_request),
+            Code::InvalidArgument,
+            "a per-request ceiling cannot be satisfied by retrying the same query"
+        );
+    }
+
+    #[test]
+    fn a_timeout_is_deadline_exceeded() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::Timeout {
+                timeout_ms: 1_000,
+                query:      None,
+            }),
+            Code::DeadlineExceeded
+        );
+    }
+
+    /// **Control — the half that was always right.** A genuine server-side fault
+    /// stays `INTERNAL`, so the fix is a narrowing rather than a blanket
+    /// reclassification.
+    #[test]
+    fn a_database_failure_is_still_internal() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::Database {
+                message:   "connection reset".to_string(),
+                sql_state: None,
+            }),
+            Code::Internal
+        );
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::ConnectionPool {
+                message: "pool exhausted".to_string(),
+            }),
+            Code::Internal
+        );
+    }
+
+    /// **Control.** Not one of the issue's cases, and the reason the mapping is
+    /// *derived*: `status_code` already classifies these, so they arrive here
+    /// correct without anyone thinking about gRPC.
+    #[test]
+    fn derived_codes_cover_variants_the_issue_did_not_list() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::NotFound {
+                resource_type: "User".to_string(),
+                identifier:    "1".to_string(),
+            }),
+            Code::NotFound
+        );
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::Unsupported {
+                message: "not built".to_string(),
+            }),
+            Code::Unimplemented
+        );
+    }
+
+    /// The property the whole issue is about, stated once over every client-fault
+    /// class: none of them may be reported as a server fault.
+    #[test]
+    fn no_client_fault_is_reported_as_a_server_fault() {
+        let client_faults = [
+            parse(),
+            FraiseQLError::validation("bad"),
+            FraiseQLError::Authentication {
+                message: "no token".to_string(),
+            },
+            FraiseQLError::Authorization {
+                message:  "denied".to_string(),
+                action:   None,
+                resource: None,
+            },
+            FraiseQLError::RateLimited {
+                message:          "slow down".to_string(),
+                retry_after_secs: 1,
+            },
+        ];
+        for error in &client_faults {
+            assert_ne!(
+                grpc_code_for(error),
+                Code::Internal,
+                "reported as a retryable server fault: {error:?}"
+            );
+        }
+    }
 }

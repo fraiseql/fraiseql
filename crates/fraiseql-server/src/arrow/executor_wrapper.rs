@@ -37,16 +37,20 @@ impl<A: DatabaseAdapter> ExecutorQueryAdapter<A> {
 impl<A: DatabaseAdapter + 'static> QueryExecutor for ExecutorQueryAdapter<A> {
     /// # Errors
     ///
-    /// Returns the executor error serialized as a `String` if query execution fails.
+    /// Returns the executor's error unchanged.
+    ///
+    /// #1201: this used to be `.map_err(|e| e.to_string())`, and that call was
+    /// where the Flight transport's error classification died. Everything below
+    /// it saw a bare `String`, so a client's parse or validation error and a
+    /// database outage were indistinguishable and both became gRPC `INTERNAL`.
+    /// Passing the typed error through is the fix; the mapping to a status code
+    /// happens once, at the transport edge.
     async fn execute_with_security(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
-    ) -> Result<serde_json::Value, String> {
-        self.executor
-            .execute_with_security(query, variables, security_context)
-            .await
-            .map_err(|e| e.to_string())
+    ) -> Result<serde_json::Value, fraiseql_core::error::FraiseQLError> {
+        self.executor.execute_with_security(query, variables, security_context).await
     }
 }

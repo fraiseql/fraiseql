@@ -496,6 +496,21 @@ impl FraiseQLError {
             Self::NotFound { .. } => 404,
             Self::Conflict { .. } => 409,
             Self::RateLimited { .. } => 429,
+            // #1201: a cost ceiling is the caller asking for too much, never a
+            // server fault. Which 4xx depends on whether asking again can ever
+            // work — the distinction this variant's own doc draws: an exhausted
+            // rolling window resets (429, retryable), a per-request ceiling does
+            // not (400, permanent). Before this it matched no arm and fell to the
+            // `_ => 500` default, so every over-budget request was reported as a
+            // server error and every retry policy treated it as retryable.
+            Self::CostExceeded {
+                retry_after_secs: Some(_),
+                ..
+            } => 429,
+            Self::CostExceeded {
+                retry_after_secs: None,
+                ..
+            } => 400,
             Self::Timeout { .. } | Self::Cancelled { .. } => 408,
             Self::Database { .. }
             | Self::ConnectionPool { .. }

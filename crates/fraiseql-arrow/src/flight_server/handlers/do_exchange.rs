@@ -40,7 +40,11 @@ async fn handle_query(
         Some(exec) => {
             exec.execute_with_security(&query, variables.as_ref(), security_context).await
         },
-        None => Err("No executor configured".to_string()),
+        // A server mounted without an executor is a deployment fault, not the
+        // caller's — `Configuration` classifies as 500 / `INTERNAL` (#1201).
+        None => Err(fraiseql_core::error::FraiseQLError::Configuration {
+            message: "No executor configured".to_string(),
+        }),
     };
 
     match result {

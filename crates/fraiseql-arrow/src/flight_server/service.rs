@@ -471,7 +471,7 @@ impl FraiseQLFlightService {
     /// # struct MyExecutor;
     /// # #[async_trait::async_trait]
     /// # impl QueryExecutor for MyExecutor {
-    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<serde_json::Value, String> { panic!("example stub") }
+    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<serde_json::Value, fraiseql_core::error::FraiseQLError> { panic!("example stub") }
     /// # }
     /// let executor: Arc<dyn QueryExecutor> = Arc::new(MyExecutor);
     /// service.set_executor(executor);
@@ -637,7 +637,10 @@ impl FraiseQLFlightService {
             let parsed = executor
                 .execute_with_security(query, variables.as_ref(), security_context)
                 .await
-                .map_err(|e| Status::internal(format!("Query execution failed: {e}")))?;
+                // #1201: the classification the HTTP transport already routes on,
+                // rather than a blanket INTERNAL that tells every gRPC client to
+                // retry a query that can never succeed.
+                .map_err(|e| crate::flight_server::grpc_status("Query execution failed", &e))?;
 
             // Convert JSON to Arrow RecordBatches
             let batches = self
@@ -1194,7 +1197,9 @@ impl FraiseQLFlightService {
         let rows = db_adapter
             .execute_raw_query(&sql)
             .await
-            .map_err(|e| Status::internal(format!("Query execution failed: {}", e)))?;
+            // A raw-SQL failure here is `DatabaseError`, which classifies as
+            // server-side whichever route it takes — unchanged by #1201.
+            .map_err(|e| Status::internal(format!("Query execution failed: {e}")))?;
 
         if rows.is_empty() {
             info!(table = %table, "Export returned no rows");

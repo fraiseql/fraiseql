@@ -96,13 +96,22 @@ async fn an_adhoc_document_is_refused_by_the_persisted_only_policy() {
         .await
         .expect_err("persisted-only mode must refuse an ad-hoc document over Flight too");
 
+    // #1201: the refusal is typed now, so this asserts the *kind* as well as the
+    // text. `Authorization` is what makes the transport answer gRPC
+    // PERMISSION_DENIED instead of a retryable INTERNAL — a forbidden document
+    // does not become allowed by asking again.
     assert!(
-        error.contains("persisted queries only"),
-        "the refusal must name the policy that refused, got: {error}"
+        matches!(error, fraiseql_core::error::FraiseQLError::Authorization { .. }),
+        "a policy refusal is an authorization decision, got: {error:?}"
+    );
+    let message = error.to_string();
+    assert!(
+        message.contains("persisted queries only"),
+        "the refusal must name the policy that refused, got: {message}"
     );
     assert!(
-        !error.contains("No executor configured"),
-        "an unwired transport is not a policy decision, got: {error}"
+        !message.contains("No executor configured"),
+        "an unwired transport is not a policy decision, got: {message}"
     );
 }
 
@@ -127,7 +136,11 @@ async fn under_persisted_only_even_the_allow_listed_text_is_refused_over_flight(
         .expect_err("strict mode resolves by document ID; matching text is not a substitute");
 
     assert!(
-        error.contains("persisted queries only"),
+        matches!(error, fraiseql_core::error::FraiseQLError::Authorization { .. }),
+        "a policy refusal is an authorization decision, got: {error:?}"
+    );
+    assert!(
+        error.to_string().contains("persisted queries only"),
         "the refusal must name the policy, got: {error}"
     );
 }
@@ -157,13 +170,25 @@ async fn without_a_trusted_document_store_the_query_reaches_execution() {
     let outcome = seam.execute_with_security(PERSISTED_DOC, None, &flight_session_context()).await;
 
     if let Err(error) = outcome {
+        let message = error.to_string();
         assert!(
-            !error.contains("persisted queries only"),
-            "with no store configured nothing may be refused as unpersisted, got: {error}"
+            !message.contains("persisted queries only"),
+            "with no store configured nothing may be refused as unpersisted, got: {message}"
+        );
+        // #1201 removed the `Tenant resolution failed:` / `Tenant dispatch
+        // refused:` prefixes — they were the `format!` that destroyed the typed
+        // error. The property they stood for is asserted positively instead: the
+        // request got *past* tenancy and failed in execution, which the empty
+        // schema's own message is the evidence for.
+        assert!(
+            !message.to_lowercase().contains("tenant"),
+            "an unconfigured single-tenant deployment must not be refused by tenancy, got: \
+             {message}"
         );
         assert!(
-            !error.contains("Tenant resolution failed") && !error.contains("Tenant dispatch"),
-            "an unconfigured single-tenant deployment must not be refused by tenancy, got: {error}"
+            message.contains("users"),
+            "the failure must come from executing the document, not from a gate before it, \
+             got: {message}"
         );
     }
 }
