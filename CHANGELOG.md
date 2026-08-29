@@ -114,6 +114,24 @@ disagreed, and the promise was the part that was wrong.
 
 ### Removed
 
+- **`.secrets.baseline` is deleted — it named another tool's artifact and nothing read it (#1212).**
+
+  The filename is `detect-secrets`' convention for its machine-generated JSON baseline, so the
+  file read as evidence that a secret scanner was configured. None was — that was #1208 — and a
+  real baseline is JSON with `generated_at`/`plugins_used`/`results` keys, whereas this was 63
+  lines of hand-written `KEY=********` dotenv whose final section is feature flags.
+
+  Nothing consumed it: `grep -rn 'secrets\.baseline'` matched only the CHANGELOG line about
+  this issue. Nor did it document anything true — **23 of its 38 variable names appear nowhere
+  else in the repository**, including `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`, `OPENAI_API_KEY` and
+  `FEATURE_VECTOR_SEARCH`: it was added in `21ffe47e2`, the v1.5.0 release commit of the
+  Python-era repository, and never touched again.
+
+  The mechanism that actually keeps a documented variable honest is
+  `tools/check-docs-env-vars.sh` with `tools/docs-env-vars.allow`, which fails when docs name a
+  `FRAISEQL_*` variable no code reads (#838). This file named no `FRAISEQL_*` variable at all,
+  so it was not even a stale copy of that list.
+
 - **`docker/tls-postgres/` is deleted — the rig could not run, and reported success when it
   did nothing (#1211).**
 
