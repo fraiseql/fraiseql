@@ -93,6 +93,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Arrow schema inference unions the key set across all rows (#1180).**
+
+  `infer_schema_from_rows` took its field *set* from row 0, so a column present in later rows
+  but absent from the first was dropped from the schema — and `convert_db_rows_to_arrow` looks
+  columns up **by name**, so a key that never became a field was never read. Its values did not
+  reach the client and nothing was logged. The stream was self-consistent, so no error
+  surfaced; the data was simply absent.
+
+  ```
+  rows: [{"id": 1}, {"id": 2, "late": "v"}]
+  before:  schema = [id]          — every `late` value dropped
+  after:   schema = [id, late]    — row 0 reads null, row 1 carries its value
+  ```
+
+  The column *types* have unified across every row since #1042; this is the same pass finally
+  answering the same question about the key set. Reachable from any row source whose key set is
+  not uniform — a GraphQL result whose first row omits an optional or aliased field is enough.
+
+  `test_infer_schema_from_rows_uses_first_row_only` and `field_set_still_comes_from_the_first_row`
+  pinned the old behaviour deliberately, so the choice would be explicit rather than incidental.
+  Both are now inverted rather than deleted, so the new rule is pinned just as explicitly.
+
 - **The inbound webhook route no longer reports an unpersisted message as processed (#1176).**
 
   `SpineEventHandler` discarded the `Emitted` returned by `emit_in_tx`, so a delivery whose

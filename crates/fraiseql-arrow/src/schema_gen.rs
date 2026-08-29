@@ -127,14 +127,25 @@ pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
 pub fn infer_schema_from_rows(
     rows: &[HashMap<String, Value>],
 ) -> Result<Arc<Schema>, ArrowFlightError> {
-    let Some(first_row) = rows.first() else {
+    if rows.is_empty() {
         return Err(ArrowFlightError::SchemaNotFound(
             "Cannot infer schema from empty rows".to_string(),
         ));
-    };
+    }
 
-    let mut names: Vec<&String> = first_row.keys().collect();
+    // #1180: the field *set* is the union of every row's keys, as the column
+    // *types* have been since #1042. It used to be `rows[0].keys()`, and
+    // `convert_db_rows_to_arrow` looks columns up **by name** — so a key that
+    // never became a field was never read. Its values did not reach the client
+    // and nothing was logged: the stream was self-consistent, so no error
+    // surfaced and the data was simply absent.
+    //
+    // Sorted and deduped, so the field order is a property of the data rather
+    // than of `HashMap` iteration order, and a key seen in several rows is one
+    // column.
+    let mut names: Vec<&String> = rows.iter().flat_map(HashMap::keys).collect();
     names.sort_unstable();
+    names.dedup();
 
     // `None` = no non-null value seen yet for that column.
     let mut inferred: Vec<Option<DataType>> = vec![None; names.len()];

@@ -268,19 +268,25 @@ fn test_infer_schema_from_rows_with_string() {
     assert_eq!(field.data_type(), &DataType::Utf8);
 }
 
+/// #1180, inverted. This test used to assert that the field *set* came from row
+/// 0 alone — `assert_eq!(schema.fields().len(), 1)` — which is the silent drop
+/// itself, pinned deliberately so the choice would be explicit rather than
+/// incidental. It is now the rule the other way round: the schema is the union
+/// of every row's keys.
 #[test]
-fn test_infer_schema_from_rows_uses_first_row_only() {
+fn test_infer_schema_from_rows_unions_keys_across_rows() {
     let mut row1 = HashMap::new();
     row1.insert("id".to_string(), Value::from(1i64));
 
     let mut row2 = HashMap::new();
     row2.insert("extra_column".to_string(), Value::from("extra"));
 
-    // Second row has a different key; schema should only reflect first row
     let rows = vec![row1, row2];
     let schema = infer_schema_from_rows(&rows).unwrap();
-    assert_eq!(schema.fields().len(), 1);
-    assert_eq!(schema.field(0).name(), "id");
+    assert_eq!(schema.fields().len(), 2, "a key seen in any row is a column");
+    // Sorted, so the field order does not depend on `HashMap` iteration order.
+    assert_eq!(schema.field(0).name(), "extra_column");
+    assert_eq!(schema.field(1).name(), "id");
 }
 
 #[test]
@@ -525,12 +531,14 @@ fn boolean_column_stays_boolean() {
     assert_eq!(type_of(&schema, "flag"), DataType::Boolean);
 }
 
-/// The field *set* still comes from row 0 — only the column *types* widen across
-/// rows. `test_infer_schema_from_rows_uses_first_row_only` pins that deliberately,
-/// so a column absent from the first row is still dropped. That is a separate
-/// silent-drop defect, filed on its own rather than widened into #1042.
+/// #1180: the field *set* is the union of every row's keys, as the column
+/// *types* have been since #1042. A key that first appears in a later row used
+/// to be dropped from the schema — and `convert_db_rows_to_arrow` looks columns
+/// up **by name**, so a key that never became a field was never read: its values
+/// did not reach the client and nothing was logged. The stream was
+/// self-consistent, so no error surfaced; the data was simply absent.
 #[test]
-fn field_set_still_comes_from_the_first_row() {
+fn the_field_set_is_the_union_of_every_rows_keys() {
     use serde_json::json;
 
     let schema = infer_schema_from_rows(&[
@@ -539,5 +547,48 @@ fn field_set_still_comes_from_the_first_row() {
     ])
     .unwrap();
 
-    assert_eq!(field_names(&schema), ["id"]);
+    assert_eq!(field_names(&schema), ["id", "late"]);
+    assert_eq!(type_of(&schema, "late"), DataType::Utf8, "typed from the row that has it");
+}
+
+/// The consequence the schema assertion above only implies: the **values** of a
+/// late-appearing column reach the caller, and the row that lacks it reads null
+/// rather than failing.
+#[test]
+fn a_late_appearing_columns_values_survive_conversion() {
+    use serde_json::json;
+
+    use crate::db_convert::convert_db_rows_to_arrow;
+
+    let rows = [
+        row(&[("id", json!(1))]),
+        row(&[("id", json!(2)), ("late", json!("v"))]),
+    ];
+    let schema = infer_schema_from_rows(&rows).unwrap();
+    let converted = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+
+    let late = schema.index_of("late").expect("`late` must be a column");
+    assert!(
+        converted[0][late].is_none(),
+        "row 0 does not carry `late`; a nullable field is the honest rendering"
+    );
+    assert!(
+        converted[1][late].is_some(),
+        "row 1's `late` value must reach the caller — this is the silent drop (#1180)"
+    );
+}
+
+/// **Control.** A column present in row 0 and absent later is unchanged — the
+/// union must widen the set, never narrow it.
+#[test]
+fn a_column_missing_from_a_later_row_is_still_a_column() {
+    use serde_json::json;
+
+    let schema = infer_schema_from_rows(&[
+        row(&[("id", json!(1)), ("early", json!("v"))]),
+        row(&[("id", json!(2))]),
+    ])
+    .unwrap();
+
+    assert_eq!(field_names(&schema), ["early", "id"]);
 }
