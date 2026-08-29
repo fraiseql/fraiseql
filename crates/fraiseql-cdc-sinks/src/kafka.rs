@@ -1,20 +1,15 @@
 //! The Apache Kafka outbound sink (feature `cdc-kafka`).
 //!
-//! Publishes each change event to a rendered topic with an idempotent producer.
-//! The endpoint parsing, transport guard and topic-charset validation this sink
-//! depends on live in [`crate::sink`] and are always compiled — see the note
-//! there. This module holds only what genuinely needs rdkafka.
+//! Publishes each change event to a rendered topic. What reaches the wire — the endpoint
+//! guard, `security.protocol`, SASL and the produce call — is
+//! [`fraiseql_kafka::KafkaEgress`], shared with the subscription transport so there is
+//! one answer to "may this endpoint be plaintext?" rather than one per caller (#1102).
+//!
+//! What stays here is this sink's own: which topic, which partition key, what the bytes
+//! are, and what a transient failure *means* — the drain worker's retry ceiling and
+//! dead-letter state sit above `publish`, not inside it.
 
-use std::time::Duration;
-
-use fraiseql_guard::kafka::{KafkaSecurityProtocol, guard_kafka_endpoint, resolve_kafka_sasl};
-use rdkafka::{
-    ClientConfig,
-    error::KafkaError,
-    message::{Header, OwnedHeaders},
-    producer::{FutureProducer, FutureRecord},
-    types::RDKafkaErrorCode,
-};
+use fraiseql_kafka::{EgressError, EgressOutcome, EgressRecord, KafkaEgress, KafkaEgressConfig};
 
 use crate::{
     error::{CdcError, Result},
@@ -24,71 +19,41 @@ use crate::{
     },
 };
 
-/// How long `send` may wait for space in the local producer queue.
-///
-/// Bounded so a full queue surfaces as a retryable failure the drain worker can
-/// back off on, rather than parking the drain tick indefinitely.
-const ENQUEUE_TIMEOUT: Duration = Duration::from_secs(5);
-
-/// Bound on librdkafka's own end-to-end delivery attempt (`message.timeout.ms`).
-///
-/// Left well under the drain's retry cadence so a broker outage produces a
-/// classified `Transient` outcome per attempt instead of an unbounded stall.
-const MESSAGE_TIMEOUT_MS: &str = "30000";
-
 /// A sink that publishes change events to Apache Kafka.
 pub struct KafkaSink {
-    config:   CdcSinkConfig,
-    producer: FutureProducer,
+    config: CdcSinkConfig,
+    egress: KafkaEgress,
 }
 
 impl KafkaSink {
     /// Build an idempotent Kafka producer for this sink.
     ///
-    /// `endpoint` must carry an explicit scheme — `kafka+ssl://`,
-    /// `kafka+sasl-ssl://`, or plaintext `kafka://` under the development opt-in.
-    /// It is screened by [`guard_kafka_endpoint`] before any client is
-    /// constructed; the payload here is the full row after-image of every
-    /// mutation, so a scheme-less endpoint is refused rather than silently taken
-    /// as `PLAINTEXT` the way librdkafka would take it.
+    /// `endpoint` must carry an explicit scheme — `kafka+ssl://`, `kafka+sasl-ssl://`,
+    /// or plaintext `kafka://` under the development opt-in. It is screened before any
+    /// client is constructed; the payload here is the full row after-image of every
+    /// mutation, so a scheme-less endpoint is refused rather than silently taken as
+    /// `PLAINTEXT` the way librdkafka would take it.
     ///
-    /// `enable.idempotence` is on: librdkafka then holds `acks=all`, bounded
-    /// in-flight requests and producer-side retries, which together give
-    /// no-duplicates-from-retry *and* per-partition ordering. Since the message
-    /// key pins each entity to one partition, that is per-entity ordering.
-    ///
-    /// SASL credentials and any custom CA are supplied through the standard
-    /// librdkafka environment (`extra` config is not yet exposed); the scheme
-    /// only decides `security.protocol`.
+    /// The egress defaults are this caller's: `enable.idempotence` on (no duplicates
+    /// from producer retries, and per-partition — therefore per-entity — ordering), and
+    /// a 30s delivery timeout kept well under the drain's retry cadence so a broker
+    /// outage yields a classified transient outcome per attempt instead of a stall.
     ///
     /// # Errors
     ///
-    /// Returns [`CdcError::Config`] for an unsafe or malformed endpoint, or
-    /// [`CdcError::Connection`] if the producer cannot be created.
+    /// [`CdcError::Config`] for an unsafe or malformed endpoint, or unresolvable SASL
+    /// credentials; [`CdcError::Connection`] if the producer cannot be created.
     pub fn connect(endpoint: &str, config: CdcSinkConfig) -> Result<Self> {
-        let endpoint = guard_kafka_endpoint(endpoint).map_err(CdcError::Config)?;
+        let egress = KafkaEgress::connect(
+            endpoint,
+            &KafkaEgressConfig::new(format!("fraiseql-cdc-{}", config.name)),
+        )
+        .map_err(|error| match error {
+            EgressError::Config(message) => CdcError::Config(message),
+            EgressError::Connection(message) => CdcError::Connection(message),
+        })?;
 
-        let mut client = ClientConfig::new();
-        client
-            .set("bootstrap.servers", &endpoint.bootstrap_servers)
-            .set("security.protocol", endpoint.security_protocol.as_str())
-            .set("enable.idempotence", "true")
-            .set("message.timeout.ms", MESSAGE_TIMEOUT_MS)
-            .set("compression.type", "lz4");
-
-        if endpoint.security_protocol == KafkaSecurityProtocol::SaslSsl {
-            let sasl = resolve_kafka_sasl().map_err(CdcError::Config)?;
-            client
-                .set("sasl.mechanism", sasl.mechanism.as_str())
-                .set("sasl.username", &sasl.username)
-                .set("sasl.password", &sasl.password);
-        }
-
-        let producer: FutureProducer = client
-            .create()
-            .map_err(|e| CdcError::Connection(format!("kafka producer: {e}")))?;
-
-        Ok(Self { config, producer })
+        Ok(Self { config, egress })
     }
 }
 
@@ -117,46 +82,29 @@ impl CdcSink for KafkaSink {
 
         let key = entity_partition_key(ev);
         let msg_id = format!("{}:{}", ev.object_type, ev.seq);
-        let headers = OwnedHeaders::new()
-            .insert(Header {
-                key:   "fraiseql-msg-id",
-                value: Some(&msg_id),
+
+        let outcome = self
+            .egress
+            .send(EgressRecord {
+                topic:   &topic,
+                key:     &key,
+                payload: &payload,
+                headers: &[
+                    ("fraiseql-msg-id", &msg_id),
+                    ("fraiseql-op", ev.op.as_str()),
+                ],
             })
-            .insert(Header {
-                key:   "fraiseql-op",
-                value: Some(ev.op.as_str()),
-            });
+            .await;
 
-        let record = FutureRecord::to(&topic).key(&key).payload(&payload).headers(headers);
-
-        match self.producer.send(record, ENQUEUE_TIMEOUT).await {
-            Ok(_) => PublishOutcome::Published,
-            Err((error, _)) => classify(&error),
+        // The two classifications are the same distinction — "could the same bytes
+        // succeed later?" — so this maps rather than re-decides. A `_` arm here is what
+        // would let a new egress outcome be silently folded into the wrong one, which is
+        // why `EgressOutcome` is not `#[non_exhaustive]`.
+        match outcome {
+            EgressOutcome::Delivered => PublishOutcome::Published,
+            EgressOutcome::Transient(message) => PublishOutcome::Transient(message),
+            EgressOutcome::Permanent(message) => PublishOutcome::Permanent(message),
         }
-    }
-}
-
-/// Classify a produce failure as retryable or dead-letter.
-///
-/// The default is [`PublishOutcome::Transient`], deliberately: the drain worker
-/// dead-letters on its own `max_attempts` ceiling anyway, so a misclassified
-/// transient error costs a delay, while a misclassified permanent one discards a
-/// change event. Only failures that *cannot* succeed on redelivery of the same
-/// bytes are permanent.
-fn classify(error: &KafkaError) -> PublishOutcome {
-    let permanent = matches!(
-        error,
-        KafkaError::MessageProduction(
-            RDKafkaErrorCode::MessageSizeTooLarge
-                | RDKafkaErrorCode::MessageBatchTooLarge
-                | RDKafkaErrorCode::InvalidTopic
-                | RDKafkaErrorCode::InvalidRecord
-        )
-    );
-    if permanent {
-        PublishOutcome::Permanent(format!("publish: {error}"))
-    } else {
-        PublishOutcome::Transient(format!("publish: {error}"))
     }
 }
 

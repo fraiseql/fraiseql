@@ -10,7 +10,7 @@ aws-sdk-kinesis = {version = "1", optional = true, default-features = false, fea
   "rt-tokio",
 ]}
 chrono = {workspace = true}
-rdkafka = {workspace = true, optional = true}
+fraiseql-kafka = {workspace = true, optional = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = {workspace = true}
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"]}
@@ -20,6 +20,9 @@ tracing = {workspace = true}
 uuid = {workspace = true}
 
 [dev-dependencies]
+# The #975 e2e builds a consumer to read back what the sink produced. Through
+# fraiseql-kafka's re-export so it is provably the same rdkafka (#1198).
+fraiseql-kafka = {workspace = true}
 temp-env = {workspace = true}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 futures = "0.3"
@@ -32,8 +35,9 @@ tokio = {workspace = true, features = ["test-util"]}
 # refusing half of every transport guard runs in the cheap unit-test leg.
 default = []
 # Apache Kafka. Unlike async-nats this pulls a C library (librdkafka, built from
-# source by rdkafka-sys) and links system libssl/libcrypto/libz.
-cdc-kafka = ["dep:rdkafka"]
+# source by rdkafka-sys) and links system libssl/libcrypto/libz — via fraiseql-kafka,
+# the one place in this workspace that builds a producer (#1102).
+cdc-kafka = ["dep:fraiseql-kafka"]
 # AWS Kinesis Data Streams. Pulls the AWS SDK and, with it, a second optional
 # aws-* dependency tree — see the RUSTSEC-2026-0098/0099/0104 entries in deny.toml,
 # whose justification names this feature as well as aws-s3.

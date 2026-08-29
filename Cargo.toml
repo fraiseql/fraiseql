@@ -34,6 +34,7 @@ members = [
   "crates/fraiseql-db",
   "crates/fraiseql-error",
   "crates/fraiseql-guard",  # Shared outbound-address SSRF guard (one guard, every crate)
+  "crates/fraiseql-kafka",  # Shared Kafka egress (one producer, every caller)
   "crates/fraiseql-observers",
   "crates/fraiseql-secrets",
   "crates/fraiseql-server",
@@ -93,6 +94,7 @@ fraiseql-db = {path = "crates/fraiseql-db", version = "2.15.0", default-features
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.15.0", default-features = false}
 fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.15.0"}
 fraiseql-guard = {path = "crates/fraiseql-guard", version = "2.15.0"}
+fraiseql-kafka = {path = "crates/fraiseql-kafka", version = "2.15.0"}
 fraiseql-functions = {path = "crates/fraiseql-functions", version = "2.15.0"}
 fraiseql-storage = {path = "crates/fraiseql-storage", version = "2.15.0"}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.15.0"}
@@ -400,6 +402,7 @@ fraiseql-error = 5_000
 fraiseql-federation = 22_000  # first budget; the crate predates #1055 and had none
 fraiseql-functions = 23_000  # first budget; the crate predates #1055 and had none
 fraiseql-guard = 5_000
+fraiseql-kafka = 5_000  # new in #1102; connect + produce and nothing else
 fraiseql-observers = 45_000
 fraiseql-secrets = 20_000
 fraiseql-server = 125_000  # re-baselined #1055 (was 55_000, actual 105_420)

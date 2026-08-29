@@ -148,6 +148,11 @@ const MANIFEST: &[(&str, &str)] = &[
     ("rate_limiting", "rate-limit middleware config (Option; #609)"),
     ("observers", "observer runtime config (Option; `observers` feature)"),
     ("cdc_outbound", "outbound CDC drains (Option; #382, `cdc-outbound` feature)"),
+    (
+        "subscription_kafka",
+        "subscription→Kafka mirror, built at boot by crate::subscription_kafka::build_mirror \
+         and started on the server's task set (Option; #1102, `subscription-kafka` feature)",
+    ),
     ("storage", "object-storage config (Option; #608)"),
     ("storage_token", "storage admin token (Option)"),
     ("files", "file-serving config (Option)"),

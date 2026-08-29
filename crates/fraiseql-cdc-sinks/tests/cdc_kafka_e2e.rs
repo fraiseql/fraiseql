@@ -17,7 +17,9 @@
 use std::time::Duration;
 
 use fraiseql_cdc_sinks::{CdcSinkConfig, DrainWorker, KafkaSink, outbox_sink_state_migration_sql};
-use rdkafka::{
+// Through the egress crate's re-export (#1198): a consumer built here must be the same
+// rdkafka the producer under test was built against, and this is the import that says so.
+use fraiseql_kafka::rdkafka::{
     ClientConfig, Message,
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,

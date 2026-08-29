@@ -1,14 +1,14 @@
-//! Tests for the parts of the Kafka sink that need rdkafka in scope.
+//! Tests for what this sink does with the shared egress, not for the egress itself.
 //!
-//! The endpoint guard and topic charset are pure and tested in
-//! `crate::sink::tests`, where they run in the always-compiled unit-test leg.
-//! What is left here is the partition-key contract and the produce-error
-//! classification — both of which name rdkafka types.
+//! The endpoint guard lives in `fraiseql_guard::kafka` and the connect/classify contract
+//! in `fraiseql_kafka` (#1102); both are tested there, in the always-compiled leg. What
+//! is left here is that **this sink consults them** — a refactor that stopped resolving
+//! SASL, or stopped screening the endpoint, would leave those suites green.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::{KafkaSink, classify};
-use crate::sink::{CdcSinkConfig, PublishOutcome};
+use super::KafkaSink;
+use crate::sink::CdcSinkConfig;
 
 #[test]
 fn tls_endpoints_are_accepted_because_openssl_is_compiled_in() {
@@ -79,35 +79,3 @@ fn sasl_ssl_builds_a_producer_once_credentials_are_present() {
 // The partition-key properties moved to `sink::tests` with the key itself: it is
 // shared with the Kinesis sink and pure, so it belongs in the always-compiled leg
 // rather than only where `cdc-kafka` is on.
-
-#[test]
-fn oversized_messages_are_permanent_and_everything_else_retries() {
-    use rdkafka::{error::KafkaError, types::RDKafkaErrorCode};
-
-    for code in [
-        RDKafkaErrorCode::MessageSizeTooLarge,
-        RDKafkaErrorCode::MessageBatchTooLarge,
-        RDKafkaErrorCode::InvalidTopic,
-        RDKafkaErrorCode::InvalidRecord,
-    ] {
-        assert!(
-            matches!(classify(&KafkaError::MessageProduction(code)), PublishOutcome::Permanent(_)),
-            "{code:?} cannot succeed on redelivery of the same bytes"
-        );
-    }
-
-    // A broker outage, a full queue and a leader election must all retry — the
-    // drain's own max_attempts ceiling is what eventually dead-letters them.
-    for code in [
-        RDKafkaErrorCode::BrokerTransportFailure,
-        RDKafkaErrorCode::QueueFull,
-        RDKafkaErrorCode::NotLeaderForPartition,
-        RDKafkaErrorCode::RequestTimedOut,
-        RDKafkaErrorCode::TopicAuthorizationFailed,
-    ] {
-        assert!(
-            matches!(classify(&KafkaError::MessageProduction(code)), PublishOutcome::Transient(_)),
-            "{code:?} must retry rather than discard the change event"
-        );
-    }
-}

@@ -35,7 +35,11 @@ var legacyPublishOrder = []string{
 	// Tier 1: leaf crates (depend on none of the others). fraiseql-guard is first
 	// because auth/federation/observers/functions/arrow/secrets/core/cdc-sinks/server
 	// all depend on it.
-	"fraiseql-guard", "fraiseql-error", "fraiseql-auth", "fraiseql-webhooks", "fraiseql-wire",
+	"fraiseql-guard",
+	// fraiseql-kafka is tier 1.5: it depends on fraiseql-guard alone, and both
+	// fraiseql-cdc-sinks and fraiseql-core depend on it (#1102).
+	"fraiseql-kafka",
+	"fraiseql-error", "fraiseql-auth", "fraiseql-webhooks", "fraiseql-wire",
 	"fraiseql-cdc-sinks",
 	// Tier 2: depend on tier 1.
 	"fraiseql-db", "fraiseql-storage",

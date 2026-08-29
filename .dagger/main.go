@@ -735,11 +735,21 @@ func (m *FraiseqlCi) Test(
 		// #975's Kinesis sink mount: its own arm of ConfiguredSink/build_one, and
 		// the feature-ON half of validate_kind, compile only with this feature on.
 		"cargo test -p fraiseql-server --features cdc-kinesis --lib cdc_outbound::",
-		// #975: the cdc-sinks crate's own rdkafka-bound unit tests (partition-key
-		// contract, produce-error classification, and the broker-free proof that
-		// TLS is compiled in). The always-compiled endpoint guard runs in the
-		// default leg above; this is the half that needs the feature.
+		// #975: the cdc-sinks crate's own rdkafka-bound unit tests. The
+		// always-compiled endpoint guard runs in the default leg above; this is the
+		// half that needs the feature.
 		"cargo test -p fraiseql-cdc-sinks --features cdc-kafka --lib kafka::",
+		// #1102: the [subscription_kafka] mount and its config section. The whole of
+		// that issue is a transport no shipped configuration could reach, so a leg
+		// that does not compile the feature is a leg that cannot see it — which is
+		// exactly how it went four releases setting no `security.protocol` at all.
+		// One filter covers both `subscription_kafka::` and
+		// `server_config::subscription_kafka::`.
+		"cargo test -p fraiseql-server --features subscription-kafka --lib subscription_kafka::",
+		// #1102: the shared egress itself — the guard reaching it, the classification,
+		// and the timeout contract each caller depends on. rdkafka is not optional in
+		// this crate, so there is no feature-OFF arm to miss.
+		"cargo test -p fraiseql-kafka",
 		// The #612-M config-coverage manifest gate ('every ServerConfig leaf has a
 		// named consumer'). Another test binary no leg had ever run — it caught
 		// P18's new `subscription_auth_recheck_secs` key only in a LOCAL full test
@@ -751,7 +761,7 @@ func (m *FraiseqlCi) Test(
 		// manifest gate's two directions disagree: a leaf that does not exist has
 		// no consumer to name, and its manifest entry reads as stale. Grow this
 		// list whenever a new feature adds a config section (#381 added `saml`).
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound' --test config_coverage_manifest_test --test doc_config_examples_test",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
 		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
 		// and run in the integration legs; `--features cli` pulls in the CLI
@@ -2326,6 +2336,17 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// Asserted THROUGH the drain, and the entity-keyed partition affinity is
 		// only meaningful because the suite creates its topic with 6 partitions.
 		"cargo test -p fraiseql-cdc-sinks --features cdc-kafka --test cdc_kafka_e2e -- --ignored --test-threads=1",
+		// #1102: the SERVER's [subscription_kafka] mount against the same broker. The
+		// whole issue was a transport no configuration could reach, so an adapter-level
+		// test does not close it — this one writes the section, mounts it the way the
+		// server does, and reads the message back with a real consumer. Both directions
+		// in one binary: the second test asserts the same endpoint is refused without
+		// the development opt-in, so a guard that has stopped refusing cannot hide
+		// behind the passing happy path.
+		//
+		// --test-threads=1 because both tests scope FRAISEQL_ENV /
+		// FRAISEQL_KAFKA_ALLOW_PLAINTEXT with temp_env, which is process-global.
+		"cargo test -p fraiseql-server --features subscription-kafka --test subscription_kafka_mirror_e2e -- --test-threads=1",
 		// #975: the same drain-through assertions against the bound LocalStack
 		// Kinesis (DATABASE_URL + KINESIS_ENDPOINT + FRAISEQL_KINESIS_ALLOW_PLAINTEXT
 		// below). The entity-keyed shard affinity is only meaningful because the

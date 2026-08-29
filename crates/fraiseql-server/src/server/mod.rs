@@ -193,6 +193,13 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "cdc-outbound")]
     pub(super) cdc_drains: Vec<crate::cdc_outbound::SinkDrain>,
 
+    /// The `[subscription_kafka]` mirror, built at boot and started with the task set.
+    ///
+    /// Built early — where a refused endpoint can still stop the boot — rather than at
+    /// `run`, because a server already serving traffic cannot refuse anything (#1102).
+    #[cfg(feature = "subscription-kafka")]
+    pub(super) subscription_kafka: Option<crate::subscription_kafka::SubscriptionKafkaMirror>,
+
     /// PostgreSQL pool for claims enrichment queries (independent of observers).
     #[cfg(feature = "auth")]
     #[allow(dead_code)] // Reason: read by enrichment routing code (ported in sub-phase 4e)

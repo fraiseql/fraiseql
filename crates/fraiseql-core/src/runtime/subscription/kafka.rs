@@ -6,8 +6,16 @@ use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionE
 /// Kafka transport adapter configuration.
 #[derive(Debug, Clone)]
 pub struct KafkaConfig {
-    /// Kafka broker addresses (comma-separated).
-    pub brokers: String,
+    /// The broker endpoint, **scheme first**: `kafka+ssl://host:port`,
+    /// `kafka+sasl-ssl://host:port`, or `kafka://host:port` for a development broker
+    /// under `FRAISEQL_KAFKA_ALLOW_PLAINTEXT`.
+    ///
+    /// A bare `bootstrap.servers` list is refused rather than defaulted (#1102). This
+    /// adapter ships entity after-images *and* pre-images, and librdkafka reads a
+    /// scheme-less list as `PLAINTEXT` — which is what it did here, with no
+    /// `security.protocol` set at all, until the endpoint was screened by
+    /// [`fraiseql_guard::kafka`].
+    pub endpoint: String,
 
     /// Default topic for events (can be overridden per subscription).
     pub default_topic: String,
@@ -27,14 +35,23 @@ pub struct KafkaConfig {
 
 impl KafkaConfig {
     /// Create a new Kafka configuration.
+    ///
+    /// `endpoint` must carry a scheme — see [`KafkaConfig::endpoint`]. It is not
+    /// validated here: the refusal happens at [`KafkaAdapter::new`], where it can be
+    /// reported to whoever is mounting the transport.
+    ///
+    /// The default `timeout_ms` is 5 s rather than the CDC sink's 30 s. Subscription
+    /// delivery is at-most-once with no outbox behind it, so a delivery attempt is a
+    /// hot-path task with nothing to retry it — parking one for half a minute over a
+    /// message nobody will resend is the wrong trade.
     #[must_use]
-    pub fn new(brokers: impl Into<String>, default_topic: impl Into<String>) -> Self {
+    pub fn new(endpoint: impl Into<String>, default_topic: impl Into<String>) -> Self {
         Self {
-            brokers:       brokers.into(),
+            endpoint:      endpoint.into(),
             default_topic: default_topic.into(),
             client_id:     "fraiseql".to_string(),
             acks:          "all".to_string(),
-            timeout_ms:    30_000,
+            timeout_ms:    5_000,
             compression:   None,
         }
     }
@@ -136,15 +153,16 @@ impl KafkaMessage {
 /// # Feature Flag
 ///
 /// This adapter has two implementations:
-/// - **With `kafka` feature**: Full rdkafka-based producer with actual Kafka delivery
-/// - **Without `kafka` feature**: Stub that logs events (for development/testing)
+/// - **With `kafka` feature**: delivery through [`fraiseql_kafka::KafkaEgress`], the one producer
+///   this workspace builds
+/// - **Without `kafka` feature**: a stub that fails loud on every delivery (#784)
 ///
 /// # Example
 ///
 /// ```ignore
 /// use fraiseql_core::runtime::subscription::{KafkaAdapter, KafkaConfig};
 ///
-/// let config = KafkaConfig::new("localhost:9092", "fraiseql-events")
+/// let config = KafkaConfig::new("kafka+ssl://localhost:9093", "fraiseql-events")
 ///     .with_client_id("my-service")
 ///     .with_compression("lz4");
 ///
@@ -153,15 +171,15 @@ impl KafkaMessage {
 /// ```
 #[cfg(feature = "kafka")]
 pub struct KafkaAdapter {
-    config:   KafkaConfig,
-    producer: rdkafka::producer::FutureProducer,
+    config: KafkaConfig,
+    egress: fraiseql_kafka::KafkaEgress,
 }
 
 #[cfg(feature = "kafka")]
 impl std::fmt::Debug for KafkaAdapter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("KafkaAdapter")
-            .field("brokers", &self.config.brokers)
+            .field("endpoint", &self.config.endpoint)
             .field("default_topic", &self.config.default_topic)
             .field("client_id", &self.config.client_id)
             .finish_non_exhaustive()
@@ -170,49 +188,50 @@ impl std::fmt::Debug for KafkaAdapter {
 
 #[cfg(feature = "kafka")]
 impl KafkaAdapter {
-    /// Create a new Kafka adapter with a producer connection.
+    /// Connect this adapter's shared Kafka egress.
+    ///
+    /// The endpoint is screened and `security.protocol` set from its scheme before any
+    /// client exists — by [`fraiseql_kafka::KafkaEgress`], the one place in this
+    /// workspace that builds a producer, so this transport and the CDC outbox sink
+    /// cannot disagree about what is safe (#1102).
     ///
     /// # Errors
     ///
-    /// Returns error if the Kafka producer cannot be created (e.g., invalid config).
+    /// [`SubscriptionError::Internal`] if the endpoint is refused (no scheme,
+    /// unsupported scheme, unopted-in plaintext, blocked broker host, unresolvable SASL
+    /// credentials) or if the producer cannot be created.
     pub fn new(config: KafkaConfig) -> Result<Self, SubscriptionError> {
-        use rdkafka::{config::ClientConfig, producer::FutureProducer};
+        use std::time::Duration;
 
-        let mut client_config = ClientConfig::new();
-        client_config
-            .set("bootstrap.servers", &config.brokers)
-            .set("client.id", &config.client_id)
-            .set("acks", &config.acks)
-            .set("message.timeout.ms", config.timeout_ms.to_string());
+        // At-most-once, so both bounds are short: there is no outbox behind this and
+        // nothing will retry, which makes a long timeout a parked task rather than a
+        // second chance.
+        let egress_config = fraiseql_kafka::KafkaEgressConfig::new(config.client_id.clone())
+            .with_timeouts(
+                Duration::from_millis(config.timeout_ms),
+                Duration::from_millis(config.timeout_ms.min(1_000)),
+            )
+            .with_compression(config.compression.clone());
 
-        if let Some(ref compression) = config.compression {
-            client_config.set("compression.type", compression);
-        }
-
-        let producer: FutureProducer = client_config.create().map_err(|e| {
-            SubscriptionError::Internal(format!("Failed to create Kafka producer: {e}"))
-        })?;
+        let egress = fraiseql_kafka::KafkaEgress::connect(&config.endpoint, &egress_config)
+            .map_err(|error| {
+                SubscriptionError::Internal(format!("Failed to create Kafka producer: {error}"))
+            })?;
 
         tracing::info!(
-            brokers = %config.brokers,
+            endpoint = %config.endpoint,
             topic = %config.default_topic,
             client_id = %config.client_id,
-            "KafkaAdapter created with rdkafka producer"
+            "KafkaAdapter connected through the shared Kafka egress"
         );
 
-        Ok(Self { config, producer })
+        Ok(Self { config, egress })
     }
 
     /// Get the topic for a subscription (uses default if not specified).
     fn get_topic(&self, _subscription_name: &str) -> &str {
         // Could be extended to support per-subscription topic mapping
         &self.config.default_topic
-    }
-
-    /// Get reference to the underlying producer for direct Kafka operations.
-    #[must_use = "the producer reference should be used for Kafka operations"]
-    pub const fn producer(&self) -> &rdkafka::producer::FutureProducer {
-        &self.producer
     }
 }
 
@@ -227,9 +246,7 @@ impl TransportAdapter for KafkaAdapter {
         event: &SubscriptionEvent,
         subscription_name: &str,
     ) -> Result<(), SubscriptionError> {
-        use std::time::Duration;
-
-        use rdkafka::producer::FutureRecord;
+        use fraiseql_kafka::{EgressOutcome, EgressRecord};
 
         let message = KafkaMessage::from_event(event, subscription_name);
         let topic = self.get_topic(subscription_name);
@@ -238,33 +255,55 @@ impl TransportAdapter for KafkaAdapter {
             SubscriptionError::Internal(format!("Failed to serialize message: {e}"))
         })?;
 
-        let record = FutureRecord::to(topic).key(message.key()).payload(&payload);
+        let outcome = self
+            .egress
+            .send(EgressRecord {
+                topic,
+                key: message.key(),
+                payload: payload.as_bytes(),
+                headers: &[("fraiseql-event-id", &message.event_id)],
+            })
+            .await;
 
-        let timeout = Duration::from_millis(self.config.timeout_ms);
-
-        match self.producer.send(record, timeout).await {
-            Ok(delivery) => {
+        // At-most-once. Both failures are reported, neither is retried here: there is no
+        // outbox behind this transport, so a retry loop would be a second durability
+        // story to keep in step with the CDC sink's. The distinction survives in the
+        // message because it is what an operator needs — "the broker was down" and "this
+        // message can never be accepted" call for different responses.
+        match outcome {
+            EgressOutcome::Delivered => {
                 tracing::debug!(
                     topic = topic,
-                    partition = delivery.partition,
-                    offset = delivery.offset,
                     key = message.key(),
                     event_id = %event.event_id,
                     "Kafka message delivered successfully"
                 );
                 Ok(())
             },
-            Err((kafka_error, _)) => {
+            EgressOutcome::Transient(reason) => {
                 tracing::error!(
                     topic = topic,
                     key = message.key(),
                     event_id = %event.event_id,
-                    error = %kafka_error,
-                    "Failed to deliver Kafka message"
+                    %reason,
+                    "Kafka delivery failed; at-most-once, so this event is not retried"
                 );
                 Err(SubscriptionError::DeliveryFailed {
                     transport: "kafka".to_string(),
-                    reason:    kafka_error.to_string(),
+                    reason,
+                })
+            },
+            EgressOutcome::Permanent(reason) => {
+                tracing::error!(
+                    topic = topic,
+                    key = message.key(),
+                    event_id = %event.event_id,
+                    %reason,
+                    "Kafka refused this message permanently; redelivery could not succeed"
+                );
+                Err(SubscriptionError::DeliveryFailed {
+                    transport: "kafka".to_string(),
+                    reason,
                 })
             },
         }
@@ -275,31 +314,9 @@ impl TransportAdapter for KafkaAdapter {
     }
 
     async fn health_check(&self) -> bool {
-        // Check if we can fetch cluster metadata as a health check
-        use std::time::Duration;
-
-        use rdkafka::producer::Producer;
-
-        match self.producer.client().fetch_metadata(
-            None, // All topics
-            Duration::from_secs(5),
-        ) {
-            Ok(metadata) => {
-                tracing::debug!(
-                    broker_count = metadata.brokers().len(),
-                    topic_count = metadata.topics().len(),
-                    "Kafka health check passed"
-                );
-                true
-            },
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "Kafka health check failed"
-                );
-                false
-            },
-        }
+        // The egress owns the producer, so it owns the metadata call too — a transport
+        // reaching for the raw client is the first step back towards a second producer.
+        self.egress.is_reachable(std::time::Duration::from_secs(5))
     }
 }
 
@@ -334,7 +351,7 @@ impl KafkaAdapter {
     /// Construction never fails; the `Result` mirrors the real adapter's API.
     pub fn new(config: KafkaConfig) -> Result<Self, SubscriptionError> {
         tracing::warn!(
-            brokers = %config.brokers,
+            endpoint = %config.endpoint,
             topic = %config.default_topic,
             "KafkaAdapter created (STUB - enable 'kafka' feature for real Kafka support)"
         );

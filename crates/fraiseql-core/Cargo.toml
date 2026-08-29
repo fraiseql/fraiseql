@@ -78,7 +78,7 @@ moka = {workspace = true}
 parking_lot = {workspace = true}
 rand = {workspace = true}
 # Kafka (optional)
-rdkafka = {workspace = true, optional = true}
+fraiseql-kafka = {workspace = true, optional = true}
 # Redis APQ backend (optional)
 redis = {workspace = true, optional = true}
 regex = {workspace = true}
@@ -131,7 +131,10 @@ audit-webhook = []
 default = ["postgres"]
 dhat-heap = ["dhat"]
 federation = ["dep:fraiseql-federation"]
-kafka = ["rdkafka"]
+# Subscription delivery to Kafka. Pulls fraiseql-kafka, and through it
+# librdkafka (a C library built from source) — the one producer this
+# workspace builds (#1102).
+kafka = ["dep:fraiseql-kafka"]
 postgres = ["fraiseql-db/postgres"]
 redis-apq = ["redis"]
 # JWT replay prevention via Redis SET NX (requires a Redis instance).

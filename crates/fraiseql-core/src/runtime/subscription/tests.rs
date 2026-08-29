@@ -295,13 +295,13 @@ fn test_webhook_adapter_name() {
 
 #[test]
 fn test_kafka_config_builder() {
-    let config = KafkaConfig::new("localhost:9092", "events")
+    let config = KafkaConfig::new("kafka+ssl://localhost:9093", "events")
         .with_client_id("test-client")
         .with_acks("all")
         .with_timeout(5_000)
         .with_compression("gzip");
 
-    assert_eq!(config.brokers, "localhost:9092");
+    assert_eq!(config.endpoint, "kafka+ssl://localhost:9093");
     assert_eq!(config.default_topic, "events");
     assert_eq!(config.client_id, "test-client");
     assert_eq!(config.acks, "all");
@@ -311,13 +311,15 @@ fn test_kafka_config_builder() {
 
 #[test]
 fn test_kafka_config_defaults() {
-    let config = KafkaConfig::new("localhost:9092", "events");
+    let config = KafkaConfig::new("kafka+ssl://localhost:9093", "events");
 
-    assert_eq!(config.brokers, "localhost:9092");
+    assert_eq!(config.endpoint, "kafka+ssl://localhost:9093");
     assert_eq!(config.default_topic, "events");
     assert_eq!(config.client_id, "fraiseql");
     assert_eq!(config.acks, "all"); // Default: wait for all replicas
-    assert_eq!(config.timeout_ms, 30_000); // 30 seconds default
+    // 5s, not the CDC sink's 30s: at-most-once delivery has no outbox behind it, so a
+    // long timeout parks a hot-path task instead of buying a second chance (#1102).
+    assert_eq!(config.timeout_ms, 5_000);
     assert!(config.compression.is_none());
 }
 
@@ -371,10 +373,74 @@ fn test_kafka_message_key() {
 
 #[test]
 fn test_kafka_adapter_name() {
-    let config = KafkaConfig::new("localhost:9092", "events");
+    let config = KafkaConfig::new("kafka+ssl://broker.invalid:9093", "events");
     let adapter = KafkaAdapter::new(config).unwrap();
 
     assert_eq!(adapter.name(), "kafka");
+}
+
+// ── #1102: the transport guard reaches this adapter ─────────────────────────
+//
+// The guard itself is tested in `fraiseql_guard::kafka` and the connect contract in
+// `fraiseql_kafka`. What these assert is that *this* adapter consults them — it did not,
+// which is the whole of #1102: it set no `security.protocol` at all, so librdkafka took
+// the bare broker list as PLAINTEXT and shipped entity after-images and pre-images in the
+// clear. Both directions, because a guard tested one way is how #816 shipped inverted.
+
+#[cfg(feature = "kafka")]
+#[test]
+fn a_scheme_less_endpoint_is_refused_by_the_subscription_transport() {
+    temp_env::with_var_unset("FRAISEQL_KAFKA_ALLOW_PLAINTEXT", || {
+        let err = KafkaAdapter::new(KafkaConfig::new("localhost:9092", "events"))
+            .err()
+            .expect("a bare bootstrap list must be refused, not read as PLAINTEXT");
+        assert!(format!("{err}").contains("scheme"), "{err}");
+    });
+}
+
+#[cfg(feature = "kafka")]
+#[test]
+fn plaintext_is_refused_without_the_opt_in_and_accepted_with_it() {
+    temp_env::with_var_unset("FRAISEQL_KAFKA_ALLOW_PLAINTEXT", || {
+        assert!(
+            KafkaAdapter::new(KafkaConfig::new("kafka://localhost:9092", "events")).is_err(),
+            "plaintext must be refused without the development opt-in"
+        );
+    });
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_KAFKA_ALLOW_PLAINTEXT", Some("true")),
+            ("FRAISEQL_ENV", Some("development")),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ],
+        || {
+            assert!(
+                KafkaAdapter::new(KafkaConfig::new("kafka://localhost:9092", "events")).is_ok(),
+                "the opt-in in a declared development environment must be honoured — a \
+                 guard that refuses everything is not a guard"
+            );
+        },
+    );
+}
+
+#[cfg(feature = "kafka")]
+#[test]
+fn the_plaintext_opt_in_is_inert_in_production() {
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_KAFKA_ALLOW_PLAINTEXT", Some("true")),
+            ("FRAISEQL_ENV", Some("production")),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ],
+        || {
+            assert!(
+                KafkaAdapter::new(KafkaConfig::new("kafka://localhost:9092", "events")).is_err(),
+                "an opt-in honoured in production is not an escape hatch, it is the default"
+            );
+        },
+    );
 }
 
 /// #784: the non-kafka stub must fail loud, not report successful delivery of
@@ -386,7 +452,7 @@ fn test_kafka_adapter_name() {
 #[cfg(not(feature = "kafka"))]
 #[tokio::test]
 async fn test_kafka_stub_fails_loud() {
-    let config = KafkaConfig::new("localhost:9092", "events");
+    let config = KafkaConfig::new("kafka+ssl://localhost:9093", "events");
     let adapter = KafkaAdapter::new(config).unwrap();
 
     let event = SubscriptionEvent::new(

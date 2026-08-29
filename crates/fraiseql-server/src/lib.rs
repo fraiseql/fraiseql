@@ -69,6 +69,9 @@ pub mod routes;
 pub mod schema;
 pub mod server;
 pub mod server_config;
+/// The `[subscription_kafka]` mount: a Kafka mirror of subscription deliveries (#1102).
+#[cfg(feature = "subscription-kafka")]
+pub mod subscription_kafka;
 
 #[cfg(feature = "sources")]
 pub mod sources;

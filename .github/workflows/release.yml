@@ -85,8 +85,8 @@ jobs:
           set +e
           # Plain (uncoloured) cargo output so the log greps below match reliably.
           export CARGO_TERM_COLOR=never
-          CRATES="fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
-                  fraiseql-cdc-sinks \
+          CRATES="fraiseql-guard fraiseql-kafka fraiseql-error fraiseql-auth fraiseql-webhooks \
+                  fraiseql-wire fraiseql-cdc-sinks \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
                   fraiseql-functions fraiseql-server fraiseql-cli fraiseql"
@@ -495,6 +495,19 @@ jobs:
             cargo publish --package fraiseql-guard --token ${{ secrets.CARGO_TOKEN }}
           fi
 
+      # fraiseql-kafka: the one Kafka producer in the workspace (#1102). Depends on
+      # fraiseql-guard alone; cdc-sinks and core both depend on it, so it publishes
+      # before either.
+      - name: Publish fraiseql-kafka
+        id: publish-kafka
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-kafka/$VERSION")" = "200" ]; then
+            echo "fraiseql-kafka $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-kafka --token ${{ secrets.CARGO_TOKEN }}
+          fi
+
       - name: Publish fraiseql-error
         id: publish-error
         run: |
@@ -536,7 +549,7 @@ jobs:
           fi
 
       - name: Wait for crates.io indexing (Tier 1)
-        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire
+        run: bash tools/wait-for-crates-index.sh "${GITHUB_REF#refs/tags/v}" fraiseql-guard fraiseql-kafka fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire
 
       # Tier 1.5: Depends on fraiseql-guard (Tier 1), and nothing else.
       #
@@ -722,6 +735,7 @@ jobs:
           FAILED=0
           for step_outcome in \
             "${{ steps.publish-guard.outcome }}" \
+            "${{ steps.publish-kafka.outcome }}" \
             "${{ steps.publish-error.outcome }}" \
             "${{ steps.publish-auth.outcome }}" \
             "${{ steps.publish-webhooks.outcome }}" \
@@ -875,8 +889,8 @@ jobs:
           # Every crate the `publish-crates` job ships — keep in sync with the CRATES
           # list in the validate-release "Dry-run publish" step. The old step checked
           # only `fraiseql` (1 of 16) and soft-passed a miss as "indexing in progress".
-          CRATES="fraiseql-guard fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire \
-                  fraiseql-cdc-sinks \
+          CRATES="fraiseql-guard fraiseql-kafka fraiseql-error fraiseql-auth fraiseql-webhooks \
+                  fraiseql-wire fraiseql-cdc-sinks \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
                   fraiseql-functions fraiseql-server fraiseql-cli fraiseql"

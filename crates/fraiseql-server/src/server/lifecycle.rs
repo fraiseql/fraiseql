@@ -573,6 +573,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Start the subscription Kafka mirror (#1102), on the server's JoinSet so a
+        // graceful shutdown stops it with everything else. Building it was fail-loud at
+        // boot; there is nothing left to refuse here.
+        #[cfg(feature = "subscription-kafka")]
+        if let Some(mirror) = self.subscription_kafka.take() {
+            crate::subscription_kafka::spawn(mirror, &self.subscription_manager, &mut self.tasks);
+        }
+
         // Start the `cron:` function scheduler (#595): one leased poller per cron
         // function in the compiled schema, each firing on its schedule under a
         // single-firing advisory lease with the phase-02 `run_as` host. A cron

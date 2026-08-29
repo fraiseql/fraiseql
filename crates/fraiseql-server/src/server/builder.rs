@@ -505,6 +505,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .map_err(ServerError::ConfigError)?
                 .unwrap_or_default();
 
+        // Build the subscription Kafka mirror (#1102) before the server exists. A
+        // refused endpoint — no scheme, unopted-in plaintext, a blocked broker — must
+        // stop the boot: this transport carries entity after-images and pre-images, and
+        // a server that starts having quietly declined to build the producer an
+        // operator asked for is the shape the issue is about.
+        #[cfg(feature = "subscription-kafka")]
+        let subscription_kafka =
+            crate::subscription_kafka::build_mirror(config.subscription_kafka.as_ref())
+                .map_err(ServerError::ConfigError)?;
+
         // Build the session-state subsystem (#389) here, where `db_pool` is in
         // scope. `backend = "postgres"` without a pool, or with a table that
         // cannot be initialised, must refuse to boot — never downgrade to the
@@ -859,6 +869,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             async_operations,
             #[cfg(feature = "cdc-outbound")]
             cdc_drains,
+            #[cfg(feature = "subscription-kafka")]
+            subscription_kafka,
             #[cfg(feature = "auth-saml")]
             saml_state,
             api_key_authenticator,

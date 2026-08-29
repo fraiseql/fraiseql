@@ -1,0 +1,27 @@
+[dependencies]
+fraiseql-guard = {workspace = true}
+rdkafka = {workspace = true}
+thiserror = "2.0"
+tracing = {workspace = true}
+
+[dev-dependencies]
+temp-env = {workspace = true}
+tokio = {workspace = true, features = ["macros", "rt-multi-thread"]}
+
+[lints]
+workspace = true
+
+[package]
+description = "The single Kafka egress shared by FraiseQL's CDC outbox sink and its subscription transport"
+name = "fraiseql-kafka"
+readme = "README.md"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true

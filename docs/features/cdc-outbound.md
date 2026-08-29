@@ -75,6 +75,34 @@ Once running, a failed drain tick is logged at `error` and retried on the next
 tick; the delivery state is durable, so a transient database or broker outage
 costs latency, never events.
 
+## Not the same as `[subscription_kafka]`
+
+There are two ways FraiseQL produces to Kafka and they answer different questions.
+
+| | `[cdc_outbound]` with `kind = "kafka"` | `[subscription_kafka]` |
+|---|---|---|
+| What is published | every change in the outbox | what live subscribers receive |
+| Depends on subscribers | no | **yes** — no subscription, no message |
+| Delivery | at-least-once, durable outbox, retries, dead-letter | at-most-once, logged and dropped on failure |
+| Build feature | `cdc-kafka` | `subscription-kafka` |
+
+If you want a complete change stream, this page's section is the one. If you want
+subscription deliveries mirrored onto a topic — the same events your GraphQL
+subscribers are getting, tagged with the subscription that matched — configure
+`[subscription_kafka]`:
+
+```toml
+[subscription_kafka]
+endpoint = "kafka+ssl://broker.internal:9093"
+default_topic = "fraiseql.subscriptions"
+client_id = "fraiseql-subscriptions"
+timeout_ms = 5000            # short: nothing retries this path
+compression = "lz4"
+```
+
+Both go through the same endpoint guard and the same producer, so the scheme rules
+and the plaintext refusal below apply identically to each (#1102).
+
 ## Broker support
 
 | `kind` | Status |

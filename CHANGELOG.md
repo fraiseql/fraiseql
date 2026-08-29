@@ -112,7 +112,58 @@ disagreed, and the promise was the part that was wrong.
   variables into the argument map — so a variable of either name must now carry an integer or
   be omitted.
 
+- **`KafkaConfig::brokers` is `KafkaConfig::endpoint`, and it must carry a scheme (#1102).**
+
+  The subscription transport took a bare `bootstrap.servers` list, which librdkafka reads
+  as `PLAINTEXT`. It now takes the same guarded endpoint form the CDC sink takes —
+  `kafka+ssl://host:port`, `kafka+sasl-ssl://host:port`, or `kafka://host:port` under
+  `FRAISEQL_KAFKA_ALLOW_PLAINTEXT` plus a declared development environment.
+
+  **Migration.** `KafkaConfig::new("broker:9092", …)` → `KafkaConfig::new(
+  "kafka+ssl://broker:9093", …)`. A scheme-less endpoint is refused at construction
+  rather than defaulted, so this fails loudly at boot rather than silently downgrading.
+
+  `KafkaAdapter::producer()` is also gone: the producer belongs to
+  `fraiseql_kafka::KafkaEgress`, and a caller reaching for the raw client is the first
+  step back towards a second one. `KafkaAdapter::health_check` covers what it was for.
+
+  The default `timeout_ms` drops from 30 000 to 5 000. Subscription delivery is
+  at-most-once with nothing behind it to retry, so the CDC drain's 30s — sized to *its*
+  retry cadence — only parked a hot-path task.
+
 ### Added
+
+- **`[subscription_kafka]`, and one Kafka egress for the whole framework (#1102).**
+
+  `fraiseql_core::runtime::subscription::KafkaAdapter` published entity after-images
+  *and* pre-images to a broker over a connection that set **no `security.protocol` at
+  all** — librdkafka therefore read its bare `bootstrap.servers` list as `PLAINTEXT` —
+  with no scheme requirement, no plaintext refusal and no host screening. It had also
+  never been reachable: no config section, no route, no mount, which is why no
+  integration test covered it and why the gap survived four releases.
+
+  Both halves are closed, and by construction rather than by a second guard:
+
+  - `fraiseql_guard::kafka` now owns endpoint parsing, the plaintext refusal and SASL
+    resolution — one copy, reached by every caller.
+  - **New crate `fraiseql-kafka`** owns connect and produce: the `security.protocol`
+    derived from the scheme, idempotence, and the transient/permanent classification.
+    It is the only place in this workspace that builds a Kafka producer.
+  - The CDC outbox sink and the subscription transport are its two callers. Durability
+    stays above it: the drain's claim/retry/dead-letter is untouched, and the
+    subscription path is at-most-once with no outbox, so a failed publish is logged and
+    dropped rather than growing a second durability story to keep in step.
+  - `[subscription_kafka]` is the mount that was missing. A refused endpoint is a **boot
+    refusal**, not a degraded start.
+
+  What it publishes is what live subscribers receive — one message per matching active
+  subscription, tagged with that subscription's name. It is **not** a change stream; for
+  that, `[cdc_outbound]` with `kind = "kafka"` has the outbox, the retries and the
+  dead-letter state. `docs/features/cdc-outbound.md` sets the two side by side.
+
+  ⚠ The issue's headline premise had expired: it reported rdkafka's `ssl` feature as not
+  compiled in, which #975 fixed in the interim. What survived was the missing
+  `security.protocol`, the missing guard and the missing consumer.
 
 - **`[security.rate_limiting] max_buckets`, and `FRAISEQL_RATE_LIMIT_MAX_BUCKETS` (#1171).**
 

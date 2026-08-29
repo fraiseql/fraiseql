@@ -908,6 +908,9 @@ where
         tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
     }
 
-    server.serve().await?;
+    // Boxed because `Server` is large and `serve()`'s future carries it (#1102 pushed it
+    // past clippy::large_futures' 16 KiB threshold). One heap allocation, once per
+    // process, on a future that lives for the process's whole run.
+    Box::pin(server.serve()).await?;
     Ok(())
 }

@@ -157,6 +157,10 @@ var featureCombos = []featureCombo{
 	// the feature-on half of validate_kind only compile here — and the
 	// feature-OFF half only compiles in the combo above. Neither covers both.
 	{name: "server-cdc-kafka", crate: "fraiseql-server", features: []string{"cdc-kafka"}},
+	// #1102: the subscription→Kafka mirror. A different feature from cdc-kafka and a
+	// different code path — one drains the change log durably, the other fans out live
+	// subscription deliveries — so neither combo compiles the other's arms.
+	{name: "server-subscription-kafka", crate: "fraiseql-server", features: []string{"subscription-kafka"}},
 	// #975: the Kinesis sink's server mount, and the same argument as the kafka
 	// combo above — the Kinesis arm of ConfiguredSink/build_one and the
 	// feature-ON half of validate_kind compile only here, while the feature-OFF
@@ -194,6 +198,9 @@ var featureCombos = []featureCombo{
 	// what compiles KafkaSink itself, its produce-error classification and its
 	// rdkafka-bound tests under -D warnings on MSRV.
 	{name: "cdc-kafka", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-kafka"}},
+	// The shared egress has no optional features: rdkafka is a hard dependency, which
+	// is the point — there is no feature-OFF arm of "how we talk to Kafka" (#1102).
+	{name: "kafka-egress", crate: "fraiseql-kafka", clippy: true},
 	// #975 the gated Kinesis outbound sink. Its endpoint/region guard, the
 	// endpoint-URL override guard and the stream charset are pure and always
 	// compiled (covered by the default test leg); this combo is what compiles

@@ -152,6 +152,9 @@ zeroize = "1.8"
 [dev-dependencies]
 # The #382 outbound-CDC mount e2e reads back from a real NATS JetStream.
 async-nats = "0.47"
+# The #1102 subscription-mirror e2e reads back from a real Kafka. Through the egress
+# crate's re-export so the consumer is provably the same rdkafka the producer uses.
+fraiseql-kafka = {workspace = true}
 # Test-only: mint a real SP key pair for the #948 request-signing e2e. Adds nothing to the
 # tree — samael already pulls the same openssl.
 openssl = "0.10"
@@ -207,6 +210,11 @@ azure-blob = ["fraiseql-storage/azure-blob"]
 storage-transforms = ["fraiseql-storage/transforms"]
 # Outbound CDC (#382): drains the change-log outbox to external brokers.
 cdc-outbound = ["dep:fraiseql-cdc-sinks"]
+# Mirrors subscription deliveries to a Kafka topic (#1102). Separate from cdc-kafka:
+# that one drains the change log durably, this one fans out what live subscribers
+# receive, at most once. Both reach the broker through fraiseql-kafka, so a build with
+# either pulls librdkafka.
+subscription-kafka = ["fraiseql-core/kafka"]
 # Adds the Kafka sink to the outbound drain. Separate from `cdc-outbound` because
 # it pulls librdkafka (a C library built from source) and links system OpenSSL,
 # which the NATS sink does not — a deployment that only drains to NATS should not

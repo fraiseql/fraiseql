@@ -20,6 +20,7 @@ pub mod saml;
 pub mod scim;
 pub mod session_state;
 pub mod storage;
+pub mod subscription_kafka;
 pub mod tls;
 
 #[cfg(test)]
@@ -50,6 +51,7 @@ pub use scim::ScimServerConfig;
 use serde::{Deserialize, Serialize};
 pub use session_state::SessionStateServerConfig;
 pub use storage::{ResolvedStorage, build_storage_state, resolve_storage_section};
+pub use subscription_kafka::SubscriptionKafkaConfig;
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
 
 use crate::middleware::{RateLimitConfig, RateLimitOverrides};
@@ -956,6 +958,20 @@ pub struct ServerConfig {
     #[cfg(feature = "cdc-outbound")]
     #[serde(default)]
     pub cdc_outbound: Option<CdcOutboundConfig>,
+
+    /// `[subscription_kafka]` — mirror subscription deliveries to a Kafka topic (#1102).
+    ///
+    /// Present ⇒ every payload the subscription manager broadcasts is also published to
+    /// Kafka. Absent ⇒ no producer is built. A configured section whose endpoint is
+    /// refused by the transport guard is a **boot refusal**: this path carries entity
+    /// after-images and pre-images, so falling back to an unguarded connection is the
+    /// one outcome that must not be possible.
+    ///
+    /// Not a change stream — see [`SubscriptionKafkaConfig`] for why `[cdc_outbound]` is
+    /// the section for that.
+    #[cfg(feature = "subscription-kafka")]
+    #[serde(default)]
+    pub subscription_kafka: Option<SubscriptionKafkaConfig>,
 }
 
 /// A single `[storage.<name>]` configuration section.
@@ -1305,6 +1321,9 @@ impl Default for ServerConfig {
             // Outbound CDC drains only when [cdc_outbound] is configured (#382).
             #[cfg(feature = "cdc-outbound")]
             cdc_outbound: None,
+            // No Kafka producer unless [subscription_kafka] asks for one (#1102).
+            #[cfg(feature = "subscription-kafka")]
+            subscription_kafka: None,
         }
     }
 }
