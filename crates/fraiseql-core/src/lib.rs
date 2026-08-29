@@ -85,7 +85,16 @@ pub mod graphql;
 // Infrastructure
 pub mod apq;
 pub mod cache;
+
 pub use fraiseql_db as db;
+/// The `regex` this crate's public API is built against (#1198).
+pub use regex;
+/// The `reqwest` this crate's public API is built against (#1198).
+pub use reqwest;
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
+/// The `tracing` this crate's public API is built against (#1198).
+pub use tracing;
 #[cfg(feature = "schema-lint")]
 pub mod design;
 #[cfg(feature = "federation")]

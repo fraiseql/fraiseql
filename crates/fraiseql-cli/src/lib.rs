@@ -24,7 +24,13 @@ pub mod output_schemas;
 pub mod runner;
 pub mod schema;
 
+/// The `anyhow` this crate's public API is built against (#1198).
+pub use anyhow;
 pub use runner::run;
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
+/// The `toml` this crate's public API is built against (#1198).
+pub use toml;
 
 #[cfg(test)]
 mod tests;

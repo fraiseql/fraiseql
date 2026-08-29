@@ -77,6 +77,8 @@ pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{FieldKind, PostgresProjectionGenerator, ProjectionField};
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 pub use traits::{
     AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite,
     ColumnRowStream, CursorValue, DatabaseAdapter, DirectMutationContext, DirectMutationOp,
@@ -90,6 +92,8 @@ pub use types::{
         VectorOperandKind,
     },
 };
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;
 pub use view_name::ViewName;
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_generator::GenericWhereGenerator;

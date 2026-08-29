@@ -109,6 +109,8 @@ pub use idempotency::PostgresIdempotencyStore;
 pub use pipeline::{Delivery, Disposition, WebhookPipeline, verify_signature};
 pub use secret::StaticSecretProvider;
 pub use signature::SignatureError;
+/// The `sqlx` this crate's public API is built against (#1198).
+pub use sqlx;
 // Re-export testing mocks for unit tests and integration tests with `testing` feature
 #[cfg(any(test, feature = "testing"))]
 pub use testing::mocks;

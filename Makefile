@@ -667,6 +667,23 @@ lint-docs-version:
 lint-config-loaders:
 	@bash tools/check-config-loaders.sh
 
+# Gate: a published crate's public API must not name a third-party type the crate does
+# not re-export (#1198). `JwtValidator::new` took a `jsonwebtoken::Algorithm` that
+# `fraiseql-auth` re-exported nowhere, so the crate's own documented first line did not
+# compile: a caller had to add `jsonwebtoken` and guess the major this workspace builds
+# against, and a mismatch is a type error in code they never wrote.
+.PHONY: lint-public-api-reexports
+lint-public-api-reexports:
+	@python3 tools/check-public-api-reexports.py
+
+# Red-capability pin for the gate above. Its subjects come from release.yml's `cargo
+# publish --package` steps, so a rename there would leave it checking nothing and
+# reporting OK — the shape #1206 shipped. Fixture workspaces in a temp dir; this
+# repository is never mutated, so an interrupted run leaves nothing half-edited.
+.PHONY: test-public-api-reexports-gate
+test-public-api-reexports-gate:
+	@bash tools/tests/public_api_reexports_gate_test.sh
+
 # Gate: no example provisions or points at a database backend #374 removed. The
 # PostgreSQL-only de-scope covered crates/; examples/federation/saga-basic kept a
 # running MySQL topology for three phases afterwards (#940), demonstrating in
@@ -924,7 +941,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

@@ -112,6 +112,39 @@ disagreed, and the promise was the part that was wrong.
   variables into the argument map — so a variable of either name must now carry an integer or
   be omitted.
 
+### Fixed
+
+- **Every published crate re-exports the third-party crates its public API names (#1198).**
+
+  `fraiseql_auth::JwtValidator::new(issuer, algorithm)` takes a `jsonwebtoken::Algorithm`,
+  and `fraiseql-auth` re-exported neither the type nor the crate — so the crate's own
+  documented first line did not compile. The fix a caller had to discover for themselves
+  was to add `jsonwebtoken` as a direct dependency **and** pin it to whatever major this
+  workspace happens to build against; the day that bumps, their code stops compiling on a
+  type they never named.
+
+  The issue reported one type in one crate. Sweeping every published crate found the same
+  shape in **13 of the 18**: 44 crate→dependency pairs, 56 distinct references. The largest
+  was `sqlx::PgPool` across 14 `fraiseql-auth` signatures — sqlx being exactly the kind of
+  dependency where a caller cannot guess right, since its 0.x minors are incompatible.
+  Also `axum`, `chrono`, `uuid`, `zeroize`, `reqwest`, `prometheus`, `wasmtime`, `rmcp`,
+  `prost-reflect`, `arc-swap`, `anyhow`, `toml`, `regex`, `bytes`, `futures`, `http`,
+  `serde_json` and `tracing`.
+
+  Each is now `pub use <dep>;` at the crate root, carrying a one-line doc so rustdoc says
+  which version it is. `fraiseql_auth::Algorithm` is additionally re-exported by name,
+  because that is the import the documented example needs. Feature-gated dependencies
+  carry the same `cfg` as the code that exposes them.
+
+  Two things keep it fixed. `crates/fraiseql-auth/tests/public_api_is_self_sufficient.rs`
+  names every third-party type in that crate's public API through `fraiseql_auth::` and
+  imports nothing else, so a deleted re-export breaks the build. And
+  `tools/check-public-api-reexports.py` (`make lint-public-api-reexports`, on the
+  ShellGates leg) fails when a new public signature names an unreachable third-party type,
+  with `tools/tests/public_api_reexports_gate_test.sh` proving it can fail — including the
+  case where release.yml's publish steps are renamed and the gate would otherwise have no
+  subjects at all.
+
 ### Removed
 
 - **`.secrets.baseline` is deleted — it named another tool's artifact and nothing read it (#1212).**

@@ -38,6 +38,8 @@ pub use secrets_manager::{
     create_secrets_manager,
     types::{Secret, SecretsBackend},
 };
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 
 /// Crate-level `Result` alias — errors are always [`SecretsError`].
 pub type Result<T> = std::result::Result<T, SecretsError>;

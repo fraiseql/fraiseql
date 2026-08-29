@@ -83,6 +83,8 @@ pub mod tls;
 pub mod tracing;
 pub mod types;
 
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 pub use composition_validator::{
     ComposedSchema, ComposedType, CompositionError, CompositionValidator, CrossSubgraphValidator,
 };
@@ -109,6 +111,8 @@ pub use representation::*;
 pub use requires_provides_validator::{
     DirectiveValidationError, RequiresProvidesRuntimeValidator, RequiresProvidesValidator,
 };
+/// The `reqwest` this crate's public API is built against (#1198).
+pub use reqwest;
 #[cfg(feature = "saga")]
 pub use saga_compensator::{
     CompensationResult, CompensationStatus, CompensationStepResult, SagaCompensator,
@@ -129,6 +133,8 @@ pub use saga_store::{
     SagaStoreError, StepState,
 };
 pub use selection_parser::*;
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 use serde_json::{Value, json};
 pub use service_sdl::*;
 pub use subscription_forwarder::{

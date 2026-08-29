@@ -19,13 +19,22 @@ pub mod store;
 pub mod triggers;
 pub mod types;
 
+/// The `bytes` this crate's public API is built against (#1198).
+pub use bytes;
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use outbound::{
     EmailTransport, LoginEmailSender, SendContext, SendEmailRequest, SendEmailResponse,
     SendPolicyError, SenderIdentity, SenderIdentityResolver, resolve_sender_identity,
 };
+/// The `reqwest` this crate's public API is built against (#1198).
+#[cfg(feature = "host-live")]
+pub use reqwest;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 pub use store::{FunctionRecord, FunctionStatus, FunctionStore, memory::InMemoryFunctionStore};
 pub use triggers::{
     cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
@@ -47,6 +56,9 @@ pub use types::{
     EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,
     ResourceLimits, RunAs, RuntimeType,
 };
+/// The `wasmtime` this crate's public API is built against (#1198).
+#[cfg(feature = "runtime-wasm")]
+pub use wasmtime;
 
 #[cfg(test)]
 mod tests;

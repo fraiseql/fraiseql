@@ -158,13 +158,40 @@ pub mod tracing_utils {
     }
 }
 
-// Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`
+/// The `anyhow` this crate's public API is built against (#1198).
+pub use anyhow;
+/// The `arc-swap` this crate's public API is built against (#1198).
+pub use arc_swap;
+/// The `axum` this crate's public API is built against (#1198).
+pub use axum;
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 // Authentication (extracted to fraiseql-auth crate) — optional, enable with `features =
 // ["auth"]`
 #[cfg(feature = "auth")]
 pub use fraiseql_auth as auth;
+// Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features =
+// ["webhooks"]`
 #[cfg(feature = "webhooks")]
 pub use fraiseql_webhooks as webhooks;
+/// The `futures` this crate's public API is built against (#1198).
+pub use futures;
+/// The `http` this crate's public API is built against (#1198).
+pub use http;
+/// The `prost-reflect` this crate's public API is built against (#1198).
+#[cfg(any(feature = "grpc", feature = "prost-reflect"))]
+pub use prost_reflect;
+/// The `reqwest` this crate's public API is built against (#1198).
+pub use reqwest;
+/// The `rmcp` this crate's public API is built against (#1198).
+#[cfg(feature = "mcp")]
+pub use rmcp;
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
+/// The `sqlx` this crate's public API is built against (#1198).
+pub use sqlx;
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;
 
 /// Stub auth types compiled when the `auth` feature is disabled.
 ///

@@ -77,6 +77,8 @@ pub use account_linking::{
     ProviderLink, TrustedEmailProviders, normalize_email,
 };
 pub use anonymous::{AnonSignupResponse, AnonSignupState, anon_signup, upgrade_anonymous_session};
+/// The `anyhow` this crate's public API is built against (#1198).
+pub use anyhow;
 pub use audit::logger::{
     AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
     get_audit_logger, init_audit_logger,
@@ -90,6 +92,11 @@ pub use handlers::{
     AuthCallbackQuery, AuthLogoutRequest, AuthRefreshRequest, AuthStartRequest, AuthState,
     auth_callback, auth_logout, auth_refresh, auth_start,
 };
+/// The `jsonwebtoken` this crate's public API is built against (#1198).
+pub use jsonwebtoken;
+/// `jsonwebtoken::Algorithm`, which `JwtValidator::new` takes — the crate's own
+/// documented first line needs it in scope (#1198).
+pub use jsonwebtoken::Algorithm;
 pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use local_password::{
@@ -133,6 +140,11 @@ pub use providers::{
 };
 pub use proxy::ProxyConfig;
 pub use rate_limiting::{AuthRateLimitConfig, Clock, KeyedRateLimiter, RateLimiters, SystemClock};
+/// The `redis` this crate's public API is built against (#1198).
+#[cfg(any(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+pub use redis;
+/// The `reqwest` this crate's public API is built against (#1198).
+pub use reqwest;
 #[cfg(feature = "auth-saml")]
 pub use saml::{
     PgSamlReplayStore, SamlAttributeMapping, SamlAuthState, SamlError, SamlIdpConfig,
@@ -148,6 +160,8 @@ pub use security_init::{
     init_default_security_config, init_security_config, log_security_config,
     validate_security_config,
 };
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
 pub use session_bearer::SessionBearerAuthenticator;
 pub use session_postgres::PostgresSessionStore;

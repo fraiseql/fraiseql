@@ -52,3 +52,5 @@ pub use graphql_error::{GraphQLError, GraphQLErrorLocation};
 // Re-export for convenience — only available with the `axum-compat` feature
 #[cfg(feature = "axum-compat")]
 pub use http::{ErrorResponse, IntoHttpResponse};
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;

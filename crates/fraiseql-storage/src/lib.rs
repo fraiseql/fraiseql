@@ -46,6 +46,8 @@ pub use backend::{
     types::{ListResult, ObjectInfo, ObjectMetadata, PutResult, StorageObject},
     validate_key,
 };
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 pub use config::{BucketAccess, BucketConfig, StorageConfig};
 pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 pub use metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
@@ -59,6 +61,8 @@ pub use rls::{STORAGE_ADMIN_ROLE, StorageCaller, StorageRlsEvaluator};
 pub use routes::{
     DEFAULT_POLICY_REFRESH_INTERVAL, PolicyReloadReport, StorageState, StorageUser, storage_router,
 };
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 pub use service::BucketService;
 #[cfg(feature = "transforms")]
 pub use transforms::{
@@ -66,3 +70,5 @@ pub use transforms::{
     TransformParams, Watermark,
 };
 pub use uploads::{NewUploadSession, UploadSession, UploadSessionRepo};
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;

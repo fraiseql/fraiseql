@@ -144,6 +144,9 @@ pub use matcher::EventMatcher;
 pub use metrics::MetricsRegistry;
 #[cfg(feature = "metrics")]
 pub use metrics::handler::metrics_handler;
+/// The `prometheus` this crate's public API is built against (#1198).
+#[cfg(feature = "metrics")]
+pub use prometheus;
 #[cfg(feature = "queue")]
 pub use queue::redis::RedisJobQueue;
 pub use queue::{
@@ -161,10 +164,14 @@ pub use resilience::{
 pub use search::http::HttpSearchBackend;
 #[cfg(feature = "search")]
 pub use search::{IndexedEvent, SearchBackend, SearchStats};
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 pub use source::{
     CursorSnapshot, LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome, SourceCursorStore,
     lock_id,
 };
+/// The `sqlx` this crate's public API is built against (#1198).
+pub use sqlx;
 pub use storage::EventStorage;
 #[cfg(feature = "postgres")]
 pub use storage::postgres::PostgresEventStorage;

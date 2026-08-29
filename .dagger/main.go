@@ -400,6 +400,12 @@ func (m *FraiseqlCi) ShellGates(
 		// Every typed TOML config loader has a coverage manifest naming each
 		// key's consumer (#909). Retrospective rule 2: no unconsumed surface.
 		"bash tools/check-config-loaders.sh",
+		// A published crate's public API must not name a third-party type it does
+		// not re-export (#1198): `JwtValidator::new` took a `jsonwebtoken::Algorithm`
+		// reachable from nowhere, so the crate's documented first line did not
+		// compile. Reads manifests with tomllib — there is no cargo in this container.
+		"python3 tools/check-public-api-reexports.py",
+		"make test-public-api-reexports-gate",
 		"bash tools/check-sdk-dead-surface.sh",
 		// No example provisions or points at a backend #374 removed. The
 		// PostgreSQL-only de-scope covered crates/; examples/ kept a running

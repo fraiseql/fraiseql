@@ -103,5 +103,7 @@ pub use exchange_protocol::{ExchangeMessage, RequestType};
 pub use export::{BatchExportWriter, BatchStats, BulkExporter, ExportFormat};
 pub use flight_server::{FraiseQLFlightService, QueryExecutor};
 pub use metadata::SchemaRegistry;
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 pub use subscription::{EventSubscription, SubscriptionManager};
 pub use ticket::FlightTicket;
