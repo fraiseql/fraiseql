@@ -71,6 +71,42 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`_entities` honours the router's selection set inside nested objects (#1196).**
+
+  A federated `_entities` read returned nested object fields **whole** — every key of the
+  JSONB sub-object — instead of the fields the router selected, and the fields selected
+  *inside* the nested object additionally landed on the **parent** as bare nulls:
+
+  ```
+  _entities(…) { ... on User { id orders { id status total } } }
+
+  before:  {"__typename":"User","id":"u-1","status":null,"total":null,
+            "orders":[{"id":"o-1","user_id":"u-1","status":"completed",
+                       "total":99.99,"created_at":"2026-08-25T16:50:12Z"}, …]}
+  after:   {"__typename":"User","id":"u-1",
+            "orders":[{"id":"o-1","status":"completed","total":99.99}, …]}
+  ```
+
+  The same selection through an ordinary query always projected exactly, so this was the
+  `_entities` path alone — and it is that path's *normal* case, not an edge one: an extended
+  entity is precisely a subgraph contributing a field to an entity it does not own, and that
+  field is usually a list. A router forwards the subgraph's response, so clients received
+  fields they never asked for, and where the entity carries anything sensitive the whole row
+  crossed the subgraph boundary on a query for one field.
+
+  The issue left open whether the parent-level nulls and the un-projected child were one
+  fault or two. **One.** `parse_field_selection` is a character scanner that flattens the
+  whole selection set into a single depth-less list, so `orders { id status total }` requests
+  `orders` at the top level (whole sub-blob) *and* `status`/`total` on `User` (null). The
+  response is now projected by the query path's own projector at the entity's type, so the
+  two surfaces cannot disagree about what a selection set means. Fragment spreads and
+  `@skip`/`@include` are resolved first, so a router that sends its selection as a named
+  fragment projects identically to one that inlines it.
+
+  The flat scan is unchanged where it was already sound — choosing SQL columns, and the
+  field-RBAC classification, whose over-breadth fails closed. `__typename` is still returned
+  whether or not the document names it, as the federation spec requires.
+
 - **A `String` field whose stored text happens to parse as JSON is returned as a string (#1192).**
 
   The projector re-parsed any string value that decoded as an object or an array, to recover a
