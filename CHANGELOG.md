@@ -6899,6 +6899,29 @@ disagreed, and the promise was the part that was wrong.
   Step-level `if:` conditions of the same class are covered too — see the entry below
   (#1207), which took the sixteen decisions and grew this gate to steps.
 
+- **`release-smoke.yml` can tell a loaded fixture from an empty one (#1214).** The workflow
+  whose whole job is to catch "the binary compiles but the server does not work" applied its
+  e2e fixture with a bare `psql -f` and **no `ON_ERROR_STOP`** — at all three sites, not the
+  one the issue named. Measured against PG16 on the local rig:
+
+  | case | psql exit | `tb_user` after |
+  |---|---|---|
+  | dirty/incompatible table, no `ON_ERROR_STOP` (the old shape) | **0** | **0 rows** |
+  | the same load with `-v ON_ERROR_STOP=1` | 3 | — |
+  | clean schema, applied once | 0 | 3 rows |
+  | clean schema, applied **twice** | 0 | **6 rows**, silently |
+
+  The fixture is `CREATE TABLE IF NOT EXISTS` plus a bare `INSERT`, so it never refuses to
+  re-apply, and `psql -f` does not propagate statement errors without the flag. All three
+  sites now pass it and assert the row count afterwards.
+
+  **The GraphQL smoke could not have caught the difference either.** It asserted HTTP 200,
+  the presence of `"data"`, the presence of `"users"`, and the absence of `"errors"`. Booted
+  against a truncated table, the real server returns `{"data":{"users":[]}}` with HTTP 200 —
+  which satisfies **all four** and prints "GraphQL query smoke OK". Verified by running the
+  server against the fixture and then emptying it. The smoke now asserts the three seeded
+  rows come back by name, and the "seeds one row" comment — wrong by 3× — says three.
+
 - **Sixteen dead step-level `if:` conditions, and the gate that finds them (#1207).**
   The same defect as #1206 one level down, and quieter: a dead *job* is absent from the
   checks list, but a dead *step* leaves its job running and reporting success while
