@@ -18,7 +18,18 @@ fn test_invalid_signature() {
 fn test_missing_url_returns_error() {
     let verifier = TwilioVerifier;
     let result = verifier.verify(b"payload", "sig", "secret", None, None);
-    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
+
+    // #1174: `KeyMaterial(_)` alone does NOT discriminate here. Measured: an empty
+    // SECRET produces the byte-identical error, because the missing-URL check runs
+    // first — so this test, named for the URL, passed equally when the secret was the
+    // problem. Assert the message so it can only pass for its own reason.
+    let Err(SignatureError::KeyMaterial(message)) = result else {
+        panic!("a missing request URL must be KeyMaterial; got {result:?}")
+    };
+    assert!(
+        message.contains("requires the request URL"),
+        "the error must name the missing URL, not some other key-material fault; got {message:?}"
+    );
 }
 
 #[test]

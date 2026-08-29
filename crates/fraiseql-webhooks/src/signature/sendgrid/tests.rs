@@ -25,7 +25,17 @@ fn test_invalid_public_key_returns_error() {
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
     let result = verifier.verify(b"body", "sig", "not-a-pem-key", Some(&ts), None);
-    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
+
+    // #1174: `"sig"` is not valid Base64 either, so `KeyMaterial(_)` alone would be
+    // satisfied by a run that never reached the key at all — the exact shape #1174
+    // found, where the fixture failed one stage earlier than the test intended.
+    let Err(SignatureError::KeyMaterial(message)) = result else {
+        panic!("an unparseable PEM key must be KeyMaterial; got {result:?}")
+    };
+    assert!(
+        message.contains("P-256 public key"),
+        "the error must name the KEY parse as the fault; got {message:?}"
+    );
 }
 
 #[test]
@@ -80,7 +90,16 @@ fn test_empty_secret_rejected() {
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
     let result = verifier.verify(b"body", "sig", "", Some(&ts), None);
-    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
+
+    // #1174: an empty key and an unparseable one are different faults with the same
+    // variant; only the message separates them.
+    let Err(SignatureError::KeyMaterial(message)) = result else {
+        panic!("an empty key must be KeyMaterial; got {result:?}")
+    };
+    assert!(
+        message.contains("must not be empty"),
+        "the error must name the EMPTY KEY as the fault, not a parse failure; got {message:?}"
+    );
 }
 
 /// Round-trip test: generate a P-256 key pair, sign, and verify.

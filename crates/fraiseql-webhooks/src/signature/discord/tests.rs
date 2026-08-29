@@ -85,7 +85,16 @@ fn test_invalid_public_key_hex() {
     let verifier = DiscordVerifier::new();
     let ts = fresh_timestamp();
     let result = verifier.verify(b"test", "abc123", "not-hex!", Some(&ts), None);
-    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
+
+    // #1174: assert the message, not just the family — the key and the signature are
+    // both hex here, and `KeyMaterial(_)` alone cannot say which one failed to decode.
+    let Err(SignatureError::KeyMaterial(message)) = result else {
+        panic!("an undecodable public key must be KeyMaterial; got {result:?}")
+    };
+    assert!(
+        message.contains("public key"),
+        "the error must name the KEY as the undecodable input; got {message:?}"
+    );
 }
 
 /// #1045: the counterpart to `test_invalid_public_key_hex`, and the reason

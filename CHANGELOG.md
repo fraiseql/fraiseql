@@ -6899,6 +6899,24 @@ disagreed, and the promise was the part that was wrong.
   Step-level `if:` conditions of the same class are covered too — see the entry below
   (#1207), which took the sixteen decisions and grew this gate to steps.
 
+- **Webhook signature tests assert which stage failed, not just that one did (#1174).**
+  The class #1045 exposed: a fixture that fails *earlier* than the test intends still
+  satisfies a broad assertion. Its original instance is repaired — a hand-written "real PEM
+  key stub" that was three bytes short of a valid P-256 SPKI key, so a test named for the
+  Base64 signature decode never reached it — and this is the sweep the issue asked for.
+
+  No hand-written key literal remains anywhere in `crates/fraiseql-webhooks`; the one
+  survivor generates a real key pair. What the sweep found instead is the same class with
+  the variant held constant: five assertions matched `Err(SignatureError::KeyMaterial(_))`,
+  where the wildcard hides *which* key-material fault occurred.
+
+  One was live. `test_missing_url_returns_error` (Twilio) is named for a missing request
+  URL, and an **empty auth token** produces the same variant — so the test passed whether
+  the URL or the secret was the problem. Measured: with a URL supplied and the token empty
+  it still satisfied the old assertion, while the tightened one fails with `the error must
+  name the missing URL, not some other key-material fault; got "Twilio auth token must not
+  be empty"`. All five now assert the message names the fault the test is named for.
+
 - **The rate-limiter bucket sweep has a regression guard again (#1173).** #1080's defect
   was that `InMemoryRateLimiter::cleanup()` and the `cleanup_interval_secs` knob both
   existed while nothing in the server ever called it — a function with no caller. The fix

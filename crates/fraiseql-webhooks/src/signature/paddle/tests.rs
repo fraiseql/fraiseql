@@ -81,7 +81,16 @@ fn test_empty_secret_rejected() {
     let ts = fresh_timestamp();
     let sig = format!("ts={ts};h1=abc123");
     let result = verifier.verify(b"payload", &sig, "", None, None);
-    assert!(matches!(result, Err(SignatureError::KeyMaterial(_))));
+
+    // #1174: the signature here is also unverifiable, so the family alone would be
+    // satisfied by failing at the wrong stage.
+    let Err(SignatureError::KeyMaterial(message)) = result else {
+        panic!("an empty secret must be KeyMaterial; got {result:?}")
+    };
+    assert!(
+        message.contains("must not be empty"),
+        "the error must name the EMPTY SECRET as the fault; got {message:?}"
+    );
 }
 
 #[test]
