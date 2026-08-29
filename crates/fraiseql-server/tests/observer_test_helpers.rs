@@ -446,12 +446,70 @@ pub async fn insert_change_log_entry(
     Ok(row.0)
 }
 
+/// Panic, naming the exports, unless the outbound SSRF bypass is in force.
+///
+/// The mock webhook server binds loopback, and the observer dispatch path's SSRF
+/// guard correctly refuses a private-IP target. The `integration (observers)` leg
+/// makes these suites work by exporting three variables; nothing checked for them,
+/// so running the suite anywhere else did not skip and did not explain itself —
+/// every dispatch was silently refused, no webhook ever arrived, and each affected
+/// test burned its full deadline before failing with `Timeout waiting for 1 webhook
+/// calls. Got: 0`, which reads like a product defect. Measured on one box, same
+/// commit, same command: **8 passed / 8 failed in 162.94s** with `DATABASE_URL`
+/// alone, **16 passed / 0 failed in 18.90s** with the leg's env (#1187).
+///
+/// `Got: 0` that stays 0 is total non-delivery, not a slow machine — which is why
+/// #999's suggestion to raise the deadlines could not have helped.
+///
+/// ⚠ Do NOT "fix" a failure here by making the guard permissive in tests. The
+/// bypass being *required* is the guard working; what was missing is saying so.
+///
+/// Panics rather than skipping: a skipped test reads as a passing one, and the
+/// whole point is that this must be impossible to mistake for a green run.
+fn require_outbound_bypass(waiting_for: &str) {
+    const REQUIRED: [(&str, &str); 3] = [
+        ("FRAISEQL_ENV", "development"),
+        ("FRAISEQL_ALLOW_PRIVATE_WEBHOOKS", "true"),
+        ("FRAISEQL_OBSERVERS_ALLOW_INSECURE", "true"),
+    ];
+
+    let missing: Vec<&(&str, &str)> = REQUIRED
+        .iter()
+        .filter(|(name, want)| {
+            std::env::var(name).is_ok_and(|v| v.eq_ignore_ascii_case(want)) == false
+        })
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "observer webhook suites need the outbound SSRF bypass, and it is not set.\n\n\
+         This test is about to wait for {waiting_for}, dispatched to a loopback wiremock \
+         URL. The outbound SSRF guard refuses private-IP targets, so without the bypass \
+         every dispatch is refused, the count stays 0, and the wait below would burn its \
+         full deadline and then blame the observer runtime.\n\n\
+         Missing or wrong: {missing:?}\n\n\
+         Export all three (this is exactly what the `integration (observers)` leg does, \
+         see `integrationObservers` in .dagger/main.go):\n\
+         \x20   export FRAISEQL_ENV=development\n\
+         \x20   export FRAISEQL_ALLOW_PRIVATE_WEBHOOKS=true\n\
+         \x20   export FRAISEQL_OBSERVERS_ALLOW_INSECURE=true\n\n\
+         Do NOT relax the guard instead — it is behaving correctly (#1187)."
+    );
+}
+
 /// Wait for webhook server to receive N requests
 pub async fn wait_for_webhook(
     server: &MockWebhookServer,
     expected_count: usize,
     timeout: Duration,
 ) {
+    // Checked before the loop, so a missing export fails in milliseconds with an
+    // actionable message instead of after the full deadline with a misleading one.
+    // `expected_count == 0` asserts that nothing arrived and needs no bypass.
+    if expected_count > 0 {
+        require_outbound_bypass(&format!("{expected_count} webhook call(s)"));
+    }
+
     let start = tokio::time::Instant::now();
 
     loop {

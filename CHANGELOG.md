@@ -6899,6 +6899,34 @@ disagreed, and the promise was the part that was wrong.
   Step-level `if:` conditions of the same class are covered too — see the entry below
   (#1207), which took the sixteen decisions and grew this gate to steps.
 
+- **The observer webhook suites say what they need instead of blaming the runtime
+  (#1187).** They dispatch to a loopback wiremock URL, which the outbound SSRF guard
+  correctly refuses. The `integration (observers)` leg makes them work by exporting three
+  variables; nothing checked for them, so running the suite anywhere else neither skipped
+  nor explained itself — every dispatch was silently refused, no webhook ever arrived, and
+  each affected test burned its full deadline before failing with `Timeout waiting for 1
+  webhook calls. Got: 0`, which reads like a product defect. Same commit, same box, same
+  command, only the environment differing:
+
+  | environment | result |
+  |---|---|
+  | `DATABASE_URL` only | 8 passed / 8 failed in **162.94s** |
+  | the observers leg's env | 16 passed / 0 failed in **18.90s** |
+
+  The wait now checks its precondition first and panics naming the three exports, so the
+  same missing setup costs milliseconds and points at the fix: 8/8 in **17.90s** rather
+  than 162.94s, and 16/0 in 19.25s once the env is right. It panics rather than skipping,
+  because a skipped test reads as a passing one.
+
+  It also settles #999, a separate flake in the same suites: a genuine read-before-write
+  race where the observer-log assertion read the row before the writer had written it,
+  fixed by making the assertion wait for the writer rather than racing it — test-side
+  synchronisation only, with the runtime unchanged. That issue's *second* suggested fix —
+  "the deadlines assume an unloaded machine, either raise it or make it configurable" — is
+  refuted by the measurement above: a count that is 0 and stays 0 is total non-delivery,
+  and no deadline helps. With the environment right the whole suite finishes in 19s against
+  a 15–20s per-test budget, so the deadlines were generous, not tight.
+
 - **The feature-OFF refusal paths now execute, and a gate can see when they do not
   (#1179).** ⚠ The issue's premise was wrong in a way worth recording: it reported that
   "no CI leg enables the parquet feature, so its tests compile but never run", from a grep
