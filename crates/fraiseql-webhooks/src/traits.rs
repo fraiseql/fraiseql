@@ -121,16 +121,52 @@ pub trait SecretProvider: Send + Sync {
     async fn get_secret(&self, name: &str) -> Result<String>;
 }
 
+/// What a handler did with the delivery it was given (#1176).
+///
+/// A handler runs **only** when the delivery ledger's `(route, event_id)` claim
+/// was fresh, so a handler that finds the event already durably recorded has
+/// discovered the two dedup layers disagreeing. That is an answer, not a
+/// failure, and it is not the same answer as "recorded": the route must not
+/// report the delivery as processed, and must not fire the dispatch that a
+/// processed delivery earns.
+///
+/// Deliberately **not** `#[non_exhaustive]`. A third outcome should be a compile
+/// error at every match site rather than something a wildcard arm silently
+/// absorbs — the whole class this type exists to remove is a disposition
+/// dropped on the floor.
+#[derive(Debug)]
+pub enum Handled {
+    /// The handler recorded the event. Carries the value the caller passes on to
+    /// its dispatch.
+    Recorded(Value),
+    /// An earlier committed delivery already owns this event; the handler wrote
+    /// nothing and no dispatch should fire.
+    Duplicate,
+}
+
 /// Event handler abstraction for testing
 #[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait EventHandler: Send + Sync {
-    /// Handle webhook event by calling database function
+    /// Handle webhook event by calling database function.
+    ///
+    /// Returning [`Handled::Duplicate`] tells the pipeline this delivery wrote
+    /// nothing because an earlier committed one already owns the event. The
+    /// idempotency claim still commits — see [`Handled`] — so the sender's next
+    /// redelivery short-circuits at the ledger instead of asking again.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the handler cannot recover from. The pipeline rolls the claim
+    /// back with it, so the sender's retry reprocesses the event rather than
+    /// losing it as "seen but unhandled". Reserve this for a genuine failure: a
+    /// duplicate returned as an error would roll back the claim the sender needs
+    /// in order to stop retrying.
     async fn handle(
         &self,
         function_name: &str,
         params: Value,
         tx: &mut Transaction<'_, Postgres>,
-    ) -> Result<Value>;
+    ) -> Result<Handled>;
 }
 
 /// Clock abstraction for testing timestamp validation

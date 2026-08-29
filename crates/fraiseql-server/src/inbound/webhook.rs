@@ -30,8 +30,9 @@ use fraiseql_functions::{
     InboundMessage, IngestError, IngestSource, PushSource, RawDelivery, Source, Transport,
 };
 use fraiseql_webhooks::{
-    Delivery, Disposition, EventHandler, PostgresIdempotencyStore, Result as WebhookResult,
-    StaticSecretProvider, WebhookError, WebhookPipeline, signature::ProviderRegistry,
+    Delivery, Disposition, EventHandler, Handled, PostgresIdempotencyStore,
+    Result as WebhookResult, StaticSecretProvider, WebhookError, WebhookPipeline,
+    signature::ProviderRegistry,
 };
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -131,13 +132,38 @@ impl EventHandler for SpineEventHandler {
         _function_name: &str,
         params: Value,
         tx: &mut Transaction<'_, Postgres>,
-    ) -> WebhookResult<Value> {
+    ) -> WebhookResult<Handled> {
         let message: InboundMessage = serde_json::from_value(params)?;
-        emit_in_tx(tx, &message)
+        let emitted = emit_in_tx(tx, &message)
             .await
             .map_err(|error| WebhookError::Database(error.to_string()))?;
+
+        // #1176: report what the spine did. This handler runs only when the
+        // delivery ledger's `(route, event_id)` claim was fresh, so a spine
+        // `Duplicate` means the two dedup layers disagree about the same
+        // delivery — and answering "processed" there told the sender its message
+        // had been accepted while dispatching `after:ingest` on a row this
+        // delivery never wrote.
+        //
+        // Today the two keys are derived from the same material (#1046), so they
+        // agree by construction. That is a property of how they happen to be
+        // derived, not a guarantee anything enforces: it breaks if a retention
+        // job prunes one table and not the other, if another caller drives
+        // `WebhookPipeline` with a different derivation, or if the two drift —
+        // which is exactly what #1046 was.
+        if !emitted.is_new() {
+            tracing::warn!(
+                source = ?message.source,
+                idempotency_key = %message.idempotency_key,
+                "inbound spine refused a delivery whose ledger claim was fresh: the delivery \
+                 ledger and the spine disagree about this event. Reported as duplicate; \
+                 after:ingest not dispatched."
+            );
+            return Ok(Handled::Duplicate);
+        }
+
         // Hand the normalized message back so the route can dispatch `after:ingest`.
-        serde_json::to_value(&message).map_err(Into::into)
+        Ok(Handled::Recorded(serde_json::to_value(&message)?))
     }
 }
 

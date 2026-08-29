@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`EventHandler::handle` returns `Handled`, not `Value` (#1176).**
+
+  ```rust
+  async fn handle(&self, function_name: &str, params: Value,
+                  tx: &mut Transaction<'_, Postgres>) -> Result<Handled>;
+
+  pub enum Handled { Recorded(Value), Duplicate }
+  ```
+
+  A handler runs **only** when the delivery ledger's `(route, event_id)` claim was fresh, so a
+  handler that finds the event already durably recorded has discovered the two dedup layers
+  disagreeing. That had no way to be said: the type was `Value`, so the answer was dropped and
+  the delivery was reported to the sender as `200 {"status":"processed"}` with `after:ingest`
+  dispatched — on a message the delivery never wrote.
+
+  **Migration.** Wrap the existing return value: `Ok(v)` becomes `Ok(Handled::Recorded(v))`.
+  Return `Handled::Duplicate` where your handler's own dedup layer refuses the write.
+
+  `Handled` is deliberately **not** `#[non_exhaustive]`: a third outcome should be a compile
+  error at every match site rather than something a wildcard arm absorbs, which is the whole
+  class this type exists to remove.
+
 - **An argument value that contradicts its argument's type is now refused, and a mistyped `limit`/`offset` no longer widens the result set (#1197).**
 
   Nothing validated that an argument's **value** had the argument's type — GraphQL § 5.6.1
@@ -70,6 +92,26 @@ disagreed, and the promise was the part that was wrong.
   be omitted.
 
 ### Fixed
+
+- **The inbound webhook route no longer reports an unpersisted message as processed (#1176).**
+
+  `SpineEventHandler` discarded the `Emitted` returned by `emit_in_tx`, so a delivery whose
+  spine write was refused as a duplicate still answered `200 {"status":"processed"}` and still
+  fired `after:ingest`. It now answers `{"status":"duplicate"}`, dispatches nothing, and logs
+  the disagreement at WARN with the source and idempotency key.
+
+  **The idempotency claim still commits** — and that is the load-bearing half. Failing the
+  handler instead would roll the claim back, and the state that produced the disagreement (an
+  event the spine already owns) does not go away on a retry, so the sender would ask the same
+  question forever. Committing the claim means the next redelivery short-circuits at the
+  ledger. Nothing is lost either way: a spine `Duplicate` means the message *is* durable, and
+  the earlier delivery that wrote it is the one that dispatched.
+
+  This is latent rather than live: since #1046 both dedup keys derive from the same material,
+  so they agree by construction. That is a property of how they happen to be derived, not a
+  guarantee anything enforces — it breaks if a retention job prunes one table and not the
+  other (neither has one today), if another caller drives `WebhookPipeline` with a different
+  key derivation, or if the two drift, which is exactly what #1046 was.
 
 - **`_entities` honours the router's selection set inside nested objects (#1196).**
 

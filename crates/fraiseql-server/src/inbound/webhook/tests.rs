@@ -724,3 +724,120 @@ mod signed_dedup_key {
         assert_eq!(extract_event_type(&payload, &h), "pull_request");
     }
 }
+
+mod spine_handler_disposition {
+    //! #1176: `SpineEventHandler` must report what the spine actually did.
+    //!
+    //! The handler runs **only** when the delivery ledger's `(route, event_id)`
+    //! claim was fresh, so an `Emitted::Duplicate` from the spine is by
+    //! construction the two dedup layers disagreeing: the ledger says "never
+    //! seen", the spine says "already mine". Discarding that answer reported the
+    //! delivery to the sender as `200 {"status":"processed"}` and fired
+    //! `after:ingest` — on a message this delivery did not write.
+    //!
+    //! Reachable whenever the two keys stop being derived from the same material:
+    //! a retention job pruning one table and not the other (neither has one
+    //! today), another caller driving `WebhookPipeline` with a different key
+    //! derivation, or the derivations drifting in a future change — which is
+    //! exactly what #1046 was.
+    //!
+    //! Needs a real database: the disposition is `ON CONFLICT`'s answer, and a
+    //! fixture that never commits a first row cannot produce it.
+
+    #![allow(clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip notes are acceptable
+
+    use fraiseql_functions::{InboundMessage, IngestSource};
+    use fraiseql_webhooks::EventHandler as _;
+    use sqlx::PgPool;
+
+    use crate::inbound::{
+        spine::{Emitted, PostgresInboundSpine, emit_in_tx},
+        webhook::SpineEventHandler,
+    };
+
+    async fn pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
+        let svc = fraiseql_test_support::postgres().await?;
+        let pool = PgPool::connect(svc.url()).await.unwrap();
+        Some((pool, svc))
+    }
+
+    fn message(key: &str) -> InboundMessage {
+        InboundMessage::new(
+            IngestSource::Webhook {
+                provider: "stripe".to_string(),
+            },
+            key,
+            chrono::DateTime::parse_from_rfc3339("2026-07-03T12:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+        )
+    }
+
+    /// A key the spine already owns must come back as `Duplicate`, not as a
+    /// successful handle.
+    #[tokio::test]
+    async fn a_key_the_spine_already_owns_is_reported_duplicate() {
+        let Some((pool, _svc)) = pool().await else {
+            eprintln!("SKIP a_key_the_spine_already_owns_is_reported_duplicate: no postgres");
+            return;
+        };
+        let spine = PostgresInboundSpine::new(pool.clone());
+        spine.init().await.unwrap();
+
+        // A fresh key per run, so re-runs do not depend on rows an earlier one left.
+        let key = uuid::Uuid::new_v4().to_string();
+        let msg = message(&key);
+
+        // An earlier delivery commits the message onto the spine.
+        let mut tx = pool.begin().await.unwrap();
+        assert!(
+            matches!(emit_in_tx(&mut tx, &msg).await.unwrap(), Emitted::New(_)),
+            "the first emit must record the message"
+        );
+        tx.commit().await.unwrap();
+
+        // This delivery's ledger claim was fresh (the handler only runs then), but
+        // the spine already owns the key.
+        let mut tx = pool.begin().await.unwrap();
+        let handled = SpineEventHandler
+            .handle("stripe", serde_json::to_value(&msg).unwrap(), &mut tx)
+            .await
+            .expect("a duplicate is an answer, not a failure");
+        tx.commit().await.unwrap();
+
+        assert!(
+            matches!(handled, fraiseql_webhooks::Handled::Duplicate),
+            "the spine refused the write as a duplicate; the handler reported {handled:?}, \
+             which the route renders as `processed` and dispatches after:ingest on"
+        );
+    }
+
+    /// **Control.** A key the spine has never seen still reports `Recorded`, so a
+    /// fix cannot pass by reporting `Duplicate` for everything.
+    #[tokio::test]
+    async fn a_fresh_key_is_reported_recorded() {
+        let Some((pool, _svc)) = pool().await else {
+            eprintln!("SKIP a_fresh_key_is_reported_recorded: no postgres");
+            return;
+        };
+        let spine = PostgresInboundSpine::new(pool.clone());
+        spine.init().await.unwrap();
+
+        let msg = message(&uuid::Uuid::new_v4().to_string());
+        let mut tx = pool.begin().await.unwrap();
+        let handled = SpineEventHandler
+            .handle("stripe", serde_json::to_value(&msg).unwrap(), &mut tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let fraiseql_webhooks::Handled::Recorded(value) = handled else {
+            panic!("a fresh key must be recorded, got {handled:?}");
+        };
+        assert_eq!(
+            value.get("idempotency_key").and_then(serde_json::Value::as_str),
+            Some(msg.idempotency_key.as_str()),
+            "the normalized message is what the route dispatches on: {value}"
+        );
+    }
+}

@@ -20,8 +20,8 @@
 use serde_json::Value;
 
 use crate::{
-    EventHandler, IdempotencyStore, Result, SecretProvider, SignatureVerifier, WebhookError,
-    WebhookIsolation, signature::SignatureError,
+    EventHandler, Handled, IdempotencyStore, Result, SecretProvider, SignatureVerifier,
+    WebhookError, WebhookIsolation, signature::SignatureError,
 };
 
 /// One inbound webhook delivery to be processed by [`WebhookPipeline::process`].
@@ -210,7 +210,15 @@ where
                 .handle(delivery.function_name, delivery.params.clone(), &mut tx)
                 .await
             {
-                Ok(result) => Disposition::Processed(result),
+                Ok(Handled::Recorded(result)) => Disposition::Processed(result),
+                // #1176: the claim was fresh and the handler still found the event
+                // already recorded — the two dedup layers disagree. The delivery is
+                // reported as the duplicate it is (not `processed`, and with no
+                // dispatch), and the claim below still COMMITS, which is the half a
+                // handler error could not give: the sender's next redelivery
+                // short-circuits at the ledger instead of asking the same question
+                // forever.
+                Ok(Handled::Duplicate) => Disposition::Duplicate,
                 // Handler failed → roll the claim back too, so the sender's retry
                 // reprocesses the event instead of it being lost as "seen but unhandled".
                 Err(e) => return Err(rollback_then(tx, e).await),

@@ -112,7 +112,9 @@ pub use signature::SignatureError;
 // Re-export testing mocks for unit tests and integration tests with `testing` feature
 #[cfg(any(test, feature = "testing"))]
 pub use testing::mocks;
-pub use traits::{Clock, EventHandler, IdempotencyStore, SecretProvider, SignatureVerifier};
+pub use traits::{
+    Clock, EventHandler, Handled, IdempotencyStore, SecretProvider, SignatureVerifier,
+};
 pub use transaction::{WebhookIsolation, execute_in_transaction};
 
 /// Errors that can occur while verifying a webhook and running caller-supplied seams.

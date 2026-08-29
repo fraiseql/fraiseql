@@ -20,7 +20,7 @@ impl EventHandler for NeverHandler {
         _function_name: &str,
         _params: Value,
         _tx: &mut Transaction<'_, Postgres>,
-    ) -> Result<Value> {
+    ) -> Result<Handled> {
         panic!("handler must not run when the pipeline short-circuits before the transaction");
     }
 }

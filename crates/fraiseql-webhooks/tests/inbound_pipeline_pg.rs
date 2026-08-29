@@ -21,7 +21,7 @@ use std::str::FromStr;
 
 use fraiseql_test_support::try_database_url;
 use fraiseql_webhooks::{
-    Delivery, Disposition, EventHandler, PostgresIdempotencyStore, Result, SignatureError,
+    Delivery, Disposition, EventHandler, Handled, PostgresIdempotencyStore, Result, SignatureError,
     SignatureVerifier, StaticSecretProvider, WebhookError, WebhookPipeline,
 };
 use serde_json::{Value, json};
@@ -92,13 +92,13 @@ impl EventHandler for RecordingHandler {
         function_name: &str,
         params: Value,
         tx: &mut Transaction<'_, Postgres>,
-    ) -> Result<Value> {
+    ) -> Result<Handled> {
         sqlx::query("INSERT INTO webhooks.tb_handled_test (function_name, params) VALUES ($1, $2)")
             .bind(function_name)
             .bind(&params)
             .execute(&mut **tx)
             .await?;
-        Ok(json!({ "handled": function_name }))
+        Ok(Handled::Recorded(json!({ "handled": function_name })))
     }
 }
 
@@ -111,13 +111,28 @@ impl EventHandler for FailingHandler {
         function_name: &str,
         params: Value,
         tx: &mut Transaction<'_, Postgres>,
-    ) -> Result<Value> {
+    ) -> Result<Handled> {
         sqlx::query("INSERT INTO webhooks.tb_handled_test (function_name, params) VALUES ($1, $2)")
             .bind(function_name)
             .bind(&params)
             .execute(&mut **tx)
             .await?;
         Err(WebhookError::Database("handler boom".to_string()))
+    }
+}
+
+/// Reports the event as already-recorded without writing anything — the shape a
+/// handler takes when its own dedup layer refuses the write while the delivery
+/// ledger's claim was fresh (#1176).
+struct DuplicateReportingHandler;
+impl EventHandler for DuplicateReportingHandler {
+    async fn handle(
+        &self,
+        _function_name: &str,
+        _params: Value,
+        _tx: &mut Transaction<'_, Postgres>,
+    ) -> Result<Handled> {
+        Ok(Handled::Duplicate)
     }
 }
 
@@ -429,4 +444,53 @@ async fn init_migrates_a_pre_1046_ledger_and_the_claim_stays_atomic() {
          again; got: {second:?}",
     );
     assert_eq!(delivery_count(&admin).await, 1, "the redelivery adds no second claim row");
+}
+
+// ── #1176: a handler's own duplicate disposition ─────────────────────────────
+
+/// A handler that reports `Duplicate` must not be rendered as `Processed`.
+///
+/// The route answers `{"status":"processed"}` for `Disposition::Processed` and
+/// dispatches on it. Reporting a delivery the handler never wrote as processed
+/// tells the sender its message was accepted and fires the dispatch on a row
+/// this delivery did not create.
+#[tokio::test]
+async fn a_handler_reporting_duplicate_is_not_reported_processed() {
+    let (store, admin) = skip_if_no_db!();
+    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, DuplicateReportingHandler);
+    let d = delivery("evt_handler_dup", json!({"id": "evt_handler_dup"}));
+
+    let disposition = pipeline.process(&AcceptingVerifier, "stripe", &d).await.unwrap();
+
+    assert!(
+        matches!(disposition, Disposition::Duplicate),
+        "the handler wrote nothing and said so; got: {disposition:?}"
+    );
+    assert_eq!(
+        handled_count(&admin).await,
+        0,
+        "this handler writes no side effect — the count guards the fixture, not the rule"
+    );
+}
+
+/// The half a handler *error* could not give: the claim still commits, so the
+/// sender's next redelivery short-circuits at the ledger.
+///
+/// This is why `Duplicate` is an answer rather than an `Err`. Failing the handler
+/// rolls the claim back, and the state that produced the disagreement — an event
+/// the handler's own layer already owns — does not go away on a retry, so the
+/// sender would ask the same question forever.
+#[tokio::test]
+async fn a_handler_reported_duplicate_still_commits_the_claim() {
+    let (store, admin) = skip_if_no_db!();
+    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, DuplicateReportingHandler);
+    let d = delivery("evt_handler_dup_claim", json!({"id": "evt_handler_dup_claim"}));
+
+    pipeline.process(&AcceptingVerifier, "stripe", &d).await.unwrap();
+
+    assert_eq!(
+        delivery_count(&admin).await,
+        1,
+        "the ledger claim must survive: without it the sender retries this delivery forever"
+    );
 }
