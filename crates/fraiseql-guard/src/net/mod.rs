@@ -179,6 +179,26 @@ const fn is_v4_compatible(ip: Ipv6Addr) -> bool {
         && !(seg[6] == 0 && (seg[7] == 0 || seg[7] == 1)) // exclude :: and ::1, handled above
 }
 
+/// Extract the host from a `host:port` authority, keeping `IPv6` brackets.
+///
+/// The two callers are transport guards that screen a bare authority rather than a URL:
+/// Kafka's `bootstrap.servers` entries and the Kinesis endpoint override. Both then pass
+/// the result to [`is_loopback_host`] or [`blocked_host_reason`], which is why the
+/// brackets stay — those handle `[::1]`, and stripping them here would produce `::1`
+/// split at its own colons.
+///
+/// Not a URL parser: an entry carrying userinfo or a path is refused by the caller
+/// before it gets here, because either can mask the real host.
+#[must_use]
+pub fn host_of_authority(entry: &str) -> &str {
+    if entry.starts_with('[') {
+        if let Some(end) = entry.find(']') {
+            return &entry[..=end];
+        }
+    }
+    entry.split(':').next().unwrap_or(entry)
+}
+
 /// Returns `true` if `host` denotes the local machine.
 ///
 /// Distinguishes "this is my own dev service" from the rest of the blocked set.

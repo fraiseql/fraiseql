@@ -9,6 +9,9 @@
 //!   target.
 //! - [`deployment`] — the single answer to whether this process is running in production, and
 //!   therefore whether a development escape hatch may be honoured.
+//! - [`kafka`] — endpoint parsing and the plaintext refusal for Kafka, shared by the CDC outbox
+//!   sink and the subscription transport (#1102). A transport whose own wire format cannot express
+//!   transport security needs one answer to "may this be plaintext?", not one per caller.
 //!
 //! # Why one crate
 //!
@@ -28,4 +31,5 @@
 #![forbid(unsafe_code)]
 
 pub mod deployment;
+pub mod kafka;
 pub mod net;

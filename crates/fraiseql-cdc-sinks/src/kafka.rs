@@ -7,6 +7,7 @@
 
 use std::time::Duration;
 
+use fraiseql_guard::kafka::{KafkaSecurityProtocol, guard_kafka_endpoint, resolve_kafka_sasl};
 use rdkafka::{
     ClientConfig,
     error::KafkaError,
@@ -19,8 +20,7 @@ use crate::{
     error::{CdcError, Result},
     event::ChangeEvent,
     sink::{
-        CdcSink, CdcSinkConfig, KafkaSecurityProtocol, PublishOutcome, SinkKind,
-        entity_partition_key, guard_kafka_endpoint, render_kafka_topic, resolve_kafka_sasl,
+        CdcSink, CdcSinkConfig, PublishOutcome, SinkKind, entity_partition_key, render_kafka_topic,
     },
 };
 
@@ -66,7 +66,7 @@ impl KafkaSink {
     /// Returns [`CdcError::Config`] for an unsafe or malformed endpoint, or
     /// [`CdcError::Connection`] if the producer cannot be created.
     pub fn connect(endpoint: &str, config: CdcSinkConfig) -> Result<Self> {
-        let endpoint = guard_kafka_endpoint(endpoint)?;
+        let endpoint = guard_kafka_endpoint(endpoint).map_err(CdcError::Config)?;
 
         let mut client = ClientConfig::new();
         client
@@ -77,7 +77,7 @@ impl KafkaSink {
             .set("compression.type", "lz4");
 
         if endpoint.security_protocol == KafkaSecurityProtocol::SaslSsl {
-            let sasl = resolve_kafka_sasl()?;
+            let sasl = resolve_kafka_sasl().map_err(CdcError::Config)?;
             client
                 .set("sasl.mechanism", sasl.mechanism.as_str())
                 .set("sasl.username", &sasl.username)

@@ -53,6 +53,14 @@ mod nats;
 pub use drain::{DrainStats, DrainWorker};
 pub use error::{CdcError, Result};
 pub use event::{ChangeEvent, ChangeOp};
+// Kafka endpoint parsing, its plaintext refusal and its SASL resolution moved to
+// fraiseql-guard in #1102: the subscription transport needs the same decision, and a
+// second copy of a guard is a second answer waiting to drift. Re-exported here so a
+// caller of this crate still has one import path for a Kafka sink's inputs.
+pub use fraiseql_guard::kafka::{
+    KafkaEndpoint, KafkaSaslCredentials, KafkaSaslMechanism, KafkaSecurityProtocol,
+    guard_kafka_endpoint, resolve_kafka_sasl,
+};
 #[cfg(feature = "cdc-kafka")]
 pub use kafka::KafkaSink;
 #[cfg(feature = "cdc-kinesis")]
@@ -61,9 +69,7 @@ pub use migrations::outbox_sink_state_migration_sql;
 #[cfg(feature = "cdc-nats-jetstream")]
 pub use nats::NatsJetStreamSink;
 pub use sink::{
-    CdcSink, CdcSinkConfig, KafkaEndpoint, KafkaSaslCredentials, KafkaSaslMechanism,
-    KafkaSecurityProtocol, KinesisEndpoint, PublishOutcome, SinkKind, entity_partition_key,
-    guard_kafka_endpoint, guard_kinesis_endpoint, next_attempt_delay, render_kafka_topic,
-    render_kinesis_stream, render_subject, resolve_kafka_sasl, resolve_kinesis_endpoint_url,
-    validate_kafka_topic, validate_kinesis_stream,
+    CdcSink, CdcSinkConfig, KinesisEndpoint, PublishOutcome, SinkKind, entity_partition_key,
+    guard_kinesis_endpoint, next_attempt_delay, render_kafka_topic, render_kinesis_stream,
+    render_subject, resolve_kinesis_endpoint_url, validate_kafka_topic, validate_kinesis_stream,
 };
