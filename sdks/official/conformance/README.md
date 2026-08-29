@@ -101,6 +101,14 @@ Three properties follow, and all three matter:
   that the export in fact satisfies is reported, so the matrix cannot go stale into a
   published falsehood.
 
+Each of those is a claim about the harness itself, so each is pinned by
+`selftest.py` — `make test-conformance-selftest`, which runs over synthetic dicts with no
+toolchain, no CLI and no network, and so executes in preflight and the ShellGates leg
+rather than in the eleven-runtime `sdk-conformance.yml` job. It also covers the
+unknown-`unsupported`-key check, where a typo would otherwise disable a real gate while
+reading as a declared gap. Until #1118 these guarantees were prose, and `project.py`
+cited a `selftest.py` that had never been written.
+
 ## Adding a construct
 
 1. Declare it in `reference/full.json`.

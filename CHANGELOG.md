@@ -6899,6 +6899,26 @@ disagreed, and the promise was the part that was wrong.
   Step-level `if:` conditions of the same class are covered too — see the entry below
   (#1207), which took the sixteen decisions and grew this gate to steps.
 
+- **The conformance harness's own guarantees are pinned, by a file that now exists
+  (#1118).** `project.py` carried a comment ending *"and `test_new_construct_fails_every_sdk`
+  in `selftest.py` pins it"*. There was no `selftest.py` — `git log --all` for the path was
+  empty, so it had never existed, and a comment that read as evidence was none. The
+  property itself is real (adding `vector_fields` in #959 did fail every SDK until each
+  implemented it), but nothing checked it.
+
+  `sdks/official/conformance/selftest.py` supplies the four properties the suite's README
+  states as guarantees, plus their negative directions: a construct in `CONSTRUCTS` with no
+  observation raises rather than passing silently; a declared gap is skipped **for that
+  construct only**, so one honest declaration cannot become blanket immunity; a declaration
+  that is no longer true is reported, while an unexercised construct cannot look stale; and
+  an unknown key in a manifest's `unsupported` map is reported rather than silently
+  disabling a real gate. Each was verified by disabling the mechanism it depends on and
+  confirming the matching test — and only that test — goes red.
+
+  Synthetic dicts throughout: no language toolchain, no CLI, no network. So it runs in
+  preflight and the ShellGates leg (`make test-conformance-selftest`) rather than in the
+  eleven-runtime `sdk-conformance.yml` job.
+
 - **Webhook signature tests assert which stage failed, not just that one did (#1174).**
   The class #1045 exposed: a fixture that fails *earlier* than the test intends still
   satisfies a broad assertion. Its original instance is repaired — a hand-written "real PEM

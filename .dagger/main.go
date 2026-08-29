@@ -383,6 +383,12 @@ func (m *FraiseqlCi) ShellGates(
 		// counted as covered while compiled out — and a `not(feature)` arm needs a
 		// leg with the feature OFF, which `--all-features` can never be.
 		"make test-suite-coverage-inner-gates",
+		// The conformance harness's own four properties (#1118). `project.py` cited a
+		// `selftest.py` that had never existed, so the growth property — a new construct
+		// fails every SDK until each implements it or declares the gap — was asserted in
+		// prose and pinned by nothing. Synthetic dicts only: no toolchain, no CLI, no
+		// network, so it belongs here rather than in the eleven-runtime SDK job.
+		"make test-conformance-selftest",
 		// Comment-only #[test] bodies read as green coverage (#895/#748).
 		"bash tools/check-empty-tests.sh",
 		// Snapshot pairing, both directions (#986): every .snap registered, no

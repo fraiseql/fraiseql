@@ -52,6 +52,12 @@ AUTHORED_VECTOR_TYPES = ("Document",)
 # the intended behaviour, and it follows from two places — `project()` refuses to return
 # unless every listed construct produced an observation, and `diff_observations` skips a
 # construct only where the SDK's manifest declares it unsupported.
+#
+# Both are pinned by `selftest.py`, which also covers the stale-declaration check and
+# the unknown-key check (`make test-conformance-selftest`, in preflight and ShellGates).
+# ⚠ That file is named here again only because it now exists: this comment previously
+# cited a `selftest.py` that had never been written, so it read as evidence and was
+# none (#1118). Check before citing.
 CONSTRUCTS = (
     "types",
     "field_description",
