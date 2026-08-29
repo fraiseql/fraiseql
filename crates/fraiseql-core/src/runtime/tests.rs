@@ -2648,6 +2648,7 @@ mod planner_tests {
             }],
             arguments:      HashMap::new(),
             operation_name: Some("users".to_string()),
+            scope_where:    None,
             parsed_query:   ParsedQuery {
                 operation_type: "query".to_string(),
                 operation_name: Some("users".to_string()),

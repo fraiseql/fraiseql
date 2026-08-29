@@ -71,6 +71,38 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **REST resource embedding is scoped to its parent even when the target query does not publish a `where` argument (#1170).**
+
+  Embedding built its parent-scoping join predicate into `arguments["where"]` and dispatched
+  it through the ordinary read path — which composes that argument **only** when the target
+  query's `auto_params.has_where` is set. `has_where` governs the *client-facing filter
+  surface*: a project writing `[query_defaults] where = false`, or a per-query override, is
+  saying "clients may not filter this". It was also, silently, turning off relation scoping
+  for every parent that embedded that query.
+
+  Measured against real PostgreSQL with two authors owning two posts each:
+
+  | read, with the target declaring `has_where = false` | before | after |
+  |---|---|---|
+  | `?select=id,posts(id,title)` | all **4** posts under *each* author | 2 and 2 |
+  | `?select=id,posts.count` | `posts_count: 4` for both | 2 and 2 |
+  | `?select=id,fk_author,author(name)` | post 20 attributed to **alice** | bob |
+
+  HTTP 200 throughout. The `ManyToOne` row is the sharpest: that branch takes the *first* row
+  of the target query's result, so an unscoped embed does not over-return — it reports the
+  **wrong parent** as this child's parent.
+
+  The fix is structural rather than a widened condition. `QueryMatch` gains a `scope_where`
+  slot carrying the server's own predicate, composed unconditionally beside RLS and
+  `inject_params` — where server-side scoping belongs — while the client's `where` stays
+  gated by the client's flag. A GraphQL document has no syntax that reaches the new slot.
+  Separate slots also make #863's failure mode unrepresentable: the join predicate and the
+  client filter can no longer share one JSON map for a key collision to destroy.
+
+  **Not affected, and worth stating:** RLS and `inject_params` were always composed before
+  this guard and unconditionally, so this was never a tenancy bypass. What was lost is
+  parent-child scoping — rows and counts belonging to other parents of the same tenant.
+
 - **`first`/`last` on a relay connection and `limit`/`offset` under `@stream` fail closed too (#1197).**
 
   Both read their bound with the same `as_u64()` and lost it the same way, though not to the

@@ -27,6 +27,27 @@ pub struct QueryMatch {
     /// Query operation name (if provided).
     pub operation_name: Option<String>,
 
+    /// The **server's own** row-scoping predicate, in the same
+    /// `{field: {op: value}}` shape a client `where` uses, or `None` when the
+    /// caller is a plain GraphQL document.
+    ///
+    /// Kept apart from `arguments["where"]` because the two are not the same
+    /// kind of thing and must not share a fate (#1170). REST resource embedding
+    /// used to build its parent-scoping join predicate into `arguments["where"]`
+    /// and dispatch it through the ordinary read path — which composes that
+    /// argument only when the target query's `auto_params.has_where` is set.
+    /// `has_where` governs the **client-facing filter surface**; a project that
+    /// turns it off is saying "clients may not filter this", not "and relations
+    /// that embed it may go unscoped". Turning it off silently discarded the
+    /// predicate and reported the target's *entire* result set as the relation's
+    /// contents — every row under every parent, and, on the `ManyToOne` branch,
+    /// the wrong parent attributed outright.
+    ///
+    /// Composed unconditionally alongside RLS and `inject_params`, which is
+    /// where server-side scoping belongs, and never read from client input: a
+    /// GraphQL document has no syntax that reaches this field.
+    pub scope_where: Option<serde_json::Value>,
+
     /// The parsed query (for access to fragments, variables, etc.).
     pub parsed_query: ParsedQuery,
 }
@@ -107,8 +128,20 @@ impl QueryMatch {
             selections,
             arguments,
             operation_name: None,
+            scope_where: None,
             parsed_query,
         })
+    }
+
+    /// Attach the server's own scoping predicate to a `QueryMatch` built by a
+    /// non-GraphQL transport.
+    ///
+    /// See [`scope_where`](Self::scope_where) for why this is not simply another
+    /// entry in `arguments`.
+    #[must_use]
+    pub fn with_scope_where(mut self, scope_where: serde_json::Value) -> Self {
+        self.scope_where = Some(scope_where);
+        self
     }
 }
 
@@ -337,6 +370,9 @@ impl QueryMatcher {
             selections: final_selections,
             arguments,
             operation_name: parsed.operation_name.clone(),
+            // A GraphQL document cannot carry one: server scoping is attached by
+            // the transport that owns it, never parsed from client input.
+            scope_where: None,
             parsed_query: parsed,
         })
     }

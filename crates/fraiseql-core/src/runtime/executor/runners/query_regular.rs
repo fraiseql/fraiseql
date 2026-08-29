@@ -108,6 +108,46 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         }
     }
 
+    /// AND the server's own scoping predicate
+    /// ([`QueryMatch::scope_where`](crate::runtime::QueryMatch::scope_where))
+    /// onto the security conditions.
+    ///
+    /// Unconditional by construction (#1170). The predicate REST resource
+    /// embedding builds to scope a relation to its parent used to travel in
+    /// `arguments["where"]`, which every read path composes **only** when the
+    /// target query's `auto_params.has_where` is set — so a project that turned
+    /// off a query's client filter argument also turned off relation scoping for
+    /// every parent that embedded it. No error, no warning: each parent's `posts`
+    /// became the whole `posts` table, each `posts_count` the whole table's
+    /// count, and the `ManyToOne` branch — which takes the *first* row of the
+    /// target's result — attributed every child to one arbitrary parent.
+    ///
+    /// It belongs here, beside RLS and `inject_params`, because it is the same
+    /// kind of thing: a condition the server imposes, not one the client asked
+    /// for. The client's own `where` is still gated by `has_where` below, which
+    /// is what that flag is actually for.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the predicate does not parse as a
+    /// `where` document — loudly, because the alternative is dropping it, which
+    /// is the defect.
+    fn and_scope_where(
+        &self,
+        security: Option<WhereClause>,
+        query_match: &crate::runtime::matcher::QueryMatch,
+    ) -> Result<Option<WhereClause>> {
+        let Some(scope) = query_match.scope_where.as_ref() else {
+            return Ok(security);
+        };
+        let types = where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
+        let scope = WhereClause::from_graphql_json(scope, &types)?;
+        Ok(Some(match security {
+            Some(sec) => WhereClause::And(vec![sec, scope]),
+            None => scope,
+        }))
+    }
+
     /// Execute a `<name>Count` sibling query (#938).
     ///
     /// Delegates the whole decision to [`count_rows`](Self::count_rows) — the
@@ -421,6 +461,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 5b. Compose user-supplied WHERE from GraphQL arguments when has_where is enabled.
         //     Security conditions (RLS + inject) are always first so they cannot be bypassed.
+        // #1170: the server's own parent scoping is composed here, with RLS and
+        //     inject and *before* the client-filter gate below — it is not client
+        //     input and must not ride on the client filter surface.
+        let combined_where = self.and_scope_where(combined_where, &query_match)?;
+
         let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
             // Built only when the request actually carries a filter: with
             // `has_where` on by default, every list query would otherwise pay
@@ -840,6 +885,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             &query_match.query_def.native_columns,
         );
 
+        // #1170: and the server's own parent scoping, which is deliberately NOT
+        //     gated on `has_where` above — that flag governs the client's filter
+        //     surface, not whether a relation is scoped to its parent.
+        let user_where = self.and_scope_where(user_where, &query_match)?;
+
         // The top-level page size is capped (#421: unbounded-pagination DoS guard).
         let limit = enforce_max_page_size(
             if query_match.query_def.auto_params.has_limit {
@@ -1184,6 +1234,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             &query_match.query_def.native_columns,
         );
 
+        // #1170: and the server's own parent scoping, which is deliberately NOT
+        //     gated on `has_where` above — that flag governs the client's filter
+        //     surface, not whether a relation is scoped to its parent.
+        let user_where = self.and_scope_where(user_where, query_match)?;
+
         // Compose the security conditions — RLS **and** inject — then AND the
         // user-supplied WHERE onto them. Security first, so a client-supplied filter can
         // only ever narrow the result set, never widen it.
@@ -1501,6 +1556,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         };
 
         // 3b. Compose user-supplied WHERE when has_where is enabled (same as execute_from_match).
+        // #1170: the server's own parent scoping is composed here, with RLS and
+        //     inject and *before* the client-filter gate below — it is not client
+        //     input and must not ride on the client filter surface.
+        let combined_where = self.and_scope_where(combined_where, query_match)?;
+
         let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
             // Built only when the request actually carries a filter: with
             // `has_where` on by default, every list query would otherwise pay

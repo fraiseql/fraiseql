@@ -1361,6 +1361,7 @@ async fn the_rest_filter_surface_enforces_the_same_rule() {
         selections: vec![],
         arguments,
         operation_name: None,
+        scope_where: None,
         parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
     };
 
@@ -1398,6 +1399,7 @@ async fn the_rest_filter_surface_still_serves_a_declared_key() {
         selections: vec![],
         arguments,
         operation_name: None,
+        scope_where: None,
         parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
     };
 
@@ -1521,6 +1523,7 @@ async fn the_rest_sort_surface_enforces_the_same_rule() {
         selections: vec![],
         arguments,
         operation_name: None,
+        scope_where: None,
         parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
     };
 

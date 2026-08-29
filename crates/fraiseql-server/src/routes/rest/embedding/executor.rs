@@ -102,26 +102,27 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
         serde_json::json!({ "eq": parent_key_value }),
     );
 
-    // #863: compose the parent scoping and the client filter with `_and` instead of
-    // merging the filter *over* the predicate. The old code seeded the map with the join
-    // predicate and then did `where_obj.insert(k, v)` per client key — and
+    // #863 / #1170: the parent scoping and the client filter travel in *separate
+    // slots* — the predicate on `QueryMatch::scope_where`, the filter in
+    // `arguments["where"]` — and are AND-ed by the runner.
+    //
+    // #863 was the two sharing one map: the old code seeded it with the join
+    // predicate and then did `where_obj.insert(k, v)` per client key, and
     // `serde_json::Map::insert` **replaces**, so a filter naming the join column
     // (`?author.id[gt]=0`, and `id` is the conventional `referenced_key` for
-    // ManyToOne/OneToOne) silently destroyed the parent scoping and returned another
-    // parent's children under this parent's key.
+    // ManyToOne/OneToOne) silently destroyed the parent scoping and returned
+    // another parent's children under this parent's key.
     //
-    // `_and` also means the two can never be in a position to collide: the client filter
-    // is a sibling of the join predicate, not an overlay on it, so no key comparison or
-    // reserved-name list is needed to keep them apart.
-    let where_clause = match embedded_filter.and_then(|f| f.as_object()) {
-        Some(filter_map) if !filter_map.is_empty() => serde_json::json!({
-            "_and": [
-                serde_json::Value::Object(join_predicate),
-                serde_json::Value::Object(filter_map.clone()),
-            ]
-        }),
-        _ => serde_json::Value::Object(join_predicate),
-    };
+    // #1170 was the two sharing one *fate*: composed into `arguments["where"]`,
+    // even as an `_and` sibling, the predicate was dropped whenever the target
+    // query declared `auto_params.has_where = false` — because that flag gates
+    // the client filter argument, and the predicate was riding in it. Separate
+    // slots fix both: they can never collide, and only the client's half is
+    // gated by the client's flag.
+    let client_filter = embedded_filter
+        .and_then(|f| f.as_object())
+        .filter(|m| !m.is_empty())
+        .map(|m| serde_json::Value::Object(m.clone()));
 
     // Find the target type's list query.
     let target_query = find_list_query_for_type(ctx.schema, &rel.target_type);
@@ -136,7 +137,9 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
 
     // Build arguments for the sub-query.
     let mut arguments: HashMap<String, serde_json::Value> = HashMap::new();
-    arguments.insert("where".to_string(), where_clause);
+    if let Some(filter) = client_filter {
+        arguments.insert("where".to_string(), filter);
+    }
     arguments.insert("limit".to_string(), serde_json::json!(ctx.config.max_page_size));
 
     // Build QueryMatch for the sub-query.
@@ -146,7 +149,8 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
         arguments,
         target_type_def,
     )
-    .map_err(|e| RestError::internal(format!("Failed to build embedded query: {e}")))?;
+    .map_err(|e| RestError::internal(format!("Failed to build embedded query: {e}")))?
+    .with_scope_where(serde_json::Value::Object(join_predicate));
 
     let variables = serde_json::json!({});
     let vars_ref = Some(&variables);
@@ -261,12 +265,11 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
         _ => &rel.foreign_key,
     };
 
-    let mut where_obj = serde_json::Map::new();
-    where_obj.insert(
+    let mut join_predicate = serde_json::Map::new();
+    join_predicate.insert(
         declared_filter_key(schema, &rel.target_type, filter_field),
         serde_json::json!({ "eq": parent_key_value }),
     );
-    let where_clause = serde_json::Value::Object(where_obj);
 
     let target_query = find_list_query_for_type(schema, &rel.target_type);
     let Some(target_query) = target_query else {
@@ -275,12 +278,15 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
 
     let target_type_def = schema.find_type(&rel.target_type);
 
-    let mut arguments: HashMap<String, serde_json::Value> = HashMap::new();
-    arguments.insert("where".to_string(), where_clause);
+    // #1170: the scoping slot, not `arguments["where"]` — `count_rows` gates that
+    // argument on the target's `has_where` exactly as the read path does, so a
+    // predicate riding in it produced the whole table's count under a parent's key.
+    let arguments: HashMap<String, serde_json::Value> = HashMap::new();
 
     let query_match =
         QueryMatch::from_operation(target_query.clone(), Vec::new(), arguments, target_type_def)
-            .map_err(|e| RestError::internal(format!("Failed to build count query: {e}")))?;
+            .map_err(|e| RestError::internal(format!("Failed to build count query: {e}")))?
+            .with_scope_where(serde_json::Value::Object(join_predicate));
 
     let variables = serde_json::json!({});
     let vars_ref = Some(&variables);

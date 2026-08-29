@@ -96,18 +96,23 @@ async fn seed(adapter: &PostgresAdapter) {
     }
 }
 
-fn list_query(name: &str, ty: &str, view: &str) -> QueryDefinition {
+/// `client_where` is the target query's `auto_params.has_where` — the flag that
+/// governs the **client-facing filter surface** (`[query_defaults] where`, or a
+/// per-query override).
+///
+/// #1170: the server's own parent-scoping predicate must not depend on it. A
+/// project that turns a query's `where` argument off is saying "clients may not
+/// filter this"; it is not saying "and relations that embed it may go unscoped".
+fn list_query(name: &str, ty: &str, view: &str, client_where: bool) -> QueryDefinition {
     let mut q = QueryDefinition::new(name, ty)
         .returning_list()
         .with_sql_source(format!("{SCHEMA}.{view}"));
-    // The embedding sub-query passes its join predicate as a `where` argument, so the
-    // target list query has to accept one.
-    q.auto_params.has_where = true;
+    q.auto_params.has_where = client_where;
     q.auto_params.has_limit = true;
     q
 }
 
-fn schema() -> CompiledSchema {
+fn schema_with(embedded_client_where: bool) -> CompiledSchema {
     let mut schema = CompiledSchema::new();
 
     let mut author = TypeDefinition::new("Author", format!("{SCHEMA}.v_author"));
@@ -130,13 +135,26 @@ fn schema() -> CompiledSchema {
         FieldDefinition::new("fk_author", FieldType::Int),
         FieldDefinition::new("title", FieldType::String),
     ];
-    post.relationships = vec![Relationship {
-        name:           "comments".to_string(),
-        target_type:    "Comment".to_string(),
-        cardinality:    Cardinality::OneToMany,
-        foreign_key:    "fk_post".to_string(),
-        referenced_key: "id".to_string(),
-    }];
+    post.relationships = vec![
+        Relationship {
+            name:           "comments".to_string(),
+            target_type:    "Comment".to_string(),
+            cardinality:    Cardinality::OneToMany,
+            foreign_key:    "fk_post".to_string(),
+            referenced_key: "id".to_string(),
+        },
+        // The ManyToOne direction, so `embed_into_single`'s *object* branch has a
+        // subject: it takes the first row of the target query's result, so an
+        // unscoped embed does not merely over-return — it attributes the wrong
+        // parent (#1170).
+        Relationship {
+            name:           "author".to_string(),
+            target_type:    "Author".to_string(),
+            cardinality:    Cardinality::ManyToOne,
+            foreign_key:    "fk_author".to_string(),
+            referenced_key: "id".to_string(),
+        },
+    ];
     schema.types.push(post);
 
     let mut comment = TypeDefinition::new("Comment", format!("{SCHEMA}.v_comment"));
@@ -147,9 +165,18 @@ fn schema() -> CompiledSchema {
     ];
     schema.types.push(comment);
 
-    schema.queries.push(list_query("authors", "Author", "v_author"));
-    schema.queries.push(list_query("posts", "Post", "v_post"));
-    schema.queries.push(list_query("comments", "Comment", "v_comment"));
+    // Every list query takes the flag, `authors` included: it is the *target* of
+    // `Post.author`, so leaving it on would let the ManyToOne test pass while
+    // testing nothing.
+    schema
+        .queries
+        .push(list_query("authors", "Author", "v_author", embedded_client_where));
+    schema
+        .queries
+        .push(list_query("posts", "Post", "v_post", embedded_client_where));
+    schema
+        .queries
+        .push(list_query("comments", "Comment", "v_comment", embedded_client_where));
 
     schema.rest_config = Some(RestConfig {
         enabled: true,
@@ -180,11 +207,16 @@ impl Rig {
 }
 
 async fn rig() -> Option<Rig> {
+    rig_with(true).await
+}
+
+/// A rig whose *embedded* target queries accept a client `where` or do not.
+async fn rig_with(embedded_client_where: bool) -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
-    let executor = Arc::new(Executor::new(schema(), adapter));
+    let executor = Arc::new(Executor::new(schema_with(embedded_client_where), adapter));
     let state = AppState::new(executor);
     let router = rest_query_router(&state, &RestMountConfig::default()).expect("REST router");
 
@@ -333,5 +365,153 @@ async fn a_nested_embedding_executes_to_the_validated_depth() {
         post_11.get("comments").and_then(Value::as_array).map(Vec::len),
         Some(0),
         "post 11 has no comments and must report an empty array, not another post's: {body}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #1170 — the server's own scoping must not ride on the client filter surface
+// ---------------------------------------------------------------------------
+
+/// The `<rel>_count` value on the author row with `id == author_id`.
+fn count_of(body: &Value, author_id: i64, key: &str) -> Option<i64> {
+    body.get("data")
+        .and_then(Value::as_array)
+        .and_then(|rows| {
+            rows.iter().find(|r| r.get("id").and_then(Value::as_i64) == Some(author_id))
+        })
+        .and_then(|row| row.get(key))
+        .and_then(Value::as_i64)
+}
+
+/// The `author` object of the post row with `id == post_id`.
+fn author_of(body: &Value, post_id: i64) -> Option<String> {
+    body.get("data")
+        .and_then(Value::as_array)
+        .and_then(|rows| rows.iter().find(|r| r.get("id").and_then(Value::as_i64) == Some(post_id)))
+        .and_then(|row| row.get("author"))
+        .and_then(|a| a.get("name"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+/// #1170: a target query that does not accept a client `where` must still be
+/// **scoped to its parent**.
+///
+/// The predicate was built into `arguments["where"]` and composed only when the
+/// target's `auto_params.has_where` was set, so turning off a query's
+/// client-facing filter argument also turned off relation scoping for every
+/// parent embedding it — silently, on a 200. With four posts in the table and
+/// two per author, the wrong answer and the right one differ by construction.
+#[tokio::test]
+async fn an_embedded_collection_is_scoped_even_when_the_target_forbids_a_client_where() {
+    let Some(rig) = rig_with(false).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=id,posts(id,title)").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    assert_eq!(
+        titles(&posts_of(&body, 1)),
+        vec!["a-one", "a-two"],
+        "author 1 must see only its own posts even though `posts` declares \
+         has_where = false — the join predicate is the server's scoping, not a client \
+         filter: {body}"
+    );
+    assert_eq!(
+        titles(&posts_of(&body, 2)),
+        vec!["b-one", "b-two"],
+        "author 2 must see only its own posts: {body}"
+    );
+}
+
+/// #1170 on the count path (`count_rows`), which is the shape the issue measured:
+/// an unscoped number reported as a relation's cardinality.
+#[tokio::test]
+async fn an_embedded_count_is_scoped_even_when_the_target_forbids_a_client_where() {
+    let Some(rig) = rig_with(false).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=id,posts.count").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    assert_eq!(
+        count_of(&body, 1, "posts_count"),
+        Some(2),
+        "author 1 owns 2 of the 4 posts; 4 is the whole table reported as this \
+         parent's cardinality: {body}"
+    );
+    assert_eq!(count_of(&body, 2, "posts_count"), Some(2), "author 2 owns 2 posts: {body}");
+}
+
+/// #1170 on the `ManyToOne` object branch. Here an unscoped embed does not
+/// over-return — `embed_into_single` takes the **first** row of the target
+/// query's result — so every post is attributed to author 1.
+#[tokio::test]
+async fn a_many_to_one_embed_is_scoped_even_when_the_target_forbids_a_client_where() {
+    let Some(rig) = rig_with(false).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    // `fk_author` is selected deliberately: `extract_join_key` reads the ManyToOne
+    // join key off the *parent row*, so a document that does not project it embeds
+    // `null` and this test would assert nothing about scoping.
+    let (status, body) = rig.get("/rest/v1/posts?select=id,fk_author,author(name)").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    assert_eq!(author_of(&body, 10).as_deref(), Some("alice"), "post 10 is alice's: {body}");
+    assert_eq!(
+        author_of(&body, 20).as_deref(),
+        Some("bob"),
+        "post 20 is bob's — an unscoped target query returns every author and the \
+         embed takes the first, which is alice: {body}"
+    );
+}
+
+/// **Control.** The same three reads with the client `where` surface *on*, so a
+/// failure above reads as "scoping depends on the flag" rather than "embedding
+/// never worked for counts or `ManyToOne`".
+#[tokio::test]
+async fn the_same_embeds_are_scoped_when_the_target_does_accept_a_client_where() {
+    let Some(rig) = rig_with(true).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (_, body) = rig.get("/rest/v1/authors?select=id,posts.count").await;
+    assert_eq!(count_of(&body, 1, "posts_count"), Some(2), "count control: {body}");
+    assert_eq!(count_of(&body, 2, "posts_count"), Some(2), "count control: {body}");
+
+    let (_, body) = rig.get("/rest/v1/posts?select=id,fk_author,author(name)").await;
+    assert_eq!(author_of(&body, 10).as_deref(), Some("alice"), "ManyToOne control: {body}");
+    assert_eq!(author_of(&body, 20).as_deref(), Some("bob"), "ManyToOne control: {body}");
+}
+
+/// #1170, the narrowing direction, and the reason the fix is *not* "ignore
+/// `has_where` for the whole `where` argument": a client filter on a target that
+/// forbids one must still be refused, not quietly applied through the scoping
+/// slot. Author 1 owns `a-one` and `a-two`; a filter that would narrow to one of
+/// them must not take effect here.
+#[tokio::test]
+async fn a_client_filter_is_still_inert_on_a_target_that_forbids_a_client_where() {
+    let Some(rig) = rig_with(false).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig
+        .get("/rest/v1/authors?select=id,posts(id,title)&posts.title[eq]=a-one")
+        .await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    assert_eq!(
+        titles(&posts_of(&body, 1)),
+        vec!["a-one", "a-two"],
+        "the target does not publish a `where` argument, so the client filter does not \
+         apply — but the parent scoping still does: {body}"
     );
 }
