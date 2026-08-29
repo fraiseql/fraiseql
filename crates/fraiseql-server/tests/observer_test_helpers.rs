@@ -475,9 +475,7 @@ fn require_outbound_bypass(waiting_for: &str) {
 
     let missing: Vec<&(&str, &str)> = REQUIRED
         .iter()
-        .filter(|(name, want)| {
-            std::env::var(name).is_ok_and(|v| v.eq_ignore_ascii_case(want)) == false
-        })
+        .filter(|(name, want)| !std::env::var(name).is_ok_and(|v| v.eq_ignore_ascii_case(want)))
         .collect();
 
     assert!(

@@ -108,7 +108,7 @@ impl DatabaseAdapter for NoopAdapter {
 
 impl SupportsMutations for NoopAdapter {}
 
-/// A bucket goes stale after `burst_size / rps_per_ip` seconds — 10_000/10_000 = **1s**
+/// A bucket goes stale after `burst_size / rps_per_ip` seconds — `10_000/10_000` = **1s**
 /// — and the ticker fires every `cleanup_interval_secs` = **1s**.
 ///
 /// `rps_per_ip`/`burst_size` are equal and high so the *rate* limit never fires: every
