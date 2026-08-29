@@ -31,6 +31,8 @@ pub mod encryption;
 pub mod secrets_manager;
 
 // Re-exports for convenience
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 pub use encryption::{FieldEncryption, VersionedFieldEncryption};
 pub use secrets_manager::{
     LeaseRenewalTask, SecretsBackendConfig, SecretsError, SecretsManager, VaultAuth,
@@ -40,6 +42,8 @@ pub use secrets_manager::{
 };
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
+/// The `zeroize` this crate's public API is built against (#1198).
+pub use zeroize;
 
 /// Crate-level `Result` alias — errors are always [`SecretsError`].
 pub type Result<T> = std::result::Result<T, SecretsError>;

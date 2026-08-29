@@ -79,6 +79,9 @@ pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{FieldKind, PostgresProjectionGenerator, ProjectionField};
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
+/// The `tokio_postgres` this crate's public API is built against (#1198).
+#[cfg(feature = "postgres")]
+pub use tokio_postgres;
 pub use traits::{
     AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite,
     ColumnRowStream, CursorValue, DatabaseAdapter, DirectMutationContext, DirectMutationOp,

@@ -86,13 +86,25 @@ pub mod graphql;
 pub mod apq;
 pub mod cache;
 
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
+/// The `deadpool_postgres` this crate's public API is built against (#1198).
+pub use deadpool_postgres;
 pub use fraiseql_db as db;
+/// The `graphql_parser` this crate's public API is built against (#1198).
+pub use graphql_parser;
+/// The `indexmap` this crate's public API is built against (#1198).
+pub use indexmap;
+/// The `jsonwebtoken` this crate's public API is built against (#1198).
+pub use jsonwebtoken;
 /// The `regex` this crate's public API is built against (#1198).
 pub use regex;
 /// The `reqwest` this crate's public API is built against (#1198).
 pub use reqwest;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
+/// The `tokio_postgres` this crate's public API is built against (#1198).
+pub use tokio_postgres;
 /// The `tracing` this crate's public API is built against (#1198).
 pub use tracing;
 #[cfg(feature = "schema-lint")]
@@ -111,6 +123,10 @@ pub mod prelude;
 pub use error::{FraiseQLError, Result};
 pub use schema::CompiledSchema;
 pub use tenancy::TenantContext;
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;
+/// The `zeroize` this crate's public API is built against (#1198).
+pub use zeroize;
 
 /// Version of the FraiseQL core library
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

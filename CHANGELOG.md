@@ -18,6 +18,7 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+
 - **`QueryExecutor::execute_with_security` returns `FraiseQLError`, not `String` (#1201).**
 
   The Arrow Flight executor seam stringified every failure at the trait boundary
@@ -133,6 +134,7 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+
 - **`[subscription_kafka]`, and one Kafka egress for the whole framework (#1102).**
 
   `fraiseql_core::runtime::subscription::KafkaAdapter` published entity after-images
@@ -179,67 +181,8 @@ disagreed, and the promise was the part that was wrong.
   value costs accuracy and never availability. The `RateLimitConfig` doc comment saying
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
-### Fixed
-
-- **HTTP has a per-user rate limit again, on a signature-verified subject (#1171).**
-
-  #1143 removed it, correctly: the only identity available at that layer came from
-  `extract_jwt_subject`, which base64-decoded a JWT payload and never checked the
-  signature. A fresh key is a fresh *full* bucket, so varying `sub` did not merely grow
-  the map — it handed the caller an unlimited budget (measured: 50 of 50 requests allowed
-  against `rps_per_ip = 1, burst = 1`, from one IP, unauthenticated). Deleting it removed
-  a bypass rather than a control.
-
-  What it left was a real gap: every HTTP request bucketed on its address, so all the
-  authenticated users behind one egress IP shared one budget. The allowance now keys on a
-  subject the deployment's **own configured validator** accepts — `[auth]` (OIDC) or
-  `[auth_hs256]`, in that order, matching `attach_auth`'s precedence. A token that is
-  absent, malformed, expired or forged yields no subject, and the request falls back to
-  the address bucket, so #1143's property is kept rather than traded away. A deployment
-  with no authentication configured has no per-user bucket at all.
-
-  This is a second verification: the transport's auth layer runs later and does its own,
-  plus revocation and the service-account seam. Sharing one result across both would make
-  the rate limiter the thing that decides what counts as authenticated, which is not its
-  job. An HS256 check is an HMAC and an OIDC check is a verify against an already-cached
-  JWKS — neither is a network call on the hot path.
-
-  `X-RateLimit-Limit` now reports the budget the request was actually measured against,
-  so a verified caller is no longer told its quota is `rps_per_ip`.
-
-
-- **Every published crate re-exports the third-party crates its public API names (#1198).**
-
-  `fraiseql_auth::JwtValidator::new(issuer, algorithm)` takes a `jsonwebtoken::Algorithm`,
-  and `fraiseql-auth` re-exported neither the type nor the crate — so the crate's own
-  documented first line did not compile. The fix a caller had to discover for themselves
-  was to add `jsonwebtoken` as a direct dependency **and** pin it to whatever major this
-  workspace happens to build against; the day that bumps, their code stops compiling on a
-  type they never named.
-
-  The issue reported one type in one crate. Sweeping every published crate found the same
-  shape in **13 of the 18**: 44 crate→dependency pairs, 56 distinct references. The largest
-  was `sqlx::PgPool` across 14 `fraiseql-auth` signatures — sqlx being exactly the kind of
-  dependency where a caller cannot guess right, since its 0.x minors are incompatible.
-  Also `axum`, `chrono`, `uuid`, `zeroize`, `reqwest`, `prometheus`, `wasmtime`, `rmcp`,
-  `prost-reflect`, `arc-swap`, `anyhow`, `toml`, `regex`, `bytes`, `futures`, `http`,
-  `serde_json` and `tracing`.
-
-  Each is now `pub use <dep>;` at the crate root, carrying a one-line doc so rustdoc says
-  which version it is. `fraiseql_auth::Algorithm` is additionally re-exported by name,
-  because that is the import the documented example needs. Feature-gated dependencies
-  carry the same `cfg` as the code that exposes them.
-
-  Two things keep it fixed. `crates/fraiseql-auth/tests/public_api_is_self_sufficient.rs`
-  names every third-party type in that crate's public API through `fraiseql_auth::` and
-  imports nothing else, so a deleted re-export breaks the build. And
-  `tools/check-public-api-reexports.py` (`make lint-public-api-reexports`, on the
-  ShellGates leg) fails when a new public signature names an unreachable third-party type,
-  with `tools/tests/public_api_reexports_gate_test.sh` proving it can fail — including the
-  case where release.yml's publish steps are renamed and the gate would otherwise have no
-  subjects at all.
-
 ### Removed
+
 
 - **`.secrets.baseline` is deleted — it named another tool's artifact and nothing read it (#1212).**
 
@@ -284,6 +227,93 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+
+
+- **HTTP has a per-user rate limit again, on a signature-verified subject (#1171).**
+
+  #1143 removed it, correctly: the only identity available at that layer came from
+  `extract_jwt_subject`, which base64-decoded a JWT payload and never checked the
+  signature. A fresh key is a fresh *full* bucket, so varying `sub` did not merely grow
+  the map — it handed the caller an unlimited budget (measured: 50 of 50 requests allowed
+  against `rps_per_ip = 1, burst = 1`, from one IP, unauthenticated). Deleting it removed
+  a bypass rather than a control.
+
+  What it left was a real gap: every HTTP request bucketed on its address, so all the
+  authenticated users behind one egress IP shared one budget. The allowance now keys on a
+  subject the deployment's **own configured validator** accepts — `[auth]` (OIDC) or
+  `[auth_hs256]`, in that order, matching `attach_auth`'s precedence. A token that is
+  absent, malformed, expired or forged yields no subject, and the request falls back to
+  the address bucket, so #1143's property is kept rather than traded away. A deployment
+  with no authentication configured has no per-user bucket at all.
+
+  This is a second verification: the transport's auth layer runs later and does its own,
+  plus revocation and the service-account seam. Sharing one result across both would make
+  the rate limiter the thing that decides what counts as authenticated, which is not its
+  job. An HS256 check is an HMAC and an OIDC check is a verify against an already-cached
+  JWKS — neither is a network call on the hot path.
+
+  `X-RateLimit-Limit` now reports the budget the request was actually measured against,
+  so a verified caller is no longer told its quota is `rps_per_ip`.
+
+
+- **Every published crate re-exports the third-party crates its public API names (#1198).**
+
+  `fraiseql_auth::JwtValidator::new(issuer, algorithm)` takes a `jsonwebtoken::Algorithm`,
+  and `fraiseql-auth` re-exported neither the type nor the crate — so the crate's own
+  documented first line did not compile. The fix a caller had to discover for themselves
+  was to add `jsonwebtoken` as a direct dependency **and** pin it to whatever major this
+  workspace happens to build against; the day that bumps, their code stops compiling on a
+  type they never named.
+
+  The issue reported one type in one crate. Sweeping every published crate found the same
+  shape almost everywhere: **91 re-exports across 15 of the 19 published crates**. The
+  largest single case is `sqlx::PgPool` across 14 `fraiseql-auth` signatures — sqlx being
+  exactly the kind of dependency where a caller cannot guess right, since its 0.x minors
+  are incompatible. Also `axum`, `chrono`, `uuid`, `zeroize`, `tokio`, `bytes`, `futures`,
+  `arrow`, `tonic`, `redis`, `clap`, `indexmap`, `graphql-parser`, `tokio-postgres`,
+  `deadpool-postgres`, `image`, `parking_lot`, `arc-swap`, `tower-http`, `http-body`,
+  `ab_glyph`, `url`, `reqwest`, `prometheus`, `wasmtime`, `rmcp`, `prost-reflect`,
+  `anyhow`, `toml`, `regex`, `http`, `serde_json` and `tracing`.
+
+  Each is `pub use <dep>;` at the crate root, carrying a one-line doc so rustdoc says which
+  version it is. `fraiseql_auth::Algorithm` is additionally re-exported by name, because
+  that is the import the documented example needs. Feature-gated dependencies carry the
+  same `cfg` as the code that exposes them.
+
+  Two things keep it fixed. `crates/fraiseql-auth/tests/public_api_is_self_sufficient.rs`
+  names every third-party type in that crate's public API through `fraiseql_auth::` and
+  imports nothing else, so a deleted re-export breaks the build. And
+  `tools/check-public-api-reexports.py` (`make lint-public-api-reexports`, on the
+  ShellGates leg) fails when a new public signature names an unreachable third-party type,
+  with `tools/tests/public_api_reexports_gate_test.sh` proving it can fail — including the
+  case where release.yml's publish steps are renamed and the gate would otherwise have no
+  subjects at all.
+
+  **The first revision of that gate was blind to the ordinary idiom, and the numbers above
+  are the corrected ones (#1234).** `USE_STMT` was compiled with `re.S` and not `re.M`, so its `^`
+  anchored at byte 0 of the file and matched a `use` only in a file that opens with one.
+  No file in this workspace does — they open with a doc comment — so the branch that reads
+  a type by the name it was imported under matched nothing anywhere, and the gate could
+  see a type only where it was spelled `dep::Type` in full. It printed `OK … every
+  third-party type in a public signature is reachable` over **46 crate→dependency pairs in
+  12 crates** that it could not read, `sqlx::PgPool` among them: the sweep that reported 44
+  pairs was measuring with the blind instrument, and the crate this entry named as the
+  worst case had no `pub use sqlx;` at all.
+
+  The gate's own self-test did not catch it because all ten of its fixtures spelled the
+  type `serde_json::Value` in full, so every assertion exercised the one branch that
+  worked. Two narrower faults came out with it: enum variant payloads were never read
+  (`pub enum Handled { Recorded(serde_json::Value) }` was read as `pub enum Handled {`,
+  naming nothing), and a bare type name was attributed to whichever crate the file
+  imported a same-named type from, so `anyhow::Error` was reported against `thiserror` in
+  every file that derives an error.
+
+  All three are fixed. The suite runs 18 assertions rather than 10, and each new one is
+  shown RED against the revision of the gate that could not see it — `PUBLIC_API_GATE`
+  points the suite at another copy of the gate for exactly that proof. The compiling proof
+  now names every dependency `fraiseql-auth`'s public API touches rather than a sample,
+  because a compiling proof cannot be blind the way a source-reading one can.
+
 
 - **Arrow Flight reports a client's mistake as a client error, not a retryable server fault (#1201).**
 
@@ -459,6 +489,7 @@ disagreed, and the promise was the part that was wrong.
   (`Invalid \`limit\` value`) and is unchanged.
 
 ### Security
+
 
 - **Two real RSA private keys are no longer tracked in this public repository (#1211).**
 

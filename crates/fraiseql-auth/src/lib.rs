@@ -83,6 +83,10 @@ pub use audit::logger::{
     AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
     get_audit_logger, init_audit_logger,
 };
+/// The `axum` this crate's public API is built against (#1198).
+pub use axum;
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 pub use error_sanitizer::{
@@ -165,13 +169,23 @@ pub use serde_json;
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
 pub use session_bearer::SessionBearerAuthenticator;
 pub use session_postgres::PostgresSessionStore;
+/// The `sqlx` this crate's public API is built against (#1198).
+pub use sqlx;
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
     StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,
 };
 pub use state_store::{InMemoryStateStore, StateStore};
+/// The `tokio` this crate's public API is built against (#1198).
+pub use tokio;
 pub use totp_mfa::{
     EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore, TotpEnrollment, mfa_challenge,
     mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify,
     postgres::{PG_MFA_SCHEMA_SQL, PgMfaStore},
 };
+/// The `url` this crate's public API is built against (#1198).
+pub use url;
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;
+/// The `zeroize` this crate's public API is built against (#1198).
+pub use zeroize;

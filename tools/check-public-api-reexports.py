@@ -32,14 +32,32 @@ This gate is what keeps the next such signature from shipping unreachable.
 type is genuinely unnameable by a caller (a sealed trait's parameter) — not to retire a
 dependency that is merely inconvenient to re-export.
 
+## What it reads
+
+Two spellings, because Rust has two. A type written by its path (`serde_json::Value`) is
+attributed to the crate the path names. A type written by the name it was imported under
+(`use serde_json::Value;` … `-> Value`) is attributed through that `use`. The second is the
+ordinary idiom and was, for one revision, unreachable: `USE_STMT` was compiled without
+`re.M`, so its `^` anchored at byte 0 of the file and matched a `use` only in a file that
+opened with one. No file in this workspace does — they open with a doc comment — so the
+whole branch matched nothing and the gate reported OK over 46 crate→dependency pairs in
+12 crates, including the `sqlx::PgPool` that #1198 calls the worst case in fraiseql-auth
+and that the #1198 commit reported as fixed. See #1234.
+
+Signatures include enum variant payloads. A variant carries types the same way a field
+does, and a downstream that matches on the enum, or constructs one, has to name them.
+
 ## Limits, stated
 
-This reads source text, not a resolved API graph: it matches a third-party type by the
-name the file imports it under, in the text of a publicly reachable signature. It can
-therefore over-report (a local `Router` in a file that also imports `axum::Router`), which
-the allowlist absorbs, and under-report a type reached only through a re-export chain it
-cannot follow. It is a ratchet against the common shape, not a proof of completeness; the
-proof that a specific API is callable is a test that compiles against it.
+This reads source text, not a resolved API graph. It can over-report (a local `Router` in
+a file that also imports `axum::Router`), which the allowlist absorbs, and under-report a
+type reached only through a re-export chain it cannot follow. It is a ratchet against the
+common shape, not a proof of completeness; the proof that a specific API is callable is a
+test that compiles against it.
+
+Every property here is pinned in `tools/tests/public_api_reexports_gate_test.sh`, whose
+cases are each shown to be RED against the revision of the gate that could not see them
+(`PUBLIC_API_GATE=<other-copy> bash tools/tests/public_api_reexports_gate_test.sh`).
 """
 from __future__ import annotations
 
@@ -64,8 +82,17 @@ PUB_ITEM = re.compile(r"^\s*(?:#\[[^\]]*\]\s*)?pub\s+"
                       r"(fn|struct|enum|type|trait|const|static)\s")
 PUB_FIELD = re.compile(r"^\s*pub\s+[a-z_][a-z0-9_]*\s*:\s")
 MOD_DECL = re.compile(r"^\s*(pub(?:\s*\(\s*(?P<scope>[^)]*)\s*\))?\s+)?mod\s+([a-z_][a-z0-9_]*)\s*[;{]")
-USE_STMT = re.compile(r"^\s*(?:pub\s+)?use\s+([a-z_][a-z0-9_]*)\s*(?:::\s*)?([^;]*);", re.S)
+USE_STMT = re.compile(r"^\s*(?:pub\s+)?use\s+([a-z_][a-z0-9_]*)\s*(?:::\s*)?([^;]*);",
+                      re.S | re.M)
 TYPE_NAME = re.compile(r"\b([A-Z][A-Za-z0-9_]*)\b")
+# A name preceded by `::` is spelled by its path and is read by the qualified-path
+# scan below, which attributes it to the crate the path names. Matching it here too
+# would attribute `anyhow::Error` to whichever crate the file happens to `use` an
+# `Error` from — thiserror, in every file that derives one.
+BARE_NAME = re.compile(r"(?<![:\w])([A-Z][A-Za-z0-9_]*)\b")
+# A variant line, split into the variant's own identifier and its payload. The
+# identifier is a name this crate chose and never a reference to a dependency.
+VARIANT = re.compile(r"^([A-Z][A-Za-z0-9_]*)")
 
 
 def published_crates() -> list[str]:
@@ -180,17 +207,33 @@ def signatures(text: str) -> list[str]:
         visible = all(pub for _, pub in mod_stack)
 
         if visible and not inline_mod:
+            item = PUB_ITEM.match(line)
             if PUB_FIELD.match(line):
                 out.append(line)
-            elif PUB_ITEM.match(line):
+            elif item:
                 sig, j = line, i
                 while "{" not in sig and ";" not in sig and j + 1 < len(lines) and j - i < 20:
                     j += 1
                     sig += " " + lines[j].strip()
-                out.append(sig)
+                opened = depth
                 for k in range(i, j + 1):
                     depth += lines[k].count("{") - lines[k].count("}")
                 i = j + 1
+                if item.group(1) == "enum" and "{" in sig:
+                    # The body may be on the declaration line (`enum E { A, B }`) or
+                    # follow it; both reach enum_variants as one text.
+                    head, _, rest = sig.partition("{")
+                    out.append(head)
+                    body = [rest]
+                    k = j
+                    while k + 1 < len(lines) and depth > opened:
+                        k += 1
+                        body.append(lines[k])
+                        depth += lines[k].count("{") - lines[k].count("}")
+                    i = k + 1
+                    out.extend(enum_variants("\n".join(body)))
+                else:
+                    out.append(sig)
                 while mod_stack and depth <= mod_stack[-1][0]:
                     mod_stack.pop()
                 continue
@@ -200,6 +243,47 @@ def signatures(text: str) -> list[str]:
             mod_stack.pop()
         i += 1
     return out
+
+
+def enum_variants(body: str) -> list[str]:
+    """The payload of each variant in an enum body, with the variant's own name removed.
+
+    A variant carries types the same way a field does — `Recorded(serde_json::Value)`,
+    `Failed { source: url::ParseError }` — and a downstream that matches on the enum, or
+    constructs one, has to name them. `signatures()` reads a declaration only as far as
+    its opening brace, so before this the whole body was invisible: `pub enum Handled {
+    Recorded(Value) }` read as `pub enum Handled {` and named nothing.
+
+    Two things in a body are deliberately not payload:
+
+    - **Doc comments and attributes.** `/// Statement is safe to execute` is prose, and
+      `Statement` in it is an English word; reading it attributed a finding to
+      `sqlparser` for a type the enum does not mention.
+    - **The variant's own identifier.** A unit variant named `Aes256Gcm` in a file that
+      imports `aes_gcm::Aes256Gcm` is the enum naming itself, not the dependency.
+
+    Variants are split at top-level commas so a comma inside `Map<String, Value>` or
+    inside a struct variant's braces does not cut one in half.
+    """
+    text = re.sub(r"#\[[^\]]*\]", " ", body)
+    text = "\n".join(line.split("//")[0] for line in text.splitlines())
+    parts: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    for ch in text:
+        if ch in "([{<":
+            depth += 1
+        elif ch in ")]}>":
+            if depth == 0 and ch == "}":
+                break                       # the brace that closes the enum body
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            parts.append("".join(buf))
+            buf = []
+            continue
+        buf.append(ch)
+    parts.append("".join(buf))
+    return [VARIANT.sub("", part.strip(), count=1) for part in parts if part.strip()]
 
 
 def imported_names(text: str, deps: dict[str, str]) -> dict[str, str]:
@@ -280,7 +364,7 @@ def main() -> int:
             if not names and not deps:
                 continue
             for sig in signatures(text):
-                hits = {(names[n], n) for n in TYPE_NAME.findall(sig) if n in names}
+                hits = {(names[n], n) for n in BARE_NAME.findall(sig) if n in names}
                 # (?<![:\w]) so `crate::cache::redis::RedisCacheInvalidator` does not
                 # read as the `redis` crate: a segment preceded by `::` is not a crate root.
                 for m in re.finditer(r"(?<![:\w])([a-z_][a-z0-9_]*)::([A-Z][A-Za-z0-9_]*)", sig):

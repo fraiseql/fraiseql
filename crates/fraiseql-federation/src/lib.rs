@@ -142,6 +142,10 @@ pub use subscription_forwarder::{
     lookup_remote_subscription,
 };
 pub use types::*;
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;
+/// The `zeroize` this crate's public API is built against (#1198).
+pub use zeroize;
 
 pub use crate::tracing::{FederationSpan, FederationTraceContext};
 

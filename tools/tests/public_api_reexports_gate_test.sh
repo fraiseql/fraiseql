@@ -10,11 +10,23 @@
 # The fixtures are whole throwaway workspaces in a temp dir. The gate is never pointed
 # at this repository with a mutation applied, so an interrupted run cannot leave the
 # tree half-edited.
+#
+# ⚠ A fixture must differ under the gate it pins and the revision that could not see it.
+# The first ten cases here were thorough about properties and uniform about SPELLING —
+# every one wrote `serde_json::Value` in full — so all ten went through the qualified-path
+# branch while the imported-name branch matched nothing in the entire workspace (#1234).
+# Two of the replacement cases had the same fault on the first draft: a fixture whose
+# lib.rs BEGINS with `use serde_json::Value;` passes under the broken gate too, because
+# byte 0 is exactly where its `^` did match. Open fixtures with a doc comment, as real
+# files do, and check each new case against the older copy before trusting it.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GATE="$REPO_ROOT/tools/check-public-api-reexports.py"
+# PUBLIC_API_GATE points the suite at another copy of the gate. That is how each
+# case below is shown to be RED-capable: run it against the previous revision of
+# the gate and the cases the revision cannot see must fail.
+GATE="${PUBLIC_API_GATE:-$REPO_ROOT/tools/check-public-api-reexports.py}"
 
 [ -f "$GATE" ] || { echo "❌ missing $GATE"; exit 1; }
 
@@ -45,6 +57,7 @@ edition = "2021"
 
 [dependencies]
 serde_json = "1"
+thiserror = "2"
 EOF
     printf '%s\n' "$lib" > "$dir/crates/fixture-crate/src/lib.rs"
     printf '%s\n' "$allow" > "$dir/tools/public-api-reexports.allow"
@@ -132,6 +145,70 @@ expect fail C1 "an exemption for a reference that is now reachable is stale" \
     "$(fixture c1 'pub use serde_json;
 pub fn config() -> serde_json::Value { serde_json::Value::Null }' \
        'fixture-crate serde_json::Value it is exempt for this test')"
+
+echo
+echo "── a type named by its import, not by its path ──"
+# `use serde_json::Value; -> Value` is the ordinary Rust idiom and was the gate's blind
+# spot: USE_STMT was compiled without re.M, so `^` anchored at byte 0 of the file and
+# matched a `use` only in a file that opens with one. Every case above spells the type
+# `serde_json::Value` in the signature, so all ten passed through the one branch that
+# worked while the imported-name branch matched nothing in the entire workspace.
+expect fail E0 "public fn returning an imported \`Value\`, no re-export" \
+    "$(fixture e0 '//! A crate root opens with its doc comment, not with a `use`.
+use serde_json::Value;
+pub fn config() -> Value { Value::Null }')"
+expect pass E1 "the same, with \`pub use serde_json;\`" \
+    "$(fixture e1 '//! A crate root opens with its doc comment, not with a `use`.
+use serde_json::Value;
+pub use serde_json;
+pub fn config() -> Value { Value::Null }')"
+# A qualified path says which crate it comes from. Reading it as a bare name too would
+# attribute it to whichever crate the file imports a same-named type from — thiserror,
+# in every file that derives an error.
+expect pass E2 "a qualified type is attributed to its path, not to a same-named import" \
+    "$(fixture e2 '//! A crate root opens with its doc comment, not with a `use`.
+use thiserror::Error;
+pub use serde_json;
+#[derive(Debug, Error)]
+pub enum Wrapped { #[error("x")] X }
+pub fn parse() -> Result<serde_json::Value, serde_json::Error> { todo!() }')"
+
+echo
+echo "── an enum variant carries types the same way a field does ──"
+# `signatures()` reads a declaration only as far as its opening brace, so a whole enum
+# body was invisible. A downstream that matches on the enum, or constructs one, has to
+# name whatever the variants carry.
+expect fail F0 "a tuple variant carrying serde_json::Value" \
+    "$(fixture f0 'pub enum Handled {
+    Recorded(serde_json::Value),
+    Duplicate,
+}')"
+expect pass F1 "the same, with \`pub use serde_json;\`" \
+    "$(fixture f1 'pub use serde_json;
+pub enum Handled {
+    Recorded(serde_json::Value),
+    Duplicate,
+}')"
+expect fail F2 "a struct variant whose field carries serde_json::Value" \
+    "$(fixture f2 'pub enum Handled {
+    Failed { body: serde_json::Value },
+    Duplicate,
+}')"
+# Prose in a variant\'s doc comment is prose. Matching it reported a dependency for a
+# type the enum does not mention.
+expect pass F3 "a doc comment naming a type word" \
+    "$(fixture f3 '//! `Error` is imported here and re-exported nowhere, and the enum names it
+//! only in prose. A body scan that reads doc comments reports it anyway.
+use thiserror::Error;
+pub enum Handled {
+    /// Error is reported to the caller, which decides what to do about it.
+    Duplicate,
+}')"
+# A unit variant named after an imported type is the enum naming itself.
+expect pass F4 "a unit variant whose identifier collides with an import" \
+    "$(fixture f4 'use serde_json::Value;
+pub enum Kind { Value, Other }
+pub fn kind() -> Kind { Kind::Other }')"
 
 echo
 echo "── the gate refuses to pass vacuously ──"

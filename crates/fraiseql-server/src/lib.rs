@@ -167,6 +167,8 @@ pub use anyhow;
 pub use arc_swap;
 /// The `axum` this crate's public API is built against (#1198).
 pub use axum;
+/// The `bytes` this crate's public API is built against (#1198).
+pub use bytes;
 /// The `chrono` this crate's public API is built against (#1198).
 pub use chrono;
 // Authentication (extracted to fraiseql-auth crate) — optional, enable with `features =
@@ -181,6 +183,9 @@ pub use fraiseql_webhooks as webhooks;
 pub use futures;
 /// The `http` this crate's public API is built against (#1198).
 pub use http;
+/// The `http_body` this crate's public API is built against (#1198).
+#[cfg(any(feature = "grpc", feature = "http-body"))]
+pub use http_body;
 /// The `prost-reflect` this crate's public API is built against (#1198).
 #[cfg(any(feature = "grpc", feature = "prost-reflect"))]
 pub use prost_reflect;
@@ -193,6 +198,10 @@ pub use rmcp;
 pub use serde_json;
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;
+/// The `tokio` this crate's public API is built against (#1198).
+pub use tokio;
+/// The `tower_http` this crate's public API is built against (#1198).
+pub use tower_http;
 /// The `uuid` this crate's public API is built against (#1198).
 pub use uuid;
 

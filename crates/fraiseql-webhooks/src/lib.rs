@@ -105,9 +105,13 @@ pub mod traits;
 pub mod transaction;
 
 // Re-exports
+/// The `futures` this crate's public API is built against (#1198).
+pub use futures;
 pub use idempotency::PostgresIdempotencyStore;
 pub use pipeline::{Delivery, Disposition, WebhookPipeline, verify_signature};
 pub use secret::StaticSecretProvider;
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 pub use signature::SignatureError;
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;

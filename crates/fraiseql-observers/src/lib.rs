@@ -96,6 +96,9 @@ mod tests;
 
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
+/// The `arrow` this crate's public API is built against (#1198).
+#[cfg(any(feature = "analytics", feature = "arrow"))]
+pub use arrow;
 #[cfg(feature = "caching")]
 pub use cache::redis::{RedisCacheBackend, RedisCacheInvalidator};
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};
@@ -104,6 +107,8 @@ pub use checkpoint::{
     CheckpointMode, CheckpointState, CheckpointStore, CheckpointStrategy, InMemoryCheckpointStore,
     PostgresCheckpointStore, check_checkpoint_requirement,
 };
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
@@ -121,6 +126,8 @@ pub use elasticsearch_sink::{ElasticsearchSink, ElasticsearchSinkConfig};
 pub use error::{ObserverError, ObserverErrorCode, Result};
 pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
+/// The `futures` this crate's public API is built against (#1198).
+pub use futures;
 #[cfg(feature = "queue")]
 pub use job_queue::dlq::{DeadLetterQueueManager, DlqStats};
 #[cfg(feature = "queue")]
@@ -144,6 +151,8 @@ pub use matcher::EventMatcher;
 pub use metrics::MetricsRegistry;
 #[cfg(feature = "metrics")]
 pub use metrics::handler::metrics_handler;
+/// The `parking_lot` this crate's public API is built against (#1198).
+pub use parking_lot;
 /// The `prometheus` this crate's public API is built against (#1198).
 #[cfg(feature = "metrics")]
 pub use prometheus;
@@ -156,6 +165,14 @@ pub use queue::{
 };
 #[cfg(feature = "queue")]
 pub use queued_executor::{QueuedExecutionSummary, QueuedObserverExecutor};
+/// The `redis` this crate's public API is built against (#1198).
+#[cfg(any(
+    feature = "caching",
+    feature = "dedup",
+    feature = "queue",
+    feature = "redis-lease"
+))]
+pub use redis;
 pub use resilience::{
     CircuitBreaker, CircuitBreakerConfig, CircuitState, DegradationLevel, GracefulDegradation,
     PerEndpointCircuitBreaker, ResilienceStrategy, ResilientExecutor,
@@ -185,6 +202,8 @@ pub use transport::{
     EventFilter, EventStream, EventTransport, HealthStatus, InMemoryTransport, TransportHealth,
     TransportType,
 };
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;
 
 #[cfg(test)]
 mod integration_tests {

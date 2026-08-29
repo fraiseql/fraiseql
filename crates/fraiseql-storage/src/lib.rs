@@ -33,6 +33,13 @@ pub mod transforms;
 pub mod uploads;
 
 // Re-exports for convenience
+/// The `ab_glyph` this crate's public API is built against (#1198).
+#[cfg(feature = "transforms")]
+pub use ab_glyph;
+/// The `arc_swap` this crate's public API is built against (#1198).
+pub use arc_swap;
+/// The `axum` this crate's public API is built against (#1198).
+pub use axum;
 #[cfg(feature = "azure-blob")]
 pub use backend::AzureBackend;
 #[cfg(feature = "gcs")]
@@ -46,10 +53,15 @@ pub use backend::{
     types::{ListResult, ObjectInfo, ObjectMetadata, PutResult, StorageObject},
     validate_key,
 };
+/// The `bytes` this crate's public API is built against (#1198).
+pub use bytes;
 /// The `chrono` this crate's public API is built against (#1198).
 pub use chrono;
 pub use config::{BucketAccess, BucketConfig, StorageConfig};
 pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
+/// The `image` this crate's public API is built against (#1198).
+#[cfg(feature = "transforms")]
+pub use image;
 pub use metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
 pub use policy::{
     BucketPolicy, ClaimValues, MAX_METADATA_KEY_LEN, MAX_METADATA_KEYS, MAX_METADATA_VALUE_LEN,
@@ -64,6 +76,8 @@ pub use routes::{
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 pub use service::BucketService;
+/// The `sqlx` this crate's public API is built against (#1198).
+pub use sqlx;
 #[cfg(feature = "transforms")]
 pub use transforms::{
     CropSpec, Gravity, ImageTransformer, OutputFormat, ResizeMode, TransformCache, TransformOutput,

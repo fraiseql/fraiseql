@@ -93,7 +93,11 @@ pub mod ticket;
 #[cfg(feature = "clickhouse")]
 pub mod clickhouse_sink;
 
+/// The `arrow` this crate's public API is built against (#1198).
+pub use arrow;
 pub use cache::QueryCache;
+/// The `chrono` this crate's public API is built against (#1198).
+pub use chrono;
 #[cfg(feature = "clickhouse")]
 pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
 pub use db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult};
@@ -107,3 +111,7 @@ pub use metadata::SchemaRegistry;
 pub use serde_json;
 pub use subscription::{EventSubscription, SubscriptionManager};
 pub use ticket::FlightTicket;
+/// The `tonic` this crate's public API is built against (#1198).
+pub use tonic;
+/// The `uuid` this crate's public API is built against (#1198).
+pub use uuid;

@@ -26,6 +26,10 @@ pub mod schema;
 
 /// The `anyhow` this crate's public API is built against (#1198).
 pub use anyhow;
+/// The `clap` this crate's public API is built against (#1198).
+pub use clap;
+/// The `indexmap` this crate's public API is built against (#1198).
+pub use indexmap;
 pub use runner::run;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;

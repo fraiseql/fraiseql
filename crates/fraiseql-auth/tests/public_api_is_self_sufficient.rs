@@ -8,9 +8,13 @@
 //! unless the caller added `jsonwebtoken` itself and guessed the major this workspace
 //! builds against. A mismatch there is a type error, in code the caller never wrote.
 //!
-//! `tools/check-public-api-reexports.py` is the ratchet for the other twelve published
-//! crates; this is the one the issue names, so it is proved by compiling rather than by
-//! reading source.
+//! `tools/check-public-api-reexports.py` is the ratchet for the other published crates;
+//! this is the one the issue names, so it is proved by compiling rather than by reading
+//! source. That distinction earned its keep: the gate's first revision could not read a
+//! type spelled by the name it was imported under, and reported this crate clean while
+//! `sqlx::PgPool` — its widest public type, across fourteen signatures — was reachable
+//! from nowhere. A compiling proof cannot be blind in that way, which is why the list
+//! below names every dependency the public API touches rather than a sample.
 
 /// The example from the crate's own documentation, with nothing else in scope.
 #[test]
@@ -31,10 +35,19 @@ fn the_documented_first_line_compiles() {
 #[allow(dead_code)]
 type EveryThirdPartyTypeInThePublicApi = (
     fraiseql_auth::anyhow::Error,
+    fraiseql_auth::axum::Router,
+    fraiseql_auth::axum::extract::State<()>,
+    fraiseql_auth::axum::http::StatusCode,
+    fraiseql_auth::chrono::DateTime<fraiseql_auth::chrono::Utc>,
     fraiseql_auth::jsonwebtoken::Algorithm,
     fraiseql_auth::jsonwebtoken::DecodingKey,
     fraiseql_auth::reqwest::Client,
     fraiseql_auth::serde_json::Value,
+    fraiseql_auth::sqlx::PgPool,
+    fraiseql_auth::tokio::sync::RwLock<()>,
+    fraiseql_auth::url::ParseError,
+    fraiseql_auth::uuid::Uuid,
+    fraiseql_auth::zeroize::Zeroizing<String>,
 );
 
 /// The same for the feature-gated half: `redis` is compiled only under the two features

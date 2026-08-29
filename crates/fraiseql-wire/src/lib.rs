@@ -64,9 +64,13 @@ pub mod stream;
 pub mod util;
 
 // Re-export commonly used types
+/// The `bytes` this crate's public API is built against (#1198).
+pub use bytes;
 pub use client::FraiseClient;
 pub use error::{Result, WireError};
 pub use operators::{Field, OrderByClause, SortOrder, Value, WhereOperator};
+/// The `serde_json` this crate's public API is built against (#1198).
+pub use serde_json;
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
