@@ -7,10 +7,10 @@
 //!
 //! # Shape
 //!
-//! The subscription manager broadcasts one [`SubscriptionPayload`] per *matching active
-//! subscription*. This mirror consumes that channel and publishes each payload, so a
-//! Kafka message corresponds to a delivery a subscriber received, carrying that
-//! subscription's name.
+//! The subscription manager broadcasts one
+//! [`fraiseql_core::runtime::SubscriptionPayload`] per *matching active subscription*.
+//! This mirror consumes that channel and publishes each payload, so a Kafka message
+//! corresponds to a delivery a subscriber received, carrying that subscription's name.
 //!
 //! **At-most-once, deliberately.** There is no outbox on this path: a failed publish is
 //! logged and dropped rather than retried. The durable Kafka path is `[cdc_outbound]`

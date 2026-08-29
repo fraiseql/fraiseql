@@ -304,7 +304,7 @@ pub struct KinesisEndpoint {
 /// carries **only** the region, in the form `kinesis://<region>`. A scheme-less
 /// value is refused rather than taken as a bare region — it keeps the sink kind
 /// unambiguous in `[cdc_outbound]` and matches the contract
-/// [`guard_kafka_endpoint`] states.
+/// [`fraiseql_guard::kafka::guard_kafka_endpoint`] states.
 ///
 /// The region is constrained to `[a-z0-9-]` starting with a letter because it is
 /// interpolated into the endpoint the SDK resolves; an unconstrained value is an

@@ -392,8 +392,7 @@ fn test_kafka_adapter_name() {
 fn a_scheme_less_endpoint_is_refused_by_the_subscription_transport() {
     temp_env::with_var_unset("FRAISEQL_KAFKA_ALLOW_PLAINTEXT", || {
         let err = KafkaAdapter::new(KafkaConfig::new("localhost:9092", "events"))
-            .err()
-            .expect("a bare bootstrap list must be refused, not read as PLAINTEXT");
+            .expect_err("a bare bootstrap list must be refused, not read as PLAINTEXT");
         assert!(format!("{err}").contains("scheme"), "{err}");
     });
 }

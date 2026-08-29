@@ -256,7 +256,10 @@ where
     if let Some(shutdown) = shutdown {
         server.serve_with_shutdown(shutdown).await.context("Server error")
     } else {
-        server.serve().await.context("Server error")
+        // Boxed for the same reason as `fraiseql-server`'s own main: `Server` is large
+        // and this future carries it, past clippy::large_futures' 16 KiB threshold as of
+        // #1102. One allocation, once, on a future that runs for the process's life.
+        Box::pin(server.serve()).await.context("Server error")
     }
 }
 

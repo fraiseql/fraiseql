@@ -361,6 +361,14 @@ builds = ["workflow:release.yml:validate-release"]
 executes = []
 
 [[artifact]]
+id = "crate:fraiseql-kafka"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-kafka"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
 id = "crate:fraiseql-observers"
 kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-observers"
@@ -585,6 +593,11 @@ reason = "published and consumable, but no consumption tier pulls it: MEASURED a
 applies_to = "crate:fraiseql-guard"
 issue = 1222
 reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"
+
+[[exempt]]
+applies_to = "crate:fraiseql-kafka"
+issue = 1102
+reason = "same shape as fraiseql-guard above and for a sharper reason: nothing pulls it unless a Kafka feature is on (`cdc-kafka` on fraiseql-cdc-sinks, `kafka` on fraiseql-core, `subscription-kafka` on fraiseql-server), and none is default — a consumption tier that installed it by default would be pulling librdkafka, a C library built from source, into every install. Its code IS executed in CI: `cargo test -p fraiseql-kafka` on the workspace test leg, and through both callers on the integration leg's real broker (cdc_kafka_e2e, subscription_kafka_mirror_e2e)"
 
 [[exempt]]
 applies_to = "crate:fraiseql-secrets"
