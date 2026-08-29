@@ -96,19 +96,6 @@ id = "private-key"
     '''(^|/)crates/[^/]+/tests/.*\.rs$''',
   ]
 
-  # ⚠ These two are REAL private keys committed to a public repository. They
-  # serve the local TLS Postgres rig and nothing in production, but a key in a
-  # public tree should be generated at container build instead of tracked.
-  # That is a change to the TLS rig, not to this gate, so it is #1211 and this
-  # exemption names the two exact files rather than the directory — a third key
-  # appearing there still fails.
-  [[rules.allowlists]]
-  description = "Dev TLS rig keys, tracked pending #1211"
-  paths = [
-    '''(^|/)docker/tls-postgres/certs/ca\.key$''',
-    '''(^|/)docker/tls-postgres/certs/server\.key$''',
-  ]
-
 # ── jwt ───────────────────────────────────────────────────────────────────────
 
 [[rules]]

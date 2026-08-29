@@ -112,6 +112,32 @@ disagreed, and the promise was the part that was wrong.
   variables into the argument map — so a variable of either name must now carry an integer or
   be omitted.
 
+### Removed
+
+- **`docker/tls-postgres/` is deleted — the rig could not run, and reported success when it
+  did nothing (#1211).**
+
+  Four independent reasons, each sufficient:
+
+  - `run-tests.sh` ends with `cargo test -p fraiseql-wire --test tls_integration -- --ignored`.
+    Not one of that suite's four tests is `#[ignore]`d, so the command runs **0 of 4**, prints
+    `0 passed; 4 filtered out`, and the script then prints "Tests complete!".
+  - It exports `TLS_TEST_DB_URL`. The suite reads `TLS_DATABASE_URL`, falling back to
+    `DATABASE_URL` — so on a developer machine the TLS tests would have run against the
+    plaintext development database. The only other place in the repository that names
+    `TLS_TEST_DB_URL` is `crates/fraiseql-wire/.github/workflows/ci.yml`, a workflow GitHub
+    cannot read (#1233): the variable is a fossil of the pre-merge fraiseql-wire repository,
+    and so was this rig.
+  - Its Compose file binds `127.0.0.1:5433`, the port `docker/docker-compose.test.yml` gives
+    `postgres-test`. `make db-up` and this stack cannot both be running.
+  - The suite it claimed to drive already has a rig that works: `.dagger/main.go` binds a TLS
+    Postgres with a CA it generates, exports `TLS_DATABASE_URL` + `TLS_TEST_CA_CERT`, and runs
+    the four tests on every heavy leg. `docker/docker-compose.test.yml`'s `postgres-tls-test`
+    (port 5435, certs from the gitignored `docker/tls/certs/`) is its local twin.
+
+  Its own Compose header had recorded the risk: *"Not CI-verified. Nothing in CI brings this
+  stack up, so it may have stopped working without anyone noticing."* It had.
+
 ### Fixed
 
 - **Arrow Flight reports a client's mistake as a client error, not a retryable server fault (#1201).**
@@ -286,6 +312,25 @@ disagreed, and the promise was the part that was wrong.
   All four now go through one `coerce_pagination_arg`, so a transport cannot disagree with the
   engine about what a row count is. The REST transport already parsed and rejected these
   (`Invalid \`limit\` value`) and is unchanged.
+
+### Security
+
+- **Two real RSA private keys are no longer tracked in this public repository (#1211).**
+
+  `docker/tls-postgres/certs/ca.key` (4096-bit) and `.../server.key` (2048-bit) were committed
+  on 2026-01-18 and had been in the tree since. They are self-signed `CN=localhost` material
+  for a local Postgres container and protect nothing that runs anywhere, but a private key in
+  a public tree invites reuse, and `.gitleaks.toml` had to exempt them by exact path for the
+  secret gate (#1208) to pass at all.
+
+  **They remain in this repository's git history and cannot be removed from it.** Treat both
+  as burned: never reuse either key or the CA that signed them. Nothing needs rotating
+  elsewhere — no service ever trusted that CA, and the rig that used it is gone (above). The
+  certificates expired on 2027-01-18 in any case, a date nobody was watching.
+
+  The gitleaks exemption is deleted with them. `tools/tests/gitleaks_allowlist_test.sh` now
+  pins the opposite property: a private key under `docker/tls-postgres/` **fails** the gate,
+  so neither the rig nor its keys can return quietly.
 
 ## [2.15.0] - 2026-08-22
 

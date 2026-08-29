@@ -106,10 +106,16 @@ expect leak  E  "crates/demo/src/oauth.rs"       "let token = \"$JWT\";"
 expect leak  C  "crates/demo/src/oauth_tests.rs" "let key = \"$AKIA\";"
 
 echo
-echo "── the dev TLS exemption names two files, not the directory ──"
-expect clean F0 "docker/tls-postgres/certs/ca.key"    "$PEM"
-expect clean F1 "docker/tls-postgres/certs/server.key" "$PEM"
-expect leak  F2 "docker/tls-postgres/certs/extra.key"  "$PEM"
+echo "── the generated dev-cert directory is exempt; its generator is not ──"
+# docker/tls/certs/ is written by docker/tls/gen-certs.sh (`make db-up`) and is
+# gitignored, so nothing in it can be committed — the artifact-tree claim. The
+# generator beside it IS in the repository.
+expect clean F0 "docker/tls/certs/server.key" "$PEM"
+expect leak  F1 "docker/tls/gen-certs.sh"     "# $PEM"
+# #1211 deleted docker/tls-postgres/ and the by-path exemption its two tracked
+# private keys had. Nothing under that name is exempt any more, so a key there
+# fails the gate — which is what stops the rig, or its keys, coming back quietly.
+expect leak  F2 "docker/tls-postgres/certs/ca.key" "$PEM"
 
 echo
 echo "── generated .pem fixtures are exempt; a key pasted into source is not ──"
