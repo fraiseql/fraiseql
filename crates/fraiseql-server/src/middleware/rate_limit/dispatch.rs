@@ -169,6 +169,26 @@ impl RateLimiter {
         }
     }
 
+    /// How many live buckets the in-memory backend is holding, across all four maps.
+    ///
+    /// `None` for the Redis backend, which keeps no local map — deliberately not `0`,
+    /// so a caller cannot mistake "no map here" for "the map is empty".
+    ///
+    /// This exists because the sweep's *effect* was otherwise unobservable outside the
+    /// `rate_limit` module: the maps are `pub(super)`, so only the unit tests next to
+    /// them could see a bucket appear or disappear, and those call `cleanup()` directly
+    /// — proving the sweep WORKS, never that it is SCHEDULED. #1080's defect was
+    /// precisely a `cleanup()` with no caller, so "is it scheduled" is the question that
+    /// needs an answer from outside (#1173).
+    #[must_use]
+    pub fn live_bucket_count(&self) -> Option<usize> {
+        match self {
+            Self::InMemory(rl) => Some(rl.live_bucket_count()),
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(_) => None,
+        }
+    }
+
     /// Conservative static estimate of how long (in seconds) a client must wait
     /// before the IP-level bucket refills one token: `ceil(1 / rps_per_ip)`.
     ///

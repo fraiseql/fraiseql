@@ -1019,6 +1019,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
     }
 
+    /// The resolved rate limiter, if one is configured.
+    ///
+    /// `Arc`, so a caller can clone it and keep observing after the server has been
+    /// moved into `serve_on_listener` — which is what
+    /// `tests/rate_limit_sweep_is_scheduled_test.rs` needs in order to assert that the
+    /// sweep is SCHEDULED rather than merely callable (#1173).
+    #[must_use]
+    pub const fn rate_limiter(&self) -> Option<&Arc<crate::middleware::RateLimiter>> {
+        self.rate_limiter.as_ref()
+    }
+
     /// The session-state subsystem (#389), when `[session_state]` is configured.
     ///
     /// The per-request consumer surface: the MCP session-continuity binding

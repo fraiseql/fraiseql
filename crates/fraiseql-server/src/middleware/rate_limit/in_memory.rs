@@ -388,6 +388,18 @@ impl InMemoryRateLimiter {
         debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
     }
 
+    /// Live buckets across all four maps.
+    ///
+    /// Summed rather than reported per-map: the caller outside this module is asking
+    /// "did the sweep run", and any map shrinking answers it. The per-map view stays
+    /// with the unit tests, which can read the maps directly.
+    pub(super) fn live_bucket_count(&self) -> usize {
+        self.ip_buckets.len()
+            + self.user_buckets.len()
+            + self.path_ip_buckets.len()
+            + self.tenant_buckets.len()
+    }
+
     /// Number of per-path rate limit rules registered.
     pub(super) const fn path_rule_count(&self) -> usize {
         self.path_rules.len()

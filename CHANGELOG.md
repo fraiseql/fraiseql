@@ -6899,6 +6899,30 @@ disagreed, and the promise was the part that was wrong.
   Step-level `if:` conditions of the same class are covered too — see the entry below
   (#1207), which took the sixteen decisions and grew this gate to steps.
 
+- **The rate-limiter bucket sweep has a regression guard again (#1173).** #1080's defect
+  was that `InMemoryRateLimiter::cleanup()` and the `cleanup_interval_secs` knob both
+  existed while nothing in the server ever called it — a function with no caller. The fix
+  spawns a ticker; the guard for that wiring was lost when
+  `rate_limit_bucket_eviction_test.rs` was deleted, because #1143 made its premise
+  unreachable (the tenant is no longer part of the IP bucket key, so 40 tenant values mint
+  one bucket rather than 40, and a full map now evicts LRU instead of denying, so there is
+  no capacity refusal to recover from).
+
+  The 76 limiter unit tests call `cleanup()` **directly**, so they prove the sweep *works*
+  and never that it is *scheduled* — deleting the spawn leaves every one of them green.
+  Verified: with the spawn neutered, all 76 still pass while the new test fails.
+
+  The replacement asserts the schedule by observing its effect. `RateLimiter` gains
+  `live_bucket_count()` (`None` for the Redis backend — deliberately not `0`, so "no map
+  here" cannot be mistaken for "the map is empty"), and `Server` gains a `rate_limiter()`
+  accessor so the `Arc` can be held after the server moves into `serve_on_listener`. The
+  test drives that shipped entry point rather than a hand-built `Router`, because a router
+  assembled inside a test spawns nothing either way and would pass for the wrong reason.
+
+  Deleting the *call* turns out to be a compile error already — `-D dead-code` catches the
+  now-uncalled function — so what this covers is the case that still compiles: the spawn
+  helper reached but silently not spawning.
+
 - **The observer webhook suites say what they need instead of blaming the runtime
   (#1187).** They dispatch to a loopback wiremock URL, which the outbound SSRF guard
   correctly refuses. The `integration (observers)` leg makes them work by exporting three
