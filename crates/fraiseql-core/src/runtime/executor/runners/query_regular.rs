@@ -596,6 +596,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         //     and are nulled below — GraphQL requires the response's field order to follow the
         //     query's.
         let projector = ResultProjector::new(access.projected.clone())
+            // #1192: a `String` field whose text parses as JSON must stay a string.
+            .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -972,6 +974,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         //    the key in its requested position, then get nulled below (same as the authenticated
         //    path).
         let projector = ResultProjector::new(access.projected.clone())
+            // #1192: a `String` field whose text parses as JSON must stay a string.
+            .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -1402,6 +1406,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // nulled below — the response keeps the key and withholds only the value, as
         // both GraphQL paths do.
         let projector = ResultProjector::new(access.projected.clone())
+            // #1192: a `String` field whose text parses as JSON must stay a string.
+            .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,

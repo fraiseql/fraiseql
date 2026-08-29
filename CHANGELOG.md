@@ -71,6 +71,36 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A `String` field whose stored text happens to parse as JSON is returned as a string (#1192).**
+
+  The projector re-parsed any string value that decoded as an object or an array, to recover a
+  nested value the SQL side had extracted with `->>`. The comment justifying it read: *"Scalar
+  strings (e.g. `hello`) won't parse as Object/Array and are returned unchanged, so this is safe
+  for all field types."* True of `hello`; false of the serialized JSON that a text column exists
+  to hold — an audit payload, a webhook body, an imported document.
+
+  ```
+  jsonish TEXT = '{"a": 1, "b": [2,3]}',  declared String
+  before:  "jsonish": { "a": 1, "b": [2,3] }
+  after:   "jsonish": "{\"a\": 1, \"b\": [2,3]}"
+  ```
+
+  A sibling `String` holding ordinary text was always correct, so the response violated its own
+  schema **per row**, depending on whether that row's text happened to parse. A typed client
+  generated from the schema declares `jsonish: string` and `JSON.parse`s it — and throws on
+  exactly the rows the column was written for.
+
+  The value leaves PostgreSQL correct: `jsonb_typeof(data->'jsonish')` is `string`. The
+  coercion was entirely in `ResultProjector`, which now skips the re-parse for a field whose
+  declared type's value space **excludes** JSON objects and arrays.
+
+  **That is deliberately narrower than `FieldType::is_scalar()`**, which is true of `Json` —
+  whose value space is all of JSON — and of the vector types, which serialize as arrays. Marking
+  either would have switched the recovery off where it is doing its job. A **custom** scalar is
+  also left unmarked: a project defines its own serialization, so whether one of its values can
+  be an object is not something the runtime can adjudicate. `Json`, vectors and custom scalars
+  behave exactly as before.
+
 - **REST resource embedding is scoped to its parent even when the target query does not publish a `where` argument (#1170).**
 
   Embedding built its parent-scoping join predicate into `arguments["where"]` and dispatched

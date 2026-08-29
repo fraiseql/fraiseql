@@ -26,6 +26,23 @@ pub struct FieldMapping {
     pub nested_typename: Option<String>,
     /// Nested field mappings (for related objects).
     pub nested_fields:   Option<Vec<FieldMapping>>,
+    /// The schema positively declares this field a **scalar** (#1192).
+    ///
+    /// Set by [`ProjectionMapper::with_declared_scalars`], which is the only
+    /// thing that knows. It gates the JSON-text re-parse below: a value the
+    /// database handed back as a string is re-read as an object or an array when
+    /// it parses as one, to recover a nested object the SQL side extracted with
+    /// `->>` — and the comment justifying that said scalar strings "won't parse
+    /// as Object/Array, so this is safe for all field types". That premise is
+    /// false for exactly the rows a text column full of serialized JSON exists
+    /// to carry: an audit payload, a webhook body, an imported document. A field
+    /// declared `String` was returned as the value its text encodes, so the
+    /// response violated the schema the server publishes, per row, depending on
+    /// whether that row's text happened to parse.
+    ///
+    /// Defaults to `false` — *not known to be scalar* — so a mapping built
+    /// without schema knowledge keeps the recovery behaviour it had.
+    pub declared_scalar: bool,
 }
 
 impl FieldMapping {
@@ -39,6 +56,7 @@ impl FieldMapping {
             source_fallback: None,
             nested_typename: None,
             nested_fields:   None,
+            declared_scalar: false,
         }
     }
 
@@ -51,6 +69,7 @@ impl FieldMapping {
             source_fallback: None,
             nested_typename: None,
             nested_fields:   None,
+            declared_scalar: false,
         }
     }
 
@@ -80,6 +99,7 @@ impl FieldMapping {
             source_fallback: None,
             nested_typename: Some(typename.into()),
             nested_fields:   Some(fields),
+            declared_scalar: false,
         }
     }
 
@@ -97,6 +117,7 @@ impl FieldMapping {
             source_fallback: None,
             nested_typename: Some(typename.into()),
             nested_fields:   Some(fields),
+            declared_scalar: false,
         }
     }
 
@@ -127,6 +148,35 @@ pub struct ProjectionMapper {
     pub federation_mode: bool,
 }
 
+/// Does this declared type's value space **exclude** JSON objects and arrays?
+///
+/// The question [`FieldMapping::declared_scalar`] needs, and deliberately not
+/// [`FieldType::is_scalar`], which answers a different one. `is_scalar` is true
+/// of `Json` — whose value space is *all* JSON — and of the vector types, which
+/// serialize as arrays. Marking either would stop the text-recovery re-parse
+/// from firing where it is doing its job.
+///
+/// A **custom** scalar is also left unmarked. A project defines its own
+/// serialization, so whether one of its values can be a JSON object is a
+/// question this module cannot adjudicate — the same rule the argument-value
+/// validator follows: narrow to what is positively known, never widen. #1192
+/// raised the custom-scalar case explicitly and this is the answer to it.
+const fn excludes_json_composites(field_type: &FieldType) -> bool {
+    matches!(
+        field_type,
+        FieldType::String
+            | FieldType::Int
+            | FieldType::Float
+            | FieldType::Boolean
+            | FieldType::Id
+            | FieldType::DateTime
+            | FieldType::Date
+            | FieldType::Time
+            | FieldType::Uuid
+            | FieldType::Decimal
+    )
+}
+
 impl ProjectionMapper {
     /// Create new projection mapper from field names (no aliases).
     #[must_use]
@@ -146,6 +196,32 @@ impl ProjectionMapper {
             typename: None,
             federation_mode: false,
         }
+    }
+
+    /// Mark every mapping whose field `entity_type` declares as a **scalar**
+    /// (#1192), so the JSON-text recovery in [`FieldMapping::declared_scalar`]
+    /// does not fire on a `String` whose characters happen to be JSON.
+    ///
+    /// Lookup is by the mapping's `output` name — the GraphQL field name, which
+    /// is what a type definition carries — falling back to `source` for a
+    /// mapping built from a stored key. A field the schema does not describe
+    /// stays unmarked: this narrows the recovery to what is positively known,
+    /// and never widens it.
+    #[must_use]
+    pub fn with_declared_scalars(mut self, schema: &CompiledSchema, entity_type: &str) -> Self {
+        let Some(type_def) = schema.find_type(entity_type) else {
+            return self;
+        };
+        for mapping in &mut self.fields {
+            let declared = type_def
+                .fields
+                .iter()
+                .find(|f| f.name == mapping.output || f.name == mapping.source);
+            if let Some(fd) = declared {
+                mapping.declared_scalar = excludes_json_composites(&fd.field_type);
+            }
+        }
+        self
     }
 
     /// Set `__typename` to include in projected objects.
@@ -265,8 +341,16 @@ impl ProjectionMapper {
                 // If the value is a JSON string that encodes an object or array
                 // (which happens when the database uses ->>'field' text extraction
                 // instead of ->'field' JSONB extraction), attempt to re-parse it.
-                // Scalar strings (e.g. "hello") won't parse as Object/Array and
-                // are returned unchanged, so this is safe for all field types.
+                //
+                // #1192: unless the schema declares the field a scalar. This used
+                // to run for every field type, justified by "scalar strings won't
+                // parse as Object/Array" — true of `"hello"`, false of the
+                // serialized JSON that text columns routinely hold, and the
+                // response then carried an object where the published schema
+                // promised a string.
+                if field.declared_scalar {
+                    return Ok(value.clone());
+                }
                 if let JsonValue::String(ref s) = *value {
                     if let Ok(parsed @ (JsonValue::Object(_) | JsonValue::Array(_))) =
                         serde_json::from_str::<JsonValue>(s)
@@ -321,6 +405,15 @@ impl ResultProjector {
         Self {
             mapper: ProjectionMapper::with_mappings(fields),
         }
+    }
+
+    /// Mark the mappings the schema declares scalar (#1192).
+    ///
+    /// See [`ProjectionMapper::with_declared_scalars`].
+    #[must_use]
+    pub fn with_declared_scalars(mut self, schema: &CompiledSchema, entity_type: &str) -> Self {
+        self.mapper = self.mapper.with_declared_scalars(schema, entity_type);
+        self
     }
 
     /// Set `__typename` to include in all projected objects.
