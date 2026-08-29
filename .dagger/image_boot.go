@@ -432,3 +432,130 @@ echo
 echo "image-boot OK (@VARIANT@): the built image booted on its own CMD, reached Postgres,"
 echo "resolved a GraphQL query through SQL to rows, and returned a row inserted after it started."
 `
+
+// ── The tutorial image (#1221) ───────────────────────────────────────────────
+//
+// `tutorial` is one of the three variants docker-build.yml publishes to BOTH
+// ghcr.io and Docker Hub, and it is built before the tag by `dagger call images`.
+// Nothing ever started it: `bootableVariants` filters on `dockerfile ==
+// "Dockerfile"`, so the boot tier above and the properties tier both skip it, and
+// the chart and Compose tiers pin `--variant=fraiseql-server`. Of the three
+// published images, two were booted against a real Postgres and the third was
+// only asserted to build.
+//
+// The exclusion was defensible — it is a Node/Express site, not a fraiseql-server,
+// and "resolve a GraphQL query through SQL" does not apply to it. But "those
+// assertions do not apply" is not "nothing is asserted", and #1205's lesson was
+// that an image nobody builds ships broken; this is one step along, an image
+// nobody starts.
+//
+// So it gets a tier that fits WHAT IT IS: does the container start on its own CMD,
+// does the `/health` its own HEALTHCHECK polls actually answer, and does the
+// documented first thing a reader does — open the tutorial and get its chapters —
+// return content rather than an empty shell.
+const (
+	// The port the tutorial image's own ENV and EXPOSE declare. Not overridden
+	// here, for the #1216 reason: a tier that supplies the bind address agrees
+	// with itself rather than with the image.
+	tutorialPort     = 3001
+	tutorialBindHost = "fraiseql-tutorial"
+)
+
+// TutorialImageBoot starts the published `tutorial` image and requires it to serve.
+//
+// No database and no fraiseql-server binding: the tutorial site renders its own
+// chapter content, and its FRAISEQL_API_URL points at a server only for the live
+// schema panes. Binding a fake one would assert something this tier is not about,
+// and leaving it unset is the honest shape — the site must still start and serve
+// its own content when no engine is reachable, which is exactly what a reader
+// running `docker run` for the first time has.
+func (m *FraiseqlCi) TutorialImageBoot(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+	// A value that DIFFERS between runs, for the same reason ImageBoot needs one:
+	// without it Dagger replays the previous stdout without executing anything.
+	// +optional
+	// +default="local"
+	runID string,
+) (string, error) {
+	v, err := lookupVariant("tutorial")
+	if err != nil {
+		return "", err
+	}
+	if v.dockerfile == "Dockerfile" {
+		return "", fmt.Errorf(
+			"the `tutorial` variant is now built from the root Dockerfile; it belongs to " +
+				"ImageBoots, not to this tier — reconcile bootableVariants and delete this")
+	}
+
+	built, err := buildVariant(ctx, source, v)
+	if err != nil {
+		return "", err
+	}
+
+	site := built.
+		WithExposedPort(tutorialPort).
+		// Started by its OWN CMD, like ImageBoot: overriding it would boot a command
+		// the publish path never runs.
+		AsService()
+
+	if runID == "" {
+		runID = imageBootRunIDDefault
+	}
+
+	// The client is NOT built from the image under test — a curl that came from the
+	// artifact could not tell "the site answered" from "the container has curl".
+	script := strings.NewReplacer(
+		"@BASE@", fmt.Sprintf("http://%s:%d", tutorialBindHost, tutorialPort),
+		"@RUNID@", runID,
+	).Replace(`set -euo pipefail
+fail() { echo "TUTORIAL-BOOT FAILED: $*" >&2; exit 1; }
+BASE="@BASE@"
+echo "### run @RUNID@"
+
+echo "### 1/3  wait for the site to accept a connection on its own port"
+for i in $(seq 1 60); do
+  curl -sS -o /dev/null "$BASE/health" 2>/dev/null && break
+  [ "$i" = "60" ] && fail "the tutorial image never accepted a connection on its own EXPOSEd port"
+  sleep 1
+done
+
+echo "### 2/3  /health — the endpoint the image's OWN HEALTHCHECK polls"
+code=$(curl -sS -o /tmp/h.json -w '%{http_code}' "$BASE/health")
+echo "GET /health -> HTTP $code"; cat /tmp/h.json; echo
+[ "$code" = "200" ] || fail "/health returned HTTP $code (expected 200) — the image's own HEALTHCHECK would never pass"
+jq -e '.status == "healthy"' /tmp/h.json >/dev/null \
+  || fail "/health did not report status=healthy"
+jq -e '.service == "fraiseql-tutorial"' /tmp/h.json >/dev/null \
+  || fail "/health answered, but not as the tutorial service — something else is on this port"
+
+echo "### 3/3  the documented first thing a reader does: open it, and get chapters"
+code=$(curl -sS -o /tmp/c.json -w '%{http_code}' "$BASE/api/chapters")
+echo "GET /api/chapters -> HTTP $code"
+[ "$code" = "200" ] || fail "/api/chapters returned HTTP $code (expected 200)"
+# Assert CONTENT, not shape. An empty array is valid JSON and is exactly what a
+# tutorial image with its assets left out of the build context would serve — the
+# #1214 shape, where a 200 with nothing in it read as success.
+n=$(jq '[.. | objects | select(has("id") and has("title"))] | length' /tmp/c.json)
+echo "chapters carrying an id and a title: $n"
+[ "$n" -gt 0 ] || fail "/api/chapters answered 200 with no chapter carrying an id and a title — the site starts and has no content"
+
+code=$(curl -sS -o /tmp/index.html -w '%{http_code}' "$BASE/")
+echo "GET / -> HTTP $code"
+[ "$code" = "200" ] || fail "/ returned HTTP $code (expected 200) — the web UI is not served"
+[ -s /tmp/index.html ] || fail "/ returned an empty body"
+
+echo
+echo "tutorial-image-boot OK: the image booted on its own CMD, answered the /health its"
+echo "own HEALTHCHECK polls, served $n chapter(s) of real content, and served its web UI."
+`)
+
+	return dag.Container().
+		From(pgImage).
+		WithExec([]string{"apt-get", "update"}).
+		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "curl", "jq", "ca-certificates"}).
+		WithServiceBinding(tutorialBindHost, site).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}

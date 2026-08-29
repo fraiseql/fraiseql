@@ -48,6 +48,7 @@ make_fixture() {
        "$REPO_ROOT/tools/delivery-artifacts.toml" \
        "$REPO_ROOT/tools/compose-stack-test.sh" \
        "$REPO_ROOT/tools/chart-deploy-test.sh" \
+       "$REPO_ROOT/tools/consume-published-artifacts.sh" \
        "$dir/tools/"
     cp "$REPO_ROOT"/.dagger/*.go "$dir/.dagger/"
     cp "$REPO_ROOT"/.github/workflows/*.yml "$dir/.github/workflows/"
@@ -167,29 +168,97 @@ expect fail D1 "the run: step is deleted while the comment naming it remains" \
 
 echo
 echo "── executes is the gated column ──"
-# Removes the WHOLE exemption block, header included. Deleting only the three keys
-# leaves a bare `[[exempt]]` behind and the gate exits 2 on the malformed row — red, but
-# for parsing rather than for the missing coverage this case is about.
-expect fail E1 "an artifact with no executing leg and no exemption" \
-    python3 -c 'import re,pathlib;p=pathlib.Path("tools/delivery-artifacts.toml");p.write_text(re.sub(r"\[\[exempt\]\]\napplies_to = \"image:tutorial\"\n[^\n]*\n[^\n]*\n", "", p.read_text(), count=1))'
+#
+# ⚠ These four used to anchor on `applies_to = "image:tutorial"`. When #1221 gave that
+# image a real boot tier its exemption was deleted, every mutation became a no-op, and
+# four assertions passed while testing NOTHING — the exact failure this file exists to
+# catch, in the file itself. (S4 below had the same fault, on the `crate:*` wildcard #1222
+# removed.) So none of them names a ledger row any more: each DISCOVERS its target at
+# runtime, and fails loudly if the ledger has none to offer rather than silently doing
+# nothing. A mutation that cannot find its target is not a passing test.
+mutate() {
+    python3 - "$1" <<'PYEOF'
+import pathlib, re, sys
+mode = sys.argv[1]
+p = pathlib.Path("tools/delivery-artifacts.toml")
+t = p.read_text()
+
+def first_exempt_block():
+    m = re.search(r'\[\[exempt\]\]\n(?:[a-z_]+ = [^\n]*\n)+', t)
+    if not m:
+        raise SystemExit("FIXTURE ERROR: the ledger has no [[exempt]] block to mutate")
+    return m
+
+if mode == "drop-exemption":
+    # E1: an artifact loses its exemption while still having no executing leg.
+    m = first_exempt_block()
+    aid = re.search(r'applies_to = "([^"]+)"', m.group(0)).group(1)
+    if "*" in aid:
+        raise SystemExit(f"FIXTURE ERROR: first exemption {aid!r} is a wildcard; want a named one")
+    t = t[: m.start()] + t[m.end() :]
+
+elif mode == "stale-exemption":
+    # S1: an exemption that matches no artifact at all.
+    m = first_exempt_block()
+    aid = re.search(r'applies_to = "([^"]+)"', m.group(0)).group(1)
+    t = t.replace(f'applies_to = "{aid}"', f'applies_to = "{aid}-no-such-artifact"', 1)
+
+elif mode == "exemption-gains-leg":
+    # S2: the exempted artifact gains real coverage, so the exemption is now a lie.
+    m = first_exempt_block()
+    aid = re.search(r'applies_to = "([^"]+)"', m.group(0)).group(1)
+    if "*" in aid:
+        raise SystemExit(f"FIXTURE ERROR: first exemption {aid!r} is a wildcard; want a named one")
+    blocks = t.split("[[artifact]]")
+    hit = False
+    for i, b in enumerate(blocks):
+        if re.search(rf'^id = "{re.escape(aid)}"$', b, re.M):
+            em = re.search(r'^executes = \[\]$', b, re.M)
+            if em:
+                blocks[i] = b[: em.start()] + 'executes = ["dagger:Images"]' + b[em.end() :]
+                hit = True
+    if not hit:
+        raise SystemExit(f"FIXTURE ERROR: no artifact row {aid!r} with an empty executes")
+    t = "[[artifact]]".join(blocks)
+
+elif mode == "duplicate-exemption":
+    # S4: a SECOND exemption matching an artifact that already has one.
+    m = first_exempt_block()
+    aid = re.search(r'applies_to = "([^"]+)"', m.group(0)).group(1)
+    t = t.rstrip("\n") + (
+        f'\n\n[[exempt]]\napplies_to = "{aid}"\nissue = 1222\n'
+        'reason = "a second exemption for an artifact that already has one"\n'
+    )
+
+elif mode == "exemption-without-issue":
+    # S3: an exemption carrying no issue number.
+    m = first_exempt_block()
+    body = re.sub(r'^issue = \d+\n', "", m.group(0), count=1, flags=re.M)
+    if body == m.group(0):
+        raise SystemExit("FIXTURE ERROR: first exemption has no `issue =` line to remove")
+    t = t[: m.start()] + body + t[m.end() :]
+
+else:
+    raise SystemExit(f"unknown mutation {mode!r}")
+
+p.write_text(t)
+PYEOF
+}
+
+expect fail E1 "an artifact with no executing leg and no exemption" mutate drop-exemption
 
 echo
 echo "── exemptions, and the self-clearing half ──"
-expect fail S1 "an exemption matching no artifact (stale)" \
-    sed -i 's|^applies_to = "image:tutorial"$|applies_to = "image:tutorail"|' tools/delivery-artifacts.toml
+expect fail S1 "an exemption matching no artifact (stale)" mutate stale-exemption
 
 # The exempted artifact gains real coverage. The exemption is now a lie, and nothing
 # except this rule would ever notice.
-# `n` steps onto the line after each `builds = ["dagger:Images"]`; only the tutorial
-# row's is `executes = []`, so this gives exactly that artifact real coverage.
 expect fail S2 "an exempted artifact gains an executing leg — the exemption is now stale" \
-    sed -i '/^builds = \["dagger:Images"\]$/{n;s/^executes = \[\]$/executes = ["dagger:ImageBoots"]/}' tools/delivery-artifacts.toml
+    mutate exemption-gains-leg
 
-expect fail S3 "an exemption with no issue number" \
-    sed -i '/^applies_to = "image:tutorial"$/{n;d}' tools/delivery-artifacts.toml
+expect fail S3 "an exemption with no issue number" mutate exemption-without-issue
 
-expect fail S4 "two exemptions matching the same artifact" \
-    sed -i 's|^applies_to = "crate:\*"$|applies_to = "crate:*"\nissue = 1222\nreason = "duplicate"\n\n[[exempt]]\napplies_to = "crate:fraiseql-core"|' tools/delivery-artifacts.toml
+expect fail S4 "two exemptions matching the same artifact" mutate duplicate-exemption
 
 echo
 echo "── ledger hygiene ──"

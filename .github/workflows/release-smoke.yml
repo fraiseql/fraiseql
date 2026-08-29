@@ -685,3 +685,49 @@ jobs:
           grep -q "fraiseql-server" /tmp/run.out \
             || { echo "::error::published 'fraiseql run' warning did not point at fraiseql-server" >&2; exit 1; }
           echo "'fraiseql run' loudly warns about ignored config sections and points at fraiseql-server."
+
+  # ── #1222: consume every published artifact the way a stranger does ──────────
+  #
+  # `release.yml`'s `verify-release` asks each registry for HTTP 200 and the GitHub
+  # release for an asset NAME. That is a presence check: it cannot see a crate that
+  # resolves but does not compile, a wheel that installs but cannot import, a package
+  # that installs but cannot be required, or a tarball that downloads but whose binary
+  # will not run — the class v2.13.1's crates.io CDN-lag partial publish fell into, and
+  # the class a `--dry-run` is structurally unable to see.
+  #
+  # `verify-published-full` above is the counter-example this generalises: it downloads
+  # ONE of eleven assets and boots it. The other ten, all 18 crates, PyPI and npm were
+  # asserted present and never consumed.
+  #
+  # Tag-only, for the same reason as that job: there is nothing published to consume on
+  # a release/* branch or a dispatch.
+  consume-published-artifacts:
+    name: Consume published artifacts as a stranger
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Generous: this compiles a scratch crate against the published `fraiseql`, runs
+    # `cargo install` for two binary crates, and downloads eleven release assets that
+    # release.yml's build-binaries job may still be producing in parallel.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903  # v5
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+
+      - name: Consume every tier
+        run: |
+          set -eu
+          VERSION="${GITHUB_REF_NAME#v}"
+          # No --tier: every tier runs. The script prints `tiers=N/M` on every run, so a
+          # narrowed invocation can never be mistaken for full coverage.
+          bash tools/consume-published-artifacts.sh --version "$VERSION"

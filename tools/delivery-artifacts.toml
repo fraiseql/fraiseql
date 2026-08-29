@@ -102,7 +102,7 @@ kind = "container-image"
 consumed_as = "ghcr.io/<owner>/tutorial:<version> · docker.io/fraiseql/tutorial:<version>"
 publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
 builds = ["dagger:Images"]
-executes = []
+executes = ["dagger:TutorialImageBoot"]
 
 # ── Operator-facing deployment artifacts ─────────────────────────────────────
 #
@@ -164,7 +164,7 @@ kind = "sdk-package"
 consumed_as = "pypi.org/project/fraiseql"
 publishes = ["workflow:release.yml:publish-python"]
 builds = ["workflow:python-sdk.yml:test"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "sdk:official/fraiseql-typescript"
@@ -172,7 +172,7 @@ kind = "sdk-package"
 consumed_as = "npmjs.com/package/fraiseql"
 publishes = ["workflow:npm-publish.yml:publish-npm"]
 builds = ["workflow:typescript-sdk.yml:test"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "sdk:official/fraiseql-csharp"
@@ -270,7 +270,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-arrow"
@@ -286,7 +286,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-auth"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-cdc-sinks"
@@ -302,7 +302,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-cli"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-codegen"
@@ -310,7 +310,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-codegen"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-core"
@@ -318,7 +318,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-core"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-db"
@@ -326,7 +326,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-db"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-error"
@@ -334,7 +334,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-error"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-federation"
@@ -350,7 +350,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-functions"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-guard"
@@ -366,7 +366,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-observers"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-secrets"
@@ -382,7 +382,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-server"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-storage"
@@ -390,7 +390,7 @@ kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-storage"
 publishes = ["workflow:release.yml:publish-crates"]
 builds = ["workflow:release.yml:validate-release"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "crate:fraiseql-webhooks"
@@ -422,7 +422,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-x86_64-unknown-linux-gnu.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-x86_64-unknown-linux-musl.tar.gz"
@@ -430,7 +430,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-x86_64-unknown-linux-musl.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-aarch64-unknown-linux-gnu.tar.gz"
@@ -438,7 +438,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-aarch64-unknown-linux-gnu.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-x86_64-apple-darwin.tar.gz"
@@ -446,7 +446,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-x86_64-apple-darwin.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-aarch64-apple-darwin.tar.gz"
@@ -454,7 +454,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-aarch64-apple-darwin.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-x86_64-pc-windows-msvc.zip"
@@ -462,7 +462,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-x86_64-pc-windows-msvc.zip"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-full-x86_64-unknown-linux-gnu.tar.gz"
@@ -470,7 +470,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-full-x86_64-unknown-linux-gnu.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = ["workflow:release-smoke.yml:verify-published-full"]
+executes = ["workflow:release-smoke.yml:verify-published-full", "tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-full-aarch64-unknown-linux-gnu.tar.gz"
@@ -478,7 +478,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-full-aarch64-unknown-linux-gnu.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-full-x86_64-apple-darwin.tar.gz"
@@ -486,7 +486,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-full-x86_64-apple-darwin.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-full-aarch64-apple-darwin.tar.gz"
@@ -494,7 +494,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-full-aarch64-apple-darwin.tar.gz"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
 id = "release-asset:fraiseql-full-x86_64-pc-windows-msvc.zip"
@@ -502,7 +502,7 @@ kind = "release-asset"
 consumed_as = "github release v<version> · fraiseql-full-x86_64-pc-windows-msvc.zip"
 publishes = ["workflow:release.yml:build-binaries"]
 builds = ["workflow:release.yml:build-binaries"]
-executes = []
+executes = ["tool:tools/consume-published-artifacts.sh"]
 # ─────────────────────────────────────────────────────────────────────────────────────
 # Exemptions — an artifact with no executing leg, and the issue that owns the gap.
 #
@@ -515,26 +515,6 @@ executes = []
 #     deliberately strict: a wildcard covering a class where SOME rows gain coverage must be
 #     narrowed, because "mostly still true" is how an exemption survives its own reason.
 # ─────────────────────────────────────────────────────────────────────────────────────
-
-[[exempt]]
-applies_to = "image:tutorial"
-issue = 1221
-reason = "published to both registries and built by `dagger call images`, but bootableVariants filters it out (dockerfile != \"Dockerfile\") so no leg starts it"
-
-[[exempt]]
-applies_to = "crate:*"
-issue = 1222
-reason = "release.yml verifies each crate with an HTTP-200 probe; nothing installs or compiles one from the registry. Phase 07 of the delivery-artifact program is this gap"
-
-[[exempt]]
-applies_to = "sdk:official/fraiseql-python"
-issue = 1222
-reason = "published to PyPI and HTTP-200 probed; sdk-conformance runs the in-tree source, never the published wheel"
-
-[[exempt]]
-applies_to = "sdk:official/fraiseql-typescript"
-issue = 1222
-reason = "published to npm and HTTP-200 probed; sdk-conformance runs the in-tree source, never the published package"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-csharp"
@@ -587,51 +567,36 @@ issue = 1130
 reason = "RubyGems fraiseql: not published at any version; publish job gated on a ruby-sdk/v* tag that has never existed"
 
 [[exempt]]
-applies_to = "release-asset:fraiseql-x86_64-unknown-linux-gnu.tar.gz"
+applies_to = "crate:fraiseql-arrow"
 issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"
 
 [[exempt]]
-applies_to = "release-asset:fraiseql-x86_64-unknown-linux-musl.tar.gz"
+applies_to = "crate:fraiseql-cdc-sinks"
 issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"
 
 [[exempt]]
-applies_to = "release-asset:fraiseql-aarch64-unknown-linux-gnu.tar.gz"
+applies_to = "crate:fraiseql-federation"
 issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"
 
 [[exempt]]
-applies_to = "release-asset:fraiseql-x86_64-apple-darwin.tar.gz"
+applies_to = "crate:fraiseql-guard"
 issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"
 
 [[exempt]]
-applies_to = "release-asset:fraiseql-aarch64-apple-darwin.tar.gz"
+applies_to = "crate:fraiseql-secrets"
 issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"
 
 [[exempt]]
-applies_to = "release-asset:fraiseql-x86_64-pc-windows-msvc.zip"
+applies_to = "crate:fraiseql-webhooks"
 issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"
 
 [[exempt]]
-applies_to = "release-asset:fraiseql-full-aarch64-unknown-linux-gnu.tar.gz"
+applies_to = "crate:fraiseql-wire"
 issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
-
-[[exempt]]
-applies_to = "release-asset:fraiseql-full-x86_64-apple-darwin.tar.gz"
-issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
-
-[[exempt]]
-applies_to = "release-asset:fraiseql-full-aarch64-apple-darwin.tar.gz"
-issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
-
-[[exempt]]
-applies_to = "release-asset:fraiseql-full-x86_64-pc-windows-msvc.zip"
-issue = 1222
-reason = "asserted present by name on the release; never downloaded, extracted or run. Only the x86_64 Linux -full tarball is"
+reason = "published and consumable, but no consumption tier pulls it: MEASURED against 2.14.1, `cargo add fraiseql` (default and --features server) plus `cargo install fraiseql-cli fraiseql-server` compiled 11 of the 18 published crates from the registry, and this is one of the 7 left behind an optional feature"

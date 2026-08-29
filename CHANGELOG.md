@@ -6899,6 +6899,60 @@ disagreed, and the promise was the part that was wrong.
   Step-level `if:` conditions of the same class are covered too — see the entry below
   (#1207), which took the sixteen decisions and grew this gate to steps.
 
+- **Published artifacts are consumed the way a stranger consumes them (#1222).**
+  `release.yml`'s `verify-release` asked each registry for HTTP 200 and the GitHub release
+  for an asset *name*. That is a presence check: it cannot see a crate that resolves but
+  does not compile, a wheel that installs but cannot import, a package that installs but
+  cannot be required, or a tarball that downloads but whose binary will not run — the class
+  v2.13.1's crates.io CDN-lag partial publish fell into, and the class a `--dry-run` is
+  structurally unable to see. One asset of eleven was actually booted; everything else was
+  asserted present and never used.
+
+  `tools/consume-published-artifacts.sh` installs, links, imports, extracts and runs, in a
+  scratch directory outside the workspace so nothing from the checkout can satisfy an
+  import by accident. Five tiers: a fresh crate that `cargo add`s the published `fraiseql`
+  and builds it (default and `--features server`); `cargo install fraiseql-cli
+  fraiseql-server` followed by running each binary; a venv that `pip install`s the wheel
+  and imports it; a scratch package that `npm install`s and requires it; and every release
+  asset downloaded, extracted, checked for the binaries it claims, and executed where the
+  host can. CDN lag is absorbed by a bounded retry that **logs its rounds and total wait**
+  — a silent retry would hide the partial publish this exists to catch. It runs at the tag,
+  in `release-smoke.yml`.
+
+  Proved against the last published version before being wired up, and the rehearsal
+  corrected three things this repository believed:
+
+  - a **lean** asset carries `fraiseql` alone; only a `-full` asset carries
+    `fraiseql-server`. The first draft had it backwards.
+  - the same tool has **two names** depending on how you get it: `cargo install
+    fraiseql-cli` gives you `fraiseql-cli`, while the tarballs ship it as `fraiseql`,
+    because `release.yml` copies it under that name when packaging. Both are right; nothing
+    had ever asserted both.
+  - `release.yml` expects **11** assets and no published release has ever had 11 — the
+    aarch64-linux `-full` artifact joined the list on 2026-08-05, after v2.14.1. v2.15.0
+    will be the first release for which that expectation can hold.
+
+  The ledger moves from 5 artifacts executed by a leg to 29. The `crate:*` wildcard
+  exemption is replaced by seven named rows: measured, the tiers compile **11 of the 18**
+  published crates, and the remaining seven sit behind optional features that no
+  consumption path enables. That is recorded per crate rather than hidden in a wildcard.
+
+- **The tutorial image is started, not merely built (#1221).** It is one of three variants
+  published to *both* registries and built before the tag by `dagger call images`, and
+  nothing had ever run it: `bootableVariants` filters on `dockerfile == "Dockerfile"`, so
+  both image tiers skipped it and the chart and Compose tiers pin `--variant=fraiseql-server`.
+  Two of three published images were booted against a real Postgres; the third was only
+  asserted to compile.
+
+  `dagger call tutorial-image-boot` gives it a tier that fits what it is rather than the
+  server assertions that do not apply: it starts on its own `CMD`, the `/health` its own
+  `HEALTHCHECK` polls must answer `status: healthy` **as the tutorial service**, and
+  `/api/chapters` must return real content — counted as chapters carrying an id and a
+  title, because an empty array is valid JSON and is exactly what an image built without
+  its assets would serve. Verified by mutation: with `/api/chapters` returning `[]` the
+  container is healthy, `/health` is 200 and `/api/chapters` is 200, and the tier still
+  fails.
+
 - **The conformance harness's own guarantees are pinned, by a file that now exists
   (#1118).** `project.py` carried a comment ending *"and `test_new_construct_fails_every_sdk`
   in `selftest.py` pins it"*. There was no `selftest.py` — `git log --all` for the path was

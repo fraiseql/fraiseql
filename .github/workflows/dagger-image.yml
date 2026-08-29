@@ -88,6 +88,25 @@ jobs:
           dagger call image-boots --source=. \
             --run-id="${{ github.run_id }}-${{ github.run_attempt }}"
 
+      # #1221: `tutorial` is the third variant docker-build.yml publishes to BOTH
+      # registries, and until now nothing started it — `bootableVariants` filters on
+      # `dockerfile == "Dockerfile"`, so the two tiers around this one skip it, and
+      # the chart and Compose tiers pin `--variant=fraiseql-server`. Two of three
+      # published images were booted; the third was only asserted to build.
+      #
+      # It gets a tier that fits what it IS rather than the server assertions that do
+      # not apply: does it start on its own CMD, does the `/health` its own HEALTHCHECK
+      # polls answer as the tutorial service, and does `/api/chapters` return real
+      # content — asserted by counting chapters that carry an id and a title, because
+      # an empty array is valid JSON and is what a build that dropped `assets/` serves.
+      #
+      # `--run-id` for the same reason as every tier here: without it Dagger replays.
+      - name: dagger call tutorial-image-boot
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger call tutorial-image-boot --source=. \
+            --run-id="${{ github.run_id }}-${{ github.run_attempt }}"
+
       # The two steps above claim "these Dockerfiles build" and "the artifact
       # answers". This one claims what the artifact IS — the properties the
       # v2.15.0 release-readiness pass verified BY HAND and wrote into #1133 and
