@@ -975,7 +975,10 @@ async fn presign_handler(
     // assigns this still runs in both builds deliberately: an unauthorised
     // metadata attempt is refused identically whether or not the binary could
     // have signed the URL.
-    #[cfg_attr(not(feature = "aws-s3"), allow(unused_assignments, unused_variables))]
+    #[cfg_attr(
+        not(feature = "aws-s3"),
+        allow(unused_assignments, unused_variables, clippy::collection_is_never_read)
+    )]
     let mut supplied_metadata: Option<MetadataValues> = None;
     let authorised_against: Option<i64> = if operation == "upload" {
         // B4: a presign(upload) that would overwrite an existing object must be gated
