@@ -78,6 +78,28 @@ PostgreSQL) run **post-merge on the `dev` push** to spare the single runner; dis
 them manually (`gh workflow run dagger-<leg>.yml --ref <branch>`) when a change
 warrants full validation before merge. Locally, `make preflight` mirrors the fast gate.
 
+#### The one thing `make preflight` cannot see
+
+`preflight` compiles the workspace twice and neither pass runs **clippy under a narrow
+feature set**: its clippy pass is `--all-features` (where a feature-OFF arm is not
+compiled at all) and its narrow-feature pass is `cargo check`, which runs no clippy
+lints. So a lint that only fires with a feature *off* is invisible locally and is caught
+only by `Dagger — feature matrix` — which triggers on `push: branches: [dev]` and
+therefore runs *after* the merge. `94e7b5558` reached `dev` that way, green on preflight
+and red on 4 of 47 combos (#1227).
+
+Before pushing anything under a `#[cfg(feature = ...)]`:
+
+```bash
+make lint-feature-matrix                                  # all 47 combos, as the leg runs them
+make lint-feature-matrix FEATURE_MATRIX_ARGS=--clippy-only # the 11 the leg clippies
+```
+
+The combo list is derived from `.dagger/feature-combos.go`, not copied, so the local run
+cannot cover fewer combos than the leg declares — a literal the parser cannot read is a
+hard error, not a shorter list. A cold run compiles 47 feature sets and is slow; that is
+why it is a separate target rather than part of `preflight`.
+
 ### Fork PRs and Dependabot PRs
 
 Two PR categories don't produce an in-repo `push` under a full-token actor, so the

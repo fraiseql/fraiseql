@@ -699,6 +699,35 @@ lint-sdk-dead-surface:
 lint-feature-chains:
 	@bash tools/check-feature-chains.sh
 
+# The feature-check matrix, run natively, exactly as `Dagger — feature matrix` runs it.
+#
+# #1227: that leg is `push: branches: [dev]`, so it cannot gate a branch, and preflight
+# is structurally unable to find what it finds — preflight's clippy pass is
+# `--all-features` (a feature-OFF arm is not compiled at all) and its narrow-feature
+# pass is `cargo check`, which runs no clippy lints. `94e7b5558` went to `dev` with
+# `make preflight` exit 0 and reddened 4 of 47 combos on one nursery lint.
+#
+# The combo list is DERIVED from .dagger/feature-combos.go, never copied: a literal the
+# parser cannot read, or a field it does not model, is fatal, so this can never cover
+# fewer combos than the leg declares.
+#
+# Deliberately NOT in `preflight`: a cold run compiles 47 feature sets (~25 min warm on
+# the 8-core box, much longer cold), and a target that slow is a target nobody runs,
+# which would weaken every other gate preflight carries. Run it before pushing anything
+# under a `#[cfg(feature = ...)]`. `--clippy-only` narrows to the 11 combos the leg
+# clippies; any narrowing is printed next to the declared total.
+.PHONY: lint-feature-matrix
+lint-feature-matrix:
+	@bash tools/lint-feature-matrix.sh $(FEATURE_MATRIX_ARGS)
+
+# Red-capability pin for the runner above. Stubs `cargo`, so it compiles nothing and
+# needs no toolchain — it pins the one property that matters: the runner cannot
+# silently cover fewer combos than .dagger/feature-combos.go declares and still print a
+# green summary.
+.PHONY: test-feature-matrix-gate
+test-feature-matrix-gate:
+	@bash tools/tests/feature_matrix_local_test.sh
+
 # Gate: a runaway-growth ratchet on each crate's src/ line count, and a check that
 # every crate HAS a budget. Ran in no leg at all until #1055/#990 — its only caller
 # was the orphaned tools/lint.sh — by which time four crates were over budget and
@@ -879,7 +908,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -893,7 +922,11 @@ preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-as
 	@echo "=== preflight: check-default (default features — the feature-OFF arms) ==="
 	@$(MAKE) --no-print-directory check-default
 	@echo ""
-	@echo "✅ preflight passed — mirrors the Dagger preflight leg. Safe to push."
+	@echo "✅ preflight passed — mirrors the Dagger preflight leg."
+	@echo "⚠  It does NOT run clippy under a narrow feature set: its clippy pass is"
+	@echo "   --all-features (feature-OFF arms are not compiled) and its narrow pass is"
+	@echo "   cargo check (no clippy lints). Before pushing anything under a"
+	@echo "   #[cfg(feature = ...)], run: make lint-feature-matrix   (#1227)"
 
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:

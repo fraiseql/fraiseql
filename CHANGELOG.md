@@ -3508,6 +3508,33 @@ disagreed, and the promise was the part that was wrong.
   the tenant filter would leak another tenant's row total while leaking no row — and would
   pass any test that only inspects returned data.
 
+- **`make lint-feature-matrix` — the feature-check matrix, runnable before a push (#1227).**
+
+  `make preflight` printed "Safe to push" over a class of failure it is structurally unable
+  to see. Its clippy pass is `--all-features`, where a feature-OFF arm is not compiled at
+  all, and its narrow-feature pass is `cargo check`, which runs no clippy lints. Their
+  intersection — clippy under anything other than `--all-features` — had no local gate, and
+  the leg that covers it, `Dagger — feature matrix`, triggers on `push: branches: [dev]`
+  and so runs only *after* the merge. One `clippy::collection_is_never_read` reached `dev`
+  that way, preflight-green and red on 4 of 47 combos.
+
+  The new target runs the matrix natively, with each combo's `cargo` invocation
+  byte-identical to the one the leg issues. `--clippy-only` narrows to the 11 combos the leg
+  clippies; every run prints its selected count next to the declared total, so a narrowed
+  run is never mistaken for a full one.
+
+  **The combo list is derived, never copied.** `tools/feature-combos.py` reads
+  `.dagger/feature-combos.go` and refuses to emit a short list: a struct literal it cannot
+  parse in full, a field it does not model, or a `cargoArgs()` that no longer matches the
+  reproduction is a hard error rather than a silently smaller matrix. Without that, the
+  local runner would be a second hand-maintained copy of a CI list — the drift that #1135
+  already recorded for the preflight/ShellGates pair.
+
+  `preflight` states the gap in its closing lines instead of claiming it does not exist, and
+  keeps the fast red-capability pin (`make test-feature-matrix-gate`, which stubs `cargo` and
+  compiles nothing). The heavy target stays out of `preflight` deliberately: a cold run
+  compiles 47 feature sets, and a gate that slow is a gate nobody runs.
+
 ### Changed
 
 - **The weekly fuzz campaign reports what it finds (#441).** A crash now opens

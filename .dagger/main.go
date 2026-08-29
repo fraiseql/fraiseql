@@ -360,6 +360,13 @@ func (m *FraiseqlCi) ShellGates(
 		// `--locked` flags on those legs, and neither subsumes the other.
 		"python3 tools/check-sdk-lockfile-freshness.py",
 		"make test-sdk-lockfile-freshness-gate",
+		// The local feature-matrix runner's red-capability pin (#1227). The RUNNER is
+		// local-only — the leg it mirrors is this repo's `Dagger — feature matrix`, so
+		// running it here would be running the matrix twice. What belongs here is the
+		// pin: it stubs `cargo`, compiles nothing, needs no toolchain, and asserts the
+		// one property that makes the local gate worth trusting — it cannot silently
+		// cover fewer combos than .dagger/feature-combos.go declares.
+		"make test-feature-matrix-gate",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",
