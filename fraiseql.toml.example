@@ -66,6 +66,13 @@ enabled = true
 requests_per_second = 100               # Global RPS per IP
 burst_size = 200                        # Token bucket burst allowance
 # requests_per_second_per_user = 250    # Per-authenticated-user RPS (optional)
+# max_buckets = 100000                  # Tracked buckets per map — a MEMORY ceiling
+                                        # (~200 bytes each, so ~20 MiB per map), not a
+                                        # security control: reaching it evicts the
+                                        # least-recently-used entry, it does not refuse
+                                        # the new client. Size it to the host; override
+                                        # per deployment with
+                                        # FRAISEQL_RATE_LIMIT_MAX_BUCKETS.
 
 # Auth endpoint limits (per-IP)
 auth_start_max_requests = 5

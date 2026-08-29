@@ -1166,3 +1166,260 @@ mod a_full_map_does_not_refuse_strangers {
         );
     }
 }
+
+// ── #1171 part 1: max_buckets is an operator knob ────────────────────────────
+//
+// It was hardcoded in `assemble`, and `RateLimitingSecurityConfig` had no such field
+// at all — so the memory ceiling on the bucket maps was the one rate-limit number an
+// operator could not set. Two directions: the compiled value must arrive, and the
+// default must still hold when the section does not mention it.
+
+#[test]
+fn max_buckets_arrives_from_the_compiled_schema() {
+    let sec = RateLimitingSecurityConfig {
+        enabled: true,
+        max_buckets: 4_096,
+        ..Default::default()
+    };
+    let config = RateLimitConfig::from_security_config(&sec);
+    assert_eq!(
+        config.max_buckets, 4_096,
+        "the compiled [security.rate_limiting] max_buckets must reach the limiter"
+    );
+}
+
+#[test]
+fn max_buckets_keeps_its_default_when_the_section_omits_it() {
+    let sec = RateLimitingSecurityConfig {
+        enabled: true,
+        ..Default::default()
+    };
+    let config = RateLimitConfig::from_security_config(&sec);
+    assert_eq!(
+        config.max_buckets, 100_000,
+        "an operator who never named max_buckets keeps the documented ceiling"
+    );
+}
+
+#[tokio::test]
+async fn a_compiled_max_buckets_bounds_the_live_map() {
+    // The knob is only real if the limiter honours it. Three distinct IPs against a
+    // ceiling of two: the map must not hold all three.
+    let sec = RateLimitingSecurityConfig {
+        enabled: true,
+        requests_per_second: 1_000,
+        burst_size: 1_000,
+        max_buckets: 2,
+        ..Default::default()
+    };
+    let limiter = RateLimiter::new(RateLimitConfig::from_security_config(&sec));
+    for ip in ["10.0.0.1", "10.0.0.2", "10.0.0.3"] {
+        assert!(limiter.check_ip_limit(ip).await.allowed, "budget is 1000/s; {ip} must pass");
+    }
+    assert!(
+        ip_bucket_count(&limiter) <= 2,
+        "a compiled ceiling of 2 must bound the map, saw {}",
+        ip_bucket_count(&limiter)
+    );
+}
+
+#[test]
+fn an_env_override_sizes_max_buckets_per_deployment() {
+    // The compiled schema is one artefact shipped to every environment; how much memory
+    // a host will spend on tracking state is not a property of it. `FRAISEQL_RATE_LIMIT
+    // _MAX_BUCKETS` is the layer that knows.
+    let sec = RateLimitingSecurityConfig {
+        enabled: true,
+        max_buckets: 100_000,
+        ..Default::default()
+    };
+    let mut config = RateLimitConfig::from_security_config(&sec);
+    RateLimitOverrides {
+        max_buckets: Some(1_024),
+        ..Default::default()
+    }
+    .apply_to(&mut config);
+    assert_eq!(config.max_buckets, 1_024, "the env override must win over the compiled value");
+}
+
+#[test]
+fn a_max_buckets_override_alone_counts_as_an_override() {
+    // `is_empty` decides whether overrides can switch rate limiting on at all (#774). A
+    // new field that `is_empty` does not know about is invisible to that decision.
+    let overrides = RateLimitOverrides {
+        max_buckets: Some(1_024),
+        ..Default::default()
+    };
+    assert!(!overrides.is_empty(), "max_buckets must count as a supplied override");
+}
+
+// ── #1171 part 2: the per-user bucket, on a verified subject ─────────────────
+//
+// #1143 deleted the HTTP per-user allowance because the identity behind it came from an
+// unverified JWT payload — varying `sub` minted a fresh full bucket, so the "allowance"
+// was an unlimited budget for anyone who sent a JWT-shaped string. These drive the real
+// middleware through `tower::ServiceExt::oneshot` and assert both halves: the allowance
+// is back for a caller the deployment's validator accepts, and it is still unavailable
+// to everyone else.
+
+mod verified_per_user_tests {
+    use std::{
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        sync::Arc,
+    };
+
+    use axum::{
+        Extension, Router,
+        body::Body,
+        extract::ConnectInfo,
+        http::{Request, StatusCode},
+        routing::get,
+    };
+    use fraiseql_core::security::{AuthConfig, AuthMiddleware};
+    use tower::ServiceExt;
+
+    use super::super::{
+        RateLimitConfig,
+        dispatch::RateLimiter,
+        identity::{Hs256Subject, VerifiedSubject},
+        middleware_fn::rate_limit_middleware,
+    };
+
+    const SECRET: &str = "a-shared-secret-of-sufficient-length-for-hs256-signing";
+
+    /// A budget of one request, so the second from the same bucket is refused. Anything
+    /// larger cannot tell "two buckets" from "one generous bucket".
+    fn limiter() -> Arc<RateLimiter> {
+        Arc::new(RateLimiter::new(RateLimitConfig {
+            enabled: true,
+            rps_per_ip: 1,
+            rps_per_user: 1,
+            burst_size: 1,
+            ..RateLimitConfig::default()
+        }))
+    }
+
+    /// An audience is configured, because the core validator refuses a token that
+    /// carries `aud` when none is expected (`JwtAudienceMismatch { expected: "(not
+    /// configured)" }`). A deployment that means to accept these tokens declares it.
+    fn hs256_subject() -> Arc<dyn VerifiedSubject> {
+        Arc::new(Hs256Subject(Arc::new(AuthMiddleware::from_config(
+            AuthConfig::with_hs256(SECRET).with_audience("fraiseql"),
+        ))))
+    }
+
+    fn token_for(sub: &str, secret: &str) -> String {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is after the epoch")
+            .as_secs();
+        let claims = fraiseql_auth::Claims {
+            sub:   sub.to_owned(),
+            iat:   now,
+            exp:   now + 3600,
+            nbf:   None,
+            iss:   "fraiseql".to_owned(),
+            aud:   vec!["fraiseql".to_owned()],
+            extra: std::collections::HashMap::new(),
+        };
+        fraiseql_auth::generate_hs256_token(&claims, secret.as_bytes()).expect("token")
+    }
+
+    fn app(limiter: Arc<RateLimiter>, subject: Option<Arc<dyn VerifiedSubject>>) -> Router {
+        let mut app = Router::new()
+            .route("/graphql", get(|| async { "ok" }))
+            .layer(axum::middleware::from_fn(rate_limit_middleware))
+            .layer(Extension(limiter));
+        if let Some(subject) = subject {
+            app = app.layer(Extension(subject));
+        }
+        app
+    }
+
+    async fn send(app: &Router, ip: [u8; 4], bearer: Option<&str>) -> StatusCode {
+        let mut builder = Request::builder().uri("/graphql");
+        if let Some(token) = bearer {
+            builder = builder.header("authorization", format!("Bearer {token}"));
+        }
+        let mut request = builder.body(Body::empty()).expect("request");
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::new(IpAddr::V4(Ipv4Addr::from(ip)), 12_345)));
+        app.clone().oneshot(request).await.expect("response").status()
+    }
+
+    /// The gap #1171 names: many authenticated users behind one egress address are not
+    /// one client, and before this they shared one budget.
+    #[tokio::test]
+    async fn two_verified_users_behind_one_ip_do_not_share_a_bucket() {
+        let app = app(limiter(), Some(hs256_subject()));
+        let (alice, bob) = (token_for("alice", SECRET), token_for("bob", SECRET));
+
+        assert_eq!(send(&app, [203, 0, 113, 9], Some(&alice)).await, StatusCode::OK);
+        assert_eq!(
+            send(&app, [203, 0, 113, 9], Some(&bob)).await,
+            StatusCode::OK,
+            "bob's first request must not be refused by alice's spent budget — same IP, \
+             different verified subject"
+        );
+    }
+
+    /// …and each of them is still limited, so the allowance is a budget rather than an
+    /// exemption. Without this, a fix that simply skipped the limiter for authenticated
+    /// callers would pass the test above.
+    #[tokio::test]
+    async fn a_verified_user_is_still_limited() {
+        let app = app(limiter(), Some(hs256_subject()));
+        let alice = token_for("alice", SECRET);
+
+        assert_eq!(send(&app, [203, 0, 113, 9], Some(&alice)).await, StatusCode::OK);
+        assert_eq!(
+            send(&app, [203, 0, 113, 9], Some(&alice)).await,
+            StatusCode::TOO_MANY_REQUESTS,
+            "a verified subject gets its own bucket, not a bypass"
+        );
+    }
+
+    /// #1143's property, kept. A token signed with the wrong secret does not verify, so
+    /// it yields no subject and the request falls back to the address bucket — varying
+    /// `sub` on a forged token mints nothing.
+    #[tokio::test]
+    async fn a_forged_token_cannot_mint_a_bucket() {
+        let app = app(limiter(), Some(hs256_subject()));
+        let forged_one = token_for("attacker-1", "not-the-deployments-signing-secret-at-all");
+        let forged_two = token_for("attacker-2", "not-the-deployments-signing-secret-at-all");
+
+        assert_eq!(send(&app, [198, 51, 100, 7], Some(&forged_one)).await, StatusCode::OK);
+        assert_eq!(
+            send(&app, [198, 51, 100, 7], Some(&forged_two)).await,
+            StatusCode::TOO_MANY_REQUESTS,
+            "a second forged identity from the same address must hit the same IP bucket"
+        );
+    }
+
+    /// An unauthenticated caller buckets on its address, exactly as before.
+    #[tokio::test]
+    async fn an_anonymous_caller_buckets_on_its_address() {
+        let app = app(limiter(), Some(hs256_subject()));
+
+        assert_eq!(send(&app, [198, 51, 100, 8], None).await, StatusCode::OK);
+        assert_eq!(send(&app, [198, 51, 100, 8], None).await, StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    /// A deployment with no authentication configured has no verified subject to key on.
+    /// Its requests bucket on the address whatever they carry — so a bearer token cannot
+    /// buy a fresh bucket by the mere fact of being present.
+    #[tokio::test]
+    async fn without_a_validator_a_bearer_token_changes_nothing() {
+        let app = app(limiter(), None);
+        let alice = token_for("alice", SECRET);
+        let bob = token_for("bob", SECRET);
+
+        assert_eq!(send(&app, [198, 51, 100, 9], Some(&alice)).await, StatusCode::OK);
+        assert_eq!(
+            send(&app, [198, 51, 100, 9], Some(&bob)).await,
+            StatusCode::TOO_MANY_REQUESTS,
+            "no validator means no per-user bucket, for anyone"
+        );
+    }
+}

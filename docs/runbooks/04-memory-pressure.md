@@ -243,6 +243,21 @@ fi
    docker restart fraiseql-server
    ```
 
+   The limiter's own tracking maps are bounded by `max_buckets` — one bucket per IP,
+   user, path-and-IP and tenant, at roughly 200 bytes each, so the default 100 000 is
+   about 20 MiB per map. Under a flood of unique source IPs that is real memory. Lower
+   it if the limiter is the thing consuming it:
+
+   ```bash
+   export FRAISEQL_RATE_LIMIT_MAX_BUCKETS=20000
+   docker restart fraiseql-server
+   ```
+
+   ⚠ This trades accuracy, not availability: a full map evicts its least-recently-used
+   bucket, and the client whose bucket went resumes with a full one. Lowering it will
+   under-enforce limits before it saves much memory, so treat it as a ceiling to size,
+   not a lever to pull.
+
 2. **Disable query caching** (config-file key — there is no env override)
 
    ```toml

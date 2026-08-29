@@ -390,6 +390,13 @@ impl Default for ErrorSanitizationConfig {
     }
 }
 
+/// Default per-map bucket ceiling: ~20 `MiB` of tracking state at ~200 bytes a bucket.
+///
+/// Named rather than inlined because the server's `RateLimitConfig` must agree with it —
+/// the two defaults living in two files with different values is what #977 fixed for the
+/// rest of this section.
+pub const DEFAULT_RATE_LIMIT_MAX_BUCKETS: usize = 100_000;
+
 /// Per-endpoint and global rate limiting configuration for `[security.rate_limiting]`.
 ///
 /// The single shape for this section: the CLI authors it from TOML and the
@@ -453,6 +460,17 @@ pub struct RateLimitingSecurityConfig {
     /// (less secure — the server emits a startup warning).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trusted_proxy_cidrs: Option<Vec<String>>,
+    /// Maximum tracked buckets per map — a **memory ceiling, not a security control**.
+    ///
+    /// The limiter keeps one token bucket per key in each of its maps (per-IP,
+    /// per-user, per-path-and-IP, per-tenant). This caps how many it holds at once,
+    /// at roughly 200 bytes each: the default 100 000 is about 20 `MiB` per map.
+    ///
+    /// Reaching the cap evicts the least-recently-used of a sample rather than
+    /// refusing the newcomer (#1080/#1143), so setting it low degrades *accuracy* —
+    /// a client whose bucket was evicted starts again with a full one — and never
+    /// availability. It is a knob to size to the host, not to tune for protection.
+    pub max_buckets: usize,
 }
 
 impl Default for RateLimitingSecurityConfig {
@@ -475,6 +493,7 @@ impl Default for RateLimitingSecurityConfig {
             redis_url: None,
             trust_proxy_headers: false,
             trusted_proxy_cidrs: None,
+            max_buckets: DEFAULT_RATE_LIMIT_MAX_BUCKETS,
         }
     }
 }

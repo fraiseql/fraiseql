@@ -1,7 +1,8 @@
 //! Rate limit middleware function and supporting helpers.
 //!
-//! Contains the axum middleware entry-point, IP extraction logic, and the
-//! JWT subject parser used for per-user rate limiting.
+//! Contains the axum middleware entry-point and IP extraction logic. The subject a
+//! per-user decision is keyed on comes from [`super::identity`], which verifies it —
+//! this module never reads an unverified claim.
 
 use std::{
     net::{IpAddr, SocketAddr},
@@ -20,6 +21,7 @@ use tracing::warn;
 use super::{
     config::RateLimitConfig,
     dispatch::RateLimiter,
+    identity::VerifiedSubject,
     key::{is_private_or_loopback, normalise_ip_key},
 };
 
@@ -127,10 +129,13 @@ pub(super) fn extract_real_ip(
 ///
 /// Decision order:
 /// 1. Per-path limit (auth endpoints) — always checked, uses path-specific window.
-/// 2. Per-user limit (authenticated requests) — checked when a JWT `sub` claim is present in the
-///    `Authorization` header; authenticated users get `rps_per_user` (default 10× `rps_per_ip`)
-///    instead of the shared IP bucket.
-/// 3. Per-IP limit (unauthenticated or no bearer token) — fallback.
+/// 2. Per-user limit — when the deployment configured a validator and this request's token
+///    **verifies** against it. The subject then gets `rps_per_user` (default 10× `rps_per_ip`)
+///    instead of the shared IP bucket, which is the point: many authenticated users behind one
+///    egress address are not one client.
+/// 3. Per-IP limit — everything else, including a token that fails to verify. A forged JWT
+///    therefore cannot mint a bucket, which is what #1143 established and #1171 restored the
+///    allowance without giving up.
 ///
 /// # Errors
 ///
@@ -156,21 +161,22 @@ pub async fn rate_limit_middleware(
     );
     let path = req.uri().path().to_string();
 
-    // #1143: neither a JWT `sub` nor `X-Tenant-ID` is read here any more.
-    //
-    // Both were folded into bucket keys without validation — the subject came from
-    // `extract_jwt_subject`, which base64-decoded the payload and never checked the
-    // signature, and the tenant came straight off the header. A fresh key is a fresh
-    // *full* bucket, so varying either one did not merely grow the map: it handed the
-    // caller an unlimited budget. Measured: 50 of 50 requests allowed against
+    // #1143: `X-Tenant-ID` is still not read here, and an *unverified* JWT `sub` never
+    // will be. Both were folded into bucket keys without validation, and a fresh key is
+    // a fresh *full* bucket — so varying either did not merely grow the map, it handed
+    // the caller an unlimited budget. Measured then: 50 of 50 requests allowed against
     // `rps_per_ip = 1, burst = 1`, from one IP, unauthenticated.
     //
-    // Every HTTP request therefore buckets on its IP, which is infrastructure-derived
-    // and cannot be inflated by the caller. The per-user allowance is not lost so much
-    // as revealed never to have existed: it was available to anyone who sent a
-    // JWT-shaped string, which is not authentication. Restoring it needs a *verified*
-    // identity at this layer, which no middleware here has — tracked separately.
-    // gRPC keeps its per-user limit because it authenticates first.
+    // #1171 restores the per-user allowance on the only footing that is not that bypass:
+    // a subject the deployment's own validator accepts. `VerifiedSubject::subject`
+    // answers `None` for a missing, malformed, unsigned, expired or forged token, and
+    // `None` buckets on the IP — infrastructure-derived, and not inflatable by the
+    // caller. gRPC has kept its per-user limit throughout, because it authenticates
+    // first.
+    let verified_subject = match req.extensions().get::<Arc<dyn VerifiedSubject>>() {
+        Some(identity) => identity.subject(req.headers()).await,
+        None => None,
+    };
 
     // ── Per-path limit (strictest, always enforced) ───────────────────────
     let path_result = limiter.check_path_limit(&path, &ip).await;
@@ -181,15 +187,32 @@ pub async fn rate_limit_middleware(
         });
     }
 
-    // ── Per-IP limit ──────────────────────────────────────────────────────
-    let limit_result = limiter.check_ip_limit(&ip).await;
-
-    if !limit_result.allowed {
-        warn!(ip = %ip, "IP rate limit exceeded");
-        return Err(RateLimitExceeded {
-            retry_after_secs: limit_result.retry_after_secs,
-        });
-    }
+    // ── Per-user limit, or per-IP ─────────────────────────────────────────
+    //
+    // One or the other, never both: a verified caller's budget must not also be spent
+    // from the address it shares with every other caller behind the same proxy, which
+    // is the gap #1171 names.
+    let (limit_result, limit_for_header) = if let Some(ref subject) = verified_subject {
+        let result = limiter.check_user_limit(subject).await;
+        if !result.allowed {
+            // The subject is verified, so this is safe to log: it names a caller the
+            // deployment already authenticated, not a string an anonymous client chose.
+            warn!(user_id = %subject, "Per-user rate limit exceeded");
+            return Err(RateLimitExceeded {
+                retry_after_secs: result.retry_after_secs,
+            });
+        }
+        (result, limiter.config().rps_per_user)
+    } else {
+        let result = limiter.check_ip_limit(&ip).await;
+        if !result.allowed {
+            warn!(ip = %ip, "IP rate limit exceeded");
+            return Err(RateLimitExceeded {
+                retry_after_secs: result.retry_after_secs,
+            });
+        }
+        (result, limiter.config().rps_per_ip)
+    };
 
     let remaining = limit_result.remaining;
 
@@ -197,7 +220,10 @@ pub async fn rate_limit_middleware(
 
     // Add rate limit headers
     let mut response = response;
-    let limit = limiter.config().rps_per_ip;
+    // The header reports the budget this request was actually measured against, which
+    // is `rps_per_user` for a verified caller. Reporting `rps_per_ip` to a client whose
+    // real allowance is ten times that is a client-visible lie about its own quota.
+    let limit = limit_for_header;
     if let Ok(limit_value) = format!("{limit}").parse() {
         response.headers_mut().insert("X-RateLimit-Limit", limit_value);
     }

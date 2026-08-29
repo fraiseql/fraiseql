@@ -357,10 +357,14 @@ key_path = "/etc/ssl/private/server.key"
 issuer = "https://your-auth-provider.example.com"
 audience = "your-api-audience"
 
-# Request throttling (token bucket, per IP / per user). All keys below are
-# required — a partial table is a parse error, not a silent default. The auth
-# endpoint brute-force limits are separate: they are compiled settings
+# Request throttling (token bucket, per IP / per user). The table carries
+# `#[serde(default)]` (#874), so naming only the keys you are changing is fine.
+# The auth endpoint brute-force limits are separate: they are compiled settings
 # ([fraiseql.security.rate_limiting] in the project fraiseql.toml).
+#
+# ⚠ This whole table is ignored when the compiled schema carries a
+# [security.rate_limiting] section — that section wins, and env overrides win over
+# it. Set the values there, or override per deployment with FRAISEQL_RATE_LIMIT_*.
 [rate_limiting]
 enabled = true
 rps_per_ip = 100
@@ -369,6 +373,7 @@ burst_size = 200
 cleanup_interval_secs = 60
 trust_proxy_headers = false   # true requires trusted_proxy_cidrs in production
 trusted_proxy_cidrs = []
+max_buckets = 100000          # memory ceiling per tracking map, ~200 bytes a bucket
 ```
 
 The Rust entry point remains the same few substantive lines — `ServerConfig::from_file`

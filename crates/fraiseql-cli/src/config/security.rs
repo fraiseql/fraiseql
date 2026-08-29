@@ -105,6 +105,12 @@ pub struct RateLimitConfig {
     pub trust_proxy_headers: bool,
     /// CIDR ranges trusted as proxies, e.g. `["10.0.0.0/8"]`.
     pub trusted_proxy_cidrs: Vec<String>,
+
+    /// Maximum tracked rate-limit buckets per map — a memory ceiling, not a security
+    /// control (#1171). ~200 bytes a bucket, so the default is about 20 MiB per map.
+    /// Reaching it evicts the least-recently-used entry rather than refusing the new
+    /// client, so a low value costs accuracy and never availability.
+    pub max_buckets: usize,
 }
 
 impl Default for RateLimitConfig {
@@ -129,6 +135,7 @@ impl Default for RateLimitConfig {
             burst_size:                 500,
             trust_proxy_headers:        false,
             trusted_proxy_cidrs:        Vec::new(),
+            max_buckets:                fraiseql_core::schema::DEFAULT_RATE_LIMIT_MAX_BUCKETS,
         }
     }
 }
@@ -590,6 +597,7 @@ impl SecurityConfig {
                 // absent list means "trust every proxy" (warned). Collapsing empty
                 // to absent would silently weaken the guard.
                 trusted_proxy_cidrs: Some(self.rate_limiting.trusted_proxy_cidrs.clone()),
+                max_buckets: self.rate_limiting.max_buckets,
             }),
             state_encryption: Some(fraiseql_core::schema::StateEncryptionConfig {
                 enabled: self.state_encryption.enabled,

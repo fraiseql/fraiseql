@@ -27,14 +27,20 @@
 jq '.security.rate_limiting' /etc/fraiseql/schema.compiled.json
 
 # Key fields: enabled, requests_per_second (per-IP), burst_size,
-# trust_proxy_headers, trusted_proxy_cidrs, and the per-auth-endpoint pairs
-# auth_start_max_requests / auth_start_window_secs (likewise auth_callback_*,
+# trust_proxy_headers, trusted_proxy_cidrs, max_buckets, and the per-auth-endpoint
+# pairs auth_start_max_requests / auth_start_window_secs (likewise auth_callback_*,
 # auth_refresh_*, auth_logout_*, failed_login_*).
+#
+# max_buckets is a MEMORY ceiling on each tracking map, not a throttle: reaching it
+# evicts the least-recently-used bucket, so a client resumes with a full one. If it
+# is too low you will see limits under-enforced, never over-enforced.
 
 # The server [rate_limiting] table (server.toml) and the env overrides
 # (FRAISEQL_RATE_LIMITING_ENABLED, FRAISEQL_RATE_LIMIT_RPS_PER_IP,
-# FRAISEQL_RATE_LIMIT_RPS_PER_USER, FRAISEQL_RATE_LIMIT_BURST_SIZE) layer on
-# top: server table < compiled schema < env, guards run on the result.
+# FRAISEQL_RATE_LIMIT_RPS_PER_USER, FRAISEQL_RATE_LIMIT_BURST_SIZE,
+# FRAISEQL_RATE_LIMIT_MAX_BUCKETS) layer on top: server table < compiled schema <
+# env, guards run on the result. ⚠ "<" means REPLACED, not merged — a compiled
+# [security.rate_limiting] section makes the server.toml table inert in full.
 env | grep FRAISEQL_RATE
 grep -A8 '^\[rate_limiting\]' /etc/fraiseql/server.toml 2>/dev/null || echo "(no [rate_limiting] table in server.toml)"
 ```
@@ -193,7 +199,10 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
 2. **Tighten the anonymous budget, keep the authenticated one generous**
 
    Anonymous clients share the per-IP budget; authenticated clients get the per-user
-   budget:
+   budget. "Authenticated" means the bearer token **verifies** against the deployment's
+   configured validator (`[auth]` or `[auth_hs256]`) — a request whose token is absent,
+   expired or forged shares the per-IP budget, and a deployment with no authentication
+   configured has no per-user budget at all (#1171):
 
    ```bash
    export FRAISEQL_RATE_LIMIT_RPS_PER_IP=10      # strict for anonymous traffic

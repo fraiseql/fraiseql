@@ -100,10 +100,10 @@ pub use introspection::{
 pub use observer_types::{ObserverDefinition, RetryConfig};
 pub use scalar_types::{RICH_SCALARS, is_known_scalar};
 pub use security_config::{
-    ApiKeySecurityConfig, CodeChallengeMethod, CostBudgetConfig, EncryptionAlgorithm,
-    ErrorSanitizationConfig, InjectedParamSource, KeySource, PkceSecurityConfig,
-    RateLimitingSecurityConfig, RlsConfig, RoleDefinition, SecurityConfig, ServiceAccountConfig,
-    StateEncryptionConfig, StaticApiKeyEntry, TenancyConfig, TenancyMode,
+    ApiKeySecurityConfig, CodeChallengeMethod, CostBudgetConfig, DEFAULT_RATE_LIMIT_MAX_BUCKETS,
+    EncryptionAlgorithm, ErrorSanitizationConfig, InjectedParamSource, KeySource,
+    PkceSecurityConfig, RateLimitingSecurityConfig, RlsConfig, RoleDefinition, SecurityConfig,
+    ServiceAccountConfig, StateEncryptionConfig, StaticApiKeyEntry, TenancyConfig, TenancyMode,
     TokenRevocationSecurityConfig, TrustedDocumentMode, TrustedDocumentsConfig,
 };
 pub use source_probe::{SourceKind, SourceProbe, sql_source_probes};

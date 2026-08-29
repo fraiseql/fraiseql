@@ -73,7 +73,7 @@ is `fraiseql-server --help`):
 | `FRAISEQL_ENV` | Deployment posture (`production` fail-closes CORS etc.) | `production` |
 | `FRAISEQL_METRICS_ENABLED` / `FRAISEQL_METRICS_TOKEN` | Metrics endpoint + its bearer token | `true` / `<token>` |
 | `FRAISEQL_ADMIN_API_ENABLED` / `FRAISEQL_ADMIN_TOKEN` | Admin API + its bearer token | `true` / `<token>` |
-| `FRAISEQL_RATE_LIMITING_ENABLED`, `FRAISEQL_RATE_LIMIT_RPS_PER_IP`, `FRAISEQL_RATE_LIMIT_RPS_PER_USER`, `FRAISEQL_RATE_LIMIT_BURST_SIZE` | Per-field rate-limit overrides (win over file and compiled schema) | `true` / `100` |
+| `FRAISEQL_RATE_LIMITING_ENABLED`, `FRAISEQL_RATE_LIMIT_RPS_PER_IP`, `FRAISEQL_RATE_LIMIT_RPS_PER_USER`, `FRAISEQL_RATE_LIMIT_BURST_SIZE`, `FRAISEQL_RATE_LIMIT_MAX_BUCKETS` | Per-field rate-limit overrides (win over file and compiled schema). `MAX_BUCKETS` is a memory ceiling per tracking map, not a throttle | `true` / `100` / `100000` |
 | `FRAISEQL_LOG_FORMAT` | `json` or `pretty` log output | `json` |
 | `RUST_LOG` | Log filter | `debug`, `info`, `warn`, `error` |
 | `FRAISEQL_SECRETS_BACKEND` | Secrets backend selection (`env`, `file`, `vault`) | `vault` |

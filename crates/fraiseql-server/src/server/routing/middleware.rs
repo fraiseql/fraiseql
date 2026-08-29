@@ -1,13 +1,19 @@
 //! Global middleware layers: metrics, tracing, CORS, body limits, header limits,
 //! timeout, and rate limiting.
 
+use std::sync::Arc;
+
 use axum::{Router, extract::DefaultBodyLimit, middleware};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::{Server, metrics_middleware, trace_layer};
 use crate::{
-    middleware::{cors::cors_layer_restricted_with, security_headers_middleware},
+    middleware::{
+        cors::cors_layer_restricted_with,
+        rate_limit::{Hs256Subject, OidcSubject, VerifiedSubject},
+        security_headers_middleware,
+    },
     routes::graphql::AppState,
 };
 
@@ -90,8 +96,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app
                 .layer(middleware::from_fn(rate_limit_middleware))
                 .layer(Extension(limiter.clone()));
+
+            // #1171: the per-user bucket needs a subject this deployment's own validator
+            // accepts. Layered outside the limiter so it is in the extensions by the time
+            // the limiter reads them; absent when no authentication is configured, in
+            // which case every request buckets on its address as before.
+            if let Some(subject) = self.rate_limit_subject() {
+                info!("Per-user rate limiting enabled on a signature-verified subject");
+                app = app.layer(Extension(subject));
+            }
         }
 
         app
+    }
+
+    /// The validator the rate limiter verifies a subject with, or `None`.
+    ///
+    /// Mirrors [`Server::attach_auth`]'s precedence — OIDC first, then HS256 — so the
+    /// limiter and the transports never disagree about which credential is the real one.
+    /// A deployment with no authentication has no verified subject to key on, and its
+    /// requests keep bucketing on the client address.
+    fn rate_limit_subject(&self) -> Option<Arc<dyn VerifiedSubject>> {
+        if let Some(ref validator) = self.oidc_validator {
+            return Some(Arc::new(OidcSubject(Arc::clone(validator))));
+        }
+        if let Some(ref validator) = self.hs256_auth {
+            return Some(Arc::new(Hs256Subject(Arc::clone(validator))));
+        }
+        None
     }
 }

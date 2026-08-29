@@ -57,27 +57,22 @@ pub struct RateLimitConfig {
     /// means all direct IPs are treated as trusted proxies (less secure).
     pub trusted_proxy_cidrs: Vec<ipnet::IpNet>,
 
-    /// Maximum number of unique IP/user buckets to hold in memory at once.
+    /// Maximum tracked buckets per map — a memory ceiling, not a security control.
     ///
-    /// When any of the three tracking maps (`ip_buckets`, `user_buckets`,
-    /// `path_ip_buckets`) reaches this limit, requests arriving from a
-    /// previously-unseen key are **denied** until stale entries are evicted by
-    /// the background cleanup task (`Server::spawn_rate_limit_cleanup`, running at
-    /// `cleanup_interval_secs`).  This prevents unbounded memory growth under a flood of
-    /// spoofed or unique source IPs.
+    /// One token bucket per key in each map (`ip_buckets`, `user_buckets`,
+    /// `path_ip_buckets`, `tenant_buckets`). At ~200 bytes a bucket the default
+    /// `100_000` is about 20 `MiB` per map.
     ///
-    /// ⚠ Until #1080 that cleanup task did not exist, so the denial was permanent for the
-    /// life of the process.  Eviction bounds how long a full map refuses new clients; it
-    /// does **not** bound how cheaply the map can be filled — `X-Tenant-ID` is folded into
-    /// the bucket key unvalidated, so one client can still mint keys at will (#1143).
+    /// Reaching the cap evicts the least-recently-used of a sample; it does **not**
+    /// refuse the newcomer. It did until #1080 — permanently, for the life of the
+    /// process, because the cleanup task the denial waited on did not exist — and the
+    /// wording here outlived that fix. Setting the cap low therefore costs accuracy
+    /// (an evicted client resumes with a full bucket) and never availability.
     ///
-    /// Defaults to `100_000`.  At ~200 bytes per bucket, this cap allows up to
-    /// ~20 `MiB` of tracking state per map before enforcement kicks in.
+    /// Operator-settable as `[security.rate_limiting] max_buckets` since #1171; before
+    /// that `assemble` hardcoded it, so it was the one number in this section a
+    /// deployment could not size to its host.
     pub max_buckets: usize,
-}
-
-const fn default_max_buckets() -> usize {
-    100_000
 }
 
 impl Default for RateLimitConfig {
@@ -90,7 +85,7 @@ impl Default for RateLimitConfig {
             cleanup_interval_secs: 300,  // Clean up every 5 minutes
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
-            max_buckets:           100_000,
+            max_buckets:           fraiseql_core::schema::DEFAULT_RATE_LIMIT_MAX_BUCKETS,
         }
     }
 }
@@ -146,7 +141,7 @@ impl RateLimitConfig {
             cleanup_interval_secs: 300,
             trust_proxy_headers: sec.trust_proxy_headers,
             trusted_proxy_cidrs,
-            max_buckets: default_max_buckets(),
+            max_buckets: sec.max_buckets,
         }
     }
 }
@@ -169,6 +164,10 @@ pub struct RateLimitOverrides {
     pub rps_per_user: Option<u32>,
     /// `--rate-limit-burst-size` / `FRAISEQL_RATE_LIMIT_BURST_SIZE`.
     pub burst_size:   Option<u32>,
+    /// `--rate-limit-max-buckets` / `FRAISEQL_RATE_LIMIT_MAX_BUCKETS` (#1171). Sizes the
+    /// tracking maps to the host, which is a per-deployment decision the compiled schema
+    /// cannot know.
+    pub max_buckets:  Option<usize>,
 }
 
 impl RateLimitOverrides {
@@ -179,6 +178,7 @@ impl RateLimitOverrides {
             && self.rps_per_ip.is_none()
             && self.rps_per_user.is_none()
             && self.burst_size.is_none()
+            && self.max_buckets.is_none()
     }
 
     /// Whether the overrides ask for rate limiting that no other source configured.
@@ -200,6 +200,9 @@ impl RateLimitOverrides {
         }
         if let Some(v) = self.burst_size {
             config.burst_size = v;
+        }
+        if let Some(v) = self.max_buckets {
+            config.max_buckets = v;
         }
     }
 }

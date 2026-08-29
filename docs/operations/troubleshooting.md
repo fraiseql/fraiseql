@@ -156,4 +156,6 @@ journalctl -u fraiseql | grep "rate.limit" | tail -10
 
 - Increase `rps_per_ip` or `rps_per_user`
 - Configure trusted proxy headers so real client IPs are used
-- Use per-user limits (requires auth) instead of per-IP
+- Use per-user limits instead of per-IP. This requires a configured validator
+  (`[auth]` or `[auth_hs256]`): the limiter keys on a *verified* subject, so an
+  unverifiable token buckets on the address like any anonymous caller (#1171)

@@ -112,7 +112,50 @@ disagreed, and the promise was the part that was wrong.
   variables into the argument map — so a variable of either name must now carry an integer or
   be omitted.
 
+### Added
+
+- **`[security.rate_limiting] max_buckets`, and `FRAISEQL_RATE_LIMIT_MAX_BUCKETS` (#1171).**
+
+  The limiter's bucket maps had a memory ceiling no operator could set. `assemble`
+  hardcoded it, and `RateLimitingSecurityConfig` had no such field at all — so the one
+  number in this section that depends on the *host* rather than on the workload was the
+  one number the compiled schema could not carry. The server's own `[rate_limiting]`
+  table did accept it, but a compiled `[security.rate_limiting]` section replaces that
+  table in full, which is the configuration most deployments run.
+
+  It is documented as what it is: a **memory ceiling, not a security control**. Reaching
+  it evicts the least-recently-used bucket rather than refusing the newcomer, so a low
+  value costs accuracy and never availability. The `RateLimitConfig` doc comment saying
+  new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
+
 ### Fixed
+
+- **HTTP has a per-user rate limit again, on a signature-verified subject (#1171).**
+
+  #1143 removed it, correctly: the only identity available at that layer came from
+  `extract_jwt_subject`, which base64-decoded a JWT payload and never checked the
+  signature. A fresh key is a fresh *full* bucket, so varying `sub` did not merely grow
+  the map — it handed the caller an unlimited budget (measured: 50 of 50 requests allowed
+  against `rps_per_ip = 1, burst = 1`, from one IP, unauthenticated). Deleting it removed
+  a bypass rather than a control.
+
+  What it left was a real gap: every HTTP request bucketed on its address, so all the
+  authenticated users behind one egress IP shared one budget. The allowance now keys on a
+  subject the deployment's **own configured validator** accepts — `[auth]` (OIDC) or
+  `[auth_hs256]`, in that order, matching `attach_auth`'s precedence. A token that is
+  absent, malformed, expired or forged yields no subject, and the request falls back to
+  the address bucket, so #1143's property is kept rather than traded away. A deployment
+  with no authentication configured has no per-user bucket at all.
+
+  This is a second verification: the transport's auth layer runs later and does its own,
+  plus revocation and the service-account seam. Sharing one result across both would make
+  the rate limiter the thing that decides what counts as authenticated, which is not its
+  job. An HS256 check is an HMAC and an OIDC check is a verify against an already-cached
+  JWKS — neither is a network call on the hot path.
+
+  `X-RateLimit-Limit` now reports the budget the request was actually measured against,
+  so a verified caller is no longer told its quota is `rps_per_ip`.
+
 
 - **Every published crate re-exports the third-party crates its public API names (#1198).**
 

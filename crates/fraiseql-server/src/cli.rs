@@ -179,6 +179,10 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_RATE_LIMIT_BURST_SIZE")]
     pub rate_limit_burst_size: Option<u32>,
 
+    /// Rate limit: maximum tracked buckets per map (memory ceiling, ~200 bytes each).
+    #[arg(long, env = "FRAISEQL_RATE_LIMIT_MAX_BUCKETS")]
+    pub rate_limit_max_buckets: Option<usize>,
+
     // ── Logging ──────────────────────────────────────────────────────────
     /// Log output format: `json` for structured JSON, `text` for
     /// human-readable (default).
@@ -231,6 +235,7 @@ impl ServerArgs {
             rate_limit_rps_per_ip: parse_env_opt("FRAISEQL_RATE_LIMIT_RPS_PER_IP")?,
             rate_limit_rps_per_user: parse_env_opt("FRAISEQL_RATE_LIMIT_RPS_PER_USER")?,
             rate_limit_burst_size: parse_env_opt("FRAISEQL_RATE_LIMIT_BURST_SIZE")?,
+            rate_limit_max_buckets: parse_env_opt("FRAISEQL_RATE_LIMIT_MAX_BUCKETS")?,
             log_format: std::env::var("FRAISEQL_LOG_FORMAT").ok(),
             shutdown_timeout_secs: parse_env_opt("FRAISEQL_SHUTDOWN_TIMEOUT_SECS")?,
         })
@@ -321,6 +326,7 @@ impl ServerArgs {
             rps_per_ip:   self.rate_limit_rps_per_ip,
             rps_per_user: self.rate_limit_rps_per_user,
             burst_size:   self.rate_limit_burst_size,
+            max_buckets:  self.rate_limit_max_buckets,
         };
     }
 
