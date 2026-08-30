@@ -102,7 +102,7 @@ final class SchemaExporter
         $subscriptions = $registry->getAllSubscriptions();
         if (!empty($subscriptions)) {
             $schema['subscriptions'] = array_map(
-                fn(SubscriptionDefinition $subscription) => $subscription->toArray(),
+                fn (SubscriptionDefinition $subscription) => $subscription->toArray(),
                 array_values($subscriptions),
             );
         }

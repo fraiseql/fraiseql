@@ -157,3 +157,7 @@ sdks/official/fraiseql-dart/pubspec.lock
 # Stray cargo target dirs from `cargo --target-dir` typos (#735: an 889-file
 # `target-user/` sat invisible in the tree because only *.so was ignored)
 /target-*/
+
+# php-cs-fixer's incremental cache (#1238). The *config* next to it is tracked —
+# without one the fixer writes a default and exits 0, checking nothing.
+.php-cs-fixer.cache

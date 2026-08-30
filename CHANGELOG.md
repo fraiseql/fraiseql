@@ -245,6 +245,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The PHP SDK is PSR-4 autoloadable, and its two SDK gates now actually run (#1184, #1238).**
+
+  `FraiseQL\UnsetValue` was declared in `src/Unset.php`, so composer's PSR-4 autoloader
+  could not find it — it resolved only by accident, when some other class in the same file
+  had been loaded first. That is the shape that made `SubscriptionBuilder::argument()` an
+  uncatchable fatal error before #1024. Renamed to `src/UnsetValue.php`; "unset" is a
+  reserved word for a *class* name, never for a *file* name.
+
+  `composer dump-autoload --optimize --strict-psr` now runs in `php-sdk.yml`. It found
+  **six** violations, not the one #1184 names: five test classes declared no namespace at
+  all under the `FraiseQL\Tests\` PSR-4 rule. All six are fixed, and each is
+  revert-checked to fail the gate on its own. `--optimize` alone would have hidden every
+  one of them, because the classmap it builds finds a class regardless of its file name —
+  which is why a production deploy did not reproduce what a fresh `composer install` does.
+
+  The neighbouring **"Check code style" step had never checked anything** (#1238). No
+  php-cs-fixer configuration was tracked, and with no config the tool does not fail: it
+  writes a default one, prints "re-run the command to put it in action", and exits 0. A
+  tracked `.php-cs-fixer.dist.php` (`@PSR12`) makes it real; it then found 11 of 40 files
+  non-compliant, and those are fixed. The adjacent PHPStan step was genuine all along, so
+  two steps that look alike were not equally trustworthy.
+
 - **The SDKs the repository says it publishes are the ones it can publish (#1130, #1224).**
 
   Eleven official SDKs; three had ever reached a registry. `README.md` advertised **Java

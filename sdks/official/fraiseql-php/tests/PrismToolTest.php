@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace FraiseQL\Tests;
+
 use PHPUnit\Framework\TestCase;
 use FraiseQL\FraiseQLClient;
 use FraiseQL\Integrations\Prism\FraiseQLPrismTool;

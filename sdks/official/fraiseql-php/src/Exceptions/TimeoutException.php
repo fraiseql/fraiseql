@@ -4,4 +4,6 @@ declare(strict_types=1);
 
 namespace FraiseQL\Exceptions;
 
-class TimeoutException extends FraiseQLException {}
+class TimeoutException extends FraiseQLException
+{
+}

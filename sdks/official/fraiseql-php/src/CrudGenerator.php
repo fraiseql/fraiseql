@@ -100,12 +100,12 @@ final class CrudGenerator
         // Create mutation with input object type — exclude computed fields
         $createInputName = "Create{$typeName}Input";
         $createInputFields = array_map(
-            static fn(FieldDefinition $f) => [
+            static fn (FieldDefinition $f) => [
                 'name' => $f->name,
                 'type' => $f->type,
                 'nullable' => $f->nullable,
             ],
-            array_values(array_filter($fieldList, static fn(FieldDefinition $f) => !$f->computed)),
+            array_values(array_filter($fieldList, static fn (FieldDefinition $f) => !$f->computed)),
         );
         SchemaRegistry::getInstance()->registerInputType(
             $createInputName,
@@ -129,12 +129,12 @@ final class CrudGenerator
         $updateInputFields = [
             ['name' => $pkField->name, 'type' => $pkField->type, 'nullable' => false],
             ...array_map(
-                static fn(FieldDefinition $f) => [
+                static fn (FieldDefinition $f) => [
                     'name' => $f->name,
                     'type' => $f->type,
                     'nullable' => true,
                 ],
-                array_values(array_filter(array_slice($fieldList, 1), static fn(FieldDefinition $f) => !$f->computed)),
+                array_values(array_filter(array_slice($fieldList, 1), static fn (FieldDefinition $f) => !$f->computed)),
             ),
         ];
         SchemaRegistry::getInstance()->registerInputType(

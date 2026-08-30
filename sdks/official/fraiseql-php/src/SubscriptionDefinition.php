@@ -65,7 +65,7 @@ final class SubscriptionDefinition
             'name'        => $this->name,
             'return_type' => $this->entityType,
             'arguments'   => array_map(
-                fn(ArgumentDefinition $arg) => [
+                fn (ArgumentDefinition $arg) => [
                     'name'     => $arg->name,
                     'type'     => $arg->type,
                     'nullable' => $arg->nullable,

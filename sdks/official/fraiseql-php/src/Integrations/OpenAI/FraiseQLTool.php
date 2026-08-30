@@ -15,7 +15,8 @@ final class FraiseQLTool
         private readonly string $description,
         private readonly string $query,
         private readonly array $parametersSchema,
-    ) {}
+    ) {
+    }
 
     /** @return array<string, mixed> */
     public function toDefinition(): array

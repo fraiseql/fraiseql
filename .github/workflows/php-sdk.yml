@@ -37,6 +37,16 @@ jobs:
       - name: Install dependencies
         run: composer install --no-progress --prefer-dist
 
+      # #1184: PSR-4 compliance is not checked by anything else here. A plain
+      # `composer install` autoloader cannot find a class whose file name does not
+      # match it, so `SubscriptionBuilder::argument()` was an uncatchable fatal error
+      # in any process that had not already loaded some other class from the same
+      # file. `--optimize` alone hides it — the classmap it builds finds every class
+      # in every scanned file regardless of name — which is why a production deploy
+      # would not reproduce what a fresh install does. `--strict-psr` exits 1.
+      - name: Check PSR-4 autoload correctness
+        run: composer dump-autoload --optimize --strict-psr
+
       - name: Run PHPStan (level 8)
         run: vendor/bin/phpstan analyse src --level 8
 

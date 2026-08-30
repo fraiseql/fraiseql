@@ -16,5 +16,6 @@ final class RetryConfig
         public readonly float $maxDelaySeconds = 30.0,
         public readonly bool $jitter = true,
         public readonly array $retryOn = [NetworkException::class, TimeoutException::class],
-    ) {}
+    ) {
+    }
 }
