@@ -1,8 +1,16 @@
 # FraiseQL Deployment Security Guide
 
-**Version**: 1.8.0-beta.5
-**Last Updated**: 2025-12-09
-**Security Posture**: ✅ Government Grade (0 CRITICAL/HIGH vulnerabilities)
+**Applies to**: FraiseQL 2.15.0
+**Last updated**: 2026-08-30
+
+> This guide described a **Python** deployment until 2026-08-30: a `python:3.13-slim`
+> base, a `deploy/docker/Dockerfile.hardened` that is not in the repository, and a
+> `fraiseql-server:local` image that was never published anywhere (a bare name resolves
+> to `docker.io/library/fraiseql`, the Docker Hub official-images namespace, which this
+> project cannot publish to). FraiseQL v2 is Rust. The sections below that name an
+> artifact now name one that exists; the ones that describe posture rather than artifacts
+> — network policy, secrets, compliance mappings, audit-log integrity — were already
+> product-agnostic and are unchanged (#1220).
 
 ## Table of Contents
 
@@ -19,51 +27,52 @@
 
 ## Overview
 
-### Current Security Status
+### What is actually shipped
 
-**Base Image**: python:3.13-slim
-**Vulnerabilities**:
+**Runtime image**: `debian:bookworm-slim`, carrying one statically-configured Rust binary.
+The builder stage is `rust:1.94.1-slim`; nothing from it reaches the runtime image.
 
-- CRITICAL: 0 ✅
-- HIGH: 0 ✅
-- MEDIUM: 9 (documented and accepted)
-- LOW: 19 (documented and accepted)
+**Published as** (`.github/workflows/docker-build.yml`, on `v*` tags):
 
-**Compliance**: NIST 800-53, NIS2, ISO 27001, FedRAMP Moderate
+- `ghcr.io/fraiseql/server` — the default feature set
+- `ghcr.io/fraiseql/server-full` — plus `rest-transport` and `arrow`
+- `fraiseql/server` on Docker Hub
 
-### Why Python 3.13-slim?
+**Compliance**: NIST 800-53, NIS2, ISO 27001, FedRAMP Moderate — see [Compliance](#compliance).
 
-We use `python:3.13-slim` instead of distroless because:
+### Why `debian:bookworm-slim` and not distroless
 
-1. ✅ **Zero CRITICAL/HIGH vulnerabilities**
-2. ✅ **Latest Python security patches** (3.13 fixes CVEs present in 3.11)
-3. ✅ **Faster security updates** from Python maintainers
-4. ✅ **Government compliance** (FedRAMP/NIST/NIS2 requirements)
-5. ✅ **Easier debugging** and troubleshooting
-
-**Note**: Distroless migration is planned when Google releases Python 3.13 distroless images. Currently, distroless uses Python 3.11 which has 5 CRITICAL/HIGH vulnerabilities.
+The binary's only dynamic dependencies are `libc`, `libm` and `libgcc_s`, so distroless
+is reachable. `bookworm-slim` is what ships today because it keeps a shell for incident
+response and because nothing in the image links a system library that would make the
+difference material — the PostgreSQL driver is the pure-Rust `tokio-postgres` + rustls
+stack, and `libpq` appears nowhere in `Cargo.lock`. The runtime image installs **no**
+packages beyond the base (#1133).
 
 ---
 
 ## Quick Start
 
-### Build Hardened Image
+### Build the image
+
+There is one Dockerfile, at the repository root. It is the file the release workflow
+builds and the one `tools/compose-stack-test.sh` exercises on the `Dagger — image` leg.
 
 ```bash
-# Build production-hardened image
-docker build \
-  --file deploy/docker/Dockerfile.hardened \
-  --target production \
-  --tag fraiseql:1.8.0-hardened \
-  .
+# Build the runtime image from the current tree
+docker build --tag fraiseql-server:local .
 
-# Scan for vulnerabilities
+# Scan it
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
   aquasec/trivy:latest image \
   --severity HIGH,CRITICAL \
-  fraiseql:1.8.0-hardened
+  fraiseql-server:local
+```
 
-# Expected result: 0 HIGH/CRITICAL vulnerabilities
+Or pull a published one instead of building:
+
+```bash
+docker pull ghcr.io/fraiseql/server:2.15.0
 ```
 
 ### Deploy to Kubernetes
@@ -103,7 +112,7 @@ kubectl get pod -n fraiseql-production -l app=fraiseql -o jsonpath='{.items[0].s
                        │
 ┌──────────────────────▼──────────────────────────────────────┐
 │                   Container Layer                            │
-│  • Python 3.13 (0 CRITICAL/HIGH CVEs)                        │
+│  • debian:bookworm-slim, one Rust binary, no added packages   │
 │  • Non-root user (UID 65532)                                 │
 │  • Read-only root filesystem                                 │
 │  • No shell, minimal packages                                │
@@ -180,46 +189,29 @@ helm install falco falcosecurity/falco \
 
 **Best for**: Development, staging, small deployments
 
-```yaml
-# docker-compose.yml
-version: '3.8'
+Use the repository's root `docker-compose.yml`. It is the **one** Compose stack this
+project verifies: `tools/compose-stack-test.sh` brings it up on the image the current
+branch builds, waits for the container's own HEALTHCHECK, queries it through the
+published port, and then inserts a row behind the engine's back and requires that row in
+the answer. It runs as a step on the `Dagger — image` leg.
 
-services:
-  fraiseql:
-    image: fraiseql:1.8.0-hardened
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-      - seccomp=runtime/default
-    cap_drop:
-      - ALL
-    user: "65532:65532"
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=100m
-    environment:
-      DATABASE_URL: postgresql://user:pass@postgres:5432/db
-    ports:
-      - "8000:8000"
-    networks:
-      - internal
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_PASSWORD: securepassword
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - internal
-
-volumes:
-  postgres_data:
-
-networks:
-  internal:
-    driver: bridge
+```bash
+docker compose up -d
+docker compose ps          # the server must reach `healthy`, not just `running`
 ```
+
+There is deliberately no second, inline copy of the stack here. This section used to
+carry one, pinning `fraiseql-server:local` — an image that has never existed — and
+setting `DATABASE_URL` and nothing else, so a container started from it exited on
+`cors_enabled is true but cors_origins is empty in production mode` before it ever
+reached the missing schema. Five other operator-facing stacks were deleted for the same
+class of defect on 2026-08-28; see the header comment of `docker-compose.yml` for what
+each of them was doing wrong.
+
+For the hardening that snippet was trying to show — read-only root filesystem, dropped
+capabilities, `no-new-privileges`, non-root UID, seccomp — see
+`deploy/kubernetes/fraiseql-hardened.yaml`, which is rendered and checked by
+`tools/chart-deploy-test.sh` rather than pasted into prose.
 
 ### Option 3: Cloud Services
 
@@ -231,7 +223,7 @@ networks:
   "containerDefinitions": [
     {
       "name": "fraiseql",
-      "image": "your-registry/fraiseql:1.8.0-hardened",
+      "image": "ghcr.io/fraiseql/server:2.15.0",
       "user": "65532",
       "readonlyRootFilesystem": true,
       "linuxParameters": {
@@ -254,7 +246,7 @@ networks:
 
 ```bash
 gcloud run deploy fraiseql \
-  --image=gcr.io/your-project/fraiseql:1.8.0-hardened \
+  --image=ghcr.io/fraiseql/server:2.15.0 \
   --platform=managed \
   --region=us-central1 \
   --no-allow-unauthenticated \
@@ -412,15 +404,24 @@ Falco rules monitor for:
 ### Health Checks
 
 ```bash
-# Liveness probe (application alive)
+# Liveness — is the PROCESS alive? Always 200, no dependency call (#1217)
+curl -f http://localhost:8000/live
+
+# Readiness — ready for traffic? 503 while the database is unreachable
+curl -f http://localhost:8000/readiness
+
+# Startup — before a pod has served, an unreachable database IS a startup failure
 curl -f http://localhost:8000/health
 
-# Readiness probe (ready for traffic)
-curl -f http://localhost:8000/ready
-
-# Startup probe (initial startup)
-curl -f http://localhost:8000/health
+# Operator status — the full subsystem report; 200 healthy or degraded, 503 when the
+# database is down. Do NOT probe liveness with this: it restarts every pod through a
+# database outage, which restarting cannot fix.
+curl -s http://localhost:8000/health | jq
 ```
+
+The path was `/ready` in this guide until 2026-08-30. There is no `/ready` endpoint;
+`curl -f` against it answers 404, and a probe configured from this line would have failed
+every check.
 
 ---
 
@@ -464,13 +465,13 @@ curl -f http://localhost:8000/health
 
 ```bash
 # Generate compliance report
-trivy image fraiseql:1.8.0-hardened \
+trivy image fraiseql-server:local \
   --format template \
   --template "@contrib/html.tpl" \
   --output fraiseql-compliance-report.html
 
 # Generate SBOM for audit
-syft fraiseql:1.8.0-hardened \
+syft fraiseql-server:local \
   -o spdx-json \
   --file fraiseql-sbom.spdx.json
 
@@ -510,7 +511,7 @@ volumes:
 docker run --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=100m \
   --tmpfs /var/cache:rw,noexec,nosuid,size=50m \
-  fraiseql:1.8.0-hardened
+  fraiseql-server:local
 ```
 
 ### Issue 2: Permission Denied Errors
@@ -523,7 +524,7 @@ docker run --read-only \
 # Debug: Run with shell access (development only)
 docker run --rm -it \
   --entrypoint /bin/bash \
-  fraiseql:1.8.0-hardened
+  fraiseql-server:local
 
 # Check user ID
 id
@@ -567,7 +568,7 @@ kubectl run -n fraiseql-production test-pod \
 
    ```bash
    # Get vulnerability details
-   trivy image fraiseql:1.8.0-hardened \
+   trivy image fraiseql-server:local \
      --severity HIGH,CRITICAL \
      --format json | jq
    ```
@@ -580,14 +581,15 @@ kubectl run -n fraiseql-production test-pod \
 3. **Apply Patch** (< 7 days for HIGH, < 24 hours for CRITICAL)
 
    ```bash
-   # Pull latest base image
-   docker pull python:3.13-slim
+   # Pull the latest base images (builder and runtime)
+   docker pull rust:1.94.1-slim
+   docker pull debian:bookworm-slim
 
    # Rebuild
-   docker build -f deploy/docker/Dockerfile.hardened -t fraiseql:1.8.0-hardened .
+   docker build -t fraiseql-server:local .
 
    # Re-scan
-   trivy image fraiseql:1.8.0-hardened --severity HIGH,CRITICAL
+   trivy image fraiseql-server:local --severity HIGH,CRITICAL
    ```
 
 4. **Deploy Update**
@@ -595,7 +597,7 @@ kubectl run -n fraiseql-production test-pod \
    ```bash
    # Canary deployment
    kubectl set image deployment/fraiseql \
-     fraiseql=fraiseql:1.8.0-hardened \
+     fraiseql=ghcr.io/fraiseql/server:2.15.0 \
      -n fraiseql-production
 
    # Monitor rollout
@@ -606,7 +608,7 @@ kubectl run -n fraiseql-production test-pod \
 
    ```bash
    # Final scan
-   trivy image fraiseql:1.8.0-hardened
+   trivy image fraiseql-server:local
 
    # Update .trivyignore if needed
    # Remove fixed CVEs

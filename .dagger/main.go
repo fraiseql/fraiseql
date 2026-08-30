@@ -384,6 +384,11 @@ func (m *FraiseqlCi) ShellGates(
 		// reachable from dev and failed on their first line (#1219).
 		"bash tools/check-compose-references.sh",
 		"bash tools/tests/compose_references_test.sh",
+		// A bare `image: fraiseql:...` in a fenced code block resolves to
+		// docker.io/library/fraiseql, which this project cannot publish to — #1129's
+		// defect, in the one place the file-level gates do not read (#1220).
+		"bash tools/check-doc-image-refs.sh",
+		"bash tools/tests/doc_image_refs_test.sh",
 		// Every publishable crate is published by release.yml, in the order this
 		// file's legacyPublishOrder dry-runs and self-tests. fraiseql-cdc-sinks
 		// (#382) was in the workspace and in legacyPublishOrder but in neither the

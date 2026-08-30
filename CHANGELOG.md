@@ -298,6 +298,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The deployment security guide describes the artifact this project ships (#1220).**
+
+  It described a **Python** deployment: a `python:3.13-slim` base, a
+  `deploy/docker/Dockerfile.hardened` that is not in the repository, and
+  `fraiseql:1.8.0-hardened` — a bare name, which Docker resolves to
+  `docker.io/library/fraiseql`, the official-images namespace this project cannot publish
+  to. It was dated 2025-12-09 and versioned 1.8.0-beta.5. FraiseQL v2 is Rust, on
+  `debian:bookworm-slim`, published as `ghcr.io/fraiseql/server`.
+
+  The inline Compose stack is replaced by a pointer to the root `docker-compose.yml` — the
+  one stack this project verifies — rather than a second copy that drifts. The one it
+  carried set `DATABASE_URL` and nothing else, so a container started from it exited on
+  `cors_enabled is true but cors_origins is empty` before reaching the missing schema.
+  The health-check section said to probe `/ready`, which is not an endpoint: `curl -f`
+  answers 404.
+
+  `check-doc-image-refs.sh` is the general fix: a FraiseQL image named by `image:` or
+  `--image=` in `deploy/` or `docs/` Markdown must carry a registry or a namespace.
+  `check-deploy-versions.sh` and `check-deploy-security.sh` scan files, and
+  `check-image-parity.py` compares the workflow matrices to the Dagger table — a fenced
+  code block is outside all three, which is how #1129's defect survived in prose after the
+  issue closed.
+
 - **`GET /live` is the liveness probe, and every deployment artifact points at it
   (#1217).**
 
