@@ -1,177 +1,68 @@
-# LTREE Hierarchical Data Examples
+# LTREE hierarchical data
 
-Complete examples demonstrating PostgreSQL LTREE usage with FraiseQL for common hierarchical data patterns.
+Two examples using PostgreSQL's `ltree` type with FraiseQL, where the hierarchy
+question is a WHERE filter rather than a recursive CTE or a closure table.
 
-## Examples Included
+| Example | Tree | What the path means |
+|---|---|---|
+| [`organization-chart/`](organization-chart) | management chain | every label is an employee; a label's parent is their manager |
+| [`product-catalog/`](product-catalog) | category taxonomy | every label is a category; products sit at the leaves |
 
-### 🏢 Organization Charts
+The distinction matters. In `organization-chart` the entities *are* the nodes, so
+`ancestorOf` returns a person's whole management chain. In `product-catalog` the
+nodes are categories and the entities hang off them, so `descendantOf` is the
+useful operator and `ancestorOf` only ever matches the row itself.
 
-- Employee hierarchy management
-- Reporting structures
-- Department trees
-
-### 📁 File Systems
-
-- Directory structures
-- File organization
-- Permission inheritance
-
-### 🏷️ Category Management
-
-- Product catalogs
-- Content classification
-- Tag hierarchies
-
-### 🌳 Biological Taxonomy
-
-- Species classification
-- Evolutionary trees
-- Biological hierarchies
-
-### 🗂️ Document Management
-
-- Folder structures
-- Document classification
-- Archive organization
-
-## Quick Start
-
-Each example includes:
-
-- **Database schema** with LTREE columns
-- **Sample data** population
-- **FraiseQL GraphQL schema** definition
-- **Query examples** for common operations
-- **Performance benchmarks**
-
-## Running Examples
+## Running one
 
 ```bash
-# Navigate to specific example
-cd examples/ltree-hierarchical-data/organization-chart
+cd organization-chart
 
-# Set up database
-psql -d your_database -f setup.sql
+# 1. Schema and sample data (needs the ltree extension; the file creates it)
+createdb orgchart
+psql -d orgchart -v ON_ERROR_STOP=1 -f setup.sql
 
-# Run the example
-python app.py
+# 2. Author the GraphQL schema (writes schema.json)
+python3 schema.py
+
+# 3. Compile it
+fraiseql compile schema.json -o schema.compiled.json
+
+# 4. Run one of queries.graphql against the database
+DATABASE_URL=postgresql://localhost/orgchart \
+  fraiseql query -s schema.compiled.json \
+  '{ employees(where: {orgPath: {descendantOf: "acme.alice_johnson.bob_smith"}}) { name title } }'
 ```
 
-## GraphQL API Patterns
+`product-catalog` is the same four steps.
 
-All examples demonstrate these LTREE operations:
+## The operators
 
-```graphql
-# Find all employees under a manager
-query {
-  employees(where: {
-    orgPath: { descendantOf: "engineering.manager.john_doe" }
-  }) {
-    id
-    name
-    title
-    orgPath
-  }
-}
+Declared in each example's `schema.py`, on a filter input for the path field:
 
-# Find direct reports (exactly one level down)
-query {
-  employees(where: {
-    orgPath: {
-      descendantOf: "engineering.manager.john_doe"
-      nlevelEq: 4  # org.engineering.manager.john_doe + 1
-    }
-  }) {
-    id
-    name
-  }
-}
+| GraphQL | SQL | Meaning |
+|---|---|---|
+| `eq` | `=` | exactly this path |
+| `descendantOf` | `<@` | at or below this path, any depth |
+| `ancestorOf` | `@>` | at or above this path |
+| `depthEq` | `nlevel() =` | exactly this many labels |
 
-# Pattern matching for department searches
-query {
-  employees(where: {
-    orgPath: { matchesLquery: "engineering.*.managers" }
-  }) {
-    id
-    name
-    title
-  }
-}
-```
+They are **declared, not derived**. FraiseQL does not auto-derive the ltree
+operator family onto a field: a declared field type cannot say whether the column
+behind it is really an `ltree`, and deriving a filter advertises an operator
+(#869). Writing the filter input is the author asserting that the column is one.
 
-## Performance Characteristics
+The engine also has `descendantOfId` / `ancestorOfId`, which take a UUID and
+resolve it to a path through a `[hierarchies.<name>]` section in `fraiseql.toml`.
+Neither example configures one, so neither declares those operators.
 
-| Operation | Complexity | With GiST Index |
-|-----------|------------|-----------------|
-| Find children | O(log n) | < 5ms |
-| Find ancestors | O(log n) | < 3ms |
-| Pattern match | O(log n) | < 10ms |
-| Tree restructure | O(1) | Instant |
+Note that every WHERE field is `{operator: value}`. A bare `department:
+"Engineering"` is refused by the parser, which is why the ordinary columns here
+get a `StringFilter` too.
 
-## Database Setup
+## The read side
 
-All examples require:
-
-- PostgreSQL with LTREE extension
-- GiST indexes on LTREE columns
-- FraiseQL installation
-
-```sql
--- Enable LTREE extension
-CREATE EXTENSION IF NOT EXISTS ltree;
-
--- Create GiST index for performance
-CREATE INDEX idx_path ON your_table USING GIST (path_column);
-```
-
-## Integration with FraiseQL
-
-Each example shows how to:
-
-- Define LTREE fields in FraiseQL schemas
-- Use all 23 LTREE operators in GraphQL
-- Optimize queries with database indexes
-- Handle hierarchical data relationships
-
-## Real-World Use Cases
-
-### E-commerce Catalog
-
-```sql
--- Product hierarchy: category > subcategory > product
-CREATE TABLE products (
-    id SERIAL PRIMARY KEY,
-    name TEXT,
-    category_path LTREE,  -- e.g., "electronics.computers.laptops"
-    price DECIMAL
-);
-```
-
-### Content Management
-
-```sql
--- Content hierarchy: site > section > article
-CREATE TABLE articles (
-    id SERIAL PRIMARY KEY,
-    title TEXT,
-    content_path LTREE,  -- e.g., "blog.tech.programming"
-    published_at TIMESTAMP
-);
-```
-
-### Geographic Data
-
-```sql
--- Geographic hierarchy: country > state > city > district
-CREATE TABLE locations (
-    id SERIAL PRIMARY KEY,
-    name TEXT,
-    geo_path LTREE,  -- e.g., "usa.california.san_francisco.mission"
-    population INTEGER
-);
-```
-
-These examples demonstrate production-ready patterns for hierarchical data management with PostgreSQL LTREE and FraiseQL.</content>
-</xai:function_call:
-<xai:function_call name="bash">
-<parameter name="command">mkdir -p examples/ltree-hierarchical-data/organization-chart examples/ltree-hierarchical-data/file-system examples/ltree-hierarchical-data/product-catalog
+Both examples follow the Trinity pattern: `tb_*` holds the rows, `v_*` exposes
+`pk_*`, `id` and a JSONB `data` column, and the runtime reads `data`. The ltree
+path is a plain string inside `data`; the generated WHERE casts it back with
+`(data->>'…')::ltree` before applying an operator.

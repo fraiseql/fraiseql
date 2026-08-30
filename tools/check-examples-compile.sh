@@ -83,8 +83,6 @@ fi
 # that nobody looked. That is what stops this list from becoming permanent.
 # ---------------------------------------------------------------------------
 declare -A KNOWN_BROKEN=(
-    ["examples/ltree-hierarchical-data/organization-chart/schema.py"]="#1191"
-    ["examples/ltree-hierarchical-data/product-catalog/schema.py"]="#1191"
 )
 declare -A SAW_BROKEN=()
 

@@ -1,7 +1,14 @@
-# Organization Chart Query Examples
-# Demonstrates LTREE hierarchical operations
+# Organization Chart — query examples
+#
+# Every query here runs against the schema in schema.py and the data in
+# setup.sql. `org_path` is the management chain, so the ltree operators answer
+# organizational questions directly.
+#
+# Operator names are the engine's: descendantOf (<@), ancestorOf (@>),
+# depthEq (nlevel =), eq. They are declared in schema.py's OrgPathFilter rather
+# than derived — FraiseQL does not auto-derive the ltree family onto a field.
 
-# Get all employees
+# Everyone, with their manager denormalized into the row.
 query GetAllEmployees {
   employees {
     id
@@ -9,160 +16,59 @@ query GetAllEmployees {
     title
     department
     orgPath
+    managerName
   }
 }
 
-# Find employees under a specific manager
-query GetTeam {
+# The whole subtree under the CTO, at any depth. Returns 9 with setup.sql's data.
+query GetEveryoneUnderTheCTO {
   employees(where: {
-    orgPath: { descendantOf: "acme.technology.engineering" }
+    orgPath: { descendantOf: "acme.alice_johnson.bob_smith" }
   }) {
-    id
     name
     title
     orgPath
   }
 }
 
-# Find direct reports (exactly one level down)
-query GetDirectReports($managerPath: LTree!) {
+# Direct reports only: descendants of the VP Engineering that sit exactly one
+# level below them. The VP is at depth 4, so their reports are at depth 5.
+query GetDirectReportsOfTheVP {
   employees(where: {
     orgPath: {
-      descendantOf: $managerPath
-      nlevelEq: 4  # org.acme.technology.engineering + 1 level
+      descendantOf: "acme.alice_johnson.bob_smith.david_wilson"
+      depthEq: 5
     }
   }) {
-    id
     name
     title
   }
 }
 
-# Find employees by department pattern
-query GetEngineeringTeam {
-  employees(where: {
-    orgPath: { matchesLquery: "acme.technology.*" }
-  }) {
-    id
+# A management chain: every ancestor of one employee, from the CEO down.
+# Returns Alice Johnson, Bob Smith, David Wilson, Eva Garcia, Frank Miller.
+query GetManagementChain($employeePath: LTree!) {
+  employees(where: { orgPath: { ancestorOf: $employeePath } }) {
+    name
+    title
+    orgPath
+  }
+}
+
+# One organizational layer: everyone reporting directly to the CEO.
+query GetExecutiveTeam {
+  employees(where: { orgPath: { depthEq: 3 } }) {
     name
     title
     department
   }
 }
 
-# Get organization depth analysis
-query GetOrgDepth {
+# Hierarchy and an ordinary column together.
+query GetEngineersUnderTheCTO {
   employees(where: {
-    orgPath: { nlevelGte: 4 }
-  }) {
-    id
-    name
-    title
-    orgPath
-  }
-}
-
-# Find employees with specific path patterns
-query GetManagers {
-  employees(where: {
-    orgPath: { matchesLquery: "*.manager.*" }
-  }) {
-    id
-    name
-    title
-    orgPath
-  }
-}
-
-# Complex hierarchical query: senior engineers in engineering
-query GetSeniorEngineers {
-  employees(where: {
-    orgPath: {
-      descendantOf: "acme.technology.engineering"
-      matchesLquery: "*.senior.*"
-    }
-    title: { contains: "Senior" }
-  }) {
-    id
-    name
-    title
-    salary
-    orgPath
-  }
-}
-
-# Get employee with their hierarchy info
-query GetEmployeeHierarchy($id: Int!) {
-  employee(id: $id) {
-    id
-    name
-    title
-    orgPath
-    manager {
-      id
-      name
-      title
-    }
-    directReports {
-      id
-      name
-      title
-    }
-    allReports {
-      id
-      name
-    }
-  }
-}
-
-# Department breakdown
-query GetDepartmentBreakdown {
-  engineering: employees(where: {
-    department: { eq: "Engineering" }
-  }) {
-    id
-    name
-    title
-  }
-
-  product: employees(where: {
-    department: { eq: "Product" }
-  }) {
-    id
-    name
-    title
-  }
-
-  sales: employees(where: {
-    department: { eq: "Sales" }
-  }) {
-    id
-    name
-    title
-  }
-}
-
-# Salary analysis by hierarchy level
-query GetSalaryByLevel {
-  executives: employees(where: {
-    orgPath: { nlevelLte: 3 }
-  }) {
-    name
-    title
-    salary
-    orgPath
-  }
-
-  managers: employees(where: {
-    orgPath: { matchesLquery: "*.manager.*" }
-  }) {
-    name
-    title
-    salary
-  }
-
-  individualContributors: employees(where: {
-    orgPath: { nlevelGte: 5 }
+    orgPath: { descendantOf: "acme.alice_johnson.bob_smith" }
+    department: {eq: "Engineering"}
   }) {
     name
     title
@@ -170,60 +76,24 @@ query GetSalaryByLevel {
   }
 }
 
-# Recent hires in hierarchy
-query GetRecentHires {
+# Exact position.
+query GetEmployeeAtPath {
   employees(where: {
-    hireDate: { gte: "2021-01-01" }
-    orgPath: { descendantOf: "acme.technology" }
+    orgPath: { eq: "acme.alice_johnson.bob_smith.david_wilson.eva_garcia" }
   }) {
-    id
     name
     title
+    managerName
+  }
+}
+
+# By id.
+query GetEmployee {
+  employee(id: "33333333-0000-4000-8000-000000000006") {
+    name
+    title
+    orgPath
+    managerName
     hireDate
-    orgPath
-  }
-}
-
-# Organization structure visualization
-query GetOrgStructure {
-  orgStructure(rootPath: "acme.technology") {
-    id
-    name
-    title
-    orgPath
-  }
-}
-
-# Mutation examples
-mutation AddNewEmployee {
-  addEmployee(
-    name: "Sarah Connor"
-    title: "Senior Engineer"
-    department: "Engineering"
-    salary: 115000
-    managerId: 5  # Eva Garcia's ID
-    hireDate: "2024-01-15"
-  ) {
-    id
-    name
-    title
-    orgPath
-  }
-}
-
-mutation UpdateEmployeePosition {
-  updateEmployeePosition(
-    employeeId: 8  # Frank Miller
-    newManagerId: 6  # Ivy Chen (Frontend Manager)
-    newTitle: "Senior Frontend Engineer"
-  ) {
-    id
-    name
-    title
-    orgPath
-    manager {
-      name
-      title
-    }
   }
 }

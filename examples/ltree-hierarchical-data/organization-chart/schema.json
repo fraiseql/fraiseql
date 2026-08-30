@@ -1,0 +1,169 @@
+{
+  "types": [
+    {
+      "name": "Employee",
+      "sql_source": "v_employee",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "department",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "salary",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "orgPath",
+          "type": "LTree",
+          "nullable": false
+        },
+        {
+          "name": "hireDate",
+          "type": "Date",
+          "nullable": false
+        },
+        {
+          "name": "active",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "managerName",
+          "type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "An employee, with their position in the organization tree."
+    }
+  ],
+  "enums": [],
+  "input_types": [
+    {
+      "name": "OrgPathFilter",
+      "fields": [
+        {
+          "name": "eq",
+          "type": "LTree",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "descendantOf",
+          "type": "LTree",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "ancestorOf",
+          "type": "LTree",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "depthEq",
+          "type": "Int",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "LTREE operators over `org_path`.\n\nThese are declared rather than derived. FraiseQL does not auto-derive the\nltree operator family onto a field: a declared type cannot say whether the\ncolumn behind it is really an `ltree`, and deriving a filter advertises an\noperator (#869). Declaring them here is the author asserting that it is —\nsetup.sql makes `org_path` an LTREE column, and the generated SQL casts the\nJSONB value with `::ltree` before applying the operator.\n\nThe ID-valued variants (`descendantOfId`, `ancestorOfId`) are deliberately\nabsent: they resolve a UUID to a path through a `[hierarchies.<name>]`\nsection in fraiseql.toml, which this example does not configure.\n"
+    },
+    {
+      "name": "StringFilter",
+      "fields": [
+        {
+          "name": "eq",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "neq",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "contains",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Comparison operators over a text field.\n\nEvery WHERE field is `{operator: value}` — a bare `department: \"Engineering\"`\nis refused by the parser, so an ordinary column needs a filter type too.\n"
+    },
+    {
+      "name": "EmployeeWhere",
+      "fields": [
+        {
+          "name": "orgPath",
+          "type": "OrgPathFilter",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "department",
+          "type": "StringFilter",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Filters for the `employees` query."
+    }
+  ],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "employees",
+      "return_type": "Employee",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "where",
+          "type": "EmployeeWhere",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Employees, optionally filtered by position in the hierarchy.\n\n`{ employees(where: {orgPath: {descendantOf: \"acme.technology\"}}) }`\nreturns everyone under Technology, at any depth.\n",
+      "sql_source": "v_employee"
+    },
+    {
+      "name": "employee",
+      "return_type": "Employee",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "One employee by id.",
+      "sql_source": "v_employee"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "naming_convention": "camelCase"
+}

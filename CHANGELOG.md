@@ -315,6 +315,53 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A cast now binds to the extracted value, not to the key that names it (#1256).**
+
+  `{lhs}::ltree` is not `(data->>'org_path')::ltree`. PostgreSQL binds `::` tighter
+  than `->>`, so all 43 cast sites in the PostgreSQL dialect cast the **key string**
+  and the server aborted the statement. Because the JSONB `data` column is the only
+  field model FraiseQL has, this made three whole operator families unrunnable:
+
+  | Family | Emitted | PostgreSQL |
+  |---|---|---|
+  | ltree (`<@`, `@>`, `nlevel`) | `data->>'p'::ltree <@ $1::ltree` | `operator does not exist: jsonb ->> ltree` |
+  | network (`<<`, `family()`, …) | `data->>'ip'::inet << '10.0.0.0/8'::inet` | `invalid input syntax for type inet: "ip"` |
+  | jsonb array (`@>`, `<@`, `&&`) | `data->>'tags'::jsonb @> $1::jsonb` | `Token "tags" is invalid` |
+
+  Separately, the six `depth*` operators emitted `nlevel(…) = $1`. `nlevel()` returns
+  integer, so PostgreSQL inferred int4 while this crate binds JSON numbers as text —
+  the wire error `insufficient data left in message`. They now use the `$n::text::int`
+  double cast pgvector already uses.
+
+  Two unit assertions and four insta snapshots had **pinned the broken SQL as expected
+  output**, which is why no test failed. The ltree family is now part of
+  `tests/where_operator_type_matrix.rs`, which executes against a real PostgreSQL and
+  asserts row sets rather than strings.
+
+- **`examples/ltree-hierarchical-data/` is authored against the SDK this repository ships (#1191).**
+
+  Both `schema.py` files used six names that no longer exist — `fraiseql.types.scalars`,
+  `fraise_type`, `fraise_query`, `fraise_mutation`, `fraiseql.sql` and `create_app` —
+  plus a `find_by`/`find_where`/`exclude` query API. `create_app` is a Python *runtime*
+  server factory, so this was not a rename: the examples were built on the v1 model v2
+  deleted, and they are rewritten against `@fraiseql.type` / `@fraiseql.query`.
+
+  Three defects found while rewriting, none of them in the issue:
+
+  * `setup.sql` created no `v_*` view at all, so the schema named a source that did not
+    exist. Both now expose `pk_*`, `id` and a JSONB `data` column.
+  * Both called `uuid_generate_v4()` while creating only the `ltree` extension, so every
+    INSERT would have failed on a clean database. Now `gen_random_uuid()`.
+  * `organization-chart`'s paths interleaved org units with people
+    (`acme.technology.engineering.backend.senior.frank_miller`), so no employee was ever
+    another's ancestor: the `UPDATE … SET fk_manager` matched nothing, every manager read
+    NULL, and the example's showcase `ancestorOf` query returned only the row itself. The
+    paths are now the management chain, which is what makes the operators mean anything.
+
+  `queries.graphql` used `nlevelEq`, which is not an operator; the name is `depthEq`. The
+  README described four example families (two exist), a `python app.py` that was never
+  shipped, and performance benchmarks that were not.
+
 
 - **The deployment security guide describes the artifact this project ships (#1220).**
 

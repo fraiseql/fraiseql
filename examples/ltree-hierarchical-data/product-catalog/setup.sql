@@ -3,10 +3,13 @@
 
 CREATE EXTENSION IF NOT EXISTS ltree;
 
+DROP VIEW IF EXISTS v_product;
+DROP TABLE IF EXISTS tb_product CASCADE;
+
 -- Product catalog table
 CREATE TABLE tb_product (
     pk_product INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     description TEXT,
     price DECIMAL(10,2),
@@ -64,6 +67,26 @@ INSERT INTO tb_product (name, description, price, category_path, sku) VALUES
 ('Foreo Luna 3', 'Facial cleansing device', 279.99, 'beauty.skincare.cleansing.foreo', 'LUNA3'),
 ('Peloton Bike', 'Connected fitness bike with classes', 2499.99, 'fitness.equipment.bikes.peloton', 'PELOTON-BIKE'),
 ('Theragun Pro', 'Percussion massage device', 599.99, 'fitness.recovery.massagers.theragun', 'THERAGUN-PRO');
+
+-- The read side (Trinity Pattern v_* naming): pk_product for internal joins,
+-- id for UUID lookups, and data as the JSONB payload the runtime reads.
+-- `category_path` is a plain string inside `data`; the generated WHERE casts it
+-- back with `::ltree` before applying an ltree operator.
+CREATE VIEW v_product AS
+SELECT
+    pk_product,
+    id,
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'description', description,
+        'price', price,
+        'category_path', category_path::text,
+        'sku', sku,
+        'in_stock', in_stock,
+        'created_at', created_at
+    ) AS data
+FROM tb_product;
 
 -- Analyze for query optimization
 ANALYZE tb_product;

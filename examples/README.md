@@ -151,12 +151,12 @@ clickhouse-client < examples/clickhouse/arrow_integration.sql
 | [`changelog-sidecar/`](changelog-sidecar) | consuming the change-log outbox |
 | [`federation/basic/`](federation/basic), [`federation/composite-keys/`](federation/composite-keys) | Apollo Federation v2 subgraphs that compose |
 | [`multitenant/`](multitenant), [`saas/`](saas) | multi-domain schemas driven by `fraiseql.toml` |
+| [`ltree-hierarchical-data/`](ltree-hierarchical-data) | LTREE hierarchies: a management chain and a category taxonomy |
 | [`mutation-patterns/`](mutation-patterns) | 18 PL/pgSQL mutation patterns with a test script |
 | [`typescript-client/`](typescript-client) | generated TypeScript client |
 
 Known broken, tracked, not repaired yet:
-[`federation/saga-complex/`](federation/saga-complex) ([#1193](https://github.com/fraiseql/fraiseql/issues/1193)),
-[`ltree-hierarchical-data/`](ltree-hierarchical-data) ([#1191](https://github.com/fraiseql/fraiseql/issues/1191)).
+[`federation/saga-complex/`](federation/saga-complex) ([#1193](https://github.com/fraiseql/fraiseql/issues/1193)).
 
 ---
 

@@ -1,162 +1,104 @@
-"""FraiseQL Organization Chart Schema
-Demonstrates LTREE usage for employee hierarchies
+#!/usr/bin/env python3
+"""Organization chart authored with the FraiseQL Python SDK.
+
+Demonstrates PostgreSQL LTREE for employee hierarchies: one `org_path` column
+carries each employee's position in the tree, and the hierarchy questions —
+"everyone under the CTO", "everyone at VP level" — are WHERE filters, not
+recursive joins.
+
+The view it names is created by setup.sql (singular Trinity naming:
+tb_employee/v_employee, the view exposing pk_employee, id and a JSONB `data`
+column).
+
+Run: python3 schema.py
+Output: schema.json (consumed by `fraiseql-cli compile`)
+
+Requires the SDK: `pip install fraiseql` (or, inside this repository,
+`pip install -e sdks/official/fraiseql-python`).
 """
 
+from pathlib import Path
+
 import fraiseql
-from fraiseql.types.scalars import LTree
+from fraiseql import ID, Date, Decimal
+from fraiseql.scalars import LTree
 
 
-@fraiseql.fraise_type
+@fraiseql.type(sql_source="v_employee")
 class Employee:
-    """Employee in the organization hierarchy."""
+    """An employee, with their position in the organization tree."""
 
-    id: int = fraiseql.field(primary_key=True)
+    id: ID
     name: str
     title: str
     department: str
-    salary: float
-    org_path: LTree  # Hierarchical organizational path
-    manager_id: int | None
-    hire_date: str
-    active: bool = True
-
-    # Relationships
-    @fraiseql.field
-    def manager(self) -> "Employee | None":
-        """Get the employee's manager."""
-        return Employee.find_by(id=self.manager_id)
-
-    @fraiseql.field
-    def direct_reports(self) -> list["Employee"]:
-        """Get employees who directly report to this employee."""
-        return Employee.find_where(
-            org_path__descendant_of=self.org_path,
-            org_path__nlevel_eq=fraiseql.sql.Function("nlevel", self.org_path) + 1,
-        )
-
-    @fraiseql.field
-    def all_reports(self) -> list["Employee"]:
-        """Get all employees under this employee in the hierarchy."""
-        return Employee.find_where(org_path__descendant_of=self.org_path).exclude(id=self.id)
-
-    @fraiseql.field
-    def peers(self) -> list["Employee"]:
-        """Get employees at the same level with the same manager."""
-        if not self.manager_id:
-            return []
-
-        parent_path = fraiseql.sql.Function("subpath", self.org_path, 0, -1)
-        return Employee.find_where(
-            org_path__descendant_of=parent_path,
-            org_path__nlevel_eq=fraiseql.sql.Function("nlevel", self.org_path),
-        ).exclude(id=self.id)
+    salary: Decimal
+    org_path: LTree
+    hire_date: Date
+    active: bool
+    manager_name: str | None
 
 
-@fraiseql.fraise_query
-class Query:
-    """Root query for organization chart."""
+@fraiseql.input
+class OrgPathFilter:
+    """LTREE operators over `org_path`.
 
-    @fraiseql.field
-    def employees(self, where: dict | None = None) -> list[Employee]:
-        """Get all employees with optional filtering."""
-        return Employee.find_where(**(where or {}))
+    These are declared rather than derived. FraiseQL does not auto-derive the
+    ltree operator family onto a field: a declared type cannot say whether the
+    column behind it is really an `ltree`, and deriving a filter advertises an
+    operator (#869). Declaring them here is the author asserting that it is —
+    setup.sql makes `org_path` an LTREE column, and the generated SQL casts the
+    JSONB value with `::ltree` before applying the operator.
 
-    @fraiseql.field
-    def employee(self, id: int) -> Employee | None:
-        """Get a specific employee by ID."""
-        return Employee.find_by(id=id)
+    The ID-valued variants (`descendantOfId`, `ancestorOfId`) are deliberately
+    absent: they resolve a UUID to a path through a `[hierarchies.<name>]`
+    section in fraiseql.toml, which this example does not configure.
+    """
 
-    @fraiseql.field
-    def department_employees(self, department: str) -> list[Employee]:
-        """Get all employees in a department."""
-        return Employee.find_where(department=department)
-
-    @fraiseql.field
-    def org_structure(self, root_path: str | None = None) -> list[Employee]:
-        """Get organization structure starting from a root path."""
-        root = root_path or "acme"
-        return Employee.find_where(org_path__descendant_of=root).order_by("org_path")
-
-    @fraiseql.field
-    def managers(self) -> list[Employee]:
-        """Get all employees who have direct reports."""
-        # Employees who appear as managers in the org_path
-        return Employee.find_where(
-            id__in=fraiseql.sql.Subquery(
-                Employee.select("manager_id").distinct().where(manager_id__isnull=False)
-            )
-        )
+    eq: LTree | None = None
+    descendant_of: LTree | None = None
+    ancestor_of: LTree | None = None
+    depth_eq: int | None = None
 
 
-@fraiseql.fraise_mutation
-class Mutation:
-    """Mutations for organization management."""
+@fraiseql.input
+class StringFilter:
+    """Comparison operators over a text field.
 
-    @fraiseql.field
-    def update_employee_position(
-        self, employee_id: int, new_manager_id: int | None, new_title: str | None = None
-    ) -> Employee:
-        """Update an employee's position in the organization."""
-        employee = Employee.find_by(id=employee_id)
-        if not employee:
-            raise ValueError("Employee not found")
+    Every WHERE field is `{operator: value}` — a bare `department: "Engineering"`
+    is refused by the parser, so an ordinary column needs a filter type too.
+    """
 
-        # Update manager and title
-        updates = {}
-        if new_manager_id is not None:
-            updates["manager_id"] = new_manager_id
-        if new_title:
-            updates["title"] = new_title
-
-        # Update org_path based on new manager
-        if new_manager_id:
-            manager = Employee.find_by(id=new_manager_id)
-            if manager:
-                # New path: manager's path + employee name
-                employee_name = employee.name.lower().replace(" ", "_")
-                new_path = f"{manager.org_path}.{employee_name}"
-                updates["org_path"] = new_path
-
-        employee.update(**updates)
-        return employee
-
-    @fraiseql.field
-    def add_employee(
-        self,
-        name: str,
-        title: str,
-        department: str,
-        salary: float,
-        manager_id: int | None,
-        hire_date: str,
-    ) -> Employee:
-        """Add a new employee to the organization."""
-        # Generate org_path
-        if manager_id:
-            manager = Employee.find_by(id=manager_id)
-            if not manager:
-                raise ValueError("Manager not found")
-            employee_name = name.lower().replace(" ", "_")
-            org_path = f"{manager.org_path}.{employee_name}"
-        else:
-            # Root level employee
-            employee_name = name.lower().replace(" ", "_")
-            org_path = f"acme.{department.lower()}.{employee_name}"
-
-        return Employee.create(
-            name=name,
-            title=title,
-            department=department,
-            salary=salary,
-            org_path=org_path,
-            manager_id=manager_id,
-            hire_date=hire_date,
-        )
+    eq: str | None = None
+    neq: str | None = None
+    contains: str | None = None
 
 
-# Configure the GraphQL app
-app = fraiseql.create_app(
-    title="Organization Chart API",
-    description="Hierarchical employee management with LTREE paths",
-    version="1.0.0",
-)
+@fraiseql.input
+class EmployeeWhere:
+    """Filters for the `employees` query."""
+
+    org_path: OrgPathFilter | None = None
+    department: StringFilter | None = None
+
+
+@fraiseql.query(sql_source="v_employee")
+def employees(where: EmployeeWhere | None = None) -> list[Employee]:
+    """Employees, optionally filtered by position in the hierarchy.
+
+    `{ employees(where: {orgPath: {descendantOf: "acme.technology"}}) }`
+    returns everyone under Technology, at any depth.
+    """
+    ...
+
+
+@fraiseql.query(sql_source="v_employee")
+def employee(id: ID) -> Employee | None:
+    """One employee by id."""
+    ...
+
+
+if __name__ == "__main__":
+    output_path = Path(__file__).parent / "schema.json"
+    fraiseql.export_schema(str(output_path))
+    print(f"Schema exported to: {output_path}")
