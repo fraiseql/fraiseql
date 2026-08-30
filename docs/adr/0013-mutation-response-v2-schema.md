@@ -166,7 +166,7 @@ PG functions return rows shaped like `{success, errors[], data, cascade}` — th
 
 ## Implementation
 
-See `.phases/mutation-response-v2/` for the 7-phase implementation plan:
+The rollout ran in seven phases, all since executed:
 
 - Phase 00: Design and Specification (this ADR + `docs/architecture/mutation-response.md`)
 - Phase 01: Rust v2 parser with version dispatch

@@ -8,7 +8,7 @@ name: Dagger — security
 # The standalone cargo-deny binary parses Cargo.lock directly: no compile, no
 # backing services, so this gate is light — it only pulls the ubuntu base (from the
 # private ghcr.io/fraiseql mirror, see mirror-base-images.yml) plus a persistent
-# advisory-db cache volume. See parity-notes.md.
+# advisory-db cache volume. See docs/contributing/dagger-parity-notes.md.
 #
 # NOT ported (stay GitHub-native / dispatch-only, same precedent as CodeQL):
 # container-security (Trivy + SARIF upload to GH Code Scanning), dependency-review

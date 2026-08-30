@@ -133,6 +133,34 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+- **`parity-notes.md` is published, and nothing sends a reader to `.phases/` any more (#1210).**
+
+  `.gitignore` ignores `.phases/`, so such a tree lives only in the working copy that
+  created it — and shipped files cited one anyway. **Sixteen** comments across
+  `.dagger/main.go`, `.dagger/security.go`, `.dagger/feature-combos.go`, three workflow
+  files and two crates said "see parity-notes.md" for the reasoning behind a gate's
+  shape. A contributor in a fresh clone got the conclusion with the argument amputated.
+
+  The file is now `docs/contributing/dagger-parity-notes.md` and all sixteen citations
+  point at it. The rest of the `.phases/dagger-adoption/` plan is not published: it is a
+  migration that has been executed, and this was the part other files cite.
+
+  Four more citations are dropped rather than repointed, because their targets do not
+  exist anywhere:
+
+  * `roadmap.md` pointed at two plan directories for "detailed plans".
+  * `examples/_TEMPLATE/README.md` told a reader to run
+    `python .phases/verify-examples-compliance/verify.py`. It now names the two gates
+    that do check an example, both of which are in `make preflight`.
+  * `docs/adr/0013` pointed at a 7-phase plan; the phase list it introduced is kept.
+  * `routes/rest/export_config.rs` deferred its layering rule to a sprint document; the
+    rule is now stated where the rule is enforced.
+
+  `tools/check-phases-citations.sh` keeps it that way. It flags a path *into*
+  `.phases/`, not a mention of the directory — `.gitignore` names it legitimately — and
+  deliberately does not use `git ls-files`, which returns nothing in the Dagger
+  ShellGates container and would make the gate pass vacuously exactly where it runs.
+
 
 - **`tools/check-example-crates-compile.sh`: the standalone `examples/` crates compile (#1200).**
 

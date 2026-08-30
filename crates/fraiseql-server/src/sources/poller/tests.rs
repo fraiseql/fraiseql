@@ -321,7 +321,7 @@ async fn wait_for_cursor_page(
 /// ticker (60 s interval, `Utc::now()` windows) end to end, so it takes ~4 minutes.
 ///
 /// LOCAL-ONLY and `#[ignore]`d: it invokes a real Deno guest (V8 SIGSEGVs in the
-/// Dagger exec sandbox — see `.dagger/parity-notes.md`) and holds multi-minute
+/// Dagger exec sandbox — see `docs/contributing/dagger-parity-notes.md`) and holds multi-minute
 /// wall-clock windows. Run explicitly:
 /// `cargo test -p fraiseql-server --features sources --lib
 ///  ingests_across_schedule_windows_and_a_restart -- --ignored --test-threads=1`

@@ -12,7 +12,7 @@ package main
 // These are `cargo check` (and, for the functions combos, `cargo clippy`) only —
 // no test binaries run, so no backing services are needed. That makes this matrix
 // immune to the Docker Hub anonymous pull rate-limit that gates the integration
-// suites (it only ever pulls the already-cached rust:1.94.1 base). See parity-notes.md.
+// suites (it only ever pulls the already-cached rust:1.94.1 base). See docs/contributing/dagger-parity-notes.md.
 
 import (
 	"context"
@@ -72,7 +72,7 @@ type featureCombo struct {
 // The 4 `feature-integration-tests` combos (mcp/metrics/apq-memory/tracing) from
 // feature-flags.yml are NOT here: they run `cargo test` against test binaries (some
 // service-backed), which belongs to the integration matrix, not this check-only
-// matrix. Logged as a deferred gap in parity-notes.md, not silently dropped.
+// matrix. Logged as a deferred gap in docs/contributing/dagger-parity-notes.md, not silently dropped.
 var featureCombos = []featureCombo{
 	// ── server: feature-matrix (cargo check -p fraiseql-server) ──────────────
 	{name: "server-no-default", crate: "fraiseql-server", noDefaultFeatures: true},

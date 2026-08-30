@@ -172,11 +172,12 @@ cp -r examples/_TEMPLATE examples/my-example
 **Run verification before submitting:**
 
 ```bash
-# Verify your example
-python .phases/verify-examples-compliance/verify.py examples/my-example/
+# The two gates that check every shipped example
+bash tools/check-examples-integrity.sh   # static: mounts resolve, COPY sources exist,
+                                         # healthcheck binaries are installed, image tags pinned
+bash tools/check-examples-compile.sh     # runs each schema.py and compiles what it emits
 
-# Should show: ✅ Compliance: 100%
-# If not, fix the violations and re-run
+# Both are in `make preflight`. Neither skips: a missing toolchain is a failure.
 ```
 
 **Common issues to check:**

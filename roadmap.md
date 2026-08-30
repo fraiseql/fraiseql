@@ -265,7 +265,6 @@ Second half of the audit campaign — a correctness sweep across auth, honest-fa
 - **Audit "make-it-real" deferrals** — real observer transports (#428), allow-list-backed `redirect_uri` (#427). *Delivered since:* federation distributed saga (#429, closed); webhooks inbound receiver (#431) — now mounted behind the opt-in `inbound` feature as the first inbound-source adapter (push), with a poll-IMAP email adapter (pull) behind `inbound-email`.
 - **Hard deadline** — `rustls-0.21` (via opt-in `aws-s3`) reaches EOL 2026-09-01; needs a `hyper-rustls-0.27` `HttpClient` swap before then (accepted in `deny.toml` until the deadline)
 
-See `.phases/2026-06-11-audit-remediation/` and `.phases/2026-05-31-release-train/track-3-enhancements/ROADMAP.md` for detailed plans.
 
 ---
 

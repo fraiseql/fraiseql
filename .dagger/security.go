@@ -19,7 +19,7 @@ package main
 // tree, in this leg rather than GitHub-native, because TruffleHog's verified mode
 // needs network egress and a LIVE credential to fire, and a gate that cannot be
 // proved RED without committing a real secret is the gate #1206 deleted.
-// See parity-notes.md.
+// See docs/contributing/dagger-parity-notes.md.
 
 import (
 	"context"
@@ -31,14 +31,14 @@ import (
 
 // denyVersion pins the prebuilt cargo-deny binary fetched into denyBase. Matches
 // the local toolchain so `dagger call cargo-deny` and a developer's `cargo deny
-// check` agree byte-for-byte (local==CI). (Later: pin by digest — parity-notes.md.)
+// check` agree byte-for-byte (local==CI). (Later: pin by digest — docs/contributing/dagger-parity-notes.md.)
 const denyVersion = "0.19.0"
 
 // gitleaksVersion / gitleaksSHA256 pin the secret scanner. The checksum is the
 // one published in gitleaks_<version>_checksums.txt and is verified before the
 // binary is installed: this gate's own supply chain is the one place where
 // "downloaded it over the network and ran it" is least defensible.
-// (Later: pin by digest — parity-notes.md, same note as cargo-deny.)
+// (Later: pin by digest — docs/contributing/dagger-parity-notes.md, same note as cargo-deny.)
 const (
 	gitleaksVersion = "8.28.0"
 	gitleaksSHA256  = "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"

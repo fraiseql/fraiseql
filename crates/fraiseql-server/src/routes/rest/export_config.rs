@@ -1,9 +1,9 @@
 //! Configuration for REST export response formats (CSV, XLSX, Parquet).
 //!
 //! Export is a runtime concern (response serialization), so it lives in the
-//! server crate rather than in `fraiseql-core`'s compilation schema. See
-//! `.phases/2026-05-20-sprint/03-export-formats-269/phase-01-streaming-abstraction.md`
-//! for the design rationale and the layering rule it enforces.
+//! server crate rather than in `fraiseql-core`'s compilation schema. That is the
+//! layering rule: `fraiseql-core` decides what SQL runs, the server decides how
+//! the rows are serialized on the way out.
 
 use std::path::PathBuf;
 

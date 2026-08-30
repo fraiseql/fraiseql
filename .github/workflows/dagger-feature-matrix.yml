@@ -7,7 +7,7 @@ name: Dagger — feature matrix
 # — no test binaries, so NO backing services: it only pulls the rust:1.94.1 base (from
 # the private ghcr.io/fraiseql mirror, see mirror-base-images.yml). Runs on the
 # self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's cargo/sccache
-# cache volumes (warm = fast). See parity-notes.md.
+# cache volumes (warm = fast). See docs/contributing/dagger-parity-notes.md.
 #
 # ONE job, `dagger call feature-matrix`, which fans the combos across N lanes
 # (featureMatrixLanes in feature-combos.go), each lane on its own target cache volume

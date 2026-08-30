@@ -21,7 +21,7 @@ const (
 	// The PATCH is pinned deliberately: docker.io/library/rust:1.94 tracks the newest 1.94.x, so a
 	// floating tag silently stops testing the rust-version we declare the day 1.94.2 ships.
 	// The default (non-slim) variant is buildpack-deps-based, so gcc/perl/curl/git are present.
-	// (Later: pin by digest — see parity-notes.md Phase 02.)
+	// (Later: pin by digest — see docs/contributing/dagger-parity-notes.md Phase 02.)
 	//
 	// Pulled from ghcr.io/fraiseql/* (mirrored by .github/workflows/mirror-base-images.yml),
 	// NOT Docker Hub: the self-hosted runner shares one Docker Hub account whose pull-rate
@@ -101,7 +101,7 @@ const suiteCountPrelude = `cargo() {
 // The script runs verbatim inside a pinned container; we only add a throwaway
 // `git init` so the script's `cd "$(git rev-parse --show-toplevel)"` resolves to the
 // mounted tree, and we use gawk (not Ubuntu's default mawk) so the load-bearing
-// multi-line `\s` awk pass actually matches. See parity-notes.md.
+// multi-line `\s` awk pass actually matches. See docs/contributing/dagger-parity-notes.md.
 //
 // The `+ignore` directive keeps the 277 GB / 450k-file `target/` tree and the `.git`
 // dir off the upload entirely (the script reads neither — it scans crates/ and
@@ -135,7 +135,7 @@ func (m *FraiseqlCi) LintRoutes(
 // This replaces the plan's static .dagger/testdata/bad-route/ tree, which cannot work
 // with the verbatim script (the script greps crates//examples/ and runs
 // tools/check-route-syntax.sh from one git toplevel, so a standalone fixture dir would
-// lack the script and fail for the wrong reason). See parity-notes.md.
+// lack the script and fail for the wrong reason). See docs/contributing/dagger-parity-notes.md.
 func (m *FraiseqlCi) LintRoutesSelftest(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -405,6 +405,7 @@ func (m *FraiseqlCi) ShellGates(
 		// docker.io/library/fraiseql, which this project cannot publish to — #1129's
 		// defect, in the one place the file-level gates do not read (#1220).
 		"bash tools/check-doc-image-refs.sh",
+		"bash tools/check-phases-citations.sh",
 		"bash tools/tests/doc_image_refs_test.sh",
 		// Every publishable crate is published by release.yml, in the order this
 		// file's legacyPublishOrder dry-runs and self-tests. fraiseql-cdc-sinks
@@ -659,7 +660,7 @@ func (m *FraiseqlCi) shellBase() *dagger.Container {
 // migrations/routes, functions migrations, all of fraiseql-wire's tests/* binaries)
 // cannot run. They fail cleanly (no container leak), and are restored in Phase 04
 // via Dagger-native service bindings. The skip is logged explicitly. See
-// parity-notes.md Phase 03/04.
+// docs/contributing/dagger-parity-notes.md Phase 03/04.
 func (m *FraiseqlCi) Test(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -921,7 +922,7 @@ func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
 // bound into the test container; the tests read the injected env URL through the
 // fraiseql-test-support harness. This makes local == CI: `dagger call
 // test-integration` here provisions the same pinned, bound services as the
-// self-hosted workflow does. See parity-notes.md Phase 04.
+// self-hosted workflow does. See docs/contributing/dagger-parity-notes.md Phase 04.
 
 const (
 	// pgImage pins the integration Postgres.
@@ -1281,7 +1282,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// These are feature-gated on functions-runtime, which serverTestFeatures
 		// deliberately omits — so before this line NO leg executed them.
 		// (The #804 watchdog test is runtime-deno and stays local-only:
-		// embedded V8 SIGSEGVs in the exec sandbox, see parity-notes.md.)
+		// embedded V8 SIGSEGVs in the exec sandbox, see docs/contributing/dagger-parity-notes.md.)
 		// #992: widened beyond the original P16 cron/after_mutation filters —
 		// query_bridge, subsystems::loader, function_metrics and the
 		// pg_function_dlq observers module are functions-runtime-gated too and
