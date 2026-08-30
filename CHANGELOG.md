@@ -226,6 +226,24 @@ disagreed, and the promise was the part that was wrong.
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
 ### Removed
+- **`examples/federation/multi-cloud/` is deleted — it had no service implementation to repair (#1190).**
+
+  The directory was a `README.md`, a `docker-compose-local.yml` and three `schema.py` files.
+  The compose file declared `build:` blocks resolving to `users-service/Dockerfile`,
+  `orders-service/Dockerfile` and `products-service/Dockerfile`, none of which existed, and
+  bind-mounted four `local/*` files in a directory that did not exist either. All three
+  `schema.py` files failed at import on `key`, a name the SDK dropped a major version ago.
+
+  Repairing the authoring files would have left nothing to build, so this is a deletion
+  rather than a fix: making it work meant authoring a new three-service federation example
+  — Dockerfiles, init SQL, supergraph config — not correcting one. `federation/basic/` and
+  `federation/composite-keys/` remain as the federation examples that compose and run.
+
+  Twelve exemptions come out with it: nine in `tools/check-examples-integrity.sh` and three
+  in `tools/check-examples-compile.sh`. Both lists are checked in both directions, so the
+  deletion could not have been made without removing them — the gates named all nine stale
+  entries and failed until they were gone.
+
 
 - **Six SDK publish jobs are deleted, and the community Ruby one with them (#1130, #1223, #1237).**
 

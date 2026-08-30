@@ -83,9 +83,6 @@ fi
 # that nobody looked. That is what stops this list from becoming permanent.
 # ---------------------------------------------------------------------------
 declare -A KNOWN_BROKEN=(
-    ["examples/federation/multi-cloud/orders-service/schema.py"]="#1190"
-    ["examples/federation/multi-cloud/products-service/schema.py"]="#1190"
-    ["examples/federation/multi-cloud/users-service/schema.py"]="#1190"
     ["examples/ltree-hierarchical-data/organization-chart/schema.py"]="#1191"
     ["examples/ltree-hierarchical-data/product-catalog/schema.py"]="#1191"
 )

@@ -67,34 +67,7 @@ query {
 
 ---
 
-### 3. [Multi-Cloud](./multi-cloud/)
-
-Three-cloud deployment with AWS, GCP, and Azure.
-
-**Architecture:**
-
-- AWS us-east-1: Users Service
-- GCP europe-west1: Orders Service
-- Azure southeast-asia: Products Service
-
-**Key Features:**
-
-- Data locality (EU, US, APAC)
-- Single schema definition
-- Cost transparency
-- No vendor lock-in
-
-**Deployment:**
-
-```bash
-./deploy.sh aws us-east-1 users-subgraph
-./deploy.sh gcp europe-west1 orders-subgraph
-./deploy.sh azure southeast-asia products-subgraph
-```
-
----
-
-### 4. [Advanced Patterns](./advanced/)
+### 3. [Advanced Patterns](./advanced/)
 
 Complex federation scenarios.
 
@@ -120,7 +93,6 @@ Complex federation scenarios.
 |---------|-----------|----------|-----------|---------|
 | Basic | 2 | Simple ownership, local DB | Low | <5ms |
 | Composite | 2 | Multi-tenant, composite keys | Medium | <10ms |
-| Multi-Cloud | 3 | Cross-cloud, data locality | High | <50ms |
 | Advanced | 4+ | Complex patterns, sharing | High | Variable |
 
 ---
@@ -186,11 +158,6 @@ time curl -X POST http://localhost:4001/graphql \
 
 - Query: 5-20ms
 - Batch 100: ~20-30ms
-
-### Multi-Cloud (Three Subgraphs)
-
-- Query: 20-50ms
-- Batch 100: ~50-100ms
 
 ### Advanced (Four+ Subgraphs)
 
@@ -303,8 +270,7 @@ docker exec <service> env | grep DATABASE_URL
 
 1. **Run Basic Example:** Start with `basic/` for simple setup
 2. **Try Composite Keys:** Move to `composite-keys/` for multi-tenant
-3. **Multi-Cloud:** See `multi-cloud/` for cloud-native deployment
-4. **Advanced Patterns:** Explore `advanced/` for complex scenarios
+3. **Advanced Patterns:** Explore `advanced/` for complex scenarios
 
 ---
 

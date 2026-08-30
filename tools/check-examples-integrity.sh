@@ -61,15 +61,6 @@ compose_files() {
 # looked. That is what stops this list from becoming permanent.
 # ---------------------------------------------------------------------------
 declare -A KNOWN_BROKEN=(
-    ["examples/federation/multi-cloud/docker-compose-local.yml names a Dockerfile that does not exist: Dockerfile"]="#1190"
-    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-users.sql"]="#1190"
-    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-orders.sql"]="#1190"
-    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/init-products.sql"]="#1190"
-    ["examples/federation/multi-cloud/docker-compose-local.yml mounts a host path that does not exist: ./local/supergraph.yaml"]="#1190"
-    ["documented directory does not exist: examples/federation/multi-cloud/docker-local"]="#1190"
-    ["documented directory does not exist: examples/federation/multi-cloud/deployment/aws"]="#1190"
-    ["documented directory does not exist: examples/federation/multi-cloud/deployment/gcp"]="#1190"
-    ["documented directory does not exist: examples/federation/multi-cloud/deployment/azure"]="#1190"
     ["examples/federation/saga-complex/docker-compose.yml healthchecks with curl/wget over a base image that ships neither: python:3.11-slim"]="#1193"
 )
 declare -A SAW_BROKEN=()

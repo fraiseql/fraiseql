@@ -155,7 +155,6 @@ clickhouse-client < examples/clickhouse/arrow_integration.sql
 | [`typescript-client/`](typescript-client) | generated TypeScript client |
 
 Known broken, tracked, not repaired yet:
-[`federation/multi-cloud/`](federation/multi-cloud) ([#1190](https://github.com/fraiseql/fraiseql/issues/1190)),
 [`federation/saga-complex/`](federation/saga-complex) ([#1193](https://github.com/fraiseql/fraiseql/issues/1193)),
 [`ltree-hierarchical-data/`](ltree-hierarchical-data) ([#1191](https://github.com/fraiseql/fraiseql/issues/1191)).
 
