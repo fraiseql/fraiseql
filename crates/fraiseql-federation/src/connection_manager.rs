@@ -134,7 +134,7 @@ impl RemoteDatabaseConfig {
 ///
 /// # Feature gating
 ///
-/// The only writer that populates `adapters` is [`get_or_create_connection`],
+/// The only writer that populates `adapters` is `get_or_create_connection`,
 /// which is gated behind the `unstable` Cargo feature because direct
 /// remote-database federation is still WIP (the method currently always
 /// returns `FraiseQLError::Internal` with an "unstable API" message).
@@ -146,7 +146,6 @@ impl RemoteDatabaseConfig {
 /// available — downstream code that needs to wire a `ConnectionManager`
 /// into its own type can do so without depending on the `unstable` feature.
 ///
-/// [`get_or_create_connection`]: ConnectionManager::get_or_create_connection
 /// [`new`]: ConnectionManager::new
 /// [`close_connection`]: ConnectionManager::close_connection
 /// [`close_all`]: ConnectionManager::close_all

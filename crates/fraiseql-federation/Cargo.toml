@@ -84,3 +84,10 @@ saga = []
 
 [lints]
 workspace = true
+
+# docs.rs builds a crate with its DEFAULT features unless told otherwise, so the published
+# page showed none of the feature-gated API — and this workspace's documentation links
+# into that API from prose that is not gated (#1199). `all-features` makes the published
+# page the whole crate.
+[package.metadata.docs.rs]
+all-features = true

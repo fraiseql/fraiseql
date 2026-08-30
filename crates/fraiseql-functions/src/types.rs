@@ -98,10 +98,10 @@ pub struct EventPayload {
 /// writes run under (#594) — the function's `run_as`.
 ///
 /// This is the same authority model scheduled sources use
-/// ([`fraiseql_core::schema::RunAs`], `docs/architecture/sources.md:88-109`), applied
+/// (`fraiseql_core::schema::RunAs`, `docs/architecture/sources.md:88-109`), applied
 /// to event-dispatched functions: a *ceiling* the function can never exceed. A
 /// [`FunctionDefinition`] with no `run_as` runs **fail-closed** — its host's
-/// `fraiseql_query` executes under an anonymous [`system_job`] identity with no
+/// `fraiseql_query` executes under an anonymous `SecurityContext::system_job` identity with no
 /// roles/scopes/tenant, so RLS and field-authorization deny every write until an
 /// operator grants a ceiling. Granting authority is a deliberate act, never a
 /// default.
@@ -109,9 +109,11 @@ pub struct EventPayload {
 /// It is a distinct type from the core `RunAs` so the base `fraiseql-functions`
 /// crate (used by the CLI, codegen, and authoring) need not depend on
 /// `fraiseql-core`; the two share an identical JSON shape and the wiring layer
-/// (`host-live`) converts to a `SecurityContext` via [`FunctionDefinition::identity`].
+/// (`host-live`) converts to a `SecurityContext` via `FunctionDefinition::identity`.
 ///
-/// [`system_job`]: fraiseql_core::security::SecurityContext::system_job
+/// Those three items live behind the `host-live` feature, which is what pulls in
+/// `fraiseql-core`; they are named rather than linked so this page resolves in the
+/// default build, which is the one a bare `cargo doc` produces (#1199).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunAs {
     /// Roles granted to the function's background write identity (the RBAC ceiling).
@@ -172,7 +174,7 @@ pub struct FunctionDefinition {
     /// The authority ceiling this function's `fraiseql_query` bridge writes run
     /// under (#594). Absent ⇒ **fail-closed**: the bridge runs under an anonymous
     /// identity and RLS/field-authz deny writes. See [`RunAs`] and
-    /// [`identity`](Self::identity).
+    /// `identity()` (feature `host-live`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_as: Option<RunAs>,
 

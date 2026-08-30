@@ -24,7 +24,8 @@
 //! - Call [`ChangeLogListener::record_dispatched`] once a batch's actions have run. Recording
 //!   *after* dispatch is what keeps delivery at-least-once; recording at all is what keeps the
 //!   commit-lag rescan from re-delivering across a restart.
-//! - Restore the persisted cursor at startup (via [`crate::checkpoint::CheckpointStore::load`] +
+//! - Restore the persisted cursor at startup (via `checkpoint::CheckpointStore::load`,
+//!   feature `checkpoint`, +
 //!   [`ChangeLogListenerConfig::with_resume_from`]) and persist it after each dispatched batch
 //!   (#805). The cursor is now a scan bound and the floor a sweep drops back to, so without it a
 //!   fresh process still walks the whole change log.
@@ -164,7 +165,7 @@ impl ChangeLogListenerConfig {
     /// Set the stable listener identity keying the dispatch ledger (#935).
     ///
     /// Drivers that persist a checkpoint should pass the **same** id they use
-    /// for [`crate::checkpoint::CheckpointStore`], so cursor and ledger describe
+    /// for `checkpoint::CheckpointStore` (feature `checkpoint`), so cursor and ledger describe
     /// one listener.
     #[must_use]
     pub fn with_listener_id(mut self, id: impl Into<String>) -> Self {

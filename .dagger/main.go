@@ -195,6 +195,7 @@ func (m *FraiseqlCi) Preflight(
 		{"shell-gates", m.ShellGates},
 		{"fmt", m.Fmt},
 		{"rustdoc", m.Rustdoc},
+		{"rustdoc-default", m.RustdocDefault},
 		{"clippy", m.Clippy},
 		{"check-default", m.CheckDefault},
 		{"check-fuzz", m.CheckFuzz},
@@ -312,6 +313,30 @@ func (m *FraiseqlCi) Rustdoc(
 	return m.rustSrc(source).
 		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
 		WithExec([]string{"cargo", "doc", "--workspace", "--all-features", "--no-deps"}).
+		Stdout(ctx)
+}
+
+// RustdocDefault:
+// `RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps` — the DEFAULT feature set.
+//
+// The same blindness `CheckDefault` closes for the compiler, closed for rustdoc. The
+// `--all-features` pass above resolves every intra-doc link, because every link target's
+// feature is on; on the default features, 22 links into feature-gated API were dead and
+// nothing saw it (#1199). That is the configuration a bare `cargo doc` produces in a
+// consuming workspace, and — until this change added `all-features` to each published
+// crate's `[package.metadata.docs.rs]` — the one docs.rs built.
+//
+// `--keep-going`: without it cargo stops scheduling after the first crate that fails to
+// document, so a workspace with several broken crates reports one per run. #1199 was
+// filed naming two crates; the whole set was seven.
+func (m *FraiseqlCi) RustdocDefault(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.rustSrc(source).
+		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
+		WithExec([]string{"cargo", "doc", "--workspace", "--no-deps", "--keep-going"}).
 		Stdout(ctx)
 }
 

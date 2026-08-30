@@ -100,9 +100,9 @@ pub mod prelude {
     //! - GraphQL execution: [`Executor`], [`ExecutorAdapter`]
     //! - GraphQL parsing: [`ParsedQuery`], [`parse_query`]
     //! - Tenancy: [`TenantContext`], [`Tenant`]
-    //! - Observer system (feature `observers`): [`EntityEvent`], [`EventKind`],
-    //!   [`ObserverExecutor`]
-    //! - HTTP server (feature `server`): [`Server`], [`ServerConfig`]
+    //! - Observer system (feature `observers`): `EntityEvent`, `EventKind`,
+    //!   `ObserverExecutor`
+    //! - HTTP server (feature `server`): `Server`, `ServerConfig`
 
     // Error handling
     // Database access

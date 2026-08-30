@@ -5,7 +5,7 @@
 //! heartbeats and "failover" re-elects a leader among this process's own
 //! listeners. It provides no cross-process coordination — for that, use the
 //! advisory lease ([`CheckpointLease`](super::CheckpointLease)) plus the
-//! durable cursor in [`crate::checkpoint`].
+//! durable cursor in `checkpoint` (feature `checkpoint`).
 
 use std::{
     sync::{

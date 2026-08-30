@@ -298,6 +298,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`cargo doc` on the default features is a gate, and the 22 links that failed it are
+  fixed (#1199).**
+
+  The rustdoc gate ran `--all-features` only, which resolves every intra-doc link by
+  construction — every link target's feature is on. On the default feature set, the set a
+  bare `cargo doc` produces in a consuming workspace, 22 links into feature-gated API were
+  dead across seven crates. The issue recorded seven links in two crates; that was
+  measured in June and the tree had grown, which is what a gate would have prevented.
+
+  `RustdocDefault` is now a sibling of `Rustdoc` in the Dagger preflight leg and a step in
+  `make preflight` — the exact analogue of `CheckDefault` beside `Clippy`. It runs with
+  `--keep-going`: without it cargo stops scheduling after the first crate that fails to
+  document, and the failure set reads as one crate instead of seven.
+
+  Every published crate also gains `[package.metadata.docs.rs] all-features = true`. None
+  had it, so docs.rs was building each with default features and publishing pages that
+  omitted the feature-gated API entirely — the fix for the artifact, distinct from the fix
+  for the blind spot.
+
+  The links themselves now name their target and its feature (`` `CheckpointStore`
+  (feature `checkpoint`) ``) rather than linking to an item the reader's build may not
+  have. On docs.rs, where all features are on, the API they name is present on the page.
+
 - **The Java SDK has a style gate that runs and can fail (#1252).**
 
   `java-sdk.yml` had a step named "Check style" carrying `continue-on-error: true`, over a

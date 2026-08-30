@@ -179,7 +179,7 @@ pub enum PromotionDecision {
 /// This is a pure function on purpose — it is the security-relevant decision of the whole
 /// flow, so it is stated once, unit-tested exhaustively, and consulted by the one caller
 /// rather than being spread across SQL branches. It mirrors
-/// [`effective_saml_email_verified`](crate::saml::effective_saml_email_verified), which
+/// `saml::effective_saml_email_verified` (feature `auth-saml`), which
 /// does the same job for the SAML path.
 ///
 /// The refusal is checked **first**: a claimed address is refused whatever state the

@@ -239,7 +239,7 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// back with `_remote_execution: true` without contacting any subgraph, so
     /// a caller believed the owning service applied a write it never heard of.
     /// It now fails loud. Real cross-subgraph mutation propagation exists —
-    /// register the owning subgraph on a [`crate::SagaCoordinator`] (or use
+    /// register the owning subgraph on a `SagaCoordinator` (feature `saga`) (or use
     /// [`crate::HttpMutationClient`] directly), which dispatches the mutation
     /// over HTTPS with SSRF validation and an idempotency key.
     ///

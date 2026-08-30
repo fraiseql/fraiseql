@@ -4,7 +4,7 @@
 //! and drive the results into the database via mutations, resuming from a durable
 //! cursor and firing on exactly one replica. This module holds the two generic,
 //! driver-light primitives that make that rock-solid, placed beside the observer
-//! [`CheckpointStore`](crate::checkpoint::CheckpointStore) /
+//! `CheckpointStore` (feature `checkpoint`) /
 //! [`CheckpointLease`](crate::listener::CheckpointLease) family because they are
 //! the same concern — durable watermarks and multi-replica coordination — and the
 //! functions subsystem that drives sources already depends on this crate.

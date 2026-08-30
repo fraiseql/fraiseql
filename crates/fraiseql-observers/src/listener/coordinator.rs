@@ -12,7 +12,7 @@
 //! lease ([`CheckpointLease::postgres`](super::CheckpointLease) /
 //! [`CheckpointLease::redis`](super::CheckpointLease)) — one lease holder polls,
 //! the others stand by — together with the durable cursor in
-//! [`crate::checkpoint`].
+//! `checkpoint` (feature `checkpoint`).
 
 use std::{
     sync::{

@@ -9,7 +9,7 @@
 //! ## Compare-and-swap, not last-writer-wins
 //!
 //! Advances are guarded by a monotonic `version` generation counter, mirroring
-//! [`CheckpointStore::compare_and_swap`](crate::checkpoint::CheckpointStore). An
+//! `CheckpointStore::compare_and_swap` (feature `checkpoint`). An
 //! advance that read version `N` applies only while the row is still at `N`, so a
 //! stale writer — one that acquired the single-firing lease, then lost it across a
 //! failover while another replica moved the cursor on — can never regress the

@@ -980,6 +980,8 @@ preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-as
 	@bash tools/check-audit-lockstep.sh
 	@echo "=== preflight: rustdoc (-D warnings, --all-features) ==="
 	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
+	@echo "=== preflight: rustdoc (default features — the links --all-features resolves) ==="
+	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --keep-going
 	@echo "=== preflight: clippy (--all-targets --all-features -D warnings) ==="
 	@$(MAKE) --no-print-directory clippy
 	@echo "=== preflight: check-default (default features — the feature-OFF arms) ==="

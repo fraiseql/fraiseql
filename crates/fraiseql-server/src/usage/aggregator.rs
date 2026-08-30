@@ -113,7 +113,7 @@ pub struct UsageSummary {
 /// ## Persistence
 ///
 /// By default, the aggregator uses [`NoopBackend`] and counters are lost on
-/// restart.  Pass a [`RedisBackend`] (or any [`UsageBackend`] impl) to
+/// restart.  Pass a `RedisBackend` (feature `redis`, or any [`UsageBackend`] impl) to
 /// [`UsageAggregator::new_with_backend`] to enable durable storage.
 ///
 /// ```rust,no_run

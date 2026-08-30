@@ -1,7 +1,7 @@
 //! Serverless-functions subsystem types shared across the server.
 //!
 //! [`FunctionsSubsystem`] is assembled at startup by
-//! [`loader::build_functions_subsystem`] from the `[functions]` section of the
+//! `loader::build_functions_subsystem` (feature `functions`) from the `[functions]` section of the
 //! compiled schema; [`BeforeMutationHooks`] is the cloneable hot-path snapshot
 //! of it that lives in `AppState`.
 //!
@@ -108,7 +108,7 @@ impl BeforeMutationHooks {
     ///
     /// For the full compiled-schema resolution (per-function settings +
     /// `FRAISEQL_FUNCTIONS_*` env overrides), use
-    /// [`FunctionsSubsystem::into_before_mutation_hooks`] instead.
+    /// `FunctionsSubsystem::into_before_mutation_hooks` (feature `functions`) instead.
     #[must_use]
     // Reason: const-eligibility is feature-dependent — with `functions-runtime`
     // the body calls `Arc::new` (not const), without it the lint fires. A

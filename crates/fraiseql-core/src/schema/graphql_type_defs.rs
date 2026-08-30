@@ -97,7 +97,7 @@ pub struct TypeDefinition {
     ///
     /// Both `_entities` consumers read it as a fallback behind the backing query, mirroring
     /// the relation fallback in
-    /// [`entity_sources()`](super::CompiledSchema::entity_sources): the deny gate refuses an
+    /// `CompiledSchema::entity_sources()` (feature `federation`): the deny gate refuses an
     /// anonymous caller for a scoped type, and the per-row filter composes the equality
     /// predicate. Where a query *and* its return type both declare a column, load-time
     /// validation refuses a schema whose two declarations disagree
