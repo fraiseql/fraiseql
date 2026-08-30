@@ -78,6 +78,20 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9  # v7
 
+      # Honesty gate (audit H30, #1130): refuse to publish when the manifest version
+      # does not match the tag. release.yml's Python publish has had this since H30,
+      # but THIS publisher — the one a `python-sdk/vX.Y.Z` tag fires — did not, so the
+      # gate could be bypassed entirely by tagging the SDK directly.
+      - name: Assert manifest matches tag
+        run: |
+          source tools/lib/release_helpers.sh
+          TAG_VERSION="${GITHUB_REF_NAME#python-sdk/v}"
+          MANIFEST_VERSION=$(
+            grep -m1 '^version' sdks/official/fraiseql-python/pyproject.toml \
+              | sed -E 's/.*"([^"]+)".*/\1/'
+          )
+          assert_sdk_version_matches "$MANIFEST_VERSION" "$TAG_VERSION" "Python SDK"
+
       - name: Build distribution
         working-directory: sdks/official/fraiseql-python
         run: uv build

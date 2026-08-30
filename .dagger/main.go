@@ -406,6 +406,12 @@ func (m *FraiseqlCi) ShellGates(
 		// compile. Reads manifests with tomllib — there is no cargo in this container.
 		"python3 tools/check-public-api-reexports.py",
 		"make test-public-api-reexports-gate",
+		// The SDKs the repo says it publishes are exactly the ones it can publish
+		// (#1130). Eight sat frozen at 2.1.6 while README called two of them Tier 1
+		// (Supported), and six had a live publish job that would have pushed 2.1.6
+		// to a registry that will not take a version number back.
+		"python3 tools/check-sdk-publication-claims.py",
+		"make test-sdk-publication-claims-gate",
 		"bash tools/check-sdk-dead-surface.sh",
 		// No example provisions or points at a backend #374 removed. The
 		// PostgreSQL-only de-scope covered crates/; examples/ kept a running

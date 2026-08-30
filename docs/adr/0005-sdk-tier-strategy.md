@@ -1,6 +1,13 @@
 # ADR-0005: SDK Tiering Strategy (6 Supported, 10 Community)
 
-## Status: Accepted
+## Status: Superseded by [ADR-0019](0019-sdk-publication-boundary.md) (2026-08-30)
+
+> The tiering below had drifted from the repository for years: four SDKs it calls
+> "Community (Deprecated)" are official and score 18/19, F# is missing from it
+> entirely, and the two languages it names Tier 1 (Supported) alongside Python and
+> TypeScript — Java and Go — had never been published to any registry. ADR-0019
+> replaces the tier vocabulary with a checkable property: published, or source-only.
+> Retained for the history of the decision.
 
 ## Context
 

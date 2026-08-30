@@ -90,10 +90,38 @@ removed and why.
 
 ## Schema Authoring SDKs
 
-| Tier | Languages |
-|------|-----------|
-| Tier 1 (Supported) | Python, TypeScript, Java, Go |
-| Tier 2 (Maintained) | PHP, Rust |
+Eleven SDKs live in `sdks/official/`. Three are published to a package registry and
+are versioned in lockstep with the engine; the other eight are **source-only** — they
+are tested on every push and score on the conformance suite, but no release publishes
+them, so use them by vendoring the directory. This table is enforced by
+`make lint-sdk-publication-claims`, which fails if it disagrees with what
+`tools/release.sh` bumps or with what the workflows can actually publish.
+
+<!-- sdk-table:start -->
+
+| SDK | Language | Registry | Install |
+|-----|----------|----------|---------|
+| `fraiseql-python` | Python 3.11+ | PyPI | `pip install fraiseql` |
+| `fraiseql-typescript` | TypeScript / Node.js | npm | `npm install fraiseql` |
+| `fraiseql-rust` | Rust | crates.io | `cargo add fraiseql` |
+| `fraiseql-csharp` | C# / .NET 8+ | — | vendor `sdks/official/fraiseql-csharp` |
+| `fraiseql-dart` | Dart / Flutter | — | vendor `sdks/official/fraiseql-dart` |
+| `fraiseql-elixir` | Elixir | — | vendor `sdks/official/fraiseql-elixir` |
+| `fraiseql-fsharp` | F# / .NET 8+ | — | vendor `sdks/official/fraiseql-fsharp` |
+| `fraiseql-go` | Go 1.23+ | — | vendor `sdks/official/fraiseql-go` |
+| `fraiseql-java` | Java 21+ | — | vendor `sdks/official/fraiseql-java` |
+| `fraiseql-php` | PHP 8.2+ | — | vendor `sdks/official/fraiseql-php` |
+| `fraiseql-ruby` | Ruby 3.2+ | — | vendor `sdks/official/fraiseql-ruby` |
+
+<!-- sdk-table:end -->
+
+Source-only is a statement about distribution, not quality: conformance scores are in
+[`sdks/official/README.md`](sdks/official/README.md), and most source-only SDKs score
+18/19 or 19/19. See [ADR-0019](docs/adr/0019-sdk-publication-boundary.md).
+
+> **Go note.** `sdks/official/fraiseql-go/go.mod` declares
+> `module github.com/fraiseql/fraiseql-go`, a repository that does not exist, so
+> `go get` cannot fetch it by that path or any other (#1224). Vendor the directory.
 
 ## Installation
 
@@ -109,7 +137,10 @@ fraiseql = { version = "2.15.0", features = ["server"] }
 ```bash
 pip install fraiseql        # Python
 npm install fraiseql        # TypeScript
+cargo add fraiseql          # Rust
 ```
+
+The other eight SDKs are source-only — see the table above.
 
 **Feature flags:**
 

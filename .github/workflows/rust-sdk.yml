@@ -69,6 +69,20 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
 
+      # Honesty gate (audit H30, #1130): refuse to publish when the manifest version
+      # does not match the tag. Python and TypeScript have had this since H30; this
+      # publisher did not, so a `rust-sdk/vX.Y.Z` tag would have pushed whatever
+      # version the manifest happened to hold to crates.io — irreversibly.
+      - name: Assert manifest matches tag
+        run: |
+          source tools/lib/release_helpers.sh
+          TAG_VERSION="${GITHUB_REF_NAME#rust-sdk/v}"
+          MANIFEST_VERSION=$(
+            grep -m1 '^version' sdks/official/fraiseql-rust/Cargo.toml \
+              | sed -E 's/.*"([^"]+)".*/\1/'
+          )
+          assert_sdk_version_matches "$MANIFEST_VERSION" "$TAG_VERSION" "Rust SDK"
+
       - name: Publish
         working-directory: sdks/official/fraiseql-rust
         run: cargo publish

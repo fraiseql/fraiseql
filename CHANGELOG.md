@@ -183,6 +183,23 @@ disagreed, and the promise was the part that was wrong.
 
 ### Removed
 
+- **Six SDK publish jobs are deleted, and the community Ruby one with them (#1130, #1223, #1237).**
+
+  `csharp`, `dart`, `elixir`, `fsharp`, `java` and `php` had tag-triggered publish jobs
+  while `tools/release.sh` bumped only the Rust, Python and TypeScript manifests. Pushing
+  `csharp-sdk/v2.15.0` would have published **2.1.6** to NuGet, under a tag saying 2.15.0,
+  to a registry that does not allow a version number to be re-used. Nothing had fired only
+  because no SDK-scoped tag has ever been pushed. Their test jobs are untouched.
+
+  `ruby-sdk.yml`'s publisher was worse and outside #1130's inventory: it ran `gem push`
+  against the **community** SDK (`sdks/community/fraiseql-ruby`), whose gemspec declares
+  `1.0.0` (#1237).
+
+  `dart-sdk.yml`'s job is the one #1223 describes — named "Publish to pub.dev", with
+  `dart pub publish --dry-run` as its only publish step and no non-dry-run arm. It would
+  have run, published nothing, and reported success. Deleted rather than completed: Dart
+  is source-only under ADR-0019.
+
 
 - **`.secrets.baseline` is deleted — it named another tool's artifact and nothing read it (#1212).**
 
@@ -227,6 +244,35 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+
+- **The SDKs the repository says it publishes are the ones it can publish (#1130, #1224).**
+
+  Eleven official SDKs; three had ever reached a registry. `README.md` advertised **Java
+  and Go as Tier 1 (Supported)** — NuGet, Hex, RubyGems, Packagist and pub.dev all answer
+  404 for the eight, and Go's `go.mod` names `github.com/fraiseql/fraiseql-go`, a
+  repository that does not exist, so `go get` cannot fetch it by that path or any other.
+
+  The README now carries a table of what each SDK's distribution actually is — registry
+  and install line for Rust, Python and TypeScript; "vendor the directory" for the other
+  eight — and the Go SDK's own README says plainly that `go get` cannot work, with the
+  `go mod edit -replace` recipe that does.
+
+  Two of the three surviving publishers did not check what they were publishing.
+  `rust-sdk.yml` and `python-sdk.yml` ran `cargo publish` / `uv publish` with no
+  `assert_sdk_version_matches`, so a direct `rust-sdk/v*` or `python-sdk/v*` tag bypassed
+  the H30 honesty gate that `release.yml` applies. Both assert now.
+
+  `make lint-sdk-publication-claims` keeps it true by comparing three artifacts that exist
+  for their own reasons — the manifests `tools/release.sh` bumps, the publish jobs in
+  `.github/workflows/`, and the README table — and failing when any one drifts. Pointed at
+  the tree before this change it reports the real state: nine SDKs publishable against
+  three bumped, and eight publishers asserting nothing.
+
+  [ADR-0019](docs/adr/0019-sdk-publication-boundary.md) records why the tier vocabulary is
+  gone. ADR-0005's tiering had drifted for years — it calls C#, Ruby, Elixir and Dart
+  "Community (Deprecated)" though all four are official and score 18/19, and omits F#
+  entirely — because a tier is a promise about future effort, and nothing in a repository
+  can contradict a promise. Published-or-source-only is a property a gate can check.
 
 - **`webhook_replay_header_dedup_pg` isolates its tests from each other (#1235).**
 

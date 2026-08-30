@@ -22,9 +22,22 @@ Go Code (struct tags + builders)
 
 ## Installation
 
-```bash
-go get github.com/fraiseql/fraiseql-go
-```
+> **This SDK is not published, and `go get` cannot fetch it (#1224).** `go.mod` declares
+> `module github.com/fraiseql/fraiseql-go`, a repository that does not exist, and the
+> module has no versions under the monorepo path either — no `sdks/official/fraiseql-go/vX.Y.Z`
+> tag has ever been cut. Both proxy lookups fail.
+>
+> Vendor the directory instead:
+>
+> ```bash
+> mkdir -p third_party && cp -r <fraiseql-checkout>/sdks/official/fraiseql-go third_party/
+> go mod edit -replace github.com/fraiseql/fraiseql-go=./third_party/fraiseql-go
+> ```
+>
+> The import paths below are unchanged by that: the `replace` directive resolves the
+> declared module path to the vendored copy. See
+> [ADR-0019](../../../docs/adr/0019-sdk-publication-boundary.md) for why this SDK, and
+> seven others, are source-only.
 
 **Requirements**: Go 1.22+
 
