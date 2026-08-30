@@ -36,6 +36,7 @@ const MANIFEST: &[(&str, &str)] = &[
     ("graphql_path", "GraphQL route mount path"),
     ("health_path", "health endpoint path"),
     ("readiness_path", "readiness endpoint path"),
+    ("liveness_path", "liveness endpoint path (#1217: mounted by admin_router, never DB-gated)"),
     ("introspection_path", "introspection endpoint path"),
     ("subscription_path", "subscription (WS) route path"),
     (
