@@ -155,9 +155,6 @@ clickhouse-client < examples/clickhouse/arrow_integration.sql
 | [`mutation-patterns/`](mutation-patterns) | 18 PL/pgSQL mutation patterns with a test script |
 | [`typescript-client/`](typescript-client) | generated TypeScript client |
 
-Known broken, tracked, not repaired yet:
-[`federation/saga-complex/`](federation/saga-complex) ([#1193](https://github.com/fraiseql/fraiseql/issues/1193)).
-
 ---
 
 ## What keeps this file honest

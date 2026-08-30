@@ -315,6 +315,37 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`examples/federation/saga-complex` boots (#1193), and three saga examples stop naming an image tag that does not exist (#1259).**
+
+  The five subgraph stubs ran `from flask import Flask` on `python:3.11-slim`, which
+  does not have Flask, and nothing installed it — so all five exited at the first
+  import. The healthchecks could not report it either: they were `curl -f` on an image
+  with neither curl nor wget. The stubs now run on Python's standard library
+  (`http.server`), so the stack needs no package index at container start, and the
+  healthcheck is a stdlib `urllib` probe.
+
+  Three further defects found by actually starting it:
+
+  * `ghcr.io/apollographql/router:latest` **does not exist** — that repository publishes
+    no `latest` tag. #1193 had recorded the image as unpullable but blamed the registry;
+    ghcr.io resolves a known-good image fine. `saga-basic`, `saga-complex` and
+    `saga-manual-compensation` all carried it; all three now pin `v1.59.0`, which is
+    what the three working federation examples already used.
+  * `saga-complex`'s `fixtures/supergraph.graphql` was rejected by the router: its
+    `join__*` directives declared `graph: String` while `@join__type(graph: FLIGHT)`
+    passes an enum value. With the join spec imported, `join__FieldSet` and
+    `link__Purpose` declared and `@join__type` on the four types that lacked it, the
+    router starts and answers. `saga-basic` and `saga-manual-compensation` are rejected
+    too, for different reasons, and are not repaired here (#1259).
+  * `fixtures/router.yaml` used the `server:` section, which the router reports as
+    deprecated on every start and documents as a future error. It is `supergraph:` and
+    `cors:` now.
+
+  `tools/check-examples-integrity.sh` gains a check that an example's compose services
+  pin a real tag. `check-deploy-security.sh` already rejects `:latest`, but its scan
+  list does not cover `examples/` — the same defect class (#1129) has now been found
+  twice outside it.
+
 - **`array_overlaps` emitted an operator PostgreSQL does not have (#1258).**
 
   `jsonb && jsonb` does not exist — `&&` is an array/range operator — so the predicate

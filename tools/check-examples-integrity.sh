@@ -61,7 +61,6 @@ compose_files() {
 # looked. That is what stops this list from becoming permanent.
 # ---------------------------------------------------------------------------
 declare -A KNOWN_BROKEN=(
-    ["examples/federation/saga-complex/docker-compose.yml healthchecks with curl/wget over a base image that ships neither: python:3.11-slim"]="#1193"
 )
 declare -A SAW_BROKEN=()
 
@@ -434,6 +433,35 @@ while IFS= read -r dockerfile; do
         fi
     done
 done < <(find examples -name 'Dockerfile*' | sort)
+
+echo "→ example compose services pin an image tag, never :latest"
+# Three saga examples pinned `ghcr.io/apollographql/router:latest`, a tag that
+# repository has never published, so their router could not start (#1259).
+# `tools/check-deploy-security.sh` already rejects `:latest`, but its scan list
+# does not cover `examples/` — the same defect class (#1129) has now been found
+# twice outside it. A floating tag is also the #1213 hazard: it resolves to
+# something different on the day CI runs than on the day a reader tries it.
+while IFS= read -r compose; do
+    while IFS= read -r line; do
+        image="${line#*image:}"
+        image="$(printf '%s' "$image" | tr -d '"'"'"' ' | sed 's/#.*//')"
+        [ -n "$image" ] || continue
+        case "$image" in
+            *'${'*) continue ;;   # interpolated; resolved elsewhere
+        esac
+        case "$image" in
+            *:latest)
+                fail "$compose pins \`$image\`" \
+                     "A floating tag resolves to something different on the day CI runs" \
+                     "than on the day a reader tries it — and this one does not exist at all" \
+                     "for some repositories. Pin the version the example was verified against." ;;
+            *:*) ;;
+            *)
+                fail "$compose names \`$image\` with no tag, which means :latest" \
+                     "Pin the version the example was verified against." ;;
+        esac
+    done < <(grep -E '^[[:space:]]*image:[[:space:]]*' "$compose")
+done < <(find examples -name 'docker-compose*.yml' -o -name 'compose*.yml' | sort)
 
 # The other direction: an exemption that no longer describes anything is a claim the
 # tree has stopped making. Fail on it, so repairing an example also deletes its row

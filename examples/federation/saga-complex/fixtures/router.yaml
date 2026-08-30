@@ -1,7 +1,14 @@
-server:
-  bind: 0.0.0.0
-  port: 4000
-  graphql_path: /graphql
-  cors:
-    origins:
-      - http://localhost:*
+# Apollo Router configuration.
+#
+# The `server:` section this used to carry was removed in Router 1.x: it is
+# reported as deprecated on every start ("remove the section, now empty") and is
+# documented to become an error. `supergraph:` and `cors:` are its replacements.
+supergraph:
+  listen: 0.0.0.0:4000
+  path: /graphql
+
+cors:
+  # The subgraph stubs and the router are local to this stack; an example that
+  # names one origin is clearer than one that allows any.
+  origins:
+    - http://localhost:4000

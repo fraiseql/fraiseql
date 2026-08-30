@@ -99,7 +99,7 @@ services:
 
   # Apollo Router (Gateway)
   apollo-router:
-    image: ghcr.io/apollographql/router:latest
+    image: ghcr.io/apollographql/router:v1.59.0
     environment:
       ROUTER_APOLLO_KEY: ${ROUTER_APOLLO_KEY:-}
     ports:
