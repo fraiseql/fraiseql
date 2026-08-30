@@ -1,21 +1,38 @@
+# Apollo Router configuration.
+#
+# `subgraphs:`, `server:` and `logging:` are not keys the router accepts. It
+# refused to boot with "no valid configuration was supplied" and the container
+# exited, so this stack could never serve a query (#1259). Repairing the
+# supergraph did not surface that: `router --supergraph <file>` never reads
+# `--config`, so the config had still never been loaded by any router.
+#
+# `router config upgrade` does not rescue them — it carries migrations for
+# renamed keys, and these were never keys. The shape below is what
+# `router config schema` (v1.59.0) accepts.
+#
+# The bank subgraph's routing URL is deliberately absent: it comes from
+# `@join__graph(url:)` in the supergraph, and `override_subgraph_url` is the key
+# that overrides it.
 supergraph:
   listen: 0.0.0.0:4000
   path: /graphql
 
-subgraphs:
-  bank:
-    routing_url: http://bank-service:4000/graphql
+health_check:
+  listen: 0.0.0.0:8088
+  path: /health
 
-server:
-  bind: 0.0.0.0
-  port: 4000
-  graphql_path: /graphql
-  health_check_path: /health
-  cors:
-    origins:
-      - http://localhost:*
-      - http://127.0.0.1:*
-  request_timeout: 30s
+cors:
+  # The subgraph and the router are local to this stack; naming one origin is
+  # clearer in an example than allowing any.
+  origins:
+    - http://localhost:4005
 
-logging:
-  level: info
+# Subgraph errors are redacted by default, which leaves a failing example
+# reporting nothing an operator can act on. The bank subgraph is a local stub in
+# this same stack, so surface what it says.
+include_subgraph_errors:
+  all: true
+
+traffic_shaping:
+  router:
+    timeout: 30s

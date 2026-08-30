@@ -415,6 +415,50 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`saga-basic` and `saga-manual-compensation` come up, and pass their own tests (#1259).**
+
+  Both had had only their supergraphs repaired, and that was checked with
+  `router --supergraph <file>` — which never reads `--config`. So neither
+  `fixtures/router.yaml` had been loaded by any router, and neither was valid:
+  `subgraphs:`, `server:`, `logging:`, `telemetry.instrumentation`,
+  `telemetry.trace_config`, `traffic_shaping.router.rate_limit` and
+  `traffic_shaping.all_subgraphs` are not keys the router accepts. It exited with
+  "no valid configuration was supplied" on every start. `router config upgrade`
+  does not rescue them: it carries migrations for renamed keys, and these were
+  never keys.
+
+  Starting the stacks then found what reading them had not:
+
+  - every SQL statement in bank-service named a table that does not exist —
+    `accounts`, `transfers`, `audit_log`, `compensation_records` against a schema
+    that creates `tb_account`, `tb_transfer`, `tb_audit_log` and
+    `tb_compensation_record` — and stored account ids where the ledger holds
+    `fk_from_account`/`fk_to_account` surrogate keys;
+  - every query in that stack's own `test-saga.sh` passes inline literals and no
+    variables, while every handler read `variables.get(...)`, so PostgreSQL was
+    asked `WHERE id = NULL`;
+  - `saga-basic`'s users-service required the literal word `query` in the
+    document, which the router omits for anonymous operations, so the example's
+    own first query came back "Unknown query";
+  - the same dispatcher tested `'user' in query`, which the router's
+    `<Name>__users__<n>` operation renaming makes true for *every* document it
+    sends that subgraph. `user(id:)` was answered with the user list, and the
+    router returned `{"data":{"user":null}}` with no error at all;
+  - `test-saga.sh` reserved inventory against `order-$(date +%s)` where
+    `tb_reservation.order_id` is `UUID NOT NULL`;
+  - its idempotency test asserted on a `message` field it never selected, so the
+    router stripped the field and the assertion read null under any
+    implementation.
+
+  Both stacks now start and pass, and both scripts have been proved to fail —
+  pointed at a dead port, and with individual fixes reverted alone. `ROUTER_URL`
+  is honoured rather than hardcoded, so a machine already using 4000, 4001, 5432
+  or 5433 can run them behind a port override; `up -d --build` replaces `up -d`,
+  which silently retested the previous image after an edit; and
+  `saga-manual-compensation` waits for the router instead of sleeping three
+  seconds and reporting the first query as the failure. Subgraph errors are no
+  longer redacted in either stack, so a failing example says what went wrong.
+
 - **Both shipped Arrow Flight clients authenticate, and stop showcasing an unimplemented call (#1200).**
 
   The server authenticates `do_get` **before** it decodes the ticket, so a call with no

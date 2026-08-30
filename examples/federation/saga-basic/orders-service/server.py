@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import re
 import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify
@@ -12,6 +13,57 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# The Apollo Router renames every subgraph operation to `<Name>__<subgraph>__<n>`
+# and drops the `query` keyword from anonymous operations. Both broke the
+# substring dispatch these stubs used to do, so they match the selection set
+# instead. See root_field().
+ROOT_FIELD_RE = re.compile(r"\{\s*([A-Za-z_][A-Za-z0-9_]*)")
+ARG_RE_VAR = r'{name}\s*:\s*\$(\w+)'
+ARG_RE_LIT = r'{name}\s*:\s*"([^"]*)"'
+
+
+def root_field(query):
+    """The first field of the operation's selection set.
+
+    Substring-matching the whole document does not work against a real router.
+    Two measured reasons (#1259):
+
+    1. The router renames each subgraph operation to `<Name>__<subgraph>__<n>`,
+       so every document this service receives carries the subgraph's own name.
+       A dispatcher testing `'user' in query` therefore matched `user(id:)` and
+       `users` alike and answered the list for both — the router found no `user`
+       field in the reply and returned `{"data":{"user":null}}` with no error.
+    2. The router omits the `query` keyword for an anonymous operation, so
+       `{ users { id } }` arrives with no `query` in it. A dispatcher requiring
+       that keyword rejected this example's own first query as "Unknown query".
+
+    Reading the first field of the selection set answers what was actually
+    asked. Aliases are not resolved; these are stubs, not a GraphQL engine.
+    """
+    m = ROOT_FIELD_RE.search(query)
+    return m.group(1) if m else ""
+
+
+def arg(query, variables, name, default=None):
+    """Resolve a GraphQL argument from the request.
+
+    Reading `variables[name]` alone is silently wrong whenever the caller names
+    the variable something other than the argument: the default is used, no
+    error is raised, and the operation looks like it succeeded on inputs nobody
+    sent. So prefer a variable named for the argument, then follow `name: $var`
+    to the variable it names, then take an inline literal.
+    """
+    if name in variables:
+        return variables[name]
+    m = re.search(ARG_RE_VAR.format(name=re.escape(name)), query)
+    if m and m.group(1) in variables:
+        return variables[m.group(1)]
+    m = re.search(ARG_RE_LIT.format(name=re.escape(name)), query)
+    if m:
+        return m.group(1)
+    return default
+
 
 # Items join through the surrogate key, not the UUID — `tb_order_item.fk_order`
 # references `tb_order.pk_order` (the Trinity pattern).
@@ -50,28 +102,31 @@ def graphql():
     logger.info(f"GraphQL Query: {query}")
     logger.info(f"Variables: {variables}")
 
+    field = root_field(query)
+
     try:
-        # Parse the query to determine operation
-        if 'createOrder' in query:
-            return handle_create_order(variables)
-        elif 'cancelOrder' in query:
-            return handle_cancel_order(variables)
-        elif 'ordersByUser' in query:
-            return handle_get_orders_by_user(variables)
-        elif 'order' in query and 'id' in variables:
-            return handle_get_order(variables)
+        if field == 'createOrder':
+            return handle_create_order(query, variables)
+        elif field == 'cancelOrder':
+            return handle_cancel_order(query, variables)
+        elif field == 'ordersByUser':
+            return handle_get_orders_by_user(query, variables)
+        elif field == 'order':
+            return handle_get_order(query, variables)
+        elif field == '__typename':
+            return jsonify({"data": {"__typename": "Query"}})
         else:
-            return jsonify({"errors": [{"message": "Unknown query"}]}), 400
+            return jsonify({"errors": [{"message": f"orders does not serve '{field}'"}]}), 400
     except Exception as e:
         logger.error(f"Query execution error: {e}")
         return jsonify({"errors": [{"message": str(e)}]}), 500
 
-def handle_create_order(variables):
+def handle_create_order(query, variables):
     """Create order (saga step 4)"""
-    user_id = variables.get('userId')
-    items = variables.get('items', [])
-    charge_id = variables.get('chargeId')
-    reservation_id = variables.get('reservationId')
+    user_id = arg(query, variables, 'userId')
+    items = arg(query, variables, 'items', [])
+    charge_id = arg(query, variables, 'chargeId')
+    reservation_id = arg(query, variables, 'reservationId')
 
     logger.info(f"Creating order for user {user_id}")
 
@@ -125,9 +180,9 @@ def handle_create_order(variables):
             "errors": [{"message": str(e)}]
         }), 500
 
-def handle_cancel_order(variables):
+def handle_cancel_order(query, variables):
     """Cancel order (compensation)"""
-    order_id = variables.get('orderId')
+    order_id = arg(query, variables, 'orderId')
 
     logger.info(f"Cancelling order: {order_id}")
 
@@ -158,9 +213,9 @@ def handle_cancel_order(variables):
             "errors": [{"message": str(e)}]
         }), 500
 
-def handle_get_order(variables):
+def handle_get_order(query, variables):
     """Get single order"""
-    order_id = variables.get('id')
+    order_id = arg(query, variables, 'id')
 
     try:
         conn = get_db_connection()
@@ -209,9 +264,9 @@ def handle_get_order(variables):
             "errors": [{"message": str(e)}]
         }), 500
 
-def handle_get_orders_by_user(variables):
+def handle_get_orders_by_user(query, variables):
     """Get orders by user"""
-    user_id = variables.get('userId')
+    user_id = arg(query, variables, 'userId')
 
     try:
         conn = get_db_connection()

@@ -1,71 +1,48 @@
+# Apollo Router configuration.
+#
+# Every section this file used to carry beyond `supergraph:` was invented:
+# `subgraphs:`, `server:`, `logging:`, `telemetry.instrumentation`,
+# `telemetry.trace_config`, `traffic_shaping.router.rate_limit` and
+# `traffic_shaping.all_subgraphs` are not keys the router has ever accepted. It
+# refused to boot with "no valid configuration was supplied" and the container
+# exited, so this stack could never serve a query (#1259). Repairing the
+# supergraph was not enough to find that: `router --supergraph <file>` never
+# reads `--config`, so the config had still never been loaded by any router.
+#
+# `router config upgrade` does not rescue these — it carries migrations for
+# renamed keys, and these were never keys, so it returns them unchanged. The
+# shape below is what `router config schema` (v1.59.0) accepts.
+#
+# Routing URLs are deliberately absent: they come from `@join__graph(url:)` in
+# the supergraph, and `override_subgraph_url` is the key that overrides them.
 supergraph:
   listen: 0.0.0.0:4000
   path: /graphql
 
-subgraphs:
-  users:
-    routing_url: http://users-service:4000/graphql
-    healthcheck:
-      enabled: true
-      interval: 10s
-      path: /health
-      query: |
-        query {
-          __typename
-        }
+health_check:
+  listen: 0.0.0.0:8088
+  path: /health
 
-  orders:
-    routing_url: http://orders-service:4000/graphql
-    healthcheck:
-      enabled: true
-      interval: 10s
-      path: /health
-      query: |
-        query {
-          __typename
-        }
+cors:
+  # The subgraph stubs and the router are local to this stack; naming one origin
+  # is clearer in an example than allowing any.
+  origins:
+    - http://localhost:4000
 
-  inventory:
-    routing_url: http://inventory-service:4000/graphql
-    healthcheck:
-      enabled: true
-      interval: 10s
-      path: /health
-      query: |
-        query {
-          __typename
-        }
-
-server:
-  bind: 0.0.0.0
-  port: 4000
-  graphql_path: /graphql
-  health_check_path: /health
-  cors:
-    origins:
-      - http://localhost:*
-      - http://127.0.0.1:*
-  request_timeout: 30s
-  shutdown_grace_period: 15s
+# Subgraph errors are redacted by default, which leaves a failing example
+# reporting nothing an operator can act on. These three subgraphs are local
+# stubs in this same stack, so surface what they say.
+include_subgraph_errors:
+  all: true
 
 traffic_shaping:
   router:
     timeout: 30s
-    rate_limit:
+    global_rate_limit:
       capacity: 100
       interval: 1s
-  all_subgraphs:
+  all:
     timeout: 10s
-    rate_limit:
+    global_rate_limit:
       capacity: 100
       interval: 1s
-
-logging:
-  level: info
-  format: json
-
-telemetry:
-  instrumentation:
-    enabled: true
-  trace_config:
-    sampler: always_on

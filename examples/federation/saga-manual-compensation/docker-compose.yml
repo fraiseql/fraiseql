@@ -4,8 +4,6 @@
 # repository does verify end to end is the root `docker-compose.yml`
 # (tools/compose-stack-test.sh, a step on the `Dagger — image` leg).
 #
-version: '3.8'
-
 services:
   # PostgreSQL for banking system
   postgres:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import re
 import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify
@@ -12,6 +13,57 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# The Apollo Router renames every subgraph operation to `<Name>__<subgraph>__<n>`
+# and drops the `query` keyword from anonymous operations. Both broke the
+# substring dispatch these stubs used to do, so they match the selection set
+# instead. See root_field().
+ROOT_FIELD_RE = re.compile(r"\{\s*([A-Za-z_][A-Za-z0-9_]*)")
+ARG_RE_VAR = r'{name}\s*:\s*\$(\w+)'
+ARG_RE_LIT = r'{name}\s*:\s*"([^"]*)"'
+
+
+def root_field(query):
+    """The first field of the operation's selection set.
+
+    Substring-matching the whole document does not work against a real router.
+    Two measured reasons (#1259):
+
+    1. The router renames each subgraph operation to `<Name>__<subgraph>__<n>`,
+       so every document this service receives carries the subgraph's own name.
+       A dispatcher testing `'user' in query` therefore matched `user(id:)` and
+       `users` alike and answered the list for both — the router found no `user`
+       field in the reply and returned `{"data":{"user":null}}` with no error.
+    2. The router omits the `query` keyword for an anonymous operation, so
+       `{ users { id } }` arrives with no `query` in it. A dispatcher requiring
+       that keyword rejected this example's own first query as "Unknown query".
+
+    Reading the first field of the selection set answers what was actually
+    asked. Aliases are not resolved; these are stubs, not a GraphQL engine.
+    """
+    m = ROOT_FIELD_RE.search(query)
+    return m.group(1) if m else ""
+
+
+def arg(query, variables, name, default=None):
+    """Resolve a GraphQL argument from the request.
+
+    Reading `variables[name]` alone is silently wrong whenever the caller names
+    the variable something other than the argument: the default is used, no
+    error is raised, and the operation looks like it succeeded on inputs nobody
+    sent. So prefer a variable named for the argument, then follow `name: $var`
+    to the variable it names, then take an inline literal.
+    """
+    if name in variables:
+        return variables[name]
+    m = re.search(ARG_RE_VAR.format(name=re.escape(name)), query)
+    if m and m.group(1) in variables:
+        return variables[m.group(1)]
+    m = re.search(ARG_RE_LIT.format(name=re.escape(name)), query)
+    if m:
+        return m.group(1)
+    return default
+
 
 def get_db_connection(database='fraiseql_inventory'):
     """Get database connection.
@@ -42,26 +94,29 @@ def graphql():
     logger.info(f"GraphQL Query: {query}")
     logger.info(f"Variables: {variables}")
 
+    field = root_field(query)
+
     try:
-        # Parse the query to determine operation
-        if 'reserveItems' in query:
-            return handle_reserve_items(variables)
-        elif 'releaseReservation' in query:
-            return handle_release_reservation(variables)
-        elif 'reservation' in query and 'id' in variables:
-            return handle_get_reservation(variables)
-        elif 'product' in query:
-            return handle_get_product(variables)
+        if field == 'reserveItems':
+            return handle_reserve_items(query, variables)
+        elif field == 'releaseReservation':
+            return handle_release_reservation(query, variables)
+        elif field == 'reservation':
+            return handle_get_reservation(query, variables)
+        elif field == 'product':
+            return handle_get_product(query, variables)
+        elif field == '__typename':
+            return jsonify({"data": {"__typename": "Query"}})
         else:
-            return jsonify({"errors": [{"message": "Unknown query"}]}), 400
+            return jsonify({"errors": [{"message": f"inventory does not serve '{field}'"}]}), 400
     except Exception as e:
         logger.error(f"Query execution error: {e}")
         return jsonify({"errors": [{"message": str(e)}]}), 500
 
-def handle_reserve_items(variables):
+def handle_reserve_items(query, variables):
     """Reserve items from inventory (saga step 3)"""
-    items = variables.get('items', [])
-    order_id = variables.get('orderId')
+    items = arg(query, variables, 'items', [])
+    order_id = arg(query, variables, 'orderId')
 
     logger.info(f"Reserving items for order {order_id}")
 
@@ -131,9 +186,9 @@ def handle_reserve_items(variables):
             "errors": [{"message": str(e)}]
         }), 500
 
-def handle_release_reservation(variables):
+def handle_release_reservation(query, variables):
     """Release reservation (compensation)"""
-    reservation_id = variables.get('reservationId')
+    reservation_id = arg(query, variables, 'reservationId')
 
     logger.info(f"Releasing reservation: {reservation_id}")
 
@@ -180,9 +235,9 @@ def handle_release_reservation(variables):
             "errors": [{"message": str(e)}]
         }), 500
 
-def handle_get_reservation(variables):
+def handle_get_reservation(query, variables):
     """Get single reservation"""
-    reservation_id = variables.get('id')
+    reservation_id = arg(query, variables, 'id')
 
     try:
         conn = get_db_connection()
@@ -234,9 +289,9 @@ def handle_get_reservation(variables):
             "errors": [{"message": str(e)}]
         }), 500
 
-def handle_get_product(variables):
+def handle_get_product(query, variables):
     """Get product"""
-    product_id = variables.get('id')
+    product_id = arg(query, variables, 'id')
 
     try:
         conn = get_db_connection()

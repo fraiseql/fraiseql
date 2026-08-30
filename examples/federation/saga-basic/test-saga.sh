@@ -13,11 +13,29 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Test configuration
-ROUTER_URL="http://localhost:4000/graphql"
-TIMEOUT=60
-RETRIES=0
-MAX_RETRIES=30
+# Test configuration.
+#
+# ROUTER_URL is overridable because the committed compose publishes 4000, 4001
+# and 5432, and a machine that already uses any of them can only run this stack
+# through a port override — at which point a test that hardcodes its endpoint
+# cannot be pointed at it. Pair it with COMPOSE_FILE to add an override file:
+#
+#   COMPOSE_FILE=docker-compose.yml:/tmp/ovr.yml \
+#   ROUTER_URL=http://localhost:14000/graphql ./test-saga.sh
+ROUTER_URL="${ROUTER_URL:-http://localhost:4000/graphql}"
+
+# A UUID, because `tb_reservation.order_id` is UUID NOT NULL. The previous
+# `order-$(date +%s)` was rejected by PostgreSQL on every run — "invalid input
+# syntax for type uuid" — so step 3 of the saga could never succeed.
+new_uuid() {
+    if [ -r /proc/sys/kernel/random/uuid ]; then
+        cat /proc/sys/kernel/random/uuid
+    elif command -v uuidgen > /dev/null 2>&1; then
+        uuidgen | tr 'A-Z' 'a-z'
+    else
+        python3 -c 'import uuid; print(uuid.uuid4())'
+    fi
+}
 
 # Function to print colored output
 print_status() {
@@ -120,8 +138,11 @@ cleanup() {
 trap cleanup EXIT
 
 # Start services
+# --build, not a bare `up -d`: compose only builds when the image is absent, so
+# after an edit to any server.py a plain `up -d` silently retests the previous
+# image and reports the old behaviour.
 print_info "Starting Docker Compose services..."
-docker compose up -d
+docker compose up -d --build
 
 # Wait for all services to be healthy
 print_info "Waiting for services to become healthy..."
@@ -211,7 +232,7 @@ RESERVE_ITEMS_MUTATION='
   }
 '
 
-ORDER_ID="order-$(date +%s)"
+ORDER_ID="$(new_uuid)"
 ITEMS_VAR='[{"productId": "prod-001", "quantity": 1}, {"productId": "prod-002", "quantity": 2}]'
 VARIABLES="{\"items\": $ITEMS_VAR, \"orderId\": \"$ORDER_ID\"}"
 
