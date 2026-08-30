@@ -84,18 +84,20 @@ autoscaling:
 
 # Health probes. All three pointed at /health, and all three were wrong for it.
 #
-# ⚠ /health is NOT a process-liveness endpoint, despite its own doc comment in
-# crates/fraiseql-server/src/routes/health.rs claiming it is "always 200 while
-# the process is alive". determine_status() returns "unhealthy" whenever the
-# database health check fails, and the handler answers 503 for "unhealthy". The
-# code and the comment above it disagree; the code is what runs.
+# ⚠ /health is NOT a process-liveness endpoint. determine_status() returns
+# "unhealthy" whenever the database health check fails, and the handler answers 503
+# for "unhealthy". Its own doc comment used to claim it was "always 200 while the
+# process is alive", and every artifact here followed that comment (#1217).
 #
-# So a livenessProbe on /health makes the kubelet RESTART every pod for as long
-# as Postgres is unreachable — a failover or a brief blip becomes a cluster-wide
-# restart storm on top of the outage it was reacting to. A liveness probe must
-# detect a broken PROCESS, never a broken dependency. There is no endpoint that
-# reports process health alone, so liveness is a tcpSocket check: the process is
-# up and holding its port.
+# A livenessProbe on /health makes the kubelet RESTART every pod for as long as
+# Postgres is unreachable — a failover or a brief blip becomes a cluster-wide restart
+# storm on top of the outage it was reacting to. A liveness probe must detect a broken
+# PROCESS, never a broken dependency.
+#
+# livenessProbe is /live: always 200, no database call, no cache call, no subgraph
+# call. It replaces the tcpSocket stopgap this chart shipped in 2.15.0 — a socket
+# check cannot see a process that is deadlocked but still holding its listener, and
+# answering /live requires the runtime to schedule a task and write a response.
 #
 # readinessProbe is /readiness, the endpoint built for it: 503 while the database
 # is unreachable, so an affected pod leaves the Service's endpoints and stops
@@ -114,7 +116,8 @@ startupProbe:
   failureThreshold: 30    # 30 * 5s = 150s max startup time
 
 livenessProbe:
-  tcpSocket:
+  httpGet:
+    path: /live
     port: http
   initialDelaySeconds: 0
   periodSeconds: 30

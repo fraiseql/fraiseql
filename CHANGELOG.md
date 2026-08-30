@@ -298,6 +298,62 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`GET /live` is the liveness probe, and every deployment artifact points at it
+  (#1217).**
+
+  `/health` answers **503 whenever the database is unreachable**, while its own doc
+  comment prescribed it as the `livenessProbe` and called it "always 200 while process is
+  alive". Every deployment artifact in this repository followed that comment, so a
+  PostgreSQL failover made the kubelet restart every pod for as long as the outage
+  lasted — a restart storm on top of the incident, and restarting cannot fix a dependency.
+
+  2.15.0 moved the chart and the three manifests to a `tcpSocket` probe, which was a
+  stopgap: a socket check cannot see a process that is deadlocked but still holding its
+  listener. `/live` can — answering it requires the runtime to schedule a task and write a
+  response — and it makes no database, cache, secrets or subgraph call at all. The path is
+  configurable as `liveness_path` and defaults to `/live`.
+
+  `/health` keeps its semantics as the operator-facing status endpoint: the full subsystem
+  report, 200 when healthy or degraded, 503 when the database is down. Its doc comment now
+  says so.
+
+- **Three `make` targets named a Compose file that is in no commit (#1219).**
+
+  `federation-up`, `federation-down` and `test-federation` all drove
+  `docker/federation-ci/docker-compose.yml`, which does not exist — so all three failed on
+  their first line, while `make help`, `docs/testing-matrix.md` and `docs/testing.md`
+  advertised them as the way to run the federation suite. `docs/testing.md` named a
+  second, different dead path. The targets are deleted; federation is covered by `make
+  federation-compose-check` (hermetic) and the Dagger `integration (federation)` leg.
+
+  `check-compose-references.sh` is the general fix: every Compose path a tracked file
+  hands to `docker compose -f` must resolve. `check-examples-integrity.sh` could not see
+  this, because it discovers compose files with `find` and checks what is *inside* them —
+  a file that is only *named* was outside every check in the repository.
+
+- **The documented `[webhooks.*]` config cannot boot, so it is replaced with the real keys
+  (#1177).**
+
+  `docs/architecture/webhooks.md` showed `secret` and `endpoint_path`. Neither is a field
+  of `WebhookRouteConfig` under any name, and both required keys — `provider` and
+  `secret_env` — were absent, so deserialization fails on `missing field secret_env`
+  before any boot guard runs. The example also put the signing secret in the config file,
+  while the real surface deliberately takes only the *name* of an environment variable,
+  and wrote `endpoint_path = "/webhooks/stripe"` where `path` is a bare segment.
+
+- **Four non-breaking entries move out of 2.15.0's `### Breaking` section (#1209).**
+
+  A build fix (#1205, #1133), a new static gate (#1107), documentation maintenance (#1146,
+  #1131) and a `license` field on six example crates (#1204) were filed as breaking
+  changes. The release notes render from this file, so 2.15.0 was telling every reader
+  deciding whether to upgrade that adding a licence field to example crates would break
+  them. One sentence stays under `### Breaking`: the release image no longer ships
+  `libpq5`, which nothing in FraiseQL linked but an image built `FROM` it might.
+
+- **`.scim/` is gitignored (#1172).** `scim_conformance_e2e_pg.rs` tells you to create it
+  there, so following the repository's own instructions left an untracked virtualenv at
+  the root — one `git add -A` from a large binary directory in history.
+
 - **`cargo doc` on the default features is a gate, and the 22 links that failed it are
   fixed (#1199).**
 
@@ -1551,53 +1607,15 @@ disagreed, and the promise was the part that was wrong.
   default that every future caller can reach for by accident. See `### Fixed` for the race
   it closes.
 
-- **The release Docker image can be built again, and both stages stop installing a driver
-  library nothing links (#1205, #1133).**
+- **The release Docker image no longer ships `libpq5` (#1133).**
 
-  `cargo build -p fraiseql-server` loads the whole workspace manifest before building
-  anything, so the six runnable example crates joining `[workspace] members` while the
-  builder stage copied only `crates/` and `deploy/` meant the image failed at its first
-  cargo invocation — `failed to load manifest for workspace member`. Not a partial build:
-  it could not be built at all.
-
-  Separately, `libpq-dev` + `pkg-config` (builder) and `libpq5` (runtime) were installed
-  for a driver this binary does not use — the PostgreSQL driver is the pure-Rust
-  `tokio-postgres` + rustls stack, and the built binary's only dynamic dependencies are
-  `libc`, `libm` and `libgcc_s`.
-
-  ⚠ Nothing in CI builds this file before a tag: `docker-build.yml` triggers only on
-  `push: tags`, and `release-smoke.yml` builds with `cargo build`. Both defects are now
-  covered by static gates in the required preflight leg
-  (`check-dockerfile-workspace-members.sh`, `check-dockerfile-msrv.sh`).
-
-- **A Dockerfile Rust base older than the workspace MSRV now fails on push (#1107).**
-
-  Nothing coupled `FROM …rust:<version>` to `[workspace.package] rust-version`, so the
-  release image once pinned `rust:1.92-slim` against a 1.94 MSRV — a pin that could not
-  build the workspace, invisible until the next tag. Floating tags (`rust:latest`,
-  `rust:1-slim`) stay allowed, and a two-component tag is compared on major.minor because
-  Docker resolves it to the newest patch.
-
-- **README.md's install snippet and CHANGELOG.md's version links are maintained rather
-  than merely written (#1146, #1131).**
-
-  The README's Rust install snippet pinned a version six minors behind the crate, and
-  `tools/release.sh`'s README step could not fix it: its guard was satisfied by a
-  *historical* sentence elsewhere on the page, so it skipped; and when it did run, its
-  blanket substitution rewrote that historical sentence while still failing to match the
-  snippet. It is now an anchored rewrite, gated by `check-docs-version.sh`.
-
-  `CHANGELOG.md` defined none of the Keep a Changelog link targets its headings reference,
-  so every version heading rendered as a dead link on GitHub and on every release page.
-  The definitions are now present and `tools/release.sh` rotates them at cut time.
-  The README's build badge pointed at `ci.yml`, retired in #951 — a badge that could never
-  be green — and now points at the two required Dagger checks.
-
-- **The six example crates declare the licence they are offered under (#1204).**
-
-  They were workspace members with no `license` field, so `cargo deny check licenses`
-  reported `error[unlicensed]` for each and the full `cargo deny check` exited non-zero.
-  Only cargo-deny evaluates this, in the `security` leg, so no compile could have caught it.
+  It was installed for a driver this binary does not use — the PostgreSQL driver is the
+  pure-Rust `tokio-postgres` + rustls stack, and the built binary's only dynamic
+  dependencies are `libc`, `libm` and `libgcc_s`. Nothing in FraiseQL linked it, so
+  nothing in FraiseQL changes; but an image built `FROM` this one, whose own tooling links
+  `libpq`, now has to install it. That is the whole of the breaking surface here — the
+  rest of #1133 and #1205 is a build that was failing outright, and it is under
+  `### Fixed`.
 
 - **`fraiseql_core::schema::BUILTIN_SCALARS` is now the compiler's own table, and the
   list it replaces is gone (#959).** It was `&[&str]`; it is now
@@ -4575,6 +4593,53 @@ disagreed, and the promise was the part that was wrong.
   restored.
 
 ### Fixed
+
+- **The release Docker image can be built again, and both stages stop installing a driver
+  library nothing links (#1205, #1133).**
+
+  `cargo build -p fraiseql-server` loads the whole workspace manifest before building
+  anything, so the six runnable example crates joining `[workspace] members` while the
+  builder stage copied only `crates/` and `deploy/` meant the image failed at its first
+  cargo invocation — `failed to load manifest for workspace member`. Not a partial build:
+  it could not be built at all.
+
+  Separately, `libpq-dev` + `pkg-config` (builder) and `libpq5` (runtime) were installed
+  for a driver this binary does not use. The runtime half is visible to anyone building
+  `FROM` this image and is recorded under `### Breaking`; the builder half is not.
+
+  ⚠ Nothing in CI builds this file before a tag: `docker-build.yml` triggers only on
+  `push: tags`, and `release-smoke.yml` builds with `cargo build`. Both defects are now
+  covered by static gates in the required preflight leg
+  (`check-dockerfile-workspace-members.sh`, `check-dockerfile-msrv.sh`).
+
+- **A Dockerfile Rust base older than the workspace MSRV now fails on push (#1107).**
+
+  Nothing coupled `FROM …rust:<version>` to `[workspace.package] rust-version`, so the
+  release image once pinned `rust:1.92-slim` against a 1.94 MSRV — a pin that could not
+  build the workspace, invisible until the next tag. Floating tags (`rust:latest`,
+  `rust:1-slim`) stay allowed, and a two-component tag is compared on major.minor because
+  Docker resolves it to the newest patch.
+
+- **README.md's install snippet and CHANGELOG.md's version links are maintained rather
+  than merely written (#1146, #1131).**
+
+  The README's Rust install snippet pinned a version six minors behind the crate, and
+  `tools/release.sh`'s README step could not fix it: its guard was satisfied by a
+  *historical* sentence elsewhere on the page, so it skipped; and when it did run, its
+  blanket substitution rewrote that historical sentence while still failing to match the
+  snippet. It is now an anchored rewrite, gated by `check-docs-version.sh`.
+
+  `CHANGELOG.md` defined none of the Keep a Changelog link targets its headings reference,
+  so every version heading rendered as a dead link on GitHub and on every release page.
+  The definitions are now present and `tools/release.sh` rotates them at cut time.
+  The README's build badge pointed at `ci.yml`, retired in #951 — a badge that could never
+  be green — and now points at the two required Dagger checks.
+
+- **The six example crates declare the licence they are offered under (#1204).**
+
+  They were workspace members with no `license` field, so `cargo deny check licenses`
+  reported `error[unlicensed]` for each and the full `cargo deny check` exited non-zero.
+  Only cargo-deny evaluates this, in the `security` leg, so no compile could have caught it.
 
 - **A `key_prefix`-scoped `write` rule permitted no create anywhere, so "members may write under `uploads/`" was inexpressible (#1100).**
 

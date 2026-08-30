@@ -34,11 +34,12 @@ pub use async_operations::AsyncOperationsConfig;
 pub use cdc_outbound::{CdcOutboundConfig, CdcSinkSectionConfig};
 use defaults::{
     default_bind_addr, default_database_url, default_graphql_path, default_health_path,
-    default_introspection_path, default_max_header_bytes, default_max_header_count,
-    default_max_request_body_bytes, default_metrics_json_path, default_metrics_path,
-    default_playground_path, default_pool_max_size, default_pool_min_size, default_pool_timeout,
-    default_readiness_path, default_schema_path, default_shutdown_timeout_secs,
-    default_subscription_auth_recheck_secs, default_subscription_path,
+    default_introspection_path, default_liveness_path, default_max_header_bytes,
+    default_max_header_count, default_max_request_body_bytes, default_metrics_json_path,
+    default_metrics_path, default_playground_path, default_pool_max_size, default_pool_min_size,
+    default_pool_timeout, default_readiness_path, default_schema_path,
+    default_shutdown_timeout_secs, default_subscription_auth_recheck_secs,
+    default_subscription_path,
 };
 use fraiseql_core::security::OidcConfig;
 pub use hs256::Hs256Config;
@@ -190,11 +191,20 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_graphql_path")]
     pub graphql_path: String,
 
-    /// Health check endpoint path (liveness probe).
+    /// Operator-facing status endpoint path.
     ///
-    /// Returns 200 as long as the process is alive, 503 if the database is down.
+    /// Returns the full subsystem report: 200 when healthy or degraded, **503 when the
+    /// database is unreachable**. It is not a liveness probe — see `liveness_path`, and
+    /// #1217 for what pointing a `livenessProbe` at this costs during a failover.
     #[serde(default = "defaults::default_health_path")]
     pub health_path: String,
+
+    /// Liveness probe endpoint path.
+    ///
+    /// Always 200, with no dependency call at all. Kubernetes `livenessProbe` points
+    /// here (#1217).
+    #[serde(default = "defaults::default_liveness_path")]
+    pub liveness_path: String,
 
     /// Readiness probe endpoint path.
     ///
@@ -1238,6 +1248,7 @@ impl Default for ServerConfig {
             cache_enabled: true,
             graphql_path: default_graphql_path(),
             health_path: default_health_path(),
+            liveness_path: default_liveness_path(),
             readiness_path: default_readiness_path(),
             introspection_path: default_introspection_path(),
             metrics_path: default_metrics_path(),

@@ -103,17 +103,24 @@ DATABASE_URL="postgresql://..." cargo nextest run --features test-postgres -p fr
 
 **What**: End-to-end Apollo Federation v2 with real subgraphs.
 Tests `@key` directives, entity resolution, and the federation gateway.
-**Where**: `docker/federation-ci/`
+**Where**: the Dagger `integration (federation)` leg (`.dagger/main.go`,
+`integrationFederation`), which stands up Apollo Router, the subgraphs and PostgreSQL in
+containers.
 **Run**:
 
 ```bash
-make test-federation
-# or manually:
-cd docker/federation-ci && pytest -q --tb=short
+# hermetic, no Docker: the committed subgraph SDL fixtures, composed with real
+# Apollo Federation v2 composition
+make federation-compose-check
 ```
 
-**Infrastructure**: Docker Compose — Apollo Router + 3 Flask subgraphs + PostgreSQL.
-**Blocks CI**: Yes (dedicated `federation-tests` job).
+**Infrastructure**: none for the local check; containers for the CI leg.
+**Blocks CI**: the `Dagger — integration` leg is push-to-dev and dispatch, not a
+required check on a branch.
+
+> This section used to tell you to run `make test-federation` in `docker/federation-ci/`.
+> Neither the target nor the directory existed — the target failed on its first line and
+> the directory is in no commit reachable from `dev` (#1219).
 
 ---
 
@@ -224,12 +231,8 @@ VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=fraiseql-test-token \
 # Start all test services (PostgreSQL, Redis, NATS, Vault)
 make db-up
 
-# Start only the federation stack
-make federation-up
-
 # Stop everything
 make db-down
-make federation-down
 
 # Reset database volumes (useful after schema changes)
 make db-reset

@@ -100,10 +100,13 @@ numbers and the image's own was not among them (#1216).
 
 - **startup** → `GET /health`. Before a pod has served, an unreachable database
   is a startup failure.
-- **liveness** → **`tcpSocket`**, not `/health`. `/health` answers 503 whenever
+- **liveness** → **`GET /live`**, not `/health`. `/health` answers 503 whenever
   the database check fails, so a liveness probe on it restarts every pod for as
   long as PostgreSQL is unreachable — a failover becomes a restart storm on top
   of the outage. Liveness must detect a broken process, not a broken dependency.
+  `/live` makes no dependency call at all. It replaces the `tcpSocket` stopgap
+  this chart shipped in 2.15.0, which could not see a process deadlocked but
+  still holding its listener (#1217).
 - **readiness** → `GET /readiness`. 503 while the database is unreachable, so an
   affected pod leaves the Service's endpoints without being killed.
 

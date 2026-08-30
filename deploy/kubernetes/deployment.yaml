@@ -71,13 +71,16 @@ spec:
         # containerPort above so the two cannot drift again.
         - name: FRAISEQL_BIND_ADDR
           value: "0.0.0.0:8000"
-        # tcpSocket, not /health. /health answers 503 whenever the database health
-        # check fails (routes/health.rs determine_status), so a liveness probe on
-        # it restarts every pod for as long as Postgres is unreachable — turning a
-        # failover into a restart storm. Liveness must detect a broken process,
-        # not a broken dependency.
+        # /live, not /health. /health answers 503 whenever the database health check
+        # fails (routes/health.rs determine_status), so a liveness probe on it restarts
+        # every pod for as long as Postgres is unreachable — turning a failover into a
+        # restart storm, which restarting cannot fix. /live touches no dependency and is
+        # always 200 (#1217). It replaces the tcpSocket stopgap this manifest used to
+        # carry: a socket check cannot see a process that is deadlocked but still
+        # holding its listener; answering /live requires the runtime to schedule a task.
         livenessProbe:
-          tcpSocket:
+          httpGet:
+            path: /live
             port: http
           initialDelaySeconds: 10
           periodSeconds: 30

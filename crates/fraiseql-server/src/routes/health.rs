@@ -267,13 +267,53 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     (status_code, Json(response))
 }
 
+/// Liveness probe response.
+#[derive(Debug, Serialize)]
+pub struct LivenessResponse {
+    /// Always `"alive"`. The handler cannot return anything else: if it answered at all,
+    /// the process is running and its listener is serving.
+    pub status: String,
+}
+
+/// Liveness probe handler — is this *process* alive?
+///
+/// Always `200 OK`. It touches no database, no cache, no secrets backend and no
+/// subgraph, because a liveness probe answers exactly one question, and restarting the
+/// pod is the only thing the kubelet can do with the answer. Restarting cannot fix an
+/// unreachable dependency.
+///
+/// That is why this exists (#1217). `/health` returns **503 when the database is
+/// unreachable**, while its own doc comment used to prescribe it as the `livenessProbe`
+/// and describe it as "always 200 while process is alive". Every deployment artifact in
+/// this repository followed that comment, so a PostgreSQL failover restarted every pod
+/// for as long as the outage lasted — a restart storm on top of the incident. The Helm
+/// chart and the plain manifests moved to a `tcpSocket` probe in 2.15.0 as a stopgap,
+/// which cannot see a process that is deadlocked but still holding its listener. This
+/// endpoint can: answering it requires the runtime to schedule a task and write a
+/// response.
+///
+/// Kubernetes usage:
+/// - `livenessProbe` → `GET /live` — 200 while the process can serve a request at all
+/// - `readinessProbe` → `GET /readiness` — 503 while the database is unreachable
+/// - `/health` is the operator-facing status endpoint: the full subsystem report, 200 when healthy
+///   or degraded, 503 when the database is down. Do not probe with it.
+pub async fn liveness_handler() -> impl IntoResponse {
+    debug!("Liveness check requested");
+    (
+        StatusCode::OK,
+        Json(LivenessResponse {
+            status: "alive".to_string(),
+        }),
+    )
+}
+
 /// Readiness probe handler.
 ///
 /// Returns `200 OK` when the server can serve traffic (database reachable),
 /// or `503 Service Unavailable` when it cannot.
 ///
 /// Kubernetes usage:
-/// - `livenessProbe` → `GET /health` (always 200 while process is alive)
+/// - `livenessProbe` → `GET /live` (200 while the process can serve a request)
 /// - `readinessProbe` → `GET /readiness` (503 while not ready to serve traffic)
 pub async fn readiness_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,

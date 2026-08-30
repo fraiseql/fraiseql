@@ -137,6 +137,12 @@ composer.phar
 sdks/**/target/
 sdks/**/node_modules/
 sdks/**/.venv/
+
+# The SCIM conformance suite's interpreter. `scim_conformance_e2e_pg.rs` tells you to
+# create it here (`uv venv .scim`), so following the repository's own instructions used
+# to leave an untracked virtualenv at the root — one `git add -A` from a large binary
+# directory in history (#1172).
+.scim/
 sdks/**/dist/
 composer-setup.php
 .phpunit.cache/

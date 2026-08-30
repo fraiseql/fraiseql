@@ -14,9 +14,9 @@ use tracing::{info, warn};
 
 use super::super::{
     BearerAuthState, PlaygroundState, Server, SubscriptionState, admin_auth_middleware, api,
-    bearer_auth_middleware, health_handler, introspection_handler, metrics_handler,
-    metrics_json_handler, oidc_auth_middleware, playground_handler, readiness_handler,
-    required_auth_middleware, subscription_handler,
+    bearer_auth_middleware, health_handler, introspection_handler, liveness_handler,
+    metrics_handler, metrics_json_handler, oidc_auth_middleware, playground_handler,
+    readiness_handler, required_auth_middleware, subscription_handler,
 };
 use crate::routes::graphql::AppState;
 
@@ -33,6 +33,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Build base routes (always available without auth)
         let base_routes = Router::new()
             .route(&self.config.health_path, get(health_handler::<A>))
+            // No `::<A>`: liveness takes no state, because a liveness probe that can
+            // reach a database is a liveness probe that restarts pods over an outage
+            // it cannot fix (#1217).
+            .route(&self.config.liveness_path, get(liveness_handler))
             .route(&self.config.readiness_path, get(readiness_handler::<A>))
             .with_state(state.clone());
         app = app.merge(base_routes);

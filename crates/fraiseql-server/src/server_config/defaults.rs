@@ -70,6 +70,10 @@ pub fn default_readiness_path() -> String {
     "/readiness".to_string()
 }
 
+pub fn default_liveness_path() -> String {
+    "/live".to_string()
+}
+
 pub const fn default_shutdown_timeout_secs() -> u64 {
     30
 }

@@ -167,13 +167,26 @@ handlers. A handler that must distinguish its senders should read the payload.
 ```toml
 # fraiseql.toml
 [webhooks.stripe]
-secret = "whsec_..."        # signing secret from Stripe Dashboard
-endpoint_path = "/webhooks/stripe"
+provider   = "stripe"                 # selects the signature verifier
+secret_env = "STRIPE_WEBHOOK_SECRET"  # NAME of the env var holding the signing secret
 
 [webhooks.github]
-secret = "my-github-secret"
-endpoint_path = "/webhooks/github"
+provider   = "github"
+secret_env = "GITHUB_WEBHOOK_SECRET"
 ```
+
+`provider` and `secret_env` are both required and have no defaults: a route missing
+either fails to deserialize, and the server does not boot.
+
+`secret_env` is the *name of an environment variable*, not the secret. The signing
+secret never appears in `fraiseql.toml`, which is a file that gets committed.
+
+Two optional keys:
+
+| Key | Meaning |
+|---|---|
+| `path` | the path **segment** this route mounts under, overriding the route name. The route is served at `/webhooks/{segment}` — so `path = "stripe-eu"`, not `path = "/webhooks/stripe-eu"`. |
+| `public_url` | the exact public URL the provider knows this route by. **Required** for providers whose signature covers the request URL (Twilio signs scheme + host + path + query). Reconstructing it from `Host` / `X-Forwarded-*` would put the signed material under the sender's control, so the server refuses to boot instead (#781). |
 
 ---
 

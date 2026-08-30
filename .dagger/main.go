@@ -378,6 +378,12 @@ func (m *FraiseqlCi) ShellGates(
 		// Every fuzz.yml matrix row must name a target that exists in the crate it
 		// names. One-directional: targets on disk need not be in the matrix (#1128).
 		"bash tools/check-fuzz-targets.sh",
+		// A Compose file merely NAMED by a make target, and absent, is outside
+		// check-examples-integrity.sh — that gate discovers compose files with `find` and
+		// checks what is inside them. Three make targets drove a path in no commit
+		// reachable from dev and failed on their first line (#1219).
+		"bash tools/check-compose-references.sh",
+		"bash tools/tests/compose_references_test.sh",
 		// Every publishable crate is published by release.yml, in the order this
 		// file's legacyPublishOrder dry-runs and self-tests. fraiseql-cdc-sinks
 		// (#382) was in the workspace and in legacyPublishOrder but in neither the

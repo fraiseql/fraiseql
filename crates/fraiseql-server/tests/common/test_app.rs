@@ -19,7 +19,7 @@ use fraiseql_server::routes::{
         schema::{export_json_handler, export_sdl_handler},
     },
     graphql::AppState,
-    health::health_handler,
+    health::{health_handler, liveness_handler},
     introspection::introspection_handler,
 };
 use fraiseql_test_utils::{
@@ -77,6 +77,9 @@ pub fn make_test_state_with(
 pub fn health_router(state: AppState<FailingAdapter>) -> Router {
     Router::new()
         .route("/health", get(health_handler::<FailingAdapter>))
+        // `/live` is stateless on purpose (#1217) — it is merged rather than given the
+        // state, which is also what `mount_base_and_admin_routes` does.
+        .merge(Router::new().route("/live", get(liveness_handler)))
         .route("/introspection", get(introspection_handler::<FailingAdapter>))
         .with_state(state)
 }

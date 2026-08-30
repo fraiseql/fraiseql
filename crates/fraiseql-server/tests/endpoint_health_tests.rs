@@ -35,6 +35,29 @@ async fn health_returns_200_with_healthy_adapter() {
 }
 
 #[tokio::test]
+async fn liveness_returns_200_when_the_database_is_down() {
+    // The whole point of `/live` (#1217). `/health` answers 503 here — it is the
+    // operator-facing status endpoint — and pointing a `livenessProbe` at it made the
+    // kubelet restart every pod for as long as PostgreSQL was unreachable, which
+    // restarting cannot fix. This asserts the two endpoints disagree on exactly this
+    // input; if they ever agree again, the probe recommendation is wrong again.
+    let adapter = FailingAdapter::new().fail_health_check();
+    let router = health_router(make_test_state_with(adapter, CompiledSchema::new()));
+
+    let (live_status, live_json) = get_json(&router, "/live").await;
+    assert_eq!(live_status, StatusCode::OK);
+    assert_eq!(live_json["status"], "alive");
+
+    let (health_status, _) = get_json(&router, "/health").await;
+    assert_eq!(
+        health_status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "the control: /health is 503 on the same router and the same failing adapter, so \
+         the 200 above is /live refusing to consult the database — not a healthy fixture"
+    );
+}
+
+#[tokio::test]
 async fn health_returns_503_when_db_fails() {
     let adapter = FailingAdapter::new().fail_health_check();
     let state = make_test_state_with(adapter, CompiledSchema::new());

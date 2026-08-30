@@ -24,11 +24,10 @@
 //! - Call [`ChangeLogListener::record_dispatched`] once a batch's actions have run. Recording
 //!   *after* dispatch is what keeps delivery at-least-once; recording at all is what keeps the
 //!   commit-lag rescan from re-delivering across a restart.
-//! - Restore the persisted cursor at startup (via `checkpoint::CheckpointStore::load`,
-//!   feature `checkpoint`, +
-//!   [`ChangeLogListenerConfig::with_resume_from`]) and persist it after each dispatched batch
-//!   (#805). The cursor is now a scan bound and the floor a sweep drops back to, so without it a
-//!   fresh process still walks the whole change log.
+//! - Restore the persisted cursor at startup (via `checkpoint::CheckpointStore::load`, feature
+//!   `checkpoint`, + [`ChangeLogListenerConfig::with_resume_from`]) and persist it after each
+//!   dispatched batch (#805). The cursor is now a scan bound and the floor a sweep drops back to,
+//!   so without it a fresh process still walks the whole change log.
 //!
 //! **Requires the `postgres` Cargo feature.**
 

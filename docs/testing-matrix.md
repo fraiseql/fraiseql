@@ -10,9 +10,9 @@ and how to run each test category.
 | `make test-unit` | None | ~30s | Unit tests (all crates, `--lib`) |
 | `make test-integration-postgres` | Docker (db-up) | ~40 min | The `integration (postgres)` CI shard, exactly as CI runs it |
 | `make test-integration` | Docker (db-up) | ~50 min | The above, plus the observer and server `#[ignore]` suites |
-| `make test-full` | Docker (db-up + federation-up) | ~70 min | Everything (9 steps) |
+| `make test-full` | Docker (db-up) | ~65 min | Everything (8 steps) |
 | `make test-all-ignored` | Docker (db-up) | ~15 min | All `#[ignore]` tests |
-| `make test-federation` | Docker (federation-up) | ~5 min | Apollo Federation stack |
+| `make federation-compose-check` | None | ~1 min | Subgraph SDL fixtures + real Apollo Federation v2 composition |
 | `make test-parity` | uv, bun, go, mvn, php | ~10 min | Cross-SDK schema parity |
 
 ## Do not reach for plain `cargo test` on the DB-backed crates
@@ -59,12 +59,11 @@ Started via `make db-up` (uses `docker/docker-compose.test.yml`):
 | NATS | nats:2.10-alpine | 4222 | Observer transport, bridge |
 | Vault | hashicorp/vault:1.17 | 8200 | Secrets manager integration |
 
-Started via `make federation-up` (uses `docker/docker-compose.federation.yml`):
-
-| Service | Purpose |
-|---------|---------|
-| Apollo Router | Federation gateway |
-| 3 subgraph services | Test subgraphs for entity resolution |
+The federation stack — Apollo Router plus three subgraphs — is stood up by the Dagger
+`integration (federation)` leg, not from the Makefile. There used to be a `make
+federation-up` here, naming `docker/docker-compose.federation.yml`; neither that file nor
+the `docker/federation-ci/` one the Makefile named is in the repository, so both entry
+points failed on their first line while this table said they worked (#1219).
 
 ## Feature Flags Requiring Infrastructure
 

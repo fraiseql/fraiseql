@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-failover-reset db-status federation-up federation-down e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all chart-deploy compose-stack changelog changelog-full
+.PHONY: help build test test-unit test-integration federation-compose-check test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-failover-reset db-status e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status test-parity test-parity-strict security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout lint-guard-parity release release-validate release-validate-semver load-test load-test-all chart-deploy compose-stack changelog changelog-full
 
 # Default target
 help:
@@ -10,7 +10,7 @@ help:
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
 	@echo "  make test-integration-postgres - The 'integration (postgres)' CI shard, exactly as CI runs it"
 	@echo "  make test-full          - Run ALL categories: unit + snapshots + DBs + Redis/NATS/Vault + server + federation"
-	@echo "  make test-federation    - Run federation tests (requires Docker)"
+	@echo "  make federation-compose-check - Compose the subgraph SDL fixtures (no Docker)"
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
 	@echo "  make test-parity        - Cross-SDK schema parity (absent toolchains named, not gated)"
 	@echo "  make test-parity-strict - Cross-SDK schema parity exactly as CI runs it"
@@ -24,8 +24,6 @@ help:
 	@echo "  make db-logs            - View infrastructure logs"
 	@echo "  make db-reset           - Reset test infrastructure (remove volumes)"
 	@echo "  make db-status          - Check infrastructure health"
-	@echo "  make federation-up      - Start federation stack (Apollo Router + 3 subgraphs)"
-	@echo "  make federation-down    - Stop federation stack"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make build              - Build all crates"
@@ -84,34 +82,34 @@ release-validate-semver:
 # Run all tests (unit + integration)
 test: test-unit test-integration
 
-# Run the full test suite: unit + snapshots + all DBs + Redis/NATS/Vault + server + federation
-# Requires full infrastructure: Docker with PostgreSQL, Redis, NATS, Vault + Apollo Router
+# Run the full test suite: unit + snapshots + all DBs + Redis/NATS/Vault + server
+# Requires full infrastructure: Docker with PostgreSQL, Redis, NATS, Vault
 # Reports a single pass/fail at the end.
-test-full: db-up federation-up
-	@echo "=== Running full test suite (9 steps) ==="
+test-full: db-up
+	@echo "=== Running full test suite (8 steps) ==="
 	@echo ""
-	@echo "[1/9] Unit tests..."
+	@echo "[1/8] Unit tests..."
 	@cargo test --lib --all-features
 	@echo ""
-	@echo "[2/9] SQL snapshot tests..."
+	@echo "[2/8] SQL snapshot tests..."
 	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
 	@echo ""
-	@echo "[3/9] Database integration tests (PostgreSQL)..."
+	@echo "[3/8] Database integration tests (PostgreSQL)..."
 # Was the same `-p fraiseql-core … -- --ignored` line as test-integration's, with
 # the same result: 1 test of 2828, under a banner claiming the database
 # integration tests had run (#1169). A second corrected copy would drift from the
 # first, so both call the one mirror target.
 	@$(MAKE) --no-print-directory test-integration-postgres
 	@echo ""
-	@echo "[4/9] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
+	@echo "[4/8] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
 	@echo ""
-	@echo "[5/9] Redis tests (APQ + observer queue/lease)..."
+	@echo "[5/8] Redis tests (APQ + observer queue/lease)..."
 	REDIS_URL="redis://localhost:6379" \
 		cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
 	REDIS_URL="redis://localhost:6379" \
 		cargo test -p fraiseql-observers --features "caching,queue,redis-lease" --lib -- --ignored --test-threads=1
 	@echo ""
-	@echo "[6/9] NATS + observer bridge tests..."
+	@echo "[6/8] NATS + observer bridge tests..."
 	cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test -p fraiseql-observers --features "postgres,nats" --test bridge_integration -- --ignored --test-threads=1
@@ -119,12 +117,12 @@ test-full: db-up federation-up
 	TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test -p fraiseql-observers --features "postgres,redis-lease" --lib -- --ignored --test-threads=1
 	@echo ""
-	@echo "[7/9] Vault secrets manager tests..."
+	@echo "[7/8] Vault secrets manager tests..."
 	VAULT_ADDR="http://localhost:8200" \
 	VAULT_TOKEN="fraiseql-test-token" \
 		cargo test -p fraiseql-server --test secrets_manager_integration_test -- --ignored --test-threads=1
 	@echo ""
-	@echo "[8/9] Server integration tests (database queries + observers)..."
+	@echo "[8/8] Server integration tests (database queries + observers)..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test -p fraiseql-server --test database_query_test -- --ignored --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -133,10 +131,7 @@ test-full: db-up federation-up
 	REDIS_URL="redis://localhost:6379" \
 		cargo test --features "postgres,dedup,caching,testing" -p fraiseql-observers --test integration_test -- --ignored
 	@echo ""
-	@echo "[9/9] Federation integration tests..."
-	@cd docker/federation-ci && pytest -q --tb=short
-	@echo ""
-	@echo "=== Full test suite complete (all 9 steps passed) ==="
+	@echo "=== Full test suite complete (all 8 steps passed) ==="
 
 # Run unit tests only (no database required)
 test-unit:
@@ -616,6 +611,25 @@ lint-deploy-versions:
 lint-fuzz-targets:
 	@bash tools/check-fuzz-targets.sh
 
+# Gate: every Compose file a tracked file hands to `docker compose -f` exists.
+#
+# `make federation-up`, `make federation-down` and `make test-federation` all drove
+# `docker/federation-ci/docker-compose.yml`, which is in no commit reachable from `dev`.
+# All three failed on their first line while `make help` and two docs pages advertised
+# them (#1219). `check-examples-integrity.sh` cannot see this: it discovers compose files
+# with `find` and checks what is inside them, so a file that is only *named* is outside
+# every check in the repository.
+.PHONY: lint-compose-references
+lint-compose-references:
+	@bash tools/check-compose-references.sh
+
+# Unit tests for the gate above: a dead reference fails, a live one passes, a path quoted
+# in a comment is prose rather than an entry point, and a scan that matches nothing fails
+# instead of reporting OK over every entry point in the repository.
+.PHONY: test-compose-references-gate
+test-compose-references-gate:
+	@bash tools/tests/compose_references_test.sh
+
 # Gate: every crates/*/fuzz crate COMPILES, and every fuzz target on disk is a [[bin]].
 #
 # The gate above is existence-only by design — pure bash, no toolchain, so it can run in
@@ -971,7 +985,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1218,45 +1232,19 @@ db-verify:
 		psql -U fraiseql_test -d test_fraiseql -c "SELECT 'v_user' AS view, COUNT(*) FROM v_user UNION ALL SELECT 'v_post', COUNT(*) FROM v_post UNION ALL SELECT 'v_product', COUNT(*) FROM v_product;"
 
 # ============================================================================
-# Federation stack (Apollo Router + 3 subgraphs)
+# Federation stack
 # ============================================================================
-
-# Start the federation Docker stack and wait for all services to be healthy
-federation-up:
-	@echo "Starting federation stack..."
-	@docker compose -f docker/federation-ci/docker-compose.yml up -d --build
-	@echo "Waiting for federation services to be healthy..."
-	@for url in \
-		"http://localhost:8088/health" \
-		"http://localhost:4001/health" \
-		"http://localhost:4002/health" \
-		"http://localhost:4003/health"; do \
-		printf "  Waiting for %-35s" "$$url..."; \
-		for i in $$(seq 1 30); do \
-			if curl -sf "$$url" >/dev/null 2>&1; then echo " ready"; break; fi; \
-			if [ $$i -eq 30 ]; then echo " TIMEOUT"; exit 1; fi; \
-			sleep 4; \
-		done; \
-	done
-	@echo "Federation stack ready."
-	@echo "  Apollo Router:   http://localhost:4000/graphql"
-	@echo "  Users service:   http://localhost:4001/graphql"
-	@echo "  Orders service:  http://localhost:4002/graphql"
-	@echo "  Products service:http://localhost:4003/graphql"
-
-# Stop the federation stack and remove volumes
-federation-down:
-	@echo "Stopping federation stack..."
-	@docker compose -f docker/federation-ci/docker-compose.yml down -v
-
-# Run federation integration tests (starts stack, runs tests, tears down)
-test-federation: federation-up
-	@echo ""
-	@echo "=== Federation integration tests ==="
-	@cargo test -p fraiseql-core --lib --tests federation -- --ignored --test-threads=4; \
-		EXIT=$$?; \
-		$(MAKE) federation-down; \
-		exit $$EXIT
+#
+# `federation-up`, `federation-down` and `test-federation` are gone. All three drove
+# `docker/federation-ci/docker-compose.yml`, a file that is not in the repository and is
+# in no commit reachable from `dev` — so every one of them failed on its first line, while
+# `make help` and `docs/testing-matrix.md` advertised them as ways to run the suite
+# (#1219). `check-compose-references.sh` now fails on a Makefile line naming a compose
+# file that does not exist, so this cannot come back quietly.
+#
+# What actually covers federation: `make federation-compose-check` below (hermetic, no
+# Docker, real Apollo Federation v2 composition) and the Dagger `integration (federation)`
+# leg, which stands up router + subgraphs + PostgreSQL in containers.
 
 # Golden two-subgraph compose suite — no Docker. Verifies the committed subgraph SDL
 # fixtures still match live FraiseQL rendering (hermetic Rust tests), then composes them

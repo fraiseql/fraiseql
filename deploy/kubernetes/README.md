@@ -56,16 +56,19 @@ kubectl create configmap fraiseql-schema \
 ## Probes
 
 `/health` is 503 whenever the database is unreachable, so it is **not** a
-process-liveness endpoint despite its doc comment saying so. Both paths use:
+process-liveness endpoint — its own doc comment used to say it was, and every
+manifest here followed that (#1217). Both paths use:
 
 - **startup** → `GET /health` (before a pod has served, an unreachable database
   is a startup failure)
-- **liveness** → `tcpSocket` (a liveness probe that fails on a dependency
-  restarts every pod through a database outage)
+- **liveness** → `GET /live` (always 200, no dependency call; a liveness probe
+  that fails on a dependency restarts every pod through a database outage, which
+  restarting cannot fix)
 - **readiness** → `GET /readiness` (503 while the database is unreachable, so the
   pod leaves the Service's endpoints without being killed)
 
-There is no `/ready` endpoint. The path is `/readiness`.
+There is no `/ready` endpoint. The path is `/readiness`, and the liveness path is
+`/live` — both configurable (`readiness_path`, `liveness_path`).
 
 ## Ports
 
