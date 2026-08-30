@@ -187,9 +187,18 @@ disagreed, and the promise was the part that was wrong.
 
   `csharp`, `dart`, `elixir`, `fsharp`, `java` and `php` had tag-triggered publish jobs
   while `tools/release.sh` bumped only the Rust, Python and TypeScript manifests. Pushing
-  `csharp-sdk/v2.15.0` would have published **2.1.6** to NuGet, under a tag saying 2.15.0,
+  `dart-sdk/v2.15.0` would have published **2.1.6** to pub.dev, under a tag saying 2.15.0,
   to a registry that does not allow a version number to be re-used. Nothing had fired only
   because no SDK-scoped tag has ever been pushed. Their test jobs are untouched.
+
+  Re-measured while correcting the ledger (#1240): **four** of the six were reachable that
+  way — `dart` and `java` because a `paths:` filter is not evaluated for tag pushes, so a
+  paths-only workflow runs on every tag, and `elixir` and `fsharp` because they name their
+  tag explicitly. `csharp-sdk.yml` was not: it declares `push: branches: ['**']` with no
+  `tags:` filter, and GitHub ANDs the ref filter with the path filter, so a tag push matched
+  no ref pattern and never started the workflow (#1119). Its publisher was reachable only
+  from a GitHub *Release* named `csharp-sdk/v*`, which nothing here creates. `php`'s job had
+  no publish step at all — Packagist is webhook-driven.
 
   `ruby-sdk.yml`'s publisher was worse and outside #1130's inventory: it ran `gem push`
   against the **community** SDK (`sdks/community/fraiseql-ruby`), whose gemspec declares
@@ -245,6 +254,49 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The Rust SDK is published by the release that bumps it (#1239).**
+
+  ADR-0019 puts Rust in the published set, `tools/release.sh` bumps its manifest and the
+  README names crates.io as its registry — so all three artifacts agreed and
+  `make lint-sdk-publication-claims` passed. `fraiseql-rust` answered **404 on crates.io at
+  every version**, because its only publisher was `rust-sdk.yml:publish`, gated on a
+  `rust-sdk/v*` tag that `release.sh` does not create and that has never existed. Python and
+  TypeScript both publish off the `v*` tag; Rust was the only one of the three not in
+  lockstep. #1130's own shape, inside #1130's fix.
+
+  `release.yml:publish-rust-sdk` now ships it on the release tag, asserting the manifest
+  against `${GITHUB_REF#refs/tags/v}` first, and `verify-release` requires HTTP 200 for the
+  new version — that job checked the 19 workspace crates plus PyPI and npm, and would not
+  have noticed a missing SDK. **v2.15.0 is `fraiseql-rust`'s first release on crates.io.**
+
+  The README's install cell for the row read `cargo add fraiseql`, which is the *engine*
+  crate, not the SDK. A reader following it got a working install of a different package,
+  so the row looked correct to anyone who tried it. It reads `cargo add fraiseql-rust`.
+
+  The gate gains the property that was missing: a published SDK must have a publish job the
+  release tag actually reaches, decided from GitHub's ref-filter rules rather than from the
+  job existing — `branches` without `tags` means a tag push never starts the workflow
+  (#1119), `paths` filters are not evaluated for tag pushes, and a job's `if` can still
+  exclude the tag by ref prefix. It demands positive proof: an `if` the gate cannot evaluate
+  does not count as a publisher. Seven new self-test cases, each shown red against the
+  previous revision of the gate.
+
+- **The delivery ledger and ADR-0019 agree with the tree the publisher deletions left
+  (#1240).**
+
+  `make lint-delivery-coverage` was red with 8 findings on the commit above — the first
+  preflight run over it. Six rows named a `publishes` leg that no longer exists, and the
+  `sdk:community/fraiseql-ruby` row outlived its artifact: `discover_sdks()` finds a
+  community SDK only when a workflow publishes it, and `ruby-sdk.yml`'s `gem push` was the
+  thing deleted (#1237). The rows are source-only now, that row and its exemption are gone,
+  and the exemption reasons no longer cite jobs that do not exist.
+
+  ADR-0019's Context table said three SDKs had ever been published (two), that six of the
+  eight frozen SDKs carried a real publish step (five — the sixth publisher was the
+  community gem, not one of the eight), and that pushing `csharp-sdk/v2.15.0` would have
+  published to NuGet (it would not have started the workflow at all). The decision is
+  unaffected; the measurements were wrong and are re-measured in place.
+
 - **The PHP SDK is PSR-4 autoloadable, and its two SDK gates now actually run (#1184, #1238).**
 
   `FraiseQL\UnsetValue` was declared in `src/Unset.php`, so composer's PSR-4 autoloader
@@ -269,9 +321,10 @@ disagreed, and the promise was the part that was wrong.
 
 - **The SDKs the repository says it publishes are the ones it can publish (#1130, #1224).**
 
-  Eleven official SDKs; three had ever reached a registry. `README.md` advertised **Java
-  and Go as Tier 1 (Supported)** — NuGet, Hex, RubyGems, Packagist and pub.dev all answer
-  404 for the eight, and Go's `go.mod` names `github.com/fraiseql/fraiseql-go`, a
+  Eleven official SDKs; **two** had ever reached a registry — Python on PyPI and TypeScript
+  on npm (the Rust SDK reads as a third and is not; see #1239 below). `README.md` advertised
+  **Java and Go as Tier 1 (Supported)** — NuGet, Hex, RubyGems, Packagist and pub.dev all
+  answer 404 for the eight, and Go's `go.mod` names `github.com/fraiseql/fraiseql-go`, a
   repository that does not exist, so `go get` cannot fetch it by that path or any other.
 
   The README now carries a table of what each SDK's distribution actually is — registry

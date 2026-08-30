@@ -103,7 +103,7 @@ them, so use them by vendoring the directory. This table is enforced by
 |-----|----------|----------|---------|
 | `fraiseql-python` | Python 3.11+ | PyPI | `pip install fraiseql` |
 | `fraiseql-typescript` | TypeScript / Node.js | npm | `npm install fraiseql` |
-| `fraiseql-rust` | Rust | crates.io | `cargo add fraiseql` |
+| `fraiseql-rust` | Rust | crates.io | `cargo add fraiseql-rust` |
 | `fraiseql-csharp` | C# / .NET 8+ | — | vendor `sdks/official/fraiseql-csharp` |
 | `fraiseql-dart` | Dart / Flutter | — | vendor `sdks/official/fraiseql-dart` |
 | `fraiseql-elixir` | Elixir | — | vendor `sdks/official/fraiseql-elixir` |
@@ -118,6 +118,11 @@ them, so use them by vendoring the directory. This table is enforced by
 Source-only is a statement about distribution, not quality: conformance scores are in
 [`sdks/official/README.md`](sdks/official/README.md), and most source-only SDKs score
 18/19 or 19/19. See [ADR-0019](docs/adr/0019-sdk-publication-boundary.md).
+
+> **Rust SDK note.** `fraiseql-rust` first reaches crates.io at 2.15.0. It is a distinct
+> package from the engine crate `fraiseql`: the SDK authors schemas, the engine executes
+> them. Until 2.15.0 its only publisher fired on a `rust-sdk/v*` tag no release creates,
+> so the row above named a registry that answered 404.
 
 > **Go note.** `sdks/official/fraiseql-go/go.mod` declares
 > `module github.com/fraiseql/fraiseql-go`, a repository that does not exist, so

@@ -143,7 +143,11 @@ executes = ["tool:tools/compose-stack-test.sh"]
 #
 # Discovered from sdks/official/* (minus the conformance and tests directories, matching
 # tools/check-sdk-workflow-coverage.py's NOT_AN_SDK) plus any sdks/community/* directory a
-# workflow publishes — today only the Ruby gem.
+# workflow publishes — today none. The community Ruby gem had a row here until ADR-0019
+# deleted `ruby-sdk.yml`'s `gem push` (#1237): that job published a gemspec declaring
+# 1.0.0, so it was the worst version skew in the repository and outside #1130's inventory.
+# With the publisher gone, discovery no longer finds it and the row had to go with it —
+# which is the invariant working, not a loss of coverage.
 #
 # ⚠ These rows record coverage; they do not mandate a new tier. The delivery-artifact
 # program excludes the SDKs deliberately: they are the surface the 2026-07 ecosystem
@@ -155,8 +159,17 @@ executes = ["tool:tools/compose-stack-test.sh"]
 # And that statement is the finding: measured 2026-08-28 against each registry, using the
 # package id from each SDK's own manifest, TWO of the eleven official SDKs are published —
 # Python on PyPI and TypeScript on npm, both at 2.14.1. The other nine return 404 at every
-# version. Seven of the nine have a working publish job gated on a `<sdk>/v*` tag, and no
+# version. Seven of the nine had a working publish job gated on a `<sdk>/v*` tag, and no
 # such tag has ever existed in this repository; see the correction on #1130.
+#
+# ADR-0019 (2026-08-30) resolved that: six of those publishers were deleted, leaving three
+# SDKs in the published set. Two of the three publish on the `v*` tag a release creates and
+# are therefore in lockstep — Python via release.yml:publish-python, TypeScript via
+# npm-publish.yml:publish-npm. The third, Rust, had only `rust-sdk.yml:publish` on a
+# `rust-sdk/v*` tag release.sh does not create, so it stayed at 404 while release.sh bumped
+# its manifest and the README named crates.io as its registry. release.yml:publish-rust-sdk
+# closes that; check-sdk-publication-claims.py now fails any published SDK whose publishers
+# the release tag cannot reach, so the state cannot recur silently.
 
 [[artifact]]
 id = "sdk:official/fraiseql-python"
@@ -177,32 +190,32 @@ executes = ["tool:tools/consume-published-artifacts.sh"]
 [[artifact]]
 id = "sdk:official/fraiseql-csharp"
 kind = "sdk-package"
-consumed_as = "nuget.org/packages/FraiseQL — NOT PUBLISHED at any version"
-publishes = ["workflow:csharp-sdk.yml:publish"]
+consumed_as = "source only — vendor sdks/official/fraiseql-csharp (ADR-0019); NuGet FraiseQL / FraiseQL.Tool holds no version"
+publishes = []
 builds = ["workflow:csharp-sdk.yml:test"]
 executes = []
 
 [[artifact]]
 id = "sdk:official/fraiseql-dart"
 kind = "sdk-package"
-consumed_as = "pub.dev/packages/fraiseql — NOT PUBLISHED at any version"
-publishes = ["workflow:dart-sdk.yml:publish"]
+consumed_as = "source only — vendor sdks/official/fraiseql-dart (ADR-0019); pub.dev fraiseql holds no version"
+publishes = []
 builds = ["workflow:dart-sdk.yml:test"]
 executes = []
 
 [[artifact]]
 id = "sdk:official/fraiseql-elixir"
 kind = "sdk-package"
-consumed_as = "hex.pm/packages/fraiseql — NOT PUBLISHED at any version"
-publishes = ["workflow:elixir-sdk.yml:publish"]
+consumed_as = "source only — vendor sdks/official/fraiseql-elixir (ADR-0019); Hex fraiseql holds no version"
+publishes = []
 builds = ["workflow:elixir-sdk.yml:test"]
 executes = []
 
 [[artifact]]
 id = "sdk:official/fraiseql-fsharp"
 kind = "sdk-package"
-consumed_as = "nuget.org/packages/FraiseQL.FSharp — NOT PUBLISHED at any version"
-publishes = ["workflow:fsharp-sdk.yml:publish"]
+consumed_as = "source only — vendor sdks/official/fraiseql-fsharp (ADR-0019); NuGet FraiseQL.FSharp / FraiseQL.Tool.FSharp holds no version"
+publishes = []
 builds = ["workflow:fsharp-sdk.yml:test"]
 executes = []
 
@@ -217,16 +230,16 @@ executes = []
 [[artifact]]
 id = "sdk:official/fraiseql-java"
 kind = "sdk-package"
-consumed_as = "Maven Central com.fraiseql:fraiseql-java — NOT PUBLISHED at any version"
-publishes = ["workflow:java-sdk.yml:publish"]
+consumed_as = "source only — vendor sdks/official/fraiseql-java (ADR-0019); Maven Central com.fraiseql:fraiseql-java holds no version"
+publishes = []
 builds = ["workflow:java-sdk.yml:test"]
 executes = []
 
 [[artifact]]
 id = "sdk:official/fraiseql-php"
 kind = "sdk-package"
-consumed_as = "packagist.org/packages/fraiseql/fraiseql — NOT PUBLISHED at any version"
-publishes = ["workflow:php-sdk.yml:publish"]
+consumed_as = "source only — vendor sdks/official/fraiseql-php (ADR-0019); Packagist fraiseql/fraiseql holds no version"
+publishes = []
 builds = ["workflow:php-sdk.yml:test"]
 executes = []
 
@@ -241,18 +254,11 @@ executes = []
 [[artifact]]
 id = "sdk:official/fraiseql-rust"
 kind = "sdk-package"
-consumed_as = "crates.io/crates/fraiseql_rust — NOT PUBLISHED at any version"
-publishes = ["workflow:rust-sdk.yml:publish"]
+consumed_as = "crates.io/crates/fraiseql-rust — first published at 2.15.0"
+publishes = ["workflow:release.yml:publish-rust-sdk", "workflow:rust-sdk.yml:publish"]
 builds = ["workflow:rust-sdk.yml:test"]
 executes = []
 
-[[artifact]]
-id = "sdk:community/fraiseql-ruby"
-kind = "sdk-package"
-consumed_as = "rubygems.org/gems/fraiseql — NOT PUBLISHED at any version"
-publishes = ["workflow:ruby-sdk.yml:publish"]
-builds = ["workflow:ruby-sdk.yml:test"]
-executes = []
 
 # ── Rust crates on crates.io ───────────────────────────────────────────────
 #
@@ -527,22 +533,22 @@ executes = ["tool:tools/consume-published-artifacts.sh"]
 [[exempt]]
 applies_to = "sdk:official/fraiseql-csharp"
 issue = 1130
-reason = "NuGet FraiseQL + FraiseQL.Tool: not published at any version; publish job gated on a csharp-sdk/v* tag that has never existed"
+reason = "source-only by ADR-0019 (2026-08-30): the publish job was DELETED rather than gated, so nothing can push it and nothing consumes it as a package. NuGet FraiseQL / FraiseQL.Tool hold no version"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-dart"
 issue = 1223
-reason = "pub.dev: not published; and the publish job's only publish step is `dart pub publish --dry-run`, so tagging would not change that"
+reason = "source-only by ADR-0019 (2026-08-30): the publish job was DELETED rather than gated, so nothing can push it and nothing consumes it as a package. The deleted job was #1223's — named 'Publish to pub.dev' with `--dry-run` as its only publish step. pub.dev holds no version"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-elixir"
 issue = 1130
-reason = "Hex: not published at any version; publish job gated on an elixir-sdk/v* tag that has never existed"
+reason = "source-only by ADR-0019 (2026-08-30): the publish job was DELETED rather than gated, so nothing can push it and nothing consumes it as a package. Hex fraiseql holds no version"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-fsharp"
 issue = 1130
-reason = "NuGet FraiseQL.FSharp + FraiseQL.Tool.FSharp: not published at any version; publish job gated on an fsharp-sdk/v* tag that has never existed"
+reason = "source-only by ADR-0019 (2026-08-30): the publish job was DELETED rather than gated, so nothing can push it and nothing consumes it as a package. NuGet FraiseQL.FSharp / FraiseQL.Tool.FSharp hold no version"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-go"
@@ -552,27 +558,22 @@ reason = "the declared module path github.com/fraiseql/fraiseql-go is a 404 repo
 [[exempt]]
 applies_to = "sdk:official/fraiseql-java"
 issue = 1130
-reason = "Maven Central com.fraiseql:fraiseql-java: not published at any version; publish job gated on a java-sdk/v* tag that has never existed"
+reason = "source-only by ADR-0019 (2026-08-30): the publish job was DELETED rather than gated, so nothing can push it and nothing consumes it as a package. Maven Central com.fraiseql:fraiseql-java holds no version"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-php"
 issue = 1130
-reason = "Packagist fraiseql/fraiseql: not published at any version; publish job gated on a php-sdk/v* tag that has never existed"
+reason = "source-only by ADR-0019 (2026-08-30): the publish job was DELETED rather than gated, so nothing can push it and nothing consumes it as a package. Packagist fraiseql/fraiseql holds no version"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-ruby"
 issue = 1130
-reason = "deliberately has no publish job (ruby-official-sdk.yml is test-only; the community gem is the one with a publish path) — so it is shipped as source in this repository and nothing consumes it as a package"
+reason = "source-only by ADR-0019 (2026-08-30): the publish job was DELETED rather than gated, so nothing can push it and nothing consumes it as a package. This one never had a publisher to delete — ruby-official-sdk.yml has always been test-only. RubyGems holds no version under any fraiseql name"
 
 [[exempt]]
 applies_to = "sdk:official/fraiseql-rust"
 issue = 1130
-reason = "crates.io fraiseql_rust: not published at any version, although this SDK IS in release.sh's version-bump set; publish job gated on a rust-sdk/v* tag that has never existed"
-
-[[exempt]]
-applies_to = "sdk:community/fraiseql-ruby"
-issue = 1130
-reason = "RubyGems fraiseql: not published at any version; publish job gated on a ruby-sdk/v* tag that has never existed"
+reason = "crates.io fraiseql-rust: nothing INSTALLS it. release.yml:publish-rust-sdk now ships it on the v* tag and verify-release requires HTTP 200 for the new version, so the artifact is produced and its arrival is checked — but no consumption tier compiles against it, the same gap the crate:* rows carry"
 
 [[exempt]]
 applies_to = "crate:fraiseql-arrow"

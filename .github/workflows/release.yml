@@ -858,6 +858,55 @@ jobs:
           [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ PyPI upload: FAILED" >> "$GITHUB_STEP_SUMMARY"
           [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ⚠️ Validation: SKIPPED" >> "$GITHUB_STEP_SUMMARY"
 
+  # Build and publish the Rust SDK crate
+  #
+  # ADR-0019 puts Rust in the published set alongside Python and TypeScript, and
+  # `tools/release.sh` bumps `sdks/official/fraiseql-rust/Cargo.toml` accordingly. It had
+  # no publisher on this tag: `rust-sdk.yml:publish` fires on a `rust-sdk/v*` tag, which
+  # release.sh does not create and which has never existed, so `fraiseql-rust` was 404 on
+  # crates.io while the README said otherwise. `check-sdk-publication-claims.py` now
+  # requires every published SDK to have a publisher reachable from the release tag, so
+  # deleting this job fails the gate rather than silently un-publishing the SDK again.
+  #
+  # NOT `--package`: this crate is not a workspace member, so it publishes from its own
+  # directory. That also keeps it out of `check-publish-parity.py`, which owns the
+  # ordered `cargo publish --package` list for the 18 workspace crates.
+  publish-rust-sdk:
+    name: Publish Rust SDK to crates.io
+    environment: release
+    needs: create-github-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+
+      # Honesty gate (audit H30, #1130): refuse to publish when the manifest version
+      # does not match the release tag.
+      - name: Assert Rust SDK version matches the release tag
+        run: |
+          source tools/lib/release_helpers.sh
+          RELEASE_VERSION="${GITHUB_REF#refs/tags/v}"
+          MANIFEST_VERSION=$(
+            grep -m1 '^version' sdks/official/fraiseql-rust/Cargo.toml \
+              | sed -E 's/.*"([^"]+)".*/\1/'
+          )
+          assert_sdk_version_matches "$MANIFEST_VERSION" "$RELEASE_VERSION" "Rust SDK"
+
+      - name: Publish to crates.io
+        id: publish-rust-sdk
+        working-directory: sdks/official/fraiseql-rust
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      # No per-job probe here on purpose: the one beside publish-python is
+      # `continue-on-error: true` and so can never redden anything. `verify-release`
+      # below is the collect-all check that MUST fail, and fraiseql-rust is in its list.
+
   # npm publishing moved to .github/workflows/npm-publish.yml (Trusted Publishing
   # / OIDC, no NPM_TOKEN). It triggers on the same `v*` tag, so npm ships in
   # lockstep with this pipeline.
@@ -865,7 +914,7 @@ jobs:
   # Verify all packages published correctly
   verify-release:
     name: Verify Published Packages
-    needs: [create-github-release, publish-crates, build-binaries, publish-python]
+    needs: [create-github-release, publish-crates, build-binaries, publish-python, publish-rust-sdk]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: always()
@@ -902,6 +951,9 @@ jobs:
           done
           PENDING+=("PyPI: fraiseql v$VERSION|https://pypi.org/pypi/fraiseql/$VERSION/json")
           PENDING+=("npm: fraiseql v$VERSION|https://registry.npmjs.org/fraiseql/$VERSION")
+          # The third published SDK (ADR-0019). It is not a workspace member, so it is
+          # absent from CRATES above and was absent from this check entirely.
+          PENDING+=("crates.io: fraiseql-rust v$VERSION|https://crates.io/api/v1/crates/fraiseql-rust/$VERSION")
 
           # Bounded retry-then-FAIL: absorbs registry indexing lag (tens of seconds)
           # without the old warn-and-proceed. ~3 min ceiling; usually one round.
@@ -931,7 +983,7 @@ jobs:
             echo "::error::one or more published artifacts never became visible after ~3min — see the job summary"
             exit 1
           fi
-          echo "All crates (crates.io) + PyPI + npm are published and visible at v$VERSION."
+          echo "All crates + the Rust SDK (crates.io) + PyPI + npm are published and visible at v$VERSION."
 
       - name: Verify all expected release assets are present
         env:
