@@ -315,6 +315,26 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`array_overlaps` emitted an operator PostgreSQL does not have (#1258).**
+
+  `jsonb && jsonb` does not exist — `&&` is an array/range operator — so the predicate
+  could never execute. It is now element-wise intersection over
+  `jsonb_array_elements`, which is general over element type. `jsonb ?| text[]` was
+  rejected as the spelling: it matches string elements only, so a numeric array would
+  have returned no match instead of erroring.
+
+- **Three more operands cast without parentheses, and two parameters bound as the wrong type (#1256).**
+
+  A follow-up sweep of the same file: `jsonb_array_length({expr}::jsonb)` was missed by
+  the first pass, which was keyed on the operand being named `lhs`. The network
+  operators bound `$n::inet`, which makes PostgreSQL infer the parameter as `inet`
+  while this crate binds text — `invalid address family in external "inet" value`.
+  ltree escaped that only because the driver has no binary format for `ltree`. Both
+  now use the `$n::text::<type>` convention.
+
+  `where_operator_type_matrix.rs` now covers the network and jsonb-array families as
+  well as ltree, so all three are pinned by executed row sets rather than by strings.
+
 - **A cast now binds to the extracted value, not to the key that names it (#1256).**
 
   `{lhs}::ltree` is not `(data->>'org_path')::ltree`. PostgreSQL binds `::` tighter

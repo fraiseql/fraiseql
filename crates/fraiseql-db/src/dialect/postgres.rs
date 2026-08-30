@@ -103,7 +103,7 @@ impl SqlDialect for PostgresDialect {
     }
 
     fn json_array_length(&self, expr: &str) -> String {
-        format!("jsonb_array_length({expr}::jsonb)")
+        format!("jsonb_array_length(({expr})::jsonb)")
     }
 
     fn array_contains_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
@@ -115,7 +115,15 @@ impl SqlDialect for PostgresDialect {
     }
 
     fn array_overlaps_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
-        Ok(format!("({lhs})::jsonb && {rhs}::jsonb"))
+        // PostgreSQL has no `jsonb && jsonb` — `&&` is an array/range operator —
+        // so the emitted predicate could never run. `?|` would work but only
+        // matches STRING elements (`'[1,2]'::jsonb ?| ARRAY['1']` is false),
+        // which would silently under-match numeric arrays. Element-wise
+        // intersection is the general form.
+        Ok(format!(
+            "EXISTS (SELECT 1 FROM jsonb_array_elements(({lhs})::jsonb) AS _l(v) \
+             JOIN jsonb_array_elements({rhs}::jsonb) AS _r(v) ON _l.v = _r.v)"
+        ))
     }
 
     fn fts_matches_sql(&self, expr: &str, param: &str) -> Result<String, UnsupportedOperator> {
@@ -210,7 +218,7 @@ impl SqlDialect for PostgresDialect {
         lhs: &str,
         rhs: &str,
     ) -> Result<String, UnsupportedOperator> {
-        Ok(format!("({lhs})::inet {pg_op} {rhs}::inet"))
+        Ok(format!("({lhs})::inet {pg_op} {rhs}::text::inet"))
     }
 
     fn ltree_binary_sql(

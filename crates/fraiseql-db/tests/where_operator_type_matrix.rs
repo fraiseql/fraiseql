@@ -54,6 +54,8 @@ fn declared_types() -> SharedFieldTypes {
         ("ts_val", ScalarFieldType::DateTime),
         ("time_val", ScalarFieldType::Time),
         ("path_val", ScalarFieldType::Text),
+        ("ip_val", ScalarFieldType::Text),
+        ("tags_val", ScalarFieldType::Text),
         ("absent", ScalarFieldType::Text),
     ]))
 }
@@ -67,13 +69,13 @@ CREATE TABLE v_operator_type_matrix (data jsonb);
 INSERT INTO v_operator_type_matrix (data) VALUES
   ('{"id":1,"int_val":5,"num_val":19.90,"bool_val":true,"text_val":"alpha",
      "uuid_val":"11111111-1111-1111-1111-111111111111","date_val":"2024-01-01",
-     "ts_val":"2024-01-01T10:00:00+02:00","time_val":"08:30:00","path_val":"a.b.c"}'::jsonb),
+     "ts_val":"2024-01-01T10:00:00+02:00","time_val":"08:30:00","path_val":"a.b.c","ip_val":"10.0.0.5","tags_val":["rust","graphql"]}'::jsonb),
   ('{"id":2,"int_val":10,"num_val":24.50,"bool_val":false,"text_val":"mike",
      "uuid_val":"22222222-2222-2222-2222-222222222222","date_val":"2024-06-15",
-     "ts_val":"2024-01-01T09:00:00Z","time_val":"12:00:00","path_val":"a.b"}'::jsonb),
+     "ts_val":"2024-01-01T09:00:00Z","time_val":"12:00:00","path_val":"a.b","ip_val":"192.0.2.10","tags_val":["python"]}'::jsonb),
   ('{"id":3,"int_val":15,"num_val":100.00,"bool_val":true,"text_val":"zulu",
      "uuid_val":"33333333-3333-3333-3333-333333333333","date_val":"2024-12-31",
-     "ts_val":"2024-12-31T23:59:59Z","time_val":"23:59:59","path_val":"x.y.z.w"}'::jsonb);
+     "ts_val":"2024-12-31T23:59:59Z","time_val":"23:59:59","path_val":"x.y.z.w","ip_val":"2001:db8::1","tags_val":["rust","sql"]}'::jsonb);
 "#;
 
 struct Rig {
@@ -153,6 +155,45 @@ struct Case {
 }
 
 const MATRIX: &[Case] = &[
+    // ── Network (inet) — #1256, the same unparenthesised cast. `data->>'ip_val'::inet`
+    //    parses as `data ->> ('ip_val'::inet)`: `invalid input syntax for type inet: "ip_val"`.
+    Case {
+        name:   "inet isIPv4",
+        filter: || json!({"ipVal": {"is_ipv4": true}}),
+        expect: &[1, 2],
+    },
+    Case {
+        name:   "inet isIPv6",
+        filter: || json!({"ipVal": {"is_ipv6": true}}),
+        expect: &[3],
+    },
+    Case {
+        name:   "inet isPrivate",
+        filter: || json!({"ipVal": {"is_private": true}}),
+        expect: &[1],
+    },
+    Case {
+        name:   "inet inSubnet",
+        filter: || json!({"ipVal": {"in_subnet": "10.0.0.0/8"}}),
+        expect: &[1],
+    },
+    // ── JSONB array containment — #1256 again. `data->>'tags_val'::jsonb` casts the
+    //    KEY: `Token "tags_val" is invalid`.
+    Case {
+        name:   "jsonb arrayContains",
+        filter: || json!({"tagsVal": {"array_contains": ["rust"]}}),
+        expect: &[1, 3],
+    },
+    Case {
+        name:   "jsonb arrayOverlaps",
+        filter: || json!({"tagsVal": {"array_overlaps": ["python", "sql"]}}),
+        expect: &[2, 3],
+    },
+    Case {
+        name:   "jsonb arrayContainedBy",
+        filter: || json!({"tagsVal": {"array_contained_by": ["rust", "graphql", "extra"]}}),
+        expect: &[1],
+    },
     // ── Ltree — #1256: `{lhs}::ltree` binds tighter than `->>`, so every one of
     //    these produced `data ->> ('path_val'::ltree)` and aborted the statement.
     //    `depthEq` failed differently: `nlevel(…) = $1` infers int4 while the
