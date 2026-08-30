@@ -192,6 +192,13 @@ type QueryDefinition =
         inject_params: Map<string, string> option
         /// Role required to execute this query and to see it in introspection.
         requires_role: string option
+        /// Actor types allowed to execute this query (#966).
+        ///
+        /// `None` rather than `Some []` when there is no gate: `IntermediateQuery.requires_actor`
+        /// is a `Vec<String>` with a serde default, so an absent key and `[]` compile the
+        /// same — and emitting `[]` would put a declared-looking gate in the document that
+        /// gates nothing.
+        requires_actor: string list option
     }
 
 /// Represents a GraphQL mutation (write operation).
@@ -218,6 +225,8 @@ type MutationDefinition =
         inject_params: Map<string, string> option
         /// Role required to execute this mutation.
         requires_role: string option
+        /// Actor types allowed to execute this mutation (#966). See QueryDefinition.
+        requires_actor: string list option
         /// Views whose cached query results must be invalidated after this mutation
         /// succeeds. Without them a write and the cached reads of what it wrote have no
         /// connection, and the new row stays invisible for the reader's whole TTL.

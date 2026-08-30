@@ -23,6 +23,9 @@ final class MutationBuilder
     private bool $returnsListValue = false;
     private bool $nullableValue = false;
     private ?string $requiresRoleValue = null;
+
+    /** @var list<string> */
+    private array $requiresActorList = [];
     private ?string $sqlSourceValue = null;
     private ?string $operationValue = null;
     private ?string $descriptionValue = null;
@@ -90,6 +93,21 @@ final class MutationBuilder
     public function requiresRole(string $role): self
     {
         $this->requiresRoleValue = $role;
+        return $this;
+    }
+
+    /**
+     * Restrict this mutation to an allow-list of actor types (#966).
+     *
+     * Enforced in the same executor gate as {@see requiresRole()}, on every transport.
+     * Until #1123 it was expressible only by hand-writing `schema.json`.
+     *
+     * @param list<string> $actors one or more {@see ActorType} constants
+     */
+    public function requiresActor(array $actors): self
+    {
+        ActorType::validate($actors, "mutation '{$this->name}'");
+        $this->requiresActorList = $actors;
         return $this;
     }
 
@@ -236,6 +254,10 @@ final class MutationBuilder
 
         if ($this->requiresRoleValue !== null) {
             $result['requires_role'] = $this->requiresRoleValue;
+        }
+
+        if ($this->requiresActorList !== []) {
+            $result['requires_actor'] = $this->requiresActorList;
         }
 
         if ($this->cascadeValue) {

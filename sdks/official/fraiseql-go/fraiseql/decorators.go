@@ -86,6 +86,7 @@ type QueryBuilder struct {
 	cacheTTLSeconds   *uint64
 	additionalViews   []string
 	requiresRole      string
+	requiresActor     []string
 	deprecation       *DeprecationInfo
 }
 
@@ -192,6 +193,16 @@ func (qb *QueryBuilder) RequiresRole(role string) *QueryBuilder {
 	return qb
 }
 
+// RequiresActor restricts this query to an allow-list of actor types (#966).
+//
+// Enforced in the same executor gate as RequiresRole, on every transport. Until #1123 it
+// was expressible only by hand-writing schema.json. An invalid list is reported by
+// Register, which is where this builder reports every other authoring error.
+func (qb *QueryBuilder) RequiresActor(actors ...string) *QueryBuilder {
+	qb.requiresActor = actors
+	return qb
+}
+
 // RestPath sets the REST endpoint path for this query.
 func (qb *QueryBuilder) RestPath(path string) *QueryBuilder {
 	qb.restPath = path
@@ -214,6 +225,11 @@ func (qb *QueryBuilder) Deprecated(reason string) *QueryBuilder {
 // Register registers the query with the global schema registry.
 // Returns an error if a query with the same name is already registered.
 func (qb *QueryBuilder) Register() error {
+	if qb.requiresActor != nil {
+		if err := validateRequiresActor(fmt.Sprintf("query %q", qb.name), qb.requiresActor); err != nil {
+			return err
+		}
+	}
 	if qb.relay {
 		if !qb.returnsList {
 			return fmt.Errorf(
@@ -243,6 +259,7 @@ func (qb *QueryBuilder) Register() error {
 		CacheTTLSeconds:   qb.cacheTTLSeconds,
 		AdditionalViews:   qb.additionalViews,
 		RequiresRole:      qb.requiresRole,
+		RequiresActor:     qb.requiresActor,
 		Deprecation:       qb.deprecation,
 	}
 
@@ -280,7 +297,12 @@ type MutationBuilder struct {
 	injectParams          map[string]interface{}
 	invalidatesViews      []string
 	invalidatesFactTables []string
-	deprecation           *DeprecationInfo
+	// The write side had neither gate: MutationDefinition carried no requires_role at
+	// all, so the role gate every other SDK's mutation builder exposes was unauthorable
+	// in Go, and the actor gate joined it (#1123, #1253).
+	requiresRole  string
+	requiresActor []string
+	deprecation   *DeprecationInfo
 }
 
 // NewMutation creates a new mutation builder
@@ -292,6 +314,20 @@ func NewMutation(name string) *MutationBuilder {
 			arguments: []ArgumentDefinition{},
 		},
 	}
+}
+
+// RequiresRole restricts this mutation to callers who hold the given role.
+func (mb *MutationBuilder) RequiresRole(role string) *MutationBuilder {
+	mb.requiresRole = role
+	return mb
+}
+
+// RequiresActor restricts this mutation to an allow-list of actor types (#966).
+//
+// Enforced in the same executor gate as RequiresRole, on every transport.
+func (mb *MutationBuilder) RequiresActor(actors ...string) *MutationBuilder {
+	mb.requiresActor = actors
+	return mb
 }
 
 // ReturnType sets the return type for the mutation
@@ -388,17 +424,24 @@ func (mb *MutationBuilder) Deprecated(reason string) *MutationBuilder {
 // Register registers the mutation with the global schema registry.
 // Returns an error if a mutation with the same name is already registered.
 func (mb *MutationBuilder) Register() error {
+	if mb.requiresActor != nil {
+		if err := validateRequiresActor(fmt.Sprintf("mutation %q", mb.name), mb.requiresActor); err != nil {
+			return err
+		}
+	}
 	definition := MutationDefinition{
-		Name:                 mb.name,
-		ReturnType:           mb.returnType,
-		ReturnsList:          mb.returnsList,
-		Nullable:             mb.nullable,
-		Arguments:            mb.arguments,
-		Description:          mb.description,
-		InjectParams:         mb.injectParams,
-		InvalidatesViews:     mb.invalidatesViews,
+		Name:                  mb.name,
+		ReturnType:            mb.returnType,
+		ReturnsList:           mb.returnsList,
+		Nullable:              mb.nullable,
+		Arguments:             mb.arguments,
+		Description:           mb.description,
+		InjectParams:          mb.injectParams,
+		InvalidatesViews:      mb.invalidatesViews,
 		InvalidatesFactTables: mb.invalidatesFactTables,
-		Deprecation:          mb.deprecation,
+		RequiresRole:          mb.requiresRole,
+		RequiresActor:         mb.requiresActor,
+		Deprecation:           mb.deprecation,
 	}
 
 	if mb.restPath != "" {

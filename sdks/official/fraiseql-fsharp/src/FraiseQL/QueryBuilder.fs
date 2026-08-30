@@ -26,6 +26,7 @@ module QueryBuilder =
             rest: RestConfig option
             injectParams: Map<string, string>
             requiresRole: string option
+            requiresActor: string list option
         }
 
     /// Creates a new <see cref="QueryState"/> for the given query name.
@@ -42,6 +43,7 @@ module QueryBuilder =
             rest = None
             injectParams = Map.empty
             requiresRole = None
+            requiresActor = None
         }
 
     /// Sets the GraphQL return type for this query.
@@ -79,6 +81,14 @@ module QueryBuilder =
     /// Restricts this query to callers holding the given role.
     let requiresRole (role: string) (s: QueryState) : QueryState = { s with requiresRole = Some role }
 
+    /// Restricts this query to an allow-list of actor types (#966).
+    ///
+    /// Enforced in the same executor gate as `requiresRole`, on every transport. Until
+    /// #1123 it was expressible only by hand-writing `schema.json`.
+    let requiresActor (actors: string list) (s: QueryState) : QueryState =
+        ActorType.validate (sprintf "query '%s'" s.name) actors
+        { s with requiresActor = Some actors }
+
     /// Converts the accumulated state into a <see cref="QueryDefinition"/>.
     /// Raises <see cref="System.InvalidOperationException"/> when required fields are missing.
     let toDefinition (s: QueryState) : QueryDefinition =
@@ -100,6 +110,7 @@ module QueryBuilder =
             rest = s.rest
             inject_params = (if Map.isEmpty s.injectParams then None else Some s.injectParams)
             requires_role = s.requiresRole
+            requires_actor = s.requiresActor
         }
 
     /// Converts the state to a <see cref="QueryDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

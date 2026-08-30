@@ -38,6 +38,9 @@ final class QueryBuilder
     private array $additionalViewsList = [];
 
     private ?string $requiresRoleValue = null;
+
+    /** @var list<string> */
+    private array $requiresActorList = [];
     private ?string $deprecationReason = null;
     private ?string $restPathValue = null;
     private ?string $restMethodValue = null;
@@ -134,6 +137,21 @@ final class QueryBuilder
         return $this;
     }
 
+    /**
+     * Restrict this query to an allow-list of actor types (#966).
+     *
+     * Enforced in the same executor gate as {@see requiresRole()}, on every transport.
+     * Until #1123 it was expressible only by hand-writing `schema.json`.
+     *
+     * @param list<string> $actors one or more {@see ActorType} constants
+     */
+    public function requiresActor(array $actors): self
+    {
+        ActorType::validate($actors, "query '{$this->name}'");
+        $this->requiresActorList = $actors;
+        return $this;
+    }
+
     public function deprecated(string $reason): self
     {
         $this->deprecationReason = $reason;
@@ -212,6 +230,10 @@ final class QueryBuilder
 
         if ($this->requiresRoleValue !== null) {
             $result['requires_role'] = $this->requiresRoleValue;
+        }
+
+        if ($this->requiresActorList !== []) {
+            $result['requires_actor'] = $this->requiresActorList;
         }
 
         // `auto_params` is an object of per-parameter booleans (`IntermediateAutoParams`),

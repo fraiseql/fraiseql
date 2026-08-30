@@ -48,6 +48,47 @@ def _validate_sql_identifier(value: str, param: str, context: str) -> None:
         )
 
 
+# The `ActorType` roster, `snake_case` as the compiler and the change-log
+# `actor_type TEXT` column spell it (`crates/fraiseql-core/src/security/actor_type.rs`).
+# Held here rather than inferred so a typo is refused where the author typed it: the CLI
+# refuses an unknown token by name, but only at compile time, and this is a security gate
+# — an allow-list that silently means something else is the failure worth catching early.
+ACTOR_TYPES = ("human_user", "service_account", "ai_agent", "system_job")
+
+
+def _validate_requires_actor(value: object, context: str) -> None:
+    """Raise if `requires_actor` is present and not a non-empty list of known actor tokens.
+
+    `None` — the key absent — returns quietly, so a caller is one unconditional statement
+    rather than a branch. That matters: both decorators sit on ruff's PLR0912/PLR0915
+    thresholds, and a validator that makes its caller grow a branch buys a `noqa` instead
+    of a check.
+
+    An empty list is refused rather than treated as "no restriction": the compiled schema
+    omits the key when empty, so `requires_actor=[]` would read as a declared gate and
+    compile to none at all — the fail-open shape (#1123).
+    """
+    if value is None:
+        return
+    if not isinstance(value, (list, tuple)) or isinstance(value, str):
+        raise TypeError(
+            f"{context}: requires_actor= must be a list of actor types "
+            f"(got {value.__class__.__name__!r}). Valid: {', '.join(ACTOR_TYPES)}."
+        )
+    if not value:
+        raise ValueError(
+            f"{context}: requires_actor= is an empty list. An empty allow-list admits "
+            "nobody and is dropped from the compiled schema, which admits everybody — "
+            f"name the actor types instead. Valid: {', '.join(ACTOR_TYPES)}."
+        )
+    unknown = [a for a in value if a not in ACTOR_TYPES]
+    if unknown:
+        raise ValueError(
+            f"{context}: requires_actor= names unknown actor type(s) {unknown!r}. "
+            f"Valid: {', '.join(ACTOR_TYPES)}."
+        )
+
+
 def _validate_inject(
     inject: dict[str, str],
     arg_names: set[str],
@@ -792,6 +833,12 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         # REST annotation validation — fail fast at authoring time
         _validate_rest_annotations(cfg, f"@fraiseql.query on {f.__name__!r}", "GET")
 
+        # #966's actor allow-list, on the surface the executor gates. Validated here, not
+        # passed through: `**config_kwargs` would have carried a misspelt token all the
+        # way to `fraiseql compile`, and a security gate that fails late fails after the
+        # author has stopped looking (#1123).
+        _validate_requires_actor(cfg.get("requires_actor"), f"@fraiseql.query on {f.__name__!r}")
+
         # sql_source validation — block injection at authoring time
         if sql_source := cfg.get("sql_source"):
             _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.query on {f.__name__!r}")
@@ -982,6 +1029,12 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
         # REST annotation validation — fail fast at authoring time
         _validate_rest_annotations(cfg, f"@fraiseql.mutation on {f.__name__!r}", "POST")
+
+        # #966's actor allow-list, on the surface the executor gates. Validated here, not
+        # passed through: `**config_kwargs` would have carried a misspelt token all the
+        # way to `fraiseql compile`, and a security gate that fails late fails after the
+        # author has stopped looking (#1123).
+        _validate_requires_actor(cfg.get("requires_actor"), f"@fraiseql.mutation on {f.__name__!r}")
 
         # sql_source validation — block injection at authoring time
         if sql_source := cfg.get("sql_source"):

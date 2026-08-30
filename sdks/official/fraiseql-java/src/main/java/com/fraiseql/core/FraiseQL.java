@@ -179,6 +179,7 @@ public class FraiseQL {
         private boolean returnsArray = false;
         private boolean nullable = false;
         private String requiresRole = null;
+        private java.util.List<String> requiresActor = java.util.List.of();
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
         private boolean relay = false;
@@ -248,6 +249,22 @@ public class FraiseQL {
          * @param role the required role
          * @return this builder for chaining
          */
+        /**
+         * Restrict this query to an allow-list of actor types (#966).
+         *
+         * <p>Enforced in the same executor gate as {@link #requiresRole(String)}, on every
+         * transport. Until #1123 it was expressible only by hand-writing schema.json.
+         *
+         * @param actors one or more {@link ActorType} constants
+         * @return this builder
+         */
+        public QueryBuilder requiresActor(String... actors) {
+            java.util.List<String> declared = java.util.List.of(actors);
+            ActorType.validate("query '" + name + "'", declared);
+            this.requiresActor = declared;
+            return this;
+        }
+
         public QueryBuilder requiresRole(String role) {
             this.requiresRole = role;
             return this;
@@ -396,7 +413,7 @@ public class FraiseQL {
             } else {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay);
             }
-            registry.setQueryMetadata(name, nullable, requiresRole);
+            registry.setQueryMetadata(name, nullable, requiresRole, requiresActor);
         }
     }
 
@@ -409,6 +426,7 @@ public class FraiseQL {
         private boolean returnsArray = false;
         private boolean nullable = false;
         private String requiresRole = null;
+        private java.util.List<String> requiresActor = java.util.List.of();
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
         private String sqlSource = null;
@@ -463,6 +481,22 @@ public class FraiseQL {
          * @param role the required role
          * @return this builder for chaining
          */
+        /**
+         * Restrict this mutation to an allow-list of actor types (#966).
+         *
+         * <p>Enforced in the same executor gate as {@link #requiresRole(String)}, on every
+         * transport.
+         *
+         * @param actors one or more {@link ActorType} constants
+         * @return this builder
+         */
+        public MutationBuilder requiresActor(String... actors) {
+            java.util.List<String> declared = java.util.List.of(actors);
+            ActorType.validate("mutation '" + name + "'", declared);
+            this.requiresActor = declared;
+            return this;
+        }
+
         public MutationBuilder requiresRole(String role) {
             this.requiresRole = role;
             return this;
@@ -622,7 +656,7 @@ public class FraiseQL {
             } else {
                 registry.registerMutation(name, finalReturnType, arguments, description);
             }
-            registry.setMutationMetadata(name, nullable, requiresRole);
+            registry.setMutationMetadata(name, nullable, requiresRole, requiresActor);
         }
     }
 

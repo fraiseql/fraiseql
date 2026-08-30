@@ -49,6 +49,11 @@ module FraiseQL
       sparse_vector: "SparseVector"
     }.freeze
 
+    # The `ActorType` roster #966's actor gate is an allow-list of, snake_case as the
+    # compiler spells it (`crates/fraiseql-core/src/security/actor_type.rs`) and as the
+    # change-log `actor_type TEXT` column stores it.
+    ACTOR_TYPES = %w[human_user service_account ai_agent system_job].freeze
+
     # Index types a pgvector column can be searched through.
     VECTOR_INDEXES = %w[hnsw ivf_flat none].freeze
 
@@ -156,7 +161,8 @@ module FraiseQL
     # `inject` maps a SQL parameter to a `"jwt:<claim>"` source and is emitted under
     # `inject_params` — the key the compiler reads.
     def query(name, return_type:, sql_source: nil, returns_list: false, nullable: false,
-              description: nil, cache_ttl_seconds: nil, requires_role: nil, inject: nil)
+              description: nil, cache_ttl_seconds: nil, requires_role: nil, requires_actor: nil,
+              inject: nil)
       builder = ArgumentListBuilder.new
       yield builder if block_given?
 
@@ -171,6 +177,7 @@ module FraiseQL
       definition["description"] = description if description
       definition["cache_ttl_seconds"] = cache_ttl_seconds if cache_ttl_seconds
       definition["requires_role"] = requires_role.to_s if requires_role
+      definition["requires_actor"] = validated_actors(name, requires_actor) if requires_actor
       definition["inject_params"] = self.class.inject_params(inject) if inject && !inject.empty?
 
       @queries << definition
@@ -183,8 +190,8 @@ module FraiseQL
     # cached reads of what it wrote; without them a new row stays invisible for the whole
     # of a reader's TTL.
     def mutation(name, return_type:, sql_source: nil, operation: nil, returns_list: false,
-                 nullable: false, description: nil, requires_role: nil, inject: nil,
-                 invalidates_views: nil, invalidates_fact_tables: nil)
+                 nullable: false, description: nil, requires_role: nil, requires_actor: nil,
+                 inject: nil, invalidates_views: nil, invalidates_fact_tables: nil)
       builder = ArgumentListBuilder.new
       yield builder if block_given?
 
@@ -199,12 +206,39 @@ module FraiseQL
       definition["operation"] = operation.to_s if operation
       definition["description"] = description if description
       definition["requires_role"] = requires_role.to_s if requires_role
+      definition["requires_actor"] = validated_actors(name, requires_actor) if requires_actor
       definition["inject_params"] = self.class.inject_params(inject) if inject && !inject.empty?
       definition["invalidates_views"] = invalidates_views if invalidates_views
       definition["invalidates_fact_tables"] = invalidates_fact_tables if invalidates_fact_tables
 
       @mutations << definition
       definition
+    end
+
+    # #966's actor allow-list, checked where the author wrote it.
+    #
+    # The compiler refuses an unknown token by name, but only at compile time, and this is
+    # a security gate enforced in the same executor arm as `requires_role` on every
+    # transport — one that fails late fails after the author has stopped looking (#1123).
+    # An empty list is refused rather than emitted: the compiled schema omits the key when
+    # empty, so an empty allow-list reads as a declared gate and compiles to none at all.
+    def validated_actors(operation_name, actors)
+      actors = Array(actors).map(&:to_s)
+      if actors.empty?
+        raise ArgumentError,
+              "#{operation_name}: requires_actor: is empty. An empty allow-list admits " \
+              "nobody and is dropped from the compiled schema, which admits everybody — " \
+              "name the actor types instead. Valid: #{ACTOR_TYPES.join(', ')}."
+      end
+
+      unknown = actors - ACTOR_TYPES
+      unless unknown.empty?
+        raise ArgumentError,
+              "#{operation_name}: requires_actor: names unknown actor type(s) " \
+              "#{unknown.join(', ')}. Valid: #{ACTOR_TYPES.join(', ')}."
+      end
+
+      actors
     end
 
     # The schema as a Hash, in the intermediate format.

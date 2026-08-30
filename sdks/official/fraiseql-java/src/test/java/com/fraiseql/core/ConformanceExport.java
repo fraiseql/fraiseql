@@ -89,6 +89,9 @@ public class ConformanceExport {
             .inject(tenantInject)
             .cacheTtlSeconds(300)
             .requiresRole("admin")
+            // #966's actor allow-list, enforced in the same executor gate as requiresRole
+            // on every transport, and authorable in no SDK until #1123.
+            .requiresActor(ActorType.HUMAN_USER, ActorType.SERVICE_ACCOUNT)
             .register();
 
         FraiseQL.mutation("createUser")
@@ -99,6 +102,7 @@ public class ConformanceExport {
             .arg("name", "String")
             .invalidatesViews(List.of("v_user", "v_user_summary"))
             .invalidatesFactTables(List.of("tf_signup"))
+            .requiresActor(ActorType.SERVICE_ACCOUNT)
             .register();
 
         Map<String, String> userInject = new LinkedHashMap<>();

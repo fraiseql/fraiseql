@@ -220,6 +220,7 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put_auto_params(q.auto_params)
     |> maybe_put_inject_params(q.inject_params)
     |> maybe_put("requires_role", q.requires_role)
+    |> maybe_put_list("requires_actor", q.requires_actor)
     |> maybe_put_rest(q.rest_path, q.rest_method, "GET")
   end
 
@@ -237,6 +238,7 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put_bool("cascade", m.cascade)
     |> maybe_put_inject_params(m.inject_params)
     |> maybe_put("requires_role", m.requires_role)
+    |> maybe_put_list("requires_actor", m.requires_actor)
     |> maybe_put("invalidates_views", m.invalidates_views)
     |> maybe_put("invalidates_fact_tables", m.invalidates_fact_tables)
     |> maybe_put_rest(m.rest_path, m.rest_method, "POST")
@@ -292,6 +294,13 @@ defmodule FraiseQL.SchemaExporter do
   end
 
   # Only include boolean flags in output when they are true (avoid cluttering schema.json)
+  # An empty allow-list is omitted rather than emitted: `IntermediateQuery.requires_actor`
+  # is a `Vec<String>` with a serde default, so `[]` and an absent key compile the same —
+  # and emitting `[]` would put a declared-looking gate in the document that gates nothing.
+  defp maybe_put_list(map, _key, nil), do: map
+  defp maybe_put_list(map, _key, []), do: map
+  defp maybe_put_list(map, key, values), do: Map.put(map, key, values)
+
   defp maybe_put_bool(map, _key, false), do: map
   defp maybe_put_bool(map, key, true), do: Map.put(map, key, true)
 end

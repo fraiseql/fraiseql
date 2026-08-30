@@ -146,6 +146,11 @@ def user(id: ID) -> User | None:
     inject={"tenant_id": "jwt:tenant_id"},
     cache_ttl_seconds=300,
     requires_role="admin",
+    # #966's actor allow-list, enforced in the same executor gate as `requires_role` on
+    # every transport. It was authorable only by hand-writing `schema.json`, which is the
+    # thing every SDK exists to avoid — and a security gate that eleven authoring
+    # languages cannot express is a gate nobody can turn on (#1123).
+    requires_actor=["human_user", "service_account"],
 )
 def tenantOrders() -> list[Order]:  # noqa: N802 — camelCase GraphQL field name
     pass
@@ -156,6 +161,10 @@ def tenantOrders() -> list[Order]:  # noqa: N802 — camelCase GraphQL field nam
     operation="insert",
     invalidates_views=["v_user", "v_user_summary"],
     invalidates_fact_tables=["tf_signup"],
+    # The write side carries it too. `IntermediateMutation::requires_actor` exists and is
+    # enforced identically, so a query-only rollout would leave the more consequential
+    # half of the gate unauthorable with nothing saying so (#1123).
+    requires_actor=["service_account"],
 )
 def createUser(email: str, name: str | None) -> User:  # noqa: N802
     pass

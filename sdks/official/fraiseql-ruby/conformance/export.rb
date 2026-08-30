@@ -96,12 +96,17 @@ def author_full
                                sql_source: "v_order",
                                inject: { "tenant_id" => "jwt:tenant_id" },
                                cache_ttl_seconds: 300,
-                               requires_role: "admin"
+                               requires_role: "admin",
+                               # #966's actor allow-list, enforced in the same executor
+                               # gate as requires_role on every transport, and authorable
+                               # in no SDK until #1123.
+                               requires_actor: %w[human_user service_account]
 
   schema.mutation "createUser", return_type: "User", sql_source: "fn_create_user",
                                 operation: "insert",
                                 invalidates_views: %w[v_user v_user_summary],
-                                invalidates_fact_tables: %w[tf_signup] do |m|
+                                invalidates_fact_tables: %w[tf_signup],
+                                requires_actor: %w[service_account] do |m|
     m.argument :email, :string, nullable: false
     m.argument :name, :string, nullable: true
   end

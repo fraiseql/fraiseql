@@ -385,12 +385,26 @@ public class SchemaRegistry {
      * @param requiresRole role required to execute, or null
      */
     public void setQueryMetadata(String queryName, boolean nullable, String requiresRole) {
+        setQueryMetadata(queryName, nullable, requiresRole, java.util.List.of());
+    }
+
+    /**
+     * As above, plus #966's actor allow-list.
+     *
+     * @param queryName the query name
+     * @param nullable whether the result may be null
+     * @param requiresRole role required to execute, or null
+     * @param requiresActor actor types allowed to execute; empty means no gate
+     */
+    public void setQueryMetadata(String queryName, boolean nullable, String requiresRole,
+                                 java.util.List<String> requiresActor) {
         QueryInfo info = queries.get(queryName);
         if (info == null) {
             throw new IllegalStateException("Query '" + queryName + "' is not registered.");
         }
         info.nullable = nullable;
         info.requiresRole = requiresRole;
+        info.requiresActor = requiresActor;
     }
 
     /**
@@ -401,12 +415,26 @@ public class SchemaRegistry {
      * @param requiresRole role required to execute, or null
      */
     public void setMutationMetadata(String mutationName, boolean nullable, String requiresRole) {
+        setMutationMetadata(mutationName, nullable, requiresRole, java.util.List.of());
+    }
+
+    /**
+     * As above, plus #966's actor allow-list.
+     *
+     * @param mutationName the mutation name
+     * @param nullable whether the result may be null
+     * @param requiresRole role required to execute, or null
+     * @param requiresActor actor types allowed to execute; empty means no gate
+     */
+    public void setMutationMetadata(String mutationName, boolean nullable, String requiresRole,
+                                    java.util.List<String> requiresActor) {
         MutationInfo info = mutations.get(mutationName);
         if (info == null) {
             throw new IllegalStateException("Mutation '" + mutationName + "' is not registered.");
         }
         info.nullable = nullable;
         info.requiresRole = requiresRole;
+        info.requiresActor = requiresActor;
     }
 
     /**
@@ -693,6 +721,12 @@ public class SchemaRegistry {
         public final boolean relay;
         /** Whether the result may be null. Mirrors {@code IntermediateQuery.nullable}. */
         public boolean nullable = false;
+
+        /**
+         * #966's actor allow-list. Mirrors {@code IntermediateQuery.requires_actor}, and
+         * empty means "no gate" — the compiled schema omits the key when empty.
+         */
+        public java.util.List<String> requiresActor = java.util.List.of();
         /** Role required to execute this query. Mirrors {@code IntermediateQuery.requires_role}. */
         public String requiresRole = null;
         public final String sqlSource;
@@ -765,6 +799,12 @@ public class SchemaRegistry {
         public final String description;
         /** Whether the result may be null. Mirrors {@code IntermediateMutation.nullable}. */
         public boolean nullable = false;
+
+        /**
+         * #966's actor allow-list. Mirrors {@code IntermediateMutation.requires_actor},
+         * and empty means "no gate" — the compiled schema omits the key when empty.
+         */
+        public java.util.List<String> requiresActor = java.util.List.of();
         /** Role required to execute this mutation. Mirrors {@code IntermediateMutation.requires_role}. */
         public String requiresRole = null;
         public final String sqlSource;

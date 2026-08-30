@@ -54,6 +54,7 @@ let private singleQuery: QueryDefinition =
         cache_ttl_seconds = None
         inject_params = None
         requires_role = None
+        requires_actor = None
         description = None
         rest = None
     }
@@ -70,6 +71,7 @@ let private singleMutation: MutationDefinition =
         cascade = None
         inject_params = None
         requires_role = None
+        requires_actor = None
         invalidates_views = None
         invalidates_fact_tables = None
     }

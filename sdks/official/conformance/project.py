@@ -95,10 +95,12 @@ CONSTRUCTS = (
     "query_inject_params",
     "query_cache_ttl",
     "query_requires_role",
+    "query_requires_actor",
     "mutations",
     "mutation_arguments",
     "mutation_invalidates_views",
     "mutation_invalidates_fact_tables",
+    "mutation_requires_actor",
     "subscriptions",
     "vector_fields",
 )
@@ -340,6 +342,20 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         if queries.get(name, {}).get("requires_role")
     }
 
+    # #966's actor allow-list, on both operation kinds. It is a security gate enforced in
+    # the same executor arm as `requires_role`, on every transport, so an SDK that cannot
+    # author it leaves the gate unwritable in that language — which is why it is asserted
+    # rather than left to the `queries` / `mutations` constructs, whose absence would read
+    # as "this SDK's queries are broken" instead of "this SDK cannot express the gate"
+    # (#1123). The write side is included because `IntermediateMutation::requires_actor`
+    # exists and is enforced identically; a query-only construct would gate the half that
+    # reads and leave the half that writes undeclared.
+    observations["query_requires_actor"] = {
+        name: queries[name]["requires_actor"]
+        for name in AUTHORED_QUERIES
+        if queries.get(name, {}).get("requires_actor")
+    }
+
     observations["mutations"] = {
         name: {
             "return_type": mutations[name].get("return_type"),
@@ -370,6 +386,12 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: mutations[name]["invalidates_fact_tables"]
         for name in AUTHORED_MUTATIONS
         if mutations.get(name, {}).get("invalidates_fact_tables")
+    }
+
+    observations["mutation_requires_actor"] = {
+        name: mutations[name]["requires_actor"]
+        for name in AUTHORED_MUTATIONS
+        if mutations.get(name, {}).get("requires_actor")
     }
 
     # A subscription is asserted whole rather than by presence. Every SDK that shipped one

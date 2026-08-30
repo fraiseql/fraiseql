@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use FraiseQL\ActorType;
 use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\SchemaExporter;
@@ -184,6 +185,9 @@ function authorFull(): void
         ->inject(['tenant_id' => 'jwt:tenant_id'])
         ->cacheTtlSeconds(300)
         ->requiresRole('admin')
+        // #966's actor allow-list, enforced in the same executor gate as requiresRole on
+        // every transport, and authorable in no SDK until #1123.
+        ->requiresActor([ActorType::HUMAN_USER, ActorType::SERVICE_ACCOUNT])
         ->register();
 
     StaticAPI::mutation('createUser')
@@ -194,6 +198,7 @@ function authorFull(): void
         ->argument('name', 'String', nullable: true)
         ->invalidatesViews(['v_user', 'v_user_summary'])
         ->invalidatesFactTables(['tf_signup'])
+        ->requiresActor([ActorType::SERVICE_ACCOUNT])
         ->register();
 
     StaticAPI::mutation('placeOrder')

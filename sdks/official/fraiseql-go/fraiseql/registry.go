@@ -57,6 +57,7 @@ type QueryDefinition struct {
 	CacheTTLSeconds   *uint64                `json:"cache_ttl_seconds,omitempty"`
 	AdditionalViews   []string               `json:"additional_views,omitempty"`
 	RequiresRole      string                 `json:"requires_role,omitempty"`
+	RequiresActor     []string               `json:"requires_actor,omitempty"`
 	Deprecation       *DeprecationInfo       `json:"deprecation,omitempty"`
 	Rest              *RestAnnotation        `json:"rest,omitempty"`
 	// Config is an SDK-internal bag of builder settings and is never serialized: the
@@ -82,6 +83,8 @@ type MutationDefinition struct {
 	InvalidatesViews      []string               `json:"invalidates_views,omitempty"`
 	InvalidatesFactTables []string               `json:"invalidates_fact_tables,omitempty"`
 	Cascade               bool                   `json:"cascade,omitempty"`
+	RequiresRole          string                 `json:"requires_role,omitempty"`
+	RequiresActor         []string               `json:"requires_actor,omitempty"`
 	Deprecation           *DeprecationInfo       `json:"deprecation,omitempty"`
 	Rest                  *RestAnnotation        `json:"rest,omitempty"`
 	// See QueryDefinition.Config — an SDK-internal bag, never serialized.

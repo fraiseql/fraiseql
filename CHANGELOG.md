@@ -134,6 +134,50 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`requires_actor` is authorable from ten of the eleven SDKs, and the eleventh declares
+  the gap (#1123).**
+
+  #966 added the actor allow-list — a `Vec<ActorType>` on a query or mutation, enforced in
+  the same executor arm as `requires_role` on every transport, with an unknown token
+  refused by name at compile. **No SDK could write it.** An author using any of the eleven
+  could express the gate only by hand-editing `schema.json`, which is the thing every SDK
+  exists to avoid, so a security gate the engine enforces was one nobody could turn on.
+
+  It lands on **both** operation kinds. `IntermediateMutation::requires_actor` exists and
+  is enforced identically, so a query-only rollout would have gated the half that reads and
+  left the half that writes unauthorable with nothing saying so.
+
+  | | |
+  |---|---|
+  | Python | `@fraiseql.query(requires_actor=[...])`, `@fraiseql.mutation(...)` |
+  | TypeScript | `requires_actor` in the query/mutation config |
+  | Go | `QueryBuilder.RequiresActor(...)`, `MutationBuilder.RequiresActor(...)` |
+  | PHP | `->requiresActor([ActorType::HUMAN_USER, ...])` |
+  | Ruby | `schema.query(requires_actor: %w[...])` |
+  | Dart | `query(requiresActor: const [...])` |
+  | Elixir | `fraiseql_query(requires_actor: [...])` |
+  | Java | `.requiresActor(ActorType.HUMAN_USER, ...)` |
+  | C# | `.RequiresActor(ActorType.HumanUser, ...)` |
+  | F# | `QueryBuilder.requiresActor [ ActorType.humanUser; ... ]` |
+  | Rust | **declared unsupported** — the SDK is field-level-RBAC focused and ships no operation builder at all, its sixteenth such gap |
+
+  Each SDK validates the allow-list **where the author wrote it**, against the `ActorType`
+  roster the compiler holds. The CLI already refuses an unknown token by name, but only at
+  compile time, and a security gate that fails late fails after the author has stopped
+  looking. An **empty** list is refused rather than passed on, in every SDK: the compiled
+  schema omits the key when empty, so `requires_actor: []` would read as a declared gate
+  and compile to no gate at all — the fail-open shape.
+
+  `query_requires_actor` and `mutation_requires_actor` join `project.CONSTRUCTS`, so the
+  answer is enforced across all eleven rather than re-audited.
+
+  While implementing it: **Go's `MutationDefinition` carried no `requires_role` either**, so
+  the role gate every other SDK's mutation builder exposes was unauthorable there too
+  (#1253). Both fields are on it now. `mutation_requires_role` is still not a construct, so
+  the role half is implemented everywhere and gated nowhere — noted in #1253 rather than
+  folded in here.
+
+
 
 - **`[subscription_kafka]`, and one Kafka egress for the whole framework (#1102).**
 

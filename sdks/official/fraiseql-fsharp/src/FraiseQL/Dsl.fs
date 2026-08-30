@@ -253,6 +253,7 @@ module Dsl =
                 rest = s.rest
                 inject_params = None
                 requires_role = None
+                requires_actor = None
             }
 
         /// Sets the GraphQL return type.
@@ -348,6 +349,7 @@ module Dsl =
                 cascade = s.cascade
                 inject_params = None
                 requires_role = None
+                requires_actor = None
                 invalidates_views = None
                 invalidates_fact_tables = None
             }

@@ -136,6 +136,7 @@ module CrudGenerator =
                     cache_ttl_seconds = None
                     inject_params = None
                     requires_role = None
+                    requires_actor = None
                     description = Some(sprintf "Get %s by ID." typeName)
                     rest = None
                 }
@@ -150,6 +151,7 @@ module CrudGenerator =
                     cache_ttl_seconds = None
                     inject_params = None
                     requires_role = None
+                    requires_actor = None
                     description = Some(sprintf "List %s records." typeName)
                     rest = None
                 }
@@ -176,6 +178,7 @@ module CrudGenerator =
                     cascade = cascadeValue
                     inject_params = None
                     requires_role = None
+                    requires_actor = None
                     invalidates_views = None
                     invalidates_fact_tables = None
                 }
@@ -198,6 +201,7 @@ module CrudGenerator =
                     cascade = cascadeValue
                     inject_params = None
                     requires_role = None
+                    requires_actor = None
                     invalidates_views = None
                     invalidates_fact_tables = None
                 }
@@ -220,6 +224,7 @@ module CrudGenerator =
                     cascade = cascadeValue
                     inject_params = None
                     requires_role = None
+                    requires_actor = None
                     invalidates_views = None
                     invalidates_fact_tables = None
                 }

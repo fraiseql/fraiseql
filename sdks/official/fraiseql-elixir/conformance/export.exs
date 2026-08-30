@@ -121,7 +121,10 @@ defmodule Conformance.FullSchema do
     sql_source: "v_order",
     inject_params: %{"tenant_id" => "jwt:tenant_id"},
     cache_ttl_seconds: 300,
-    requires_role: "admin"
+    requires_role: "admin",
+    # #966's actor allow-list, enforced in the same executor gate as requires_role on every
+    # transport, and authorable in no SDK until #1123.
+    requires_actor: ["human_user", "service_account"]
   )
 
   fraiseql_mutation :create_user,
@@ -129,7 +132,8 @@ defmodule Conformance.FullSchema do
                     sql_source: "fn_create_user",
                     operation: "insert",
                     invalidates_views: ["v_user", "v_user_summary"],
-                    invalidates_fact_tables: ["tf_signup"] do
+                    invalidates_fact_tables: ["tf_signup"],
+                    requires_actor: ["service_account"] do
     argument(:email, :string, nullable: false)
     argument(:name, :string, nullable: true)
   end

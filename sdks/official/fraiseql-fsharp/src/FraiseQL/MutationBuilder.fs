@@ -24,6 +24,7 @@ module MutationBuilder =
             rest: RestConfig option
             injectParams: Map<string, string>
             requiresRole: string option
+            requiresActor: string list option
             invalidatesViews: string list
             invalidatesFactTables: string list
         }
@@ -40,6 +41,7 @@ module MutationBuilder =
             rest = None
             injectParams = Map.empty
             requiresRole = None
+            requiresActor = None
             invalidatesViews = []
             invalidatesFactTables = []
         }
@@ -74,6 +76,14 @@ module MutationBuilder =
     let requiresRole (role: string) (s: MutationState) : MutationState =
         { s with requiresRole = Some role }
 
+    /// Restricts this mutation to an allow-list of actor types (#966).
+    ///
+    /// Enforced in the same executor gate as `requiresRole`, on every transport. Until
+    /// #1123 it was expressible only by hand-writing `schema.json`.
+    let requiresActor (actors: string list) (s: MutationState) : MutationState =
+        ActorType.validate (sprintf "mutation '%s'" s.name) actors
+        { s with requiresActor = Some actors }
+
     /// Declares views whose cached query results must be invalidated after this mutation.
     let invalidatesViews (views: string list) (s: MutationState) : MutationState =
         { s with invalidatesViews = s.invalidatesViews @ views }
@@ -106,6 +116,7 @@ module MutationBuilder =
             cascade = None
             inject_params = (if Map.isEmpty s.injectParams then None else Some s.injectParams)
             requires_role = s.requiresRole
+            requires_actor = s.requiresActor
             invalidates_views =
                 (if List.isEmpty s.invalidatesViews then None else Some s.invalidatesViews)
             invalidates_fact_tables =

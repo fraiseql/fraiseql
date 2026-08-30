@@ -306,6 +306,14 @@ public class SchemaFormatter {
             if (queryInfo.requiresRole != null) {
                 queryNode.put("requires_role", queryInfo.requiresRole);
             }
+            // Emitted only when non-empty: `IntermediateQuery.requires_actor` is a
+            // `Vec<String>` with a serde default, so `[]` and an absent key compile the
+            // same — and emitting `[]` puts a declared-looking gate in the document that
+            // gates nothing.
+            if (!queryInfo.requiresActor.isEmpty()) {
+                com.fasterxml.jackson.databind.node.ArrayNode actors = queryNode.putArray("requires_actor");
+                queryInfo.requiresActor.forEach(actors::add);
+            }
             if (queryInfo.injectParams != null && !queryInfo.injectParams.isEmpty()) {
                 queryNode.set("inject_params", formatInjectParams(queryInfo.injectParams));
             }
@@ -349,6 +357,14 @@ public class SchemaFormatter {
             }
             if (mutationInfo.requiresRole != null) {
                 mutationNode.put("requires_role", mutationInfo.requiresRole);
+            }
+            // Emitted only when non-empty: `IntermediateQuery.requires_actor` is a
+            // `Vec<String>` with a serde default, so `[]` and an absent key compile the
+            // same — and emitting `[]` puts a declared-looking gate in the document that
+            // gates nothing.
+            if (!mutationInfo.requiresActor.isEmpty()) {
+                com.fasterxml.jackson.databind.node.ArrayNode actors = mutationNode.putArray("requires_actor");
+                mutationInfo.requiresActor.forEach(actors::add);
             }
             if (mutationInfo.injectParams != null && !mutationInfo.injectParams.isEmpty()) {
                 mutationNode.set("inject_params", formatInjectParams(mutationInfo.injectParams));

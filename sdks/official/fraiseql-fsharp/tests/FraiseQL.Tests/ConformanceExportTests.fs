@@ -159,6 +159,9 @@ let private authorFull () =
     |> QueryBuilder.inject "tenant_id" "jwt:tenant_id"
     |> QueryBuilder.cacheTtlSeconds 300
     |> QueryBuilder.requiresRole "admin"
+    // #966's actor allow-list, enforced in the same executor gate as requiresRole on every
+    // transport, and authorable in no SDK until #1123.
+    |> QueryBuilder.requiresActor [ ActorType.humanUser; ActorType.serviceAccount ]
     |> QueryBuilder.register
 
     MutationBuilder.mutation "createUser"
@@ -169,6 +172,7 @@ let private authorFull () =
     |> MutationBuilder.withArgument "name" "String" true
     |> MutationBuilder.invalidatesViews [ "v_user"; "v_user_summary" ]
     |> MutationBuilder.invalidatesFactTables [ "tf_signup" ]
+    |> MutationBuilder.requiresActor [ ActorType.serviceAccount ]
     |> MutationBuilder.register
 
     MutationBuilder.mutation "placeOrder"

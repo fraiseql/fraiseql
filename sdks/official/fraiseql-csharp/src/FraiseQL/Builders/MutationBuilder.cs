@@ -34,6 +34,7 @@ public sealed class MutationBuilder
     private readonly List<string> _invalidatesViews = new();
     private readonly List<string> _invalidatesFactTables = new();
     private string? _requiresRole;
+    private IReadOnlyList<string>? _requiresActor;
 
     private MutationBuilder(string name) => _name = name;
 
@@ -101,6 +102,20 @@ public sealed class MutationBuilder
     /// <returns>This builder for chaining.</returns>
     public MutationBuilder RequiresRole(string role) { _requiresRole = role; return this; }
 
+    /// <summary>Restricts this mutation to an allow-list of actor types (#966).</summary>
+    /// <remarks>
+    /// Enforced in the same executor gate as <see cref="RequiresRole"/>, on every transport.
+    /// Until #1123 it was expressible only by hand-writing <c>schema.json</c>.
+    /// </remarks>
+    /// <param name="actors">One or more <see cref="ActorType"/> constants.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder RequiresActor(params string[] actors)
+    {
+        ActorType.Validate($"mutation '{_name}'", actors);
+        _requiresActor = actors;
+        return this;
+    }
+
     /// <summary>
     /// Declares views whose cached query results must be invalidated after this mutation.
     /// </summary>
@@ -166,6 +181,7 @@ public sealed class MutationBuilder
             Rest: rest,
             InjectParams: _injectParams.Count > 0 ? _injectParams : null,
             RequiresRole: _requiresRole,
+            RequiresActor: _requiresActor,
             InvalidatesViews: _invalidatesViews.Count > 0 ? _invalidatesViews.AsReadOnly() : null,
             InvalidatesFactTables:
                 _invalidatesFactTables.Count > 0 ? _invalidatesFactTables.AsReadOnly() : null);

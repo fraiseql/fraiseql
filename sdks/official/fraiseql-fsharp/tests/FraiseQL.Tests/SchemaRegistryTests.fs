@@ -210,6 +210,7 @@ let ``reset clears all queries`` () =
             cache_ttl_seconds = None
             inject_params = None
             requires_role = None
+            requires_actor = None
             description = None
             rest = None
         }
@@ -234,6 +235,7 @@ let ``reset clears all mutations`` () =
             cascade = None
             inject_params = None
             requires_role = None
+            requires_actor = None
             invalidates_views = None
             invalidates_fact_tables = None
         }
@@ -276,6 +278,7 @@ let ``registerQuery adds to getAllQueries`` () =
             cache_ttl_seconds = None
             inject_params = None
             requires_role = None
+            requires_actor = None
             description = None
             rest = None
         }
@@ -301,6 +304,7 @@ let ``registerMutation adds to getAllMutations`` () =
             cascade = None
             inject_params = None
             requires_role = None
+            requires_actor = None
             invalidates_views = None
             invalidates_fact_tables = None
         }
@@ -326,6 +330,7 @@ let ``toIntermediateSchema includes all registered items`` () =
             cache_ttl_seconds = None
             inject_params = None
             requires_role = None
+            requires_actor = None
             description = None
             rest = None
         }

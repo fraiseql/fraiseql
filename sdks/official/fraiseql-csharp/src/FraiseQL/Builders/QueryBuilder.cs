@@ -30,6 +30,7 @@ public sealed class QueryBuilder
     private readonly List<IntermediateArgument> _arguments = new();
     private readonly Dictionary<string, string> _injectParams = new();
     private string? _requiresRole;
+    private IReadOnlyList<string>? _requiresActor;
 
     private QueryBuilder(string name) => _name = name;
 
@@ -96,6 +97,20 @@ public sealed class QueryBuilder
     /// <returns>This builder for chaining.</returns>
     public QueryBuilder RequiresRole(string role) { _requiresRole = role; return this; }
 
+    /// <summary>Restricts this query to an allow-list of actor types (#966).</summary>
+    /// <remarks>
+    /// Enforced in the same executor gate as <see cref="RequiresRole"/>, on every transport.
+    /// Until #1123 it was expressible only by hand-writing <c>schema.json</c>.
+    /// </remarks>
+    /// <param name="actors">One or more <see cref="ActorType"/> constants.</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder RequiresActor(params string[] actors)
+    {
+        ActorType.Validate($"query '{_name}'", actors);
+        _requiresActor = actors;
+        return this;
+    }
+
     /// <summary>Sets the REST endpoint path for this query.</summary>
     /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
     /// <returns>This builder for chaining.</returns>
@@ -137,7 +152,8 @@ public sealed class QueryBuilder
             Description: _description,
             Rest: rest,
             InjectParams: _injectParams.Count > 0 ? _injectParams : null,
-            RequiresRole: _requiresRole);
+            RequiresRole: _requiresRole,
+            RequiresActor: _requiresActor);
     }
 
     /// <summary>

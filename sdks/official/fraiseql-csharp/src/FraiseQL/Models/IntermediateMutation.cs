@@ -18,6 +18,7 @@ namespace FraiseQL.Models;
 /// Server-injected parameters, keyed by SQL parameter name. Values are <c>"jwt:&lt;claim&gt;"</c>.
 /// </param>
 /// <param name="RequiresRole">Role required to execute this mutation.</param>
+/// <param name="RequiresActor">Actor types allowed to execute this mutation (#966).</param>
 /// <param name="InvalidatesViews">
 /// Views whose cached query results must be invalidated after this mutation succeeds.
 /// Without it a mutation and the cached reads of what it wrote have no connection, and a
@@ -39,5 +40,7 @@ public record IntermediateMutation(
     [property: JsonPropertyName("rest")]        RestAnnotation? Rest = null,
     [property: JsonPropertyName("inject_params")]           IReadOnlyDictionary<string, string>? InjectParams = null,
     [property: JsonPropertyName("requires_role")]           string? RequiresRole = null,
+    // See IntermediateQuery.RequiresActor.
+    [property: JsonPropertyName("requires_actor")]          IReadOnlyList<string>? RequiresActor = null,
     [property: JsonPropertyName("invalidates_views")]       IReadOnlyList<string>? InvalidatesViews = null,
     [property: JsonPropertyName("invalidates_fact_tables")] IReadOnlyList<string>? InvalidatesFactTables = null);

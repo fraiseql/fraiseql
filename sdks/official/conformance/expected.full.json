@@ -65,6 +65,11 @@
       "v_order_summary"
     ]
   },
+  "mutation_requires_actor": {
+    "createUser": [
+      "service_account"
+    ]
+  },
   "mutations": {
     "createUser": {
       "operation": "Insert",
@@ -118,6 +123,12 @@
         "source": "jwt"
       }
     }
+  },
+  "query_requires_actor": {
+    "tenantOrders": [
+      "human_user",
+      "service_account"
+    ]
   },
   "query_requires_role": {
     "tenantOrders": "admin"

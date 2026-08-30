@@ -106,6 +106,9 @@ func authorFull() error {
 		InjectParams(map[string]string{"tenant_id": "jwt:tenant_id"}).
 		CacheTTLSeconds(300).
 		RequiresRole("admin").
+		// #966's actor allow-list, enforced in the same executor gate as RequiresRole on
+		// every transport, and authorable in no SDK until #1123.
+		RequiresActor(fraiseql.ActorHumanUser, fraiseql.ActorServiceAccount).
 		Register(); err != nil {
 		return err
 	}
@@ -118,6 +121,7 @@ func authorFull() error {
 		Arg("name", "String", nil, true).
 		InvalidatesViews([]string{"v_user", "v_user_summary"}).
 		InvalidatesFactTables([]string{"tf_signup"}).
+		RequiresActor(fraiseql.ActorServiceAccount).
 		Register(); err != nil {
 		return err
 	}

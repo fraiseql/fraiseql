@@ -234,7 +234,12 @@ defmodule FraiseQL.Schema do
           rest_path: unquote(query_opts[:rest_path]),
           rest_method: unquote(query_opts[:rest_method]),
           inject_params: unquote(query_opts[:inject_params]),
-          requires_role: unquote(query_opts[:requires_role])
+          requires_role: unquote(query_opts[:requires_role]),
+          requires_actor:
+            FraiseQL.Schema.__validate_requires_actor__!(
+              unquote(query_name),
+              unquote(query_opts[:requires_actor])
+            )
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -254,7 +259,12 @@ defmodule FraiseQL.Schema do
           rest_path: unquote(query_opts[:rest_path]),
           rest_method: unquote(query_opts[:rest_method]),
           inject_params: unquote(query_opts[:inject_params]),
-          requires_role: unquote(query_opts[:requires_role])
+          requires_role: unquote(query_opts[:requires_role]),
+          requires_actor:
+            FraiseQL.Schema.__validate_requires_actor__!(
+              unquote(query_name),
+              unquote(query_opts[:requires_actor])
+            )
         }
       end
     end
@@ -326,6 +336,11 @@ defmodule FraiseQL.Schema do
           rest_method: unquote(mutation_opts[:rest_method]),
           inject_params: unquote(mutation_opts[:inject_params]),
           requires_role: unquote(mutation_opts[:requires_role]),
+          requires_actor:
+            FraiseQL.Schema.__validate_requires_actor__!(
+              unquote(mutation_name),
+              unquote(mutation_opts[:requires_actor])
+            ),
           invalidates_views: unquote(mutation_opts[:invalidates_views]),
           invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
         }
@@ -346,6 +361,11 @@ defmodule FraiseQL.Schema do
           rest_method: unquote(mutation_opts[:rest_method]),
           inject_params: unquote(mutation_opts[:inject_params]),
           requires_role: unquote(mutation_opts[:requires_role]),
+          requires_actor:
+            FraiseQL.Schema.__validate_requires_actor__!(
+              unquote(mutation_name),
+              unquote(mutation_opts[:requires_actor])
+            ),
           invalidates_views: unquote(mutation_opts[:invalidates_views]),
           invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
         }
@@ -486,6 +506,46 @@ defmodule FraiseQL.Schema do
   # ---------------------------------------------------------------------------
   # Validation helpers (called at compile time from macro expansions)
   # ---------------------------------------------------------------------------
+
+  @actor_types ~w[human_user service_account ai_agent system_job]
+
+  @doc """
+  The `ActorType` roster #966's actor gate is an allow-list of.
+
+  snake_case, as the compiler spells it
+  (`crates/fraiseql-core/src/security/actor_type.rs`) and as the change-log
+  `actor_type TEXT` column stores it.
+  """
+  @spec actor_types() :: [String.t()]
+  def actor_types, do: @actor_types
+
+  @doc false
+  @spec __validate_requires_actor__!(String.t(), [String.t()] | nil) :: [String.t()]
+  def __validate_requires_actor__!(_name, nil), do: []
+
+  def __validate_requires_actor__!(name, actors) when is_list(actors) do
+    # The compiler refuses an unknown token by name, but only at compile time, and this is
+    # a security gate enforced in the same executor arm as `requires_role` on every
+    # transport — one that fails late fails after the author has stopped looking (#1123).
+    # An empty list is refused rather than stored: the exporter omits the key when empty,
+    # so an empty allow-list reads as a declared gate and compiles to none at all.
+    if actors == [] do
+      raise ArgumentError,
+            "#{name}: requires_actor: is empty. An empty allow-list admits nobody and is " <>
+              "dropped from the compiled schema, which admits everybody — name the actor " <>
+              "types instead. Valid: #{Enum.join(@actor_types, ", ")}."
+    end
+
+    case actors -- @actor_types do
+      [] ->
+        actors
+
+      unknown ->
+        raise ArgumentError,
+              "#{name}: requires_actor: names unknown actor type(s) " <>
+                "#{Enum.join(unknown, ", ")}. Valid: #{Enum.join(@actor_types, ", ")}."
+    end
+  end
 
   @doc false
   @spec __validate_type_opts__!(String.t(), keyword()) :: :ok

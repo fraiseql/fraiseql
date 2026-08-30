@@ -114,6 +114,32 @@ class FraiseQLSchema {
     _mutations.addAll(generated['mutations']!);
   }
 
+  /// The `ActorType` roster #966's actor gate is an allow-list of, snake_case as the
+  /// compiler spells it (`crates/fraiseql-core/src/security/actor_type.rs`).
+  static const actorTypes = [
+    'human_user',
+    'service_account',
+    'ai_agent',
+    'system_job'
+  ];
+
+  /// Checks an allow-list where the author wrote it.
+  ///
+  /// The compiler refuses an unknown token by name, but only at compile time, and this is
+  /// a security gate enforced in the same executor arm as `requiresRole` on every
+  /// transport — one that fails late fails after the author has stopped looking (#1123).
+  /// An empty list needs no check: it is indistinguishable from "no gate declared", and
+  /// the caller omits the key rather than emitting one the compiled schema would drop.
+  static void _validateActors(String operationName, List<String> actors) {
+    final unknown = actors.where((a) => !actorTypes.contains(a)).toList();
+    if (unknown.isNotEmpty) {
+      throw ArgumentError(
+        "$operationName: requiresActor names unknown actor type(s) $unknown. "
+        "Valid: ${actorTypes.join(', ')}.",
+      );
+    }
+  }
+
   /// Declares a GraphQL enum type.
   Map<String, Object?> enumType(
     String name,
@@ -146,6 +172,7 @@ class FraiseQLSchema {
     String? description,
     int? cacheTtlSeconds,
     String? requiresRole,
+    List<String> requiresActor = const [],
     Map<String, String> inject = const {},
   }) {
     final definition = <String, Object?>{
@@ -162,6 +189,10 @@ class FraiseQLSchema {
     if (cacheTtlSeconds != null)
       definition['cache_ttl_seconds'] = cacheTtlSeconds;
     if (requiresRole != null) definition['requires_role'] = requiresRole;
+    if (requiresActor.isNotEmpty) {
+      _validateActors(name, requiresActor);
+      definition['requires_actor'] = requiresActor;
+    }
     if (inject.isNotEmpty) definition['inject_params'] = _injectParams(inject);
 
     _queries.add(definition);
@@ -183,6 +214,7 @@ class FraiseQLSchema {
     Map<String, FieldType> arguments = const {},
     String? description,
     String? requiresRole,
+    List<String> requiresActor = const [],
     Map<String, String> inject = const {},
     List<String> invalidatesViews = const [],
     List<String> invalidatesFactTables = const [],
@@ -200,6 +232,10 @@ class FraiseQLSchema {
     if (operation != null) definition['operation'] = operation;
     if (description != null) definition['description'] = description;
     if (requiresRole != null) definition['requires_role'] = requiresRole;
+    if (requiresActor.isNotEmpty) {
+      _validateActors(name, requiresActor);
+      definition['requires_actor'] = requiresActor;
+    }
     if (inject.isNotEmpty) definition['inject_params'] = _injectParams(inject);
     if (invalidatesViews.isNotEmpty) {
       definition['invalidates_views'] = invalidatesViews;

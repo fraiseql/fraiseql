@@ -491,6 +491,45 @@ function normaliseConfig(
  * Maintains maps of all registered types, queries, mutations, and analytics definitions.
  * These are collected during decorator evaluation and exported to schema.json.
  */
+/**
+ * The `ActorType` roster, snake_case as the compiler spells it
+ * (`crates/fraiseql-core/src/security/actor_type.rs`).
+ */
+export const ACTOR_TYPES = ["human_user", "service_account", "ai_agent", "system_job"] as const;
+
+/**
+ * Validate a `requires_actor` allow-list where the author wrote it.
+ *
+ * #966's actor gate is enforced in the same executor arm as `requires_role`, on every
+ * transport, and was authorable only by hand-writing `schema.json` (#1123). The compiler
+ * refuses an unknown token by name, but only at compile time — a security gate that fails
+ * late fails after the author has stopped looking.
+ *
+ * An empty list is refused rather than passed on: the compiled schema omits the key when
+ * empty, so `requires_actor: []` reads as a declared gate and compiles to none at all.
+ */
+function validateRequiresActor(value: unknown, context: string): void {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `${context}: requires_actor must be an array of actor types. Valid: ${ACTOR_TYPES.join(", ")}.`
+    );
+  }
+  if (value.length === 0) {
+    throw new Error(
+      `${context}: requires_actor is an empty array. An empty allow-list admits nobody ` +
+        `and is dropped from the compiled schema, which admits everybody — name the ` +
+        `actor types instead. Valid: ${ACTOR_TYPES.join(", ")}.`
+    );
+  }
+  const unknown = value.filter((a) => !ACTOR_TYPES.includes(a as (typeof ACTOR_TYPES)[number]));
+  if (unknown.length > 0) {
+    throw new Error(
+      `${context}: requires_actor names unknown actor type(s) ${JSON.stringify(unknown)}. ` +
+        `Valid: ${ACTOR_TYPES.join(", ")}.`
+    );
+  }
+}
+
 export class SchemaRegistry {
   private static types: Map<string, TypeDefinition> = new Map();
   private static queries: Map<string, QueryDefinition> = new Map();
@@ -752,6 +791,9 @@ export class SchemaRegistry {
         `Query '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
+    if (config?.requires_actor !== undefined) {
+      validateRequiresActor(config.requires_actor, `query '${name}'`);
+    }
     const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
 
     // Relay validation — fail fast at authoring time
@@ -825,6 +867,9 @@ export class SchemaRegistry {
       throw new Error(
         `Mutation '${name}' is already registered. Each name must be unique within a schema.`
       );
+    }
+    if (config?.requires_actor !== undefined) {
+      validateRequiresActor(config.requires_actor, `mutation '${name}'`);
     }
     const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
 

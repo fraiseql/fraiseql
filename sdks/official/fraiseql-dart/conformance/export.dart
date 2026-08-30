@@ -156,6 +156,9 @@ FraiseQLSchema authorFull() {
     inject: {'tenant_id': 'jwt:tenant_id'},
     cacheTtlSeconds: 300,
     requiresRole: 'admin',
+    // #966's actor allow-list, enforced in the same executor gate as requiresRole on
+    // every transport, and authorable in no SDK until #1123.
+    requiresActor: const ['human_user', 'service_account'],
   );
 
   schema.mutation(
@@ -169,6 +172,7 @@ FraiseQLSchema authorFull() {
     },
     invalidatesViews: ['v_user', 'v_user_summary'],
     invalidatesFactTables: ['tf_signup'],
+    requiresActor: const ['service_account'],
   );
 
   schema.mutation(

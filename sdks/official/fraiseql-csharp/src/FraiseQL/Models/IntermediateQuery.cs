@@ -22,6 +22,7 @@ namespace FraiseQL.Models;
 /// predicate at all.
 /// </param>
 /// <param name="RequiresRole">Role required to execute this query and to see it in introspection.</param>
+/// <param name="RequiresActor">Actor types allowed to execute this query (#966).</param>
 public record IntermediateQuery(
     [property: JsonPropertyName("name")]              string Name,
     [property: JsonPropertyName("return_type")]       string ReturnType,
@@ -33,4 +34,8 @@ public record IntermediateQuery(
     [property: JsonPropertyName("description")]       string? Description = null,
     [property: JsonPropertyName("rest")]              RestAnnotation? Rest = null,
     [property: JsonPropertyName("inject_params")]     IReadOnlyDictionary<string, string>? InjectParams = null,
-    [property: JsonPropertyName("requires_role")]     string? RequiresRole = null);
+    [property: JsonPropertyName("requires_role")]     string? RequiresRole = null,
+    // Omitted when null: `IntermediateQuery.requires_actor` is a `Vec<String>` with a
+    // serde default, so an absent key and `[]` compile the same — and emitting `[]`
+    // would put a declared-looking gate in the document that gates nothing.
+    [property: JsonPropertyName("requires_actor")]    IReadOnlyList<string>? RequiresActor = null);

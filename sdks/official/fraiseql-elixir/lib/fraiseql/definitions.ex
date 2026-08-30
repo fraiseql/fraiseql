@@ -210,7 +210,8 @@ defmodule FraiseQL.QueryDefinition do
     rest_method: nil,
     auto_params: nil,
     inject_params: nil,
-    requires_role: nil
+    requires_role: nil,
+    requires_actor: []
   ]
 
   @type t :: %__MODULE__{
@@ -226,7 +227,8 @@ defmodule FraiseQL.QueryDefinition do
           rest_method: String.t() | nil,
           auto_params: map() | nil,
           inject_params: map() | nil,
-          requires_role: String.t() | nil
+          requires_role: String.t() | nil,
+          requires_actor: [String.t()]
         }
 end
 
@@ -258,6 +260,7 @@ defmodule FraiseQL.MutationDefinition do
     cascade: false,
     inject_params: nil,
     requires_role: nil,
+    requires_actor: [],
     invalidates_views: nil,
     invalidates_fact_tables: nil
   ]
@@ -274,6 +277,7 @@ defmodule FraiseQL.MutationDefinition do
           cascade: boolean(),
           inject_params: map() | nil,
           requires_role: String.t() | nil,
+          requires_actor: [String.t()],
           invalidates_views: [String.t()] | nil,
           invalidates_fact_tables: [String.t()] | nil
         }

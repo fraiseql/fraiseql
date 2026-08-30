@@ -7,6 +7,7 @@
   "mutation_arguments": {},
   "mutation_invalidates_fact_tables": {},
   "mutation_invalidates_views": {},
+  "mutation_requires_actor": {},
   "mutations": {},
   "queries": {
     "users": {
@@ -21,6 +22,7 @@
   },
   "query_cache_ttl": {},
   "query_inject_params": {},
+  "query_requires_actor": {},
   "query_requires_role": {},
   "subscriptions": {},
   "type_crud": {

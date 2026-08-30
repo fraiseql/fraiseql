@@ -249,7 +249,11 @@
         "tenant_id": "jwt:tenant_id"
       },
       "cache_ttl_seconds": 300,
-      "requires_role": "admin"
+      "requires_role": "admin",
+      "requires_actor": [
+        "human_user",
+        "service_account"
+      ]
     },
     {
       "name": "supportTicket",
@@ -308,6 +312,9 @@
       ],
       "invalidates_fact_tables": [
         "tf_signup"
+      ],
+      "requires_actor": [
+        "service_account"
       ]
     },
     {

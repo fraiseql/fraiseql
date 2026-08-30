@@ -15,6 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Types.fs" />
+    <Compile Include="ActorType.fs" />
     <Compile Include="Attributes.fs" />
     <Compile Include="TypeMapper.fs" />
     <Compile Include="CrudGenerator.fs" />

@@ -92,6 +92,9 @@ public class ConformanceExportTest
             .Inject("tenant_id", "jwt:tenant_id")
             .CacheTtlSeconds(300)
             .RequiresRole("admin")
+            // #966's actor allow-list, enforced in the same executor gate as RequiresRole
+            // on every transport, and authorable in no SDK until #1123.
+            .RequiresActor(ActorType.HumanUser, ActorType.ServiceAccount)
             .Register();
 
         MutationBuilder.Mutation("createUser")
@@ -102,6 +105,7 @@ public class ConformanceExportTest
             .Argument("name", "String", nullable: true)
             .InvalidatesViews("v_user", "v_user_summary")
             .InvalidatesFactTables("tf_signup")
+            .RequiresActor(ActorType.ServiceAccount)
             .Register();
 
         MutationBuilder.Mutation("placeOrder")
