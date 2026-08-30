@@ -1,13 +1,20 @@
-schema @link(url: "https://specs.apollo.dev/federation/v2.0") {
+schema
+  @link(url: "https://specs.apollo.dev/link/v1.0")
+  @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
+{
   query: Query
   mutation: Mutation
 }
 
-type Query {
+type Query
+  @join__type(graph: BANK)
+{
   account(accountId: ID!): Account @join__field(graph: BANK)
 }
 
-type Mutation {
+type Mutation
+  @join__type(graph: BANK)
+{
   transferMoney(fromAccountId: ID!, toAccountId: ID!, amount: Float!, transactionId: String!): Transfer! @join__field(graph: BANK)
   compensateTransfer(transactionId: String!): Transfer! @join__field(graph: BANK)
 }
@@ -28,13 +35,23 @@ type Transfer @join__type(graph: BANK) {
   message: String
 }
 
-directive @join__field(graph: String, requires: String, provides: String, type: String, external: Boolean, override: String, usedOverridden: Boolean) repeatable on FIELD_DEFINITION
-directive @join__type(graph: String, key: String, extension: Boolean, resolvable: Boolean, isInterfaceObject: Boolean) repeatable on OBJECT | INTERFACE | UNION | ENUM | SCALAR | INPUT_OBJECT
-directive @join__union(graph: String, member: String) repeatable on UNION
-directive @join__enumValue(graph: String) repeatable on ENUM_VALUE
-directive @join__implements(graph: String, interface: String) repeatable on OBJECT | INTERFACE
+directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
+directive @join__field(graph: join__Graph, requires: join__FieldSet, provides: join__FieldSet, type: String, external: Boolean, override: String, usedOverridden: Boolean) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 directive @join__graph(name: String!, url: String!) on ENUM_VALUE
-directive @link(url: String, as: String, for: String, import: [String]) repeatable on SCHEMA
+directive @join__implements(graph: join__Graph!, interface: String!) repeatable on OBJECT | INTERFACE
+directive @join__type(graph: join__Graph!, key: join__FieldSet, extension: Boolean! = false, resolvable: Boolean! = true, isInterfaceObject: Boolean! = false) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
+directive @join__unionMember(graph: join__Graph!, member: String!) repeatable on UNION
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+scalar join__FieldSet
+scalar link__Import
+
+enum link__Purpose {
+  """`SECURITY` features provide metadata necessary to securely resolve fields."""
+  SECURITY
+  """`EXECUTION` features provide metadata necessary for operation execution."""
+  EXECUTION
+}
 
 enum join__Graph {
   BANK @join__graph(name: "bank" url: "http://bank-service:4000/graphql")

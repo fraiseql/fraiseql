@@ -1,27 +1,34 @@
 schema
-  @link(url: "https://specs.apollo.dev/federation/v2.0")
+  @link(url: "https://specs.apollo.dev/link/v1.0")
+  @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
 {
   query: Query
   mutation: Mutation
 }
 
-directive @federation__field(requires: String, provides: String, external: Boolean, shareable: Boolean) repeatable on FIELD_DEFINITION
-directive @federation__interface(key: String, shareable: Boolean) repeatable on INTERFACE
-directive @federation__object(key: String, shareable: Boolean) repeatable on OBJECT
-directive @federation__union(join__possibleTypes: [String]) on UNION
-directive @federation__enumValue(join__graph: String) repeatable on ENUM_VALUE
-directive @federation__enum(join__possibleValues: [federation__enumValue]) on ENUM
-directive @federation__scalar(join__specifiedByUrl: String) on SCALAR
-directive @federation__argument(join__type: String) on ARGUMENT_DEFINITION
-directive @join__field(graph: String, requires: String, provides: String, type: String, external: Boolean, override: String, usedOverridden: Boolean) repeatable on FIELD_DEFINITION
-directive @join__type(graph: String, key: String, extension: Boolean, resolvable: Boolean, isInterfaceObject: Boolean) repeatable on OBJECT | INTERFACE | UNION | ENUM | SCALAR | INPUT_OBJECT
-directive @join__union(graph: String, member: String) repeatable on UNION
-directive @join__enumValue(graph: String) repeatable on ENUM_VALUE
-directive @join__implements(graph: String, interface: String) repeatable on OBJECT | INTERFACE
+directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
+directive @join__field(graph: join__Graph, requires: join__FieldSet, provides: join__FieldSet, type: String, external: Boolean, override: String, usedOverridden: Boolean) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 directive @join__graph(name: String!, url: String!) on ENUM_VALUE
-directive @link(url: String, as: String, for: String, import: [String]) repeatable on SCHEMA
+directive @join__implements(graph: join__Graph!, interface: String!) repeatable on OBJECT | INTERFACE
+directive @join__type(graph: join__Graph!, key: join__FieldSet, extension: Boolean! = false, resolvable: Boolean! = true, isInterfaceObject: Boolean! = false) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
+directive @join__unionMember(graph: join__Graph!, member: String!) repeatable on UNION
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
 
-type Query {
+scalar join__FieldSet
+scalar link__Import
+
+enum link__Purpose {
+  """`SECURITY` features provide metadata necessary to securely resolve fields."""
+  SECURITY
+  """`EXECUTION` features provide metadata necessary for operation execution."""
+  EXECUTION
+}
+
+type Query
+  @join__type(graph: USERS)
+  @join__type(graph: ORDERS)
+  @join__type(graph: INVENTORY)
+{
   user(id: ID!): User @join__field(graph: USERS)
   users: [User!]! @join__field(graph: USERS)
   order(id: ID!): Order @join__field(graph: ORDERS)
@@ -30,7 +37,11 @@ type Query {
   reservation(id: ID!): Reservation @join__field(graph: INVENTORY)
 }
 
-type Mutation {
+type Mutation
+  @join__type(graph: USERS)
+  @join__type(graph: ORDERS)
+  @join__type(graph: INVENTORY)
+{
   verifyUserExists(userId: ID!): User! @join__field(graph: USERS)
   createOrder(userId: ID!, items: [OrderItemInput!]!, chargeId: String!, reservationId: String!): Order! @join__field(graph: ORDERS)
   cancelOrder(orderId: ID!): Order! @join__field(graph: ORDERS)
@@ -80,13 +91,13 @@ type ReservationItem @join__type(graph: INVENTORY) {
   quantity: Int!
 }
 
-input OrderItemInput {
+input OrderItemInput @join__type(graph: ORDERS) {
   productId: ID!
   quantity: Int!
   price: Float!
 }
 
-input ReservationItemInput {
+input ReservationItemInput @join__type(graph: INVENTORY) {
   productId: ID!
   quantity: Int!
 }

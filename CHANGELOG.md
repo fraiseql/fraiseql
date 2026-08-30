@@ -347,12 +347,16 @@ disagreed, and the promise was the part that was wrong.
     ghcr.io resolves a known-good image fine. `saga-basic`, `saga-complex` and
     `saga-manual-compensation` all carried it; all three now pin `v1.59.0`, which is
     what the three working federation examples already used.
-  * `saga-complex`'s `fixtures/supergraph.graphql` was rejected by the router: its
+  * **All three** saga examples shipped a `fixtures/supergraph.graphql` the Apollo
+    Router rejects, so none of them had ever started its router. The shared cause: the
     `join__*` directives declared `graph: String` while `@join__type(graph: FLIGHT)`
-    passes an enum value. With the join spec imported, `join__FieldSet` and
-    `link__Purpose` declared and `@join__type` on the four types that lacked it, the
-    router starts and answers. `saga-basic` and `saga-manual-compensation` are rejected
-    too, for different reasons, and are not repaired here (#1259).
+    passes an enum *value*. All three now carry the canonical preamble — the join spec
+    imported via `@link`, `join__FieldSet` and `link__Import` declared, `link__Purpose`
+    defined, and `graph` typed as `join__Graph` — plus `@join__type` on the root and
+    input types that lacked it. `saga-basic` additionally carried a `federation__*`
+    directive block that nothing referenced and that named an undeclared type
+    (`federation__enumValue`); it is gone. Each of the three is now verified accepted by
+    `ghcr.io/apollographql/router:v1.59.0`.
   * `fixtures/router.yaml` used the `server:` section, which the router reports as
     deprecated on every start and documents as a future error. It is `supergraph:` and
     `cors:` now.
