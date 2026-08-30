@@ -3,10 +3,9 @@ package com.fraiseql.core;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.Map;
 
 /**
  * Formats the schema registry into the intermediate schema {@code fraiseql compile} reads.
@@ -183,7 +182,7 @@ public class SchemaFormatter {
             if (fieldInfo.requiresScopes.length > 1) {
                 throw new IllegalStateException(String.format(
                     "Field %s requires %d scopes; multiple required scopes are not "
-                        + "supported \u2014 use requiresScope with a single value.",
+                        + "supported — use requiresScope with a single value.",
                     fieldInfo.name, fieldInfo.requiresScopes.length));
             }
             if (fieldInfo.requiresScopes.length == 1) {

@@ -12,5 +12,7 @@ public class GraphQLException extends FraiseQLException {
         this.errors = Collections.unmodifiableList(errors);
     }
 
-    public List<GraphQLError> getErrors() { return errors; }
+    public List<GraphQLError> getErrors() {
+        return errors;
+    }
 }

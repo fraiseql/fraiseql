@@ -1,12 +1,16 @@
 package com.fraiseql.core;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Builder for GraphQL query/mutation arguments with default values.
  * Supports typed arguments with optional defaults and descriptions.
  *
- * Example:
+ * <p>Example:
  * <pre>
  * ArgumentBuilder args = new ArgumentBuilder()
  *     .add("limit", "Int", 10, "Maximum items to return")
@@ -130,6 +134,9 @@ public class ArgumentBuilder {
         public final Object defaultValue;
         public final String description;
 
+        /**
+         * Creates a ArgumentInfo with the values given.
+         */
         public ArgumentInfo(String name, String type, Object defaultValue, String description) {
             this.name = name;
             this.type = type;

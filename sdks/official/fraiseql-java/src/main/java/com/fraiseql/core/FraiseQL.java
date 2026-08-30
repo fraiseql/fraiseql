@@ -4,13 +4,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Main FraiseQL API for schema definition.
  * Provides fluent builders for queries, mutations, and type registration.
  *
- * Example usage:
+ * <p>Example usage:
  * <pre>
  * FraiseQL.registerType(User.class);
  * FraiseQL.registerType(Post.class);
@@ -242,14 +247,6 @@ public class FraiseQL {
         }
 
         /**
-         * Restrict this query to callers holding a role.
-         *
-         * <p>The role also hides the query from introspection for callers without it.
-         *
-         * @param role the required role
-         * @return this builder for chaining
-         */
-        /**
          * Restrict this query to an allow-list of actor types (#966).
          *
          * <p>Enforced in the same executor gate as {@link #requiresRole(String)}, on every
@@ -265,6 +262,14 @@ public class FraiseQL {
             return this;
         }
 
+        /**
+         * Restrict this query to callers holding a role.
+         *
+         * <p>The role also hides the query from introspection for callers without it.
+         *
+         * @param role the required role
+         * @return this builder for chaining
+         */
         public QueryBuilder requiresRole(String role) {
             this.requiresRole = role;
             return this;
@@ -397,8 +402,8 @@ public class FraiseQL {
         public void register() {
             if (relay && !returnsArray) {
                 throw new IllegalStateException(
-                    "Query '" + name + "': relay(true) requires returnsArray(true). " +
-                    "Relay connections only apply to list queries."
+                    "Query '" + name + "': relay(true) requires returnsArray(true). "
+                    + "Relay connections only apply to list queries."
                 );
             }
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
@@ -476,12 +481,6 @@ public class FraiseQL {
         }
 
         /**
-         * Restrict this mutation to callers holding a role.
-         *
-         * @param role the required role
-         * @return this builder for chaining
-         */
-        /**
          * Restrict this mutation to an allow-list of actor types (#966).
          *
          * <p>Enforced in the same executor gate as {@link #requiresRole(String)}, on every
@@ -497,6 +496,12 @@ public class FraiseQL {
             return this;
         }
 
+        /**
+         * Restrict this mutation to callers holding a role.
+         *
+         * @param role the required role
+         * @return this builder for chaining
+         */
         public MutationBuilder requiresRole(String role) {
             this.requiresRole = role;
             return this;

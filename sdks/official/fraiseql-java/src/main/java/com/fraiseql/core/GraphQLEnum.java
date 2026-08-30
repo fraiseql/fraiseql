@@ -1,27 +1,30 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Marks an enum class as a GraphQL enum type.
  * Enum values are automatically extracted from the Java enum constants.
  *
- * Usage:
+ * <p>Usage:
  * <pre>
- * @GraphQLEnum
+ * &#64;GraphQLEnum
  * public enum OrderStatus {
- *     @GraphQLEnumValue("PENDING")
+ *     &#64;GraphQLEnumValue("PENDING")
  *     PENDING,
- *     @GraphQLEnumValue("SHIPPED")
+ *     &#64;GraphQLEnumValue("SHIPPED")
  *     SHIPPED,
- *     @GraphQLEnumValue("DELIVERED")
+ *     &#64;GraphQLEnumValue("DELIVERED")
  *     DELIVERED
  * }
  * </pre>
  *
- * Or with values map:
+ * <p>Or with values map:
  * <pre>
- * FraiseQL.enum_("OrderStatus", new LinkedHashMap<String, Object>() {{
+ * FraiseQL.enum_("OrderStatus", new LinkedHashMap&lt;String, Object&gt;() {{
  *     put("PENDING", "pending");
  *     put("SHIPPED", "shipped");
  *     put("DELIVERED", "delivered");

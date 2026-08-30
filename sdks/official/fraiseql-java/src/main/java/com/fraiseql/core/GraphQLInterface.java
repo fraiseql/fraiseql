@@ -1,36 +1,39 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Marks an interface as a GraphQL interface type.
  * GraphQL interface types define a set of fields that must be implemented by types.
  *
- * Usage:
+ * <p>Usage:
  * <pre>
- * @GraphQLInterface
+ * &#64;GraphQLInterface
  * public interface Node {
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     String getId();
  *
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     String getCreatedAt();
  * }
  *
- * @GraphQLType
+ * &#64;GraphQLType
  * public class User implements Node {
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String id;
  *
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String createdAt;
  *
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String email;
  * }
  * </pre>
  *
- * Or with builder:
+ * <p>Or with builder:
  * <pre>
  * FraiseQL.interface_("Node", new Field[]{
  *     new Field("id", "ID", false),

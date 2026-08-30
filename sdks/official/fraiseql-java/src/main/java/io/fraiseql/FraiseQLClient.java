@@ -1,5 +1,6 @@
 package io.fraiseql;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.Closeable;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -12,8 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * HTTP client for executing GraphQL queries and mutations against a FraiseQL server.
@@ -53,7 +52,9 @@ public final class FraiseQLClient implements Closeable {
      * @param url the GraphQL endpoint URL
      * @return a builder instance
      */
-    public static Builder builder(String url) { return new Builder(url); }
+    public static Builder builder(String url) {
+        return new Builder(url);
+    }
 
     /**
      * Executes a GraphQL query synchronously and deserialises the {@code data} field.
@@ -130,7 +131,8 @@ public final class FraiseQLClient implements Closeable {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T executeSync(String gqlQuery, Map<String, Object> variables, String operationName, Class<T> responseType) {
+    private <T> T executeSync(String gqlQuery, Map<String, Object> variables, String operationName,
+                              Class<T> responseType) {
         try {
             Map<String, Object> body = new HashMap<>();
             body.put("query", gqlQuery);
@@ -221,7 +223,9 @@ public final class FraiseQLClient implements Closeable {
         private RetryConfig retry;
         private HttpClient httpClient;
 
-        private Builder(String url) { this.url = url; }
+        private Builder(String url) {
+            this.url = url;
+        }
 
         /**
          * Sets a static Bearer / API-key token to send in the {@code Authorization} header.
@@ -280,6 +284,8 @@ public final class FraiseQLClient implements Closeable {
         }
 
         /** Builds and returns the configured {@link FraiseQLClient}. */
-        public FraiseQLClient build() { return new FraiseQLClient(this); }
+        public FraiseQLClient build() {
+            return new FraiseQLClient(this);
+        }
     }
 }

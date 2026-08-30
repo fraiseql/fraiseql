@@ -21,30 +21,57 @@ public final class RetryConfig {
         return builder().maxAttempts(1).build();
     }
 
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() {
+        return new Builder();
+    }
 
-    public int getMaxAttempts() { return maxAttempts; }
+    public int getMaxAttempts() {
+        return maxAttempts;
+    }
 
-    public Duration getBaseDelay() { return baseDelay; }
+    public Duration getBaseDelay() {
+        return baseDelay;
+    }
 
-    public Duration getMaxDelay() { return maxDelay; }
+    public Duration getMaxDelay() {
+        return maxDelay;
+    }
 
-    public boolean isJitter() { return jitter; }
+    public boolean isJitter() {
+        return jitter;
+    }
 
+    /**
+     * Builds a {@link RetryConfig}; every setting has a default, so only the ones that differ need naming.
+     */
     public static final class Builder {
         private int maxAttempts = 1;
         private Duration baseDelay = Duration.ofSeconds(1);
         private Duration maxDelay = Duration.ofSeconds(30);
         private boolean jitter = true;
 
-        public Builder maxAttempts(int n) { this.maxAttempts = n; return this; }
+        public Builder maxAttempts(int n) {
+            this.maxAttempts = n;
+            return this;
+        }
 
-        public Builder baseDelay(Duration d) { this.baseDelay = d; return this; }
+        public Builder baseDelay(Duration d) {
+            this.baseDelay = d;
+            return this;
+        }
 
-        public Builder maxDelay(Duration d) { this.maxDelay = d; return this; }
+        public Builder maxDelay(Duration d) {
+            this.maxDelay = d;
+            return this;
+        }
 
-        public Builder jitter(boolean j) { this.jitter = j; return this; }
+        public Builder jitter(boolean j) {
+            this.jitter = j;
+            return this;
+        }
 
-        public RetryConfig build() { return new RetryConfig(this); }
+        public RetryConfig build() {
+            return new RetryConfig(this);
+        }
     }
 }

@@ -1,24 +1,30 @@
 package com.fraiseql.examples;
 
-import com.fraiseql.core.*;
+import com.fraiseql.core.FraiseQL;
+import com.fraiseql.core.GraphQLField;
+import com.fraiseql.core.GraphQLType;
+import com.fraiseql.core.SchemaRegistry;
 
 /**
  * EcommerceSchema - Advanced example with product catalog, shopping cart, and orders
  *
- * This example demonstrates:
+ * <p>This example demonstrates:
  * 1. Complex types with multiple fields
  * 2. Type relationships (Product, Cart, Order, etc.)
  * 3. Advanced queries with filtering arguments
  * 4. Mutations for shopping operations
  * 5. Real-world GraphQL schema design
  *
- * Output: ecommerce-schema.json - Ready for fraiseql-cli compile
+ * <p>Output: ecommerce-schema.json - Ready for fraiseql-cli compile
  *
- * Usage:
+ * <p>Usage:
  *   mvn exec:java -Dexec.mainClass="com.fraiseql.examples.EcommerceSchema"
  */
 public class EcommerceSchema {
 
+    /**
+     * Writes this example's schema.json, so the example can be run as a program.
+     */
     public static void main(String[] args) {
         try {
             System.out.println("FraiseQL Java - Ecommerce Schema Example");
@@ -168,6 +174,9 @@ public class EcommerceSchema {
         }
     }
 
+    /**
+     * A product in the catalog.
+     */
     @GraphQLType(description = "A product in the catalog")
     public static class Product {
         @GraphQLField(description = "Product ID")
@@ -192,6 +201,9 @@ public class EcommerceSchema {
         public String createdAt;
     }
 
+    /**
+     * A product category.
+     */
     @GraphQLType(description = "A product category")
     public static class Category {
         @GraphQLField(description = "Category ID")
@@ -204,6 +216,9 @@ public class EcommerceSchema {
         public int productCount;
     }
 
+    /**
+     * A customer account.
+     */
     @GraphQLType(description = "A customer account")
     public static class Customer {
         @GraphQLField(description = "Customer ID")
@@ -225,6 +240,9 @@ public class EcommerceSchema {
         public String createdAt;
     }
 
+    /**
+     * An item in a shopping cart.
+     */
     @GraphQLType(description = "Item in a shopping cart")
     public static class CartItem {
         @GraphQLField(description = "Cart item ID")
@@ -243,6 +261,9 @@ public class EcommerceSchema {
         public String addedAt;
     }
 
+    /**
+     * A customer order.
+     */
     @GraphQLType(description = "A customer order")
     public static class Order {
         @GraphQLField(description = "Order ID")
@@ -267,6 +288,9 @@ public class EcommerceSchema {
         public String shippedAt;
     }
 
+    /**
+     * An item within an order.
+     */
     @GraphQLType(description = "Item in an order")
     public static class OrderItem {
         @GraphQLField(description = "Order item ID")
@@ -285,6 +309,9 @@ public class EcommerceSchema {
         public int price;
     }
 
+    /**
+     * A review a customer left on a product.
+     */
     @GraphQLType(description = "Product review")
     public static class Review {
         @GraphQLField(description = "Review ID")

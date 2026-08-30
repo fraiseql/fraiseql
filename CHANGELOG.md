@@ -298,6 +298,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The Java SDK has a style gate that runs and can fail (#1252).**
+
+  `java-sdk.yml` had a step named "Check style" carrying `continue-on-error: true`, over a
+  `pom.xml` that declared no checkstyle plugin at all — so the plugin fell back to
+  `sun_checks.xml`, Sun's 2001 conventions, and 2149 violations rendered as a green
+  checkmark. Every other official SDK has a style gate that runs and can fail; Java was
+  the one reporting success unconditionally.
+
+  The 2149 was never evidence of 2149 defects. It was evidence that nothing had decided
+  what style this SDK holds itself to. `checkstyle.xml` now does: Google Java Style as
+  bundled with checkstyle, vendored, with two departures each stated in the file —
+  4-space indentation (Google's 2 accounted for 2800 of the 3163 violations its own
+  config reports here) and 120 columns. A third followed from reading the findings:
+  `AbbreviationAsWordInName` flagged 29 names, and every one was `GraphQL` or `FraiseQL` —
+  the query language's name and the product's, in the public API of a published artifact.
+
+  That left 285 real findings, all fixed: 30 star imports expanded, 88 single-line method
+  bodies opened up, 41 wrapped operators moved to the line they continue, 15 lines wrapped
+  to 120, 8 braceless `if`s, 25 missing javadoc comments, and — the one that was not
+  cosmetic — **`requiresRole`'s javadoc had been left stranded above `requiresActor`** in
+  both `QueryBuilder` and `MutationBuilder`, so two documented methods were undocumented
+  and one javadoc described the method below it. Seven annotation files also had `<pre>`
+  blocks whose `@GraphQLType` lines the javadoc parser read as block tags, truncating the
+  comment and leaving the tag unclosed.
+
+  `pom.xml` pins the plugin and checkstyle itself, and sets `violationSeverity=warning` —
+  the load-bearing line, since the ruleset reports at `warning` and the plugin's default
+  threshold is `error`, which would pass over every finding and look exactly like a gate.
+  `continue-on-error` is gone, and the gate is proved able to fail: adding a single
+  `ParenPad` violation turns `mvn -B checkstyle:check` red.
+
 - **`mutation_requires_role` is a conformance construct, so the role gate on the write side
   is compared rather than assumed (#1253).**
 

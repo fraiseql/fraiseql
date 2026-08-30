@@ -36,7 +36,11 @@ jobs:
       - name: Verify and test
         run: mvn -B verify
 
+      # No `continue-on-error`. It was there, over a checkstyle with no configured
+      # ruleset, so 2149 `sun_checks.xml` violations rendered as a green check — a gate
+      # that cannot fail, which reads as coverage (#1252). `pom.xml` now declares the
+      # plugin against `checkstyle.xml` with `violationSeverity=warning`, and the tree is
+      # clean, so this step failing means somebody introduced a violation.
       - name: Check style
         working-directory: sdks/official/fraiseql-java
         run: mvn -B checkstyle:check
-        continue-on-error: true

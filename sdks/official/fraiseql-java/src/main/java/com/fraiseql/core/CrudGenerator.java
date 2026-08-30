@@ -1,7 +1,10 @@
 package com.fraiseql.core;
 
-import java.util.*;
-import java.util.regex.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Generates standard CRUD queries and mutations for a GraphQL type.
@@ -82,9 +85,13 @@ public final class CrudGenerator {
      * @return the pluralized name
      */
     static String pluralize(String name) {
-        if (name.endsWith("s") && !name.endsWith("ss")) return name;
+        if (name.endsWith("s") && !name.endsWith("ss")) {
+            return name;
+        }
         for (String suffix : new String[]{"ss", "sh", "ch", "x", "z"}) {
-            if (name.endsWith(suffix)) return name + "es";
+            if (name.endsWith(suffix)) {
+                return name + "es";
+            }
         }
         if (name.length() >= 2 && name.charAt(name.length() - 1) == 'y'
                 && "aeiou".indexOf(name.charAt(name.length() - 2)) < 0) {
@@ -165,7 +172,8 @@ public final class CrudGenerator {
             if (!entry.getValue().computed) {
                 TypeConverter.GraphQLFieldInfo original = entry.getValue();
                 TypeConverter.GraphQLFieldInfo nullableField = new TypeConverter.GraphQLFieldInfo(
-                    original.name, original.type, true, original.description, original.requiresScope, original.requiresScopes, original.computed);
+                    original.name, original.type, true, original.description,
+                    original.requiresScope, original.requiresScopes, original.computed);
                 updateInputFields.put(entry.getKey(), nullableField);
             }
         }

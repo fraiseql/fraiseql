@@ -1,6 +1,8 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * pgvector configuration for a vector field, carried by {@link GraphQLField#vector()}.

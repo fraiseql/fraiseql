@@ -30,7 +30,9 @@ public sealed interface UpdateField<T> {
      * @param <T> the value type
      * @return an Unset instance
      */
-    static <T> UpdateField<T> unset() { return new Unset<>(); }
+    static <T> UpdateField<T> unset() {
+        return new Unset<>();
+    }
 
     /**
      * Create an explicit null value.
@@ -38,7 +40,9 @@ public sealed interface UpdateField<T> {
      * @param <T> the value type
      * @return a Null instance
      */
-    static <T> UpdateField<T> ofNull() { return new Null<>(); }
+    static <T> UpdateField<T> ofNull() {
+        return new Null<>();
+    }
 
     /**
      * Wrap a concrete value.
@@ -47,14 +51,22 @@ public sealed interface UpdateField<T> {
      * @param <T> the value type
      * @return a Value instance
      */
-    static <T> UpdateField<T> of(T value) { return new Value<>(value); }
+    static <T> UpdateField<T> of(T value) {
+        return new Value<>(value);
+    }
 
     /** Returns true if this field was not provided (UNSET). */
-    default boolean isUnset() { return this instanceof Unset; }
+    default boolean isUnset() {
+        return this instanceof Unset;
+    }
 
     /** Returns true if this field was explicitly set to null. */
-    default boolean isNull() { return this instanceof Null; }
+    default boolean isNull() {
+        return this instanceof Null;
+    }
 
     /** Returns true if this field holds a concrete value. */
-    default boolean isValue() { return this instanceof Value; }
+    default boolean isValue() {
+        return this instanceof Value;
+    }
 }

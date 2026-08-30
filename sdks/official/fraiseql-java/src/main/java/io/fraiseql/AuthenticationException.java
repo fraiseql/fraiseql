@@ -9,5 +9,7 @@ public class AuthenticationException extends FraiseQLException {
         this.statusCode = statusCode;
     }
 
-    public int getStatusCode() { return statusCode; }
+    public int getStatusCode() {
+        return statusCode;
+    }
 }

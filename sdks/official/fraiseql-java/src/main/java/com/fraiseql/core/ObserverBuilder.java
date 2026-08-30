@@ -29,6 +29,8 @@ public final class ObserverBuilder {
     private static final SchemaRegistry registry = SchemaRegistry.getInstance();
 
     /**
+     * Starts building an observer registration.
+     *
      * @param name unique observer name
      */
     public ObserverBuilder(String name) {

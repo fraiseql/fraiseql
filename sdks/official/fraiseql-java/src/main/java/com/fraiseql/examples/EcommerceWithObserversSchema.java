@@ -1,7 +1,8 @@
 package com.fraiseql.examples;
 
-import com.fraiseql.core.*;
-
+import com.fraiseql.core.FraiseQL;
+import com.fraiseql.core.GraphQLField;
+import com.fraiseql.core.GraphQLType;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +19,9 @@ import java.util.Map;
  * </pre>
  */
 public class EcommerceWithObserversSchema {
+    /**
+     * Writes this example's schema.json, so the example can be run as a program.
+     */
     public static void main(String[] args) throws IOException {
         // Define types
         @GraphQLType(name = "Order", description = "E-commerce order")

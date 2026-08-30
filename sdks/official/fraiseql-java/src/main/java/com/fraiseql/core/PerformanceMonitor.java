@@ -1,6 +1,7 @@
 package com.fraiseql.core;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -105,15 +106,33 @@ public final class PerformanceMonitor {
         synchronized void record(long latencyMs) {
             count++;
             totalLatency += latencyMs;
-            if (latencyMs < minLatency) minLatency = latencyMs;
-            if (latencyMs > maxLatency) maxLatency = latencyMs;
+            if (latencyMs < minLatency) {
+                minLatency = latencyMs;
+            }
+            if (latencyMs > maxLatency) {
+                maxLatency = latencyMs;
+            }
         }
 
-        public synchronized long getOperationCount() { return count; }
-        public synchronized long getTotalLatency() { return totalLatency; }
-        public synchronized double getAverageLatency() { return count > 0 ? (double) totalLatency / count : 0.0; }
-        public synchronized long getMinLatency() { return count > 0 ? minLatency : 0; }
-        public synchronized long getMaxLatency() { return count > 0 ? maxLatency : 0; }
+        public synchronized long getOperationCount() {
+            return count;
+        }
+
+        public synchronized long getTotalLatency() {
+            return totalLatency;
+        }
+
+        public synchronized double getAverageLatency() {
+            return count > 0 ? (double) totalLatency / count : 0.0;
+        }
+
+        public synchronized long getMinLatency() {
+            return count > 0 ? minLatency : 0;
+        }
+
+        public synchronized long getMaxLatency() {
+            return count > 0 ? maxLatency : 0;
+        }
 
         @Override
         public String toString() {
@@ -139,10 +158,21 @@ public final class PerformanceMonitor {
             this.operationsPerSecond = operationsPerSecond;
         }
 
-        public long getTotalOperations() { return totalOperations; }
-        public int getTrackedOperations() { return trackedOperations; }
-        public double getAverageLatency() { return averageLatency; }
-        public double getOperationsPerSecond() { return operationsPerSecond; }
+        public long getTotalOperations() {
+            return totalOperations;
+        }
+
+        public int getTrackedOperations() {
+            return trackedOperations;
+        }
+
+        public double getAverageLatency() {
+            return averageLatency;
+        }
+
+        public double getOperationsPerSecond() {
+            return operationsPerSecond;
+        }
 
         @Override
         public String toString() {

@@ -1,13 +1,13 @@
 package com.fraiseql.core;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * High-performance cache for schema metadata and compiled types.
  * Uses memoization and weak references to optimize memory usage.
  *
- * Features:
+ * <p>Features:
  * - Thread-safe field type caching
  * - Memoized type conversions
  * - Configuration-based cache sizing
@@ -217,6 +217,9 @@ public class SchemaCache {
         public final int typeConversionCacheSize;
         public final int validationCacheSize;
 
+        /**
+         * Creates a CacheSizeInfo with the values given.
+         */
         public CacheSizeInfo(int fieldSize, int typeSize, int validationSize) {
             this.fieldCacheSize = fieldSize;
             this.typeConversionCacheSize = typeSize;

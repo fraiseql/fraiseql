@@ -3,7 +3,13 @@ package com.fraiseql.core;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collection;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Converts Java types to GraphQL types.
@@ -29,8 +35,8 @@ public class TypeConverter {
             || javaType == byte.class || javaType == Byte.class) {
             return "Int";
         }
-        if (javaType == float.class || javaType == Float.class ||
-            javaType == double.class || javaType == Double.class) {
+        if (javaType == float.class || javaType == Float.class
+            || javaType == double.class || javaType == Double.class) {
             return "Float";
         }
         if (javaType == java.math.BigDecimal.class || javaType == java.math.BigInteger.class) {
@@ -47,8 +53,8 @@ public class TypeConverter {
         }
 
         // Handle temporal types
-        if (javaType == LocalDate.class || javaType == LocalDateTime.class ||
-            javaType == java.util.Date.class || javaType == java.sql.Date.class
+        if (javaType == LocalDate.class || javaType == LocalDateTime.class
+            || javaType == java.util.Date.class || javaType == java.sql.Date.class
             || javaType == java.sql.Timestamp.class) {
             return "String";  // Date types are represented as strings in GraphQL
         }
@@ -145,12 +151,12 @@ public class TypeConverter {
 
             GraphQLField annotation = field.getAnnotation(GraphQLField.class);
             String fieldName = annotation.name().isEmpty() ? field.getName() : annotation.name();
-            boolean isList = field.getType().isArray()
+            final boolean isList = field.getType().isArray()
                 || Collection.class.isAssignableFrom(field.getType());
-            String graphQLType = annotation.type().isEmpty() ?
-                javaToGraphQL(field.getType()) : annotation.type();
+            String graphQLType = annotation.type().isEmpty()
+                ? javaToGraphQL(field.getType()) : annotation.type();
             graphQLType = canonicalizeIdType(fieldName, graphQLType);
-            boolean nullable = annotation.nullable();
+            final boolean nullable = annotation.nullable();
 
             // Extract scope information.
             // The sentinel "\u0000" (NUL) is the default for requiresScope meaning "not set".
@@ -299,7 +305,8 @@ public class TypeConverter {
         // Validate resource: alphanumeric + underscore + dot, optionally ending in .*, or just *
         if (!resource.matches("[a-zA-Z_][a-zA-Z0-9_.]*(\\.[*])?|[*]")) {
             throw new RuntimeException(
-                String.format("Field %s.%s has invalid resource in scope '%s' (must be alphanumeric + underscore + dot, or *)",
+                String.format("Field %s.%s has invalid resource in scope '%s' "
+                    + "(must be alphanumeric + underscore + dot, or *)",
                     typeName, fieldName, scope)
             );
         }
@@ -350,6 +357,9 @@ public class TypeConverter {
             this.isDeprecated = deprecated;
         }
 
+        /**
+         * Creates a GraphQLFieldInfo with the values given.
+         */
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description,
                                String requiresScope, String[] requiresScopes, boolean computed) {
             this.name = name;

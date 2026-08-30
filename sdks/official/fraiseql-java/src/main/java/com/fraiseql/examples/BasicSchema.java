@@ -1,24 +1,30 @@
 package com.fraiseql.examples;
 
-import com.fraiseql.core.*;
+import com.fraiseql.core.FraiseQL;
+import com.fraiseql.core.GraphQLField;
+import com.fraiseql.core.GraphQLType;
+import com.fraiseql.core.SchemaRegistry;
 
 /**
  * BasicSchema - Complete example of FraiseQL Java authoring layer
  *
- * This example demonstrates:
+ * <p>This example demonstrates:
  * 1. Defining GraphQL types with @GraphQLType and @GraphQLField
  * 2. Registering types with the schema
  * 3. Creating queries with the fluent API
  * 4. Creating mutations with the fluent API
  * 5. Exporting the schema to schema.json
  *
- * Output: schema.json - Ready for fraiseql-cli compile
+ * <p>Output: schema.json - Ready for fraiseql-cli compile
  *
- * Usage:
+ * <p>Usage:
  *   mvn exec:java -Dexec.mainClass="com.fraiseql.examples.BasicSchema"
  */
 public class BasicSchema {
 
+    /**
+     * Writes this example's schema.json, so the example can be run as a program.
+     */
     public static void main(String[] args) {
         try {
             System.out.println("FraiseQL Java - BasicSchema Example");
@@ -140,7 +146,7 @@ public class BasicSchema {
     }
 
     /**
-     * User type with id, name, email, and createdAt
+     * User type with id, name, email, and createdAt.
      */
     @GraphQLType(description = "A user account")
     public static class User {
@@ -158,7 +164,7 @@ public class BasicSchema {
     }
 
     /**
-     * Post type with id, userId, title, content, and createdAt
+     * Post type with id, userId, title, content, and createdAt.
      */
     @GraphQLType(description = "A blog post")
     public static class Post {
@@ -179,7 +185,7 @@ public class BasicSchema {
     }
 
     /**
-     * Comment type with id, postId, userId, text, and createdAt
+     * Comment type with id, postId, userId, text, and createdAt.
      */
     @GraphQLType(description = "A comment on a post")
     public static class Comment {

@@ -1,20 +1,23 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Marks an enum constant as a GraphQL enum value.
  * Can optionally specify a custom GraphQL value and description.
  *
- * Usage:
+ * <p>Usage:
  * <pre>
- * @GraphQLEnum
+ * &#64;GraphQLEnum
  * public enum OrderStatus {
- *     @GraphQLEnumValue("PENDING")
+ *     &#64;GraphQLEnumValue("PENDING")
  *     PENDING,
- *     @GraphQLEnumValue(value = "SHIPPED", description = "Order has been shipped")
+ *     &#64;GraphQLEnumValue(value = "SHIPPED", description = "Order has been shipped")
  *     SHIPPED,
- *     @GraphQLEnumValue(value = "DELIVERED")
+ *     &#64;GraphQLEnumValue(value = "DELIVERED")
  *     DELIVERED
  * }
  * </pre>

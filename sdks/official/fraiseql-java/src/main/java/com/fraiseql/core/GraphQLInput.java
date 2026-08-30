@@ -1,6 +1,9 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Marks a class as a GraphQL input type.
@@ -8,20 +11,20 @@ import java.lang.annotation.*;
  * Unlike regular types, input types cannot have fields that are lists
  * and all fields must be input-compatible (scalars, enums, or other input types).
  *
- * Usage:
+ * <p>Usage:
  * <pre>
- * @GraphQLInput
+ * &#64;GraphQLInput
  * public class CreateUserInput {
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String name;
  *
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String email;
  *
- *     @GraphQLField(nullable = true)
+ *     &#64;GraphQLField(nullable = true)
  *     public String phone;
  *
- *     @GraphQLField(nullable = true)
+ *     &#64;GraphQLField(nullable = true)
  *     public String defaultRole;
  * }
  *
@@ -32,7 +35,7 @@ import java.lang.annotation.*;
  *     .register();
  * </pre>
  *
- * Or with builder:
+ * <p>Or with builder:
  * <pre>
  * FraiseQL.input("FilterInput", new Field[]{
  *     new Field("query", "String", false),

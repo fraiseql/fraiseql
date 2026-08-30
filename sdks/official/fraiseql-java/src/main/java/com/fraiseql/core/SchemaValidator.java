@@ -1,6 +1,11 @@
 package com.fraiseql.core;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Validates GraphQL schemas for correctness and completeness.
@@ -20,6 +25,9 @@ public class SchemaValidator {
         public final List<String> errors;
         public final List<String> warnings;
 
+        /**
+         * Creates a ValidationResult with the values given.
+         */
         public ValidationResult(boolean valid, List<String> errors, List<String> warnings) {
             this.valid = valid;
             this.errors = errors;
@@ -33,7 +41,9 @@ public class SchemaValidator {
             if (!errors.isEmpty()) {
                 sb.append(", errors=[");
                 for (int i = 0; i < errors.size(); i++) {
-                    if (i > 0) sb.append(", ");
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
                     sb.append("\"").append(errors.get(i)).append("\"");
                 }
                 sb.append("]");
@@ -41,7 +51,9 @@ public class SchemaValidator {
             if (!warnings.isEmpty()) {
                 sb.append(", warnings=[");
                 for (int i = 0; i < warnings.size(); i++) {
-                    if (i > 0) sb.append(", ");
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
                     sb.append("\"").append(warnings.get(i)).append("\"");
                 }
                 sb.append("]");
@@ -138,7 +150,8 @@ public class SchemaValidator {
             // Check return type exists
             String returnTypeName = extractBaseType(mutationInfo.returnType);
             if (!types.containsKey(returnTypeName)) {
-                errors.add("Mutation '" + mutationInfo.name + "' references undefined return type '" + returnTypeName + "'");
+                errors.add("Mutation '" + mutationInfo.name
+                    + "' references undefined return type '" + returnTypeName + "'");
             }
 
             // Check argument types are valid

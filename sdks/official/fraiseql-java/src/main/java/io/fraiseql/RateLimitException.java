@@ -7,12 +7,16 @@ import java.util.Optional;
 public class RateLimitException extends FraiseQLException {
     private final Optional<Duration> retryAfter;
 
-    public RateLimitException() { this(Optional.empty()); }
+    public RateLimitException() {
+        this(Optional.empty());
+    }
 
     public RateLimitException(Optional<Duration> retryAfter) {
         super("Rate limit exceeded");
         this.retryAfter = retryAfter;
     }
 
-    public Optional<Duration> getRetryAfter() { return retryAfter; }
+    public Optional<Duration> getRetryAfter() {
+        return retryAfter;
+    }
 }

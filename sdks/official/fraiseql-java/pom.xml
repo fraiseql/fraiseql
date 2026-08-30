@@ -115,6 +115,39 @@
                 <version>3.1.2</version>
             </plugin>
 
+            <!--
+              The style gate. Before this, no checkstyle plugin was declared at all, so
+              `mvn checkstyle:check` fell back to `sun_checks.xml` — Sun's 2001
+              conventions — and reported 2149 violations that the workflow then swallowed
+              with `continue-on-error: true`. Every other official SDK has a style gate
+              that runs and can fail; Java was the one reporting success unconditionally
+              (#1252).
+
+              `violationSeverity` is the load-bearing line. `checkstyle.xml` is
+              Google-derived and reports at `warning`, while the plugin's default
+              threshold is `error` — so without this, `check` passes over every finding
+              and looks exactly like a gate.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <configLocation>checkstyle.xml</configLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <failOnViolation>true</failOnViolation>
+                    <violationSeverity>warning</violationSeverity>
+                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>10.21.0</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>

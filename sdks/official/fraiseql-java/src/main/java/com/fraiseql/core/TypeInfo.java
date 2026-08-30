@@ -1,6 +1,6 @@
 package com.fraiseql.core;
 
-import java.util.*;
+import java.util.Objects;
 
 /**
  * Information about a GraphQL field type.
@@ -12,6 +12,9 @@ public class TypeInfo {
     public final boolean isList;
     public final String description;
 
+    /**
+     * Creates a TypeInfo with the values given.
+     */
     public TypeInfo(String typeName, boolean nullable, boolean isList, String description) {
         this.typeName = typeName;
         this.nullable = nullable;
@@ -28,7 +31,7 @@ public class TypeInfo {
     }
 
     /**
-     * Get the full GraphQL type string (e.g., "[String]", "Int!")
+     * Returns the full GraphQL type string, for example {@code [String]} or {@code Int!}.
      */
     public String getGraphQLType() {
         String type = isList ? "[" + typeName + "]" : typeName;
@@ -45,12 +48,16 @@ public class TypeInfo {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TypeInfo typeInfo = (TypeInfo) o;
-        return nullable == typeInfo.nullable &&
-               isList == typeInfo.isList &&
-               Objects.equals(typeName, typeInfo.typeName);
+        return nullable == typeInfo.nullable
+               && isList == typeInfo.isList
+               && Objects.equals(typeName, typeInfo.typeName);
     }
 
     @Override

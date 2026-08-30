@@ -1,38 +1,41 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Marks a class as a GraphQL union type.
  * Union types can be one of several specified types.
  * The union class itself is abstract and cannot be instantiated.
  *
- * Usage:
+ * <p>Usage:
  * <pre>
- * @GraphQLUnion(members = {User.class, Bot.class, Guest.class})
+ * &#64;GraphQLUnion(members = {User.class, Bot.class, Guest.class})
  * public abstract class Actor {
  * }
  *
- * @GraphQLType
+ * &#64;GraphQLType
  * public class User {
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String id;
  *
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String name;
  * }
  *
- * @GraphQLType
+ * &#64;GraphQLType
  * public class Bot {
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String id;
  *
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String name;
  * }
  * </pre>
  *
- * Or with builder:
+ * <p>Or with builder:
  * <pre>
  * FraiseQL.union("SearchResult", new String[]{"User", "Post", "Comment"});
  * </pre>

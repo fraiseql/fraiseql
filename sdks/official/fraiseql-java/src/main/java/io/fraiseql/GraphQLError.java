@@ -6,9 +6,15 @@ public class GraphQLError {
 
     public GraphQLError() {}
 
-    public GraphQLError(String message) { this.message = message; }
+    public GraphQLError(String message) {
+        this.message = message;
+    }
 
-    public String getMessage() { return message; }
+    public String getMessage() {
+        return message;
+    }
 
-    public void setMessage(String message) { this.message = message; }
+    public void setMessage(String message) {
+        this.message = message;
+    }
 }

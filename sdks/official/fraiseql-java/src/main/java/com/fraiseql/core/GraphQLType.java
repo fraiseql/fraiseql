@@ -1,18 +1,21 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Marks a class as a GraphQL type for FraiseQL schema authoring.
  *
- * Usage:
+ * <p>Usage:
  * <pre>
- * @GraphQLType
+ * &#64;GraphQLType
  * public class User {
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public int id;
  *
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public String name;
  * }
  * </pre>

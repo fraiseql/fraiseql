@@ -1,37 +1,40 @@
 package com.fraiseql.core;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Marks a field as a GraphQL field within a GraphQL type.
  * Automatically extracts type information from the field's Java type.
  *
- * Supports field-level metadata:
+ * <p>Supports field-level metadata:
  * - Custom names and types
  * - Field descriptions
  * - Deprecation markers with reasons
  * - JWT scope-based access control
  *
- * Usage:
+ * <p>Usage:
  * <pre>
- * @GraphQLType
+ * &#64;GraphQLType
  * public class User {
- *     @GraphQLField
+ *     &#64;GraphQLField
  *     public int id;
  *
- *     @GraphQLField(nullable = true)
+ *     &#64;GraphQLField(nullable = true)
  *     public String email;
  *
- *     @GraphQLField(name = "created_at")
+ *     &#64;GraphQLField(name = "created_at")
  *     public String createdAt;
  *
- *     @GraphQLField(
+ *     &#64;GraphQLField(
  *         deprecated = "Use newEmail instead",
  *         description = "User's old email (deprecated)"
  *     )
  *     public String oldEmail;
  *
- *     @GraphQLField(
+ *     &#64;GraphQLField(
  *         requiresScope = "read:user.salary",
  *         description = "User salary (admin only)"
  *     )
@@ -70,7 +73,7 @@ public @interface GraphQLField {
      * If set (non-empty), this field is marked as deprecated.
      * The value should explain why it's deprecated and suggest alternatives.
      *
-     * Example: "Use newField instead"
+     * <p>Example: "Use newField instead"
      */
     String deprecated() default "";
 
@@ -78,7 +81,7 @@ public @interface GraphQLField {
      * Optional JWT scope required to access this field.
      * Supports single scope as a string.
      *
-     * Example: "read:user.salary"
+     * <p>Example: "read:user.salary"
      */
     String requiresScope() default "\u0000";
 
@@ -87,7 +90,7 @@ public @interface GraphQLField {
      * Use this for fields that require multiple scopes.
      * All scopes must be present in the user's token to access the field.
      *
-     * Example: {"admin", "read:financial"}
+     * <p>Example: {"admin", "read:financial"}
      */
     String[] requiresScopes() default {"\u0000"};
 
@@ -96,11 +99,11 @@ public @interface GraphQLField {
      * Computed fields are typically auto-generated (like slugs, timestamps, etc.)
      * and should not be set directly by users in create/update operations.
      *
-     * When computed=true, the field will be excluded from:
+     * <p>When computed=true, the field will be excluded from:
      * - CreateXInput types (all fields)
      * - UpdateXInput types (non-PK fields only)
      *
-     * The field remains visible in query results.
+     * <p>The field remains visible in query results.
      */
     boolean computed() default false;
 

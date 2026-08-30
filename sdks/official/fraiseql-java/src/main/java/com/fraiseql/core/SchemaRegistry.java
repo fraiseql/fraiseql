@@ -1,6 +1,12 @@
 package com.fraiseql.core;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -203,7 +209,8 @@ public class SchemaRegistry {
         queries.put(queryName, queryInfo);
     }
 
-    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description, boolean relay) {
+    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description,
+                              boolean relay) {
         QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay);
         queries.put(queryName, queryInfo);
     }
@@ -235,7 +242,8 @@ public class SchemaRegistry {
      * @param arguments the mutation arguments
      * @param description optional description
      */
-    public void registerMutation(String mutationName, String returnType, Map<String, String> arguments, String description) {
+    public void registerMutation(String mutationName, String returnType, Map<String, String> arguments,
+                                 String description) {
         MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description);
         mutations.put(mutationName, mutationInfo);
     }
@@ -282,7 +290,8 @@ public class SchemaRegistry {
      * @param arguments the subscription arguments (filters)
      * @param description optional description
      */
-    public void registerSubscription(String subscriptionName, String entityType, Map<String, String> arguments, String description) {
+    public void registerSubscription(String subscriptionName, String entityType, Map<String, String> arguments,
+                                     String description) {
         SubscriptionInfo subscriptionInfo = new SubscriptionInfo(
             subscriptionName, entityType, arguments, description, null, null, null, null);
         subscriptions.put(subscriptionName, subscriptionInfo);
@@ -332,7 +341,8 @@ public class SchemaRegistry {
      * @param fields the interface fields
      * @param description optional description
      */
-    public void registerInterface(String interfaceName, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
+    public void registerInterface(String interfaceName, Map<String, TypeConverter.GraphQLFieldInfo> fields,
+                                  String description) {
         InterfaceInfo interfaceInfo = new InterfaceInfo(interfaceName, fields, description);
         interfaces.put(interfaceName, interfaceInfo);
     }
@@ -356,7 +366,8 @@ public class SchemaRegistry {
      * @param fields the input fields
      * @param description optional description
      */
-    public void registerInputType(String inputName, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
+    public void registerInputType(String inputName, Map<String, TypeConverter.GraphQLFieldInfo> fields,
+                                  String description) {
         InputTypeInfo inputInfo = new InputTypeInfo(inputName, fields, description);
         inputTypes.put(inputName, inputInfo);
     }
@@ -615,7 +626,8 @@ public class SchemaRegistry {
      * @param queries defaults applied only to queries
      * @param mutations defaults applied only to mutations
      */
-    public void setInjectDefaults(Map<String, String> base, Map<String, String> queries, Map<String, String> mutations) {
+    public void setInjectDefaults(Map<String, String> base, Map<String, String> queries, Map<String,
+                                  String> mutations) {
         this.injectDefaultsBase = Collections.unmodifiableMap(new LinkedHashMap<>(base));
         this.injectDefaultsQueries = Collections.unmodifiableMap(new LinkedHashMap<>(queries));
         this.injectDefaultsMutations = Collections.unmodifiableMap(new LinkedHashMap<>(mutations));
@@ -649,7 +661,8 @@ public class SchemaRegistry {
     }
 
     /**
-     * Clear all registered types, queries, mutations, subscriptions, enums, interfaces, unions, input types, and observers.
+     * Clear all registered types, queries, mutations, subscriptions, enums, interfaces, unions, input types, and
+     * observers.
      * Useful for testing.
      */
     public void clear() {
@@ -680,16 +693,22 @@ public class SchemaRegistry {
         public final String requiresRole;
         public final String sqlSource;
 
-        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
+        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
+                               String description) {
             this(name, javaClass, fields, description, false, false, null, null);
         }
 
-        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description, boolean relay) {
+        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
+                               String description, boolean relay) {
             this(name, javaClass, fields, description, relay, false, null, null);
         }
 
+        /**
+         * Creates a GraphQLTypeInfo with the values given.
+         */
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
-                               String description, boolean relay, boolean isError, String requiresRole, String sqlSource) {
+                               String description, boolean relay, boolean isError,
+                               String requiresRole, String sqlSource) {
             this.name = name;
             this.javaClass = javaClass;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
@@ -702,11 +721,11 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "GraphQLTypeInfo{" +
-                "name='" + name + '\'' +
-                ", javaClass=" + javaClass.getSimpleName() +
-                ", fields=" + fields.size() +
-                '}';
+            return "GraphQLTypeInfo{"
+                + "name='" + name + '\''
+                + ", javaClass=" + javaClass.getSimpleName()
+                + ", fields=" + fields.size()
+                + '}';
         }
     }
 
@@ -740,7 +759,8 @@ public class SchemaRegistry {
             this(name, returnType, arguments, description, false, null, null, null, null, null, null);
         }
 
-        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
+        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
+                         boolean relay) {
             this(name, returnType, arguments, description, relay, null, null, null, null, null, null);
         }
 
@@ -751,6 +771,9 @@ public class SchemaRegistry {
                 injectParams, additionalViews, null, null);
         }
 
+        /**
+         * Creates a QueryInfo with the values given.
+         */
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews,
@@ -771,21 +794,27 @@ public class SchemaRegistry {
         }
 
         /** Returns the query name. */
-        public String getName() { return name; }
+        public String getName() {
+            return name;
+        }
 
         /** Returns the query description. */
-        public String getDescription() { return description; }
+        public String getDescription() {
+            return description;
+        }
 
         /** Returns the query arguments map. */
-        public Map<String, String> getArguments() { return arguments; }
+        public Map<String, String> getArguments() {
+            return arguments;
+        }
 
         @Override
         public String toString() {
-            return "QueryInfo{" +
-                "name='" + name + '\'' +
-                ", returnType='" + returnType + '\'' +
-                ", arguments=" + arguments.size() +
-                '}';
+            return "QueryInfo{"
+                + "name='" + name + '\''
+                + ", returnType='" + returnType + '\''
+                + ", arguments=" + arguments.size()
+                + '}';
         }
     }
 
@@ -834,6 +863,9 @@ public class SchemaRegistry {
                 invalidatesViews, invalidatesFactTables, cascade, null, null);
         }
 
+        /**
+         * Creates a MutationInfo with the values given.
+         */
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
                             String sqlSource, String operation, Map<String, String> injectParams,
                             List<String> invalidatesViews, List<String> invalidatesFactTables, boolean cascade,
@@ -857,11 +889,11 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "MutationInfo{" +
-                "name='" + name + '\'' +
-                ", returnType='" + returnType + '\'' +
-                ", arguments=" + arguments.size() +
-                '}';
+            return "MutationInfo{"
+                + "name='" + name + '\''
+                + ", returnType='" + returnType + '\''
+                + ", arguments=" + arguments.size()
+                + '}';
         }
     }
 
@@ -888,6 +920,9 @@ public class SchemaRegistry {
         /** Deprecation reason, or the empty string for "deprecated, no stated reason". */
         public final String deprecationReason;
 
+        /**
+         * Creates a SubscriptionInfo with the values given.
+         */
         public SubscriptionInfo(String name, String entityType, Map<String, String> arguments,
                                 String description, String topic,
                                 Map<String, String> filterConditions, List<String> fields,
@@ -908,13 +943,13 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "SubscriptionInfo{" +
-                "name='" + name + '\'' +
-                ", entityType='" + entityType + '\'' +
-                ", arguments=" + arguments.size() +
-                (topic != null ? ", topic='" + topic + '\'' : "") +
-                (filterConditions.isEmpty() ? "" : ", filter=" + filterConditions.size()) +
-                '}';
+            return "SubscriptionInfo{"
+                + "name='" + name + '\''
+                + ", entityType='" + entityType + '\''
+                + ", arguments=" + arguments.size()
+                + (topic != null ? ", topic='" + topic + '\'' : "")
+                + (filterConditions.isEmpty() ? "" : ", filter=" + filterConditions.size())
+                + '}';
         }
     }
 
@@ -926,6 +961,9 @@ public class SchemaRegistry {
         public final Map<String, String> values;
         public final String description;
 
+        /**
+         * Creates a EnumInfo with the values given.
+         */
         public EnumInfo(String name, Map<String, String> values, String description) {
             this.name = name;
             this.values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
@@ -934,10 +972,10 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "EnumInfo{" +
-                "name='" + name + '\'' +
-                ", values=" + values.size() +
-                '}';
+            return "EnumInfo{"
+                + "name='" + name + '\''
+                + ", values=" + values.size()
+                + '}';
         }
     }
 
@@ -949,6 +987,9 @@ public class SchemaRegistry {
         public final Map<String, TypeConverter.GraphQLFieldInfo> fields;
         public final String description;
 
+        /**
+         * Creates a InterfaceInfo with the values given.
+         */
         public InterfaceInfo(String name, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
             this.name = name;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
@@ -957,10 +998,10 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "InterfaceInfo{" +
-                "name='" + name + '\'' +
-                ", fields=" + fields.size() +
-                '}';
+            return "InterfaceInfo{"
+                + "name='" + name + '\''
+                + ", fields=" + fields.size()
+                + '}';
         }
     }
 
@@ -972,6 +1013,9 @@ public class SchemaRegistry {
         public final List<String> memberTypes;
         public final String description;
 
+        /**
+         * Creates a UnionInfo with the values given.
+         */
         public UnionInfo(String name, List<String> memberTypes, String description) {
             this.name = name;
             this.memberTypes = Collections.unmodifiableList(new ArrayList<>(memberTypes));
@@ -980,10 +1024,10 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "UnionInfo{" +
-                "name='" + name + '\'' +
-                ", memberTypes=" + memberTypes.size() +
-                '}';
+            return "UnionInfo{"
+                + "name='" + name + '\''
+                + ", memberTypes=" + memberTypes.size()
+                + '}';
         }
     }
 
@@ -995,6 +1039,9 @@ public class SchemaRegistry {
         public final Map<String, TypeConverter.GraphQLFieldInfo> fields;
         public final String description;
 
+        /**
+         * Creates a InputTypeInfo with the values given.
+         */
         public InputTypeInfo(String name, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
             this.name = name;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
@@ -1003,10 +1050,10 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "InputTypeInfo{" +
-                "name='" + name + '\'' +
-                ", fields=" + fields.size() +
-                '}';
+            return "InputTypeInfo{"
+                + "name='" + name + '\''
+                + ", fields=" + fields.size()
+                + '}';
         }
     }
 
@@ -1021,6 +1068,9 @@ public class SchemaRegistry {
         public final RetryConfig retry;
         public final List<Map<String, Object>> actions;
 
+        /**
+         * Creates a ObserverInfo with the values given.
+         */
         public ObserverInfo(String name, String entity, String event, String condition,
                             RetryConfig retry, List<Map<String, Object>> actions) {
             this.name = name;
@@ -1033,12 +1083,12 @@ public class SchemaRegistry {
 
         @Override
         public String toString() {
-            return "ObserverInfo{" +
-                "name='" + name + '\'' +
-                ", entity='" + entity + '\'' +
-                ", event='" + event + '\'' +
-                ", actions=" + actions.size() +
-                '}';
+            return "ObserverInfo{"
+                + "name='" + name + '\''
+                + ", entity='" + entity + '\''
+                + ", event='" + event + '\''
+                + ", actions=" + actions.size()
+                + '}';
         }
     }
 }

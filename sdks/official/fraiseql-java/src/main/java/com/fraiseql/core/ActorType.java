@@ -42,7 +42,7 @@ public final class ActorType {
             throw new IllegalArgumentException(operationName
                 + ": requiresActor was given an empty list. An empty allow-list admits "
                 + "nobody and is dropped from the compiled schema, which admits everybody "
-                + "\u2014 name the actor types instead. Valid: " + String.join(", ", ALL));
+                + "— name the actor types instead. Valid: " + String.join(", ", ALL));
         }
         List<String> unknown = actors.stream().filter(a -> !ALL.contains(a))
             .collect(Collectors.toList());
