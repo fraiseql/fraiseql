@@ -53,6 +53,7 @@ fn declared_types() -> SharedFieldTypes {
         ("date_val", ScalarFieldType::Date),
         ("ts_val", ScalarFieldType::DateTime),
         ("time_val", ScalarFieldType::Time),
+        ("path_val", ScalarFieldType::Text),
         ("absent", ScalarFieldType::Text),
     ]))
 }
@@ -66,13 +67,13 @@ CREATE TABLE v_operator_type_matrix (data jsonb);
 INSERT INTO v_operator_type_matrix (data) VALUES
   ('{"id":1,"int_val":5,"num_val":19.90,"bool_val":true,"text_val":"alpha",
      "uuid_val":"11111111-1111-1111-1111-111111111111","date_val":"2024-01-01",
-     "ts_val":"2024-01-01T10:00:00+02:00","time_val":"08:30:00"}'::jsonb),
+     "ts_val":"2024-01-01T10:00:00+02:00","time_val":"08:30:00","path_val":"a.b.c"}'::jsonb),
   ('{"id":2,"int_val":10,"num_val":24.50,"bool_val":false,"text_val":"mike",
      "uuid_val":"22222222-2222-2222-2222-222222222222","date_val":"2024-06-15",
-     "ts_val":"2024-01-01T09:00:00Z","time_val":"12:00:00"}'::jsonb),
+     "ts_val":"2024-01-01T09:00:00Z","time_val":"12:00:00","path_val":"a.b"}'::jsonb),
   ('{"id":3,"int_val":15,"num_val":100.00,"bool_val":true,"text_val":"zulu",
      "uuid_val":"33333333-3333-3333-3333-333333333333","date_val":"2024-12-31",
-     "ts_val":"2024-12-31T23:59:59Z","time_val":"23:59:59"}'::jsonb);
+     "ts_val":"2024-12-31T23:59:59Z","time_val":"23:59:59","path_val":"x.y.z.w"}'::jsonb);
 "#;
 
 struct Rig {
@@ -106,6 +107,30 @@ impl Rig {
 async fn rig() -> Option<Rig> {
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
+
+    // The ltree cases need the extension. `CREATE EXTENSION IF NOT EXISTS` is not
+    // safe against a concurrent identical create — the tests in this file
+    // provision in parallel and collide on pg_type's unique index (23505) — so
+    // the race is tolerated and the outcome is then asserted. Swallowing the
+    // error without the check would turn a genuinely missing ltree into eight
+    // silent skips.
+    let _ = adapter.execute_raw_query("CREATE EXTENSION IF NOT EXISTS ltree").await;
+    let present = adapter
+        .execute_raw_query(
+            "SELECT count(*) AS n FROM pg_type \
+             WHERE typname = 'ltree' AND pg_type_is_visible(oid)",
+        )
+        .await
+        .expect("query pg_type");
+    assert_eq!(
+        present.first().and_then(|r| r.get("n")).and_then(serde_json::Value::as_i64),
+        Some(1),
+        "the `ltree` type is not visible on this connection's search_path, so the ltree \
+         cases below would not be exercising anything. Note pg_extension is the wrong \
+         check: an ltree installed into a schema off the search_path satisfies it and \
+         still fails every query with `type \"ltree\" does not exist`."
+    );
+
     for stmt in FIXTURE.split(";\n") {
         if stmt.trim().is_empty() {
             continue;
@@ -128,6 +153,50 @@ struct Case {
 }
 
 const MATRIX: &[Case] = &[
+    // ── Ltree — #1256: `{lhs}::ltree` binds tighter than `->>`, so every one of
+    //    these produced `data ->> ('path_val'::ltree)` and aborted the statement.
+    //    `depthEq` failed differently: `nlevel(…) = $1` infers int4 while the
+    //    parameter binds as text.
+    Case {
+        name:   "ltree eq",
+        filter: || json!({"pathVal": {"eq": "a.b"}}),
+        expect: &[2],
+    },
+    Case {
+        name:   "ltree descendantOf root",
+        filter: || json!({"pathVal": {"descendantOf": "a"}}),
+        expect: &[1, 2],
+    },
+    Case {
+        name:   "ltree descendantOf is self-inclusive",
+        filter: || json!({"pathVal": {"descendantOf": "a.b"}}),
+        expect: &[1, 2],
+    },
+    Case {
+        name:   "ltree descendantOf other branch",
+        filter: || json!({"pathVal": {"descendantOf": "x"}}),
+        expect: &[3],
+    },
+    Case {
+        name:   "ltree ancestorOf a leaf",
+        filter: || json!({"pathVal": {"ancestorOf": "a.b.c"}}),
+        expect: &[1, 2],
+    },
+    Case {
+        name:   "ltree depthEq",
+        filter: || json!({"pathVal": {"depthEq": 3}}),
+        expect: &[1],
+    },
+    Case {
+        name:   "ltree depthGt",
+        filter: || json!({"pathVal": {"depthGt": 3}}),
+        expect: &[3],
+    },
+    Case {
+        name:   "ltree depthLte",
+        filter: || json!({"pathVal": {"depthLte": 2}}),
+        expect: &[2],
+    },
     // ── Integer ───────────────────────────────────────────────────────────
     Case {
         name:   "int eq",

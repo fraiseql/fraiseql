@@ -107,15 +107,15 @@ impl SqlDialect for PostgresDialect {
     }
 
     fn array_contains_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::jsonb @> {rhs}::jsonb"))
+        Ok(format!("({lhs})::jsonb @> {rhs}::jsonb"))
     }
 
     fn array_contained_by_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::jsonb <@ {rhs}::jsonb"))
+        Ok(format!("({lhs})::jsonb <@ {rhs}::jsonb"))
     }
 
     fn array_overlaps_sql(&self, lhs: &str, rhs: &str) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::jsonb && {rhs}::jsonb"))
+        Ok(format!("({lhs})::jsonb && {rhs}::jsonb"))
     }
 
     fn fts_matches_sql(&self, expr: &str, param: &str) -> Result<String, UnsupportedOperator> {
@@ -161,42 +161,42 @@ impl SqlDialect for PostgresDialect {
 
     fn inet_check_sql(&self, lhs: &str, check_name: &str) -> Result<String, UnsupportedOperator> {
         match check_name {
-            "IsIPv4" => Ok(format!("family({lhs}::inet) = 4")),
-            "IsNotIPv4" => Ok(format!("NOT (family({lhs}::inet) = 4)")),
-            "IsIPv6" => Ok(format!("family({lhs}::inet) = 6")),
-            "IsNotIPv6" => Ok(format!("NOT (family({lhs}::inet) = 6)")),
+            "IsIPv4" => Ok(format!("family(({lhs})::inet) = 4")),
+            "IsNotIPv4" => Ok(format!("NOT (family(({lhs})::inet) = 4)")),
+            "IsIPv6" => Ok(format!("family(({lhs})::inet) = 6")),
+            "IsNotIPv6" => Ok(format!("NOT (family(({lhs})::inet) = 6)")),
             "IsPrivate" => Ok(format!(
-                "({lhs}::inet << '10.0.0.0/8'::inet OR {lhs}::inet << '172.16.0.0/12'::inet OR {lhs}::inet << '192.168.0.0/16'::inet OR {lhs}::inet << 'fc00::/7'::inet)"
+                "(({lhs})::inet << '10.0.0.0/8'::inet OR ({lhs})::inet << '172.16.0.0/12'::inet OR ({lhs})::inet << '192.168.0.0/16'::inet OR ({lhs})::inet << 'fc00::/7'::inet)"
             )),
             "IsPublic" => Ok(format!(
-                "NOT ({lhs}::inet << '10.0.0.0/8'::inet OR {lhs}::inet << '172.16.0.0/12'::inet OR {lhs}::inet << '192.168.0.0/16'::inet OR {lhs}::inet << 'fc00::/7'::inet)"
+                "NOT (({lhs})::inet << '10.0.0.0/8'::inet OR ({lhs})::inet << '172.16.0.0/12'::inet OR ({lhs})::inet << '192.168.0.0/16'::inet OR ({lhs})::inet << 'fc00::/7'::inet)"
             )),
             "IsLoopback" => Ok(format!(
-                "({lhs}::inet << '127.0.0.0/8'::inet OR {lhs}::inet << '::1/128'::inet)"
+                "(({lhs})::inet << '127.0.0.0/8'::inet OR ({lhs})::inet << '::1/128'::inet)"
             )),
             "IsNotLoopback" => Ok(format!(
-                "NOT ({lhs}::inet << '127.0.0.0/8'::inet OR {lhs}::inet << '::1/128'::inet)"
+                "NOT (({lhs})::inet << '127.0.0.0/8'::inet OR ({lhs})::inet << '::1/128'::inet)"
             )),
             "IsMulticast" => Ok(format!(
-                "({lhs}::inet << '224.0.0.0/4'::inet OR {lhs}::inet << 'ff00::/8'::inet)"
+                "(({lhs})::inet << '224.0.0.0/4'::inet OR ({lhs})::inet << 'ff00::/8'::inet)"
             )),
             "IsNotMulticast" => Ok(format!(
-                "NOT ({lhs}::inet << '224.0.0.0/4'::inet OR {lhs}::inet << 'ff00::/8'::inet)"
+                "NOT (({lhs})::inet << '224.0.0.0/4'::inet OR ({lhs})::inet << 'ff00::/8'::inet)"
             )),
             "IsLinkLocal" => Ok(format!(
-                "({lhs}::inet << '169.254.0.0/16'::inet OR {lhs}::inet << 'fe80::/10'::inet)"
+                "(({lhs})::inet << '169.254.0.0/16'::inet OR ({lhs})::inet << 'fe80::/10'::inet)"
             )),
             "IsNotLinkLocal" => Ok(format!(
-                "NOT ({lhs}::inet << '169.254.0.0/16'::inet OR {lhs}::inet << 'fe80::/10'::inet)"
+                "NOT (({lhs})::inet << '169.254.0.0/16'::inet OR ({lhs})::inet << 'fe80::/10'::inet)"
             )),
             "IsDocumentation" => Ok(format!(
-                "({lhs}::inet << '192.0.2.0/24'::inet OR {lhs}::inet << '198.51.100.0/24'::inet OR {lhs}::inet << '203.0.113.0/24'::inet OR {lhs}::inet << '2001:db8::/32'::inet)"
+                "(({lhs})::inet << '192.0.2.0/24'::inet OR ({lhs})::inet << '198.51.100.0/24'::inet OR ({lhs})::inet << '203.0.113.0/24'::inet OR ({lhs})::inet << '2001:db8::/32'::inet)"
             )),
             "IsNotDocumentation" => Ok(format!(
-                "NOT ({lhs}::inet << '192.0.2.0/24'::inet OR {lhs}::inet << '198.51.100.0/24'::inet OR {lhs}::inet << '203.0.113.0/24'::inet OR {lhs}::inet << '2001:db8::/32'::inet)"
+                "NOT (({lhs})::inet << '192.0.2.0/24'::inet OR ({lhs})::inet << '198.51.100.0/24'::inet OR ({lhs})::inet << '203.0.113.0/24'::inet OR ({lhs})::inet << '2001:db8::/32'::inet)"
             )),
-            "IsCarrierGrade" => Ok(format!("({lhs}::inet << '100.64.0.0/10'::inet)")),
-            "IsNotCarrierGrade" => Ok(format!("NOT ({lhs}::inet << '100.64.0.0/10'::inet)")),
+            "IsCarrierGrade" => Ok(format!("(({lhs})::inet << '100.64.0.0/10'::inet)")),
+            "IsNotCarrierGrade" => Ok(format!("NOT (({lhs})::inet << '100.64.0.0/10'::inet)")),
             _ => Err(UnsupportedOperator {
                 dialect:  self.name(),
                 operator: "InetCheck",
@@ -210,7 +210,7 @@ impl SqlDialect for PostgresDialect {
         lhs: &str,
         rhs: &str,
     ) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::inet {pg_op} {rhs}::inet"))
+        Ok(format!("({lhs})::inet {pg_op} {rhs}::inet"))
     }
 
     fn ltree_binary_sql(
@@ -220,7 +220,7 @@ impl SqlDialect for PostgresDialect {
         rhs: &str,
         rhs_type: &str,
     ) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::ltree {pg_op} {rhs}::{rhs_type}"))
+        Ok(format!("({lhs})::ltree {pg_op} {rhs}::{rhs_type}"))
     }
 
     fn ltree_any_lquery_sql(
@@ -228,7 +228,7 @@ impl SqlDialect for PostgresDialect {
         lhs: &str,
         placeholders: &[String],
     ) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::ltree ? ARRAY[{}]", placeholders.join(", ")))
+        Ok(format!("({lhs})::ltree ? ARRAY[{}]", placeholders.join(", ")))
     }
 
     fn ltree_depth_sql(
@@ -237,7 +237,13 @@ impl SqlDialect for PostgresDialect {
         lhs: &str,
         rhs: &str,
     ) -> Result<String, UnsupportedOperator> {
-        Ok(format!("nlevel({lhs}::ltree) {op} {rhs}"))
+        // `{rhs}::text::int`, not a bare `{rhs}`: `nlevel()` returns integer, so a
+        // bare placeholder is inferred as int4, and this crate's parameter
+        // convention sends JSON numbers as text (see `QueryParam::from`). The
+        // mismatch surfaces as the wire error "insufficient data left in
+        // message". The double cast pins the parameter as text and converts
+        // server-side, as `$n::text::vector` does for pgvector.
+        Ok(format!("nlevel(({lhs})::ltree) {op} {rhs}::text::int"))
     }
 
     fn ltree_lca_sql(
@@ -245,7 +251,7 @@ impl SqlDialect for PostgresDialect {
         lhs: &str,
         placeholders: &[String],
     ) -> Result<String, UnsupportedOperator> {
-        Ok(format!("{lhs}::ltree = lca(ARRAY[{}])", placeholders.join(", ")))
+        Ok(format!("({lhs})::ltree = lca(ARRAY[{}])", placeholders.join(", ")))
     }
 
     fn ltree_id_subquery_sql(
@@ -268,7 +274,7 @@ impl SqlDialect for PostgresDialect {
             Ok(format!("{qfk} IN (SELECT {qi} FROM {qt} WHERE {qp} {pg_op} ({path_subquery}))"))
         } else {
             // Self-referencing: field_expr <op> (SELECT path FROM t WHERE id = $N)
-            Ok(format!("{field_expr}::ltree {pg_op} ({path_subquery})"))
+            Ok(format!("({field_expr})::ltree {pg_op} ({path_subquery})"))
         }
     }
 

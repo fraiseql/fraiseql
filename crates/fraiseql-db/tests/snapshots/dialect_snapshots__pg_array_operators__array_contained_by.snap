@@ -1,5 +1,6 @@
 ---
 source: crates/fraiseql-db/tests/dialect_snapshots.rs
+assertion_line: 369
 expression: sql
 ---
-data->>'roles'::jsonb <@ $1::jsonb
+(data->>'roles')::jsonb <@ $1::jsonb

@@ -1,5 +1,6 @@
 ---
 source: crates/fraiseql-db/tests/dialect_snapshots.rs
+assertion_line: 358
 expression: sql
 ---
-data->>'tags'::jsonb @> $1::jsonb
+(data->>'tags')::jsonb @> $1::jsonb

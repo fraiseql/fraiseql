@@ -1,5 +1,6 @@
 ---
 source: crates/fraiseql-db/tests/dialect_snapshots.rs
+assertion_line: 391
 expression: sql
 ---
-data->>'metadata'::jsonb @> $1::jsonb
+(data->>'metadata')::jsonb @> $1::jsonb

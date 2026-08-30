@@ -1,5 +1,6 @@
 ---
 source: crates/fraiseql-db/tests/dialect_snapshots.rs
+assertion_line: 380
 expression: sql
 ---
-data->>'skills'::jsonb && $1::jsonb
+(data->>'skills')::jsonb && $1::jsonb
