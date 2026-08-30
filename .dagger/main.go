@@ -406,6 +406,7 @@ func (m *FraiseqlCi) ShellGates(
 		// defect, in the one place the file-level gates do not read (#1220).
 		"bash tools/check-doc-image-refs.sh",
 		"bash tools/check-phases-citations.sh",
+		"bash tools/check-image-context.sh",
 		"bash tools/tests/doc_image_refs_test.sh",
 		// Every publishable crate is published by release.yml, in the order this
 		// file's legacyPublishOrder dry-runs and self-tests. fraiseql-cdc-sinks

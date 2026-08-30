@@ -96,7 +96,16 @@ func lookupVariant(name string) (imageVariant, error) {
 // Dockerfile names, cost a full 236s. Budget the full number per push, not the 2s.
 func (m *FraiseqlCi) Images(
 	ctx context.Context,
-	// +ignore=["target", "**/target", ".git"]
+	// The context is the five paths the Dockerfile COPYs, and nothing else.
+	// Dagger keys DockerBuild on the whole context digest, so a wider list made
+	// every docs-only push rebuild every layer — a measured 236s for one edit to
+	// a file no COPY names (#1215).
+	//
+	// This list is a second copy of what the build needs, and
+	// tools/check-image-context.sh is what keeps it honest: add a COPY for a path
+	// dropped here and the gate fails, rather than the build silently running
+	// against a context missing it.
+	// +ignore=["**", "!Dockerfile", "!Cargo.toml", "!Cargo.lock", "!crates/**", "!deploy/**", "!examples/**", "!tutorial/**", "target", "**/target", ".git"]
 	source *dagger.Directory,
 ) (string, error) {
 	var report strings.Builder
@@ -156,7 +165,16 @@ func buildVariant(ctx context.Context, source *dagger.Directory, v imageVariant)
 // Image builds one published image variant from `source`.
 func (m *FraiseqlCi) Image(
 	ctx context.Context,
-	// +ignore=["target", "**/target", ".git"]
+	// The context is the five paths the Dockerfile COPYs, and nothing else.
+	// Dagger keys DockerBuild on the whole context digest, so a wider list made
+	// every docs-only push rebuild every layer — a measured 236s for one edit to
+	// a file no COPY names (#1215).
+	//
+	// This list is a second copy of what the build needs, and
+	// tools/check-image-context.sh is what keeps it honest: add a COPY for a path
+	// dropped here and the gate fails, rather than the build silently running
+	// against a context missing it.
+	// +ignore=["**", "!Dockerfile", "!Cargo.toml", "!Cargo.lock", "!crates/**", "!deploy/**", "!examples/**", "!tutorial/**", "target", "**/target", ".git"]
 	source *dagger.Directory,
 	// The variant to build: one of the names in docker-build.yml's matrix.
 	variant string,
@@ -211,7 +229,16 @@ func (m *FraiseqlCi) Image(
 // DockerMediaTypes rather than the OCI default: the consumer is `docker load`.
 func (m *FraiseqlCi) ImageTarball(
 	ctx context.Context,
-	// +ignore=["target", "**/target", ".git"]
+	// The context is the five paths the Dockerfile COPYs, and nothing else.
+	// Dagger keys DockerBuild on the whole context digest, so a wider list made
+	// every docs-only push rebuild every layer — a measured 236s for one edit to
+	// a file no COPY names (#1215).
+	//
+	// This list is a second copy of what the build needs, and
+	// tools/check-image-context.sh is what keeps it honest: add a COPY for a path
+	// dropped here and the gate fails, rather than the build silently running
+	// against a context missing it.
+	// +ignore=["**", "!Dockerfile", "!Cargo.toml", "!Cargo.lock", "!crates/**", "!deploy/**", "!examples/**", "!tutorial/**", "target", "**/target", ".git"]
 	source *dagger.Directory,
 	// The variant to export: one of the names in docker-build.yml's matrix.
 	// +optional
@@ -230,3 +257,4 @@ func (m *FraiseqlCi) ImageTarball(
 		MediaTypes: dagger.ImageMediaTypesDockerMediaTypes,
 	}), nil
 }
+

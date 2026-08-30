@@ -133,6 +133,33 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+- **The image leg stops rebuilding every layer on a docs-only push, behind a gate (#1215).**
+
+  Dagger keys `DockerBuild` on the whole context digest, and `.dagger/image.go`'s three
+  image functions excluded only `target` and `.git` — so a change to any other file
+  rebuilt every layer. Editing `docs/architecture/overview.md`, which no `COPY` names,
+  cost a measured 236s. The context is now the paths the Dockerfiles actually read.
+  The same docs-only edit now costs **7s**.
+
+  The narrowing is the easy half. An `+ignore` list is a second, invisible copy of what
+  the build needs, and getting it wrong is silent — the build runs against a context
+  missing a path it `COPY`s. `tools/check-image-context.sh` holds the two together: for
+  every Dockerfile the variant table names, every path it `COPY`s — and the Dockerfile
+  itself — must survive every filter.
+
+  Both halves of that gate earned their place by catching a real mistake in this change:
+
+  * Narrowing for the root `Dockerfile` alone would have broken the **tutorial** image,
+    which builds from `tutorial/Dockerfile` and copies four paths the new filter dropped.
+    The gate now discovers Dockerfiles from the variant table rather than assuming one.
+  * The first corrected narrowing still failed to build, because the context did not
+    contain the root `Dockerfile` — `DockerBuild` reads it from there. A filter can admit
+    every `COPY` source and still drop the file doing the copying, and the error Dagger
+    gives is only "failed to build".
+
+  Verified by building: all 3 published variants (`fraiseql-server`,
+  `fraiseql-server-full`, `tutorial`) build from the narrowed context.
+
 - **`parity-notes.md` is published, and nothing sends a reader to `.phases/` any more (#1210).**
 
   `.gitignore` ignores `.phases/`, so such a tree lives only in the working copy that
