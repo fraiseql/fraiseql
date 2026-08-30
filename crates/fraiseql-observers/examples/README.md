@@ -344,14 +344,16 @@ See `docker-compose.*.yml` files for complete deployment examples:
 
 ---
 
-## Kubernetes Examples
+## Kubernetes
 
-See `k8s/*.yaml` for Kubernetes manifests:
+There is no `k8s/` directory. The four manifests this section used to list —
+`deployment-bridge.yaml`, `deployment-worker.yaml`, `statefulset-nats.yaml`,
+`statefulset-redis.yaml` — have never existed in this repository (#1218).
 
-- `k8s/deployment-bridge.yaml` - PostgreSQL → NATS bridge
-- `k8s/deployment-worker.yaml` - Observer workers
-- `k8s/statefulset-nats.yaml` - NATS JetStream cluster
-- `k8s/statefulset-redis.yaml` - Redis cluster
+The supported deployment artifact is the Helm chart at
+`deploy/kubernetes/helm/fraiseql`, which CI deploys and queries.
+`helm template ./deploy/kubernetes/helm/fraiseql` renders plain manifests from it
+if you need them.
 
 ---
 

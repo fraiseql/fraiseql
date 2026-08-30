@@ -79,7 +79,7 @@ docker pull ghcr.io/fraiseql/server:2.15.0
 
 ```bash
 # Apply all security configurations
-kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
+helm template fraiseql deploy/kubernetes/helm/fraiseql | kubectl apply -f -
 
 # Verify deployment
 kubectl get pods -n fraiseql-production
@@ -166,7 +166,7 @@ kubectl get pod -n fraiseql-production -l app=fraiseql -o jsonpath='{.items[0].s
 
 ```bash
 # Deploy with full security stack
-kubectl apply -f deploy/kubernetes/fraiseql-hardened.yaml
+helm template fraiseql deploy/kubernetes/helm/fraiseql | kubectl apply -f -
 
 # Install Falco for runtime security
 helm repo add falcosecurity https://falcosecurity.github.io/charts
@@ -209,9 +209,14 @@ class of defect on 2026-08-28; see the header comment of `docker-compose.yml` fo
 each of them was doing wrong.
 
 For the hardening that snippet was trying to show — read-only root filesystem, dropped
-capabilities, `no-new-privileges`, non-root UID, seccomp — see
-`deploy/kubernetes/fraiseql-hardened.yaml`, which is rendered and checked by
-`tools/chart-deploy-test.sh` rather than pasted into prose.
+capabilities, `no-new-privileges`, non-root UID, seccomp — see the Helm chart's
+`templates/deployment.yaml`, which `tools/chart-deploy-test.sh` renders, deploys and
+queries on every run of the image leg.
+
+It used to point at `deploy/kubernetes/fraiseql-hardened.yaml` and say that file was
+"rendered and checked by `tools/chart-deploy-test.sh`". That was not true —
+`chart-deploy-test.sh` only ever touched `deploy/kubernetes/helm/fraiseql` — and the
+file has since been deleted as an ungated duplicate (#1218).
 
 ### Option 3: Cloud Services
 

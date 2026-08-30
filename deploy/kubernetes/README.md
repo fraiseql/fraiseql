@@ -25,33 +25,25 @@ helm install fraiseql ./helm/fraiseql \
 The chart's [README](helm/fraiseql/README.md) documents every value, what the
 chart does and does not create, and what CI verifies.
 
-## The plain manifests
+## Why there is only the chart
 
+There used to be a second, hand-maintained copy of the same deployment here —
 `deployment.yaml`, `service.yaml`, `configmap.yaml`, `ingress.yaml`, `hpa.yaml`,
-`secrets.yaml.example` and `fraiseql-hardened.yaml` are a hand-maintained copy of
-the same deployment for operators who do not use Helm.
+`fraiseql-hardened.yaml` — and a third at the repository root in `k8s/`. Neither
+was rendered, deployed or queried by any gate, and both drifted: they named
+images this project cannot publish (`fraiseql:2.8.0`, `fraiseql/fraiseql-server:2.8.0`),
+served a port the image does not bind, mounted no compiled schema, and put the
+liveness probe on `/health`, which 503s when the database is unreachable and so
+restart-storms a healthy process (#1217).
 
-⚠ **Nothing executes them.** They are not rendered, not deployed and not queried
-by any gate, and they have historically drifted from the chart and from the
-image: until 2026-08-27 they named `fraiseql:2.8.0` (an image this project cannot
-publish), served port 8815 (the image binds 8000), and mounted no compiled schema
-(so the container exited at startup). Those are fixed, but nothing stops them
-recurring. Prefer the chart; if you use these, read them first.
+The root `k8s/` copy still carried every one of those on the day it was deleted,
+three weeks after the same defects were fixed in the chart — which is the argument
+against keeping a duplicate no gate executes (#1129, #1218).
 
-Both paths require the same three inputs, for the same reasons:
-
-| Input | Why |
-|---|---|
-| `DATABASE_URL`, from a Secret | the server has no usable default |
-| A compiled schema at `FRAISEQL_SCHEMA_PATH` | the published image bakes none, and the server validates the path before serving |
-| `fraiseql.toml` at `FRAISEQL_CONFIG` | `cors_origins` has no environment variable, and production mode refuses to start without it |
-
-Create the schema ConfigMap the plain manifests expect with:
-
-```bash
-kubectl create configmap fraiseql-schema \
-  --from-file=schema.compiled.json=schema.compiled.json
-```
+The chart is deployed and queried by `tools/chart-deploy-test.sh` on every run of
+the image leg. If you do not use Helm, `helm template ./helm/fraiseql` renders the
+same manifests for `kubectl apply -f -`, from the one definition CI actually
+exercises.
 
 ## Probes
 

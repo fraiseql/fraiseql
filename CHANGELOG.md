@@ -239,6 +239,38 @@ disagreed, and the promise was the part that was wrong.
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
 ### Removed
+- **The two ungated copies of the Kubernetes deployment are deleted (#1218).**
+
+  `deploy/kubernetes/` shipped a hand-maintained set of plain manifests beside the Helm
+  chart, and the repository root shipped a **third** copy in `k8s/`. Neither was
+  rendered, deployed or queried by any gate.
+
+  The root `k8s/` copy is the argument for deleting them. It was not in #1218's
+  inventory, and on the day it was deleted it still carried `fraiseql/fraiseql-server:2.8.0`
+  — a stale version in a namespace this project cannot publish to — and a `livenessProbe`
+  on `/health`, which 503s when the database is unreachable and so restart-storms a
+  healthy process. Both defects had been fixed in the chart weeks earlier (#1129, #1217).
+  `tools/check-deploy-versions.sh` never scanned it, so nothing said so.
+
+  The chart is the one deployment artifact CI deploys and queries. `helm template
+  ./deploy/kubernetes/helm/fraiseql` renders plain manifests from that same definition
+  for anyone not using Helm, so what is applied is what CI exercised.
+
+  Three documents were corrected with the deletion:
+
+  * `deploy/deployment-security-guide.md` said `fraiseql-hardened.yaml` "is rendered and
+    checked by `tools/chart-deploy-test.sh`". It never was — that script only ever
+    touched `deploy/kubernetes/helm/fraiseql`.
+  * `crates/fraiseql-observers/deployment.md` documented nine `k8s/` manifests and a
+    `kubectl apply` sequence over them. **None of those files has ever existed**; the
+    directory held two, neither of them named there.
+  * `crates/fraiseql-observers/examples/README.md` listed four more of the same.
+
+  `tools/check-deploy-security.sh` scanned `find k8s deploy/kubernetes` with stderr
+  discarded, so it absorbed the directory's disappearance silently. It now scans
+  `deploy/kubernetes` and **fails when it finds no manifests at all**, rather than
+  reporting OK having looked at nothing.
+
 - **`examples/federation/multi-cloud/` is deleted — it had no service implementation to repair (#1190).**
 
   The directory was a `README.md`, a `docker-compose-local.yml` and three `schema.py` files.

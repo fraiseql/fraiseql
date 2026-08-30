@@ -51,9 +51,22 @@ for f in "${COMPOSE_PORT_FILES[@]}" "$PROD_COMPOSE"; do
   [ -f "$f" ] || { echo "FAIL: $f does not exist; this gate would check nothing."; exit 1; }
 done
 
-# Manifest files (k8s + deploy/kubernetes, recursive incl. the Helm chart) subject
+# Manifest files under deploy/kubernetes (recursive, incl. the Helm chart) subject
 # to the :latest and readOnlyRootFilesystem rules. `.example` templates are skipped.
-mapfile -t MANIFEST_FILES < <(find k8s deploy/kubernetes -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | sort)
+#
+# The scan used to name `k8s` as well. That directory held a third, ungated copy of
+# the deployment and was deleted in #1218; `find` swallowed its absence through
+# `2>/dev/null`, which is the shape that lets a scan quietly cover less than it
+# says. Hence the count assertion below: this gate must never report OK having
+# looked at nothing.
+mapfile -t MANIFEST_FILES < <(find deploy/kubernetes -type f \( -name '*.yaml' -o -name '*.yml' \) 2>/dev/null | sort)
+
+if [ "${#MANIFEST_FILES[@]}" -eq 0 ]; then
+  echo "FAIL: found no Kubernetes manifests under deploy/kubernetes."
+  echo "      The scan is wrong, or the chart is gone. Either way this gate would"
+  echo "      report OK having checked nothing."
+  exit 1
+fi
 
 rc=0
 

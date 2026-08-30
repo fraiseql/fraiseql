@@ -322,52 +322,22 @@ helm upgrade fraiseql-observers fraiseql/observers \
 helm uninstall fraiseql-observers
 ```
 
-### Custom Kubernetes Manifests
+### Custom Kubernetes manifests
 
-See `k8s/` directory for example manifests:
+This section used to describe a `k8s/` directory holding nine manifests —
+`deployment-bridge.yaml`, `deployment-worker.yaml`, `statefulset-nats.yaml`,
+`statefulset-redis.yaml`, `statefulset-postgres.yaml`, `configmap.yaml`,
+`secret.yaml`, `hpa-worker.yaml` — and a `kubectl apply` sequence over them.
 
-- `deployment-bridge.yaml` - PostgreSQL → NATS bridge
-- `deployment-worker.yaml` - Observer workers (with autoscaling)
-- `statefulset-nats.yaml` - NATS JetStream cluster
-- `statefulset-redis.yaml` - Redis cluster
-- `configmap.yaml` - Configuration
-- `secret.yaml` - Credentials
+**None of those files has ever existed.** The `k8s/` directory held two manifests,
+`deployment.yaml` and `service.yaml`, neither of them named above, and it has been
+deleted as an ungated duplicate of the Helm chart (#1218).
 
-**Deploy**:
+Use the chart at `deploy/kubernetes/helm/fraiseql`, which is the one deployment
+artifact CI deploys and queries. If you need plain manifests,
+`helm template ./deploy/kubernetes/helm/fraiseql` renders them from that same
+definition, so what you apply is what CI exercised.
 
-```bash
-# Create namespace
-kubectl create namespace fraiseql
-
-# Deploy PostgreSQL (if not using external DB)
-kubectl apply -f k8s/statefulset-postgres.yaml -n fraiseql
-
-# Deploy NATS cluster
-kubectl apply -f k8s/statefulset-nats.yaml -n fraiseql
-
-# Deploy Redis cluster
-kubectl apply -f k8s/statefulset-redis.yaml -n fraiseql
-
-# Deploy configuration
-kubectl apply -f k8s/configmap.yaml -n fraiseql
-kubectl apply -f k8s/secret.yaml -n fraiseql
-
-# Deploy bridges
-kubectl apply -f k8s/deployment-bridge.yaml -n fraiseql
-
-# Deploy workers (with autoscaling)
-kubectl apply -f k8s/deployment-worker.yaml -n fraiseql
-kubectl apply -f k8s/hpa-worker.yaml -n fraiseql
-
-# Check status
-kubectl get pods -n fraiseql
-kubectl logs -f deployment/fraiseql-worker -n fraiseql
-
-# Scale workers manually
-kubectl scale deployment fraiseql-worker --replicas=20 -n fraiseql
-```
-
----
 
 ## Monitoring & Troubleshooting
 
