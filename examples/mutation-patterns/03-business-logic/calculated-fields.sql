@@ -160,7 +160,8 @@ BEGIN
     -- ========================================================================
 
     result.status := 'created';
-    result.message := format('Order created. Total: $%.2f', total_amount);
+    result.message := format('Order created. Total: $%s',
+                             to_char(total_amount, 'FM999999990.00'));
     result.entity := row_to_json(order_record);
     result.entity_id := order_record.id::text;
     result.entity_type := 'Order';

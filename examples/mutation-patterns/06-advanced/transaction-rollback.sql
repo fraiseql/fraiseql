@@ -6,7 +6,8 @@
 --
 -- This example shows:
 -- - Multi-step operations with validation
--- - Using SAVEPOINT for partial rollback
+-- - Using a nested BEGIN ... EXCEPTION block (PL/pgSQL's savepoint) for
+--   partial rollback — a function body may not issue SAVEPOINT itself
 -- - Rolling back on business rule violations
 -- - Detailed error reporting
 -- ============================================================================
@@ -41,12 +42,6 @@ BEGIN
     END IF;
 
     -- ========================================================================
-    -- Create Savepoint (in case we need to rollback)
-    -- ========================================================================
-
-    SAVEPOINT before_transfer;
-
-    -- ========================================================================
     -- Step 1: Lock and Load Accounts
     -- ========================================================================
 
@@ -67,7 +62,6 @@ BEGIN
     FOR UPDATE;  -- Lock row
 
     IF NOT FOUND THEN
-        ROLLBACK TO SAVEPOINT before_transfer;
         result.status := 'not_found:to_account';
         result.message := 'Destination account not found';
         RETURN result;
@@ -79,12 +73,11 @@ BEGIN
 
     -- Check sufficient funds
     IF from_account.balance < amount THEN
-        ROLLBACK TO SAVEPOINT before_transfer;
         result.status := 'failed:insufficient_funds';
         result.message := format(
-            'Insufficient funds. Balance: $%.2f, Required: $%.2f',
-            from_account.balance,
-            amount
+            'Insufficient funds. Balance: $%s, Required: $%s',
+            to_char(from_account.balance, 'FM999999990.00'),
+            to_char(amount, 'FM999999990.00')
         );
         result.metadata := jsonb_build_object(
             'current_balance', from_account.balance,
@@ -96,14 +89,12 @@ BEGIN
 
     -- Check account status
     IF from_account.status != 'active' THEN
-        ROLLBACK TO SAVEPOINT before_transfer;
         result.status := 'failed:account_inactive';
         result.message := format('Source account is %s', from_account.status);
         RETURN result;
     END IF;
 
     IF to_account.status != 'active' THEN
-        ROLLBACK TO SAVEPOINT before_transfer;
         result.status := 'failed:account_inactive';
         result.message := format('Destination account is %s', to_account.status);
         RETURN result;
@@ -112,19 +103,26 @@ BEGIN
     -- Check daily transfer limit
     DECLARE
         daily_total numeric;
+        -- Copied into a differently-named local on purpose. The variable and the
+        -- column are both `from_account_id`, so `WHERE from_account_id =
+        -- from_account_id` compares the column with itself and matches every
+        -- row — the daily limit was being computed across all accounts. Naming
+        -- the function (`transfer_funds.from_account_id`) does not resolve it
+        -- either: PostgreSQL reads that as a table reference and raises
+        -- `missing FROM-clause entry for table "transfer_funds"`.
+        v_source_account uuid := from_account_id;
     BEGIN
-        SELECT COALESCE(SUM(amount), 0) INTO daily_total
-        FROM transfers
-        WHERE from_account_id = from_account_id
-        AND created_at >= CURRENT_DATE;
+        SELECT COALESCE(SUM(t.amount), 0) INTO daily_total
+        FROM transfers t
+        WHERE t.from_account_id = v_source_account
+        AND t.created_at >= CURRENT_DATE;
 
         IF (daily_total + amount) > from_account.daily_limit THEN
-            ROLLBACK TO SAVEPOINT before_transfer;
-            result.status := 'failed:daily_limit_exceeded';
+                result.status := 'failed:daily_limit_exceeded';
             result.message := format(
-                'Daily limit exceeded. Limit: $%.2f, Already transferred: $%.2f',
-                from_account.daily_limit,
-                daily_total
+                'Daily limit exceeded. Limit: $%s, Already transferred: $%s',
+                to_char(from_account.daily_limit, 'FM999999990.00'),
+                to_char(daily_total, 'FM999999990.00')
             );
             result.metadata := jsonb_build_object(
                 'daily_limit', from_account.daily_limit,
@@ -140,31 +138,45 @@ BEGIN
     -- Step 3: Perform Transfer
     -- ========================================================================
 
-    -- Debit from source
-    UPDATE accounts
-    SET balance = balance - amount
-    WHERE id = from_account_id
-    RETURNING balance INTO new_from_balance;
+    -- A nested BEGIN ... EXCEPTION ... END block is PL/pgSQL's savepoint. Entering
+    -- it establishes one, and the handler rolls back everything the block did —
+    -- which is what this pattern originally reached for with an explicit
+    -- SAVEPOINT. A function body may not issue one: PostgreSQL rejected the file
+    -- at CREATE FUNCTION with `syntax error at or near "TO"`.
+    BEGIN
+        -- Debit from source
+        UPDATE accounts
+        SET balance = balance - amount
+        WHERE id = from_account_id
+        RETURNING balance INTO new_from_balance;
 
-    -- Credit to destination
-    UPDATE accounts
-    SET balance = balance + amount
-    WHERE id = to_account_id
-    RETURNING balance INTO new_to_balance;
+        -- Credit to destination
+        UPDATE accounts
+        SET balance = balance + amount
+        WHERE id = to_account_id
+        RETURNING balance INTO new_to_balance;
 
-    -- Record transfer
-    INSERT INTO transfers (from_account_id, to_account_id, amount, status)
-    VALUES (from_account_id, to_account_id, amount, 'completed')
-    RETURNING * INTO transfer_record;
+        -- Record transfer
+        INSERT INTO transfers (from_account_id, to_account_id, amount, status)
+        VALUES (from_account_id, to_account_id, amount, 'completed')
+        RETURNING * INTO transfer_record;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- Both UPDATEs and the INSERT are undone; the caller's transaction
+            -- survives, which a statement-level failure would not have allowed.
+            result.status := 'failed:transfer';
+            result.message := format('Transfer could not be completed: %s', SQLERRM);
+            RETURN result;
+    END;
 
     -- ========================================================================
     -- Success Response
     -- ========================================================================
 
-    RELEASE SAVEPOINT before_transfer;  -- Commit the changes
-
     result.status := 'updated';
-    result.message := format('Transferred $%.2f successfully', amount);
+    result.message := format('Transferred $%s successfully',
+                             to_char(amount, 'FM999999990.00'));
     result.entity := row_to_json(transfer_record);
     result.entity_id := transfer_record.id::text;
     result.entity_type := 'Transfer';

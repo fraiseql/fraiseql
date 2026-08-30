@@ -50,6 +50,34 @@ psql -v ON_ERROR_STOP=1 -d fraiseql_patterns -f schema.sql
 ./test-all.sh
 ```
 
+## What schema.sql provides
+
+Every one of the eighteen pattern files loads against `schema.sql` alone. It
+carries two generations of the protocol side by side, which is worth knowing
+before copying a pattern out:
+
+| | Used by | Shape |
+|---|---|---|
+| `mutation_response` (public) | 17 patterns | the 8-column composite |
+| `app.mutation_response` | `04-relationships/update-with-cascade` | the 13-column v2 protocol type |
+
+The v2 cascade pattern also needs the `fraiseql.*` builders — what `fraiseql setup`
+installs — and read views it can read an entity from. `schema.sql` includes the
+shipped helpers directly (`sql/helpers/mutation_response.sql`, `cascade.sql`) so
+the example loads without a separate CLI step, and defines `v_category` /
+`v_product` `WITH (security_invoker = true)`. That setting is load-bearing:
+`fraiseql.cascade_entity` reads each entity through its view, so a default view —
+which runs as its owner — would bypass base-table RLS and put rows in the cascade
+that the caller cannot see.
+
+Beyond `users`/`posts`/`comments`/`tags`, it creates `jobs` (async-processing),
+`accounts` and `transfers` (transaction-rollback), and `categories`/`products`
+(the cascade pattern).
+
+> Each pattern file ends with a "Usage" section of live `SELECT`s, so loading a
+> file also runs its examples and mutates the fixture. Reload the schema between
+> experiments if you want the initial data back.
+
 ## Usage
 
 Each example is standalone and copy-paste ready:

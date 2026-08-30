@@ -315,6 +315,37 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **All eighteen `examples/mutation-patterns` files load against the schema the example ships (#1194).**
+
+  Four did not. Two wanted fixture that was never authored, and two were defects in
+  the files themselves — and running the repaired files found two more that loading
+  alone could not have.
+
+  * `schema.sql` now creates `jobs`, `accounts`/`transfers` and `categories`/`products`,
+    and provides the v2 cascade protocol the one v2-era pattern needs: the `app`
+    and `graphql` schemas, the 13-column `app.mutation_response`, the shipped
+    `fraiseql.*` builders (included directly, so no separate `fraiseql setup` step),
+    and `v_category`/`v_product` declared `WITH (security_invoker = true)`.
+  * `06-advanced/bulk-operations.sql` had SQL `--` comments **inside** a JSON string
+    literal, so they became part of the JSON and the cast failed.
+  * `06-advanced/transaction-rollback.sql` used `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`
+    inside a PL/pgSQL function. A function body may not issue them; PostgreSQL rejects
+    the file at `CREATE FUNCTION` with `syntax error at or near "TO"`. The writes now
+    sit in a nested `BEGIN … EXCEPTION … END` block, which *is* PL/pgSQL's savepoint.
+    Every `ROLLBACK TO` removed had preceded any write, so each was a no-op in intent
+    as well.
+
+  Found by executing the repaired patterns rather than only loading them:
+
+  * `format('… $%.2f', amount)` — PostgreSQL's `format()` takes `%s`, `%I`, `%L` and
+    `%%` only, so `%.2f` raised `unrecognized format() type specifier "."`. The
+    function fell into its `OTHERS` handler and returned `failed:error` for **every**
+    transfer, successful ones included. Four occurrences across two files; the one in
+    `03-business-logic/calculated-fields.sql` loads clean and is wrong the same way.
+  * The daily-limit check read `WHERE from_account_id = from_account_id`, comparing
+    the column with the identically-named variable — true for every row, so the limit
+    was computed across all accounts rather than the source one.
+
 - **`examples/federation/saga-complex` boots (#1193), and three saga examples stop naming an image tag that does not exist (#1259).**
 
   The five subgraph stubs ran `from flask import Flask` on `python:3.11-slim`, which

@@ -162,8 +162,8 @@ SELECT * FROM bulk_create_users('{
 SELECT * FROM bulk_create_users('{
     "users": [
         {"email": "partial1@example.com", "name": "Partial User 1"},
-        {"email": "john@example.com", "name": "Duplicate Email"},  -- duplicate
-        {"email": "", "name": "No Email"},                        -- invalid
+        {"email": "john@example.com", "name": "Duplicate Email"},
+        {"email": "", "name": "No Email"},
         {"email": "partial2@example.com", "name": "Partial User 2"}
     ]
 }'::jsonb);
