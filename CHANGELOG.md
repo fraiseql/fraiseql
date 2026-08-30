@@ -254,6 +254,49 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`crud` generates the same GraphQL API in every SDK that has it, and a construct holds
+  it there (#1182, #1183, #1241, #1242, #1243, #1244, #1246, #1247, #1248, #1250, #1251).**
+
+  #1182 asked one question — does declaring `crud` on a type actually register operations?
+  Nine of the eleven SDKs ship a generator. Compiling what they produce, for the first
+  time, found **four independent divergences and two dead generators**:
+
+  | | |
+  |---|---|
+  | Dart | `CrudGenerator` had **no caller by any route**. `@FraiseQLType`/`@FraiseQLField` were read by nothing — Dart has no runtime reflection over annotations and the package ships no build_runner generator — and the working builder had no `crud:` parameter (#1241) |
+  | Ruby | `to_fraiseql_crud` was called only by its own tests, and built its field list without the `computed` key its generator filters on (#1242) |
+  | Python | pointed the generated mutations at `create_x`, where the other eight and every doc, migration and example write `fn_create_x` (#1243) |
+  | Dart, Elixir, Ruby | emitted flat arguments where the other six emitted `Create{Type}Input` (#1246) |
+  | TypeScript, Elixir, C#, F#, Java, PHP | named the generated operations in snake_case, beside hand-authored ones in camelCase — in the same schema (#1247) |
+  | Java | made **every** generated argument optional, and declared the get-by-id query non-null (#1250) |
+  | PHP | `StaticAPI::register` re-expanded every crud type on every call, so registering a second type after one was a fatal error (#1248) |
+
+  All are fixed, and all eleven SDKs now agree. The shape is: `x` / `xs` queries,
+  `createX(input: CreateXInput!)` / `updateX(input: UpdateXInput!)` / `deleteX(id)`
+  mutations against `fn_create_x` / `fn_update_x` / `fn_delete_x`, camelCase throughout.
+
+  **Field-level `computed` reaches the compiler in no SDK.** It is an authoring-time flag
+  the generator reads to omit server-assigned fields from the input objects, and
+  `IntermediateField` has no such member and denies unknown fields — so emitting it made
+  the whole document uncompilable. #927 fixed that in Python and #1025 recorded its
+  closure, which is what made it look resolved; it was still live in TypeScript and C#
+  (#1183, #1244). C# leaked a second key, `resolver`, that no issue had ever named and
+  that no compile path reads — removed under the `check-sdk-dead-surface.sh` pattern. The
+  TypeScript sink now projects onto `IntermediateField`'s members rather than dropping one
+  key by name, which also caught `default` on object-type fields — asserted by a passing
+  test (#1251).
+
+  **The gate.** `sdks/official/conformance/project.py` gains a `type_crud` construct, and
+  the canonical fixture a `SupportTicket` type declaring `crud` with one `computed` field.
+  It owns the type, its two input objects and its five operations whole, the way
+  `vector_fields` owns `Document`. Go and Rust declare the gap, with reasons the README
+  support matrix renders.
+
+  ⚠ The fixture type name is **two words on purpose**. `Ticket` spells the same in both
+  conventions, so a fixture using it would have passed for all six snake_case SDKs — a
+  suite uniform in the dimension that selects the branch tests one branch. The same
+  blindness is why every field name in the fixture being one word hid #1249.
+
 - **The Rust SDK is published by the release that bumps it (#1239).**
 
   ADR-0019 puts Rust in the published set, `tools/release.sh` bumps its manifest and the

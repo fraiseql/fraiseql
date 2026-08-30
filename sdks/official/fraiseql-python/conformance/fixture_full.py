@@ -46,6 +46,34 @@ class Order:
     status: str
 
 
+# `crud=True` is an authoring-time expansion, not a compiled key: the compiler has no
+# `crud` concept, so the only evidence an SDK implements it is that the operations and
+# input objects it should produce are IN the compiled schema. Nothing asserted that, and
+# what the nine generating SDKs produced had drifted three ways — Dart's generator had no
+# caller and Ruby's only its own tests (#1241, #1242), Python pointed the mutations at
+# `create_ticket` where the other eight wrote `fn_create_ticket` (#1243), and three SDKs
+# emitted flat arguments where six emitted an input object (#1246).
+#
+# `slug` is computed, which is authoring-time too and observable only here: a client
+# cannot supply a server-assigned field, so it must be absent from both input objects
+# while remaining present on the type. Emitting the flag itself makes the whole document
+# uncompilable — `IntermediateField` has no `computed` member and denies unknown fields
+# (#927, #1183, #1244).
+# The type name is two words on purpose. `Ticket` cannot tell `ticket` from `ticket`, so a
+# fixture using it would have passed for the six SDKs that name generated operations in
+# snake_case while every hand-authored operation beside them is camelCase (#1247).
+# `SupportTicket` makes `supportTicket` and `support_ticket` different strings.
+#
+# The FIELD names stay one word. A two-word field is a second, independent question — Ruby
+# and Elixir emit `due_date` where the other nine emit `dueDate` (#1249) — and answering it
+# means changing two SDKs' public output, which does not belong inside this construct.
+@fraiseql.type(sql_source="v_support_ticket", crud=True)
+class SupportTicket:
+    id: int
+    title: str
+    slug: Annotated[str, fraiseql.field(computed=True)]
+
+
 @fraiseql.error
 class UserNotFound:
     message: str

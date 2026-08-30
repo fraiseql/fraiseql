@@ -55,6 +55,24 @@ final class ConformanceOrder
     public string $status;
 }
 
+// `crud` is an authoring-time expansion the compiler has no concept of, so the only
+// evidence this SDK implements it is that the operations and input objects appear in the
+// compiled schema. `computed` is the same: emitting the flag makes the document
+// uncompilable, so the sole evidence it was honoured is `displaySlug` on the type and
+// absent from both input objects.
+#[GraphQLType(name: 'SupportTicket', sqlSource: 'v_support_ticket', crud: true)]
+final class ConformanceSupportTicket
+{
+    #[GraphQLField(type: 'Int', nullable: false)]
+    public int $id;
+
+    #[GraphQLField(type: 'String', nullable: false)]
+    public string $title;
+
+    #[GraphQLField(type: 'String', nullable: false, computed: true)]
+    public string $slug;
+}
+
 #[GraphQLType(name: 'UserNotFound', sqlSource: 'v_user_not_found', isError: true)]
 final class ConformanceUserNotFound
 {
@@ -136,6 +154,7 @@ function authorFull(): void
 {
     StaticAPI::register(ConformanceUser::class);
     StaticAPI::register(ConformanceOrder::class);
+    StaticAPI::register(ConformanceSupportTicket::class);
     StaticAPI::register(ConformanceUserNotFound::class);
     StaticAPI::register(ConformanceDocument::class);
     StaticAPI::register(ConformanceCreateUserInput::class);

@@ -44,6 +44,28 @@ AUTHORED_SUBSCRIPTIONS = ("orderUpdated",)
 # `type_relay` owns the connection types the compiler synthesizes.
 AUTHORED_VECTOR_TYPES = ("Document",)
 
+# The `type_crud` construct owns `Ticket` whole, the way `vector_fields` owns `Document`:
+# the type, the two input objects and the five operations an SDK's CRUD generator must
+# produce from one `crud` declaration. Listing them in AUTHORED_TYPES / _QUERIES /
+# _MUTATIONS instead would spread one construct across five, so an SDK with no CRUD
+# surface would fail all five and read as "this SDK's queries are broken".
+#
+# `crud` is an authoring-time expansion — `IntermediateType` has no such member — so the
+# ONLY evidence an SDK implements it is that these appear in the compiled schema. That is
+# why nine SDKs drifted three separate ways behind green suites: Dart's generator had no
+# caller at all and Ruby's only its own tests (#1241, #1242), Python emitted
+# `create_ticket` where the other eight emitted `fn_create_ticket` (#1243), and three of
+# the nine emitted flat arguments where six emitted an input object (#1246).
+# Two words, deliberately. A one-word type name spells the same in snake_case and
+# camelCase, so a `Ticket` fixture would have passed for the six SDKs whose generated
+# operations are snake_case while every hand-authored operation beside them is camelCase
+# (#1247) — a suite uniform in the dimension that selects the branch tests one branch.
+# `due_date` does the same for the generated input objects' field names.
+CRUD_TYPE = "SupportTicket"
+CRUD_INPUT_TYPES = ("CreateSupportTicketInput", "UpdateSupportTicketInput")
+CRUD_QUERIES = ("supportTicket", "supportTickets")
+CRUD_MUTATIONS = ("createSupportTicket", "updateSupportTicket", "deleteSupportTicket")
+
 # Every construct the canonical fixture exercises. An SDK must satisfy each one or
 # declare it unsupported in `manifest.json` with a reason.
 #
@@ -65,6 +87,7 @@ CONSTRUCTS = (
     "field_deprecated",
     "type_relay",
     "type_is_error",
+    "type_crud",
     "input_types",
     "enums",
     "queries",
@@ -212,6 +235,59 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
     observations["type_is_error"] = sorted(
         name for name in AUTHORED_TYPES if types.get(name, {}).get("is_error")
     )
+
+    # Asserted as one observation because one declaration produces all of it. The
+    # `computed` half is only visible here: the flag itself is never emitted (the compiler
+    # denies unknown fields), so the sole evidence an SDK honoured it is that `slug` is on
+    # the type and absent from both input objects. A projection that read the type alone
+    # would pass for an SDK that put a server-assigned field in `CreateTicketInput`.
+    observations["type_crud"] = {
+        # `{}` rather than a dict of Nones when the type is absent: `run.py::exercised`
+        # asks whether ANY sub-observation is truthy, and a dict whose values are all
+        # empty is still a truthy dict. Filled in, the `minimal` fixture — which declares
+        # no CRUD at all — would count as exercising this construct, and every SDK that
+        # declared the gap would then be reported as declaring it falsely.
+        "type": (
+            {"sql_source": types[CRUD_TYPE].get("sql_source"), "fields": _fields(types[CRUD_TYPE])}
+            if CRUD_TYPE in types
+            else {}
+        ),
+        "input_types": {
+            name: {"fields": _fields(input_types[name])}
+            for name in CRUD_INPUT_TYPES
+            if name in input_types
+        },
+        "queries": {
+            name: {
+                "return_type": queries[name].get("return_type"),
+                "returns_list": queries[name].get("returns_list"),
+                "nullable": queries[name].get("nullable"),
+                "sql_source": queries[name].get("sql_source"),
+                "auto_params": queries[name].get("auto_params"),
+                "arguments": [
+                    {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                    for a in queries[name].get("arguments", [])
+                    if isinstance(a, dict)
+                ],
+            }
+            for name in CRUD_QUERIES
+            if name in queries
+        },
+        "mutations": {
+            name: {
+                "return_type": mutations[name].get("return_type"),
+                "operation": _operation_kind(mutations[name]),
+                "sql_source": mutations[name].get("sql_source"),
+                "arguments": [
+                    {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                    for a in mutations[name].get("arguments", [])
+                    if isinstance(a, dict)
+                ],
+            }
+            for name in CRUD_MUTATIONS
+            if name in mutations
+        },
+    }
 
     observations["input_types"] = {
         name: {"fields": _fields(input_types[name])}

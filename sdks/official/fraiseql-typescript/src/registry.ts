@@ -514,6 +514,54 @@ export class SchemaRegistry {
    * @param options - Additional type options
    */
   /**
+   * Keep only the keys `IntermediateField` declares, dropping the authoring-only ones.
+   *
+   * `computed` is the reason this exists (#1183). It is an authoring-time flag —
+   * `crud.ts` reads it to decide which fields to omit from the input types *it*
+   * generates, and that generation happens before export. The compiler has no `crud`
+   * concept and `IntermediateField` is `deny_unknown_fields`, so emitting the key made
+   * `fraiseql compile` refuse **the whole document**, with an error naming a key this
+   * SDK's own `FieldMetadata` interface documents. #927 fixed exactly this in the Python
+   * SDK, in `registry.py::_build_field_def`, and #1025 says its closure is what made this
+   * one look resolved; it was never applied here.
+   *
+   * An allow-list rather than `delete f.computed`, and the same allow-list Python keeps,
+   * because the failure mode is a *class*: the next key added to `FieldMetadata` is
+   * equally invisible until something compiles a schema that carries it. A key that
+   * belongs in the compiled schema and is missing from this list shows up as a lost
+   * observation in the cross-SDK conformance suite, which is the gate that compiles what
+   * every SDK authors.
+   *
+   * The list is `IntermediateField`'s members
+   * (`crates/fraiseql-cli/src/schema/intermediate/types.rs`). `default` is deliberately
+   * absent: it is an input-field key, and input types are registered through
+   * `registerInputType`, which does not run this.
+   */
+  private static readonly COMPILED_FIELD_KEYS = new Set([
+    "name",
+    "type",
+    "nullable",
+    "description",
+    "directives",
+    "deprecated",
+    "requires_scope",
+    "on_deny",
+    "vector_config",
+    "vector_distance",
+    "authorize",
+    "hierarchy",
+  ]);
+
+  private static projectToCompiledFields<T extends Field>(fields: T[]): T[] {
+    return fields.map((f) => {
+      const kept = Object.fromEntries(
+        Object.entries(f).filter(([key]) => this.COMPILED_FIELD_KEYS.has(key))
+      );
+      return kept as unknown as T;
+    });
+  }
+
+  /**
    * Enforce the entity-identity convention (ADR-0017): a field named `id` typed as a
    * wire-transparent string scalar (`String`/`UUID`) is emitted as `ID`, so the
    * `schema.json` satisfies the compiler's global-`id: ID` contract (Node /
@@ -662,9 +710,11 @@ export class SchemaRegistry {
         `Type '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
-    fields = this.canonicalizeVectorFields(
-      this.canonicalizeFieldDeprecation(
-        this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+    fields = this.projectToCompiledFields(
+      this.canonicalizeVectorFields(
+        this.canonicalizeFieldDeprecation(
+          this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+        )
       )
     );
     const typeDef: TypeDefinition = { name, fields, description };
@@ -978,8 +1028,10 @@ export class SchemaRegistry {
     }
     this.interfaces.set(name, {
       name,
-      fields: this.canonicalizeFieldDeprecation(
-        this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+      fields: this.projectToCompiledFields(
+        this.canonicalizeFieldDeprecation(
+          this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+        )
       ),
       description,
     });

@@ -14,6 +14,20 @@ function pascalToSnake(name: string): string {
   return name.replace(/(?<!^)([A-Z])/g, "_$1").toLowerCase();
 }
 
+/**
+ * Convert a snake_case name to camelCase. Idempotent.
+ *
+ * The generated operations used to carry the snake_case name verbatim, so a
+ * `crud: true` type produced `create_ticket` in a schema whose hand-authored mutations
+ * beside it were `createUser` — one SDK emitting two naming conventions, and a different
+ * GraphQL API from the one Python's SDK generates for the same declaration (#1247). The
+ * compiler does not rename: `naming_convention` in the document is metadata, so the SDK
+ * has to emit the final name.
+ */
+function snakeToCamel(name: string): string {
+  return name.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
 function pluralize(name: string): string {
   if (name.endsWith("s") && !name.endsWith("ss")) return name;
   for (const suffix of ["ss", "sh", "ch", "x", "z"]) {
@@ -70,7 +84,7 @@ export function generateCrudOperations(
   if (ops.has("read")) {
     // Get-by-ID query
     SchemaRegistry.registerQuery(
-      snake,
+      snakeToCamel(snake),
       typeName,
       false,
       true,
@@ -81,7 +95,7 @@ export function generateCrudOperations(
 
     // List query with auto_params
     SchemaRegistry.registerQuery(
-      pluralize(snake),
+      snakeToCamel(pluralize(snake)),
       typeName,
       true,
       false,
@@ -106,7 +120,7 @@ export function generateCrudOperations(
     };
     if (cascade) config.cascade = true;
     SchemaRegistry.registerMutation(
-      `create_${snake}`,
+      snakeToCamel(`create_${snake}`),
       typeName,
       false,
       false,
@@ -130,7 +144,7 @@ export function generateCrudOperations(
     };
     if (cascade) config.cascade = true;
     SchemaRegistry.registerMutation(
-      `update_${snake}`,
+      snakeToCamel(`update_${snake}`),
       typeName,
       false,
       true,
@@ -147,7 +161,7 @@ export function generateCrudOperations(
     };
     if (cascade) config.cascade = true;
     SchemaRegistry.registerMutation(
-      `delete_${snake}`,
+      snakeToCamel(`delete_${snake}`),
       typeName,
       false,
       false,

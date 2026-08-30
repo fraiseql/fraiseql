@@ -143,6 +143,134 @@
       "topic": "order_events"
     }
   },
+  "type_crud": {
+    "input_types": {
+      "CreateSupportTicketInput": {
+        "fields": [
+          {
+            "name": "id",
+            "nullable": false,
+            "type": "Int"
+          },
+          {
+            "name": "title",
+            "nullable": false,
+            "type": "String"
+          }
+        ]
+      },
+      "UpdateSupportTicketInput": {
+        "fields": [
+          {
+            "name": "id",
+            "nullable": false,
+            "type": "Int"
+          },
+          {
+            "name": "title",
+            "nullable": true,
+            "type": "String"
+          }
+        ]
+      }
+    },
+    "mutations": {
+      "createSupportTicket": {
+        "arguments": [
+          {
+            "name": "input",
+            "nullable": false,
+            "type": {
+              "Input": "CreateSupportTicketInput"
+            }
+          }
+        ],
+        "operation": "Insert",
+        "return_type": "SupportTicket",
+        "sql_source": "fn_create_support_ticket"
+      },
+      "deleteSupportTicket": {
+        "arguments": [
+          {
+            "name": "id",
+            "nullable": false,
+            "type": "Int"
+          }
+        ],
+        "operation": "Delete",
+        "return_type": "SupportTicket",
+        "sql_source": "fn_delete_support_ticket"
+      },
+      "updateSupportTicket": {
+        "arguments": [
+          {
+            "name": "input",
+            "nullable": false,
+            "type": {
+              "Input": "UpdateSupportTicketInput"
+            }
+          }
+        ],
+        "operation": "Update",
+        "return_type": "SupportTicket",
+        "sql_source": "fn_update_support_ticket"
+      }
+    },
+    "queries": {
+      "supportTicket": {
+        "arguments": [
+          {
+            "name": "id",
+            "nullable": false,
+            "type": "Int"
+          }
+        ],
+        "auto_params": {
+          "has_limit": false,
+          "has_offset": false,
+          "has_order_by": false,
+          "has_where": false
+        },
+        "nullable": true,
+        "return_type": "SupportTicket",
+        "returns_list": false,
+        "sql_source": "v_support_ticket"
+      },
+      "supportTickets": {
+        "arguments": [],
+        "auto_params": {
+          "has_limit": true,
+          "has_offset": true,
+          "has_order_by": true,
+          "has_where": true
+        },
+        "nullable": false,
+        "return_type": "SupportTicket",
+        "returns_list": true,
+        "sql_source": "v_support_ticket"
+      }
+    },
+    "type": {
+      "fields": [
+        {
+          "name": "id",
+          "nullable": false,
+          "type": "Int"
+        },
+        {
+          "name": "title",
+          "nullable": false,
+          "type": "String"
+        },
+        {
+          "name": "slug",
+          "nullable": false,
+          "type": "String"
+        }
+      ],
+      "sql_source": "v_support_ticket"
+    }
+  },
   "type_is_error": [
     "UserNotFound"
   ],

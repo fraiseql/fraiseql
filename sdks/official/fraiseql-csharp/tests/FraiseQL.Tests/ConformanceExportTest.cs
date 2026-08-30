@@ -65,6 +65,7 @@ public class ConformanceExportTest
     {
         SchemaRegistry.Instance.Register(typeof(ConformanceUser));
         SchemaRegistry.Instance.Register(typeof(ConformanceOrder));
+        SchemaRegistry.Instance.Register(typeof(ConformanceSupportTicket));
         SchemaRegistry.Instance.Register(typeof(ConformanceUserNotFound));
         SchemaRegistry.Instance.Register(typeof(ConformanceDocument));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
@@ -182,6 +183,24 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "String")]
         public string Status { get; set; } = string.Empty;
+    }
+
+    // `Crud` is an authoring-time expansion the compiler has no concept of, so the only
+    // evidence this SDK implements it is that the operations and input objects appear in
+    // the compiled schema. `Computed` is the same: emitting the flag makes the document
+    // uncompilable, so the sole evidence it was honoured is `slug` on the type and absent
+    // from both input objects.
+    [GraphQLType(Name = "SupportTicket", SqlSource = "v_support_ticket", Crud = true)]
+    private sealed class ConformanceSupportTicket
+    {
+        [GraphQLField(Type = "Int")]
+        public int Id { get; set; }
+
+        [GraphQLField(Type = "String")]
+        public string Title { get; set; } = string.Empty;
+
+        [GraphQLField(Type = "String", Computed = true)]
+        public string Slug { get; set; } = string.Empty;
     }
 
     [GraphQLType(Name = "UserNotFound", SqlSource = "v_user_not_found", IsError = true)]

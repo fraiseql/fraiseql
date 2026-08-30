@@ -32,6 +32,50 @@ public final class CrudGenerator {
     }
 
     /**
+     * Mark a GraphQL type expression non-null, idempotently.
+     *
+     * <p>Required-ness of an argument is carried by the type string here — see
+     * {@code SchemaFormatter}, which emits {@code {"type": "ID", "nullable": false}} for
+     * {@code "ID!"}. Every generated argument omitted it, so a Java-authored
+     * {@code createX(input: CreateXInput)} accepted null where the same declaration in
+     * every other SDK produced {@code CreateXInput!}.
+     *
+     * @param type a GraphQL type expression
+     * @return the same expression with a single trailing {@code !}
+     */
+    static String nonNull(String type) {
+        return type.endsWith("!") ? type : type + "!";
+    }
+
+    /**
+     * Convert snake_case to camelCase. Idempotent.
+     *
+     * <p>The generated operations carried the snake_case name verbatim, so a
+     * {@code crud = true} type produced {@code create_support_ticket} in a schema whose
+     * hand-authored mutations beside it were {@code createUser} — one SDK emitting two
+     * naming conventions, and a different GraphQL API from the one Python generates for
+     * the same declaration (#1247). The compiler does not rename: {@code naming_convention}
+     * in the document is metadata, so the SDK has to emit the final name.
+     *
+     * @param name snake_case name (e.g. "create_order_item")
+     * @return camelCase name (e.g. "createOrderItem")
+     */
+    static String snakeToCamel(String name) {
+        StringBuilder out = new StringBuilder(name.length());
+        boolean upper = false;
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c == '_') {
+                upper = true;
+            } else {
+                out.append(upper ? Character.toUpperCase(c) : c);
+                upper = false;
+            }
+        }
+        return out.toString();
+    }
+
+    /**
      * Apply basic English pluralization rules.
      *
      * @param name the name to pluralize
@@ -75,14 +119,23 @@ public final class CrudGenerator {
         String pkName = pkEntry.getKey();
         String pkType = pkEntry.getValue().type;
 
-        // Get-by-ID query
+        // Get-by-ID query.
+        //
+        // The `!` and the `setQueryMetadata` call are both load-bearing and were both
+        // missing (#1247). Argument required-ness travels in the type expression — the
+        // formatter reads a trailing `!` — so `pkType` alone declared a lookup whose id
+        // may be omitted. And `QueryInfo.nullable` defaults to false, so a get-by-id
+        // that obviously can miss was declared non-null, where every other SDK declares
+        // it nullable.
         Map<String, String> getArgs = new LinkedHashMap<>();
-        getArgs.put(pkName, pkType);
-        registry.registerQuery(snake, typeName, getArgs,
+        getArgs.put(pkName, nonNull(pkType));
+        String getName = snakeToCamel(snake);
+        registry.registerQuery(getName, typeName, getArgs,
             "Get " + typeName + " by ID.", false, view, null, null, null);
+        registry.setQueryMetadata(getName, true, null);
 
         // List query (returns array)
-        registry.registerQuery(pluralize(snake), "[" + typeName + "]",
+        registry.registerQuery(snakeToCamel(pluralize(snake)), "[" + typeName + "]",
             new LinkedHashMap<>(), "List " + typeName + " records.",
             false, view, null, null, null);
 
@@ -98,8 +151,8 @@ public final class CrudGenerator {
             "Input for creating a new " + typeName + ".");
 
         Map<String, String> createArgs = new LinkedHashMap<>();
-        createArgs.put("input", createInputName);
-        registry.registerMutation("create_" + snake, typeName, createArgs,
+        createArgs.put("input", nonNull(createInputName));
+        registry.registerMutation(snakeToCamel("create_" + snake), typeName, createArgs,
             "Create a new " + typeName + ".", "fn_create_" + snake, "INSERT",
             null, null, null, cascade);
 
@@ -120,15 +173,15 @@ public final class CrudGenerator {
             "Input for updating an existing " + typeName + ".");
 
         Map<String, String> updateArgs = new LinkedHashMap<>();
-        updateArgs.put("input", updateInputName);
-        registry.registerMutation("update_" + snake, typeName, updateArgs,
+        updateArgs.put("input", nonNull(updateInputName));
+        registry.registerMutation(snakeToCamel("update_" + snake), typeName, updateArgs,
             "Update an existing " + typeName + ".", "fn_update_" + snake, "UPDATE",
             null, null, null, cascade);
 
         // Delete mutation: PK only
         Map<String, String> deleteArgs = new LinkedHashMap<>();
-        deleteArgs.put(pkName, pkType);
-        registry.registerMutation("delete_" + snake, typeName, deleteArgs,
+        deleteArgs.put(pkName, nonNull(pkType));
+        registry.registerMutation(snakeToCamel("delete_" + snake), typeName, deleteArgs,
             "Delete a " + typeName + ".", "fn_delete_" + snake, "DELETE",
             null, null, null, cascade);
     }

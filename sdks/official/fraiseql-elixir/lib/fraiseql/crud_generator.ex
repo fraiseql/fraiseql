@@ -7,18 +7,25 @@ defmodule FraiseQL.CrudGenerator do
   the standard queries and mutations following FraiseQL conventions:
 
     * **Read**: query `{snake}` (get by PK) + query `{snakes}` (list with auto_params)
-    * **Create**: mutation `create_{snake}` with all fields, sql_source `fn_create_{snake}`, operation INSERT
-    * **Update**: mutation `update_{snake}` with PK required + other fields nullable, sql_source `fn_update_{snake}`, operation UPDATE
+    * **Create**: mutation `create_{snake}` taking `input: Create{Type}Input!`, sql_source `fn_create_{snake}`, operation INSERT
+    * **Update**: mutation `update_{snake}` taking `input: Update{Type}Input!`, sql_source `fn_update_{snake}`, operation UPDATE
     * **Delete**: mutation `delete_{snake}` with PK only, sql_source `fn_delete_{snake}`, operation DELETE
+
+  The two input objects are the shape six of the nine generating SDKs emit and the one
+  `docs/architecture/mutation-response.md` documents. This generator emitted flat arguments
+  and no input types, so the same `crud:` declaration produced a different GraphQL API in
+  Elixir than in Python (#1246). They are returned as `is_input` `TypeDefinition`s, which is
+  this SDK's only route to an input object — the exporter emits no `input_types` key.
   """
 
-  alias FraiseQL.{QueryDefinition, MutationDefinition, ArgumentDefinition}
+  alias FraiseQL.{QueryDefinition, MutationDefinition, ArgumentDefinition, TypeDefinition, FieldDefinition}
 
   @doc """
   Generate CRUD operations from a `FraiseQL.TypeDefinition`.
 
-  Returns `{queries, mutations}` where each is a list of the corresponding
-  definition structs.
+  Returns `{queries, mutations, input_types}` where each is a list of the corresponding
+  definition structs. The input types are `is_input` `TypeDefinition`s — this SDK's only
+  route to an input object, since the exporter emits no `input_types` key.
 
   ## Options
 
@@ -29,13 +36,13 @@ defmodule FraiseQL.CrudGenerator do
   Raises `ArgumentError` if the type has no fields.
   """
   @spec generate(FraiseQL.TypeDefinition.t(), keyword()) ::
-          {[QueryDefinition.t()], [MutationDefinition.t()]}
+          {[QueryDefinition.t()], [MutationDefinition.t()], [TypeDefinition.t()]}
   def generate(%FraiseQL.TypeDefinition{} = type, opts \\ []) do
     cascade = Keyword.get(opts, :cascade, false)
     ops = parse_crud_ops(type.crud)
 
     if Enum.empty?(ops) do
-      {[], []}
+      {[], [], []}
     else
       do_generate(type, ops, cascade)
     end
@@ -60,12 +67,52 @@ defmodule FraiseQL.CrudGenerator do
 
     mutations =
       List.flatten([
-        if(:create in ops, do: [generate_create_op(type.name, snake, type.fields, cascade)], else: []),
-        if(:update in ops, do: [generate_update_op(type.name, snake, pk_field, type.fields, cascade)], else: []),
+        if(:create in ops, do: [generate_create_op(type.name, snake, cascade)], else: []),
+        if(:update in ops, do: [generate_update_op(type.name, snake, cascade)], else: []),
         if(:delete in ops, do: [generate_delete_op(type.name, snake, pk_field, cascade)], else: [])
       ])
 
-    {queries, mutations}
+    input_types =
+      List.flatten([
+        if(:create in ops, do: [create_input_type(type.name, type.fields)], else: []),
+        if(:update in ops, do: [update_input_type(type.name, pk_field, type.fields)], else: [])
+      ])
+
+    {queries, mutations, input_types}
+  end
+
+  # A computed field is server-assigned — a slug, a view aggregation — so a client cannot
+  # supply one and it is omitted from both input objects.
+  defp create_input_type(type_name, fields) do
+    %TypeDefinition{
+      name: "Create#{type_name}Input",
+      sql_source: nil,
+      is_input: true,
+      description: "Input for creating a new #{type_name}.",
+      fields:
+        fields
+        |> Enum.reject(& &1.computed)
+        |> Enum.map(fn f ->
+          %FieldDefinition{name: f.name, type: f.type, nullable: f.nullable}
+        end)
+    }
+  end
+
+  defp update_input_type(type_name, pk_field, fields) do
+    %TypeDefinition{
+      name: "Update#{type_name}Input",
+      sql_source: nil,
+      is_input: true,
+      description: "Input for updating an existing #{type_name}.",
+      fields:
+        [%FieldDefinition{name: pk_field.name, type: pk_field.type, nullable: false}] ++
+          (fields
+           |> Enum.drop(1)
+           |> Enum.reject(& &1.computed)
+           |> Enum.map(fn f ->
+             %FieldDefinition{name: f.name, type: f.type, nullable: true}
+           end))
+    }
   end
 
   defp parse_crud_ops(true), do: [:read, :create, :update, :delete]
@@ -75,7 +122,7 @@ defmodule FraiseQL.CrudGenerator do
 
   defp generate_read_ops(type_name, snake, view, pk_field) do
     get_by_id = %QueryDefinition{
-      name: snake,
+      name: snake_to_camel(snake),
       return_type: type_name,
       sql_source: view,
       returns_list: false,
@@ -87,7 +134,7 @@ defmodule FraiseQL.CrudGenerator do
     }
 
     list = %QueryDefinition{
-      name: pluralize(snake),
+      name: snake_to_camel(pluralize(snake)),
       return_type: type_name,
       sql_source: view,
       returns_list: true,
@@ -100,42 +147,29 @@ defmodule FraiseQL.CrudGenerator do
     [get_by_id, list]
   end
 
-  defp generate_create_op(type_name, snake, fields, cascade) do
-    args =
-      fields
-      |> Enum.reject(& &1.computed)
-      |> Enum.map(fn f ->
-        %ArgumentDefinition{name: f.name, type: f.type, nullable: f.nullable}
-      end)
-
+  defp generate_create_op(type_name, snake, cascade) do
     %MutationDefinition{
-      name: "create_#{snake}",
+      name: snake_to_camel("create_#{snake}"),
       return_type: type_name,
       sql_source: "fn_create_#{snake}",
       operation: "INSERT",
-      arguments: args,
+      arguments: [
+        %ArgumentDefinition{name: "input", type: "Create#{type_name}Input", nullable: false}
+      ],
       description: "Create a new #{type_name}.",
       cascade: cascade
     }
   end
 
-  defp generate_update_op(type_name, snake, pk_field, fields, cascade) do
-    pk_arg = %ArgumentDefinition{name: pk_field.name, type: pk_field.type, nullable: false}
-
-    other_args =
-      fields
-      |> Enum.drop(1)
-      |> Enum.reject(& &1.computed)
-      |> Enum.map(fn f ->
-        %ArgumentDefinition{name: f.name, type: f.type, nullable: true}
-      end)
-
+  defp generate_update_op(type_name, snake, cascade) do
     %MutationDefinition{
-      name: "update_#{snake}",
+      name: snake_to_camel("update_#{snake}"),
       return_type: type_name,
       sql_source: "fn_update_#{snake}",
       operation: "UPDATE",
-      arguments: [pk_arg | other_args],
+      arguments: [
+        %ArgumentDefinition{name: "input", type: "Update#{type_name}Input", nullable: false}
+      ],
       description: "Update an existing #{type_name}.",
       cascade: cascade
     }
@@ -143,7 +177,7 @@ defmodule FraiseQL.CrudGenerator do
 
   defp generate_delete_op(type_name, snake, pk_field, cascade) do
     %MutationDefinition{
-      name: "delete_#{snake}",
+      name: snake_to_camel("delete_#{snake}"),
       return_type: type_name,
       sql_source: "fn_delete_#{snake}",
       operation: "DELETE",
@@ -171,6 +205,20 @@ defmodule FraiseQL.CrudGenerator do
     name
     |> String.replace(~r/(?<!^)([A-Z])/, "_\\1")
     |> String.downcase()
+  end
+
+  @doc """
+  Convert a snake_case name to camelCase. Idempotent.
+
+  The generated operations carried the snake_case name verbatim, so a `crud: true` type
+  produced `create_support_ticket` in a schema whose hand-authored mutations beside it
+  were `createUser` — one SDK emitting two naming conventions, and a different GraphQL API
+  from the one Python generates for the same declaration (#1247). The compiler does not
+  rename: `naming_convention` in the document is metadata, so the SDK emits the final name.
+  """
+  @spec snake_to_camel(String.t()) :: String.t()
+  def snake_to_camel(name) do
+    Regex.replace(~r/_([a-z])/, name, fn _, c -> String.upcase(c) end)
   end
 
   @doc """

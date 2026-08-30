@@ -1763,6 +1763,30 @@ def test_crud_full_generates_both_input_types() -> None:
     assert delete["arguments"][0]["name"] == "pkOrder"
 
 
+def test_crud_mutations_name_fn_prefixed_sql_sources() -> None:
+    """Generated CRUD mutations point at `fn_<verb>_<snake>` (#1243).
+
+    Nothing asserted the generated `sql_source` before, which is how this SDK came to be
+    the only one of nine emitting `create_order` where the other eight — and every
+    example, migration and authoring doc in the repository — write `fn_create_order`.
+    The compile succeeds either way: `sql_source` is a string the compiler does not
+    resolve, so the first evidence was a mutation failing at run time against a function
+    name nobody creates.
+    """
+
+    @fraiseql.type(crud=True, sql_source="v_invoice")
+    class Invoice:
+        pk_invoice: int
+        total: float
+
+    mutations = {m["name"]: m["sql_source"] for m in SchemaRegistry.get_schema()["mutations"]}
+    assert mutations == {
+        "createInvoice": "fn_create_invoice",
+        "updateInvoice": "fn_update_invoice",
+        "deleteInvoice": "fn_delete_invoice",
+    }
+
+
 # ── computed=True field marker tests (issue #222) ────────────────────────────
 
 

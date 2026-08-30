@@ -48,6 +48,17 @@ defmodule Conformance.FullSchema do
     field(:status, :string, nullable: false)
   end
 
+  # `crud` is an authoring-time expansion the compiler has no concept of, so the only
+  # evidence this SDK implements it is that the operations and input objects appear in the
+  # compiled schema. `computed` is the same: emitting the flag makes the document
+  # uncompilable, so the sole evidence it was honoured is `slug` on the type and absent
+  # from both input objects.
+  fraiseql_type "SupportTicket", sql_source: "v_support_ticket", crud: true do
+    field :id, :int, nullable: false
+    field :title, :string, nullable: false
+    field :slug, :string, nullable: false, computed: true
+  end
+
   fraiseql_type "UserNotFound", sql_source: "v_user_not_found", is_error: true do
     field(:message, :string, nullable: false)
     field(:code, :string, nullable: false)

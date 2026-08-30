@@ -44,11 +44,16 @@ final class StaticAPI
         $registry = SchemaRegistry::getInstance();
         $registry->register($className);
 
-        foreach ($registry->getTypeNames() as $typeName) {
-            $attr = $registry->getType($typeName);
-            if ($attr !== null && $attr->crud) {
-                self::expandCrud($typeName, $registry->getTypeFields($typeName), $attr->sqlSource, $attr->cascade);
-            }
+        // Only the type just registered. This used to loop over every registered type
+        // name, so registering a crud type and then any other type re-expanded the first
+        // one — and `registerInputType` throws on a duplicate name, making the second
+        // `register()` call a fatal error. Nothing had two types where one declared crud,
+        // so #1022's fix shipped with the loop and the docblock below already describing
+        // the invariant it broke.
+        $typeName = $registry->getTypeNameForClass($className);
+        $attr = $typeName === null ? null : $registry->getType($typeName);
+        if ($typeName !== null && $attr !== null && $attr->crud) {
+            self::expandCrud($typeName, $registry->getTypeFields($typeName), $attr->sqlSource, $attr->cascade);
         }
     }
 

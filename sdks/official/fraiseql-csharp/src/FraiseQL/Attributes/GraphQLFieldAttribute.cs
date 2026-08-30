@@ -37,9 +37,6 @@ public sealed class GraphQLFieldAttribute : Attribute
     /// </summary>
     public bool Nullable { get; set; } = false;
 
-    /// <summary>Gets or sets an optional custom resolver name for computed fields.</summary>
-    public string? Resolver { get; set; }
-
     /// <summary>
     /// Gets or sets why this field is deprecated. When set, the field surfaces as
     /// <c>isDeprecated</c> / <c>deprecationReason</c> through introspection so generated

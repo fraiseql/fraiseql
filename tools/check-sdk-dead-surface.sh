@@ -22,6 +22,9 @@
 #
 # ADDING TO THIS LIST
 # -------------------
+# Anchor the regex where a bare name would collide. `class FraiseQLField` matched C#'s
+# unrelated `public static class FraiseQLField` in UpdateField.cs; `^class FraiseQLField`
+# matches only a Dart top-level declaration, which is the surface that was removed.
 # One entry per removed surface: a regex, and the issue that removed it. The reason text is
 # shell-expanded when the array is built, so it must contain no backticks — one there turned
 # the explanation into a command substitution and the gate died before checking anything.
@@ -43,6 +46,8 @@ REMOVED=(
     "sqlSourceDispatch|sqlSourceDispatch|#926 — the Java builders, same reason"
     "NewAggregateQueryConfig|NewAggregateQueryConfig|#956 — the compiler refuses aggregate_queries; declare the fact table (which gives you the <name>_aggregate root field) or use [[analytics.queries]]"
     "RegisterAggregateQuery|RegisterAggregateQuery|#956 — the registry half of the same removed surface"
+    "FraiseQLType|^class FraiseQLType|#1241 — the Dart @FraiseQLType annotation; Dart has no runtime reflection over annotations and the package ships no build_runner generator, so nothing read it. Author with FraiseQLSchema.type(), which takes the same crud: and cascade: flags"
+    "FraiseQLField|^class FraiseQLField|#1241 — the Dart @FraiseQLField annotation, same reason. Its computed: flag is now FieldType(computed: true)"
 )
 
 # Only SDK authoring code is in scope. Docs are where the removal is *explained*, so a

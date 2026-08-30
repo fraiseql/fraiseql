@@ -67,7 +67,7 @@ public sealed class SchemaRegistry
         if (typeAttr.Crud)
         {
             var intermediateFields = fields
-                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description, f.Resolver,
+                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description,
                     // Normalise a singleton Scopes list onto Scope; anything longer is
                     // unrepresentable downstream and is refused rather than dropped (#807).
                     NormaliseScope(f.Scope, f.Scopes, f.Name), null, f.Computed ? true : null,
@@ -296,7 +296,6 @@ public sealed class SchemaRegistry
                 Type: graphqlType,
                 Nullable: nullable,
                 Description: fieldAttr.Description,
-                Resolver: fieldAttr.Resolver,
                 Scope: fieldAttr.Scope,
                 Scopes: fieldAttr.Scopes,
                 Computed: fieldAttr.Computed,

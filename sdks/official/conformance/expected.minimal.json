@@ -23,6 +23,12 @@
   "query_inject_params": {},
   "query_requires_role": {},
   "subscriptions": {},
+  "type_crud": {
+    "input_types": {},
+    "mutations": {},
+    "queries": {},
+    "type": {}
+  },
   "type_is_error": [],
   "type_relay": {
     "connection_types_synthesized": [],

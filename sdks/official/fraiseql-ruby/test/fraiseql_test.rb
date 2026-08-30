@@ -87,6 +87,10 @@ class OrderItem
   fraiseql_field :id,       :ID,     required: true
   fraiseql_field :quantity, :Int,    required: true
   fraiseql_field :total,    :Float,  required: true
+  # Server-assigned, so a client cannot supply it: the generated input objects must omit
+  # it. Nothing here declared a computed field before, which is why the generator's
+  # `reject { |f| f[:computed] }` could not be seen to reject nothing (#1242).
+  fraiseql_field :line_total, :Float, required: true, computed: true
 end
 
 class CustomTypeTest < Minitest::Test
@@ -111,6 +115,28 @@ class CustomTypeTest < Minitest::Test
     refute_nil crud
     assert crud[:queries].length >= 2, "Expected at least 2 queries (get + list)"
     assert crud[:mutations].length >= 3, "Expected at least 3 mutations (create + update + delete)"
+  end
+
+  # These two assertions used to be `length >= 2` / `>= 3` and nothing else, so the whole
+  # generated shape was free to be anything — which is how Ruby came to emit flat arguments
+  # and no input types while six other SDKs emitted an input object (#1246).
+  def test_crud_create_and_update_take_an_input_object
+    crud = OrderItem.to_fraiseql_crud
+    create = crud[:mutations].find { |m| m[:name] == "createLineItem" }
+    update = crud[:mutations].find { |m| m[:name] == "updateLineItem" }
+
+    assert_equal [{ name: "input", type: "CreateLineItemInput", nullable: false }], create[:arguments]
+    assert_equal [{ name: "input", type: "UpdateLineItemInput", nullable: false }], update[:arguments]
+    assert_equal %w[CreateLineItemInput UpdateLineItemInput],
+                 crud[:input_types].map { |i| i[:name] }.sort
+  end
+
+  def test_crud_input_objects_omit_computed_fields
+    crud = OrderItem.to_fraiseql_crud
+    create = crud[:input_types].find { |i| i[:name] == "CreateLineItemInput" }
+
+    refute_includes create[:fields].map { |f| f[:name] }, "lineTotal",
+                    "a computed field is server-assigned; a client cannot supply one"
   end
 
   def test_crud_mutations_include_cascade

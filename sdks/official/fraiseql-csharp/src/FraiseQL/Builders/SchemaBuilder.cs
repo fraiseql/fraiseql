@@ -179,7 +179,6 @@ public sealed class SchemaBuilder
                 Type: f.Type,
                 Nullable: f.Nullable,
                 Description: f.Description,
-                Resolver: f.Resolver,
                 Scope: f.Scope,
                 Scopes: f.Scopes))
             .ToList()
@@ -237,7 +236,7 @@ public sealed class TypeConfigurator
         string? description = null,
         string? scope = null)
     {
-        _fields.Add(new IntermediateField(name, type, nullable, description, null, scope));
+        _fields.Add(new IntermediateField(name, type, nullable, description, scope));
         return this;
     }
 

@@ -10,12 +10,16 @@ namespace FraiseQL.Models;
 /// <param name="Type">The GraphQL scalar or type name.</param>
 /// <param name="Nullable">Whether the field is nullable in the schema.</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
-/// <param name="Resolver">Optional resolver name, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Scope">Optional required scope, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Scopes">Optional required scopes, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Computed">
 /// When <see langword="true"/>, the field is server-computed and excluded from CRUD input types.
-/// Omitted from JSON when <see langword="null"/> (the default) to keep the schema compact.
+/// Authoring-time only, and therefore never serialised (#1244): <c>CrudGenerator</c> reads it
+/// to decide which fields to omit from the input types it generates, and that runs before
+/// export. <c>IntermediateField</c> in the compiler has no <c>computed</c> member and denies
+/// unknown fields, so emitting it made <c>fraiseql compile</c> refuse the whole document —
+/// naming a key this SDK's own attribute documents. F# reached the same answer in
+/// <c>Types.fs</c>; Python's is <c>registry.py::_build_field_def</c> (#927).
 /// </param>
 /// <param name="Vector">
 /// pgvector configuration on a <c>Vector</c> / <c>BitVector</c> / <c>HalfVector</c> /
@@ -37,7 +41,6 @@ public record IntermediateField(
     [property: JsonPropertyName("type")]        string Type,
     [property: JsonPropertyName("nullable")]    bool Nullable,
     [property: JsonPropertyName("description")] string? Description = null,
-    [property: JsonPropertyName("resolver")]    string? Resolver = null,
     // The wire key is `requires_scope` — the key the compiler reads. It was `scope`,
     // which binds to nothing, so a field the author gated with [GraphQLField(Scope=...)]
     // compiled with no scope at all and was served to callers holding none (#807).
@@ -47,7 +50,7 @@ public record IntermediateField(
     // retained for source compatibility but is never serialised: emitting it produced a
     // key nothing reads. A singleton list is normalised onto Scope by SchemaRegistry.
     [property: JsonIgnore]                      IReadOnlyList<string>? Scopes = null,
-    [property: JsonPropertyName("computed")]    bool? Computed = null,
+    [property: JsonIgnore]                      bool? Computed = null,
     [property: JsonPropertyName("vector_config")]   VectorConfig? Vector = null,
     [property: JsonPropertyName("vector_distance")] string? VectorDistance = null,
     // `IntermediateField.deprecated` has been readable since #1025. There was no

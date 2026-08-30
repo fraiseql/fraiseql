@@ -60,7 +60,6 @@ module FraiseQL
 
     def initialize
       @types = []
-      @input_types = []
       @enums = []
       @queries = []
       @mutations = []
@@ -71,11 +70,16 @@ module FraiseQL
     # `is_input: true` declares a GraphQL input object instead. An input object has no
     # backing relation, so `sql_source` is refused on one — the compiler rejects a type
     # that declares both.
-    def type(name, sql_source: nil, description: nil, relay: false, is_error: false, is_input: false)
+    def type(name, sql_source: nil, description: nil, relay: false, is_error: false, is_input: false,
+             crud: false, cascade: false)
       if is_input && sql_source
         raise ArgumentError,
               "type #{name.inspect}: an input type must not declare sql_source — " \
               "an input object has no backing view."
+      end
+      if crud && is_input
+        raise ArgumentError,
+              "type #{name.inspect}: an input object has no CRUD operations to generate."
       end
 
       builder = TypeBuilder.new
@@ -89,7 +93,50 @@ module FraiseQL
       definition["is_input"] = true if is_input
 
       @types << definition
+      expand_crud(name.to_s, builder.crud_fields, sql_source, cascade) if crud
       definition
+    end
+
+    # Merges what `CrudGenerator` produces into the document being built.
+    #
+    # `crud:` used to set no flag this class read at all: `CrudGenerator` was complete and
+    # correct and had no caller anywhere in `lib/` — only its own tests called it, which is
+    # why a green suite was not evidence that declaring CRUD did anything (#1242). The
+    # per-class `FraiseQL::Type` mixin's `to_fraiseql_crud` is in the same position; this
+    # builder is the path `conformance/export.rb`, the README Quick Start and
+    # `bin/fraiseql` all run, so it is the one that has to work.
+    #
+    # Input objects are appended to `types` with `is_input`, the spelling the rest of this
+    # class uses and the one the conformance fixture proves the compiler accepts.
+    def expand_crud(type_name, fields, sql_source, cascade)
+      generated = CrudGenerator.generate(
+        type_name: type_name, fields: fields, sql_source: sql_source&.to_s, cascade: cascade
+      )
+      generated[:input_types].each do |input|
+        @types << {
+          "name" => input[:name],
+          "description" => input[:description],
+          "is_input" => true,
+          "fields" => input[:fields].map do |f|
+            { "name" => f[:name], "type" => f[:type], "nullable" => f[:nullable] }
+          end
+        }
+      end
+      generated[:queries].each { |q| @queries << stringify_operation(q) }
+      generated[:mutations].each { |m| @mutations << stringify_operation(m) }
+    end
+
+    # The generator speaks symbols; the document is string-keyed. One conversion, here,
+    # rather than a second string-keyed copy of the generator that drifts from it.
+    def stringify_operation(op)
+      op.each_with_object({}) do |(key, value), out|
+        out[key.to_s] =
+          case value
+          when Array then value.map { |arg| arg.transform_keys(&:to_s) }
+          when Hash  then value.transform_keys(&:to_s)
+          else value
+          end
+      end
     end
 
     # Declares a GraphQL enum type.
@@ -167,7 +214,6 @@ module FraiseQL
     def to_h
       document = { "version" => "2.0.0", "types" => @types }
       document["enums"] = @enums unless @enums.empty?
-      document["input_types"] = @input_types unless @input_types.empty?
       document["queries"] = @queries unless @queries.empty?
       document["mutations"] = @mutations unless @mutations.empty?
       document
@@ -206,10 +252,16 @@ module FraiseQL
 
     # Collects the fields declared inside a `type` block.
     class TypeBuilder
-      attr_reader :fields
+      attr_reader :fields, :crud_fields
 
       def initialize
         @fields = []
+        # The same fields in the shape `CrudGenerator` reads, carrying `computed` — which
+        # `fields` must not carry. Ruby's generator filters on `f[:computed]`, and the
+        # caller it never had built its list without that key, so `reject` would have
+        # rejected nothing and every generated input object would have asked the client
+        # for server-assigned fields (#1242).
+        @crud_fields = []
       end
 
       # `nullable` is required by the compiler and has no default there; it defaults to
@@ -219,11 +271,19 @@ module FraiseQL
       # #1025. There was no parameter here at all, so a Ruby author could not deprecate a
       # field through the path the exporter actually runs.
       def field(name, type, nullable: true, description: nil, requires_scope: nil, on_deny: nil,
-                vector_config: nil, vector_distance: nil, deprecated: false)
+                vector_config: nil, vector_distance: nil, deprecated: false, computed: false)
         definition = {
           "name" => name.to_s,
           "type" => Schema.graphql_type(type),
           "nullable" => nullable
+        }
+        # `computed` is deliberately absent from `definition`. It is authoring-time only:
+        # `CrudGenerator` reads it to decide which fields a client cannot supply, and that
+        # runs before export. `IntermediateField` has no `computed` member and denies
+        # unknown fields, so emitting it would make the whole document uncompilable — the
+        # defect #927 fixed in Python and #1183 found still live in TypeScript and C#.
+        @crud_fields << {
+          name: definition["name"], type: definition["type"], nullable: nullable, computed: computed
         }
         definition["description"] = description if description
         definition["requires_scope"] = requires_scope.to_s if requires_scope

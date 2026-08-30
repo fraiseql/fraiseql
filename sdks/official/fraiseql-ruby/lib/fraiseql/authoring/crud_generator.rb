@@ -7,9 +7,15 @@ module FraiseQL
   # create, update, and delete operations following FraiseQL conventions:
   #
   # - Read: query `{snake}` (get by PK) + query `{snakes}` (list with auto_params)
-  # - Create: mutation `create_{snake}` with all fields
-  # - Update: mutation `update_{snake}` with PK required, other fields nullable
+  # - Create: mutation `create_{snake}` taking `input: Create{Type}Input!`
+  # - Update: mutation `update_{snake}` taking `input: Update{Type}Input!`
   # - Delete: mutation `delete_{snake}` with PK only
+  #
+  # The two input objects are the shape six of the nine generating SDKs emit and the one
+  # `docs/architecture/mutation-response.md` documents. This generator used to emit flat
+  # arguments and no input types, so the same `crud` declaration produced a different
+  # GraphQL API in Ruby than in Python (#1246). A flat-argument mutation also changes its
+  # signature every time the type gains a column; an input object absorbs it.
   module CrudGenerator
     module_function
 
@@ -58,7 +64,7 @@ module FraiseQL
     # @param fields [Array<Hash>] field definitions with :name, :type, :nullable keys
     # @param sql_source [String, nil] override for the default view name
     # @param cascade [Boolean] when true, generated mutations include cascade: true
-    # @return [Hash] with :queries and :mutations arrays
+    # @return [Hash] with :queries, :mutations and :input_types arrays
     # @raise [ArgumentError] if fields is empty
     def generate(type_name:, fields:, sql_source: nil, cascade: false)
       raise ArgumentError, "Type \"#{type_name}\" has no fields; cannot generate CRUD operations" if fields.empty?
@@ -69,6 +75,7 @@ module FraiseQL
 
       queries = []
       mutations = []
+      input_types = []
 
       # Get by ID
       queries << {
@@ -93,13 +100,21 @@ module FraiseQL
         auto_params: { where: true, order_by: true, limit: true, offset: true }
       }
 
-      # Create — exclude computed fields
+      # Create — every non-computed field, in an input object. A computed field is
+      # server-assigned (a slug, a view aggregation), so a client cannot supply one.
+      create_input_name = "Create#{type_name}Input"
+      input_types << {
+        name: create_input_name,
+        description: "Input for creating a new #{type_name}.",
+        fields: fields.reject { |f| f[:computed] }
+                      .map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: f[:nullable] } }
+      }
       create = {
         name: snake_to_camel("create_#{snake}"),
         return_type: type_name,
         returns_list: false,
         nullable: false,
-        arguments: fields.reject { |f| f[:computed] }.map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: f[:nullable] } },
+        arguments: [{ name: "input", type: create_input_name, nullable: false }],
         description: "Create a new #{type_name}.",
         sql_source: "fn_create_#{snake}",
         operation: "INSERT"
@@ -107,14 +122,21 @@ module FraiseQL
       create[:cascade] = true if cascade
       mutations << create
 
-      # Update — PK required, exclude computed non-PK fields
+      # Update — PK required, every other non-computed field optional, in an input object.
+      update_input_name = "Update#{type_name}Input"
+      input_types << {
+        name: update_input_name,
+        description: "Input for updating an existing #{type_name}.",
+        fields: [{ name: snake_to_camel(pk[:name]), type: pk[:type], nullable: false }] +
+                fields[1..].reject { |f| f[:computed] }
+                           .map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: true } }
+      }
       update = {
         name: snake_to_camel("update_#{snake}"),
         return_type: type_name,
         returns_list: false,
         nullable: true,
-        arguments: [{ name: snake_to_camel(pk[:name]), type: pk[:type], nullable: false }] +
-          fields[1..].reject { |f| f[:computed] }.map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: true } },
+        arguments: [{ name: "input", type: update_input_name, nullable: false }],
         description: "Update an existing #{type_name}.",
         sql_source: "fn_update_#{snake}",
         operation: "UPDATE"
@@ -136,7 +158,7 @@ module FraiseQL
       delete[:cascade] = true if cascade
       mutations << delete
 
-      { queries: queries, mutations: mutations }
+      { queries: queries, mutations: mutations, input_types: input_types }
     end
   end
 end

@@ -55,6 +55,27 @@
       ]
     },
     {
+      "name": "SupportTicket",
+      "sql_source": "v_support_ticket",
+      "fields": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "String",
+          "nullable": false
+        }
+      ]
+    },
+    {
       "name": "UserNotFound",
       "sql_source": "v_user_not_found",
       "is_error": true,
@@ -160,6 +181,38 @@
           "nullable": true
         }
       ]
+    },
+    {
+      "name": "CreateSupportTicketInput",
+      "fields": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Input for creating a new SupportTicket."
+    },
+    {
+      "name": "UpdateSupportTicketInput",
+      "fields": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "Input for updating an existing SupportTicket."
     }
   ],
   "queries": [
@@ -197,6 +250,36 @@
       },
       "cache_ttl_seconds": 300,
       "requires_role": "admin"
+    },
+    {
+      "name": "supportTicket",
+      "return_type": "SupportTicket",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Get SupportTicket by ID.",
+      "sql_source": "v_support_ticket"
+    },
+    {
+      "name": "supportTickets",
+      "return_type": "SupportTicket",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "List SupportTicket records.",
+      "sql_source": "v_support_ticket",
+      "auto_params": {
+        "where": true,
+        "order_by": true,
+        "limit": true,
+        "offset": true
+      }
     }
   ],
   "mutations": [
@@ -244,6 +327,54 @@
       "invalidates_fact_tables": [
         "tf_sale"
       ]
+    },
+    {
+      "name": "createSupportTicket",
+      "return_type": "SupportTicket",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "input",
+          "type": "CreateSupportTicketInput",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new SupportTicket.",
+      "sql_source": "fn_create_support_ticket",
+      "operation": "INSERT"
+    },
+    {
+      "name": "updateSupportTicket",
+      "return_type": "SupportTicket",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "input",
+          "type": "UpdateSupportTicketInput",
+          "nullable": false
+        }
+      ],
+      "description": "Update an existing SupportTicket.",
+      "sql_source": "fn_update_support_ticket",
+      "operation": "UPDATE"
+    },
+    {
+      "name": "deleteSupportTicket",
+      "return_type": "SupportTicket",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Delete a SupportTicket.",
+      "sql_source": "fn_delete_support_ticket",
+      "operation": "DELETE"
     }
   ],
   "subscriptions": [

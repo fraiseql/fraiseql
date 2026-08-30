@@ -224,11 +224,17 @@ final class IntermediateExportKeysTest extends TestCase
         $queryNames    = array_column($schema['queries'], 'name');
         $mutationNames = array_column($schema['mutations'], 'name');
 
+        // camelCase, like every hand-authored operation beside them. The generator used
+        // to emit the snake_case name verbatim, so one PHP schema carried `createUser`
+        // and `create_widget` side by side, and a client generated against the Python
+        // schema for the same declaration called a field that did not exist (#1247). A
+        // one-word type name cannot show this — `widget` spells the same either way — so
+        // the assertions below use a two-word one.
         self::assertContains('widget', $queryNames, 'the get-by-id query must be generated');
         self::assertContains('widgets', $queryNames, 'the list query must be generated');
-        self::assertContains('create_widget', $mutationNames);
-        self::assertContains('update_widget', $mutationNames);
-        self::assertContains('delete_widget', $mutationNames);
+        self::assertContains('createWidget', $mutationNames);
+        self::assertContains('updateWidget', $mutationNames);
+        self::assertContains('deleteWidget', $mutationNames);
 
         // `cascade` belongs on the generated mutations — that is where
         // `IntermediateMutation::cascade` lives — and never on the type.
@@ -237,6 +243,32 @@ final class IntermediateExportKeysTest extends TestCase
         }
         self::assertArrayNotHasKey('crud', $schema['types'][0]);
         self::assertArrayNotHasKey('cascade', $schema['types'][0]);
+    }
+
+    /**
+     * The naming assertion above, on a type name that can tell the two conventions apart.
+     * `Widget` cannot: `widget` is both its snake_case and its camelCase spelling, so the
+     * case that used it would have passed under either implementation (#1247).
+     */
+    public function testGeneratedOperationNamesAreCamelCase(): void
+    {
+        StaticAPI::type('SupportTicket')
+            ->sqlSource('v_support_ticket')
+            ->field('id', 'Int', nullable: false)
+            ->field('title', 'String', nullable: false)
+            ->crud(true)
+            ->register();
+
+        $schema = json_decode(SchemaExporter::export(), true);
+
+        self::assertSame(
+            ['supportTicket', 'supportTickets'],
+            array_column($schema['queries'], 'name'),
+        );
+        self::assertSame(
+            ['createSupportTicket', 'updateSupportTicket', 'deleteSupportTicket'],
+            array_column($schema['mutations'], 'name'),
+        );
     }
 
     public function testMutationRequiresRoleSurvivesExport(): void

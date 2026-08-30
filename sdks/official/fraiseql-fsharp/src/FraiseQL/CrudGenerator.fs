@@ -17,6 +17,19 @@ module CrudGenerator =
     let pascalToSnake (name: string) =
         camelRe.Replace(name, "_$1").ToLowerInvariant()
 
+    let private snakeRe = Regex(@"_([a-z])", RegexOptions.Compiled)
+
+    /// Converts a snake_case name to camelCase. Idempotent.
+    ///
+    /// The generated operations carried the snake_case name verbatim, so a `Crud = true`
+    /// type produced `create_support_ticket` in a schema whose hand-authored mutations
+    /// beside it were `createUser` — one SDK emitting two naming conventions, and a
+    /// different GraphQL API from the one Python generates for the same declaration
+    /// (#1247). The compiler does not rename: `naming_convention` in the document is
+    /// metadata, so the SDK has to emit the final name.
+    let snakeToCamel (name: string) =
+        snakeRe.Replace(name, fun m -> m.Groups.[1].Value.ToUpperInvariant())
+
     /// Applies basic English pluralization rules to a snake_case name.
     let pluralize (name: string) =
         if name.EndsWith("s") && not (name.EndsWith("ss")) then
@@ -107,7 +120,7 @@ module CrudGenerator =
             [
                 // Get-by-ID query
                 {
-                    name = snake
+                    name = snakeToCamel snake
                     return_type = typeName
                     returns_list = false
                     nullable = true
@@ -128,7 +141,7 @@ module CrudGenerator =
                 }
                 // List query
                 {
-                    name = pluralize snake
+                    name = snakeToCamel (pluralize snake)
                     return_type = typeName
                     returns_list = true
                     nullable = false
@@ -146,7 +159,7 @@ module CrudGenerator =
             [
                 // Create mutation — single input object argument
                 {
-                    name = "create_" + snake
+                    name = snakeToCamel ("create_" + snake)
                     return_type = typeName
                     sql_source = "fn_create_" + snake
                     operation = "INSERT"
@@ -168,7 +181,7 @@ module CrudGenerator =
                 }
                 // Update mutation — single input object argument
                 {
-                    name = "update_" + snake
+                    name = snakeToCamel ("update_" + snake)
                     return_type = typeName
                     sql_source = "fn_update_" + snake
                     operation = "UPDATE"
@@ -190,7 +203,7 @@ module CrudGenerator =
                 }
                 // Delete mutation — PK only (unchanged)
                 {
-                    name = "delete_" + snake
+                    name = snakeToCamel ("delete_" + snake)
                     return_type = typeName
                     sql_source = "fn_delete_" + snake
                     operation = "DELETE"

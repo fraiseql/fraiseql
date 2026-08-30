@@ -204,7 +204,14 @@ describe("Field-Level Metadata", () => {
       expect(userType.fields[0].description).toBeUndefined();
     });
 
-    it("should support default values with metadata", () => {
+    // `default` belongs to an INPUT field, not an object-type field: `IntermediateField`
+    // has no such member and denies unknown fields, so a type field carrying it made the
+    // whole document uncompilable —
+    //   unknown field `default`, expected one of `name`, `type`, `nullable`, …
+    // This test used to assert the key survived, which is what kept the defect in place
+    // (#1251). `IntermediateInputField` does declare `default`, so `registerInputType`
+    // keeps it; the two halves are asserted together so neither can be "fixed" alone.
+    it("drops `default` on an object-type field and keeps it on an input field", () => {
       registerTypeFields("User", [
         {
           name: "role",
@@ -214,12 +221,16 @@ describe("Field-Level Metadata", () => {
           description: "User role",
         },
       ]);
+      SchemaRegistry.registerInputType("CreateUserInput", [
+        { name: "role", type: "String", nullable: true, default: "user" },
+      ]);
 
       const schema = SchemaRegistry.getSchema();
       const roleField = schema.types[0].fields[0];
 
-      expect(roleField.default).toBe("user");
+      expect(roleField.default).toBeUndefined();
       expect(roleField.description).toBe("User role");
+      expect(schema.input_types[0].fields[0].default).toBe("user");
     });
   });
 

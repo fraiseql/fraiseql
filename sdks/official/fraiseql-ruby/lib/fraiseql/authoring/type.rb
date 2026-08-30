@@ -15,8 +15,17 @@ module FraiseQL
 
     module ClassMethods
       # `deprecated` accepts `true` for "deprecated, no stated reason" or a String reason.
-      def fraiseql_field(name, type, description: nil, deprecated: false, required: true)
-        @fraiseql_fields[name] = { type: type, description: description, deprecated: deprecated, required: required }
+      #
+      # `computed` marks a server-assigned field — a slug, a view aggregation — that a
+      # client cannot supply, so `CrudGenerator` omits it from the generated input objects.
+      # There was no parameter for it here, so `to_fraiseql_crud` built its field list
+      # without the key the generator filters on and `reject { |f| f[:computed] }` rejected
+      # nothing (#1242). Authoring-time only: it is never emitted, because
+      # `IntermediateField` has no such member and denies unknown fields.
+      def fraiseql_field(name, type, description: nil, deprecated: false, required: true, computed: false)
+        @fraiseql_fields[name] = {
+          type: type, description: description, deprecated: deprecated, required: required, computed: computed
+        }
       end
 
       def fraiseql_type_name(name = nil)
@@ -88,7 +97,7 @@ module FraiseQL
         return nil unless @fraiseql_crud
 
         fields = @fraiseql_fields.map do |fname, fmeta|
-          { name: fname.to_s, type: fmeta[:type].to_s, nullable: !fmeta[:required] }
+          { name: fname.to_s, type: fmeta[:type].to_s, nullable: !fmeta[:required], computed: fmeta[:computed] }
         end
 
         CrudGenerator.generate(

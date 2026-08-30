@@ -67,6 +67,22 @@ function authorFull(): void {
     { sqlSource: "v_order" }
   );
 
+  // `crud` is an authoring-time expansion the compiler has no concept of, so the only
+  // evidence this SDK implements it is that the operations and input objects appear in
+  // the compiled schema. `computed` is the same: emitting the flag makes the document
+  // uncompilable, so the sole evidence it was honoured is `slug` on the type and absent
+  // from both input objects.
+  registerTypeFields(
+    "SupportTicket",
+    [
+      { name: "id", type: "Int", nullable: false },
+      { name: "title", type: "String", nullable: false },
+      { name: "slug", type: "String", nullable: false, computed: true },
+    ],
+    undefined,
+    { sqlSource: "v_support_ticket", crud: true }
+  );
+
   registerTypeFields(
     "UserNotFound",
     [

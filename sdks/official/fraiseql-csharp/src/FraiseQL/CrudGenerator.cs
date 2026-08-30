@@ -26,6 +26,21 @@ public static class CrudGenerator
         CamelRe.Replace(name, "_$1").ToLowerInvariant();
 
     /// <summary>
+    /// Convert a snake_case name to camelCase. Idempotent.
+    /// </summary>
+    /// <remarks>
+    /// The generated operations carried the snake_case name verbatim, so a
+    /// <c>Crud = true</c> type produced <c>create_support_ticket</c> in a schema whose
+    /// hand-authored mutations beside it were <c>createUser</c> — one SDK emitting two
+    /// naming conventions, and a different GraphQL API from the one Python generates for
+    /// the same declaration (#1247). The compiler does not rename: <c>naming_convention</c>
+    /// in the document is metadata, so the SDK has to emit the final name.
+    /// </remarks>
+    public static string SnakeToCamel(string name) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            name, "_([a-z])", m => m.Groups[1].Value.ToUpperInvariant());
+
+    /// <summary>
     /// Applies basic English pluralization rules to a snake_case name.
     /// </summary>
     /// <param name="name">The singular name.</param>
@@ -65,7 +80,7 @@ public static class CrudGenerator
         {
             // Get-by-ID query
             new(
-                Name: snake,
+                Name: SnakeToCamel(snake),
                 ReturnType: typeName,
                 ReturnsList: false,
                 Nullable: true,
@@ -75,7 +90,7 @@ public static class CrudGenerator
 
             // List query
             new(
-                Name: Pluralize(snake),
+                Name: SnakeToCamel(Pluralize(snake)),
                 ReturnType: typeName,
                 ReturnsList: true,
                 Nullable: false,
@@ -98,7 +113,7 @@ public static class CrudGenerator
             createInputName, createInputFields, $"Input for creating a new {typeName}."));
 
         mutations.Add(new IntermediateMutation(
-            Name: $"create_{snake}",
+            Name: SnakeToCamel($"create_{snake}"),
             ReturnType: typeName,
             SqlSource: $"fn_create_{snake}",
             Operation: "INSERT",
@@ -117,7 +132,7 @@ public static class CrudGenerator
             updateInputName, updateInputFields.AsReadOnly(), $"Input for updating an existing {typeName}."));
 
         mutations.Add(new IntermediateMutation(
-            Name: $"update_{snake}",
+            Name: SnakeToCamel($"update_{snake}"),
             ReturnType: typeName,
             SqlSource: $"fn_update_{snake}",
             Operation: "UPDATE",
@@ -127,7 +142,7 @@ public static class CrudGenerator
 
         // Delete mutation — PK only (no input object)
         mutations.Add(new IntermediateMutation(
-            Name: $"delete_{snake}",
+            Name: SnakeToCamel($"delete_{snake}"),
             ReturnType: typeName,
             SqlSource: $"fn_delete_{snake}",
             Operation: "DELETE",

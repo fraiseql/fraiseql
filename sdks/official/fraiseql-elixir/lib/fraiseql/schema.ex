@@ -371,6 +371,9 @@ defmodule FraiseQL.Schema do
     * `:vector_distance` — on a `:float` field, the vector field whose `nearest` search
       distance this field carries
     * `:deprecated` — `true`, or the deprecation reason as a string
+    * `:computed` — the field is server-assigned (a slug, a view aggregation), so it is
+      omitted from the input objects `crud:` generates. Authoring-time only: it is never
+      emitted into `schema.json`
 
   ## Example
 
@@ -415,6 +418,12 @@ defmodule FraiseQL.Schema do
         description: unquote(opts[:description]),
         requires_scope: unquote(opts[:requires_scope]),
         requires_scopes: unquote(opts[:requires_scopes]),
+        # `FieldDefinition` has carried `computed` since the struct was written and this
+        # macro never read it, so `CrudGenerator`'s `Enum.reject(& &1.computed)` rejected
+        # nothing and both generated input objects asked the client for server-assigned
+        # fields (#1246). Authoring-time only — the exporter does not emit it, because
+        # `IntermediateField` has no such member and denies unknown fields.
+        computed: unquote(Keyword.get(opts, :computed, false)),
         vector_config: unquote(vector_config),
         vector_distance: unquote(vector_distance),
         deprecated: unquote(opts[:deprecated])
@@ -540,19 +549,24 @@ defmodule FraiseQL.Schema do
     mutations = Module.get_attribute(env.module, :fraiseql_mutations) |> Enum.reverse()
     enums = Module.get_attribute(env.module, :fraiseql_enums) |> Enum.reverse()
 
-    validate_no_duplicate_types!(types, env.module)
-
-    # Expand CRUD operations for types that have crud enabled
-    {crud_queries, crud_mutations} =
+    # Expand CRUD operations for types that have crud enabled.
+    #
+    # The generated input objects join `types` carrying `is_input`, so a name collision
+    # between a hand-declared `CreateXInput` and a generated one is a duplicate like any
+    # other — which is why the duplicate check runs AFTER the expansion, not before it.
+    {crud_queries, crud_mutations, crud_input_types} =
       types
       |> Enum.filter(fn t -> t.crud != false end)
-      |> Enum.reduce({[], []}, fn t, {qs, ms} ->
-        {new_qs, new_ms} = FraiseQL.CrudGenerator.generate(t, cascade: t.cascade)
-        {qs ++ new_qs, ms ++ new_ms}
+      |> Enum.reduce({[], [], []}, fn t, {qs, ms, its} ->
+        {new_qs, new_ms, new_its} = FraiseQL.CrudGenerator.generate(t, cascade: t.cascade)
+        {qs ++ new_qs, ms ++ new_ms, its ++ new_its}
       end)
 
+    types = types ++ crud_input_types
     queries = queries ++ crud_queries
     mutations = mutations ++ crud_mutations
+
+    validate_no_duplicate_types!(types, env.module)
 
     quote do
       @doc """

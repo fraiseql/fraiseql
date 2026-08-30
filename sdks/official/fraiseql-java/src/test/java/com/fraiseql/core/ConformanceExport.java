@@ -57,6 +57,7 @@ public class ConformanceExport {
     private static void authorFull() {
         FraiseQL.registerType(ConformanceUser.class);
         FraiseQL.registerType(ConformanceOrder.class);
+        FraiseQL.registerType(ConformanceSupportTicket.class);
         FraiseQL.registerErrorType(ConformanceUserNotFound.class);
         FraiseQL.registerType(ConformanceDocument.class);
 
@@ -164,6 +165,23 @@ public class ConformanceExport {
 
         @GraphQLField(type = "String")
         public String status;
+    }
+
+    // `crud` is an authoring-time expansion the compiler has no concept of, so the only
+    // evidence this SDK implements it is that the operations and input objects appear in
+    // the compiled schema. `computed` is the same: emitting the flag makes the document
+    // uncompilable, so the sole evidence it was honoured is `slug` on the type and absent
+    // from both input objects.
+    @GraphQLType(name = "SupportTicket", sqlSource = "v_support_ticket", crud = true)
+    public static class ConformanceSupportTicket {
+        @GraphQLField(type = "Int")
+        public int id;
+
+        @GraphQLField(type = "String")
+        public String title;
+
+        @GraphQLField(type = "String", computed = true)
+        public String slug;
     }
 
     @GraphQLType(name = "UserNotFound", sqlSource = "v_user_not_found")

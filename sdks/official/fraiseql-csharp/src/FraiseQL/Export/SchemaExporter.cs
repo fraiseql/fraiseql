@@ -113,7 +113,6 @@ public static class SchemaExporter
                 Type: f.Type,
                 Nullable: f.Nullable,
                 Description: f.Description,
-                Resolver: f.Resolver,
                 Scope: f.Scope,
                 Scopes: f.Scopes,
                 Computed: f.Computed ? true : null,

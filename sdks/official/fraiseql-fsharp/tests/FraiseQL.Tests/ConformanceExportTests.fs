@@ -53,6 +53,22 @@ type ConformanceOrder() =
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Status = "" with get, set
 
+// `Crud` is an authoring-time expansion the compiler has no concept of, so the only
+// evidence this SDK implements it is that the operations and input objects appear in the
+// compiled schema. `Computed` is the same: emitting the flag makes the document
+// uncompilable, so the sole evidence it was honoured is `slug` on the type and absent from
+// both input objects.
+[<GraphQLType(Name = "SupportTicket", SqlSource = "v_support_ticket", Crud = true)>]
+type ConformanceSupportTicket() =
+    [<GraphQLField(Type = "Int", Nullable = false)>]
+    member val Id = 0 with get, set
+
+    [<GraphQLField(Type = "String", Nullable = false)>]
+    member val Title = "" with get, set
+
+    [<GraphQLField(Type = "String", Nullable = false, Computed = true)>]
+    member val Slug = "" with get, set
+
 [<GraphQLType(Name = "UserNotFound", SqlSource = "v_user_not_found", IsError = true)>]
 type ConformanceUserNotFound() =
     [<GraphQLField(Type = "String", Nullable = false)>]
@@ -106,6 +122,7 @@ let private authorMinimal () =
 let private authorFull () =
     SchemaRegistry.register typeof<ConformanceUser>
     SchemaRegistry.register typeof<ConformanceOrder>
+    SchemaRegistry.register typeof<ConformanceSupportTicket>
     SchemaRegistry.register typeof<ConformanceUserNotFound>
     SchemaRegistry.register typeof<ConformanceDocument>
 

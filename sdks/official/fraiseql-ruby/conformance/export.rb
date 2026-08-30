@@ -46,6 +46,17 @@ def author_full
     t.field :status, :string, nullable: false
   end
 
+  # `crud` is an authoring-time expansion the compiler has no concept of, so the only
+  # evidence this SDK implements it is that the operations and input objects appear in the
+  # compiled schema. `computed` is the same: emitting the flag makes the document
+  # uncompilable, so the sole evidence it was honoured is `display_slug` on the type and
+  # absent from both input objects.
+  schema.type "SupportTicket", sql_source: "v_support_ticket", crud: true do |t|
+    t.field :id, :int, nullable: false
+    t.field :title, :string, nullable: false
+    t.field :slug, :string, nullable: false, computed: true
+  end
+
   schema.type "UserNotFound", sql_source: "v_user_not_found", is_error: true do |t|
     t.field :message, :string, nullable: false
     t.field :code, :string, nullable: false

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'crud_generator.dart';
+
 /// Builds the intermediate `schema.json` document consumed by `fraiseql compile`.
 ///
 /// This is the API the README's Quick Start has always documented. It did not exist:
@@ -35,6 +37,11 @@ class FraiseQLSchema {
   /// `isInput: true` declares a GraphQL input object instead. An input object has no
   /// backing relation, so `sqlSource` is refused on one — the compiler rejects a type
   /// that declares both.
+  /// `crud: true` — or a subset such as `crud: ['read', 'create']` — expands the type
+  /// into the standard read/create/update/delete operations. The flag existed only on the
+  /// `@FraiseQLType` annotation, which nothing in this package read: Dart has no runtime
+  /// reflection over annotations and the package ships no builder, so `CrudGenerator` had
+  /// no caller by any route and declaring CRUD in Dart registered nothing (#1241).
   Map<String, Object?> type(
     String name, {
     required Map<String, FieldType> fields,
@@ -43,11 +50,24 @@ class FraiseQLSchema {
     bool relay = false,
     bool isError = false,
     bool isInput = false,
+    Object crud = false,
+    bool cascade = false,
   }) {
     if (isInput && sqlSource != null) {
       throw ArgumentError(
         "type '$name': an input type must not declare sqlSource — an input object has "
         'no backing view.',
+      );
+    }
+    if (crud != false && isInput) {
+      throw ArgumentError(
+        "type '$name': an input object has no CRUD operations to generate.",
+      );
+    }
+    if (crud is! bool && crud is! List<String>) {
+      throw ArgumentError(
+        "type '$name': crud must be a bool or a List<String> of operations "
+        "(read, create, update, delete); got ${crud.runtimeType}.",
       );
     }
 
@@ -64,7 +84,34 @@ class FraiseQLSchema {
     if (isInput) definition['is_input'] = true;
 
     _types.add(definition);
+    if (crud != false) _expandCrud(name, fields, sqlSource, crud, cascade);
     return definition;
+  }
+
+  /// Merges what [CrudGenerator] produces into the document being built.
+  ///
+  /// The generated input objects are appended to `types` carrying `is_input`, the
+  /// spelling `type(isInput: true)` uses and the one the conformance fixture proves the
+  /// compiler accepts.
+  void _expandCrud(
+    String name,
+    Map<String, FieldType> fields,
+    String? sqlSource,
+    Object crud,
+    bool cascade,
+  ) {
+    final generated = CrudGenerator.generate(
+      typeName: name,
+      fields: [
+        for (final entry in fields.entries) entry.value._toCrudField(entry.key),
+      ],
+      sqlSource: sqlSource,
+      cascade: cascade,
+      operations: crud is List<String> ? crud : null,
+    );
+    _types.addAll(generated['input_types']!);
+    _queries.addAll(generated['queries']!);
+    _mutations.addAll(generated['mutations']!);
   }
 
   /// Declares a GraphQL enum type.
@@ -301,6 +348,15 @@ class FieldType {
   /// empty string to deprecate with no stated reason.
   final String? deprecated;
 
+  /// The field is server-assigned — a slug, a view aggregation — so a client cannot
+  /// supply one and `crud:` omits it from the input objects it generates.
+  ///
+  /// Authoring-time only, and therefore never serialised: `IntermediateField` has no
+  /// `computed` member and denies unknown fields, so emitting it would make the whole
+  /// document uncompilable — the defect #927 fixed in Python and #1183 found still live
+  /// in TypeScript and C#.
+  final bool computed;
+
   const FieldType.named(
     this.type, {
     this.nullable = true,
@@ -310,6 +366,7 @@ class FieldType {
     this.vectorConfig,
     this.vectorDistance,
     this.deprecated,
+    this.computed = false,
   }) : assert(
           vectorConfig == null || vectorDistance == null,
           'A field declares either vectorConfig or vectorDistance, not both: vectorConfig '
@@ -358,6 +415,7 @@ class FieldType {
     String? requiresScope,
     String? onDeny,
     String? deprecated,
+    bool computed = false,
   }) : this.named(
           'ID',
           nullable: nullable,
@@ -365,6 +423,7 @@ class FieldType {
           requiresScope: requiresScope,
           onDeny: onDeny,
           deprecated: deprecated,
+          computed: computed,
         );
 
   /// GraphQL `String`.
@@ -374,6 +433,7 @@ class FieldType {
     String? requiresScope,
     String? onDeny,
     String? deprecated,
+    bool computed = false,
   }) : this.named(
           'String',
           nullable: nullable,
@@ -381,6 +441,7 @@ class FieldType {
           requiresScope: requiresScope,
           onDeny: onDeny,
           deprecated: deprecated,
+          computed: computed,
         );
 
   /// GraphQL `Int`. Named `int_` because `int` is a Dart keyword-adjacent type name.
@@ -390,6 +451,7 @@ class FieldType {
     String? requiresScope,
     String? onDeny,
     String? deprecated,
+    bool computed = false,
   }) : this.named(
           'Int',
           nullable: nullable,
@@ -397,6 +459,7 @@ class FieldType {
           requiresScope: requiresScope,
           onDeny: onDeny,
           deprecated: deprecated,
+          computed: computed,
         );
 
   /// GraphQL `Float`.
@@ -406,6 +469,7 @@ class FieldType {
     String? requiresScope,
     String? onDeny,
     String? deprecated,
+    bool computed = false,
   }) : this.named(
           'Float',
           nullable: nullable,
@@ -413,6 +477,7 @@ class FieldType {
           requiresScope: requiresScope,
           onDeny: onDeny,
           deprecated: deprecated,
+          computed: computed,
         );
 
   /// GraphQL `Boolean`.
@@ -422,6 +487,7 @@ class FieldType {
     String? requiresScope,
     String? onDeny,
     String? deprecated,
+    bool computed = false,
   }) : this.named(
           'Boolean',
           nullable: nullable,
@@ -429,7 +495,17 @@ class FieldType {
           requiresScope: requiresScope,
           onDeny: onDeny,
           deprecated: deprecated,
+          computed: computed,
         );
+
+  /// The field in the shape [CrudGenerator] reads, carrying `computed` — which
+  /// [_toJson] must not carry.
+  Map<String, dynamic> _toCrudField(String name) => <String, dynamic>{
+        'name': name,
+        'type': type,
+        'nullable': nullable,
+        'computed': computed,
+      };
 
   Map<String, Object?> _toJson(String name) {
     final json = <String, Object?>{

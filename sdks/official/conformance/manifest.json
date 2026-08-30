@@ -6,14 +6,14 @@
     "`export` runs in the SDK's own directory with two environment variables set:",
     "  FRAISEQL_CONFORMANCE_FIXTURE  'minimal' | 'full'",
     "  FRAISEQL_CONFORMANCE_OUT      absolute path to write schema.json to",
-    "It must author the fixture through the SDK's PUBLIC authoring API — never by",
+    "It must author the fixture through the SDK's PUBLIC authoring API \u2014 never by",
     "hand-assembling the expected JSON. Six of the eleven pre-existing parity generators",
     "did exactly that and were therefore incapable of failing.",
     "",
     "`unsupported` maps a construct name to the reason the SDK cannot author it. The",
     "default is that every construct is required: adding one to project.CONSTRUCTS fails",
     "every SDK until each either implements it or declares the gap here. Declaring a gap",
-    "is deliberate and public — README.md renders these reasons into the support matrix.",
+    "is deliberate and public \u2014 README.md renders these reasons into the support matrix.",
     "A declaration that is no longer true also fails, so the matrix cannot go stale."
   ],
   "sdks": {
@@ -48,7 +48,9 @@
         "run",
         "./conformance"
       ],
-      "unsupported": {}
+      "unsupported": {
+        "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182)."
+      }
     },
     "php": {
       "dir": "fraiseql-php",
@@ -89,7 +91,7 @@
         "quiet"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all — no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
       }
     },
     "fsharp": {
@@ -105,7 +107,7 @@
         "quiet"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all — no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
       }
     },
     "elixir": {
@@ -117,7 +119,7 @@
         "mix local.hex --force --if-missing >/dev/null && mix local.rebar --force --if-missing >/dev/null && mix deps.get >/dev/null && mix run conformance/export.exs"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all — no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
       },
       "container": "elixir:1.17",
       "container_env": [
@@ -134,7 +136,7 @@
         "conformance/export.rb"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all — no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
       },
       "container": "ruby:3.3"
     },
@@ -147,7 +149,7 @@
         "dart pub get >/dev/null && dart run conformance/export.dart"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all — no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
       },
       "container": "dart:stable",
       "container_env": [
@@ -179,7 +181,8 @@
         "mutation_arguments": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "mutation_invalidates_views": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "mutation_invalidates_fact_tables": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
-        "subscriptions": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct"
+        "subscriptions": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "type_crud": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct"
       }
     }
   }

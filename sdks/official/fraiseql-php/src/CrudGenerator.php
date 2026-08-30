@@ -25,6 +25,21 @@ final class CrudGenerator
     }
 
     /**
+     * Convert a snake_case name to camelCase. Idempotent.
+     *
+     * The generated operations carried the snake_case name verbatim, so a `crud: true`
+     * type produced `create_support_ticket` in a schema whose hand-authored mutations
+     * beside it were `createUser` — one SDK emitting two naming conventions, and a
+     * different GraphQL API from the one Python generates for the same declaration
+     * (#1247). The compiler does not rename: `naming_convention` in the document is
+     * metadata, so the SDK has to emit the final name.
+     */
+    public static function snakeToCamel(string $name): string
+    {
+        return preg_replace_callback('/_([a-z])/', static fn (array $m): string => strtoupper($m[1]), $name) ?? $name;
+    }
+
+    /**
      * Apply basic English pluralization rules to a snake_case name.
      *
      * Rules (ordered):
@@ -82,7 +97,7 @@ final class CrudGenerator
         $mutations = [];
 
         // Get-by-ID query
-        $queries[] = QueryBuilder::query($snake)
+        $queries[] = QueryBuilder::query(self::snakeToCamel($snake))
             ->returnType($typeName)
             ->nullable(true)
             ->argument($pkField->name, $pkField->type, nullable: false)
@@ -90,7 +105,7 @@ final class CrudGenerator
             ->sqlSource($view);
 
         // List query with auto_params
-        $queries[] = QueryBuilder::query(self::pluralize($snake))
+        $queries[] = QueryBuilder::query(self::snakeToCamel(self::pluralize($snake)))
             ->returnType($typeName)
             ->returnsList(true)
             ->description("List {$typeName} records.")
@@ -113,7 +128,7 @@ final class CrudGenerator
             "Input for creating a new {$typeName}.",
         );
 
-        $create = MutationBuilder::mutation("create_{$snake}")
+        $create = MutationBuilder::mutation(self::snakeToCamel("create_{$snake}"))
             ->returnType($typeName)
             ->description("Create a new {$typeName}.")
             ->sqlSource("fn_create_{$snake}")
@@ -143,7 +158,7 @@ final class CrudGenerator
             "Input for updating an existing {$typeName}.",
         );
 
-        $update = MutationBuilder::mutation("update_{$snake}")
+        $update = MutationBuilder::mutation(self::snakeToCamel("update_{$snake}"))
             ->returnType($typeName)
             ->description("Update an existing {$typeName}.")
             ->sqlSource("fn_update_{$snake}")
@@ -155,7 +170,7 @@ final class CrudGenerator
         $mutations[] = $update;
 
         // Delete mutation (PK only)
-        $delete = MutationBuilder::mutation("delete_{$snake}")
+        $delete = MutationBuilder::mutation(self::snakeToCamel("delete_{$snake}"))
             ->returnType($typeName)
             ->description("Delete a {$typeName}.")
             ->sqlSource("fn_delete_{$snake}")
