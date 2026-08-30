@@ -86,6 +86,16 @@ async fn setup() -> Option<PgPool> {
         .execute(&pool)
         .await
         .unwrap();
+    // Both layers, because every test here posts the SAME `CAPTURED_BODY` and the two
+    // dedup keys derive from it. Truncating only the ledger left the previous test's
+    // committed spine row owning this body, so the next test's genuine first delivery
+    // was refused by the spine. That was invisible until #1176 stopped reporting a
+    // spine refusal as `processed`; the sibling suite
+    // (`webhook_route_dedup_scope_pg.rs`) has always truncated both.
+    sqlx::query("TRUNCATE _fraiseql_inbound_message RESTART IDENTITY")
+        .execute(&pool)
+        .await
+        .unwrap();
     Some(pool)
 }
 

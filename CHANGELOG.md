@@ -228,6 +228,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`webhook_replay_header_dedup_pg` isolates its tests from each other (#1235).**
+
+  All three of its tests post the same fixed `CAPTURED_BODY`, and both dedup keys derive
+  from that body (#1046) — but `setup()` truncated `webhooks.tb_inbound_delivery` and not
+  `_fraiseql_inbound_message`. The first test's committed spine row therefore owned the
+  body when the second ran, so the second test's *genuine first* delivery was refused by
+  the spine and answered `duplicate`.
+
+  The fixture had been non-isolated all along; the response was covering for it. Before
+  #1176 a spine refusal was reported as `200 {"status":"processed"}`, so a delivery the
+  spine had actually refused still read `processed` and the test passed. Removing that lie
+  is what made the fixture's own defect visible — the two-layer shape again, where
+  repairing the layer that reports exposes the layer that does not.
+
+  `setup()` now truncates both, as the sibling `webhook_route_dedup_scope_pg` always has.
+  The other inbound suites were audited for the same shape: `webhook_provider_matrix_pg`
+  omits the spine truncation too but is safe, because its `CallSid` is `unique()` per run
+  and each run writes a distinct key. Only a suite with a fixed body is exposed.
+
 
 - **HTTP has a per-user rate limit again, on a signature-verified subject (#1171).**
 
