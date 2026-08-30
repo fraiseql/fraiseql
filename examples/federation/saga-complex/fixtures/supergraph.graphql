@@ -51,8 +51,14 @@ type Reservation @join__type(graph: FLIGHT) {
 
 type Booking @join__type(graph: FLIGHT) {
   bookingId: ID!
+  """`confirmed`, or `rolled_back` when a step failed and the earlier ones were compensated."""
   status: String!
+  """Why the saga rolled back. Null on a confirmed booking."""
+  reason: String
+  """The steps that succeeded, in the order they were taken."""
   reservations: [Reservation!]!
+  """One line per compensating action, in the order they ran — reverse of the reservations."""
+  compensations: [String!]!
 }
 
 directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE

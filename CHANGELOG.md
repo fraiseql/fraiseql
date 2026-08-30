@@ -320,9 +320,25 @@ disagreed, and the promise was the part that was wrong.
   The five subgraph stubs ran `from flask import Flask` on `python:3.11-slim`, which
   does not have Flask, and nothing installed it — so all five exited at the first
   import. The healthchecks could not report it either: they were `curl -f` on an image
-  with neither curl nor wget. The stubs now run on Python's standard library
-  (`http.server`), so the stack needs no package index at container start, and the
-  healthcheck is a stdlib `urllib` probe.
+  with neither curl nor wget.
+
+  Each service is now a directory with a Dockerfile and a `server.py` on the Python
+  standard library, and **the saga it documents is implemented**. `flight-service` is
+  the coordinator: it reserves flight, hotel and car, charges, and notifies, holding a
+  compensating action for each step and running them in reverse when a step fails.
+  `payment-service` refuses any `userId` beginning `decline`, deterministically, so the
+  failure branch is reachable from a test rather than only described. An unreachable
+  service is handled distinctly from a refused one — HTTP 402 with a reason versus
+  status 0.
+
+  Previously the README claimed "a complex distributed saga coordinating across five
+  independent services" while the supergraph routed to three and never called payment
+  or notification, and the stubs' fixed payloads did not match the field names the
+  schema declared, so `bookTravel` resolved to `Cannot return null`.
+
+  `test-saga.sh` now asserts both paths, the compensation *order*, and that the decline
+  is decided by the `userId` rather than incidental — and exits non-zero when the
+  router never comes up, instead of falling through to the first test.
 
   Three further defects found by actually starting it:
 

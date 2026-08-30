@@ -1,346 +1,107 @@
-# FraiseQL Saga Example: Complex Multi-Service (Travel Booking)
+# Saga: complex multi-service travel booking
 
-This example demonstrates a **complex distributed saga** coordinating across five independent services to book flights, hotels, and cars for a trip.
+A distributed saga across five services, with a compensating action for every
+step. Booking a trip reserves a flight, a hotel and a car, charges a card, and
+sends a confirmation; if the charge is refused, everything already reserved is
+released — in reverse order.
 
-## Scenario
+## What this example is, and is not
 
-A **travel booking saga** that shows:
+**It is** a demonstration of saga control flow: ordered steps, a failure that can
+happen part-way, and compensation that undoes exactly the work that was done.
 
-- **Multi-service orchestration** (5 services, each with own DB)
-- **Parallel and sequential steps** (reserve independently, then confirm sequentially)
-- **Cascading failures** (if payment fails, all reservations roll back)
-- **Complex compensation** (different logic for each service)
-- **Performance optimization** (parallel steps reduce latency)
+**It is not** a FraiseQL feature demo. The five services are standard-library
+Python stubs and the router is Apollo Router. Nothing here compiles a FraiseQL
+schema. It sits in `examples/federation/` because the read side is federated and
+the saga is what a caller sees through that federation.
 
-### The Travel Booking Saga Flow
+**Federation does not orchestrate the saga.** The router federates the *read*
+side — `Query.flight`, `Query.hotel`, `Query.car` each resolve at their own
+subgraph. `Mutation.bookTravel` resolves at one subgraph, `flight-service`, which
+then calls the other four over HTTP. That distinction is the point: a saga is
+service-to-service orchestration, not something a supergraph gives you.
 
-```
+## The saga
 
-1. Reserve Flight (Flight Service)
-   ├─ Check availability
-   ├─ Hold seat for 15 minutes
-   └─ Return flightId
-   ↓
-2. Reserve Hotel (Hotel Service) [PARALLEL with step 1]
-   ├─ Check availability for dates
-   ├─ Hold room for 15 minutes
-   └─ Return hotelId
-   ↓
-3. Reserve Car (Car Service) [PARALLEL with step 1-2]
-   ├─ Check availability for dates
-   ├─ Hold vehicle for 15 minutes
-   └─ Return carId
-   ↓
-4. Process Payment (Payment Service) [SEQUENTIAL after 1-3]
-   ├─ Charge credit card
-   └─ Return chargeId
-   ↓
-5. Confirm All (each service) [SEQUENTIAL after payment]
-   ├─ Confirm flight (release hold, book permanently)
-   ├─ Confirm hotel
-   ├─ Confirm car
-   └─ Send confirmation
-   ↓
-✅ Travel Booking Complete
+| # | Step | Service | Compensation |
+|---|---|---|---|
+| 1 | reserve flight | flight-service (local) | cancel the reservation |
+| 2 | reserve hotel | hotel-service | `POST /internal/cancel` |
+| 3 | reserve car | car-service | `POST /internal/cancel` |
+| 4 | charge card | payment-service | `POST /internal/refund` |
+| 5 | send confirmation | notification-service | none — nothing follows it |
 
-❌ If payment fails:
-   Compensation (parallel):
-   - Cancel flight hold
-   - Cancel hotel hold
-   - Cancel car hold
-   - Release any partial charge
-```
+Compensation runs in **reverse** order. The car is released before the hotel,
+because the car was booked against the hotel stay.
 
-## Architecture
+`payment-service` refuses any `userId` beginning `decline`, deterministically.
+That is what makes the failure branch reachable from a test rather than a
+paragraph in a README.
 
-```
-┌────────────────────────────────────┐
-│      Apollo Router (Gateway)        │
-│      localhost:4000/graphql         │
-└────────────┬───────────────────────┘
-             │
-    ┌────────┼────────┬──────────┬──────────┐
-    │        │        │          │          │
-┌───▼──┐ ┌──▼───┐ ┌──▼───┐ ┌───▼──┐ ┌────▼────┐
-│Flight│ │Hotel │ │Car   │ │Pay   │ │Notif    │
-│Svcs  │ │Svc   │ │Svc   │ │Svc   │ │Svc      │
-└───┬──┘ └──┬───┘ └──┬───┘ └───┬──┘ └────┬────┘
-    │       │        │         │         │
-┌───▼───┐  │        │         │         │
-│SQLite  │  │  PostgreSQL Database for all services
-│(flights)┘  │  - flights, hotels, cars, payments, notifications
-    │        │
-```
-
-## Why This Pattern?
-
-**Multi-service sagas are useful when:**
-
-- Services are independently deployed
-- Each service has its own database
-- Operations must be coordinated across boundaries
-- Failures in one service affect others
-- Strong consistency guarantees are needed
-
-**Trade-offs:**
-
-- More complex than single-service transactions
-- Higher latency (coordinating multiple services)
-- But: Services can be scaled independently
-- And: Services don't need shared databases
-
-## Key Features Demonstrated
-
-### 1. Parallel Steps (Steps 1-3)
-
-Reserve flights, hotels, and cars simultaneously:
-
-```
-Step 1: Reserve Flight   (starts 0ms, ends ~200ms)
-Step 2: Reserve Hotel    (starts 0ms, ends ~200ms)
-Step 3: Reserve Car      (starts 0ms, ends ~200ms)
-
-Total: ~200ms (not 600ms like sequential)
-```
-
-### 2. Cascading Compensation
-
-If payment fails, compensate all previous steps:
-
-```
-Step 1: ✓ Reserved Flight
-Step 2: ✓ Reserved Hotel
-Step 3: ✓ Reserved Car
-Step 4: ✗ Payment failed
-
-Compensation (parallel):
-
-- Release Flight hold
-- Release Hotel hold
-- Release Car hold
-
-All compensations parallel: ~100ms
-```
-
-### 3. Service Independence
-
-Each service:
-
-- Has its own database
-- Implements its own GraphQL schema
-- Handles its own errors
-- Manages its own compensation
-
-### 4. Strong Consistency
-
-All 5 steps succeed together or all rollback together:
-
-```
-✓ Booking confirmed AND all 5 steps succeeded
-✗ No booking, AND all holds released
-(No partially booked trips)
-```
-
-## Files
-
-```
-saga-complex/
-├── docker-compose.yml              # 6 services + router
-├── README.md                        # This file
-├── fixtures/                        # Database inits
-│   ├── flight-init.sql
-│   ├── hotel-init.sql
-│   ├── car-init.sql
-│   ├── payment-init.sql
-│   ├── notification-init.sql
-│   ├── supergraph.graphql
-│   └── router.yaml
-├── flight-service/
-│   ├── Dockerfile
-│   ├── schema.graphql
-│   └── server.py
-├── hotel-service/
-│   └── ...
-├── car-service/
-│   └── ...
-├── payment-service/
-│   └── ...
-├── notification-service/
-│   └── ...
-└── test-saga.sh                    # Integration tests
-```
-
-## Quick Start
-
-### 1. Start Example
+## Running it
 
 ```bash
-cd examples/federation/saga-complex
-docker-compose up -d
-```
-
-### 2. Run Tests
-
-```bash
+docker compose up -d --build
 ./test-saga.sh
 ```
 
-Tests:
+`test-saga.sh` asserts both paths and exits non-zero on any failure, including
+the router never coming up.
 
-- Successful booking (all steps succeed)
-- Payment failure (all steps compensate)
-- Flight unavailable (failure detection)
-- Partial failures (cascade effect)
+### The happy path
 
-### 3. Manual Testing
-
-```bash
-# Get flight availability
-curl -X POST http://localhost:4000/graphql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "query { flights(from: \"NYC\", to: \"LAX\") { id available price } }"
-  }'
-
-# Book travel
-curl -X POST http://localhost:4000/graphql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "mutation { bookTravel(userId: \"user-1\", flightId: \"f-1\", hotelId: \"h-1\", carId: \"c-1\") { bookingId status reservations { type id status } } }"
-  }'
+```graphql
+mutation($userId: ID!, $flightId: ID!, $hotelId: ID!, $carId: ID!) {
+  bookTravel(userId: $userId, flightId: $flightId, hotelId: $hotelId, carId: $carId) {
+    bookingId status reason
+    reservations { type id status }
+    compensations
+  }
+}
 ```
 
-## Performance Analysis
+with `userId: "u-42"`:
 
-### Parallel vs Sequential
-
-```
-SEQUENTIAL (steps one at a time):
-├─ Flight: 200ms
-├─ Hotel: 200ms
-├─ Car: 200ms
-├─ Payment: 100ms
-└─ Confirmations: 200ms
-   TOTAL: ~900ms
-
-PARALLEL (steps 1-3 concurrent):
-├─ Flight/Hotel/Car: 200ms (parallel)
-├─ Payment: 100ms
-└─ Confirmations: 200ms
-   TOTAL: ~500ms  ← 44% faster!
+```json
+{"status": "confirmed", "reason": null,
+ "reservations": [{"type":"flight"}, {"type":"hotel"}, {"type":"car"}, {"type":"payment"}],
+ "compensations": []}
 ```
 
-### Optimization Opportunities
+### The failure path
 
-1. **Further parallelization**: Confirmations could also run parallel
-2. **Service caching**: Cache flight/hotel availability
-3. **Batch operations**: Group multiple bookings per request
-4. **Connection pooling**: Reuse DB connections across requests
+The same mutation with `userId: "decline-7"`:
 
-## Error Handling
-
-### Network Errors
-
-If a service is temporarily unavailable:
-
-```
-Retry policy:
-
-- Attempt 1: 100ms delay
-- Attempt 2: 200ms delay
-- Attempt 3: 400ms delay
-- Give up after 3 attempts
+```json
+{"status": "rolled_back",
+ "reason": "card declined for decline-7",
+ "reservations": [{"type":"flight"}, {"type":"hotel"}, {"type":"car"}],
+ "compensations": ["car: compensated", "hotel: compensated", "flight: compensated"]}
 ```
 
-### Business Errors
+A service being *unreachable* is handled the same way — stop `car-service` and
+book, and the flight and hotel are released with `reason: "car step failed (0)"`.
+The coordinator distinguishes the two: a refusal comes back as HTTP 402 with a
+reason, an unreachable service as status 0.
 
-If no availability:
-
-```
-Flight unavailable for dates
-→ Fail fast (don't waste time on hotel/car)
-→ Compensate immediately
-```
-
-### Consistency Errors
-
-If compensation fails:
+## Layout
 
 ```
-Payment.refund() fails
-→ Log error for manual review
-→ Alert operations team
-→ Status: NEEDS_MANUAL_INTERVENTION
+flight-service/        the coordinator, and the Flight subgraph
+hotel-service/         Hotel subgraph  + /internal/reserve,/cancel
+car-service/           Car subgraph    + /internal/reserve,/cancel
+payment-service/       /internal/charge,/refund — declines `decline*` users
+notification-service/  /internal/reserve — the last step
+fixtures/supergraph.graphql   hand-maintained; see the note below
+fixtures/router.yaml
 ```
 
-## Monitoring & Observability
+Each service is a directory with a Dockerfile and a `server.py` on the Python
+standard library — no framework, so the image needs no package index at build
+and no dependency resolution at start.
 
-Key metrics for complex sagas:
-
-```
-
-- Booking success rate: Should be 98%+
-- Booking latency: Should be <500ms p99
-- Compensation rate: Should be <2%
-- Service availability: Should be 99.9%+
-```
-
-Example dashboard:
-
-```
-Booking Status       Latency Distribution
-  ✓ 98.5% (990)     [p50: 150ms]
-  ⚠ 1.0% (10)       [p90: 300ms]
-  ✗ 0.5% (5)        [p99: 450ms]
-
-Service Health       Compensation Reasons
-  Flight:  99.8%     - Unavailable: 60%
-  Hotel:   99.9%     - Payment failed: 25%
-  Car:     99.7%     - User cancelled: 15%
-  Payment: 99.9%
-  Notif:   99.2%
-```
-
-## Related Documentation
-
-- **[saga-basic/](../saga-basic/README.md)** - Simple 3-service example
-- **[saga-manual-compensation/](../saga-manual-compensation/README.md)** - Manual compensation pattern
-- **[SAGA_PATTERNS.md](../../docs/SAGA_PATTERNS.md)** - Advanced patterns including parallel sagas
-
-## Production Deployment
-
-For production, ensure:
-
-1. **Distributed Tracing**: Correlate requests across 5 services
-
-   ```bash
-   trace_id: abc-123-def
-   │
-   ├─ Flight Service: trace_id=abc-123-def span_id=f1
-   ├─ Hotel Service: trace_id=abc-123-def span_id=h1
-   ├─ Car Service: trace_id=abc-123-def span_id=c1
-   ├─ Payment Service: trace_id=abc-123-def span_id=p1
-   └─ Notification: trace_id=abc-123-def span_id=n1
-   ```
-
-2. **Circuit Breakers**: Fail fast if a service is down
-
-   ```
-   Flight Service down? → Don't try hotel/car
-   → Fail fast and save 300ms
-   ```
-
-3. **Monitoring**: Alert on anomalies
-   - Compensation rate > 5%
-   - Latency p99 > 1000ms
-   - Service unavailability
-
-4. **Backup Plans**: Handle permanent failures
-   - If payment fails, offer retry options
-   - If flight unavailable, suggest alternatives
-
----
-
-**Last Updated:** 2026-01-29
-
-**Maintainer:** FraiseQL Federation Team
+> The supergraph here is hand-maintained. `examples/federation/basic` instead
+> ships a `router/supergraph.yaml` and generates the artifact with
+> `rover supergraph compose`, which is the more durable arrangement: this file
+> drifted into being invalid and nothing noticed, because no CI leg starts this
+> stack.

@@ -1,304 +1,64 @@
 # Not CI-verified. Nothing in CI brings this stack up, so it may have stopped
-# working without anyone noticing — the state all six operator-facing stacks were
-# in on 2026-08-28, none of which could serve a query. The one stack this
-# repository does verify end to end is the root `docker-compose.yml`
-# (tools/compose-stack-test.sh, a step on the `Dagger — image` leg).
+# working without anyone noticing. The one stack this repository does verify end
+# to end is the root `docker-compose.yml` (tools/compose-stack-test.sh, a step on
+# the `Dagger — image` leg).
 #
-# The five subgraph stubs run on Python's standard library. They used to import
-# Flask on `python:3.11-slim`, which does not have it, and nothing here installed
-# it — so every one of them exited at the first import (#1193). The healthchecks
-# could not report that, because they were `curl -f` and that image has no curl
-# either (nor wget). Using the stdlib keeps the stack independent of a package
-# index at container start.
+# Each service is a real directory with a Dockerfile and a server, rather than a
+# heredoc inlined here. The inline version imported Flask on an image that does
+# not have it and was never installed, so all five exited at the first import,
+# and the `curl -f` healthchecks could not report it because that image has no
+# curl either (#1193). These run on the standard library.
 #
-# `version:` is deliberately absent — Compose has treated it as obsolete since
-# v2 and warns on every invocation when it is present.
+# `flight-service` is the saga coordinator; see its server.py.
 
 services:
   flight-service:
-    image: python:3.11-slim
-    working_dir: /app
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        python3 << 'EOF'
-        import json
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-
-        PAYLOAD = {"data": {"reserveFlight": {"flightId": "f-123", "status": "reserved"}}}
-
-        class Handler(BaseHTTPRequestHandler):
-            protocol_version = "HTTP/1.1"
-
-            def _reply(self, code, body, ctype="application/json"):
-                raw = body.encode()
-                self.send_response(code)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-
-            def do_POST(self):
-                self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                if self.path == "/graphql":
-                    self._reply(200, json.dumps(PAYLOAD))
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def do_GET(self):
-                if self.path == "/health":
-                    self._reply(200, "OK", "text/plain")
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def log_message(self, *args):
-                pass
-
-        HTTPServer(("0.0.0.0", 4000), Handler).serve_forever()
-        EOF
+    build: ./flight-service
+    environment:
+      PORT: "4000"
+      HOTEL_URL: "http://hotel-service:4000"
+      CAR_URL: "http://car-service:4000"
+      PAYMENT_URL: "http://payment-service:4000"
+      NOTIFICATION_URL: "http://notification-service:4000"
     ports:
       - "4001:4000"
-    healthcheck:
-      test:
-        - CMD
-        - python3
-        - -c
-        - |
-          import sys, urllib.request
-          sys.exit(0 if urllib.request.urlopen(
-              "http://localhost:4000/health", timeout=3).status == 200 else 1)
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    depends_on:
+      hotel-service:
+        condition: service_healthy
+      car-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
 
   hotel-service:
-    image: python:3.11-slim
-    working_dir: /app
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        python3 << 'EOF'
-        import json
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-
-        PAYLOAD = {"data": {"reserveHotel": {"hotelId": "h-456", "status": "reserved"}}}
-
-        class Handler(BaseHTTPRequestHandler):
-            protocol_version = "HTTP/1.1"
-
-            def _reply(self, code, body, ctype="application/json"):
-                raw = body.encode()
-                self.send_response(code)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-
-            def do_POST(self):
-                self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                if self.path == "/graphql":
-                    self._reply(200, json.dumps(PAYLOAD))
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def do_GET(self):
-                if self.path == "/health":
-                    self._reply(200, "OK", "text/plain")
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def log_message(self, *args):
-                pass
-
-        HTTPServer(("0.0.0.0", 4000), Handler).serve_forever()
-        EOF
+    build: ./hotel-service
+    environment:
+      PORT: "4000"
     ports:
       - "4002:4000"
-    healthcheck:
-      test:
-        - CMD
-        - python3
-        - -c
-        - |
-          import sys, urllib.request
-          sys.exit(0 if urllib.request.urlopen(
-              "http://localhost:4000/health", timeout=3).status == 200 else 1)
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   car-service:
-    image: python:3.11-slim
-    working_dir: /app
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        python3 << 'EOF'
-        import json
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-
-        PAYLOAD = {"data": {"reserveCar": {"carId": "c-789", "status": "reserved"}}}
-
-        class Handler(BaseHTTPRequestHandler):
-            protocol_version = "HTTP/1.1"
-
-            def _reply(self, code, body, ctype="application/json"):
-                raw = body.encode()
-                self.send_response(code)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-
-            def do_POST(self):
-                self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                if self.path == "/graphql":
-                    self._reply(200, json.dumps(PAYLOAD))
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def do_GET(self):
-                if self.path == "/health":
-                    self._reply(200, "OK", "text/plain")
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def log_message(self, *args):
-                pass
-
-        HTTPServer(("0.0.0.0", 4000), Handler).serve_forever()
-        EOF
+    build: ./car-service
+    environment:
+      PORT: "4000"
     ports:
       - "4003:4000"
-    healthcheck:
-      test:
-        - CMD
-        - python3
-        - -c
-        - |
-          import sys, urllib.request
-          sys.exit(0 if urllib.request.urlopen(
-              "http://localhost:4000/health", timeout=3).status == 200 else 1)
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   payment-service:
-    image: python:3.11-slim
-    working_dir: /app
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        python3 << 'EOF'
-        import json
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-
-        PAYLOAD = {"data": {"processPayment": {"chargeId": "ch-999", "status": "completed"}}}
-
-        class Handler(BaseHTTPRequestHandler):
-            protocol_version = "HTTP/1.1"
-
-            def _reply(self, code, body, ctype="application/json"):
-                raw = body.encode()
-                self.send_response(code)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-
-            def do_POST(self):
-                self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                if self.path == "/graphql":
-                    self._reply(200, json.dumps(PAYLOAD))
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def do_GET(self):
-                if self.path == "/health":
-                    self._reply(200, "OK", "text/plain")
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def log_message(self, *args):
-                pass
-
-        HTTPServer(("0.0.0.0", 4000), Handler).serve_forever()
-        EOF
+    build: ./payment-service
+    environment:
+      PORT: "4000"
     ports:
       - "4004:4000"
-    healthcheck:
-      test:
-        - CMD
-        - python3
-        - -c
-        - |
-          import sys, urllib.request
-          sys.exit(0 if urllib.request.urlopen(
-              "http://localhost:4000/health", timeout=3).status == 200 else 1)
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   notification-service:
-    image: python:3.11-slim
-    working_dir: /app
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        python3 << 'EOF'
-        import json
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-
-        PAYLOAD = {"data": {"sendConfirmation": {"notificationId": "n-111", "status": "sent"}}}
-
-        class Handler(BaseHTTPRequestHandler):
-            protocol_version = "HTTP/1.1"
-
-            def _reply(self, code, body, ctype="application/json"):
-                raw = body.encode()
-                self.send_response(code)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-
-            def do_POST(self):
-                self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                if self.path == "/graphql":
-                    self._reply(200, json.dumps(PAYLOAD))
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def do_GET(self):
-                if self.path == "/health":
-                    self._reply(200, "OK", "text/plain")
-                else:
-                    self._reply(404, '{"errors":[{"message":"not found"}]}')
-
-            def log_message(self, *args):
-                pass
-
-        HTTPServer(("0.0.0.0", 4000), Handler).serve_forever()
-        EOF
+    build: ./notification-service
+    environment:
+      PORT: "4000"
     ports:
       - "4005:4000"
-    healthcheck:
-      test:
-        - CMD
-        - python3
-        - -c
-        - |
-          import sys, urllib.request
-          sys.exit(0 if urllib.request.urlopen(
-              "http://localhost:4000/health", timeout=3).status == 200 else 1)
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   apollo-router:
     image: ghcr.io/apollographql/router:v1.59.0
