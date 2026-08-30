@@ -5,15 +5,19 @@ Authors@R: c(
   person("FraiseQL", "Contributors", email = "dev@fraiseql.dev", role = c("aut", "cre"))
 )
 Description: Arrow Flight client for FraiseQL enabling zero-copy integration with R
-    statistical analysis and data manipulation workflows. Supports GraphQL queries
-    and observer event streaming with direct Arrow/RecordBatch consumption.
+    statistical analysis and data manipulation workflows. Supports GraphQL queries,
+    direct view reads and batched queries, with direct Arrow/RecordBatch consumption.
+    Observer event streaming is not offered: the server answers ObserverEvents with
+    'unimplemented'.
 Depends: R (>= 4.0)
 Imports:
     arrow,
-    jsonlite
+    jsonlite,
+    reticulate
 Suggests:
     dplyr,
     tidyr
+SystemRequirements: Python (>= 3.9) with pyarrow, reached through reticulate
 License: MIT
 Encoding: UTF-8
 RoxygenNote: 7.2.0

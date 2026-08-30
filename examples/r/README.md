@@ -2,16 +2,38 @@
 
 Arrow Flight client for FraiseQL enabling statistical analysis and data manipulation in R.
 
+**What is verified** (#1260). Two things, both reproducible:
+
+* it parses under a real R on every push — `tools/check-r-examples-parse.sh`;
+* `make probe-r-flight` runs it against a live Arrow Flight server that enforces
+  the same handshake and `authorization` header FraiseQL's does, and checks that a
+  tampered session token is refused, so the pass is not vacuous.
+
+Running it is what found the two defects parsing could not: reticulate provisioning
+its own Python instead of the one you `pip install`ed into, and `rawToChar()` on a
+`python.builtin.bytes` object, which meant no handshake could ever complete.
+
+What is **not** covered: neither runs against `fraiseql-server`, so this client and
+that server are not known to agree on the wire.
+
 ## Installation
 
 ### From Source
 
 ```r
-# Install dependencies
-install.packages(c("arrow", "jsonlite"))
+# Install dependencies. reticulate is not optional: this client drives pyarrow
+# through it, because arrow::flight_get() has no parameter for per-call gRPC
+# metadata and so cannot send the header the server requires.
+install.packages(c("arrow", "jsonlite", "reticulate"))
 
 # Load the client
 source("fraiseql_client.R")
+```
+
+pyarrow must be importable from the Python that reticulate binds to:
+
+```bash
+pip install pyarrow
 ```
 
 ### Build as Package
@@ -101,17 +123,28 @@ print(orders)
 
 ## Performance
 
-- **Zero-copy**: Arrow data consumed directly without serialization overhead
-- **Memory efficient**: Batch processing for large datasets
-- **Speed**: 50x faster than HTTP/JSON for 100k+ rows
+- **Zero-copy**: Arrow record batches are consumed directly, with no row-by-row
+  JSON deserialization
+- **Memory efficient**: results arrive as batches rather than one materialized
+  document
+
+No speed figure is quoted here. This client has never been run against a server,
+so any number for it would be borrowed from a different client on different
+hardware.
 
 ## Requirements
 
 - R 4.0+
 - arrow package (CRAN: `install.packages("arrow")`)
 - jsonlite package (CRAN: `install.packages("jsonlite")`)
-- FraiseQL server running on accessible host:port
+- reticulate package (CRAN: `install.packages("reticulate")`)
+- pyarrow, importable from the Python reticulate binds to (`pip install pyarrow`)
+- FraiseQL server running on accessible host:port, with `FLIGHT_SESSION_SECRET`
+  set and an OIDC validator configured — `do_get` is authenticated before the
+  ticket is decoded, so an unconfigured server refuses every call
 
 ## Examples
 
-See `fraiseql_client.R` for runnable examples in the `if (interactive())` section.
+`fraiseql_client.R` ends with a block that runs when the file is executed
+non-interactively (`Rscript fraiseql_client.R`) rather than sourced from a session.
+It needs `FRAISEQL_JWT` set and a reachable server; it has not been run.

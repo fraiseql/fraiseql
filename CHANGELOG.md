@@ -459,6 +459,41 @@ disagreed, and the promise was the part that was wrong.
   seconds and reporting the first query as the failure. Subgraph errors are no
   longer redacted in either stack, so a failing example says what went wrong.
 
+- **`examples/r/fraiseql_client.R` is parsed on every push — and has now been run (#1260).**
+
+  Nothing in this repository ran, linted or even parsed it. #1200 rewrote it to
+  perform the Flight handshake and attach the `authorization` header on a machine
+  with no R installed, so that rewrite shipped unverified in the dimension it was
+  most exposed to.
+
+  `tools/check-r-examples-parse.sh` parses every R file under `examples/` under a
+  real R, as a sibling gate of the Dagger preflight leg and of `make preflight`.
+  Discovery is at runtime and an empty discovery fails; five self-tests pin its
+  red capability.
+
+  Parsing found nothing wrong. Running it found two defects:
+
+  - reticulate >= 1.41 provisions an ephemeral uv-managed Python rather than the
+    system interpreter, so a reader who ran `pip install pyarrow` still got
+    `ModuleNotFoundError: No module named 'pyarrow'`. The client declares the
+    dependency with `py_require()`.
+  - `rawToChar()` was applied to what reticulate returns for Python `bytes` — a
+    `python.builtin.bytes` object, not a raw vector — so the handshake failed with
+    "argument 'x' must be a raw vector" and no call could ever be made. The
+    handshake handler now exposes the decoded token.
+
+  `make probe-r-flight` is that run, packaged: it drives the client against a
+  Flight server enforcing the same handshake and header, and asserts that a
+  tampered session token is refused, so a pass cannot be vacuous. It is manual
+  rather than a merge gate — the first build compiles libarrow from source. It
+  does not exercise `fraiseql-server`, so client and server are still not known to
+  agree on the wire.
+
+  `examples/README.md` no longer describes both Flight clients as unable to
+  authenticate — they were repaired in #1200 — nor implies the R client is at
+  parity with `python/`. `DESCRIPTION` declares `reticulate`, which the client
+  uses, and no longer advertises observer event streaming, which #1200 removed.
+
 - **Both shipped Arrow Flight clients authenticate, and stop showcasing an unimplemented call (#1200).**
 
   The server authenticates `do_get` **before** it decodes the ticket, so a call with no

@@ -807,6 +807,35 @@ lint-examples-postgres-only:
 lint-examples-integrity:
 	@bash tools/check-examples-integrity.sh
 
+# Gate: every R file under examples/ parses. Nothing in this repository ran,
+# linted or even parsed `examples/r/fraiseql_client.R` (#1260) — the example gates
+# reach authoring artifacts, compose files and Cargo projects, and none of them
+# reaches R. #1200 rewrote that client on a machine with no R installed, so the
+# rewrite shipped unverified in the one dimension it was most exposed to.
+#
+# Parsing is not running: it says nothing about whether the Flight handshake
+# works. That is Level 3 of #1260 and needs a live server. Uses Rscript when it is
+# on PATH and a pinned r-base image otherwise, and refuses to skip when it has
+# neither.
+.PHONY: lint-r-examples
+lint-r-examples:
+	@bash tools/check-r-examples-parse.sh
+
+# Unit tests for the gate above. Five ways to go red, none of them observable from
+# a passing run of the real tree — which holds exactly one R file, and it parses.
+.PHONY: test-r-examples-gate
+test-r-examples-gate:
+	@bash tools/tests/r_examples_parse_test.sh
+
+# Manual probe: run examples/r/fraiseql_client.R against a live Arrow Flight
+# server that enforces the same handshake and authorization header FraiseQL's
+# does. Not a merge gate and not in preflight — the first build compiles libarrow
+# from source (~15 min). `lint-r-examples` above is the gate; this is what you run
+# when the R client itself changes, because parsing it is not running it (#1260).
+.PHONY: probe-r-flight
+probe-r-flight:
+	@bash tools/r-flight-probe/run.sh
+
 # Gate: an SDK authoring surface removed for having no compiler consumer stays
 # removed (#926). The compiled-schema seam denies unknown fields, but a surface that
 # never reaches the wire at all — Java's registry-only dispatch config, Dart's
@@ -1047,7 +1076,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-phases-citations-gate test-image-context-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

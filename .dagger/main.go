@@ -200,6 +200,7 @@ func (m *FraiseqlCi) Preflight(
 		{"check-default", m.CheckDefault},
 		{"check-fuzz", m.CheckFuzz},
 		{"check-example-crates", m.CheckExampleCrates},
+		{"check-r-examples", m.CheckRExamples},
 	}
 
 	var report strings.Builder
@@ -317,6 +318,36 @@ func (m *FraiseqlCi) CheckExampleCrates(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithExec([]string{"bash", "tools/check-example-crates-compile.sh"}).
+		Stdout(ctx)
+}
+
+// CheckRExamples: every R file under examples/ parses.
+//
+// Nothing in this repository ran, linted or even parsed `examples/r/
+// fraiseql_client.R` (#1260). The example gates reach authoring artifacts,
+// compose files and standalone Cargo projects; none of them reaches R. #1200
+// rewrote that client to perform the Flight handshake on a machine with no R
+// installed, so it shipped unverified in the dimension it was most exposed to.
+//
+// Parsing is not running — it says nothing about whether the handshake works,
+// which needs a live Flight server (Level 3 of #1260).
+//
+// Built on shellBase (the ghcr-mirrored ubuntu image, not Docker Hub) + apt
+// r-base-core, so it adds no new base image and no Docker Hub pull: 35 MB,
+// about ten seconds, and the layer caches. With Rscript on PATH the gate never
+// reaches its container fallback.
+func (m *FraiseqlCi) CheckRExamples(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.shellBase().
+		WithExec([]string{
+			"apt-get", "install", "-y", "--no-install-recommends", "r-base-core",
+		}).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"bash", "tools/check-r-examples-parse.sh"}).
 		Stdout(ctx)
 }
 

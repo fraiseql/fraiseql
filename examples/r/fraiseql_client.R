@@ -34,6 +34,19 @@ library(arrow)
 library(jsonlite)
 library(reticulate)
 
+# reticulate >= 1.41 provisions an *ephemeral* uv-managed Python rather than using
+# the system interpreter, so a reader who ran `pip install pyarrow` still gets
+# `ModuleNotFoundError: No module named 'pyarrow'` — measured, not predicted
+# (#1260). Declaring the requirement puts pyarrow into whichever environment
+# reticulate ends up using. Older reticulate has no py_require and binds the
+# system interpreter, which is where `pip install pyarrow` already put it.
+.fraiseql_require_pyarrow <- function() {
+  if ("py_require" %in% getNamespaceExports("reticulate")) {
+    reticulate::py_require("pyarrow")
+  }
+  invisible(NULL)
+}
+
 # The handshake handler, defined in Python because it must subclass
 # pyarrow.flight.ClientAuthHandler. Our server's handshake is NOT Basic auth, so
 # `authenticate_basic_token()` does not apply: the payload is the literal string
@@ -55,6 +68,14 @@ class _FraiseQLBearerHandshake(_fl.ClientAuthHandler):
 
     def get_token(self):
         return self._token
+
+    # pyarrow calls get_token() and wants bytes. reticulate hands bytes to R as a
+    # `python.builtin.bytes` object rather than a raw vector, so rawToChar() on it
+    # fails with \"argument 'x' must be a raw vector\" and no handshake could
+    # complete (measured, #1260). Decoding on the Python side returns a str, which
+    # reticulate converts to an R character vector.
+    def session_token(self):
+        return self._token.decode()
 ")
 }
 
@@ -77,6 +98,7 @@ connect_fraiseql <- function(host = "localhost", port = 50051,
     stop("set FRAISEQL_JWT (or pass jwt=) — the Flight surface authenticates every call")
   }
 
+  .fraiseql_require_pyarrow()
   fl <- reticulate::import("pyarrow.flight")
   client <- fl$FlightClient(paste0("grpc://", host, ":", port))
 
@@ -84,7 +106,7 @@ connect_fraiseql <- function(host = "localhost", port = 50051,
   handler <- py$`_FraiseQLBearerHandshake`(jwt)
   client$authenticate(handler)
 
-  session_token <- rawToChar(handler$get_token())
+  session_token <- handler$session_token()
   if (!nzchar(session_token)) {
     stop("handshake returned an empty session token")
   }

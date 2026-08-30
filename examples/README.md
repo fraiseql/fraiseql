@@ -124,13 +124,30 @@ python3 fraiseql_client.py query '{ posts { title } }' --output posts.parquet
 Handshake, session token, `query` and `view`; Parquet, CSV and Arrow IPC output.
 Verified against a live Flight server.
 
-### [`r/`](r) and [`rust/flight_client/`](rust/flight_client)
+### [`rust/flight_client/`](rust/flight_client)
 
-Both call `do_get` with no handshake and no `authorization` header, so every call
-they can make is refused; both also headline `stream_events`, and `ObserverEvents`
-is unimplemented on the server. Tracked as
-[#1200](https://github.com/fraiseql/fraiseql/issues/1200). Read `python/` for the
-protocol they are missing.
+Handshake, session token and the `authorization` header, implementing the protocol
+`crates/fraiseql-arrow/tests/flight_auth_test.rs` pins. It compiles on every push —
+`tools/check-example-crates-compile.sh` builds it, tests included — but nothing runs
+it against a live server. `python/` is the client that has been.
+
+### [`r/`](r)
+
+The same protocol, driving pyarrow through reticulate: `arrow::flight_get()` has no
+parameter for per-call gRPC metadata, so the `arrow` package cannot send the header
+the server requires.
+
+Two levels of verification, both reproducible (#1260):
+
+* `tools/check-r-examples-parse.sh` parses it under a real R on **every push**.
+* `make probe-r-flight` runs it against a Flight server that enforces the same
+  handshake and `authorization` header, and asserts a tampered session token is
+  refused. Manual, not a merge gate: the first build compiles libarrow from
+  source, about fifteen minutes.
+
+What that does not cover: neither exercises `fraiseql-server` itself, so the two
+are not known to agree on the wire — `crates/fraiseql-arrow/tests/
+flight_auth_test.rs` is what pins the server's side.
 
 ### [`clickhouse/`](clickhouse)
 
