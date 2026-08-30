@@ -111,14 +111,17 @@ let ``the index and metric left to the default are written out`` () =
     plain.GetProperty("distance_metric").GetString() |> should equal "cosine"
 
 [<Fact>]
-let ``a distance reference follows the field name into snake_case`` () =
-    // Field names are snake_cased on the way out, so the reference has to be too, or
-    // the author points at the name they wrote and the compiler looks for it among
-    // names spelled differently.
+let ``a distance reference follows the field name into camelCase`` () =
+    // A distance reference names a sibling field, so it goes through whatever conversion
+    // field names go through — or the author points at the name they wrote and the
+    // compiler looks for it among names spelled differently. That conversion was
+    // `toSnakeCase` and this asserted `title_embedding`; it is `toCamelCase` since #1249,
+    // because F# was the only SDK besides Ruby and Elixir still publishing snake_case
+    // field names, and no fixture could see it while every field name was one word.
     register ()
 
     (field "VectorDocument" "similarity").GetProperty("vector_distance").GetString()
-    |> should equal "title_embedding"
+    |> should equal "titleEmbedding"
 
 [<Fact>]
 let ``an ordinary field carries no vector keys`` () =

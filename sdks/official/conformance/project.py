@@ -60,7 +60,12 @@ AUTHORED_VECTOR_TYPES = ("Document",)
 # camelCase, so a `Ticket` fixture would have passed for the six SDKs whose generated
 # operations are snake_case while every hand-authored operation beside them is camelCase
 # (#1247) — a suite uniform in the dimension that selects the branch tests one branch.
-# `due_date` does the same for the generated input objects' field names.
+#
+# `due_date` does the same one level down, for the field names inside the generated input
+# objects. It was named in this comment before it was in any fixture, which made the
+# comment read as evidence when the fields were still `id`/`title`/`slug` and the suite
+# was blind to the whole question. Ruby, Elixir and F# were each emitting a field name the
+# other eight did not, and the fixture could not see it (#1249).
 CRUD_TYPE = "SupportTicket"
 CRUD_INPUT_TYPES = ("CreateSupportTicketInput", "UpdateSupportTicketInput")
 CRUD_QUERIES = ("supportTicket", "supportTickets")

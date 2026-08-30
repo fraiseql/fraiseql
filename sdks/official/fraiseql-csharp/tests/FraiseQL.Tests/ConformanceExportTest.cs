@@ -143,6 +143,16 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "Float", Nullable = true, Scope = "read:User.salary")]
         public double? Salary { get; set; }
+
+        // Two words and a digit segment (#1249). A C# property is PascalCase, and
+        // `MapPropertyName` lowers the first letter — so this is one of the SDKs
+        // where the fixture actually discriminates: `Phone1` must reach the wire as
+        // `phone1`, not `Phone1` and not `phone_1`.
+        [GraphQLField(Type = "String", Nullable = true)]
+        public string? LastLoginAt { get; set; }
+
+        [GraphQLField(Type = "String", Nullable = true)]
+        public string? Phone1 { get; set; }
     }
 
     [GraphQLType(Name = "Document", SqlSource = "v_document")]
@@ -202,6 +212,9 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "String")]
         public string Title { get; set; } = string.Empty;
+
+        [GraphQLField(Type = "String")]
+        public string DueDate { get; set; } = string.Empty;
 
         [GraphQLField(Type = "String", Computed = true)]
         public string Slug { get; set; } = string.Empty;

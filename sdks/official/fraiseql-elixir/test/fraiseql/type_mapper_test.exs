@@ -112,6 +112,29 @@ defmodule FraiseQL.TypeMapperTest do
     assert TypeMapper.to_camel_case(:authors) == "authors"
   end
 
+  # The two properties every one-word case above is blind to. `to_camel_case` was
+  # `String.split("_")` + `String.capitalize/1`, and both of these were wrong: capitalize
+  # leaves a digit alone but downcases the rest of the segment, so a field declared
+  # `:phone_1` kept its underscore and `:user_ID` lost its capitals (#1249). The
+  # reference is the engine's `to_camel_case`, `fraiseql-core/src/utils/casing.rs`.
+
+  test "to_camel_case(:phone_1) == phone1 — a digit segment collapses onto the word" do
+    assert TypeMapper.to_camel_case(:phone_1) == "phone1"
+  end
+
+  test "to_camel_case(:dns_1_id) == dns1Id" do
+    assert TypeMapper.to_camel_case(:dns_1_id) == "dns1Id"
+  end
+
+  test "to_camel_case(:user_ID) == userID — the rest of a segment keeps its case" do
+    assert TypeMapper.to_camel_case(:user_ID) == "userID"
+  end
+
+  test "to_camel_case/1 accepts a string and is idempotent" do
+    assert TypeMapper.to_camel_case("last_login_at") == "lastLoginAt"
+    assert TypeMapper.to_camel_case("lastLoginAt") == "lastLoginAt"
+  end
+
   # ---------------------------------------------------------------------------
   # Struct key access (smoke-test for definitions)
   # ---------------------------------------------------------------------------

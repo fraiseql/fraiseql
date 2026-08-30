@@ -47,6 +47,11 @@ func authorFull() error {
 			Deprecated:  &fraiseql.DeprecationInfo{Reason: "use displayName"},
 		},
 		{Name: "salary", Type: "Float", Nullable: true, Scope: "read:User.salary"},
+		// Two words and a digit segment (#1249). Go's author writes the wire name, so
+		// these are already camelCase; the SDKs whose identifiers are idiomatic
+		// (Python, Ruby, Elixir, C#, F#) are where the translation is exercised.
+		{Name: "lastLoginAt", Type: "String", Nullable: true},
+		{Name: "phone1", Type: "String", Nullable: true},
 	}, "", true); err != nil {
 		return err
 	}

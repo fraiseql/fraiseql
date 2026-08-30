@@ -7,6 +7,7 @@
 # at all, only the `lib/fraiseql/` directory. The package's own tests never hit it because
 # they require the individual files directly (#853).
 require_relative "fraiseql/version"
+require_relative "fraiseql/naming"
 require_relative "fraiseql/errors"
 require_relative "fraiseql/retry"
 require_relative "fraiseql/client"

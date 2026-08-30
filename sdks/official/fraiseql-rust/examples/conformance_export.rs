@@ -44,6 +44,11 @@ fn full() -> SchemaRegistry {
             Field::new("salary", "Float")
                 .with_nullable(true)
                 .with_requires_scope(Some("read:User.salary".to_string())),
+            // Two words and a digit segment (#1249). The Rust SDK's author writes the wire
+            // name, so these are already camelCase; the translation is exercised by the
+            // SDKs whose identifiers are idiomatic instead (Python, Ruby, Elixir, C#, F#).
+            Field::new("lastLoginAt", "String").with_nullable(true),
+            Field::new("phone1", "String").with_nullable(true),
         ],
         "v_user",
     );

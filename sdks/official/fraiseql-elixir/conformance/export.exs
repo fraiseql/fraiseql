@@ -40,6 +40,11 @@ defmodule Conformance.FullSchema do
       deprecated: "use displayName"
     )
     field(:salary, :float, nullable: true, requires_scope: "read:User.salary")
+    # Two words and a digit segment (#1249). An Elixir field name is a snake_case atom,
+    # so this fixture discriminates: `:last_login_at` must reach the wire as
+    # `lastLoginAt` and `:phone_1` as `phone1`.
+    field(:last_login_at, :string, nullable: true)
+    field(:phone_1, :string, nullable: true)
   end
 
   fraiseql_type "Order", sql_source: "v_order" do
@@ -56,6 +61,7 @@ defmodule Conformance.FullSchema do
   fraiseql_type "SupportTicket", sql_source: "v_support_ticket", crud: true do
     field :id, :int, nullable: false
     field :title, :string, nullable: false
+    field :due_date, :string, nullable: false
     field :slug, :string, nullable: false, computed: true
   end
 

@@ -86,6 +86,40 @@ module TypeMapper =
         | t when t = typeof<System.DateTimeOffset> -> GqlDateTime
         | t -> GqlCustom t.Name
 
+    /// Converts a PascalCase, camelCase or snake_case name to camelCase.
+    ///
+    /// This is what a declared identifier becomes on the way to the GraphQL API. F#
+    /// members are PascalCase, and they used to be emitted through <c>toSnakeCase</c>, so
+    /// <c>member val LastLoginAt</c> published <c>last_login_at</c> where the other ten
+    /// SDKs published <c>lastLoginAt</c> — including C#, whose <c>MapPropertyName</c>
+    /// lowers the first letter and nothing else. Only a two-word field name in the
+    /// conformance fixture could show it: <c>Salary</c> spells the same either way
+    /// (#1249).
+    ///
+    /// A name carrying an underscore follows the engine's <c>to_camel_case</c> rule —
+    /// drop the underscore, upcase the single character after it, leave the rest — so a
+    /// digit segment collapses onto the previous word (<c>phone_1</c> is <c>phone1</c>).
+    /// A name without one is already Pascal or camel, and only its first letter moves.
+    let toCamelCase (s: string) : string =
+        if System.String.IsNullOrEmpty(s) then
+            s
+        elif s.Contains("_") then
+            let sb = System.Text.StringBuilder()
+            let mutable upcaseNext = false
+
+            for c in s do
+                if c = '_' then
+                    upcaseNext <- true
+                elif upcaseNext then
+                    sb.Append(System.Char.ToUpperInvariant(c)) |> ignore
+                    upcaseNext <- false
+                else
+                    sb.Append(c) |> ignore
+
+            sb.ToString()
+        else
+            string (System.Char.ToLowerInvariant(s.[0])) + s.[1..]
+
     /// Converts a PascalCase or camelCase string to snake_case.
     /// For example, <c>"SqlSource"</c> becomes <c>"sql_source"</c>.
     let toSnakeCase (s: string) : string =

@@ -42,6 +42,15 @@ type ConformanceUser() =
     [<GraphQLField(Type = "Float", Nullable = true, Scope = "read:User.salary")>]
     member val Salary = 0.0 with get, set
 
+    // Two words and a digit segment (#1249). An F# member is PascalCase and the
+    // first letter is lowered on emit, so this fixture discriminates: `Phone1` must
+    // reach the wire as `phone1`.
+    [<GraphQLField(Type = "String", Nullable = true)>]
+    member val LastLoginAt = "" with get, set
+
+    [<GraphQLField(Type = "String", Nullable = true)>]
+    member val Phone1 = "" with get, set
+
 [<GraphQLType(Name = "Order", SqlSource = "v_order")>]
 type ConformanceOrder() =
     [<GraphQLField(Type = "ID", Nullable = false)>]
@@ -65,6 +74,9 @@ type ConformanceSupportTicket() =
 
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Title = "" with get, set
+
+    [<GraphQLField(Type = "String", Nullable = false)>]
+    member val DueDate = "" with get, set
 
     [<GraphQLField(Type = "String", Nullable = false, Computed = true)>]
     member val Slug = "" with get, set

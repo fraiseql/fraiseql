@@ -42,7 +42,10 @@ module SchemaRegistry =
                 let gqlType, autoNullable =
                     TypeMapper.toGraphQLTypeWithNullability prop.PropertyType
 
-                let fieldName = TypeMapper.toSnakeCase prop.Name
+                // camelCase on the way out (#1249). This was `toSnakeCase`, so an F#
+                // schema published `last_login_at` where every other SDK published
+                // `lastLoginAt` for the same declaration.
+                let fieldName = TypeMapper.toCamelCase prop.Name
 
                 // An explicit attribute Type override wins over the inferred .NET type.
                 let resolvedTypeRaw = if fieldAttr.Type <> "" then fieldAttr.Type else gqlType
@@ -129,13 +132,12 @@ module SchemaRegistry =
                     else
                         None
 
-                // `vector_distance` names a sibling *field*, and field names are
-                // snake_cased on the way out — so the reference has to be too, or an
-                // author who points at the name they wrote gets a compile error naming a
-                // field that exists under a different spelling.
+                // `vector_distance` names a sibling *field*, so it goes through the same
+                // conversion the field name above goes through — or the reference names a
+                // field that exists in the schema under a different spelling (#1249).
                 let vectorDistance =
                     if fieldAttr.VectorDistance <> "" then
-                        Some(TypeMapper.toSnakeCase fieldAttr.VectorDistance)
+                        Some(TypeMapper.toCamelCase fieldAttr.VectorDistance)
                     else
                         None
 

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../naming"
 require_relative "crud_generator"
 
 module FraiseQL
@@ -64,9 +65,10 @@ module FraiseQL
       # `to_fraiseql_crud` in this same file built its field list correctly, so the SDK
       # contradicted itself (#854).
       #
-      # Field names are snake_case here to match `to_fraiseql_crud`. They used to be
-      # camelCased on this path only, so a type's fields and its generated CRUD arguments
-      # disagreed about the name of the same column.
+      # Field names are camelCased here, by the same `FraiseQL::Naming` the type builder
+      # and `CrudGenerator` use, so a type's fields and its generated CRUD input objects
+      # cannot disagree about the name of the same column (#1249). This path emitted the
+      # symbol verbatim, which is what made that disagreement real.
       #
       # `deprecated` is emitted as `{ reason: ... }`, the shape `IntermediateField` reads.
       # It used to be dropped here, correctly at the time: the compiler had no such member
@@ -80,7 +82,7 @@ module FraiseQL
           name: @fraiseql_type_name,
           sql_source: fraiseql_sql_source,
           fields: @fraiseql_fields.map { |fname, fmeta|
-            { name: fname.to_s, type: fmeta[:type].to_s, nullable: !fmeta[:required] }.tap { |f|
+            { name: Naming.snake_to_camel(fname), type: fmeta[:type].to_s, nullable: !fmeta[:required] }.tap { |f|
               f[:description] = fmeta[:description] if fmeta[:description]
               f[:deprecated] = deprecation_of(fmeta[:deprecated]) if fmeta[:deprecated]
             }

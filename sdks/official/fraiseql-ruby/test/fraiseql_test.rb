@@ -160,6 +160,45 @@ class CrudGeneratorTest < Minitest::Test
     assert_equal "id", FraiseQL::CrudGenerator.snake_to_camel("id")
   end
 
+  # The two properties both one-word cases above are blind to. The helper was
+  # `/_([a-z])/`, whose character class does not match a digit, so `phone_1` kept its
+  # underscore while the engine and every other SDK produced `phone1`; and it left the
+  # rest of a segment alone, which is right — `user_ID` is `userID`, not `userId`
+  # (#1249). The reference is `fraiseql-core/src/utils/casing.rs`.
+  def test_snake_to_camel_collapses_a_digit_segment
+    assert_equal "phone1", FraiseQL::Naming.snake_to_camel("phone_1")
+    assert_equal "dns1Id", FraiseQL::Naming.snake_to_camel("dns_1_id")
+  end
+
+  def test_snake_to_camel_keeps_the_rest_of_a_segment
+    assert_equal "userID", FraiseQL::Naming.snake_to_camel("user_ID")
+  end
+
+  def test_snake_to_camel_is_idempotent_and_accepts_a_symbol
+    assert_equal "lastLoginAt", FraiseQL::Naming.snake_to_camel(:last_login_at)
+    assert_equal "lastLoginAt", FraiseQL::Naming.snake_to_camel("lastLoginAt")
+  end
+
+  # One gem, one answer. `CrudGenerator` camelCased what it generated while the type
+  # builder emitted the symbol verbatim, so the same column was `due_date` on the type
+  # and `dueDate` in `CreateXInput` (#1249).
+  def test_type_builder_and_crud_generator_agree_on_a_two_word_field
+    schema = FraiseQL::Schema.new
+    schema.type "SupportTicket", sql_source: "v_support_ticket", crud: true do |t|
+      t.field :id, :int, nullable: false
+      t.field :due_date, :string, nullable: false
+    end
+    doc = schema.to_h
+
+    # Input objects are appended to `types` with `is_input`, which is the spelling
+    # `Schema#expand_crud` uses and the conformance fixture proves the compiler accepts.
+    ticket = doc["types"].find { |ty| ty["name"] == "SupportTicket" }
+    create = doc["types"].find { |ty| ty["name"] == "CreateSupportTicketInput" }
+
+    assert_equal %w[id dueDate], ticket["fields"].map { |f| f["name"] }
+    assert_equal %w[id dueDate], create["fields"].map { |f| f["name"] }
+  end
+
   def test_pluralize
     assert_equal "users", FraiseQL::CrudGenerator.pluralize("user")
     assert_equal "addresses", FraiseQL::CrudGenerator.pluralize("address")

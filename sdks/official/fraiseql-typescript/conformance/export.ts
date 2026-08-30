@@ -51,6 +51,13 @@ function authorFull(): void {
         deprecated: "use displayName",
       },
       { name: "salary", type: "Float", nullable: true, requires_scope: "read:User.salary" },
+      // Two words and a digit segment (#1249). A one-word name spells the same in every
+      // convention, so a fixture made only of them cannot tell an SDK that translates
+      // snake_case identifiers from one that emits them verbatim. Here the author writes
+      // the wire name, so these are already camelCase — the discrimination happens in
+      // Python, Ruby, Elixir, C# and F#, whose identifiers are idiomatic instead.
+      { name: "lastLoginAt", type: "String", nullable: true },
+      { name: "phone1", type: "String", nullable: true },
     ],
     undefined,
     { sqlSource: "v_user", relay: true }
@@ -77,6 +84,7 @@ function authorFull(): void {
     [
       { name: "id", type: "Int", nullable: false },
       { name: "title", type: "String", nullable: false },
+      { name: "dueDate", type: "String", nullable: false },
       { name: "slug", type: "String", nullable: false, computed: true },
     ],
     undefined,

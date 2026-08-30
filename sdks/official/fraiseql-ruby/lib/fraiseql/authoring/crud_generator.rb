@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../naming"
+
 module FraiseQL
   # Generates CRUD queries and mutations for FraiseQL types.
   #
@@ -29,12 +31,15 @@ module FraiseQL
 
     # Convert a snake_case name to camelCase.
     #
-    # Idempotent: already-camelCase strings are returned unchanged.
+    # Delegates to {FraiseQL::Naming.snake_to_camel} — the one implementation the type
+    # builder, the `Type` mixin and this generator all share, so a type's fields and its
+    # generated input objects cannot disagree about the name of the same column (#1249).
+    # This method stays because it is public surface and has its own test.
     #
     # @param name [String] the snake_case name
     # @return [String] the camelCase equivalent
     def snake_to_camel(name)
-      name.gsub(/_([a-z])/) { $1.upcase }
+      FraiseQL::Naming.snake_to_camel(name)
     end
 
     # Apply basic English pluralization rules to a snake_case name.

@@ -2,6 +2,8 @@
 
 require "json"
 
+require_relative "naming"
+
 module FraiseQL
   # Builds the intermediate `schema.json` document consumed by `fraiseql compile`.
   #
@@ -307,7 +309,12 @@ module FraiseQL
       def field(name, type, nullable: true, description: nil, requires_scope: nil, on_deny: nil,
                 vector_config: nil, vector_distance: nil, deprecated: false, computed: false)
         definition = {
-          "name" => name.to_s,
+          # camelCase on the way out (#1249). A field is declared as a snake_case symbol
+          # because that is the Ruby idiom, and it used to reach the GraphQL API spelled
+          # exactly that way — so `t.field :due_date` published `due_date` here while
+          # `CrudGenerator`, in this same gem, published `dueDate` in `CreateXInput` for
+          # the same column, and the other ten SDKs published `dueDate` too.
+          "name" => Naming.snake_to_camel(name),
           "type" => Schema.graphql_type(type),
           "nullable" => nullable
         }
@@ -349,7 +356,9 @@ module FraiseQL
         end
 
         definition["vector_config"] = normalize_vector_config(name, vector_config) if vector_config
-        definition["vector_distance"] = vector_distance.to_s if vector_distance
+        # A sibling field's name, so it is spelled the way that sibling is published, or
+        # the reference names a field that is no longer in the schema (#1249).
+        definition["vector_distance"] = Naming.snake_to_camel(vector_distance) if vector_distance
       end
 
       # The index type and the metric are written out even where the author left them

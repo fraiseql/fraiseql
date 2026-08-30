@@ -407,7 +407,13 @@ defmodule FraiseQL.Schema do
       field :similarity, :float, nullable: false, vector_distance: :embedding
   """
   defmacro field(name, type, opts \\ []) do
-    field_name = Atom.to_string(name)
+    # camelCase on the way out (#1249). A field is declared as a snake_case atom because
+    # that is the Elixir idiom, and it used to reach the GraphQL API spelled exactly that
+    # way — so `field :due_date` published `due_date` here and `dueDate` from Python, for
+    # the same declaration against the same view. The engine's own convention is
+    # camelCase (`NamingConvention::CamelCase`), and it is what the generated CRUD input
+    # objects in this SDK already used, so the type disagreed with its own generator.
+    field_name = FraiseQL.TypeMapper.to_camel_case(name)
     field_type = canonicalize_id_type(field_name, FraiseQL.TypeMapper.to_graphql_type(type))
 
     # A field is either an embedding or the Float reporting how far a search's result was
@@ -426,9 +432,10 @@ defmodule FraiseQL.Schema do
 
     vector_config = vector_config && Macro.escape(FraiseQL.VectorConfig.new(vector_config))
 
-    # `vector_distance` names a sibling field, and a field name is the atom verbatim, so
-    # an atom and its string spelling are the same reference.
-    vector_distance = vector_distance && to_string(vector_distance)
+    # `vector_distance` names a sibling field, so it is spelled the way that sibling is
+    # published — through the same conversion the field name above goes through, or the
+    # reference would point at a name no longer in the schema (#1249).
+    vector_distance = vector_distance && FraiseQL.TypeMapper.to_camel_case(vector_distance)
 
     quote do
       @__fraiseql_field_buffer %FraiseQL.FieldDefinition{

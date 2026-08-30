@@ -38,6 +38,13 @@ def author_full
     t.field :name, :string, nullable: true, description: 'The user\'s "display" name',
                            deprecated: "use displayName"
     t.field :salary, :float, nullable: true, requires_scope: "read:User.salary"
+    # Two words and a digit segment (#1249). A Ruby field name is a snake_case symbol,
+    # so this is one of the fixtures that actually discriminates: `:last_login_at` must
+    # reach the wire as `lastLoginAt`, and `:phone_1` as `phone1` — the reference
+    # collapses a digit segment onto the previous word, which a `/_([a-z])/` helper
+    # silently does not.
+    t.field :last_login_at, :string, nullable: true
+    t.field :phone_1, :string, nullable: true
   end
 
   schema.type "Order", sql_source: "v_order" do |t|
@@ -49,11 +56,12 @@ def author_full
   # `crud` is an authoring-time expansion the compiler has no concept of, so the only
   # evidence this SDK implements it is that the operations and input objects appear in the
   # compiled schema. `computed` is the same: emitting the flag makes the document
-  # uncompilable, so the sole evidence it was honoured is `display_slug` on the type and
+  # uncompilable, so the sole evidence it was honoured is `slug` on the type and
   # absent from both input objects.
   schema.type "SupportTicket", sql_source: "v_support_ticket", crud: true do |t|
     t.field :id, :int, nullable: false
     t.field :title, :string, nullable: false
+    t.field :due_date, :string, nullable: false
     t.field :slug, :string, nullable: false, computed: true
   end
 

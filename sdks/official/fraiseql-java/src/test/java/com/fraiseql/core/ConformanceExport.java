@@ -157,6 +157,16 @@ public class ConformanceExport {
 
         @GraphQLField(type = "Float", nullable = true, requiresScope = "read:User.salary")
         public Double salary;
+
+        // Two words and a digit segment (#1249). A Java field is idiomatically
+        // camelCase and is emitted verbatim, so these match the reference as written;
+        // the translation is exercised by the SDKs whose identifiers are snake_case
+        // or PascalCase (Python, Ruby, Elixir, C#, F#).
+        @GraphQLField(type = "String", nullable = true)
+        public String lastLoginAt;
+
+        @GraphQLField(type = "String", nullable = true)
+        public String phone1;
     }
 
     @GraphQLType(name = "Order", sqlSource = "v_order")
@@ -183,6 +193,9 @@ public class ConformanceExport {
 
         @GraphQLField(type = "String")
         public String title;
+
+        @GraphQLField(type = "String")
+        public String dueDate;
 
         @GraphQLField(type = "String", computed = true)
         public String slug;

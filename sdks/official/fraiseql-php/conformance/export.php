@@ -41,6 +41,16 @@ final class ConformanceUser
 
     #[GraphQLField(type: 'Float', nullable: true, scope: 'read:User.salary')]
     public ?float $salary;
+
+    // Two words and a digit segment (#1249). A PHP property is idiomatically
+    // camelCase and is emitted verbatim, so these match the reference as written;
+    // the SDKs that translate are the ones with snake_case or PascalCase
+    // identifiers (Python, Ruby, Elixir, C#, F#).
+    #[GraphQLField(type: 'String', nullable: true)]
+    public ?string $lastLoginAt;
+
+    #[GraphQLField(type: 'String', nullable: true)]
+    public ?string $phone1;
 }
 
 #[GraphQLType(name: 'Order', sqlSource: 'v_order')]
@@ -59,7 +69,7 @@ final class ConformanceOrder
 // `crud` is an authoring-time expansion the compiler has no concept of, so the only
 // evidence this SDK implements it is that the operations and input objects appear in the
 // compiled schema. `computed` is the same: emitting the flag makes the document
-// uncompilable, so the sole evidence it was honoured is `displaySlug` on the type and
+// uncompilable, so the sole evidence it was honoured is `slug` on the type and
 // absent from both input objects.
 #[GraphQLType(name: 'SupportTicket', sqlSource: 'v_support_ticket', crud: true)]
 final class ConformanceSupportTicket
@@ -69,6 +79,9 @@ final class ConformanceSupportTicket
 
     #[GraphQLField(type: 'String', nullable: false)]
     public string $title;
+
+    #[GraphQLField(type: 'String', nullable: false)]
+    public string $dueDate;
 
     #[GraphQLField(type: 'String', nullable: false, computed: true)]
     public string $slug;

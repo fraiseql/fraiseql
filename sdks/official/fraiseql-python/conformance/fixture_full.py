@@ -37,6 +37,15 @@ class User:
         fraiseql.field(description='The user\'s "display" name', deprecated="use displayName"),
     ] = None
     salary: Annotated[float | None, fraiseql.field(requires_scope="read:User.salary")] = None
+    # Two words and a digit segment, deliberately (#1249). A one-word name spells the same
+    # in every convention, so a fixture made only of them cannot tell an SDK that
+    # translates snake_case to camelCase from one that emits the identifier verbatim —
+    # uniform in the dimension that selects the branch. `phone_1` is the second, narrower
+    # question: the reference collapses a digit segment onto the previous word
+    # (`phone_1` → `phone1`, `dns_1_id` → `dns1Id`), and a helper written `/_([a-z])/`
+    # silently does not.
+    last_login_at: str | None = None
+    phone_1: str | None = None
 
 
 @fraiseql.type(sql_source="v_order")
@@ -64,13 +73,16 @@ class Order:
 # snake_case while every hand-authored operation beside them is camelCase (#1247).
 # `SupportTicket` makes `supportTicket` and `support_ticket` different strings.
 #
-# The FIELD names stay one word. A two-word field is a second, independent question — Ruby
-# and Elixir emit `due_date` where the other nine emit `dueDate` (#1249) — and answering it
-# means changing two SDKs' public output, which does not belong inside this construct.
+# `due_date` is two words for the same reason, and it is here rather than only on `User`
+# because the generated input objects are built from the type's fields: Ruby camelCased
+# them in `crud_generator` and not in `TypeBuilder`, so one schema emitted `due_date` on
+# the type and `dueDate` in `CreateSupportTicketInput` (#1249). Only a two-word field on
+# a `crud` type can see that disagreement.
 @fraiseql.type(sql_source="v_support_ticket", crud=True)
 class SupportTicket:
     id: int
     title: str
+    due_date: str
     slug: Annotated[str, fraiseql.field(computed=True)]
 
 

@@ -50,6 +50,11 @@ FraiseQLSchema authorFull() {
         deprecated: 'use displayName',
       ),
       'salary': const FieldType.float(requiresScope: 'read:User.salary'),
+      // Two words and a digit segment (#1249). Dart's author writes the wire name,
+      // so these are already camelCase; the translation is exercised by the SDKs
+      // whose identifiers are idiomatic instead (Python, Ruby, Elixir, C#, F#).
+      'lastLoginAt': const FieldType.string(),
+      'phone1': const FieldType.string(),
     },
   );
 
@@ -75,6 +80,7 @@ FraiseQLSchema authorFull() {
     fields: {
       'id': const FieldType.int_(nullable: false),
       'title': const FieldType.string(nullable: false),
+      'dueDate': const FieldType.string(nullable: false),
       'slug': const FieldType.string(nullable: false, computed: true),
     },
   );

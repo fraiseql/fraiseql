@@ -117,3 +117,32 @@ let ``toSnakeCase leaves already snake_case unchanged`` () =
 [<Fact>]
 let ``toSnakeCase handles empty string`` () =
     TypeMapper.toSnakeCase "" |> should equal ""
+
+// `toCamelCase` is what a declared identifier becomes on the way to the GraphQL API.
+// Field names used to go out through `toSnakeCase`, so an F# schema published
+// `last_login_at` where the other ten SDKs published `lastLoginAt` (#1249).
+
+[<Fact>]
+let ``toCamelCase lowers the first letter of a PascalCase member`` () =
+    TypeMapper.toCamelCase "LastLoginAt" |> should equal "lastLoginAt"
+
+[<Fact>]
+let ``toCamelCase leaves an already camelCase name alone`` () =
+    TypeMapper.toCamelCase "lastLoginAt" |> should equal "lastLoginAt"
+
+[<Fact>]
+let ``toCamelCase keeps a trailing digit on its word`` () =
+    TypeMapper.toCamelCase "Phone1" |> should equal "phone1"
+
+[<Fact>]
+let ``toCamelCase collapses a snake_case digit segment onto the previous word`` () =
+    TypeMapper.toCamelCase "phone_1" |> should equal "phone1"
+    TypeMapper.toCamelCase "dns_1_id" |> should equal "dns1Id"
+
+[<Fact>]
+let ``toCamelCase converts snake_case`` () =
+    TypeMapper.toCamelCase "last_login_at" |> should equal "lastLoginAt"
+
+[<Fact>]
+let ``toCamelCase handles empty string`` () =
+    TypeMapper.toCamelCase "" |> should equal ""

@@ -298,6 +298,47 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A field declared in the language's idiom reaches the GraphQL API as camelCase, in all
+  eleven SDKs (#1249).**
+
+  `t.field :due_date` in Ruby, `field :due_date` in Elixir and `member val LastLoginAt` in
+  F# published `due_date` / `due_date` / `last_login_at`, where the same declaration in the
+  other eight published `dueDate` / `lastLoginAt`. Ruby also disagreed with itself: its
+  CRUD generator camelCased the input-object fields it generated while its type builder
+  emitted the symbol verbatim, so one `crud` declaration produced `due_date` on the type
+  and `dueDate` in `CreateSupportTicketInput` — for the same column.
+
+  **F# was not in the issue's list.** It was found by the fixture change below, not by
+  reading: `SchemaRegistry` emitted field names through `TypeMapper.toSnakeCase`, so it was
+  the third SDK publishing snake_case — while C#, the other .NET SDK, lowers the first
+  letter and nothing else.
+
+  **Migration.** A Ruby, Elixir or F# schema's fields change name in the published API.
+  Views and SQL functions are unaffected — the compiled schema maps a camelCase field onto
+  the same storage path it always did — but a client that spells a field `due_date` must
+  now spell it `dueDate`, and a `vector_distance` reference follows the field it names.
+
+  **Why no gate caught it.** Every field name in the conformance fixture was one word:
+  `id`, `email`, `name`, `salary`, `total`, `status`, `title`, `slug`. A one-word name
+  spells the same in both conventions, so the suite was uniform in the dimension that
+  selects the branch and tested one side of it. `SupportTicket` gains `due_date` and `User`
+  gains `last_login_at` and `phone_1`, each authored in each SDK's own idiom. The digit
+  case is a second, narrower question: the engine collapses a digit segment onto the
+  previous word (`phone_1` → `phone1`, `dns_1_id` → `dns1Id`), and Ruby's helper was
+  `/_([a-z])/`, whose character class does not match a digit. Elixir's split-and-capitalize
+  helper got the digits right and *downcased* the rest of each segment, so `user_ID` became
+  `userId` where the engine says `userID`. Both now implement the engine's rule exactly, as
+  does F#'s new `toCamelCase`.
+
+  Ruby's three emit paths — `Schema::TypeBuilder`, the `FraiseQL::Type` mixin and
+  `CrudGenerator` — now share one `FraiseQL::Naming.snake_to_camel`, so they cannot drift
+  apart again.
+
+  Operation names and argument names are the same question one level up, and the fixture
+  spells both in camelCase in all eleven SDKs, so nothing exercises them either. That is
+  #1255, filed rather than folded in: it fails every SDK that turns out not to translate,
+  which is a change of its own.
+
 - **The fuzz crates are compiled by a merge gate, and two that had stopped compiling are
   repaired (#1254).**
 
