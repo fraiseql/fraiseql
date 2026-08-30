@@ -184,6 +184,9 @@ let private authorFull () =
     |> MutationBuilder.withArgument "name" "String" true
     |> MutationBuilder.invalidatesViews [ "v_user"; "v_user_summary" ]
     |> MutationBuilder.invalidatesFactTables [ "tf_signup" ]
+    // #1253: the role gate on the write side, implemented in all eleven mutation builders
+    // and compared in none until this construct.
+    |> MutationBuilder.requiresRole "admin"
     |> MutationBuilder.requiresActor [ ActorType.serviceAccount ]
     |> MutationBuilder.register
 

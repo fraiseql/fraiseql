@@ -298,6 +298,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`mutation_requires_role` is a conformance construct, so the role gate on the write side
+  is compared rather than assumed (#1253).**
+
+  `query_requires_role` has been a construct since this suite was written and the mutation
+  half never was. Eleven mutation builders grew `requires_role` with nothing comparing the
+  result, which is how Go came to have `QueryDefinition.RequiresRole` and no
+  `MutationDefinition.RequiresRole` at all — found by reading the struct, not by a gate.
+  The manifest's `unsupported` map can only declare a gap for a construct that exists, so
+  until now the gap was not even declarable.
+
+  The fixture's `createUser` carries `requires_role: "admin"` alongside the actor gate it
+  already had, the way `tenantOrders` carries both on the read side. All eleven SDKs pass
+  on the first run — the Go field landed with #1123 — so the construct's red capability is
+  pinned separately: removing the declaration from one SDK's fixture reports
+  `expected {"createUser": "admin"} / actual {}` against that SDK and no other.
+
 - **A field declared in the language's idiom reaches the GraphQL API as camelCase, in all
   eleven SDKs (#1249).**
 

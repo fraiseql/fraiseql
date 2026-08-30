@@ -114,6 +114,10 @@ def author_full
                                 operation: "insert",
                                 invalidates_views: %w[v_user v_user_summary],
                                 invalidates_fact_tables: %w[tf_signup],
+                                # #1253: the role gate on the write side, implemented in
+                                # all eleven mutation builders and compared in none until
+                                # this construct.
+                                requires_role: "admin",
                                 requires_actor: %w[service_account] do |m|
     m.argument :email, :string, nullable: false
     m.argument :name, :string, nullable: true

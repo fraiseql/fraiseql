@@ -8,6 +8,7 @@
   "mutation_invalidates_fact_tables": {},
   "mutation_invalidates_views": {},
   "mutation_requires_actor": {},
+  "mutation_requires_role": {},
   "mutations": {},
   "queries": {
     "users": {

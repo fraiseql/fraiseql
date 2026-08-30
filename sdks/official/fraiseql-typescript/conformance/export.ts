@@ -179,6 +179,9 @@ function authorFull(): void {
       operation: "insert",
       invalidates_views: ["v_user", "v_user_summary"],
       invalidates_fact_tables: ["tf_signup"],
+      // #1253: the role gate on the write side, which was implemented in all eleven
+      // mutation builders and compared in none.
+      requires_role: "admin",
       requires_actor: ["service_account"],
     }
   );

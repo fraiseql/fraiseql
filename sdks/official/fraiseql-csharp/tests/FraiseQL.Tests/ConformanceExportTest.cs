@@ -105,6 +105,9 @@ public class ConformanceExportTest
             .Argument("name", "String", nullable: true)
             .InvalidatesViews("v_user", "v_user_summary")
             .InvalidatesFactTables("tf_signup")
+            // #1253: the role gate on the write side, implemented in all eleven mutation
+            // builders and compared in none until this construct.
+            .RequiresRole("admin")
             .RequiresActor(ActorType.ServiceAccount)
             .Register();
 

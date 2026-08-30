@@ -105,6 +105,7 @@ CONSTRUCTS = (
     "mutation_arguments",
     "mutation_invalidates_views",
     "mutation_invalidates_fact_tables",
+    "mutation_requires_role",
     "mutation_requires_actor",
     "subscriptions",
     "vector_fields",
@@ -391,6 +392,19 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: mutations[name]["invalidates_fact_tables"]
         for name in AUTHORED_MUTATIONS
         if mutations.get(name, {}).get("invalidates_fact_tables")
+    }
+
+    # The role gate on the write side. `query_requires_role` has been a construct since
+    # this suite was written and the mutation half never was, so `requires_role` reached
+    # eleven mutation builders with nothing comparing the result — which is how Go came to
+    # have `QueryDefinition.RequiresRole` and no `MutationDefinition.RequiresRole` at all,
+    # found by inspection rather than by a gate (#1253). The manifest's `unsupported` map
+    # can only declare a gap for a construct that exists, so until this key was here the
+    # gap was not even declarable.
+    observations["mutation_requires_role"] = {
+        name: mutations[name]["requires_role"]
+        for name in AUTHORED_MUTATIONS
+        if mutations.get(name, {}).get("requires_role")
     }
 
     observations["mutation_requires_actor"] = {

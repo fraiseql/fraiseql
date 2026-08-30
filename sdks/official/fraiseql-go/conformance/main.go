@@ -126,6 +126,10 @@ func authorFull() error {
 		Arg("name", "String", nil, true).
 		InvalidatesViews([]string{"v_user", "v_user_summary"}).
 		InvalidatesFactTables([]string{"tf_signup"}).
+		// #1253: the role gate on the write side. `MutationDefinition` had no
+		// `RequiresRole` at all until #1123 — `QueryDefinition` did — and no construct
+		// compared the two, so the gap was found by reading rather than by a gate.
+		RequiresRole("admin").
 		RequiresActor(fraiseql.ActorServiceAccount).
 		Register(); err != nil {
 		return err

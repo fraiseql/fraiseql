@@ -102,6 +102,9 @@ public class ConformanceExport {
             .arg("name", "String")
             .invalidatesViews(List.of("v_user", "v_user_summary"))
             .invalidatesFactTables(List.of("tf_signup"))
+            // #1253: the role gate on the write side, implemented in all eleven mutation
+            // builders and compared in none until this construct.
+            .requiresRole("admin")
             .requiresActor(ActorType.SERVICE_ACCOUNT)
             .register();
 

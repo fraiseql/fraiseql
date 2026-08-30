@@ -173,6 +173,11 @@ def tenantOrders() -> list[Order]:  # noqa: N802 — camelCase GraphQL field nam
     operation="insert",
     invalidates_views=["v_user", "v_user_summary"],
     invalidates_fact_tables=["tf_signup"],
+    # #1253: the role gate on the write side. `query_requires_role` has been a construct
+    # since this suite was written and the mutation half never was, so eleven mutation
+    # builders grew `requires_role` with nothing comparing the result — which is how Go
+    # came to have it on queries and not on mutations, found by inspection.
+    requires_role="admin",
     # The write side carries it too. `IntermediateMutation::requires_actor` exists and is
     # enforced identically, so a query-only rollout would leave the more consequential
     # half of the gate unauthorable with nothing saying so (#1123).

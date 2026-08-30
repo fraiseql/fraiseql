@@ -139,6 +139,9 @@ defmodule Conformance.FullSchema do
                     operation: "insert",
                     invalidates_views: ["v_user", "v_user_summary"],
                     invalidates_fact_tables: ["tf_signup"],
+                    # #1253: the role gate on the write side, implemented in all eleven
+                    # mutation builders and compared in none until this construct.
+                    requires_role: "admin",
                     requires_actor: ["service_account"] do
     argument(:email, :string, nullable: false)
     argument(:name, :string, nullable: true)

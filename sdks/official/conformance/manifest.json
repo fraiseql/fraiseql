@@ -184,6 +184,7 @@
         "subscriptions": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "type_crud": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "query_requires_actor": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "mutation_requires_role": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "mutation_requires_actor": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct"
       }
     }

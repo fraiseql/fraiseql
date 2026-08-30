@@ -70,6 +70,9 @@
       "service_account"
     ]
   },
+  "mutation_requires_role": {
+    "createUser": "admin"
+  },
   "mutations": {
     "createUser": {
       "operation": "Insert",

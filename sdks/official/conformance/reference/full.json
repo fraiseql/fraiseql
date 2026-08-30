@@ -338,6 +338,7 @@
       "invalidates_fact_tables": [
         "tf_signup"
       ],
+      "requires_role": "admin",
       "requires_actor": [
         "service_account"
       ]
