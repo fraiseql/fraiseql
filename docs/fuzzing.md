@@ -16,18 +16,33 @@ cargo install cargo-fuzz
 
 ## Fuzz Targets
 
-27 targets exist across 8 crates. Thirteen of them run in the scheduled campaign
+25 targets exist across 8 crates. Thirteen of them run in the scheduled campaign
 (marked **scheduled** below); the rest are runnable on demand. A target is only
 added to the schedule once it is build-verified against the current API — see
 "Adding a New Fuzz Target".
 
-**Build-verify after any API change.** Each `fuzz/` directory is its own cargo
-workspace, so no CI leg compiles them — `cargo check`, `clippy` and the test legs
-all skip them entirely. A target that stops compiling is silently absent from the
-campaign until someone runs the loop below. The PostgreSQL-only de-scope (#374)
-broke two `fraiseql-db` targets exactly this way, one of them scheduled.
+**Compiling is a merge gate; finding a crash is not.** Each `fuzz/` directory is
+its own cargo workspace, so `cargo check --workspace`, `clippy` and every test leg
+skip them entirely — and for a long time nothing else compiled them either. A
+target that stopped compiling was silently absent from the campaign until someone
+ran the loop below: the PostgreSQL-only de-scope (#374) broke two `fraiseql-db`
+targets that way, and #1198's signature change broke the same two again for ten
+days and two red scheduled runs (#1254).
 
-### fraiseql-core (9 targets)
+`make check-fuzz` (`tools/check-fuzz-compiles.sh`) now `cargo check`s every fuzz
+manifest, and runs in `make preflight` and in the Dagger `preflight` leg beside
+clippy and check-default. It also asserts the other direction — every target file
+on disk is a `[[bin]]` — because `cargo check` only builds declared bins, so an
+undeclared target would be skipped in silence. `connection_string.rs` sat in
+exactly that state in `fraiseql-wire` from the day it was written until it was
+deleted; see "Properties that live as in-crate proptests" for why it was never a
+fuzz target.
+
+This does not make the *campaign* a merge gate — see "It is an assurance signal,
+not a merge gate". Whether a target compiles is deterministic; whether it finds a
+crash is not, and only the first is gated.
+
+### fraiseql-core (8 targets)
 
 | Target | What It Fuzzes | Correctness Checks |
 |--------|---------------|-------------------|
@@ -35,7 +50,6 @@ broke two `fraiseql-db` targets exactly this way, one of them scheduled.
 | `complexity` **scheduled** | Depth/complexity/alias validation | Never panics; carries the #976 regression |
 | `value_json_seam` **scheduled** | Inline argument write→read round trip | #719 — an argument never silently vanishes |
 | `schema_deser` **scheduled** | Schema JSON deserialization | Roundtrip + structural equality |
-| `toml_config` **scheduled** | TOML configuration parsing | Serialization check |
 | `sql_codegen` | WHERE clause → SQL generation | Balanced parens/quotes |
 | `schema_compile` | Schema compilation pipeline | Roundtrip, name validation |
 | `query_variables` | Query variable definitions | Name/type invariants |
@@ -63,7 +77,7 @@ broke two `fraiseql-db` targets exactly this way, one of them scheduled.
 | Crate | Targets |
 |-------|---------|
 | `fraiseql-federation` | `subgraph_response` **scheduled** |
-| `fraiseql-server` | `graphql_request` **scheduled**, `toml_config` |
+| `fraiseql-server` | `graphql_request` **scheduled**, `toml_config` **scheduled** |
 | `fraiseql-auth` | `jwt_parse`, `pkce_token_parse`, `state_token_decrypt` |
 | `fraiseql-secrets` | `encrypted_field_decode`, `vault_secret_name` |
 | `fraiseql-arrow` | `db_convert`, `flight_ticket` |

@@ -616,6 +616,28 @@ lint-deploy-versions:
 lint-fuzz-targets:
 	@bash tools/check-fuzz-targets.sh
 
+# Gate: every crates/*/fuzz crate COMPILES, and every fuzz target on disk is a [[bin]].
+#
+# The gate above is existence-only by design — pure bash, no toolchain, so it can run in
+# the Dagger ShellGates container — and can therefore never see a type error. Nothing
+# else compiles a fuzz crate either: each declares its own `[workspace]`, so it is
+# outside `cargo check --workspace` and every clippy/test leg. `570baf9b1` changed
+# `WhereClause::from_graphql_json`'s signature on 2026-08-20 and two fraiseql-db targets
+# sat at error[E0308] through two red scheduled runs before anyone looked (#1254).
+#
+# Not in ShellGates: this one runs cargo. It is inline in `preflight` and a sibling gate
+# of the Dagger `Preflight` function, the same shape as clippy and check-default.
+.PHONY: check-fuzz
+check-fuzz:
+	@bash tools/check-fuzz-compiles.sh
+
+# Unit tests for the gate above. Both halves have to be able to go red: a fuzz crate
+# that does not compile, and a target file with no [[bin]] — the second is the gate's
+# own blind spot, since `cargo check` only builds the bins the manifest declares.
+.PHONY: test-fuzz-compiles-gate
+test-fuzz-compiles-gate:
+	@bash tools/tests/fuzz_compiles_test.sh
+
 # Gate: every publishable workspace crate is published by release.yml, in the same
 # order .dagger/release.go dry-runs and topologically self-tests. fraiseql-cdc-sinks
 # (#382) reached the workspace and legacyPublishOrder but never reached release.yml;
@@ -949,7 +971,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -962,6 +984,8 @@ preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-as
 	@$(MAKE) --no-print-directory clippy
 	@echo "=== preflight: check-default (default features — the feature-OFF arms) ==="
 	@$(MAKE) --no-print-directory check-default
+	@echo "=== preflight: check-fuzz (the crates/*/fuzz crates nothing else compiles) ==="
+	@$(MAKE) --no-print-directory check-fuzz
 	@echo ""
 	@echo "✅ preflight passed — mirrors the Dagger preflight leg."
 	@echo "⚠  It does NOT run clippy under a narrow feature set: its clippy pass is"

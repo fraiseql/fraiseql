@@ -197,6 +197,7 @@ func (m *FraiseqlCi) Preflight(
 		{"rustdoc", m.Rustdoc},
 		{"clippy", m.Clippy},
 		{"check-default", m.CheckDefault},
+		{"check-fuzz", m.CheckFuzz},
 	}
 
 	var report strings.Builder
@@ -275,6 +276,29 @@ func (m *FraiseqlCi) CheckDefault(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithExec([]string{"cargo", "check", "--workspace", "--all-targets"}).
+		Stdout(ctx)
+}
+
+// CheckFuzz: `cargo check` over every `crates/*/fuzz` crate, plus the assertion that
+// every fuzz target on disk is a `[[bin]]` the compiler actually reaches.
+//
+// Each fuzz crate declares its own `[workspace]`, so it is outside `--workspace` and
+// no clippy, rustdoc, check-default or test leg has ever compiled one. The existing
+// `lint-fuzz-targets` gate lives in ShellGates and is existence-only by design (no
+// toolchain there), so it cannot see a type error. `fuzz.yml` builds them, but it is a
+// weekly schedule and explicitly not a merge gate.
+//
+// That header's "not a merge gate" is about *crash results*, which are stochastic.
+// Whether a target compiles is deterministic, and #1254 is what it costs when nothing
+// checks: a signature change on 2026-08-20 left two fraiseql-db targets at
+// error[E0308] through two red scheduled runs that notify nobody.
+func (m *FraiseqlCi) CheckFuzz(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.rustSrc(source).
+		WithExec([]string{"bash", "tools/check-fuzz-compiles.sh"}).
 		Stdout(ctx)
 }
 

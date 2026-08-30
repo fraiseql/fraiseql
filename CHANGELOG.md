@@ -298,6 +298,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The fuzz crates are compiled by a merge gate, and two that had stopped compiling are
+  repaired (#1254).**
+
+  `WhereClause::from_graphql_json`'s second parameter changed with #1198, and the two
+  `fraiseql-db` fuzz call sites are not in the workspace, so they were not updated.
+  They sat at `error[E0308]` for ten days and two red scheduled runs.
+
+  The durable half is that **nothing compiled a fuzz crate at all**. Each `crates/*/fuzz`
+  declares its own `[workspace]`, so `cargo check --workspace`, clippy and every test leg
+  skip them; `lint-fuzz-targets` is existence-only *by design* (pure bash, no toolchain,
+  so it can run in the Dagger ShellGates container) and can never see a type error; and
+  `fuzz.yml` is a weekly schedule whose failures notify nobody — the mechanism that kept
+  #1128 red for three months. `fuzz.yml`'s "not a merge gate" header is about *crash
+  results*, which are stochastic. Whether a target compiles is deterministic, and that is
+  what is now gated: `make check-fuzz` inline in `preflight`, and a `CheckFuzz` sibling of
+  the Dagger `Preflight` function beside clippy and check-default.
+
+  The gate also asserts the opposite direction — every target file on disk is a `[[bin]]`
+  — because `cargo check` builds only declared bins, so an undeclared target would be
+  skipped in silence and the gate would report OK over it. That found a second instance:
+  `fraiseql-wire`'s `connection_string.rs` had **no `[[bin]]` since the day it was
+  written** and had therefore never compiled once. It is deleted rather than revived: the
+  commit that added it, and `docs/fuzzing.md`, both state that this #817 property is an
+  in-crate proptest precisely so that `client::connection_string` need not become public
+  API to buy test reach — and that proptest runs in every CI test leg, not weekly.
+
+  `where_from_json` also gains a third schema arm. `WhereFieldSchema::casts_only` leaves
+  `known: None`, the "cannot adjudicate" state, so the refuse-undeclared-key branch #1198
+  added was unreachable from both existing arms — the target was fuzzing the parser as it
+  stood before that change.
+
 - **`crud` generates the same GraphQL API in every SDK that has it, and a construct holds
   it there (#1182, #1183, #1241, #1242, #1243, #1244, #1246, #1247, #1248, #1250, #1251).**
 

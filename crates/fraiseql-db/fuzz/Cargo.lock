@@ -330,7 +330,7 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "fraiseql-db"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db-fuzz"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "fraiseql-db",
  "libfuzzer-sys",
@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1106,6 +1106,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
+
+[[package]]
 name = "sha2"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1470,6 +1476,7 @@ dependencies = [
  "getrandom 0.4.2",
  "js-sys",
  "serde_core",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 

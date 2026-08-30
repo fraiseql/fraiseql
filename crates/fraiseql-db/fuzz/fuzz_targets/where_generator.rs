@@ -9,12 +9,13 @@
 //! boundary it guards protects PostgreSQL too, so the field name is validated at
 //! the parse boundary and this target holds the invariant downstream of it.
 
+use std::sync::Arc;
+
 use fraiseql_db::{
     GenericWhereGenerator, PostgresDialect, ScalarFieldType, WhereClause,
-    where_clause::{FieldTypeMap, SharedFieldTypes},
+    where_clause::{FieldTypeMap, SharedFieldTypes, WhereFieldSchema},
 };
 use libfuzzer_sys::fuzz_target;
-use std::sync::Arc;
 
 /// Quotes are balanced and parentheses are balanced and never go negative.
 ///
@@ -49,13 +50,21 @@ fuzz_target!(|data: &str| {
         return;
     };
 
-    let types: SharedFieldTypes = Arc::new(FieldTypeMap::from_pairs([
+    let casts: SharedFieldTypes = Arc::new(FieldTypeMap::from_pairs([
         ("id", ScalarFieldType::Text),
         ("count", ScalarFieldType::Integer),
         ("created_at", ScalarFieldType::DateTime),
     ]));
 
-    let Ok(clause) = WhereClause::from_graphql_json(&value, &types) else {
+    // `casts_only` and not `with_known_keys`: this target's property is about the
+    // SQL that comes *out* of the generator, so it wants the widest set of clauses
+    // the parser will build. An allowlist only refuses inputs earlier, which cuts
+    // reachable clauses without adding a branch here — the undeclared-key
+    // adjudication (#1198) is exercised by `where_from_json`, which owns the parse
+    // boundary.
+    let schema = WhereFieldSchema::casts_only(casts);
+
+    let Ok(clause) = WhereClause::from_graphql_json(&value, &schema) else {
         return;
     };
 

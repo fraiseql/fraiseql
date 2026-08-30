@@ -7,12 +7,41 @@
 //! condition *widens* a result set, which is an authorization-adjacent failure
 //! rather than a cosmetic one (#719).
 
+use std::{collections::HashMap, sync::Arc};
+
 use fraiseql_db::{
     ScalarFieldType, WhereClause,
-    where_clause::{FieldTypeMap, SharedFieldTypes},
+    where_clause::{FieldTypeMap, SharedFieldTypes, WhereFieldInfo, WhereFieldSchema},
 };
 use libfuzzer_sys::fuzz_target;
-use std::sync::Arc;
+
+/// One declared `where` key, spelled the way the published `{Entity}WhereInput`
+/// spells it — which is what the parser compares a client's key against.
+fn scalar(name: &str, cast: ScalarFieldType) -> (String, WhereFieldInfo) {
+    (
+        name.to_string(),
+        WhereFieldInfo {
+            declared_name: name.to_string(),
+            is_relation:   false,
+            relation_type: None,
+            cast:          Some(cast),
+        },
+    )
+}
+
+/// A key the schema calls a relation, so a nested predicate on it is descended
+/// into wholesale rather than read as an operator map.
+fn relation(name: &str, target: &str) -> (String, WhereFieldInfo) {
+    (
+        name.to_string(),
+        WhereFieldInfo {
+            declared_name: name.to_string(),
+            is_relation:   true,
+            relation_type: Some(target.to_string()),
+            cast:          None,
+        },
+    )
+}
 
 fuzz_target!(|data: &[u8]| {
     let Ok(s) = std::str::from_utf8(data) else {
@@ -37,8 +66,33 @@ fuzz_target!(|data: &[u8]| {
         ("machine.serial_number", ScalarFieldType::Text),
     ]));
 
-    for types in [&untyped, &typed] {
-        match WhereClause::from_graphql_json(&value, types) {
+    // Three schemas, because `WhereFieldSchema` has three states and only the
+    // third reaches the adjudication branch. `casts_only` leaves `known: None`,
+    // which is "cannot adjudicate" — every key passes (#939). `with_known_keys`
+    // is the shape a compiled schema produces, and it is the only one that can
+    // reach the refuse-undeclared-key arm #1198 added; without it this target
+    // would fuzz the parser as it stood *before* that change and could not see a
+    // condition silently dropped by a key the type never declared, which is the
+    // property this target exists for.
+    let known: HashMap<String, WhereFieldInfo> = [
+        scalar("id", ScalarFieldType::Text),
+        scalar("count", ScalarFieldType::Integer),
+        scalar("price", ScalarFieldType::Numeric),
+        scalar("active", ScalarFieldType::Boolean),
+        scalar("created_at", ScalarFieldType::DateTime),
+        relation("machine", "Machine"),
+    ]
+    .into_iter()
+    .collect();
+
+    let schemas = [
+        WhereFieldSchema::casts_only(Arc::clone(&untyped)),
+        WhereFieldSchema::casts_only(Arc::clone(&typed)),
+        WhereFieldSchema::with_known_keys(Arc::clone(&typed), known),
+    ];
+
+    for schema in &schemas {
+        match WhereClause::from_graphql_json(&value, schema) {
             Ok(clause) => {
                 let _ = serde_json::to_string(&clause);
             },

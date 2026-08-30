@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1177,7 +1177,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "ahash",
  "async-trait",
@@ -1221,7 +1221,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1248,7 +1248,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "axum",
  "serde",
@@ -1259,7 +1259,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-functions"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1279,14 +1279,14 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-guard"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "tracing",
 ]
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "aes-gcm",
  "ahash",
@@ -1369,7 +1369,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server-fuzz"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "fraiseql-server",
  "libfuzzer-sys",
@@ -1379,7 +1379,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-storage"
-version = "2.14.1"
+version = "2.15.0"
 dependencies = [
  "arc-swap",
  "async-trait",
