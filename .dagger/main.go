@@ -199,6 +199,7 @@ func (m *FraiseqlCi) Preflight(
 		{"clippy", m.Clippy},
 		{"check-default", m.CheckDefault},
 		{"check-fuzz", m.CheckFuzz},
+		{"check-example-crates", m.CheckExampleCrates},
 	}
 
 	var report strings.Builder
@@ -300,6 +301,22 @@ func (m *FraiseqlCi) CheckFuzz(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithExec([]string{"bash", "tools/check-fuzz-compiles.sh"}).
+		Stdout(ctx)
+}
+
+// CheckExampleCrates: every standalone Cargo project under examples/ compiles.
+//
+// They declare their own [workspace], so `cargo check --workspace`, clippy and
+// every test leg skip them by construction — the same blindness crates/*/fuzz had.
+// `examples/rust/flight_client` could have sat broken indefinitely; nothing built
+// it (#1200).
+func (m *FraiseqlCi) CheckExampleCrates(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return m.rustSrc(source).
+		WithExec([]string{"bash", "tools/check-example-crates-compile.sh"}).
 		Stdout(ctx)
 }
 

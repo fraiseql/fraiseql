@@ -1,133 +1,170 @@
-//! FraiseQL Arrow Flight Client
+//! FraiseQL Arrow Flight client.
 //!
-//! Native Rust client demonstrating direct Arrow Flight consumption.
+//! # Authentication is not optional
+//!
+//! The server authenticates `do_get` **before** it decodes the ticket
+//! (`flight_server/handlers/do_get.rs`), so a call with no credentials is
+//! refused whatever it asks for. Getting credentials is a two-step exchange:
+//!
+//! 1. `handshake` with the payload `"Bearer <jwt>"`. The response payload is a
+//!    session token.
+//! 2. Every later call carries `authorization: Bearer <session token>` in its
+//!    gRPC metadata — the session token, not the original JWT.
+//!
+//! This client used to do neither, so every call it could make returned
+//! `UNAUTHENTICATED` (#1200).
+//!
+//! # Running it
+//!
+//! ```bash
+//! FRAISEQL_JWT="<your jwt>" cargo run
+//! ```
+//!
+//! The server needs `FLIGHT_SESSION_SECRET` set, or the handshake fails with
+//! `FLIGHT_SESSION_SECRET not configured`.
 
-use arrow::ipc::reader::StreamReader;
 use arrow::record_batch::RecordBatch;
-use arrow_flight::{flight_service_client::FlightServiceClient, Ticket};
+use arrow_flight::decode::FlightRecordBatchStream;
+use arrow_flight::{flight_service_client::FlightServiceClient, HandshakeRequest, Ticket};
+use futures::TryStreamExt;
 use prost::bytes::Bytes;
 use serde_json::json;
-use std::io::Cursor;
-use tokio::sync::mpsc;
-use tonic::transport::{Endpoint, Uri};
-use tracing::{error, info};
+use tonic::transport::{Channel, Endpoint, Uri};
+use tonic::Request;
+use tracing::info;
 
-/// FraiseQL Flight client
+type BoxError = Box<dyn std::error::Error>;
+
+/// A client that has completed the handshake and holds a session token.
 pub struct FraiseQLFlightClient {
-    uri: Uri,
+    uri:           Uri,
+    client:        FlightServiceClient<Channel>,
+    session_token: String,
 }
 
 impl FraiseQLFlightClient {
-    /// Create a new client pointing to FraiseQL server
-    pub fn new(host: &str, port: u16) -> Self {
-        let uri = format!("http://{}:{}", host, port)
-            .parse::<Uri>()
-            .expect("Invalid URI");
+    /// Connect and handshake. There is no constructor that skips this: a client
+    /// without a session token cannot make a call the server will answer, so
+    /// producing one would only move the failure later.
+    pub async fn connect(host: &str, port: u16, jwt: &str) -> Result<Self, BoxError> {
+        let uri = format!("http://{host}:{port}").parse::<Uri>()?;
+        let channel = Endpoint::from(uri.clone()).connect().await?;
+        let mut client = FlightServiceClient::new(channel);
 
-        Self { uri }
+        // The server expects the JWT with a `Bearer ` prefix and rejects a bare
+        // token (`flight_server/handlers/metadata.rs`).
+        let request = HandshakeRequest {
+            protocol_version: 0,
+            payload:          Bytes::from(format!("Bearer {jwt}").into_bytes()),
+        };
+        let mut response = client
+            .handshake(futures::stream::iter(vec![request]))
+            .await?
+            .into_inner();
+        let message = response
+            .message()
+            .await?
+            .ok_or("handshake closed without a response")?;
+        let session_token = String::from_utf8(message.payload.to_vec())?;
+        if session_token.is_empty() {
+            return Err("handshake returned an empty session token".into());
+        }
+        info!("Handshake complete; holding a session token");
+
+        Ok(Self {
+            uri,
+            client,
+            session_token,
+        })
     }
 
-    /// Execute a GraphQL query and stream results
+    /// The server this client is talking to.
+    #[must_use]
+    pub fn uri(&self) -> &Uri {
+        &self.uri
+    }
+
+    /// Execute a GraphQL query and collect the result batches.
     pub async fn query_graphql(
-        &self,
+        &mut self,
         query: &str,
         variables: Option<serde_json::Value>,
-    ) -> Result<Vec<RecordBatch>, Box<dyn std::error::Error>> {
-        let ticket_data = json!({
+    ) -> Result<Vec<RecordBatch>, BoxError> {
+        self.fetch(json!({
             "type": "GraphQLQuery",
             "query": query,
             "variables": variables,
-        });
-
-        let ticket = Ticket {
-            ticket: Bytes::from(ticket_data.to_string().into_bytes()),
-        };
-
-        self.fetch_data(ticket).await
+        }))
+        .await
     }
 
-    /// Stream observer events for an entity type
-    pub async fn stream_events(
-        &self,
-        entity_type: &str,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+    /// Read a view directly, pushing the filter and ordering to the server.
+    pub async fn query_view(
+        &mut self,
+        view: &str,
+        filter: Option<serde_json::Value>,
+        order_by: Option<&str>,
         limit: Option<usize>,
-    ) -> Result<Vec<RecordBatch>, Box<dyn std::error::Error>> {
-        let ticket_data = json!({
-            "type": "ObserverEvents",
-            "entity_type": entity_type,
-            "start_date": start_date,
-            "end_date": end_date,
+    ) -> Result<Vec<RecordBatch>, BoxError> {
+        self.fetch(json!({
+            "type": "OptimizedView",
+            "view": view,
+            "filter": filter,
+            "order_by": order_by,
             "limit": limit,
-        });
-
-        let ticket = Ticket {
-            ticket: Bytes::from(ticket_data.to_string().into_bytes()),
-        };
-
-        self.fetch_data(ticket).await
+            "offset": null,
+        }))
+        .await
     }
 
-    /// Fetch data from server
-    async fn fetch_data(&self, ticket: Ticket) -> Result<Vec<RecordBatch>, Box<dyn std::error::Error>> {
-        let channel = Endpoint::from(self.uri.clone()).connect().await?;
-        let mut client = FlightServiceClient::new(channel);
+    /// Send several queries in one round trip.
+    pub async fn query_batched(
+        &mut self,
+        queries: &[&str],
+    ) -> Result<Vec<RecordBatch>, BoxError> {
+        self.fetch(json!({ "type": "BatchedQueries", "queries": queries })).await
+    }
 
-        info!("Requesting data from FraiseQL Flight server");
-
-        let mut stream = client.do_get(ticket).await?.into_inner();
-
-        let mut batches = Vec::new();
-        let (tx, mut rx) = mpsc::channel(100);
-
-        // Spawn task to receive from stream
-        let recv_task = tokio::spawn(async move {
-            while let Ok(Some(message)) = stream.message().await {
-                if let Err(e) = tx.send(message).await {
-                    error!("Failed to send message: {}", e);
-                    break;
-                }
-            }
+    /// Issue one `do_get` with the session token attached, and decode the stream.
+    async fn fetch(&mut self, ticket: serde_json::Value) -> Result<Vec<RecordBatch>, BoxError> {
+        let mut request = Request::new(Ticket {
+            ticket: Bytes::from(ticket.to_string().into_bytes()),
         });
+        // Without this header the server answers `UNAUTHENTICATED: Missing
+        // authorization header - perform handshake first`, before it has looked
+        // at the ticket at all.
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", self.session_token).parse()?,
+        );
 
-        // Process batches as they arrive
-        while let Some(message) = rx.recv().await {
-            let batch_data = &message.app_metadata;
-            if !batch_data.is_empty() {
-                let cursor = Cursor::new(batch_data.clone());
-                let reader = StreamReader::try_new(cursor, None)?;
+        let stream = self.client.do_get(request).await?.into_inner();
 
-                for result in reader {
-                    match result {
-                        Ok(batch) => {
-                            let row_count = batch.num_rows();
-                            let col_count = batch.num_columns();
-                            info!(
-                                "Received batch with {} rows, {} columns",
-                                row_count, col_count
-                            );
-                            batches.push(batch);
-                        }
-                        Err(e) => {
-                            error!("Failed to read batch: {}", e);
-                        }
-                    }
-                }
-            }
-        }
+        // `FlightRecordBatchStream` is the decoder arrow-flight ships. Reading
+        // `app_metadata` — as this example used to — inspects a side channel that
+        // carries no Arrow IPC payload, so it decoded nothing however well the
+        // call went.
+        let batches: Vec<RecordBatch> = FlightRecordBatchStream::new_from_flight_data(
+            stream.map_err(|e| arrow_flight::error::FlightError::Tonic(e)),
+        )
+        .try_collect()
+        .await?;
 
-        // Wait for receive task to complete
-        recv_task.await?;
-
-        info!("Received {} batches total", batches.len());
+        info!("Received {} batch(es)", batches.len());
         Ok(batches)
     }
 }
 
+fn summarise(label: &str, batches: &[RecordBatch]) {
+    let rows: usize = batches.iter().map(RecordBatch::num_rows).sum();
+    println!("✅ {label}: {} batch(es), {rows} row(s)", batches.len());
+    if let Some(first) = batches.first() {
+        println!("   schema: {:?}", first.schema());
+    }
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logging
+async fn main() -> Result<(), BoxError> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
@@ -135,66 +172,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    info!("FraiseQL Arrow Flight Client Example");
-    println!("=====================================\n");
+    println!("FraiseQL Arrow Flight client");
+    println!("============================\n");
 
-    // Create client
-    let client = FraiseQLFlightClient::new("localhost", 50051);
-    println!("✅ Connected to FraiseQL server at localhost:50051\n");
+    // No default: a placeholder token would turn "you did not set this" into
+    // "the server rejected your credentials", which is a slower thing to debug.
+    let jwt = std::env::var("FRAISEQL_JWT").map_err(|_| {
+        "set FRAISEQL_JWT to a token this server accepts — the Flight surface \
+         authenticates every call"
+    })?;
 
-    // Example 1: GraphQL Query
-    println!("Example 1: Execute GraphQL Query");
-    println!("---------------------------------");
-    match client
-        .query_graphql("{ users { id name email } }", None)
-        .await
-    {
-        Ok(batches) => {
-            println!("✅ Query successful!");
-            for (i, batch) in batches.iter().enumerate() {
-                println!(
-                    "  Batch {}: {} rows × {} columns",
-                    i + 1,
-                    batch.num_rows(),
-                    batch.num_columns()
-                );
-                println!("  Schema: {:?}", batch.schema());
-            }
-        }
-        Err(e) => eprintln!("❌ Query failed: {}", e),
+    let mut client = FraiseQLFlightClient::connect("localhost", 50051, &jwt).await?;
+    println!("✅ Handshake complete with {}\n", client.uri());
+
+    println!("1. GraphQL query");
+    match client.query_graphql("{ users { id name email } }", None).await {
+        Ok(batches) => summarise("query", &batches),
+        Err(e) => eprintln!("❌ query failed: {e}"),
     }
     println!();
 
-    // Example 2: Stream Events
-    println!("Example 2: Stream Observer Events");
-    println!("---------------------------------");
-    match client
-        .stream_events("Order", Some("2026-01-01"), Some("2026-01-31"), Some(1000))
-        .await
-    {
-        Ok(batches) => {
-            let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-            println!("✅ Events streamed successfully!");
-            println!("  Total batches: {}", batches.len());
-            println!("  Total rows: {}", total_rows);
-        }
-        Err(e) => eprintln!("❌ Event streaming failed: {}", e),
+    println!("2. Direct view read");
+    match client.query_view("v_user", None, Some("id"), Some(100)).await {
+        Ok(batches) => summarise("view", &batches),
+        Err(e) => eprintln!("❌ view read failed: {e}"),
     }
     println!();
 
-    println!("✅ Examples completed!");
-    println!("=====================================");
-
+    // `ObserverEvents` is deliberately absent. It is a variant of the ticket
+    // enum, but the server answers it with `unimplemented`: "this server does
+    // not produce an Arrow event stream. Query historical events through the
+    // GraphQL API instead." This example used to showcase it as its second
+    // operation (#1200).
+    println!("✅ Done");
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn test_client_creation() {
-        let client = FraiseQLFlightClient::new("localhost", 50051);
-        assert_eq!(client.uri.host(), Some("localhost"));
+    fn a_bearer_prefixed_payload_is_what_the_server_parses() {
+        // The server strips exactly this prefix; a bare JWT is refused with
+        // "Missing 'Bearer' prefix in authentication payload".
+        let payload = format!("Bearer {}", "some.jwt.value");
+        assert!(payload.starts_with("Bearer "), "handshake payload must carry the prefix");
+        assert_eq!(payload.strip_prefix("Bearer "), Some("some.jwt.value"));
     }
 }

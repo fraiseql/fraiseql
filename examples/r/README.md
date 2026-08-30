@@ -29,53 +29,61 @@ R CMD INSTALL fraiseqlclient_0.1.0.tar.gz
 ```r
 library(fraiseqlclient)
 
-client <- connect_fraiseql(host = "localhost", port = 50051)
+# Authentication is not optional. `connect_fraiseql()` performs the Flight
+# handshake and holds the session token every later call needs; there is no
+# constructor that skips it.
+Sys.setenv(FRAISEQL_JWT = "<a token this server accepts>")
+conn <- connect_fraiseql(host = "localhost", port = 50051)
 ```
+
+The server authenticates `do_get` **before** it decodes the ticket, so a call
+with no credentials is refused whatever it asks for. The exchange is:
+
+1. A Flight `Handshake` whose payload is the literal string `"Bearer <jwt>"`;
+   the response payload is a **session token**.
+2. Every later call carries `authorization: Bearer <session token>` — the
+   session token, not the original JWT.
+
+The server also needs `FLIGHT_SESSION_SECRET` set, or the handshake fails with
+`FLIGHT_SESSION_SECRET not configured`.
 
 ### Execute GraphQL Queries
 
 ```r
 # Basic query
-df <- query_graphql(client, "{ users { id name email } }")
+df <- query_graphql(conn, "{ users { id name email } }")
 head(df)
 
 # With summarization
-df <- query_graphql(client, "{ orders { id total customerId } }")
+df <- query_graphql(conn, "{ orders { id total customerId } }")
 summary(df$total)
 ```
 
-### Stream Observer Events
+### Read a View Directly
 
 ```r
-# Stream all events
-events <- stream_events(client, "Order")
-
-# With date filtering
-events <- stream_events(client, "Order",
-  start_date = "2026-01-01",
-  end_date = "2026-01-31"
-)
-
-# Limit results
-events <- stream_events(client, "Order", limit = 10000)
+# Pushes the filter and ordering to the server
+df <- query_view(conn, "v_user", order_by = "id", limit = 100)
+head(df)
 ```
 
-### Batch Processing
+### Several Queries in One Round Trip
 
 ```r
-# Process large datasets in batches
-process_batch <- function(df) {
-  cat("Processing batch of", nrow(df), "events\n")
-  # Perform analysis, filtering, aggregations, etc.
-  return(subset(df, event_type == "Created"))
-}
-
-stream_events_batched(
-  client, "Order",
-  process_batch,
-  limit = 1000000
-)
+df <- query_batched(conn, c("{ users { id } }", "{ posts { id } }"))
 ```
+
+### Observer events are not available
+
+`ObserverEvents` is a variant of the Flight ticket enum, but this server answers
+it with `unimplemented`:
+
+> ObserverEvents is not implemented: this server does not produce an Arrow event
+> stream. Query historical events through the GraphQL API instead.
+
+`stream_events()` and `stream_events_batched()` used to be this client's headline
+examples and could never have returned data (#1200). They are gone rather than
+left to fail at runtime.
 
 ### Integration with dplyr
 
@@ -83,7 +91,7 @@ stream_events_batched(
 library(dplyr)
 
 # Execute query and manipulate with dplyr
-orders <- query_graphql(client, "{ orders { id total status } }") %>%
+orders <- query_graphql(conn, "{ orders { id total status } }") %>%
   filter(status == "completed") %>%
   group_by(status) %>%
   summarize(avg_total = mean(total), count = n())

@@ -669,6 +669,22 @@ check-fuzz:
 test-fuzz-compiles-gate:
 	@bash tools/tests/fuzz_compiles_test.sh
 
+# Gate: every standalone Cargo project under examples/ compiles. They declare their
+# own [workspace], so nothing else in this repository builds them — the same shape
+# as the fuzz crates above. `examples/rust/flight_client` is the one that motivated
+# it (#1200): a client a reader is invited to `cargo run` could rot unnoticed.
+#
+# Not in ShellGates: this one runs cargo.
+.PHONY: check-example-crates
+check-example-crates:
+	@bash tools/check-example-crates-compile.sh
+
+# Unit tests for the gate above. Four ways to go red, none of them observable from
+# a passing run of the real tree.
+.PHONY: test-example-crates-gate
+test-example-crates-gate:
+	@bash tools/tests/example_crates_compile_test.sh
+
 # Gate: every publishable workspace crate is published by release.yml, in the same
 # order .dagger/release.go dry-runs and topologically self-tests. fraiseql-cdc-sinks
 # (#382) reached the workspace and legacyPublishOrder but never reached release.yml;
@@ -1002,7 +1018,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1019,6 +1035,8 @@ preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-as
 	@$(MAKE) --no-print-directory check-default
 	@echo "=== preflight: check-fuzz (the crates/*/fuzz crates nothing else compiles) ==="
 	@$(MAKE) --no-print-directory check-fuzz
+	@echo "=== preflight: check-example-crates (the standalone examples/ crates nothing else compiles) ==="
+	@$(MAKE) --no-print-directory check-example-crates
 	@echo ""
 	@echo "✅ preflight passed — mirrors the Dagger preflight leg."
 	@echo "⚠  It does NOT run clippy under a narrow feature set: its clippy pass is"

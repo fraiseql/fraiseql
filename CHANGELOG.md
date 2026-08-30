@@ -134,6 +134,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`tools/check-example-crates-compile.sh`: the standalone `examples/` crates compile (#1200).**
+
+  `examples/rust/flight_client` and `examples/async-jobs-subgraph/subgraph` declare their
+  own `[workspace]`, so `cargo check --workspace`, clippy and every test leg skip them by
+  construction — the blindness `crates/*/fuzz` had before #1254. An example a reader is
+  invited to `cargo run` could have sat at `error[E0308]` indefinitely.
+
+  Discovery is at runtime, never a hard-coded list, and both empty cases fail loudly: a
+  scan root with no `Cargo.toml`, and one where nothing is standalone — the second being
+  how this gate would quietly become decoration. Wired into `make preflight` and the
+  Dagger `Preflight` leg as a sibling of `check-fuzz`.
+
+
 - **`requires_actor` is authorable from ten of the eleven SDKs, and the eleventh declares
   the gap (#1123).**
 
@@ -315,6 +328,33 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **Both shipped Arrow Flight clients authenticate, and stop showcasing an unimplemented call (#1200).**
+
+  The server authenticates `do_get` **before** it decodes the ticket, so a call with no
+  credentials is refused whatever it asks for. Neither client performed the handshake or
+  sent an `authorization` header, so every call either could make returned
+  `UNAUTHENTICATED` — and `examples/README.md` advertised both as "production-ready".
+
+  Both now do the two-step exchange the server implements: a Flight `Handshake` whose
+  payload is the literal string `"Bearer <jwt>"`, then `authorization: Bearer <session
+  token>` — the session token from the handshake, not the original JWT — on every later
+  call. Neither exposes a constructor that skips it, since a client without a session
+  token cannot make a call the server will answer.
+
+  `ObserverEvents` is gone from both. It is a variant of the ticket enum, but the server
+  answers it with `unimplemented` ("this server does not produce an Arrow event stream.
+  Query historical events through the GraphQL API instead"), and it was the headline
+  example in each client. They demonstrate `OptimizedView` and `BatchedQueries` instead,
+  which the server serves.
+
+  The Rust client also decoded its results from `app_metadata`, a side channel carrying
+  no Arrow IPC payload, so it would have decoded nothing however well the call went. It
+  uses `FlightRecordBatchStream`, the decoder arrow-flight ships.
+
+  The R client reaches pyarrow through reticulate rather than `arrow::flight_get()`,
+  which has no parameter for per-call gRPC metadata and so cannot send the header the
+  server requires — `arrow`'s Flight support is pyarrow under reticulate already.
+
 - **All eighteen `examples/mutation-patterns` files load against the schema the example ships (#1194).**
 
   Four did not. Two wanted fixture that was never authored, and two were defects in
