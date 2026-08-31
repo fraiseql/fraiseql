@@ -133,6 +133,7 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+
 - **The image leg stops rebuilding every layer on a docs-only push, behind a gate (#1215).**
 
   Dagger keys `DockerBuild` on the whole context digest, and `.dagger/image.go`'s three
@@ -149,10 +150,10 @@ disagreed, and the promise was the part that was wrong.
 
   Both halves of that gate earned their place by catching a real mistake in this change:
 
-  * Narrowing for the root `Dockerfile` alone would have broken the **tutorial** image,
+  - Narrowing for the root `Dockerfile` alone would have broken the **tutorial** image,
     which builds from `tutorial/Dockerfile` and copies four paths the new filter dropped.
     The gate now discovers Dockerfiles from the variant table rather than assuming one.
-  * The first corrected narrowing still failed to build, because the context did not
+  - The first corrected narrowing still failed to build, because the context did not
     contain the root `Dockerfile` — `DockerBuild` reads it from there. A filter can admit
     every `COPY` source and still drop the file doing the copying, and the error Dagger
     gives is only "failed to build".
@@ -175,12 +176,12 @@ disagreed, and the promise was the part that was wrong.
   Four more citations are dropped rather than repointed, because their targets do not
   exist anywhere:
 
-  * `roadmap.md` pointed at two plan directories for "detailed plans".
-  * `examples/_TEMPLATE/README.md` told a reader to run
+  - `roadmap.md` pointed at two plan directories for "detailed plans".
+  - `examples/_TEMPLATE/README.md` told a reader to run
     `python .phases/verify-examples-compliance/verify.py`. It now names the two gates
     that do check an example, both of which are in `make preflight`.
-  * `docs/adr/0013` pointed at a 7-phase plan; the phase list it introduced is kept.
-  * `routes/rest/export_config.rs` deferred its layering rule to a sprint document; the
+  - `docs/adr/0013` pointed at a 7-phase plan; the phase list it introduced is kept.
+  - `routes/rest/export_config.rs` deferred its layering rule to a sprint document; the
     rule is now stated where the rule is enforced.
 
   `tools/check-phases-citations.sh` keeps it that way. It flags a path *into*
@@ -294,6 +295,7 @@ disagreed, and the promise was the part that was wrong.
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
 ### Removed
+
 - **The two ungated copies of the Kubernetes deployment are deleted (#1218).**
 
   `deploy/kubernetes/` shipped a hand-maintained set of plain manifests beside the Helm
@@ -313,13 +315,13 @@ disagreed, and the promise was the part that was wrong.
 
   Three documents were corrected with the deletion:
 
-  * `deploy/deployment-security-guide.md` said `fraiseql-hardened.yaml` "is rendered and
+  - `deploy/deployment-security-guide.md` said `fraiseql-hardened.yaml` "is rendered and
     checked by `tools/chart-deploy-test.sh`". It never was — that script only ever
     touched `deploy/kubernetes/helm/fraiseql`.
-  * `crates/fraiseql-observers/deployment.md` documented nine `k8s/` manifests and a
+  - `crates/fraiseql-observers/deployment.md` documented nine `k8s/` manifests and a
     `kubectl apply` sequence over them. **None of those files has ever existed**; the
     directory held two, neither of them named there.
-  * `crates/fraiseql-observers/examples/README.md` listed four more of the same.
+  - `crates/fraiseql-observers/examples/README.md` listed four more of the same.
 
   `tools/check-deploy-security.sh` scanned `find k8s deploy/kubernetes` with stderr
   discarded, so it absorbed the directory's disappearance silently. It now scans
@@ -415,6 +417,7 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+
 - **`saga-basic` and `saga-manual-compensation` come up, and pass their own tests (#1259).**
 
   Both had had only their supergraphs repaired, and that was checked with
@@ -527,14 +530,14 @@ disagreed, and the promise was the part that was wrong.
   the files themselves — and running the repaired files found two more that loading
   alone could not have.
 
-  * `schema.sql` now creates `jobs`, `accounts`/`transfers` and `categories`/`products`,
+  - `schema.sql` now creates `jobs`, `accounts`/`transfers` and `categories`/`products`,
     and provides the v2 cascade protocol the one v2-era pattern needs: the `app`
     and `graphql` schemas, the 13-column `app.mutation_response`, the shipped
     `fraiseql.*` builders (included directly, so no separate `fraiseql setup` step),
     and `v_category`/`v_product` declared `WITH (security_invoker = true)`.
-  * `06-advanced/bulk-operations.sql` had SQL `--` comments **inside** a JSON string
+  - `06-advanced/bulk-operations.sql` had SQL `--` comments **inside** a JSON string
     literal, so they became part of the JSON and the cast failed.
-  * `06-advanced/transaction-rollback.sql` used `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`
+  - `06-advanced/transaction-rollback.sql` used `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`
     inside a PL/pgSQL function. A function body may not issue them; PostgreSQL rejects
     the file at `CREATE FUNCTION` with `syntax error at or near "TO"`. The writes now
     sit in a nested `BEGIN … EXCEPTION … END` block, which *is* PL/pgSQL's savepoint.
@@ -543,12 +546,12 @@ disagreed, and the promise was the part that was wrong.
 
   Found by executing the repaired patterns rather than only loading them:
 
-  * `format('… $%.2f', amount)` — PostgreSQL's `format()` takes `%s`, `%I`, `%L` and
+  - `format('… $%.2f', amount)` — PostgreSQL's `format()` takes `%s`, `%I`, `%L` and
     `%%` only, so `%.2f` raised `unrecognized format() type specifier "."`. The
     function fell into its `OTHERS` handler and returned `failed:error` for **every**
     transfer, successful ones included. Four occurrences across two files; the one in
     `03-business-logic/calculated-fields.sql` loads clean and is wrong the same way.
-  * The daily-limit check read `WHERE from_account_id = from_account_id`, comparing
+  - The daily-limit check read `WHERE from_account_id = from_account_id`, comparing
     the column with the identically-named variable — true for every row, so the limit
     was computed across all accounts rather than the source one.
 
@@ -579,12 +582,12 @@ disagreed, and the promise was the part that was wrong.
 
   Three further defects found by actually starting it:
 
-  * `ghcr.io/apollographql/router:latest` **does not exist** — that repository publishes
+  - `ghcr.io/apollographql/router:latest` **does not exist** — that repository publishes
     no `latest` tag. #1193 had recorded the image as unpullable but blamed the registry;
     ghcr.io resolves a known-good image fine. `saga-basic`, `saga-complex` and
     `saga-manual-compensation` all carried it; all three now pin `v1.59.0`, which is
     what the three working federation examples already used.
-  * **All three** saga examples shipped a `fixtures/supergraph.graphql` the Apollo
+  - **All three** saga examples shipped a `fixtures/supergraph.graphql` the Apollo
     Router rejects, so none of them had ever started its router. The shared cause: the
     `join__*` directives declared `graph: String` while `@join__type(graph: FLIGHT)`
     passes an enum *value*. All three now carry the canonical preamble — the join spec
@@ -594,7 +597,7 @@ disagreed, and the promise was the part that was wrong.
     directive block that nothing referenced and that named an undeclared type
     (`federation__enumValue`); it is gone. Each of the three is now verified accepted by
     `ghcr.io/apollographql/router:v1.59.0`.
-  * `fixtures/router.yaml` used the `server:` section, which the router reports as
+  - `fixtures/router.yaml` used the `server:` section, which the router reports as
     deprecated on every start and documents as a future error. It is `supergraph:` and
     `cors:` now.
 
@@ -656,11 +659,11 @@ disagreed, and the promise was the part that was wrong.
 
   Three defects found while rewriting, none of them in the issue:
 
-  * `setup.sql` created no `v_*` view at all, so the schema named a source that did not
+  - `setup.sql` created no `v_*` view at all, so the schema named a source that did not
     exist. Both now expose `pk_*`, `id` and a JSONB `data` column.
-  * Both called `uuid_generate_v4()` while creating only the `ltree` extension, so every
+  - Both called `uuid_generate_v4()` while creating only the `ltree` extension, so every
     INSERT would have failed on a clean database. Now `gen_random_uuid()`.
-  * `organization-chart`'s paths interleaved org units with people
+  - `organization-chart`'s paths interleaved org units with people
     (`acme.technology.engineering.backend.senior.frank_miller`), so no employee was ever
     another's ancestor: the `UPDATE … SET fk_manager` matched nothing, every manager read
     NULL, and the example's showcase `ancestorOf` query returned only the row itself. The
