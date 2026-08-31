@@ -51,6 +51,7 @@ single-line (grep) or multi-line (awk) form. Exit non-zero on violation, prints 
 ERROR + migration hint, exit 0 + `OK: ...` otherwise.
 
 **Accepted divergences (Phase 01):**
+
 - **gawk, not mawk.** Ubuntu's default `awk` is mawk, which does not honour `\s` — the
   char class the load-bearing multi-line pass relies on. The Dagger container installs
   `gawk`, so the multi-line gate actually fires. (If ubuntu-latest's mawk silently skipped
@@ -61,7 +62,7 @@ ERROR + migration hint, exit 0 + `OK: ...` otherwise.
   and asserts non-zero — proves the gate fires without duplicating the script.
 - **No strangler-fig parallel run.** Day-0 stripped the hosted `axum-route-syntax-check`
   trigger, so there is no legacy job to race for 3 PRs. Verified by local `dagger call`
-  + one self-hosted push/dispatch run.
+  - one self-hosted push/dispatch run.
 - **Push-only triggers (public repo).** `fraiseql/fraiseql` is public; a self-hosted
   runner must never run fork `pull_request` code, so `dagger-lint-routes.yml` (and all
   future Dagger workflows) trigger on `push` + `workflow_dispatch` only — never
@@ -133,6 +134,7 @@ link-arg=-fuse-ld=mold`. Cache volumes: `fraiseql-cargo-registry`,
 `fraiseql-cargo-git`, `fraiseql-rust-target`, `fraiseql-sccache`.
 
 **Accepted divergences (Phase 02):**
+
 - **mold/clang linking is ON** in the Dagger container, where the committed
   `.cargo/config.toml` keeps it OFF (the comment explains: GitHub-hosted runners lack
   mold). The self-hosted Dagger image ships mold, so we enable it via `RUSTFLAGS` env
@@ -147,7 +149,7 @@ link-arg=-fuse-ld=mold`. Cache volumes: `fraiseql-cargo-registry`,
   the clippy job. The Phase-01 `lint-routes` fn is now subsumed by preflight's
   shell-gates (kept for now; candidate to retire).
 - **No strangler-fig** (Day-0 killed legacy ci.yml) — verified by local `dagger call`
-  + one self-hosted push run, not a 3-PR race.
+  - one self-hosted push run, not a 3-PR race.
 - **Out of scope for this phase (still only on dispatch-only ci.yml, no PR guard):**
   `example-async-jobs-subgraph` (detached-crate clippy), `security` (cargo-deny →
   Phase 06), `dependency-audit`, semver-checks. Flagged so the coverage gap is visible.
@@ -165,7 +167,7 @@ link-arg=-fuse-ld=mold`. Cache volumes: `fraiseql-cargo-registry`,
 `target/` parked aside (instant same-device rename) for `dagger develop`/`functions`
 only; the gates compile into the `fraiseql-rust-target` cache volume, not the host
 tree, so parking doesn't affect them. Cold clippy was fast (2m13s) thanks to jobs=16
-+ sparse registry + the v8 prebuilt download (not source build).
+- sparse registry + the v8 prebuilt download (not source build).
 
 **Self-hosted run (remote GREEN):** push of `ed76badf4` → `dev` triggered
 `dagger-preflight.yml` run **26772144183** on `fraiseql-8core` — conclusion **success**;
@@ -184,13 +186,13 @@ backed by `.github/workflows/dagger-test.yml` (self-hosted matrix, push(dev)+dis
 |---|---|---|
 | `cargo build --all-features --verbose` | same | full-codegen compile of every crate/feature |
 | `cargo test --workspace --exclude {core,db,arrow,observers,server} --all-features` | same **+ `--exclude fraiseql-wire --exclude fraiseql-functions`** + `-- --skip metadata::tests --skip migrations::tests --skip routes::tests` | testcontainers tests skipped; wire+functions run separately (see below) |
-| _(wire was inside the workspace step)_ | `cargo test -p fraiseql-wire --lib --all-features` | wire's `tests/*` are all testcontainers → run lib unit tests only |
-| _(functions was inside the workspace step, `--all-features`)_ | `cargo test -p fraiseql-functions --features "runtime-wasm,host-live,host-storage" -- --skip migrations::tests` | all features **except runtime-deno** (v8 crash, see below); migrations::tests skipped (testcontainers) |
+| *(wire was inside the workspace step)* | `cargo test -p fraiseql-wire --lib --all-features` | wire's `tests/*` are all testcontainers → run lib unit tests only |
+| *(functions was inside the workspace step, `--all-features`)* | `cargo test -p fraiseql-functions --features "runtime-wasm,host-live,host-storage" -- --skip migrations::tests` | all features **except runtime-deno** (v8 crash, see below); migrations::tests skipped (testcontainers) |
 | `cargo test -p fraiseql-core --features "<SYNC:CORE_FEATURES>"` | same | no `test-postgres` → infra-free |
 | `cargo test -p fraiseql-db --features "<SYNC:DB_FEATURES>"` | same | infra-free |
 | `cargo test -p fraiseql-server --lib --features "<SYNC:SERVER_FEATURES>"` | same | `--lib`, infra-free |
 | `cargo test --doc --all-features --verbose` | same | |
-| `RUSTDOCFLAGS=-D warnings cargo doc --workspace --all-features --no-deps` | _omitted_ | already the Phase-02 `rustdoc` gate (preflight) — not duplicated |
+| `RUSTDOCFLAGS=-D warnings cargo doc --workspace --all-features --no-deps` | *omitted* | already the Phase-02 `rustdoc` gate (preflight) — not duplicated |
 
 **Toolchain (Cycle 3):** `--rust=msrv` (default) = `RUSTUP_TOOLCHAIN=1.92` (the base
 image's toolchain == rust-toolchain.toml pin == Cargo.toml `rust-version`); `--rust=stable`
@@ -199,6 +201,7 @@ file). Separate target cache volume per toolchain (`fraiseql-rust-target-test-1-
 `fraiseql-rust-target-test-stable`) — incompatible artifacts must not share a target dir.
 
 **Accepted divergences (Phase 03):**
+
 - **✓ RESTORED in Phase 04 (Increment 4).** Every testcontainers test below now runs as a
   real enforcing gate against a Dagger-bound service via the harness (storage→`storage`
   suite, functions→`postgres` suite, wire→`wire` suite). The skip below was Phase-03-only.
@@ -405,6 +408,7 @@ artifact. All 7 crates with a real dev-dep migrated: core, db, functions, wire, 
 | federation | 2 subgraph servers + Apollo Router + 2 postgres | 15 (incl. router routing + cross-subgraph) |
 
 **Production bugs fixed (all surfaced by making never-run tests actually run):**
+
 - `fraiseql-db` `row_to_map_test`: enum INSERT/SELECT casts + NULL-as-Option (was `--no-run`-only).
 - `fraiseql-server` `observer_test_helpers`: `tb_observer_log.entity_id` VARCHAR→UUID.
 - `fraiseql-server` `s3::exists()`: typed `HeadObjectError::is_not_found` (Display is "service error").
@@ -414,6 +418,7 @@ artifact. All 7 crates with a real dev-dep migrated: core, db, functions, wire, 
 - `fraiseql-core` federation mock: strip quotes from the parsed table name (matches the resolver).
 
 **Accepted divergences (Increment 4/5):**
+
 - **Per-test isolation = TRUNCATE/DROP + `--test-threads=1` on a shared bound DB**, NOT per-test
   ephemeral databases (explicitly out of scope). Each suite's pg/mysql service is fresh per `dagger
   call`, so cross-run state never accumulates.
@@ -477,6 +482,7 @@ runs one; `dagger call feature-matrix` runs all serially with a pass/fail summar
 `dagger call list-combos` emits the JSON name array the workflow expands.
 
 **Accepted divergences (Phase 05):**
+
 - **`feature-matrix` runs SERIALLY, not the plan's errgroup/`--max-parallel`.**
   Deliberate: (1) cost-over-speed is a hard project rule (the self-hosted runner is
   ~$0/min); (2) cargo holds a per-target build lock, so combos sharing one target
@@ -576,6 +582,7 @@ volume `fraiseql-advisory-db`; the cargo registry cache is shared with rustBase.
 
 **NOT ported — stay GitHub-native / dispatch-only (same precedent as CodeQL, README
 "Out of scope"):**
+
 - `secrets-scan` (TruffleHog) — scans the PR *diff* via `github.event.pull_request.{base,head}.sha`; PR-shaped, no push(dev) analogue. Remains the authoritative secret gate (compliance's grep is warn-only).
 - `container-security` (Trivy) — 45-min image scan + SARIF upload to GH Code Scanning (needs the GH security-events API); was a flagged PR-time cost driver. Overlaps the Phase-06 image build; revisit there if wanted.
 - `dependency-review` (`security.yml`) — GitHub Dependency-Graph API, PR-only.
