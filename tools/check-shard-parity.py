@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Assert the local integration targets run exactly what their Dagger shard runs.
+"""Assert each local mirror target runs exactly what the Dagger shard it names runs.
 
-The DB-backed suites in `fraiseql-core` and `fraiseql-db` provision fixtures in
-one shared `public` schema, so they only pass serialized. CI knows that —
+Two shards are mirrored, for the same reason from opposite directions: in both
+cases the command CI runs is not a command a developer can arrive at.
+
+**`integrationPostgres` ↔ `make test-integration-postgres` (#1169).** The
+DB-backed suites in `fraiseql-core` and `fraiseql-db` provision fixtures in one
+shared `public` schema, so they only pass serialized. CI knows that —
 `.dagger/main.go` runs every one of them with `--test-threads=1` — but that
 knowledge lived *only* there, and the two commands a developer naturally reaches
-for both mislead (#1169):
+for both mislead:
 
   * `cargo test -p fraiseql-core` uses default parallelism, which CI never uses.
     It is red by construction, and the failing *names* drift between runs, so it
@@ -15,9 +19,16 @@ for both mislead (#1169):
     --ignored` runs *only* ignored tests, so the target reported success having
     executed none of them.
 
-`make test-integration-postgres` is the faithful local mirror. A mirror that is
-maintained by hand in a second file drifts silently — that is #1135's lesson,
-one leg over — so this gate holds the two lists to each other.
+**`Test` ↔ `make test-leg` (#1257).** The workspace suite is not one command: it
+is `cargo test --workspace --exclude …` plus twenty-six feature-scoped invocations
+carrying the `SYNC:*` lists, several naming explicit `--test` binaries. A
+developer running `cargo test` runs a different, smaller thing — which is how
+`config_coverage_manifest_test` reddened `Dagger — test` on `231c3a25c` after a
+green preflight and 16 green branch legs. "Run the tests before you push" was
+not checkable advice while no command existed to run.
+
+A mirror that is maintained by hand in a second file drifts silently — that is
+#1135's lesson, one leg over — so this gate holds each pair of lists together.
 
 The comparison is **bidirectional**, unlike the preflight↔ShellGates gate. There
 a stricter local target costs nothing; here the target's whole claim is "this is
@@ -29,8 +40,8 @@ recognise is reported as fatal rather than dropped: a gate that silently ignores
 what it cannot read reports a parity it never checked.
 
 Runs in preflight ShellGates (python3, stdlib only) and locally via
-`make lint-integration-parity`. Its own red capability is pinned by
-`tools/tests/integration_parity_test.sh`.
+`make lint-shard-parity`. Its own red capability is pinned by
+`tools/tests/shard_parity_test.sh`.
 """
 
 from __future__ import annotations
@@ -44,23 +55,42 @@ from pathlib import Path
 
 # Dagger shard function -> the Makefile target that mirrors it locally.
 #
-# Only the postgres shard is mirrored, deliberately: it is the one whose suites
-# share a database and so cannot be run the obvious way. The other fourteen
-# shards each need a service a workstation may not have (Kafka, LocalStack,
-# MailHog, an Apollo Router), and reaching for plain `cargo test` on them fails
-# by *not connecting*, which is loud. Adding a shard here is cheap — write the
-# mirror target and add the row.
-SHARDS = {"integrationPostgres": "test-integration-postgres"}
+# The workspace suite (`Test`) and the postgres integration shard are mirrored,
+# deliberately, and the other fourteen integration shards are not: each of those
+# needs a service a workstation may not have (Kafka, LocalStack, MailHog, an
+# Apollo Router), and reaching for plain `cargo test` on them fails by *not
+# connecting*, which is loud. The two here fail quietly instead — one by running
+# a smaller suite than CI, one by colliding on a shared schema. Adding a shard is
+# cheap: write the mirror target and add the row.
+SHARDS = {
+    "Test": "test-leg",
+    "integrationPostgres": "test-integration-postgres",
+}
 
 # Shard lines that gate nothing and so have no local counterpart.
 NOISE_PREFIXES = ("set -e", "echo ", "echo\t")
 
+# `tools/ci-target-canary.sh -- <cargo args…>` wraps a leg's first build with the
+# #880 stale-target-cache detector. What the wrapper means for parity follows from
+# what the script does, not from which shard it appears in:
+#
+#   * `-- test …` appends `--no-run`: the canary BUILDS, and the shard's own
+#     `cargo test` line further down is the run. Mirroring it locally would add a
+#     build the mirror already performs, so it is CI-only.
+#   * `-- build …` has no such split — the canary line IS the shard's build step,
+#     and a mirror that skips it does not compile what CI compiles. It unwraps to
+#     the plain `cargo build …` the mirror must run.
+#
+# The detector itself is CI-only either way: it exists because Dagger legs mount a
+# persistent target/ volume and judge freshness by mtime across that mount. A local
+# target/ has no such mount, so locally it would only ever rebuild.
+CANARY = "bash tools/ci-target-canary.sh -- "
+
 # Shard lines that are deliberately CI-only, with the reason they are.
 CI_ONLY = {
-    "bash tools/ci-target-canary.sh": (
-        "the #880 stale-target-cache canary; it exists because Dagger legs mount a "
-        "persistent target/ volume and judge freshness by mtime across that mount. "
-        "A local target/ has no such mount, so locally it would only rebuild."
+    CANARY + "test": (
+        "the #880 canary in its --no-run form; it builds, and the shard runs the "
+        "same suite on its own line below, which the mirror does match."
     ),
 }
 
@@ -153,8 +183,66 @@ def strip_go_comment(line: str) -> str:
     return line
 
 
+def split_go_concat(entry: str) -> list[str]:
+    """Split a Go expression on `+`, ignoring any `+` inside a string literal.
+
+    Three of the `Test` shard's echo lines carry a `+` in their prose
+    ("wire+functions", "manifest + doc"), and splitting on every `+` cut those
+    literals in half — leaving two fragments that were neither quoted nor a
+    const, so the gate reported a plain echo as a command it could not read. The
+    same cut would mangle any cargo line whose arguments contain a `+`, and there
+    it would not announce itself: the fragments would resolve to a *different*
+    invocation, and the comparison would be made against something the shard
+    never ran.
+    """
+    pieces: list[str] = []
+    buf = ""
+    in_quote = False
+    escaped = False
+    for ch in entry:
+        if escaped:
+            buf += ch
+            escaped = False
+            continue
+        if ch == "\\":
+            buf += ch
+            escaped = True
+            continue
+        if ch == '"':
+            in_quote = not in_quote
+        elif ch == "+" and not in_quote:
+            pieces.append(buf)
+            buf = ""
+            continue
+        buf += ch
+    pieces.append(buf)
+    return pieces
+
+
+def resolve_entry(entry: str, consts: dict[str, str]) -> str:
+    """One `"…" + const + "…"` slice element, with the consts substituted in."""
+    raw = ""
+    for piece in split_go_concat(entry.rstrip(",")):
+        piece = piece.strip()
+        if piece.startswith('"') and piece.endswith('"'):
+            raw += piece[1:-1].replace('\\"', '"')
+        elif piece in consts:
+            raw += consts[piece]
+        else:
+            raw += UNRESOLVED
+    return raw.strip()
+
+
 def shard_lines(text: str, func: str) -> list[str]:
-    """The raw shell commands in a shard function's `script := …` literal."""
+    """The raw shell commands in a shard function's `script := …` literal.
+
+    One element may span several source lines: Go's `+` binds across newlines, and
+    the `Test` shard's workspace invocation is written as six lines with the
+    `--exclude` list and the skip patterns concatenated on. Reading the literal
+    line-by-line split that one command into six fragments, each of which then
+    reported as unclassifiable — a gate that fails loudly, but for the wrong
+    reason, and would have pushed whoever met it toward exempting real lines.
+    """
     marker = f"func (m *FraiseqlCi) {func}("
     if marker not in text:
         raise LookupError(f"no `{func}` function in .dagger/main.go")
@@ -165,20 +253,23 @@ def shard_lines(text: str, func: str) -> list[str]:
 
     consts = go_constants(text)
     commands: list[str] = []
+    entry = ""
     for line in literal.splitlines():
         stripped = strip_go_comment(line).strip()
-        if not stripped.startswith('"'):
+        if not stripped:
             continue
-        raw = ""
-        for piece in stripped.rstrip(",").split("+"):
-            piece = piece.strip()
-            if piece.startswith('"') and piece.endswith('"'):
-                raw += piece[1:-1].replace('\\"', '"')
-            elif piece in consts:
-                raw += consts[piece]
-            else:
-                raw += UNRESOLVED
-        commands.append(raw.strip())
+        # Outside an entry, anything not opening with a quote is the `script :=`
+        # line itself or a comment; inside one, a trailing `+` says the element
+        # continues on the next source line (comments may sit between the two).
+        if not entry and not stripped.startswith('"'):
+            continue
+        entry += stripped
+        if entry.endswith("+"):
+            continue
+        commands.append(resolve_entry(entry, consts))
+        entry = ""
+    if entry:
+        commands.append(resolve_entry(entry, consts))
     return commands
 
 
@@ -211,8 +302,16 @@ def makefile_recipe(text: str, target: str) -> list[str] | None:
 
     recipe: list[str] = []
     i += 1
-    while i < len(lines) and (lines[i].startswith("\t") or not lines[i].strip()):
-        if not lines[i].strip():
+    # Blank lines and whole-line comments may sit among recipe lines — make ignores
+    # them and keeps reading the recipe. A parser that stopped at the first one read
+    # a truncated recipe, or none at all: writing a comment above one line of the
+    # mirror made this gate report "parsed zero cargo invocations", which is loud but
+    # blames the wrong thing and teaches the next person to keep the explanation out
+    # of the file it explains.
+    while i < len(lines) and (
+        lines[i].startswith("\t") or not lines[i].strip() or lines[i].lstrip().startswith("#")
+    ):
+        if not lines[i].strip() or lines[i].lstrip().startswith("#"):
             i += 1
             continue
         cmd = lines[i][1:]
@@ -224,6 +323,21 @@ def makefile_recipe(text: str, target: str) -> list[str] | None:
     return recipe
 
 
+def unwrap_canary(raw: str) -> str:
+    """Rewrite a `-- build` canary line as the cargo build it performs.
+
+    Left alone, `bash tools/ci-target-canary.sh -- build --all-features` is
+    unclassifiable, and exempting the whole wrapper (which is what CI_ONLY did
+    while `integrationPostgres` was the only shard) would drop the `Test` shard's
+    only build step out of the comparison — so a mirror that never compiled the
+    workspace under `--all-features` would read as parity. See CANARY above.
+    """
+    if not raw.startswith(CANARY):
+        return raw
+    args = raw[len(CANARY) :].strip()
+    return "cargo " + args if args else raw
+
+
 def classify(commands: list[str]) -> tuple[list[str], list[str]]:
     """(canonical cargo invocations, unclassifiable lines)."""
     cargo: list[str] = []
@@ -233,6 +347,7 @@ def classify(commands: list[str]) -> tuple[list[str], list[str]]:
             continue
         if any(raw.startswith(prefix) for prefix in CI_ONLY):
             continue
+        raw = unwrap_canary(raw)
         canon = canonical_cargo(raw)
         if canon is not None and UNRESOLVED not in canon:
             cargo.append(canon)
@@ -302,7 +417,7 @@ def main() -> int:
         type=Path,
         default=None,
         help="tree to check; defaults to the git toplevel. Used by the self-test in "
-        "tools/tests/integration_parity_test.sh to prove the gate goes red.",
+        "tools/tests/shard_parity_test.sh to prove the gate goes red.",
     )
     args = parser.parse_args()
     root = args.root if args.root is not None else repo_root()
@@ -312,7 +427,7 @@ def main() -> int:
         problems = check_shard(root, func, target)
         if problems:
             failed = True
-            print(f"integration-parity: FAIL — {func} vs `make {target}`\n", file=sys.stderr)
+            print(f"shard-parity: FAIL — {func} vs `make {target}`\n", file=sys.stderr)
             for problem in problems:
                 print(f"  {problem}\n", file=sys.stderr)
 
@@ -325,7 +440,7 @@ def main() -> int:
         return 1
 
     print(
-        "integration-parity: OK — "
+        "shard-parity: OK — "
         + ", ".join(f"`make {t}` mirrors {f}" for f, t in sorted(SHARDS.items()))
     )
     return 0

@@ -8,6 +8,7 @@ and how to run each test category.
 | Command | Infrastructure | Duration | Coverage |
 |---------|---------------|----------|----------|
 | `make test-unit` | None | ~30s | Unit tests (all crates, `--lib`) |
+| `make test-leg` | None | ~40 min | The `Dagger — test` workspace suite, exactly as CI runs it |
 | `make test-integration-postgres` | Docker (db-up) | ~40 min | The `integration (postgres)` CI shard, exactly as CI runs it |
 | `make test-integration` | Docker (db-up) | ~50 min | The above, plus the observer and server `#[ignore]` suites |
 | `make test-full` | Docker (db-up) | ~65 min | Everything (8 steps) |
@@ -33,7 +34,7 @@ every one of these invocations carries `--test-threads=1`.
 
 Use **`make test-integration-postgres`**. It is the line-for-line mirror of the
 Dagger `integration (postgres)` shard, held to it in both directions by
-`make lint-integration-parity`, so what passes there is what CI will run.
+`make lint-shard-parity`, so what passes there is what CI will run.
 
 Two things this replaced, both of which misled (#1169):
 
@@ -47,6 +48,33 @@ Two things this replaced, both of which misled (#1169):
 Making the suites genuinely parallel-safe would cut the wall-clock a lot and is
 worth doing; it is a separate, much larger change and is not a prerequisite for
 anything here.
+
+## Do not reach for plain `cargo test` before pushing, either
+
+`cargo test` and `cargo test --workspace --all-features` are both smaller than
+what the `Dagger — test` leg runs, in ways that do not announce themselves. The
+leg is a `cargo build --all-features`, one `cargo test --workspace --exclude …`
+sweep, twenty-six feature-scoped invocations and a doctest run: several crates are excluded from the sweep and run on their own
+lines, several run **twice** (once with a wide `--features` list, once on the
+default set — the only configuration that compiles a `#[cfg(not(feature = …))]`
+arm at all), and eighty-one `tests/*.rs` binaries are named explicitly
+because `--lib` does not reach `tests/`.
+
+So a green `cargo test` says nothing about those eighty-one binaries. That is how
+`config_coverage_manifest_test` — one of the explicitly named ones — reached
+`dev` on `231c3a25c` with `make preflight` green and all sixteen branch legs
+green, and reddened `Dagger — test` afterwards (#1257).
+
+Use **`make test-leg`**. It is the line-for-line mirror of the `Dagger — test`
+shard, held to it in both directions by `make lint-shard-parity`.
+
+It refuses to start if `DATABASE_URL`, `REDIS_URL`, `NATS_URL`, `VAULT_ADDR` or
+their siblings are exported: the leg binds none of them, so a suite that
+self-skips in CI would otherwise run here against a live service and assert
+something else — passing or failing for a reason CI cannot reproduce.
+
+`make preflight` does **not** run any of this. It compiles the tests
+(`--all-targets`) and never executes them.
 
 ## Infrastructure Services
 
@@ -114,7 +142,7 @@ The comprehensive test target runs 8 steps in sequence, reporting a single pass/
 |-----|---------------|
 | `dagger-preflight.yml` | fmt (nightly rustfmt), ShellGates (incl. the no-orphan-suites and snapshot-pairing gates), rustdoc, clippy — on every push to every in-repo branch (required check) |
 | `dagger-security.yml` | cargo-deny (licenses + advisories + bans + sources) + compliance gates (required check) |
-| `dagger-test.yml` | Workspace test suite, stable + MSRV toolchains (push to dev + dispatch) |
+| `dagger-test.yml` | Workspace test suite, stable + MSRV toolchains — on every push to every in-repo branch (both arms are required checks, #1257); mirrored locally by `make test-leg` |
 | `dagger-integration.yml` | The integration shard matrix: postgres, server, redis, nats, observers, vault, tls, wire, storage, server-storage, federation, federation-compose, saml, quickstart, http-e2e |
 | `dagger-feature-matrix.yml` | Feature-combination compilation and tests |
 

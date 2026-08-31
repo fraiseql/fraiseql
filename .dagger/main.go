@@ -47,6 +47,19 @@ const (
 	// lib tests run here (they need no live Redis — closed ports and URL parsing);
 	// the Redis-requiring tests stay #[ignore]d and run in the redis integration leg.
 	serverTestFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend"
+	// testWorkspaceSkip: the skip patterns the `Test` shard's workspace sweep
+	// carries — the testcontainers lib tests (storage + functions); wire's
+	// container tests live in tests/*, so only its lib unit tests run.
+	// `uploads::tests` (#369) joins the list for the same reason: it needs a real
+	// Postgres for the resumable-upload session table, and without DATABASE_URL
+	// the harness spawns a testcontainer, which this engine has no Docker for.
+	// It runs for real in the `storage` integration suite.
+	//
+	// A package const rather than a local in `Test`: `make test-leg` mirrors that
+	// invocation, and tools/check-shard-parity.py resolves consts but reports an
+	// unresolvable expression as fatal rather than comparing a command it could
+	// not read.
+	testWorkspaceSkip = "-- --skip metadata::tests --skip migrations::tests --skip routes::tests --skip uploads::tests"
 	// serverInProcessTests: every fraiseql-server tests/*.rs binary that runs
 	// in-process (no backing service) and is not already named by a dedicated
 	// line. Enumerated because fraiseql-server is excluded from the workspace
@@ -564,14 +577,19 @@ func (m *FraiseqlCi) ShellGates(
 		// push" over the difference. It had drifted twice when this landed (#1135).
 		"python3 tools/check-preflight-parity.py",
 		"make test-preflight-parity",
-		// Same shape, one leg over: `make test-integration-postgres` is a
-		// hand-maintained copy of integrationPostgres's line list. Before it
-		// existed, the fact that these suites only pass under --test-threads=1
-		// lived ONLY in this file, so `cargo test -p fraiseql-core` was red by
-		// construction and `make test-integration` reported success having run
-		// 1 test out of 2828 (#1169). Bidirectional — a local-only extra line
-		// falsifies the target's claim in the other direction.
-		"python3 tools/check-integration-parity.py",
+		// Same shape, two legs over: `make test-integration-postgres` and
+		// `make test-leg` are hand-maintained copies of the line lists in
+		// integrationPostgres and Test. Before the first existed, the fact that
+		// those suites only pass under --test-threads=1 lived ONLY in this file,
+		// so `cargo test -p fraiseql-core` was red by construction and
+		// `make test-integration` reported success having run 1 test out of 2828
+		// (#1169). The second is the only command that runs what this leg's Test
+		// function runs — nothing did before a merge to dev, which is how
+		// `config_coverage_manifest_test` reddened the test leg on `231c3a25c`
+		// after a green preflight and sixteen green branch legs (#1257).
+		// Bidirectional — a local-only extra line falsifies the target's claim in
+		// the other direction.
+		"python3 tools/check-shard-parity.py",
 		// cargo-deny's unmatched-skip lints default to WARN, so a stale exact-version
 		// [[bans.skip-tree]] pin covers NOTHING while `cargo deny check` still exits 0.
 		// The level cannot be set in deny.toml, so `-D` lives on three command lines;
@@ -587,7 +605,7 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/tests/dockerfile_msrv_test.sh",
 		"python3 tools/check-deny-lint-flags.py",
 		"bash tools/tests/deny_lint_flags_test.sh",
-		"make test-integration-parity",
+		"make test-shard-parity",
 		// The bare-DATABASE_URL gate above ran here for its whole life without ever
 		// being able to reject anything (#1075). Its red capability is now pinned.
 		"make test-imports-gate",
@@ -710,15 +728,6 @@ func (m *FraiseqlCi) Test(
 	// (#501's `commands::query` / `runtime_probe_checks`) → false E0432 on msrv only.
 	targetVol := "fraiseql-rust-target-test2-" + strings.ReplaceAll(toolchain, ".", "-")
 
-	// Skip patterns for the testcontainers lib tests (storage + functions); wire's
-	// container tests live in tests/*, so we run only its lib unit tests.
-	// `uploads::tests` (#369) joins the list for the same reason: it needs a real
-	// Postgres for the resumable-upload session table, and without DATABASE_URL
-	// the harness spawns a testcontainer, which this engine has no Docker for.
-	// It runs for real in the `storage` integration suite.
-	skip := "-- --skip metadata::tests --skip migrations::tests --skip routes::tests" +
-		" --skip uploads::tests"
-
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
@@ -742,7 +751,7 @@ func (m *FraiseqlCi) Test(
 			" --exclude fraiseql-core --exclude fraiseql-db --exclude fraiseql-arrow" +
 			" --exclude fraiseql-observers --exclude fraiseql-server --exclude fraiseql-wire" +
 			" --exclude fraiseql-functions" +
-			" --all-features " + skip,
+			" --all-features " + testWorkspaceSkip,
 		"echo '### cargo test -p fraiseql-wire --lib (tests/* skipped: testcontainers)'",
 		"cargo test -p fraiseql-wire --lib --all-features",
 		// fraiseql-arrow was --exclude'd from the workspace run above and named by

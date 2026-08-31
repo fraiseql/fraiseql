@@ -415,6 +415,44 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **The Rust test suite runs, and is required, before a merge to `dev` (#1257).**
+
+  No gate that ran before a merge executed it. `make preflight` and the
+  `Dagger — preflight` leg compile the test binaries (`--all-targets`) and never run
+  them; none of the sixteen branch legs contains a `cargo test`; and `Dagger — test`,
+  which does, was `push: branches: [dev]`. A merge to `dev` was the first execution of
+  the workspace suite against the code being merged — `231c3a25c` landed with preflight
+  and all sixteen branch legs green and reddened the test leg afterwards.
+
+  "Run the tests before you push" was not checkable advice, because there was no command
+  to run: the leg is a `cargo build --all-features`, one `cargo test --workspace
+  --exclude …` sweep, twenty-six feature-scoped invocations and a doctest run, several crates run twice (once with a wide `--features`
+  list, once on the default set — the only configuration that compiles a
+  `#[cfg(not(feature = …))]` arm), and eighty-one `tests/*.rs` binaries are named
+  explicitly because `--lib` does not reach `tests/`. A developer's `cargo test` ran a
+  different, smaller thing.
+
+  - `Dagger — test` now triggers on a push to every in-repo branch, and `test (msrv)`
+    and `test (stable)` join `preflight` and `security` as required contexts on the
+    `dev` ruleset. The fast-forward to `dev` pushes an identical tree, so that run
+    replays the branch run out of Dagger's content-addressed cache.
+  - `make test-leg` is the local mirror of that leg, line for line. It refuses to start
+    while a backing-service URL is exported, since the leg binds none and a suite that
+    self-skips in CI would otherwise run here against a live service.
+  - `tools/check-integration-parity.py` became `tools/check-shard-parity.py` and now
+    holds both mirrors — `test-leg` ↔ `Test` and `test-integration-postgres` ↔
+    `integrationPostgres` — to their shards in both directions. Generalising it surfaced
+    three defects in the parser that only the new shard's shapes reached: a Go `+`
+    concatenation spanning several source lines was read as six unclassifiable
+    fragments; a `+` inside a string was treated as concatenation, so three `echo` lines
+    ("wire+functions", "manifest + doc") became unreadable commands, and any cargo
+    argument containing a `+` would have been compared as a command the shard never ran;
+    and the `#880` target canary was exempted as a whole, which for `-- build` — where
+    the canary *is* the shard's build step rather than a `--no-run` prebuild — would
+    have let a mirror that never compiled the workspace read as parity.
+  - `make preflight` now says it ran no tests, and `docs/contributing/branching-model.md`
+    no longer describes the test leg as post-merge.
+
 - **`saga-basic` and `saga-manual-compensation` come up, and pass their own tests (#1259).**
 
   Both had had only their supergraphs repaired, and that was checked with

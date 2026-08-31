@@ -10,11 +10,27 @@ name: Dagger — test
 # skipped here — the engine has no Docker socket. Dagger-native service bindings
 # restore the database-backed suites; see dagger-integration.yml.
 #
+# Runs on a push to every in-repo branch, not only `dev` (#1257). It used to be
+# `branches: [dev]`, on the reasoning that the heavy legs belong post-merge to
+# spare the single runner — but that left NO gate executing the Rust test suite
+# before a merge: `make preflight` and the `Dagger — preflight` leg compile the
+# tests (`--all-targets`) without running them, and the branch legs do not
+# contain them. A merge to `dev` was the first execution of the workspace suite
+# against the code being merged, which is how `231c3a25c` landed green and
+# reddened this leg on `config_coverage_manifest_test`.
+#
+# The cost is bounded by Dagger's content-addressed exec cache: the fast-forward
+# to `dev` pushes the identical tree, so that run replays this one rather than
+# repeating it. What it does add is runner occupancy on intermediate branch
+# pushes — `cancel-in-progress` keeps only the head of each ref.
+#
 # push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
 # runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+# `dependabot/**` is excluded for the same reason as in dagger-preflight.yml:
+# Dependabot's degraded token cannot pull the private ghcr base image.
 on:
   push:
-    branches: [dev]
+    branches-ignore: ['dependabot/**', 'gh-readonly-queue/**']
   workflow_dispatch:
 
 # packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image

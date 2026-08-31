@@ -7,6 +7,7 @@ help:
 	@echo "Testing:"
 	@echo "  make test               - Run unit + integration tests (PostgreSQL) — ~50 min, serialized"
 	@echo "  make test-unit          - Run unit tests only (fast, no database)"
+	@echo "  make test-leg           - The 'Dagger — test' workspace suite, exactly as CI runs it (required check)"
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
 	@echo "  make test-integration-postgres - The 'integration (postgres)' CI shard, exactly as CI runs it"
 	@echo "  make test-full          - Run ALL categories: unit + snapshots + DBs + Redis/NATS/Vault + server + federation"
@@ -172,7 +173,7 @@ test-integration: test-integration-postgres
 # line with `--test-threads=1` — but that knowledge lived only in that file.
 # This target is the command that was missing.
 #
-# The line list is held to the shard's by `make lint-integration-parity`, in
+# The line list is held to the shard's by `make lint-shard-parity`, in
 # both directions. Do not edit one side alone. The rationale for each individual
 # line lives with it in `.dagger/main.go` and is deliberately not duplicated
 # here: two copies of a rationale drift, and only one copy can be right.
@@ -248,6 +249,120 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1
 	@echo ""
 	@echo "test-integration OK: postgres suite passed"
+
+# ============================================================================
+# `test` — the local mirror of the Dagger workspace-suite leg (#1257)
+# ============================================================================
+#
+# The workspace suite is not `cargo test`. It is one `cargo test --workspace
+# --exclude …` sweep, twenty-six feature-scoped invocations carrying the
+# `SYNC:*` lists, several naming explicit `--test` binaries because `--lib` does
+# not reach `tests/*`. A developer running `cargo test` before pushing runs a
+# different, smaller thing — which is how `config_coverage_manifest_test` went
+# to `dev` on `231c3a25c` with `make preflight` green and all sixteen branch
+# legs green, and reddened `Dagger — test` afterwards. `make preflight` compiles
+# these tests (`--all-targets`) and never runs them.
+#
+# The line list is held to `.dagger/main.go`'s `Test` shard by
+# `make lint-shard-parity`, in both directions. Do not edit one side alone. The
+# rationale for each individual line lives with it in `.dagger/main.go` and is
+# deliberately not duplicated here: two copies of a rationale drift, and only one
+# copy can be right.
+#
+# What is NOT mirrored is the leg's build environment (sccache, mold,
+# CARGO_INCREMENTAL=0, a pinned toolchain image) — that is the local box's
+# `.cargo/config.toml` to decide, and none of it changes what the tests assert.
+# `CARGO_BUILD_JOBS` is the exception: it is set for the same reason the leg sets
+# it (#615 — V8 in `--all-features` peaks over this box's RAM at full
+# parallelism, and the OOM killer takes rustc with a bare exit-101).
+#
+# Docker-free by construction, like the leg: the testcontainers-backed suites are
+# skipped by name and the DB-backed ones self-skip. That only holds if no
+# backing-service URL is exported, which the guard below enforces — the leg binds
+# none, so a suite that self-skips there must self-skip here.
+test-leg: export CARGO_BUILD_JOBS := 8
+# Mirrors rustBase, which sets it for every leg: a panic in CI prints a backtrace,
+# so one here should too. Diagnostic only — it changes no assertion.
+test-leg: export RUST_BACKTRACE := 1
+.PHONY: test-leg
+test-leg:
+	@leaked="$$(env | grep -E '^(DATABASE_URL|TEST_DATABASE_URL|STANDBY_DATABASE_URL|FAILOVER_STANDBY_DATABASE_URL|REDIS_URL|NATS_URL|VAULT_ADDR|VAULT_TOKEN)=' || true)"; \
+	if [ -n "$$leaked" ]; then \
+		echo "test-leg: refusing to run — a backing-service URL is exported:"; \
+		printf '%s\n' "$$leaked" | sed 's/^/    /'; \
+		echo ""; \
+		echo "The Dagger test leg binds none of these, so suites that self-skip there"; \
+		echo "would run here against a live service and assert something else."; \
+		echo "Unset them, or use 'make test-integration-postgres' for the DB suites."; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "=== test — mirroring .dagger/main.go Test ==="
+	@echo "### toolchain: $$(rustc --version)"
+# A cold full run grew target/ by ~200 GB here — 138 GB of debug/deps plus 94 GB of
+# debug/incremental (which CI never creates: rustBase sets CARGO_INCREMENTAL=0). Out of
+# space, rustc and sccache report "failed to parse process output", which reads as a
+# toolchain fault 40 minutes in; printing the figure up front makes the log say
+# otherwise. `rm -rf target/debug/incremental` reclaims the larger half without
+# invalidating anything already built.
+	@echo "### free on this filesystem: $$(df -Ph . | tail -1 | awk '{print $$4}') (a cold run adds ~200 GB to target/)"
+	@echo ""
+	@echo "### cargo build --all-features"
+	cargo build --all-features
+	@echo ""
+	@echo "### skipped here, as in the leg: testcontainers suites (storage"
+	@echo "###   metadata/migrations/routes::tests, functions migrations::tests,"
+	@echo "###   fraiseql-wire tests/*) — they run in the integration legs"
+	@echo ""
+	@echo "### cargo test --workspace (non-DB crates; wire+functions run separately below)"
+	cargo test --workspace --exclude fraiseql-core --exclude fraiseql-db --exclude fraiseql-arrow --exclude fraiseql-observers --exclude fraiseql-server --exclude fraiseql-wire --exclude fraiseql-functions --all-features -- --skip metadata::tests --skip migrations::tests --skip routes::tests --skip uploads::tests
+	@echo ""
+	@echo "### fraiseql-wire --lib, fraiseql-arrow (all-features, then default)"
+	cargo test -p fraiseql-wire --lib --all-features
+	cargo test -p fraiseql-arrow --all-features
+	cargo test -p fraiseql-arrow --lib
+	@echo ""
+	@echo "### fraiseql-functions (incl. runtime-deno)"
+	cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live,host-storage' -- --skip migrations::tests
+	@echo ""
+	@echo "### core/db --lib (SYNC:CORE_FEATURES / SYNC:DB_FEATURES, then default features)"
+	cargo test -p fraiseql-core --lib --features 'arrow,audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend'
+	cargo test -p fraiseql-core --lib
+	cargo test -p fraiseql-db --lib --features 'postgres,wire-backend'
+	@echo ""
+	@echo "### server --lib (SYNC:SERVER_FEATURES, then default features)"
+	cargo test -p fraiseql-server --lib --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' -- --skip server::routing::storage_policy_admin_tests
+	cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests
+	@echo ""
+	@echo "### server test binaries not covered by --lib (mcp, subscriptions, idempotency, in-process)"
+	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --test mcp_transport_safety_test --test mcp_e2e_test --test mcp_integration_test
+	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --test subscription_ws_e2e_test --test subscription_protocol_test --test subscription_integration_test --test subscription_forwarder_integration_test --test graphql_ws_row_visibility_pin_test --test subscription_lifecycle_ws_test
+	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --test graphql_idempotency_e2e_test
+	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --test admin_api_security_test --test admin_authz_test --test admin_cache_vocabulary_e2e --test admission_control_test --test api_admin_tests --test api_design_audit_tests --test api_design_security_tests --test api_federation_tests --test api_infrastructure_tests --test api_openapi_tests --test api_query_tests --test api_schema_tests --test apq_mutation_e2e_test --test auth_me_integration_test --test auth_regression_test --test backpressure_overload_test --test backpressure_test --test cache_wiring_tests --test changelog_cascade_compose_boot --test config_struct_test --test connection_pooling_validation_test --test constructor_drift_test --test documentation_examples_test --test endpoint_health_tests --test error_handling_validation_test --test example_validation_test --test federation_saga_validation_test --test functions_platform_pins_test --test graphql_http_layer_test --test graphql_request_validation_test --test grpc_transport_e2e_test --test integration_performance_validation_test --test introspection_gate_e2e_test --test introspection_mutation_authz_test --test introspection_security_test --test metrics_facade_scrape --test metrics_integration_test --test metrics_monitoring_validation_test --test multitenancy_test --test observability_test --test operational_tools_test --test platform_e2e_test --test production_safety_test --test profile_error_redaction_test --test profile_query_limits_test --test rate_limiting_integration_test --test rate_limit_sweep_is_scheduled_test --test rest_transport_e2e_test --test security --test property --test security_audit_test --test security_config_runtime_test --test security_stack_integration_test --test service_account_conformance_test --test studio_admin_api_test --test studio_auth_users_test --test studio_data_browser_test --test studio_e2e_test --test studio_functions_test --test studio_metrics_test --test studio_shell_test --test studio_storage_test --test tracing_integration_test --test typename_e2e_test --test v230_integration_tests
+	@echo ""
+	@echo "### feature-gated --lib modules that SYNC:SERVER_FEATURES compiles out"
+	cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib -- routes::rest::streaming:: routes::rest::openapi::
+	cargo test -p fraiseql-server --features functions --lib routes::functions::
+	cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::
+	cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::
+	cargo test -p fraiseql-server --features cdc-kafka --lib cdc_outbound::
+	cargo test -p fraiseql-server --features cdc-kinesis --lib cdc_outbound::
+	cargo test -p fraiseql-cdc-sinks --features cdc-kafka --lib kafka::
+	cargo test -p fraiseql-server --features subscription-kafka --lib subscription_kafka::
+	cargo test -p fraiseql-kafka
+	@echo ""
+	@echo "### config-coverage manifest + doc config examples"
+	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test
+	@echo ""
+	@echo "### observers (--lib + in-process binaries), federation saga"
+	cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,search'
+	cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test
+	cargo test -p fraiseql-federation --lib --features saga
+	@echo ""
+	@echo "### cargo test --doc --all-features"
+	cargo test --doc --all-features -- --test-threads=6
+	@echo ""
+	@echo "test OK: workspace suite passed (testcontainers tests skipped)"
 
 # Run ALL #[ignore] tests — requires full test infrastructure (make db-up first).
 # Covers: Redis APQ, NATS transport, observer bridge, Vault secrets, server DB queries.
@@ -1035,21 +1150,24 @@ lint-preflight-parity:
 test-preflight-parity:
 	@bash tools/tests/preflight_parity_test.sh
 
-# Gate: `make test-integration-postgres` must run exactly what the Dagger
-# `integration (postgres)` shard runs. The knowledge that these suites only pass
-# serialized lived only in `.dagger/main.go`, so the two commands a developer
-# reaches for were a false-red and a false-green respectively (#1169). A mirror
-# maintained by hand in a second file is only worth having if it cannot drift.
-.PHONY: lint-integration-parity
-lint-integration-parity:
-	@python3 tools/check-integration-parity.py
+# Gate: each local mirror target must run exactly what the Dagger shard it names
+# runs. `make test-integration-postgres` mirrors `integration (postgres)` — the
+# knowledge that those suites only pass serialized lived only in
+# `.dagger/main.go`, so the two commands a developer reached for were a false-red
+# and a false-green respectively (#1169). `make test-leg` mirrors the workspace
+# suite, which is twenty-nine commands no developer would assemble by hand and
+# which no gate ran before a merge to dev (#1257). A mirror maintained by hand in
+# a second file is only worth having if it cannot drift.
+.PHONY: lint-shard-parity
+lint-shard-parity:
+	@python3 tools/check-shard-parity.py
 
-# Red-capability pin for the integration parity gate: a dropped line, an added
-# line, a changed flag, and a shard shape the parser cannot read must each be
-# reported rather than passed over.
-.PHONY: test-integration-parity
-test-integration-parity:
-	@bash tools/tests/integration_parity_test.sh
+# Red-capability pin for the shard parity gate: a dropped line, an added line, a
+# changed flag, and a shard shape the parser cannot read must each be reported
+# rather than passed over, on both shards.
+.PHONY: test-shard-parity
+test-shard-parity:
+	@bash tools/tests/shard_parity_test.sh
 
 # Red-capability pin for the bare-DATABASE_URL gate. It ran in preflight and in the
 # required CI leg for its whole life without ever rejecting anything (#1075), so every
@@ -1076,7 +1194,7 @@ test-suite-coverage-workflows:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-integration-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-integration-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-suite-coverage-inner-gates test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1097,6 +1215,10 @@ preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-as
 	@$(MAKE) --no-print-directory check-example-crates
 	@echo ""
 	@echo "✅ preflight passed — mirrors the Dagger preflight leg."
+	@echo "⚠  It ran NO tests. --all-targets compiles the test binaries; it does not"
+	@echo "   execute them, and the workspace suite is 29 commands rather than one"
+	@echo "   (81 tests/*.rs binaries named explicitly, which --lib never reaches). Run:"
+	@echo "       make test-leg          # what Dagger — test runs, line for line (#1257)"
 	@echo "⚠  It does NOT run clippy under a narrow feature set: its clippy pass is"
 	@echo "   --all-features (feature-OFF arms are not compiled) and its narrow pass is"
 	@echo "   cargo check (no clippy lints). Before pushing anything under a"

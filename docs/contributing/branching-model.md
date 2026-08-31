@@ -59,8 +59,9 @@ rather than living on a branch that drifts from the trunk.
 
 ## Keeping the trunk green
 
-The **fast** Dagger legs — `preflight` (shell gates · fmt · clippy · rustdoc) and
-`security` (`cargo deny`) — run on **push to every in-repo branch**
+The Dagger legs that gate a merge — `preflight` (shell gates · fmt · clippy ·
+rustdoc), `security` (`cargo deny`) and `test` (the workspace suite, on both the MSRV
+and stable toolchains) — run on **push to every in-repo branch**
 (`branches-ignore: [dependabot/**, …]`) on the self-hosted runner, with a warm sccache
 cache. Because **forks cannot push to this repo**, a `push` trigger only ever runs
 trusted in-repo code — so these legs are **fork-safe by construction**, with no
@@ -69,19 +70,39 @@ would execute the PR *merge-ref's* workflow definition, which a fork can edit �
 its deliberate absence.)
 
 Push-triggered check runs attach to the commit SHA, so they show on any open PR for
-that branch, and the **`dev` ruleset requires `preflight` + `security`** — a PR cannot
-merge until both are green on its head. That is what prevents "merged before CI was
-verified."
+that branch, and the **`dev` ruleset requires `preflight` + `security` +
+`test (msrv)` + `test (stable)`** — a PR cannot merge until all four are green on its
+head. That is what prevents "merged before CI was verified."
 
-The **heavy** legs (`test` / `feature-matrix` / `integration`, which spins up
-PostgreSQL) run **post-merge on the `dev` push** to spare the single runner; dispatch
-them manually (`gh workflow run dagger-<leg>.yml --ref <branch>`) when a change
-warrants full validation before merge. Locally, `make preflight` mirrors the fast gate.
+`test` was on that list from 2026-08-31 and not before. The heavy legs all used to run
+**post-merge on the `dev` push**, to spare the single runner — which meant a merge to
+`dev` was the first time the workspace suite ran against the code being merged, since
+neither `make preflight` nor the `preflight` leg executes a test (both compile them
+with `--all-targets`). `231c3a25c` merged with preflight green and all sixteen branch
+legs green and reddened `Dagger — test` on `config_coverage_manifest_test` (#1257).
+Waiting for `test` costs ~40 minutes per arm on the shared runner; the fast-forward to
+`dev` then replays the branch run out of Dagger's content-addressed cache rather than
+repeating it.
 
-### The one thing `make preflight` cannot see
+The **remaining** heavy legs (`feature-matrix` and `integration`, which spins up
+PostgreSQL) still run post-merge; dispatch them manually
+(`gh workflow run dagger-<leg>.yml --ref <branch>`) when a change warrants full
+validation before merge. Locally, `make preflight` mirrors the fast gate and
+`make test-leg` mirrors the `test` leg line for line (`make lint-shard-parity` holds
+the two lists together).
 
-`preflight` compiles the workspace twice and neither pass runs **clippy under a narrow
-feature set**: its clippy pass is `--all-features` (where a feature-OFF arm is not
+### The two things `make preflight` cannot see
+
+**It does not run a single test.** Its Rust steps are `cargo doc`, `cargo clippy
+--all-targets`, `cargo check --workspace --all-targets` and `cargo check` over the fuzz
+crates. `--all-targets` builds the test binaries; it never executes them, so a test that
+has been failing since the previous commit survives a green preflight (#1153). The
+suite the `test` leg runs is not `cargo test` either — it is twenty-nine commands,
+naming eighty-one `tests/*.rs` binaries that `--lib` does not reach. Run **`make test-leg`**,
+which is that list, mirrored and gated (see
+[the test matrix](../testing-matrix.md#do-not-reach-for-plain-cargo-test-before-pushing-either)).
+
+**Neither of its two compile passes runs clippy under a narrow feature set:** its clippy pass is `--all-features` (where a feature-OFF arm is not
 compiled at all) and its narrow-feature pass is `cargo check`, which runs no clippy
 lints. So a lint that only fires with a feature *off* is invisible locally and is caught
 only by `Dagger — feature matrix` — which triggers on `push: branches: [dev]` and
