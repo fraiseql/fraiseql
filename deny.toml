@@ -353,7 +353,7 @@ version = "=1.0.2"
 [[bans.skip-tree]]
 name = "wasmtime"
 reason = "wasmtime pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat, plus its own wasm-tooling versions (wasm-encoder, wasmparser, wast). NOTE: this is an exact-version pin — a wasmtime bump that forgets to move it un-skips the whole tree and reports every duplicate under it as an unrelated-looking storm (#933). That is now caught at the source: every call site passes -D unmatched-skip-root, so a pin matching nothing fails the run instead of warning under the storm (#1020)."
-version = "=46.0.2"
+version = "=46.0.3"
 
 [[bans.skip-tree]]
 name = "windows-sys"

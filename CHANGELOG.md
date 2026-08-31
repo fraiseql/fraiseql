@@ -1350,6 +1350,26 @@ disagreed, and the promise was the part that was wrong.
 ### Security
 
 
+- **wasmtime 46.0.2 → 46.0.3, closing RUSTSEC-2026-0268 and RUSTSEC-2026-0269.**
+
+  A WASI filesystem sandbox escape via paths or symlinks with trailing slashes, and a
+  guest-controlled-size host heap allocation through WASIp3 streams. Both are reachable
+  only with `fraiseql-functions`' opt-in `runtime-wasm` feature compiled in, where a
+  guest module is precisely the untrusted input the sandbox exists to contain.
+
+  Both advisories name a fix inside the pinned major (`>=46.0.3, <47.0.0`), so this is a
+  patch bump — wasmtime, wasmtime-wasi, cranelift 0.133.2 → 0.133.3 and the pulley/wiggle
+  crates that move with them. No manifest, MSRV or API change.
+
+  `deny.toml`'s `[[bans.skip-tree]]` root for wasmtime moves with it. That pin is an exact
+  version by design, and the version it names is the whole point: left at `=46.0.2` it
+  matches nothing, un-skipping the subtree and reporting ~40 duplicate transitive crates as
+  an unrelated-looking storm. The `-D unmatched-skip-root` escalation added in #1020 names
+  the real cause in one line above that storm, which is what it was added for.
+
+  These were published after `534173857`, so `dev` was red on `Dagger — security` with no
+  local change involved.
+
 - **Two real RSA private keys are no longer tracked in this public repository (#1211).**
 
   `docker/tls-postgres/certs/ca.key` (4096-bit) and `.../server.key` (2048-bit) were committed
