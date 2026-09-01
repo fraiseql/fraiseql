@@ -58,8 +58,12 @@ async fn seed(adapter: &PostgresAdapter) {
         format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"),
         format!("CREATE SCHEMA {SCHEMA}"),
         format!("CREATE TABLE {SCHEMA}.tb_author (id bigint PRIMARY KEY, name text NOT NULL)"),
+        // `fk_author` is NULLABLE so that "this post has no author" is a state the
+        // fixture can actually hold. #1230 turned an unprojected join key into the
+        // *same* answer as a null one; a test that cannot produce a genuine null
+        // cannot show that the two are distinguishable again.
         format!(
-            "CREATE TABLE {SCHEMA}.tb_post (id bigint PRIMARY KEY, fk_author bigint NOT NULL, \
+            "CREATE TABLE {SCHEMA}.tb_post (id bigint PRIMARY KEY, fk_author bigint, \
              title text NOT NULL)"
         ),
         format!(
@@ -67,10 +71,10 @@ async fn seed(adapter: &PostgresAdapter) {
              body text NOT NULL)"
         ),
         format!("INSERT INTO {SCHEMA}.tb_author VALUES (1, 'alice'), (2, 'bob')"),
-        // Author 1 owns posts 10,11; author 2 owns posts 20,21.
+        // Author 1 owns posts 10,11; author 2 owns posts 20,21; post 30 is orphaned.
         format!(
             "INSERT INTO {SCHEMA}.tb_post VALUES (10, 1, 'a-one'), (11, 1, 'a-two'), \
-             (20, 2, 'b-one'), (21, 2, 'b-two')"
+             (20, 2, 'b-one'), (21, 2, 'b-two'), (30, NULL, 'orphan')"
         ),
         format!(
             "INSERT INTO {SCHEMA}.tb_comment VALUES (100, 10, 'c-a1'), (101, 10, 'c-a2'), \
@@ -514,4 +518,206 @@ async fn a_client_filter_is_still_inert_on_a_target_that_forbids_a_client_where(
         "the target does not publish a `where` argument, so the client filter does not \
          apply — but the parent scoping still does: {body}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// #1230 — the join key is the server's business, not a term of the client's
+// contract
+// ---------------------------------------------------------------------------
+
+/// The keys of a response row, sorted — the assertions below are about *which*
+/// keys a document carries, and `serde_json` preserves insertion order, which is
+/// the server's projection order and not part of any contract.
+fn keys_of(row: &Value) -> Vec<String> {
+    let mut keys: Vec<String> = row.as_object().expect("object row").keys().cloned().collect();
+    keys.sort();
+    keys
+}
+
+/// The parent row carrying `id == id_value`, whatever else is on it.
+fn row_of(body: &Value, id_value: i64) -> Value {
+    body.get("data")
+        .and_then(Value::as_array)
+        .and_then(|rows| {
+            rows.iter().find(|r| r.get("id").and_then(Value::as_i64) == Some(id_value))
+        })
+        .cloned()
+        .unwrap_or_else(|| panic!("no row with id {id_value}: {body}"))
+}
+
+/// #1230: a `ManyToOne` embed must resolve from a document that names only the
+/// relationship.
+///
+/// `extract_join_key` reads the join key off the already-projected parent row, and
+/// for `ManyToOne` that key is the **foreign key** — the one column a client asking
+/// for `author` has every reason not to select. Selecting `id,author(name)` returned
+/// four posts with `"author": null` under a 200, indistinguishable from four posts
+/// that genuinely have no author. Every author exists.
+///
+/// `OneToMany` hid this: there the key is the parent's `referenced_key`,
+/// conventionally `id`, which a client almost always selects anyway.
+#[tokio::test]
+async fn a_many_to_one_embed_resolves_without_the_client_selecting_the_foreign_key() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/posts?select=id,author(name)").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    assert_eq!(
+        author_of(&body, 10).as_deref(),
+        Some("alice"),
+        "post 10's author must resolve without `fk_author` in the select — the join key \
+         is the server's to project: {body}"
+    );
+    assert_eq!(author_of(&body, 11).as_deref(), Some("alice"), "post 11: {body}");
+    assert_eq!(author_of(&body, 20).as_deref(), Some("bob"), "post 20: {body}");
+    assert_eq!(author_of(&body, 21).as_deref(), Some("bob"), "post 21: {body}");
+}
+
+/// #1230, the other half: a key the server projected for its own use must not
+/// appear in the response.
+///
+/// "Select it yourself" and "the server adds it and keeps it" are the same leak
+/// from the client's side — the response shape would depend on which relationships
+/// the schema happens to declare rather than on what was asked for.
+#[tokio::test]
+async fn the_join_key_the_server_projected_for_itself_is_not_returned() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/posts?select=id,author(name)").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    let post_10 = row_of(&body, 10);
+    assert_eq!(
+        keys_of(&post_10),
+        vec!["author", "id"],
+        "the response carries exactly what was selected; `fk_author` was projected to \
+         resolve the embed and must be stripped again: {body}"
+    );
+}
+
+/// The control for the strip: a client that *did* ask for the join key keeps it.
+///
+/// Without this, "strip `fk_author`" could be implemented as "always remove
+/// `fk_author`" and both tests above would still pass.
+#[tokio::test]
+async fn a_client_that_selected_the_join_key_still_receives_it() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/posts?select=id,fk_author,author(name)").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    let post_10 = row_of(&body, 10);
+    assert_eq!(
+        post_10.get("fk_author").and_then(Value::as_i64),
+        Some(1),
+        "the client selected `fk_author`; only the server's own addition is stripped: {body}"
+    );
+    assert_eq!(
+        author_of(&body, 10).as_deref(),
+        Some("alice"),
+        "and the embed still resolves: {body}"
+    );
+}
+
+/// #1230's invariant: a parent whose join key is genuinely NULL stays
+/// distinguishable from one whose key was merely not projected.
+///
+/// Post 30 has `fk_author IS NULL`. It must answer `"author": null` — the key
+/// present, the value absent — while posts 10/11/20/21 in the same response carry
+/// their real authors. Before the fix every row looked like post 30.
+#[tokio::test]
+async fn a_post_with_no_author_is_still_null_while_its_neighbours_resolve() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/posts?select=id,author(name)").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    let orphan = row_of(&body, 30);
+    assert_eq!(
+        orphan.get("author"),
+        Some(&Value::Null),
+        "post 30 has no author, so `author` must be present and null: {body}"
+    );
+    assert_eq!(
+        author_of(&body, 10).as_deref(),
+        Some("alice"),
+        "and a post that does have one resolves in the same response — that contrast is \
+         the whole invariant: {body}"
+    );
+}
+
+/// #1230 on the count path. `count_related` extracts the same join key from the
+/// same parent row, so `?select=posts.count` — a document that names no flat field
+/// at all — counted zero for every author.
+#[tokio::test]
+async fn an_embedded_count_resolves_without_the_client_selecting_the_parent_key() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=name,posts.count").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    let rows = body.get("data").and_then(Value::as_array).expect("array data").clone();
+    let alice = rows
+        .iter()
+        .find(|r| r.get("name").and_then(Value::as_str) == Some("alice"))
+        .unwrap_or_else(|| panic!("alice missing: {body}"));
+
+    assert_eq!(
+        alice.get("posts_count").and_then(Value::as_i64),
+        Some(2),
+        "alice owns 2 posts; the count reads the parent's `id`, which this select does \
+         not name: {body}"
+    );
+    assert_eq!(
+        keys_of(alice),
+        vec!["name", "posts_count"],
+        "and the `id` projected to resolve the count is stripped again: {body}"
+    );
+}
+
+/// The nested level has the same two halves. #864 already projects a nested
+/// embed's join key into the child's sub-select — and then returns it, so
+/// `posts(title,author(name))` answered with an `fk_author` the client never
+/// named.
+#[tokio::test]
+async fn a_nested_join_key_is_projected_and_then_stripped() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=id,posts(title,author(name))").await;
+    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
+
+    let posts = posts_of(&body, 1);
+    assert_eq!(posts.len(), 2, "author 1 has two posts: {body}");
+    for post in &posts {
+        assert_eq!(
+            post.get("author").and_then(|a| a.get("name")).and_then(Value::as_str),
+            Some("alice"),
+            "the nested ManyToOne must resolve: {body}"
+        );
+        assert_eq!(
+            keys_of(post),
+            vec!["author", "title"],
+            "the nested sub-select named `title` and `author`; the join key projected to \
+             resolve the embed must not survive into the response: {body}"
+        );
+    }
 }

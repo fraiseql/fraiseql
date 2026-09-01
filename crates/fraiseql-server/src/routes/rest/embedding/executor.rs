@@ -16,34 +16,42 @@ pub(super) struct EmbedCtx<'a, A: DatabaseAdapter> {
     pub executor:         &'a Arc<Executor<A>>,
     pub schema:           &'a CompiledSchema,
     pub config:           &'a RestConfig,
+    /// The type whose rows are being embedded *into*.
+    ///
+    /// Carried so the join key can be read off a parent row in the spelling that
+    /// row actually uses — see [`declared_key`]. Without it `extract_join_key`
+    /// had only the relationship's storage column to go on.
+    pub parent_type:      &'a str,
     pub security_context: Option<&'a SecurityContext>,
 }
 
-/// The spelling a `where` key must use when filtering `target_type`.
+/// The spelling `type_name` publishes for the storage column `column`.
 ///
 /// A relationship's `foreign_key`/`referenced_key` are SQL **column** names
-/// (`fk_author`, per `[[relationships]]` in `fraiseql.toml`), but the join
-/// predicate they build is handed to the same `where` parser a client's filter
-/// goes through — and since 2.15.0 that parser accepts only the name the schema
-/// *declares*. Under `naming_convention = "camelCase"` the declared name is
-/// `fkAuthor`, so passing the raw column through would make the server refuse
-/// its own parent-scoping predicate and collapse every embedded list.
+/// (`fk_author`, per `[[relationships]]` in `fraiseql.toml`), but neither side of
+/// an embed speaks storage:
+///
+/// * the join predicate is handed to the same `where` parser a client's filter goes through, and
+///   since 2.15.0 that parser accepts only the name the schema *declares*;
+/// * the parent row it is scoped by has already been projected, and a projected row is keyed by
+///   [`FieldDefinition::name`](fraiseql_core::schema::FieldDefinition) — the declared name — too.
+///
+/// Under `naming_convention = "camelCase"` the declared name is `fkAuthor`. Passing
+/// the raw column through would make the server refuse its own parent-scoping
+/// predicate on one side and fail to find the join value on the other; both
+/// collapse the embed silently, on a 200.
 ///
 /// This is the same rule `build_fts_where_clause` already follows by keying off
-/// `f.name`: anything the server composes into `where` speaks the published
+/// `f.name`: anything the server composes against the published surface speaks that
 /// surface, and the lowering back to storage happens once, inside the parser.
 ///
 /// Falls back to the column as written when the schema cannot name the type or
 /// declares no field matching it — that level is unadjudicated anyway (#939),
 /// so passing it through is strictly better than inventing a spelling.
-pub(super) fn declared_filter_key(
-    schema: &CompiledSchema,
-    target_type: &str,
-    column: &str,
-) -> String {
+pub(super) fn declared_key(schema: &CompiledSchema, type_name: &str, column: &str) -> String {
     let storage = fraiseql_core::utils::to_snake_case(column);
     schema
-        .find_type(target_type)
+        .find_type(type_name)
         .and_then(|td| {
             td.fields
                 .iter()
@@ -51,6 +59,29 @@ pub(super) fn declared_filter_key(
                 .map(|f| f.name.to_string())
         })
         .unwrap_or_else(|| column.to_string())
+}
+
+/// The column an embed of `rel` reads off the **parent** row.
+///
+/// `OneToMany` hangs the foreign key on the child, so the parent side is its
+/// `referenced_key` — conventionally `id`, which a client selects anyway, which is
+/// why #1230 hid here for so long. `ManyToOne`/`OneToOne` hold the key themselves,
+/// so the parent side is the `foreign_key` — the one column a client asking for
+/// `author` has no reason to select.
+pub(super) const fn parent_join_column(rel: &Relationship) -> &String {
+    match rel.cardinality {
+        Cardinality::ManyToOne | Cardinality::OneToOne => &rel.foreign_key,
+        _ => &rel.referenced_key,
+    }
+}
+
+/// The column the join predicate filters on the **target** row — the mirror of
+/// [`parent_join_column`], stated once so the two can never drift apart.
+pub(super) const fn target_join_column(rel: &Relationship) -> &String {
+    match rel.cardinality {
+        Cardinality::ManyToOne | Cardinality::OneToOne => &rel.referenced_key,
+        _ => &rel.foreign_key,
+    }
 }
 
 /// Embed related resources into each row of a parent array.
@@ -77,28 +108,21 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
     embedded_filter: Option<&serde_json::Value>,
     row: &mut serde_json::Value,
 ) -> Result<(), RestError> {
-    let parent_key_value = extract_join_key(row, rel);
+    let parent_key_value = extract_join_key(ctx.schema, ctx.parent_type, row, rel);
 
     let Some(parent_key_value) = parent_key_value else {
-        // Parent row doesn't have the join key — set appropriate default.
+        // The parent row genuinely has no join key. Since #1230 the projection is
+        // guaranteed to carry the key whenever an embed needs it, so this branch
+        // means the value is NULL — "no related row" — and not "the client did not
+        // select the column".
         set_empty_embedding(row, output_name, rel.cardinality);
         return Ok(());
     };
 
     // Build WHERE clause for the sub-query: fk_column = parent_key_value.
-    //
-    // The filter key depends on cardinality direction:
-    // OneToMany: child's FK = parent's referenced key value
-    // ManyToOne: parent's FK = child's referenced key value (query by child's PK)
-    // OneToOne: same as ManyToOne
-    let filter_field = match rel.cardinality {
-        Cardinality::ManyToOne | Cardinality::OneToOne => &rel.referenced_key,
-        _ => &rel.foreign_key,
-    };
-
     let mut join_predicate = serde_json::Map::new();
     join_predicate.insert(
-        declared_filter_key(ctx.schema, &rel.target_type, filter_field),
+        declared_key(ctx.schema, &rel.target_type, target_join_column(rel)),
         serde_json::json!({ "eq": parent_key_value }),
     );
 
@@ -198,17 +222,22 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
 }
 
 /// Extract the join key value from a parent row.
+///
+/// Reads [`parent_join_column`] in the spelling `parent_type` publishes it under,
+/// because the row was projected under declared names, not storage ones — see
+/// [`declared_key`].
+///
+/// `None` means the key is absent or NULL. Both now mean the same thing: no related
+/// row. They did not before #1230, when a projection that simply omitted the column
+/// landed in this branch too, and every `ManyToOne` embed the client had not
+/// hand-selected the foreign key for came back null under a 200.
 pub(super) fn extract_join_key(
+    schema: &CompiledSchema,
+    parent_type: &str,
     row: &serde_json::Value,
     rel: &Relationship,
 ) -> Option<serde_json::Value> {
-    // For OneToMany: use the parent's referenced key (e.g., pk_user).
-    // For ManyToOne/OneToOne: use the parent's foreign key (e.g., fk_user).
-    let key_field = match rel.cardinality {
-        Cardinality::ManyToOne | Cardinality::OneToOne => &rel.foreign_key,
-        _ => &rel.referenced_key,
-    };
-
+    let key_field = declared_key(schema, parent_type, parent_join_column(rel));
     row.get(key_field.as_str()).cloned().filter(|v| !v.is_null())
 }
 
@@ -248,35 +277,28 @@ pub(super) fn extract_query_data(
 
 /// Count related resources for a single parent row.
 pub(super) async fn count_related<A: DatabaseAdapter>(
-    executor: &Arc<Executor<A>>,
-    schema: &CompiledSchema,
+    ctx: &EmbedCtx<'_, A>,
     rel: &Relationship,
     row: &serde_json::Value,
-    security_context: Option<&SecurityContext>,
 ) -> Result<u64, RestError> {
-    let parent_key_value = extract_join_key(row, rel);
+    let parent_key_value = extract_join_key(ctx.schema, ctx.parent_type, row, rel);
 
     let Some(parent_key_value) = parent_key_value else {
         return Ok(0);
     };
 
-    let filter_field = match rel.cardinality {
-        Cardinality::ManyToOne | Cardinality::OneToOne => &rel.referenced_key,
-        _ => &rel.foreign_key,
-    };
-
     let mut join_predicate = serde_json::Map::new();
     join_predicate.insert(
-        declared_filter_key(schema, &rel.target_type, filter_field),
+        declared_key(ctx.schema, &rel.target_type, target_join_column(rel)),
         serde_json::json!({ "eq": parent_key_value }),
     );
 
-    let target_query = find_list_query_for_type(schema, &rel.target_type);
+    let target_query = find_list_query_for_type(ctx.schema, &rel.target_type);
     let Some(target_query) = target_query else {
         return Ok(0);
     };
 
-    let target_type_def = schema.find_type(&rel.target_type);
+    let target_type_def = ctx.schema.find_type(&rel.target_type);
 
     // #1170: the scoping slot, not `arguments["where"]` — `count_rows` gates that
     // argument on the target's `has_where` exactly as the read path does, so a
@@ -291,8 +313,9 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
     let variables = serde_json::json!({});
     let vars_ref = Some(&variables);
 
-    let count = executor
-        .count_rows(&query_match, vars_ref, security_context)
+    let count = ctx
+        .executor
+        .count_rows(&query_match, vars_ref, ctx.security_context)
         .await
         .map_err(RestError::from)?;
 

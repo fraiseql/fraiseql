@@ -227,6 +227,9 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
             query_match,
             variables: variables_json,
             params,
+            // Widened by `with_embed_join_keys` on the JSON path only; see
+            // `ResolvedGetQuery::server_projected_keys`.
+            server_projected_keys: Vec::new(),
         })
     }
 
@@ -243,7 +246,15 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
-        let resolved_query = self.resolve_get_query(relative_path, query_pairs, headers)?;
+        // #1230: an embed is resolved by reading a join key off the already-projected
+        // parent row, so the projection has to carry that key even when the client did
+        // not select it — and give it back afterwards. Applied here rather than inside
+        // `resolve_get_query` because this is the representation that executes
+        // embeddings; the streaming exports resolve through the same function and
+        // would emit the extra column.
+        let resolved_query = self
+            .resolve_get_query(relative_path, query_pairs, headers)?
+            .with_embed_join_keys(self.schema)?;
         let query_match = &resolved_query.query_match;
         let variables_json = &resolved_query.variables;
         let params = &resolved_query.params;
@@ -362,6 +373,13 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
                     &params.embedding_counts,
                 )
                 .await?;
+
+                // Both embed passes have read the join keys; the client asked for
+                // neither, so neither survives into the response (#1230).
+                super::super::embedding::strip_projected_keys(
+                    data,
+                    &resolved_query.server_projected_keys,
+                );
             }
         }
 

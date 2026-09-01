@@ -19,6 +19,14 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **`ResolvedGetQuery` carries a fifth field, `server_projected_keys` (#1230).**
+
+  The REST GET resolver now reports which projection keys it added for the *server's* use —
+  the join keys an embed reads off the parent row — so whoever serialises the response can
+  take them back out again. Anything constructing this struct with a literal needs the new
+  field; `Vec::new()` is the value for a resolution that has not been through
+  `ResolvedGetQuery::with_embed_join_keys`.
+
 - **A subscription filter naming an argument the subscription does not declare no longer
   compiles (#1262).** The reference used to be accepted and then ignored at runtime,
   delivering every event on the topic to a subscriber that had asked to filter; see
@@ -426,6 +434,52 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A `ManyToOne` REST embed resolves without the client also selecting the foreign key
+  (#1230).**
+
+  An embed is resolved by reading a join key off the **already-projected** parent row, and for
+  `ManyToOne`/`OneToOne` that key is the foreign key — the one column a client asking for
+  `author` has every reason *not* to select. `?select=id,author(name)` projected no
+  `fk_author`, `extract_join_key` found nothing, and every post came back `"author": null`
+  under a 200, indistinguishable from a post that genuinely has no author. Adding
+  `fk_author` to the same request made it work, so the *shape of the request* silently decided
+  the *content of the response* — while the served OpenAPI document said `?select=author(fields)`
+  and nothing about a key.
+
+  `OneToMany` hid it: there the parent side is the `referenced_key`, conventionally `id`,
+  which a client selects anyway. The count path had it too — `count_related` extracts the
+  identical key, so `?select=name,posts.count` reported `0` for every parent.
+
+  The projection is the server's decision and the join key is an implementation detail of the
+  embed, so the server now **adds the key it needs and strips it again** before the response is
+  serialised: `required_join_keys` names them, `project_missing_join_keys` adds only what the
+  client did not already select and reports exactly what it added, and `strip_projected_keys`
+  removes exactly that. A key the client selected itself is never added and therefore never
+  stripped. The alternative shape — refusing with "select `fk_author` to embed `author`" —
+  would have put the same detail into the client's contract permanently.
+
+  The nested level had the leak without the null: #864 already projected a nested embed's join
+  key into the child sub-select and then **returned** it, so `?select=id,posts(title,author(name))`
+  answered with an `fk_author` nobody named. Both levels now run the same pair of helpers, so
+  they cannot drift.
+
+  With the key guaranteed projected, `extract_join_key` returning `None` means the value is
+  NULL — "no related row" — and nothing else. A parent whose join key is genuinely null stays
+  distinguishable from one whose key was merely not projected; before this, both were `null`.
+
+  Two consequences worth stating. The key is read under the spelling the parent type
+  **declares**, not the relationship's storage column: a projected row is keyed by
+  `FieldDefinition::name`, so under `naming_convention = "camelCase"` the row carries `fkAuthor`
+  and the old lookup for `fk_author` missed even when the client *had* selected it — the same
+  rule `declared_key` (formerly `declared_filter_key`) already applied to the target side of the
+  join, now applied to both. And a schema that gates that column with `requires_scope` and
+  `on_deny = "reject"` will now refuse such a request rather than answer `null`: the embed
+  cannot be followed without reading the key, and saying so is the point.
+
+  Streaming exports are unaffected — they do not execute embeddings, so
+  `resolve_streaming_get_query` does not apply the widening and cannot emit a column the client
+  did not ask for.
+
 - **A subscription filter naming an argument the subscription does not declare is a compile
   error, and no longer delivers every event on the topic (#1262).**
 

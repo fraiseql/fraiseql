@@ -14,7 +14,9 @@ mod tests;
 
 use std::{collections::HashMap, sync::Arc};
 
-use executor::{EmbedCtx, count_related, embed_into_rows, embed_into_single};
+use executor::{
+    EmbedCtx, count_related, declared_key, embed_into_rows, embed_into_single, parent_join_column,
+};
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     schema::{CompiledSchema, RestConfig},
@@ -38,6 +40,102 @@ pub struct EmbeddingRequest<'a, A: DatabaseAdapter> {
     pub parent_type_name: &'a str,
     /// Security context for RLS enforcement.
     pub security_context: Option<&'a SecurityContext>,
+}
+
+/// The parent-row keys an embedded selection needs projected, in the spelling the
+/// projected row will carry.
+///
+/// An embed is resolved by reading a join key off the **already-projected** parent
+/// row, so a key the projection omits is a key the embed cannot follow. That was
+/// #1230: `?select=id,author(name)` never projected `fk_author`, `extract_join_key`
+/// found nothing, and every post came back `"author": null` under a 200 —
+/// indistinguishable from a post that genuinely has no author. Selecting the foreign
+/// key made the same request work, so the *shape of the request* silently decided the
+/// *content of the response*.
+///
+/// The projection is the server's decision and the join key is an implementation
+/// detail of the embed, so the server adds what it needs and
+/// [`strip_projected_keys`] takes it back out again. Refusing the request instead
+/// ("select `fk_author` to embed `author`") would put the same detail into the
+/// client's contract permanently.
+///
+/// Counts are included: `count_related` extracts the identical key, so
+/// `?select=name,posts.count` counted zero for every parent.
+///
+/// Returns declared spellings, deduplicated, in selection order. Empty when the
+/// parent type is unknown or nothing is embedded.
+#[must_use]
+pub fn required_join_keys(
+    schema: &CompiledSchema,
+    parent_type_name: &str,
+    embeddings: &[EmbeddedSpec],
+    embedding_counts: &[String],
+) -> Vec<String> {
+    let Some(parent_type) = schema.find_type(parent_type_name) else {
+        return Vec::new();
+    };
+
+    let mut keys: Vec<String> = Vec::new();
+    let named = embeddings
+        .iter()
+        .map(|e| e.relationship.as_str())
+        .chain(embedding_counts.iter().map(String::as_str));
+
+    for rel_name in named {
+        // An unknown relationship is the parameter extractor's 400 to raise, not
+        // this function's; it is skipped rather than guessed at.
+        let Some(rel) = parent_type.relationships.iter().find(|r| r.name == rel_name) else {
+            continue;
+        };
+        let key = declared_key(schema, parent_type_name, parent_join_column(rel));
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+
+    keys
+}
+
+/// Extend `projection` with every key in `required` it does not already carry, and
+/// return exactly the keys added.
+///
+/// The return value is what [`strip_projected_keys`] must remove afterwards, so it
+/// names the server's additions and nothing else: a key the client selected itself is
+/// already present, is therefore not added, and is therefore never stripped.
+#[must_use]
+pub fn project_missing_join_keys(projection: &mut Vec<String>, required: &[String]) -> Vec<String> {
+    let mut added = Vec::new();
+    for key in required {
+        if !projection.iter().any(|f| f == key) {
+            projection.push(key.clone());
+            added.push(key.clone());
+        }
+    }
+    added
+}
+
+/// Remove keys the server projected for its own use from a response document.
+///
+/// `data` is either an array of rows or a single row; anything else is left alone.
+/// A no-op for the common case of an empty `keys`.
+pub fn strip_projected_keys(data: &mut serde_json::Value, keys: &[String]) {
+    if keys.is_empty() {
+        return;
+    }
+
+    let strip_row = |row: &mut serde_json::Value| {
+        if let Some(obj) = row.as_object_mut() {
+            for key in keys {
+                obj.remove(key.as_str());
+            }
+        }
+    };
+
+    match data {
+        serde_json::Value::Array(rows) => rows.iter_mut().for_each(strip_row),
+        serde_json::Value::Object(_) => strip_row(data),
+        _ => {},
+    }
 }
 
 /// Execute embedded resource sub-queries and merge results into parent rows.
@@ -69,6 +167,7 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         executor:         req.executor,
         schema:           req.schema,
         config:           req.config,
+        parent_type:      req.parent_type_name,
         security_context: req.security_context,
     };
 
@@ -117,26 +216,18 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
 
         // A nested embedding joins on a key of the *child* row, so that key has to be
         // projected even when the client did not ask for it. Without this the recursion
-        // below would find no join value and set every nested collection empty — a
-        // quieter version of the same bug.
-        if !nested.is_empty() {
-            let target_type = req.schema.find_type(&rel.target_type);
-            for nested_spec in &nested {
-                let Some(nested_rel) = target_type.and_then(|t| {
-                    t.relationships.iter().find(|r| r.name == nested_spec.relationship)
-                }) else {
-                    continue;
-                };
-                let key = match nested_rel.cardinality {
-                    fraiseql_core::schema::Cardinality::ManyToOne
-                    | fraiseql_core::schema::Cardinality::OneToOne => &nested_rel.foreign_key,
-                    _ => &nested_rel.referenced_key,
-                };
-                if !sub_field_names.iter().any(|f| f == key.as_str()) {
-                    sub_field_names.push(key.clone());
-                }
-            }
-        }
+        // below would find no join value and set every nested collection empty — the
+        // same defect one level down.
+        //
+        // #1230: it also has to be taken back out. #864 added the key and returned it,
+        // so `posts(title,author(name))` answered with an `fk_author` nobody named —
+        // the response shape depending on which relationships the schema declares
+        // rather than on what was asked for. Same rule as the root projection, same
+        // pair of helpers, so the two levels cannot drift.
+        let injected = project_missing_join_keys(
+            &mut sub_field_names,
+            &required_join_keys(req.schema, &rel.target_type, &nested, &[]),
+        );
 
         // Execute embedding based on parent data shape (array or single object).
         match parent_data {
@@ -180,13 +271,15 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
             let no_filters = HashMap::new();
 
             // Each parent row holds its own embedded collection, so the recursion runs
-            // per row over the value just written.
+            // per row over the value just written. The join keys this level injected
+            // are stripped only *after* the recursion has read them.
             match parent_data {
                 serde_json::Value::Array(rows) => {
                     for row in rows.iter_mut() {
                         if let Some(child) = row.get_mut(output_name) {
                             Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
                                 .await?;
+                            strip_projected_keys(child, &injected);
                         }
                     }
                 },
@@ -194,6 +287,7 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
                     if let Some(child) = parent_data.get_mut(output_name) {
                         Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
                             .await?;
+                        strip_projected_keys(child, &injected);
                     }
                 },
                 _ => {},
@@ -225,6 +319,14 @@ pub async fn execute_embedding_counts<A: DatabaseAdapter>(
         RestError::internal(format!("Parent type not found: {}", req.parent_type_name))
     })?;
 
+    let ctx = EmbedCtx {
+        executor:         req.executor,
+        schema:           req.schema,
+        config:           req.config,
+        parent_type:      req.parent_type_name,
+        security_context: req.security_context,
+    };
+
     for count_rel_name in count_fields {
         let rel = parent_type
             .relationships
@@ -242,18 +344,14 @@ pub async fn execute_embedding_counts<A: DatabaseAdapter>(
         match parent_data {
             serde_json::Value::Array(rows) => {
                 for row in rows.iter_mut() {
-                    let count =
-                        count_related(req.executor, req.schema, rel, row, req.security_context)
-                            .await?;
+                    let count = count_related(&ctx, rel, row).await?;
                     if let Some(obj) = row.as_object_mut() {
                         obj.insert(count_key.clone(), serde_json::json!(count));
                     }
                 }
             },
             serde_json::Value::Object(_) => {
-                let count =
-                    count_related(req.executor, req.schema, rel, parent_data, req.security_context)
-                        .await?;
+                let count = count_related(&ctx, rel, parent_data).await?;
                 if let Some(obj) = parent_data.as_object_mut() {
                     obj.insert(count_key, serde_json::json!(count));
                 }
