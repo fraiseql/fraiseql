@@ -1542,7 +1542,10 @@ fn a_filter_naming_an_undeclared_argument_is_refused_at_subscribe() {
 
     let err = result.expect_err("a subscription whose filter cannot be applied must be refused");
     let message = err.to_string();
-    assert!(message.contains("no_such_argument"), "the refusal names the reference: {message}");
+    assert!(
+        message.contains("no_such_argument"),
+        "the refusal names the reference: {message}"
+    );
     assert!(message.contains("orderId"), "the refusal names what is declared: {message}");
 
     // And the consequence the refusal exists to prevent: an event the filter excludes

@@ -612,4 +612,3 @@ fn sql_projection_hint_roundtrip() {
     assert_eq!(hint.projection_template, hint2.projection_template);
     assert_eq!(hint.estimated_reduction_percent, hint2.estimated_reduction_percent);
 }
-

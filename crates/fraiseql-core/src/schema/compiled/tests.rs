@@ -1972,7 +1972,10 @@ fn no_golden_fixture_filters_on_an_argument_it_does_not_declare() {
             );
         }
     }
-    assert!(checked >= 9, "expected the golden fixtures to be found and parsed, got {checked}");
+    assert!(
+        checked >= 9,
+        "expected the golden fixtures to be found and parsed, got {checked}"
+    );
 }
 
 /// A compiled schema whose subscription filter names an undeclared argument is refused
@@ -1999,7 +2002,10 @@ fn a_compiled_schema_with_a_dangling_subscription_filter_is_refused_at_load() {
     let err = CompiledSchema::from_json(json, false)
         .expect_err("a filter that cannot be applied must not load");
     let message = err.to_string();
-    assert!(message.contains("no_such_argument"), "the refusal names the reference: {message}");
+    assert!(
+        message.contains("no_such_argument"),
+        "the refusal names the reference: {message}"
+    );
     assert!(message.contains("orderId"), "the refusal names what is declared: {message}");
 }
 
