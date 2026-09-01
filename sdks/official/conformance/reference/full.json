@@ -194,6 +194,11 @@
           "name": "name",
           "type": "String",
           "nullable": true
+        },
+        {
+          "name": "displayName",
+          "type": "String",
+          "nullable": true
         }
       ]
     },
@@ -269,7 +274,13 @@
       "returns_list": true,
       "nullable": false,
       "sql_source": "v_order",
-      "arguments": [],
+      "arguments": [
+        {
+          "name": "includeArchived",
+          "type": "Boolean",
+          "nullable": true
+        }
+      ],
       "inject_params": {
         "tenant_id": "jwt:tenant_id"
       },
@@ -327,6 +338,11 @@
         },
         {
           "name": "name",
+          "type": "String",
+          "nullable": true
+        },
+        {
+          "name": "displayName",
           "type": "String",
           "nullable": true
         }

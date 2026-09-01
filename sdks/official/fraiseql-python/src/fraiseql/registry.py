@@ -39,6 +39,26 @@ def _snake_to_camel(name: str) -> str:
     return _SNAKE_WORD_RE.sub(lambda m: m.group(1).upper(), name)
 
 
+def _recase_filter_arguments(filter_spec: dict[str, Any]) -> dict[str, Any]:
+    """Recase each filter condition's `argument` reference to match the argument it names.
+
+    Only the `argument` key is touched: `path` is a JSON pointer into the event payload,
+    which is the database's spelling and must not be recased.
+    """
+    conditions = filter_spec.get("conditions")
+    if not isinstance(conditions, list):
+        return filter_spec
+    return {
+        **filter_spec,
+        "conditions": [
+            {**c, "argument": _snake_to_camel(c["argument"])}
+            if isinstance(c, dict) and isinstance(c.get("argument"), str)
+            else c
+            for c in conditions
+        ],
+    }
+
+
 class SchemaRegistry:
     """Global registry for schema definitions.
 
@@ -444,7 +464,15 @@ class SchemaRegistry:
         if topic is not None:
             subscription["topic"] = topic
         if filter is not None:
-            subscription["filter"] = filter
+            # A condition's `argument` is a *reference* to one of the arguments above,
+            # and those were just recased. Passing the reference through verbatim made an
+            # author who spells it the way they spelled the parameter — the only spelling
+            # that reads as correct — emit `argument_paths: {"order_id": …}` against an
+            # argument named `orderId`. The compiler accepts that dangling reference and
+            # the runtime fails OPEN on it, skipping the condition and delivering every
+            # event on the topic (#1262). Recasing here keeps the reference pointing at
+            # the argument it names.
+            subscription["filter"] = _recase_filter_arguments(filter)
         if fields:
             subscription["fields"] = fields
         if deprecated:

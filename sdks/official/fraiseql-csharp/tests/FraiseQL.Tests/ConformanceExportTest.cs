@@ -85,10 +85,14 @@ public class ConformanceExportTest
             .Argument("id", "ID")
             .Register();
 
+        // Two-word argument, deliberately (#1255). Every argument in this fixture used
+        // to be `id`, `email` or `name`, which spell the same in every convention, so no
+        // SDK's argument-name translation was exercised and three did not have one.
         QueryBuilder.Query("tenantOrders")
             .ReturnType("Order")
             .ReturnsList()
             .SqlSource("v_order")
+            .Argument("includeArchived", "Boolean", nullable: true)
             .Inject("tenant_id", "jwt:tenant_id")
             .CacheTtlSeconds(300)
             .RequiresRole("admin")
@@ -103,6 +107,7 @@ public class ConformanceExportTest
             .Operation("insert")
             .Argument("email", "String")
             .Argument("name", "String", nullable: true)
+            .Argument("displayName", "String", nullable: true)
             .InvalidatesViews("v_user", "v_user_summary")
             .InvalidatesFactTables("tf_signup")
             // #1253: the role gate on the write side, implemented in all eleven mutation
@@ -241,5 +246,13 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "String", Nullable = true)]
         public string? Name { get; set; }
+
+        // Two words, declared in C#'s idiom (PascalCase). A hand-authored input type's
+        // field names are a third registration path, distinct from a type's fields and
+        // from a `crud` type's generated input objects (#1249 covered those two), and no
+        // fixture name reached it (#1255). `MapPropertyName` lowers the first letter
+        // only, so `DisplayName` is the spelling that shows whether that is enough.
+        [GraphQLField(Type = "String", Nullable = true)]
+        public string? DisplayName { get; set; }
     }
 }

@@ -135,6 +135,56 @@ class AStaleGapIsReported(unittest.TestCase):
         self.assertTrue(run.exercised({"connection": "UserConnection", "edge": None}))
 
 
+class ACasingNearMissIsNamed(unittest.TestCase):
+    """An operation published under another convention is reported as that, not as absent.
+
+    `project()` indexes the operation constructs by the names the canonical fixture
+    declares, so an SDK publishing `tenant_orders` where the fixture expects
+    `tenantOrders` yields an observation with the key missing entirely. Without the note
+    the diff reads "this SDK registered no such query", and the reader goes looking for a
+    registration that is in fact there under another spelling — a detour this cost twice
+    before it was added (#1255).
+    """
+
+    EXPECTED = {"queries": {"tenantOrders": {"sql_source": "v_order"}}}
+    ACTUAL = {"queries": {}}
+
+    def test_the_note_names_both_spellings(self) -> None:
+        compiled = {"queries": [{"name": "tenant_orders", "sql_source": "v_order"}]}
+        problems = run.diff_observations(self.EXPECTED, self.ACTUAL, {}, compiled)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("`tenantOrders` published as `tenant_orders`", problems[0])
+
+    def test_a_genuinely_absent_operation_gets_no_note(self) -> None:
+        """The note must not fire when nothing was published under any spelling.
+
+        Claiming a convention mismatch where the operation is simply missing would send
+        the reader after a rename that never happened — the same failure one level over.
+        """
+        problems = run.diff_observations(self.EXPECTED, self.ACTUAL, {}, {"queries": []})
+        self.assertEqual(len(problems), 1, problems)
+        self.assertNotIn("different convention", problems[0])
+
+    def test_the_note_is_diagnostic_only(self) -> None:
+        """It may never change whether a construct is reported, only what the report says.
+
+        Same expected/actual, with and without the compiled schema: one problem either
+        way. A hint that could suppress a finding would be a gate that fails to fail.
+        """
+        compiled = {"queries": [{"name": "tenant_orders"}]}
+        with_hint = run.diff_observations(self.EXPECTED, self.ACTUAL, {}, compiled)
+        without = run.diff_observations(self.EXPECTED, self.ACTUAL, {}, None)
+        self.assertEqual(len(with_hint), len(without), (with_hint, without))
+
+    def test_an_exact_match_is_not_reported_as_a_near_miss(self) -> None:
+        """A name published exactly as expected is not a near-miss of itself."""
+        actual = {"queries": {"tenantOrders": {"sql_source": "v_user"}}}
+        compiled = {"queries": [{"name": "tenantOrders", "sql_source": "v_user"}]}
+        problems = run.diff_observations(self.EXPECTED, actual, {}, compiled)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertNotIn("different convention", problems[0])
+
+
 class AnUnknownUnsupportedKeyFails(unittest.TestCase):
     """A typo in a manifest's `unsupported` map is reported, not silently ignored.
 

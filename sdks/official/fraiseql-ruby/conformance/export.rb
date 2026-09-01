@@ -24,8 +24,8 @@ def author_minimal
     t.field :email, :string, nullable: false
   end
 
-  schema.query "users", return_type: "User", returns_list: true, nullable: false,
-                        sql_source: "v_user"
+  schema.query :users, return_type: "User", returns_list: true, nullable: false,
+                       sql_source: "v_user"
   schema
 end
 
@@ -88,19 +88,28 @@ def author_full
   schema.type "CreateUserInput", is_input: true do |t|
     t.field :email, :string, nullable: false
     t.field :name, :string, nullable: true
+    # Two words: a hand-authored input type's field names are a third registration path,
+    # distinct from a type's fields and from a `crud` type's generated input objects
+    # (#1249 covered those two), and no fixture name reached it (#1255).
+    t.field :display_name, :string, nullable: true
   end
 
   schema.enum "OrderStatus", %w[PENDING SHIPPED CANCELLED]
 
-  schema.query "users", return_type: "User", returns_list: true, nullable: false,
-                        sql_source: "v_user"
+  schema.query :users, return_type: "User", returns_list: true, nullable: false,
+                       sql_source: "v_user"
 
-  schema.query "user", return_type: "User", returns_list: false, nullable: true,
-                       sql_source: "v_user" do |q|
+  # Operation and argument names are authored in Ruby's idiom — a snake_case symbol — and
+  # must reach the API camelCased, exactly as `t.field :due_date` does (#1249). Every
+  # operation name in this fixture used to be a camelCase *string*, which is not how a Ruby
+  # author writes one, so `schema.rb`'s `name.to_s` ran on every export and never once saw
+  # an input the two conventions spell differently (#1255).
+  schema.query :user, return_type: "User", returns_list: false, nullable: true,
+                      sql_source: "v_user" do |q|
     q.argument :id, :id, nullable: false
   end
 
-  schema.query "tenantOrders", return_type: "Order", returns_list: true, nullable: false,
+  schema.query :tenant_orders, return_type: "Order", returns_list: true, nullable: false,
                                sql_source: "v_order",
                                inject: { "tenant_id" => "jwt:tenant_id" },
                                cache_ttl_seconds: 300,
@@ -108,9 +117,11 @@ def author_full
                                # #966's actor allow-list, enforced in the same executor
                                # gate as requires_role on every transport, and authorable
                                # in no SDK until #1123.
-                               requires_actor: %w[human_user service_account]
+                               requires_actor: %w[human_user service_account] do |q|
+    q.argument :include_archived, :boolean, nullable: true
+  end
 
-  schema.mutation "createUser", return_type: "User", sql_source: "fn_create_user",
+  schema.mutation :create_user, return_type: "User", sql_source: "fn_create_user",
                                 operation: "insert",
                                 invalidates_views: %w[v_user v_user_summary],
                                 invalidates_fact_tables: %w[tf_signup],
@@ -121,9 +132,10 @@ def author_full
                                 requires_actor: %w[service_account] do |m|
     m.argument :email, :string, nullable: false
     m.argument :name, :string, nullable: true
+    m.argument :display_name, :string, nullable: true
   end
 
-  schema.mutation "placeOrder", return_type: "Order", sql_source: "fn_place_order",
+  schema.mutation :place_order, return_type: "Order", sql_source: "fn_place_order",
                                 operation: "insert",
                                 inject: { "user_id" => "jwt:sub" },
                                 invalidates_views: %w[v_order_summary],

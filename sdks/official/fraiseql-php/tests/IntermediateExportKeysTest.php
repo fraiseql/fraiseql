@@ -24,6 +24,30 @@ final class ConformanceKeysUser
 }
 
 /**
+ * A `crud` type and a plain one, for the second-registration guard below. They are
+ * attribute-declared because `StaticAPI::register()` — the attribute path — is where the
+ * defect lived: it looped over every registered type name and re-expanded each, so the
+ * second call re-expanded the first type's `crud` and `registerInputType` threw on the
+ * duplicate name (#1248).
+ */
+#[GraphQLType(name: 'SecondRegTicket', sqlSource: 'v_second_reg_ticket', crud: true)]
+final class SecondRegistrationTicket
+{
+    #[GraphQLField(type: 'Int', nullable: false)]
+    public int $id;
+
+    #[GraphQLField(type: 'String', nullable: false)]
+    public string $title;
+}
+
+#[GraphQLType(name: 'SecondRegPlain', sqlSource: 'v_second_reg_plain')]
+final class SecondRegistrationPlain
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $id;
+}
+
+/**
  * `toIntermediateArray()` is the exporter `SchemaExporter` — and therefore
  * `bin/fraiseql export` — actually calls. It wrote the cache-invalidation list under
  * `invalidates` (the compiler reads `invalidates_views`), never wrote
@@ -268,6 +292,83 @@ final class IntermediateExportKeysTest extends TestCase
         self::assertSame(
             ['createSupportTicket', 'updateSupportTicket', 'deleteSupportTicket'],
             array_column($schema['mutations'], 'name'),
+        );
+    }
+
+    /**
+     * Registering any second type after a `crud` type must not re-expand the first.
+     *
+     * `StaticAPI::register()` used to loop over every registered type name and expand
+     * each one that declared `crud`, so the second call re-ran the first type's
+     * expansion. Queries and mutations are keyed by name and would merely overwrite, but
+     * `SchemaRegistry::registerInputType` throws on a duplicate name — so the second
+     * `register()` call was a hard failure, not a silent duplication (#1248).
+     *
+     * Nothing had two types where one declared `crud`, which is why #1022's fix shipped
+     * with the loop and with the docblock already describing the invariant it broke. The
+     * fix landed without a test; this is it. A single-type case cannot see the defect,
+     * so the assertion that matters is that a *second* registration happens at all.
+     */
+    public function testRegisteringASecondTypeAfterACrudTypeDoesNotReExpandTheFirst(): void
+    {
+        StaticAPI::register(SecondRegistrationTicket::class);
+        StaticAPI::register(SecondRegistrationPlain::class);
+
+        $schema = json_decode(SchemaExporter::export(), true);
+        self::assertIsArray($schema);
+
+        // Expanded exactly once. Under the loop this line was never reached — the second
+        // register() threw — so a duplicate-count assertion is what pins the fix rather
+        // than merely observing that the export succeeded.
+        self::assertSame(
+            ['CreateSecondRegTicketInput', 'UpdateSecondRegTicketInput'],
+            array_column($schema['input_types'], 'name'),
+        );
+        self::assertSame(
+            ['createSecondRegTicket', 'updateSecondRegTicket', 'deleteSecondRegTicket'],
+            array_column($schema['mutations'], 'name'),
+        );
+        self::assertSame(
+            ['secondRegTicket', 'secondRegTickets'],
+            array_column($schema['queries'], 'name'),
+        );
+
+        // And the second type is actually in the schema, rather than the test passing
+        // because registration quietly did nothing.
+        self::assertSame(
+            ['SecondRegTicket', 'SecondRegPlain'],
+            array_column($schema['types'], 'name'),
+        );
+    }
+
+    /**
+     * The same guard across the two authoring idioms: a `crud` type declared on the
+     * fluent builder, then an attribute-declared type. `TypeBuilder::register()` routes
+     * to `registerTypeBuilder`, which expands only its own builder, but the attribute
+     * path's loop read the *registry*, so a builder-authored crud type registered before
+     * it was re-expanded just the same. One idiom's guard does not cover the other.
+     */
+    public function testRegisteringAnAttributeTypeAfterAFluentCrudTypeDoesNotReExpandIt(): void
+    {
+        StaticAPI::type('SecondRegTicket')
+            ->sqlSource('v_second_reg_ticket')
+            ->field('id', 'Int', nullable: false)
+            ->field('title', 'String', nullable: false)
+            ->crud(true)
+            ->register();
+
+        StaticAPI::register(SecondRegistrationPlain::class);
+
+        $schema = json_decode(SchemaExporter::export(), true);
+        self::assertIsArray($schema);
+
+        self::assertSame(
+            ['CreateSecondRegTicketInput', 'UpdateSecondRegTicketInput'],
+            array_column($schema['input_types'], 'name'),
+        );
+        self::assertSame(
+            ['SecondRegTicket', 'SecondRegPlain'],
+            array_column($schema['types'], 'name'),
         );
     }
 

@@ -214,7 +214,13 @@ defmodule FraiseQL.Schema do
 
   defp fraiseql_query_ast(name, opts) do
     {block, query_opts} = Keyword.pop(opts, :do)
-    query_name = Atom.to_string(name)
+    # camelCase on emit, as `fraiseql_mutation_ast` has always done and as `field` does
+    # since #1249. `Atom.to_string` published `tenant_orders` where the identical
+    # declaration in Python published `tenantOrders`, and this SDK disagreed with *itself*
+    # — its mutation macro translated and its query macro did not. Nothing compared them,
+    # because every operation name in the conformance fixture was written as a camelCase
+    # atom, which is not how an Elixir author writes one (#1255).
+    query_name = FraiseQL.TypeMapper.to_camel_case(name)
 
     if block do
       quote do
@@ -472,7 +478,9 @@ defmodule FraiseQL.Schema do
       argument :limit, :integer, nullable: true
   """
   defmacro argument(name, type, opts \\ []) do
-    arg_name = Atom.to_string(name)
+    # An argument name follows the same rule as an operation name and a field name:
+    # authored as a snake_case atom, published camelCase (#1255).
+    arg_name = FraiseQL.TypeMapper.to_camel_case(name)
     arg_type = FraiseQL.TypeMapper.to_graphql_type(type)
 
     quote do

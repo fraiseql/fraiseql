@@ -82,10 +82,14 @@ public class ConformanceExport {
 
         Map<String, String> tenantInject = new LinkedHashMap<>();
         tenantInject.put("tenant_id", "jwt:tenant_id");
+        // Two-word argument, deliberately (#1255). Every argument in this fixture used
+        // to be `id`, `email` or `name`, which spell the same in every convention, so no
+        // SDK's argument-name translation was exercised and three did not have one.
         FraiseQL.query("tenantOrders")
             .returnType("Order")
             .returnsArray(true)
             .sqlSource("v_order")
+            .arg("includeArchived", "Boolean")
             .inject(tenantInject)
             .cacheTtlSeconds(300)
             .requiresRole("admin")
@@ -100,6 +104,7 @@ public class ConformanceExport {
             .operation("insert")
             .arg("email", "String!")
             .arg("name", "String")
+            .arg("displayName", "String")
             .invalidatesViews(List.of("v_user", "v_user_summary"))
             .invalidatesFactTables(List.of("tf_signup"))
             // #1253: the role gate on the write side, implemented in all eleven mutation
@@ -250,5 +255,11 @@ public class ConformanceExport {
 
         @GraphQLField(type = "String", nullable = true)
         public String name;
+
+        // Two words: a hand-authored input type's field names are a third registration
+        // path, distinct from a type's fields and from a `crud` type's generated input
+        // objects (#1249 covered those two), and no fixture name reached it (#1255).
+        @GraphQLField(type = "String", nullable = true)
+        public String displayName;
     }
 }

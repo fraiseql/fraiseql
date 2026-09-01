@@ -84,9 +84,13 @@ func authorFull() error {
 		return err
 	}
 
+	// `displayName` is two words: a hand-authored input type's field names are a third
+	// registration path, distinct from a type's fields and from a `crud` type's generated
+	// input objects, and no fixture name had ever reached it (#1255).
 	if err := fraiseql.RegisterInputType("CreateUserInput", []fraiseql.FieldInfo{
 		{Name: "email", Type: "String", Nullable: false},
 		{Name: "name", Type: "String", Nullable: true},
+		{Name: "displayName", Type: "String", Nullable: true},
 	}, ""); err != nil {
 		return err
 	}
@@ -105,9 +109,15 @@ func authorFull() error {
 		Register(); err != nil {
 		return err
 	}
+	// Two-word argument, deliberately (#1255): every argument in this fixture used to be
+	// `id`, `email` or `name`, which spell the same in every convention, so no SDK's
+	// argument-name translation was exercised and three did not have one. Go authors the
+	// wire name directly, so there is nothing to translate here — the declaration exists
+	// so the comparator can see the SDKs where there is.
 	if err := fraiseql.NewQuery("tenantOrders").
 		ReturnType("Order").ReturnsArray(true).Nullable(false).
 		SqlSource("v_order").
+		Arg("includeArchived", "Boolean", nil, true).
 		InjectParams(map[string]string{"tenant_id": "jwt:tenant_id"}).
 		CacheTTLSeconds(300).
 		RequiresRole("admin").
@@ -124,6 +134,7 @@ func authorFull() error {
 		Operation("insert").
 		Arg("email", "String", nil, false).
 		Arg("name", "String", nil, true).
+		Arg("displayName", "String", nil, true).
 		InvalidatesViews([]string{"v_user", "v_user_summary"}).
 		InvalidatesFactTables([]string{"tf_signup"}).
 		// #1253: the role gate on the write side. `MutationDefinition` had no

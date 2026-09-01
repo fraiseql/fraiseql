@@ -131,6 +131,10 @@ FraiseQLSchema authorFull() {
     fields: {
       'email': const FieldType.string(nullable: false),
       'name': const FieldType.string(),
+      // Two words: a hand-authored input type's field names are a third registration
+      // path, distinct from a type's fields and from a `crud` type's generated input
+      // objects (#1249 covered those two), and no fixture name reached it (#1255).
+      'displayName': const FieldType.string(),
     },
   );
 
@@ -153,12 +157,16 @@ FraiseQLSchema authorFull() {
     arguments: {'id': const FieldType.id(nullable: false)},
   );
 
+  // The argument is two words on purpose (#1255): every argument in this fixture used to
+  // be `id`, `email` or `name`, which spell the same in every convention, so no SDK's
+  // argument-name translation was exercised and three did not have one.
   schema.query(
     'tenantOrders',
     returnType: 'Order',
     returnsList: true,
     nullable: false,
     sqlSource: 'v_order',
+    arguments: {'includeArchived': const FieldType.boolean()},
     inject: {'tenant_id': 'jwt:tenant_id'},
     cacheTtlSeconds: 300,
     requiresRole: 'admin',
@@ -175,6 +183,7 @@ FraiseQLSchema authorFull() {
     arguments: {
       'email': const FieldType.string(nullable: false),
       'name': const FieldType.string(),
+      'displayName': const FieldType.string(),
     },
     invalidatesViews: ['v_user', 'v_user_summary'],
     invalidatesFactTables: ['tf_signup'],

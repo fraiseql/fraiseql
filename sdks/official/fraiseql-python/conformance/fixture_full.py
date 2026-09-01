@@ -141,6 +141,10 @@ class OrderStatus(Enum):
 class CreateUserInput:
     email: str
     name: str | None = None
+    # A hand-authored input type's field names are a third registration path, distinct
+    # from a type's fields and from the input objects a `crud` type generates (#1249
+    # covered those two). `display_name` is two words so the path is exercised at all.
+    display_name: str | None = None
 
 
 @fraiseql.query(sql_source="v_user")
@@ -164,7 +168,7 @@ def user(id: ID) -> User | None:
     # languages cannot express is a gate nobody can turn on (#1123).
     requires_actor=["human_user", "service_account"],
 )
-def tenantOrders() -> list[Order]:  # noqa: N802 — camelCase GraphQL field name
+def tenant_orders(include_archived: bool | None = None) -> list[Order]:
     pass
 
 
@@ -183,7 +187,7 @@ def tenantOrders() -> list[Order]:  # noqa: N802 — camelCase GraphQL field nam
     # half of the gate unauthorable with nothing saying so (#1123).
     requires_actor=["service_account"],
 )
-def createUser(email: str, name: str | None) -> User:  # noqa: N802
+def create_user(email: str, name: str | None, display_name: str | None) -> User:
     pass
 
 
@@ -194,17 +198,17 @@ def createUser(email: str, name: str | None) -> User:  # noqa: N802
     invalidates_views=["v_order_summary"],
     invalidates_fact_tables=["tf_sale"],
 )
-def placeOrder() -> Order:  # noqa: N802
+def place_order() -> Order:
     pass
 
 
 @fraiseql.subscription(
     entity_type="Order",
     topic="order_events",
-    filter={"conditions": [{"argument": "orderId", "path": "$.id"}]},
+    filter={"conditions": [{"argument": "order_id", "path": "$.id"}]},
     fields=["id", "total"],
 )
-def orderUpdated(order_id: ID | None = None) -> Order:  # noqa: N802
+def order_updated(order_id: ID | None = None) -> Order:
     # No trailing period: the description travels from this docstring, and the canonical
     # fixture's string is what every other SDK passes explicitly.
     """Stream of order update events"""

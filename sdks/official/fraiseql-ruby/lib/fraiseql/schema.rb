@@ -169,7 +169,12 @@ module FraiseQL
       yield builder if block_given?
 
       definition = {
-        "name" => name.to_s,
+        # An operation name is authored the way a Ruby author writes an identifier — a
+        # snake_case symbol — and reaches the API camelCased, the same rule `field` has
+        # followed since #1249. `name.to_s` published `tenant_orders` where the identical
+        # declaration in Python published `tenantOrders`; no fixture could see it, because
+        # every operation name in the conformance suite was a camelCase string (#1255).
+        "name" => Naming.snake_to_camel(name),
         "return_type" => return_type.to_s,
         "returns_list" => returns_list,
         "nullable" => nullable,
@@ -198,7 +203,8 @@ module FraiseQL
       yield builder if block_given?
 
       definition = {
-        "name" => name.to_s,
+        # camelCase on emit, as for `query` above.
+        "name" => Naming.snake_to_camel(name),
         "return_type" => return_type.to_s,
         "returns_list" => returns_list,
         "nullable" => nullable,
@@ -390,7 +396,9 @@ module FraiseQL
 
       def argument(name, type, nullable: true, description: nil)
         definition = {
-          "name" => name.to_s,
+          # An argument name follows the same rule as an operation name and a field name:
+          # authored as a snake_case symbol, published camelCase (#1255).
+          "name" => Naming.snake_to_camel(name),
           "type" => Schema.graphql_type(type),
           "nullable" => nullable
         }

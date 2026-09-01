@@ -145,6 +145,11 @@ let private authorFull () =
                 [
                     { name = "email"; type_ = "String"; nullable = false }
                     { name = "name"; type_ = "String"; nullable = true }
+                    // Two words (#1255). Unlike an object type, whose members are
+                    // PascalCase and lowered on emit, `registerInput` takes the wire name
+                    // as a literal — so there is nothing to translate here. The field
+                    // exists so the comparator covers the hand-authored input path at all.
+                    { name = "displayName"; type_ = "String"; nullable = true }
                 ]
             description = None
         }
@@ -164,10 +169,14 @@ let private authorFull () =
     |> QueryBuilder.withArgument "id" "ID" false
     |> QueryBuilder.register
 
+    // Two-word argument, deliberately (#1255). Every argument in this fixture used to be
+    // `id`, `email` or `name`, which spell the same in every convention, so no SDK's
+    // argument-name translation was exercised and three did not have one.
     QueryBuilder.query "tenantOrders"
     |> QueryBuilder.returnType "Order"
     |> QueryBuilder.returnsList true
     |> QueryBuilder.sqlSource "v_order"
+    |> QueryBuilder.withArgument "includeArchived" "Boolean" true
     |> QueryBuilder.inject "tenant_id" "jwt:tenant_id"
     |> QueryBuilder.cacheTtlSeconds 300
     |> QueryBuilder.requiresRole "admin"
@@ -182,6 +191,7 @@ let private authorFull () =
     |> MutationBuilder.operation "insert"
     |> MutationBuilder.withArgument "email" "String" false
     |> MutationBuilder.withArgument "name" "String" true
+    |> MutationBuilder.withArgument "displayName" "String" true
     |> MutationBuilder.invalidatesViews [ "v_user"; "v_user_summary" ]
     |> MutationBuilder.invalidatesFactTables [ "tf_signup" ]
     // #1253: the role gate on the write side, implemented in all eleven mutation builders

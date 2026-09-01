@@ -328,6 +328,66 @@ class ClientConstructionTest < Minitest::Test
   end
 end
 
+# ── Operation and argument names ──────────────────────────────────────────
+
+# An operation or argument declared the way a Ruby author writes an identifier — a
+# snake_case symbol — must reach the API camelCased, the same rule `t.field` has followed
+# since #1249.
+#
+# `schema.rb` published these three verbatim through `name.to_s`, so `schema.query
+# :tenant_orders` put `tenant_orders` in the GraphQL API where the identical declaration
+# in Python put `tenantOrders`. Nothing compared them, because every operation name in the
+# cross-SDK conformance fixture was written as a camelCase *string* — which is not how a
+# Ruby author writes one — and every argument name in it was `id`, `email` or `name`,
+# which spell the same in both conventions (#1255).
+class OperationNamingTest < Minitest::Test
+  def test_a_query_declared_as_a_snake_case_symbol_is_published_camelcase
+    schema = FraiseQL::Schema.new
+    schema.query :tenant_orders, return_type: "Order", returns_list: true, sql_source: "v_order"
+
+    assert_equal "tenantOrders", schema.to_h["queries"].first["name"]
+  end
+
+  def test_a_mutation_declared_as_a_snake_case_symbol_is_published_camelcase
+    schema = FraiseQL::Schema.new
+    schema.mutation :create_user, return_type: "User", sql_source: "fn_create_user"
+
+    assert_equal "createUser", schema.to_h["mutations"].first["name"]
+  end
+
+  def test_argument_names_are_published_camelcase_on_both_operation_kinds
+    schema = FraiseQL::Schema.new
+    schema.query(:tenant_orders, return_type: "Order", sql_source: "v_order") do |q|
+      q.argument :include_archived, :boolean, nullable: true
+    end
+    schema.mutation(:create_user, return_type: "User", sql_source: "fn_create_user") do |m|
+      m.argument :display_name, :string, nullable: true
+    end
+
+    hash = schema.to_h
+    assert_equal "includeArchived", hash["queries"].first["arguments"].first["name"]
+    assert_equal "displayName", hash["mutations"].first["arguments"].first["name"]
+  end
+
+  # A one-word name spells the same either way, so it can pass under either
+  # implementation. Pinned so a later reader does not mistake it for coverage.
+  def test_a_one_word_name_is_unchanged
+    schema = FraiseQL::Schema.new
+    schema.query :users, return_type: "User", returns_list: true, sql_source: "v_user"
+
+    assert_equal "users", schema.to_h["queries"].first["name"]
+  end
+
+  # The author may still pass the wire name directly; translation is idempotent, so both
+  # idioms land on the same spelling rather than one of them being corrupted.
+  def test_a_camelcase_string_is_accepted_unchanged
+    schema = FraiseQL::Schema.new
+    schema.query "tenantOrders", return_type: "Order", returns_list: true, sql_source: "v_order"
+
+    assert_equal "tenantOrders", schema.to_h["queries"].first["name"]
+  end
+end
+
 # ── Version ───────────────────────────────────────────────────────────────
 
 class VersionTest < Minitest::Test

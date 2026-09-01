@@ -140,6 +140,12 @@ final class ConformanceCreateUserInput
 
     #[GraphQLField(type: 'String', nullable: true)]
     public ?string $name;
+
+    // Two words: a hand-authored input type's field names are a third registration path,
+    // distinct from a type's fields and from a `crud` type's generated input objects
+    // (#1249 covered those two), and no fixture name had reached it (#1255).
+    #[GraphQLField(type: 'String', nullable: true)]
+    public ?string $displayName;
 }
 
 #[GraphQLType(name: 'User', sqlSource: 'v_user')]
@@ -190,11 +196,15 @@ function authorFull(): void
         ->argument('id', 'ID', nullable: false)
         ->register();
 
+    // Two-word argument, deliberately (#1255). Every argument in this fixture used to be
+    // `id`, `email` or `name`, which spell the same in every convention, so no SDK's
+    // argument-name translation was exercised and three did not have one.
     StaticAPI::query('tenantOrders')
         ->returnType('Order')
         ->returnsList()
         ->nullable(false)
         ->sqlSource('v_order')
+        ->argument('includeArchived', 'Boolean', nullable: true)
         ->inject(['tenant_id' => 'jwt:tenant_id'])
         ->cacheTtlSeconds(300)
         ->requiresRole('admin')
@@ -209,6 +219,7 @@ function authorFull(): void
         ->operation('insert')
         ->argument('email', 'String', nullable: false)
         ->argument('name', 'String', nullable: true)
+        ->argument('displayName', 'String', nullable: true)
         ->invalidatesViews(['v_user', 'v_user_summary'])
         ->invalidatesFactTables(['tf_signup'])
         // #1253: the role gate on the write side, implemented in all eleven mutation

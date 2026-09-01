@@ -140,6 +140,10 @@ function authorFull(): void {
   input("CreateUserInput", [
     { name: "email", type: "String", nullable: false },
     { name: "name", type: "String", nullable: true },
+    // Two words: a hand-authored input type's field names are a third registration path,
+    // distinct from a type's fields and from a `crud` type's generated input objects
+    // (#1249 covered those two), and no fixture name reached it (#1255).
+    { name: "displayName", type: "String", nullable: true },
   ]);
 
   registerQuery("users", "User", true, false, [], undefined, { sql_source: "v_user" });
@@ -154,7 +158,10 @@ function authorFull(): void {
     { sql_source: "v_user" }
   );
 
-  registerQuery("tenantOrders", "Order", true, false, [], undefined, {
+  // The argument is two words on purpose (#1255): every argument in this fixture used
+  // to be `id`, `email` or `name`, which spell the same in every convention, so no SDK's
+  // argument-name translation was exercised and three did not have one.
+  registerQuery("tenantOrders", "Order", true, false, [{ name: "includeArchived", type: "Boolean", nullable: true }], undefined, {
     sql_source: "v_order",
     inject_params: { tenant_id: "jwt:tenant_id" },
     cache_ttl_seconds: 300,
@@ -172,6 +179,7 @@ function authorFull(): void {
     [
       { name: "email", type: "String", nullable: false },
       { name: "name", type: "String", nullable: true },
+      { name: "displayName", type: "String", nullable: true },
     ],
     undefined,
     {

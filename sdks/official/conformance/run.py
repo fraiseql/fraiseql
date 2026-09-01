@@ -190,7 +190,7 @@ def run_exporter(sdk: str, spec: dict, fixture: str, out: Path) -> dict:
 
 
 def diff_observations(
-    expected: dict, actual: dict, unsupported: dict[str, str]
+    expected: dict, actual: dict, unsupported: dict[str, str], compiled: dict | None = None
 ) -> list[str]:
     """Compare per construct, skipping (and reporting) declared gaps."""
     problems = []
@@ -204,8 +204,60 @@ def diff_observations(
                 f"  construct `{construct}`:\n"
                 f"    expected: {json.dumps(want, sort_keys=True)}\n"
                 f"    actual:   {json.dumps(got, sort_keys=True)}"
+                + casing_hint(construct, want, got, compiled)
             )
     return problems
+
+
+def casing_hint(construct: str, want: object, got: object, compiled: dict | None) -> str:
+    """Name the near-miss when an operation was published under a different convention.
+
+    `project()` indexes the operation constructs by the names the canonical fixture
+    declares, so an SDK that publishes `tenant_orders` where the fixture expects
+    `tenantOrders` produces an observation with the key simply *absent* — and the diff
+    above then reads as "this SDK registered no such query", which is the wrong thing to
+    go and look for. The projection stays strict on purpose; the hint is read off the raw
+    compiled schema instead, so naming the near-miss cannot weaken the comparison (#1255).
+    """
+    section = {
+        "queries": "queries",
+        "query_arguments": "queries",
+        "query_inject_params": "queries",
+        "query_cache_ttl": "queries",
+        "query_requires_role": "queries",
+        "query_requires_actor": "queries",
+        "mutations": "mutations",
+        "mutation_arguments": "mutations",
+        "mutation_invalidates_views": "mutations",
+        "mutation_invalidates_fact_tables": "mutations",
+        "mutation_requires_role": "mutations",
+        "mutation_requires_actor": "mutations",
+        "subscriptions": "subscriptions",
+    }.get(construct)
+    if section is None or not isinstance(compiled, dict) or not isinstance(want, dict):
+        return ""
+    published = [
+        item["name"]
+        for item in compiled.get(section) or []
+        if isinstance(item, dict) and isinstance(item.get("name"), str)
+    ]
+    got_keys = set(got) if isinstance(got, dict) else set()
+
+    def fold(name: str) -> str:
+        return name.replace("_", "").lower()
+
+    by_fold = {fold(n): n for n in published}
+    pairs = [
+        (expected_name, by_fold[fold(expected_name)])
+        for expected_name in want
+        if expected_name not in got_keys
+        and fold(expected_name) in by_fold
+        and by_fold[fold(expected_name)] != expected_name
+    ]
+    if not pairs:
+        return ""
+    joined = ", ".join(f"`{a}` published as `{b}`" for a, b in sorted(pairs))
+    return f"\n    note:     same name, different convention — {joined}"
 
 
 def exercised(value: object) -> bool:
@@ -263,7 +315,7 @@ def check_sdk(sdk: str, spec: dict, cli: Path, expected: dict[str, dict]) -> lis
                 failures.append(f"[{fixture}] {exc}")
                 continue
 
-            problems = diff_observations(expected[fixture], project(compiled), unsupported)
+            problems = diff_observations(expected[fixture], project(compiled), unsupported, compiled)
             problems += check_undeclared_support(expected[fixture], project(compiled), unsupported)
             if problems:
                 failures.append(f"[{fixture}] observations differ:\n" + "\n".join(problems))

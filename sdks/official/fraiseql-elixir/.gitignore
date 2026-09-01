@@ -14,6 +14,11 @@ rebar.lock
 # Mix
 .mix/
 
+# Dialyzer's PLT. `mix dialyzer` is one of this SDK's three CI gates and
+# elixir-sdk.yml caches this exact path, so running the gate locally leaves 2.4 MB of
+# build output untracked in the tree with nothing ignoring it.
+/priv/plts/
+
 # IDE
 .vscode/
 .idea/

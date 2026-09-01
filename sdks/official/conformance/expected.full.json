@@ -29,6 +29,11 @@
           "name": "name",
           "nullable": true,
           "type": "String"
+        },
+        {
+          "name": "displayName",
+          "nullable": true,
+          "type": "String"
         }
       ]
     }
@@ -42,6 +47,11 @@
       },
       {
         "name": "name",
+        "nullable": true,
+        "type": "String"
+      },
+      {
+        "name": "displayName",
         "nullable": true,
         "type": "String"
       }
@@ -106,7 +116,13 @@
     }
   },
   "query_arguments": {
-    "tenantOrders": [],
+    "tenantOrders": [
+      {
+        "name": "includeArchived",
+        "nullable": true,
+        "type": "Boolean"
+      }
+    ],
     "user": [
       {
         "name": "id",

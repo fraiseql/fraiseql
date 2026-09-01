@@ -101,6 +101,10 @@ defmodule Conformance.FullSchema do
   fraiseql_type "CreateUserInput", is_input: true do
     field(:email, :string, nullable: false)
     field(:name, :string, nullable: true)
+    # Two words: a hand-authored input type's field names are a third registration path,
+    # distinct from a type's fields and from a `crud` type's generated input objects
+    # (#1249 covered those two), and no fixture name reached it (#1255).
+    field(:display_name, :string, nullable: true)
   end
 
   fraiseql_enum("OrderStatus", values: ["PENDING", "SHIPPED", "CANCELLED"])
@@ -120,7 +124,13 @@ defmodule Conformance.FullSchema do
     argument(:id, :id, nullable: false)
   end
 
-  fraiseql_query(:tenantOrders,
+  # The name is a snake_case atom, which is how an Elixir author writes an identifier and
+  # how `fraiseql_mutation` beside it was already authored. It used to be spelled
+  # `:tenantOrders` — a camelCase atom no Elixir author would write — so `schema.ex`'s
+  # verbatim `Atom.to_string` on the query path ran on every export and never once saw an
+  # input the two conventions spell differently, while the mutation path's `to_camel_case`
+  # was equally unexercised and happened to be right (#1255).
+  fraiseql_query :tenant_orders,
     return_type: "Order",
     returns_list: true,
     nullable: false,
@@ -130,8 +140,9 @@ defmodule Conformance.FullSchema do
     requires_role: "admin",
     # #966's actor allow-list, enforced in the same executor gate as requires_role on every
     # transport, and authorable in no SDK until #1123.
-    requires_actor: ["human_user", "service_account"]
-  )
+    requires_actor: ["human_user", "service_account"] do
+    argument(:include_archived, :boolean, nullable: true)
+  end
 
   fraiseql_mutation :create_user,
                     return_type: "User",
@@ -145,6 +156,7 @@ defmodule Conformance.FullSchema do
                     requires_actor: ["service_account"] do
     argument(:email, :string, nullable: false)
     argument(:name, :string, nullable: true)
+    argument(:display_name, :string, nullable: true)
   end
 
   fraiseql_mutation(:place_order,
