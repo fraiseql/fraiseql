@@ -1912,3 +1912,113 @@ fn the_derived_filter_types_are_acceptable_variable_types() {
     assert!(message.contains("OrdrWhereInput"), "message was: {message}");
     assert!(message.contains("Did you mean 'OrderWhereInput'?"), "message was: {message}");
 }
+
+// =============================================================================
+// #1262 — a subscription filter that names no declared argument
+// =============================================================================
+
+/// The golden fixtures live outside this crate; resolve them the way the integration
+/// suite does.
+fn golden_fixtures_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("tests/fixtures/golden")
+}
+
+/// Every golden fixture must be a document `fraiseql compile` could actually emit.
+///
+/// `02-enum-input-subscription.json` filtered on `status` while declaring only `userId`,
+/// and nothing noticed for as long as the fixture existed — the same dangling reference
+/// #1262 is about, sitting in the repo's own canonical artifacts. A fixture that no
+/// compiler run can produce tests a shape no deployment has.
+///
+/// Lives in the lib rather than beside the other golden tests because
+/// `tests/golden_fixtures_test.rs` runs only in the `Dagger — integration` leg
+/// (`--test '*'`), while `--lib` runs in `Dagger — test`, which is a required check.
+///
+/// Discovered from the directory rather than from a list, so a fixture added later is
+/// covered without anyone remembering to add it here.
+#[test]
+fn no_golden_fixture_filters_on_an_argument_it_does_not_declare() {
+    let mut checked = 0_usize;
+    for entry in std::fs::read_dir(golden_fixtures_dir()).expect("fixtures dir readable") {
+        let path = entry.expect("readable dir entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let name = path.file_name().unwrap().to_str().unwrap().to_string();
+        let json = std::fs::read_to_string(&path).unwrap();
+        // Deserialized structurally rather than through `from_json`, which now *refuses*
+        // a dangling filter: routed through it, an offending fixture would fail to load,
+        // be skipped as "not a CompiledSchema", and the per-fixture assertion below could
+        // never fire. Only the count at the end would notice, and it could not say which
+        // fixture or why.
+        //
+        // Not every fixture here is a whole CompiledSchema; the ones that are not cannot
+        // carry a subscription filter either.
+        let Ok(schema) = serde_json::from_str::<CompiledSchema>(&json) else {
+            continue;
+        };
+        checked += 1;
+
+        for sub in &schema.subscriptions {
+            assert!(
+                sub.filter_violation().is_none(),
+                "{name}: {}",
+                sub.filter_violation().unwrap_or_default()
+            );
+        }
+    }
+    assert!(checked >= 9, "expected the golden fixtures to be found and parsed, got {checked}");
+}
+
+/// A compiled schema whose subscription filter names an undeclared argument is refused
+/// at **load**, not carried into the process (#1262).
+///
+/// `fraiseql compile` refuses to emit this document, so reaching it means the artifact
+/// was edited by hand — the one path a compile-time check cannot cover. The refusal
+/// belongs on the load path every entry point shares (`from_json`), beside the role and
+/// inject-param refusals that already live there: a schema whose filter cannot be
+/// applied is one whose subscriptions would deliver every event on their topic.
+#[test]
+fn a_compiled_schema_with_a_dangling_subscription_filter_is_refused_at_load() {
+    let json = r#"{
+      "types": [{"name": "Order", "sql_source": "v_order",
+                 "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}],
+      "queries": [], "mutations": [],
+      "subscriptions": [{
+        "name": "orderUpdated", "return_type": "Order", "topic": "order_events",
+        "arguments": [{"name": "orderId", "arg_type": "ID", "nullable": true}],
+        "filter": {"argument_paths": {"no_such_argument": "/id"}}
+      }]
+    }"#;
+
+    let err = CompiledSchema::from_json(json, false)
+        .expect_err("a filter that cannot be applied must not load");
+    let message = err.to_string();
+    assert!(message.contains("no_such_argument"), "the refusal names the reference: {message}");
+    assert!(message.contains("orderId"), "the refusal names what is declared: {message}");
+}
+
+/// The positive control for the load-time refusal: the same document with the reference
+/// spelled the way the subscription declares it loads, and keeps its filter.
+#[test]
+fn a_compiled_schema_with_a_resolvable_subscription_filter_loads() {
+    let json = r#"{
+      "types": [{"name": "Order", "sql_source": "v_order",
+                 "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}],
+      "queries": [], "mutations": [],
+      "subscriptions": [{
+        "name": "orderUpdated", "return_type": "Order", "topic": "order_events",
+        "arguments": [{"name": "orderId", "arg_type": "ID", "nullable": true}],
+        "filter": {"argument_paths": {"orderId": "/id"}}
+      }]
+    }"#;
+
+    let schema = CompiledSchema::from_json(json, false).expect("a resolvable filter must load");
+    let filter = schema.subscriptions[0].filter.as_ref().expect("filter survives the load");
+    assert_eq!(filter.argument_paths.get("orderId"), Some(&"/id".to_string()));
+}
