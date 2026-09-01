@@ -10,7 +10,6 @@ use FraiseQL\PerformanceMonitor;
 use FraiseQL\LazyLoader;
 use FraiseQL\SchemaRegistry;
 use FraiseQL\TypeBuilder;
-use FraiseQL\SchemaFormatter;
 use FraiseQL\JsonSchema;
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
@@ -29,6 +28,25 @@ final class OptimizationTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * A `JsonSchema` for the cache tests below.
+     *
+     * These cases test `SchemaCache`, not the thing that produced its argument — they
+     * used to reach for `SchemaFormatter` only because it was the shortest way to obtain
+     * a `JsonSchema`. That class emitted a document `fraiseql compile` refuses and was
+     * removed (#1245); `JsonSchema` is a plain value type, so it is constructed here
+     * directly and the cases keep asserting exactly what they always did.
+     */
+    private static function jsonSchema(string $description = 'cache fixture'): JsonSchema
+    {
+        return new JsonSchema(
+            version: '2.0.0',
+            types: ['User' => ['name' => 'User', 'fields' => ['id' => ['type' => 'ID!']]]],
+            scalars: ['String' => 'String scalar type'],
+            description: $description,
+        );
+    }
+
     // ============ SchemaCache Tests ============
 
     public function testSchemaCacheBasic(): void
@@ -36,8 +54,7 @@ final class OptimizationTest extends TestCase
         $cache = new SchemaCache();
         SchemaRegistry::getInstance()->register(CacheTestUser::class);
 
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatRegistry(SchemaRegistry::getInstance());
+        $schema = self::jsonSchema();
 
         $cache->cacheFormattedSchema(SchemaRegistry::getInstance(), $schema);
         $retrieved = $cache->getFormattedSchema(SchemaRegistry::getInstance());
@@ -61,8 +78,7 @@ final class OptimizationTest extends TestCase
         $cache = new SchemaCache();
         SchemaRegistry::getInstance()->register(CacheTestUser::class);
 
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatRegistry(SchemaRegistry::getInstance());
+        $schema = self::jsonSchema();
 
         // First access: miss
         $cache->getFormattedSchema(SchemaRegistry::getInstance());
@@ -81,8 +97,7 @@ final class OptimizationTest extends TestCase
         $cache = new SchemaCache();
         SchemaRegistry::getInstance()->register(CacheTestUser::class);
 
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatRegistry(SchemaRegistry::getInstance());
+        $schema = self::jsonSchema();
 
         $cache->cacheFormattedSchema(SchemaRegistry::getInstance(), $schema);
         $cache->clear();
@@ -96,8 +111,7 @@ final class OptimizationTest extends TestCase
         $cache = new SchemaCache();
         SchemaRegistry::getInstance()->register(CacheTestUser::class);
 
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatRegistry(SchemaRegistry::getInstance());
+        $schema = self::jsonSchema();
         $json = $schema->toJson();
 
         $cache->cacheJson($schema, $json);
@@ -123,8 +137,7 @@ final class OptimizationTest extends TestCase
         $cache = new SchemaCache(ttl: 1); // 1 second TTL
         SchemaRegistry::getInstance()->register(CacheTestUser::class);
 
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatRegistry(SchemaRegistry::getInstance());
+        $schema = self::jsonSchema();
 
         $cache->cacheFormattedSchema(SchemaRegistry::getInstance(), $schema);
         $this->assertNotNull($cache->getFormattedSchema(SchemaRegistry::getInstance()));
@@ -428,8 +441,7 @@ final class OptimizationTest extends TestCase
         SchemaRegistry::getInstance()->register(CacheTestUser::class);
 
         $monitor->startOperation('format_schema');
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatRegistry(SchemaRegistry::getInstance());
+        $schema = self::jsonSchema();
         $monitor->endOperation('format_schema');
 
         $monitor->startOperation('cache_schema');

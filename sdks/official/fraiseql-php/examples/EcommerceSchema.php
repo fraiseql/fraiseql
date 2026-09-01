@@ -11,7 +11,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\StaticAPI;
-use FraiseQL\SchemaFormatter;
+use FraiseQL\SchemaExporter;
 
 /**
  * E-commerce schema example demonstrating complex nested types.
@@ -127,53 +127,72 @@ function demonstrateEcommerceSchema(): void
     StaticAPI::register(Order::class);
     echo "✓ Registered 5 attribute-based types\n\n";
 
-    // Create Query and Mutation types using TypeBuilder
-    echo "Step 2: Building Query type with fluent API...\n";
-    $queryBuilder = \FraiseQL\TypeBuilder::type('Query')
-        ->description('Root query type for e-commerce API')
-        ->field('products', 'Product', isList: true, description: 'List all products')
-        ->field('product', 'Product', nullable: true, description: 'Get product by ID')
-        ->field('categories', 'Category', isList: true, description: 'List all categories')
-        ->field('orders', 'Order', isList: true, description: 'List orders for customer')
-        ->field('order', 'Order', nullable: true, description: 'Get order details');
+    // Declare queries.
+    //
+    // FraiseQL has no author-written `Query` root type: a query is declared with
+    // `StaticAPI::query()` and the compiler assembles the root. This example used to
+    // build object types *named* `Query` and `Mutation` with `TypeBuilder`, which is the
+    // schema-first idiom of a different engine — it produced two ordinary types with
+    // those names and no root fields at all (#1245).
+    echo "Step 2: Declaring queries...\n";
+    StaticAPI::query('products')
+        ->returnType('Product')->returnsList()->nullable(false)
+        ->sqlSource('v_product')->description('List all products')->register();
+    StaticAPI::query('product')
+        ->returnType('Product')->nullable(true)
+        ->sqlSource('v_product')->description('Get product by ID')
+        ->argument('id', 'Int', nullable: false)->register();
+    StaticAPI::query('categories')
+        ->returnType('Category')->returnsList()->nullable(false)
+        ->sqlSource('v_category')->description('List all categories')->register();
+    StaticAPI::query('orders')
+        ->returnType('Order')->returnsList()->nullable(false)
+        ->sqlSource('v_order')->description('List orders for customer')->register();
 
-    echo "✓ Query type has " . $queryBuilder->getFieldCount() . " fields\n\n";
+    echo "✓ Declared 4 queries\n\n";
 
-    // Create Mutation type
-    echo "Step 3: Building Mutation type...\n";
-    $mutationBuilder = \FraiseQL\TypeBuilder::type('Mutation')
-        ->description('Root mutation type for e-commerce API')
-        ->field('createOrder', 'Order', description: 'Create a new order')
-        ->field('updateProduct', 'Product', nullable: true, description: 'Update product')
-        ->field('cancelOrder', 'Boolean', description: 'Cancel an order')
-        ->field('addToCart', 'Boolean', description: 'Add item to shopping cart');
+    // Declare mutations. Each names the SQL function that performs the write, and the
+    // views it invalidates — without `invalidatesViews` a cached read stays stale for the
+    // whole of its TTL after the write that changed it.
+    echo "Step 3: Declaring mutations...\n";
+    StaticAPI::mutation('createOrder')
+        ->returnType('Order')->sqlSource('fn_create_order')->operation('insert')
+        ->description('Create a new order')
+        ->argument('customerId', 'Int', nullable: false)
+        ->invalidatesViews(['v_order'])->register();
+    StaticAPI::mutation('updateProduct')
+        ->returnType('Product')->sqlSource('fn_update_product')->operation('update')
+        ->description('Update product')
+        ->argument('id', 'Int', nullable: false)
+        ->argument('name', 'String', nullable: true)
+        ->invalidatesViews(['v_product'])->register();
+    StaticAPI::mutation('cancelOrder')
+        ->returnType('Order')->sqlSource('fn_cancel_order')->operation('update')
+        ->description('Cancel an order')
+        ->argument('id', 'Int', nullable: false)
+        ->invalidatesViews(['v_order'])->register();
 
-    echo "✓ Mutation type has " . $mutationBuilder->getFieldCount() . " fields\n\n";
+    echo "✓ Declared 3 mutations\n\n";
 
-    // Format and export schema
-    echo "Step 4: Formatting complete schema...\n";
-    $registry = \FraiseQL\SchemaRegistry::getInstance();
-    $formatter = new SchemaFormatter();
+    // Export the schema.
+    //
+    // `SchemaExporter` is the export path — it is what `bin/fraiseql export` runs and
+    // what `fraiseql compile` can read.
+    echo "Step 4: Exporting complete schema...\n";
+    $json = SchemaExporter::export();
 
-    $schema = $formatter->formatBuilders(
-        $queryBuilder,
-        $mutationBuilder
-    );
+    // Written to disk, not only echoed: `conformance/check_examples.sh` compiles every
+    // `.json` an example leaves behind, and reports "ran; emitted no schema" for one that
+    // leaves none — so while this example only printed its export, the gate could not see
+    // that what it printed did not compile.
+    file_put_contents('schema.json', $json);
 
-    echo "✓ Schema created with " . $schema->getTypeCount() . " root types\n\n";
-
-    // Combine attribute types with builders
-    echo "Step 5: Exporting complete schema...\n";
-    $attributeSchema = $formatter->formatRegistry(
-        $registry,
-        description: 'Complete e-commerce GraphQL schema'
-    );
-
-    $json = $attributeSchema->toJson();
+    $schemaArray = json_decode($json, true);
     echo "Schema exported successfully!\n";
     echo "Total schema size: " . strlen($json) . " bytes\n";
-    echo "Total types: " . $attributeSchema->getTypeCount() . "\n";
-    echo "Scalars: " . implode(', ', $attributeSchema->getScalarNames()) . "\n\n";
+    echo "Total types: " . count($schemaArray['types'] ?? []) . "\n";
+    echo "Queries: " . count($schemaArray['queries'] ?? []) . "\n";
+    echo "Mutations: " . count($schemaArray['mutations'] ?? []) . "\n\n";
 
     // Inspect specific types
     echo "Step 6: Analyzing schema structure...\n";
@@ -194,14 +213,10 @@ function demonstrateEcommerceSchema(): void
 
     // Display sample JSON
     echo "Step 8: Sample JSON export (first 2 types):\n";
-    $schemaArray = $attributeSchema->toArray();
-    $sampleTypes = array_slice($schemaArray['types'], 0, 2, true);
     echo json_encode(
         [
             'version' => $schemaArray['version'],
-            'description' => $schemaArray['description'] ?? null,
-            'types' => $sampleTypes,
-            'scalars' => $schemaArray['scalars'],
+            'types' => array_slice($schemaArray['types'], 0, 2),
         ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
     ) . "\n";

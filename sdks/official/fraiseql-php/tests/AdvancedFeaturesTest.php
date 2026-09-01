@@ -12,7 +12,6 @@ use FraiseQL\Cache;
 use FraiseQL\CacheKey;
 use FraiseQL\SchemaRegistry;
 use FraiseQL\TypeBuilder;
-use FraiseQL\SchemaFormatter;
 use FraiseQL\JsonSchema;
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
@@ -162,11 +161,15 @@ final class AdvancedFeaturesTest extends TestCase
 
     public function testValidatorJsonSchema(): void
     {
-        $builder = TypeBuilder::type('Test')
-            ->scalarField('id', 'Int');
-
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatBuilder($builder);
+        // `SchemaFormatter` was the only producer of a `JsonSchema` and emitted a
+        // document `fraiseql compile` refuses, so it was removed (#1245). `JsonSchema` is
+        // a plain value type; this case is about `Validator`, so it builds one directly
+        // and asserts exactly what it always did.
+        $schema = new JsonSchema(
+            version: '2.0.0',
+            types: ['Test' => ['name' => 'Test', 'fields' => ['id' => ['type' => 'Int!']]]],
+            scalars: ['Int' => 'Int scalar type'],
+        );
 
         $validator = new Validator();
         $result = $validator->validateJsonSchema($schema);
@@ -401,8 +404,14 @@ final class AdvancedFeaturesTest extends TestCase
         SchemaRegistry::getInstance()->register(ValidUserType::class);
         SchemaRegistry::getInstance()->register(ValidPostType::class);
 
-        $formatter = new SchemaFormatter();
-        $schema = $formatter->formatRegistry(SchemaRegistry::getInstance());
+        $schema = new JsonSchema(
+            version: '2.0.0',
+            types: [
+                'ValidUser' => ['name' => 'ValidUser', 'fields' => ['id' => ['type' => 'ID!']]],
+                'ValidPost' => ['name' => 'ValidPost', 'fields' => ['id' => ['type' => 'ID!']]],
+            ],
+            scalars: ['String' => 'String scalar type'],
+        );
 
         $validator = new Validator();
         $result = $validator->validateJsonSchema($schema);

@@ -11,7 +11,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\StaticAPI;
-use FraiseQL\SchemaFormatter;
+use FraiseQL\SchemaExporter;
 
 /**
  * Basic example demonstrating core FraiseQL PHP features.
@@ -96,25 +96,30 @@ function demonstrateBasicSchema(): void
     }
     echo "\n";
 
-    // Export schema to JSON
+    // Export schema to JSON.
+    //
+    // `SchemaExporter` is the export path — it is what `bin/fraiseql export` runs and
+    // what `fraiseql compile` can read. This example used to call `SchemaFormatter`,
+    // whose document the compiler refused on the first field (no `name`, no `nullable`,
+    // a `resolver` key `IntermediateField` has no member for, and fields as a map where
+    // the compiler reads a list), while printing "Schema exported successfully!" (#1245).
     echo "Step 4: Exporting to JSON...\n";
-    $registry = \FraiseQL\SchemaRegistry::getInstance();
-    $formatter = new SchemaFormatter();
-    $schema = $formatter->formatRegistry(
-        $registry,
-        description: 'Basic blog platform schema'
-    );
+    $json = SchemaExporter::export();
 
-    $json = $schema->toJson();
+    // Written to disk, not only echoed. `conformance/check_examples.sh` compiles every
+    // `.json` an example leaves behind and reports "ran; emitted no schema" for one that
+    // leaves none — so while this example only printed its export, the gate could not see
+    // that what it printed did not compile.
+    file_put_contents('schema.json', $json);
+
+    $schemaArray = json_decode($json, true);
     echo "Schema exported successfully!\n";
     echo "Schema size: " . strlen($json) . " bytes\n";
-    echo "Version: " . $schema->version . "\n";
-    echo "Type count: " . $schema->getTypeCount() . "\n";
-    echo "Scalars: " . implode(', ', $schema->getScalarNames()) . "\n\n";
+    echo "Version: " . $schemaArray['version'] . "\n";
+    echo "Type count: " . count($schemaArray['types'] ?? []) . "\n\n";
 
     // Show JSON structure
     echo "Step 5: JSON Schema structure:\n";
-    $schemaArray = $schema->toArray();
     echo json_encode($schemaArray, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 }
 

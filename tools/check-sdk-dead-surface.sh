@@ -28,6 +28,15 @@
 # One entry per removed surface: a regex, and the issue that removed it. The reason text is
 # shell-expanded when the array is built, so it must contain no backticks — one there turned
 # the explanation into a command substitution and the gate died before checking anything.
+#
+# Two constraints on the regex field, both of which produce a gate that CANNOT FAIL rather
+# than an error, so neither is visible without deliberately reintroducing the surface and
+# checking that this script goes red:
+#   - it may not contain `|`. The entry is split on `|` by `IFS='|' read`, so an alternation
+#     is silently truncated into the regex field and the rest becomes the reason.
+#   - it is a BASIC regex — `grep` here has no `-E` — so `|`, `+`, `(` and `?` are literals.
+# Comment lines are stripped before matching (see below), so a bare name is usually the
+# right entry: prose explaining the removal does not trip it.
 # Keep the regex
 # specific enough that a prose mention in a CHANGELOG or migration note does not trip it —
 # those files are excluded below rather than made unwritable.
@@ -48,6 +57,7 @@ REMOVED=(
     "RegisterAggregateQuery|RegisterAggregateQuery|#956 — the registry half of the same removed surface"
     "FraiseQLType|^class FraiseQLType|#1241 — the Dart @FraiseQLType annotation; Dart has no runtime reflection over annotations and the package ships no build_runner generator, so nothing read it. Author with FraiseQLSchema.type(), which takes the same crud: and cascade: flags"
     "FraiseQLField|^class FraiseQLField|#1241 — the Dart @FraiseQLField annotation, same reason. Its computed: flag is now FieldType(computed: true)"
+    "SchemaFormatter|new SchemaFormatter|#1245 — the PHP SDKs second exporter. Its document was uncompilable by construction: no name and no nullable on a field (both required, neither with a serde default), a resolver and a phpType key IntermediateField has no member for, fields as a map where the compiler reads a list, and schema_version 1.0 where the format is 2.0.0. Author with SchemaExporter, which is what bin/fraiseql export runs. Anchored on the instantiation because the JAVA SDK has a live, unrelated com.fraiseql.core.SchemaFormatter that a bare name matches - it is static-only and never instantiated, so new SchemaFormatter is PHP here"
 )
 
 # Only SDK authoring code is in scope. Docs are where the removal is *explained*, so a
