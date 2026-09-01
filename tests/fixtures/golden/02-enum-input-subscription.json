@@ -87,7 +87,8 @@
       "fields": ["id", "status", "amount"],
       "filter_fields": ["userId"],
       "arguments": [
-        {"name": "userId", "arg_type": "ID", "nullable": false}
+        {"name": "userId", "arg_type": "ID", "nullable": false},
+        {"name": "status", "arg_type": {"Enum": "OrderStatus"}, "nullable": true}
       ]
     },
     {

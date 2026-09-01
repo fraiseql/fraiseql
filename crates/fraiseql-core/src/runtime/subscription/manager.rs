@@ -162,6 +162,12 @@ impl SubscriptionManager {
             }
         }
 
+        // Every filter key must name a declared argument (#1262). Checked here, after the
+        // expansion above, so a `filter_fields` entry is covered by the same rule as an
+        // authored condition. `fraiseql compile` refuses this shape, so reaching it means
+        // the compiled schema was edited by hand.
+        Self::check_filter_arguments(&definition)?;
+
         // Create active subscription with RLS conditions
         let active = ActiveSubscription::new(
             subscription_name,
@@ -198,6 +204,23 @@ impl SubscriptionManager {
         );
 
         Ok(id)
+    }
+
+    /// Refuse a subscription whose filter names an argument it does not declare (#1262).
+    ///
+    /// Call sites pass a definition whose `filter_fields` have already been expanded into
+    /// `argument_paths`, so this sees the same key set the delivery loop will look up.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SubscriptionError::UnresolvableFilter`] naming every unresolvable
+    /// reference and the arguments the subscription does declare.
+    fn check_filter_arguments(
+        definition: &crate::schema::SubscriptionDefinition,
+    ) -> Result<(), SubscriptionError> {
+        definition
+            .filter_violation()
+            .map_or(Ok(()), |violation| Err(SubscriptionError::UnresolvableFilter(violation)))
     }
 
     /// Unsubscribe from a subscription.

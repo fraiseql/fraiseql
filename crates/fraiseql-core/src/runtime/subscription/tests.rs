@@ -737,6 +737,12 @@ fn test_subscription_filter_matching() {
         subscriptions: vec![
             SubscriptionDefinition::new("OrderUpdated", "Order")
                 .with_topic("order_updated")
+                // Declared because the filter names it: a filter key that is not a declared
+                // argument is refused at subscribe, and refused by the compiler (#1262).
+                .with_argument(crate::schema::ArgumentDefinition::optional(
+                    "orderId",
+                    crate::schema::FieldType::Id,
+                ))
                 .with_filter(filter),
         ],
         ..Default::default()
@@ -828,9 +834,19 @@ fn test_subscription_field_projection() {
 // filter_fields Expansion Tests
 // =========================================================================
 
+/// Every filter key must name a declared argument (#1262) — `filter_fields` entries
+/// included, since they expand into `argument_paths` at subscribe time. So a definition
+/// built for a filter test declares the arguments it filters on.
+fn optional_id_arg(name: &str) -> crate::schema::ArgumentDefinition {
+    crate::schema::ArgumentDefinition::optional(name, crate::schema::FieldType::Id)
+}
+
 #[test]
 fn test_filter_fields_auto_generates_argument_paths() {
-    let mut def = SubscriptionDefinition::new("OrderCreated", "Order").with_topic("order_created");
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
+        .with_topic("order_created")
+        .with_argument(optional_id_arg("user_id"))
+        .with_argument(optional_id_arg("tenant_id"));
     def.filter_fields = vec!["user_id".to_string(), "tenant_id".to_string()];
 
     let schema = Arc::new(CompiledSchema {
@@ -868,6 +884,8 @@ fn test_filter_fields_does_not_overwrite_explicit_argument_paths() {
 
     let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
         .with_topic("order_created")
+        .with_argument(optional_id_arg("user_id"))
+        .with_argument(optional_id_arg("tenant_id"))
         .with_filter(SubscriptionFilter {
             argument_paths,
             static_filters: Vec::new(),
@@ -901,7 +919,9 @@ fn test_filter_fields_does_not_overwrite_explicit_argument_paths() {
 
 #[test]
 fn test_filter_fields_filtering_events() {
-    let mut def = SubscriptionDefinition::new("OrderCreated", "Order").with_topic("order_created");
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
+        .with_topic("order_created")
+        .with_argument(optional_id_arg("user_id"));
     def.filter_fields = vec!["user_id".to_string()];
 
     let schema = Arc::new(CompiledSchema {
@@ -1459,4 +1479,143 @@ fn update_rls_conditions_on_a_gone_subscription_is_an_error() {
     let manager = SubscriptionManager::new(schema);
     let result = manager.update_rls_conditions(SubscriptionId::new(), vec![]);
     assert!(matches!(result, Err(SubscriptionError::NotActive(_))));
+}
+
+// =========================================================================
+// #1262 — a filter reference that no client variable can satisfy
+// =========================================================================
+
+/// Build a subscription that declares `orderId` and filters on `filter_key`.
+///
+/// When `filter_key` is `"orderId"` the reference resolves; anything else dangles.
+fn subscription_filtering_on(filter_key: &str) -> SubscriptionDefinition {
+    use std::collections::HashMap;
+
+    use crate::schema::{ArgumentDefinition, FieldType, SubscriptionFilter};
+
+    let mut argument_paths = HashMap::new();
+    argument_paths.insert(filter_key.to_string(), "/id".to_string());
+
+    SubscriptionDefinition::new("OrderUpdated", "Order")
+        .with_topic("order_updated")
+        .with_argument(ArgumentDefinition::optional("orderId", FieldType::Id))
+        .with_filter(SubscriptionFilter {
+            argument_paths,
+            static_filters: Vec::new(),
+        })
+}
+
+fn manager_for(definition: SubscriptionDefinition) -> SubscriptionManager {
+    SubscriptionManager::new(Arc::new(CompiledSchema {
+        subscriptions: vec![definition],
+        ..Default::default()
+    }))
+}
+
+fn order_event(id: &str) -> SubscriptionEvent {
+    SubscriptionEvent::new(
+        "Order",
+        id,
+        SubscriptionOperation::Update,
+        serde_json::json!({"id": id}),
+    )
+}
+
+/// The defect: the client sends `orderId` because that is the name the schema it
+/// generated against declares, the filter is keyed by `no_such_argument`, the lookup
+/// misses, and the condition contributes **nothing** — so the subscription that asked
+/// to filter received every event on its topic.
+///
+/// A filter that matches nothing and a filter that matches everything are the same
+/// thing at that lookup, which is why this cannot be resolved by looking at the
+/// delivered events. It is refused at subscribe instead.
+#[test]
+fn a_filter_naming_an_undeclared_argument_is_refused_at_subscribe() {
+    let manager = manager_for(subscription_filtering_on("no_such_argument"));
+
+    let result = manager.subscribe(
+        "OrderUpdated",
+        serde_json::json!({}),
+        serde_json::json!({"orderId": "ord_123"}),
+        "conn_1",
+    );
+
+    let err = result.expect_err("a subscription whose filter cannot be applied must be refused");
+    let message = err.to_string();
+    assert!(message.contains("no_such_argument"), "the refusal names the reference: {message}");
+    assert!(message.contains("orderId"), "the refusal names what is declared: {message}");
+
+    // And the consequence the refusal exists to prevent: an event the filter excludes
+    // reaches nobody. Before the refusal this published to the subscriber.
+    assert_eq!(
+        manager.publish_event(order_event("ord_999")),
+        0,
+        "an event outside the requested filter must reach no subscriber"
+    );
+}
+
+/// The positive control. Without it the refusal above could be produced by a check
+/// that refuses every filtered subscription, and nothing here would notice.
+#[test]
+fn a_filter_naming_a_declared_argument_still_subscribes_and_still_filters() {
+    let manager = manager_for(subscription_filtering_on("orderId"));
+
+    manager
+        .subscribe(
+            "OrderUpdated",
+            serde_json::json!({}),
+            serde_json::json!({"orderId": "ord_123"}),
+            "conn_1",
+        )
+        .expect("a resolvable filter reference must subscribe");
+
+    assert_eq!(manager.publish_event(order_event("ord_123")), 1, "the matching event delivers");
+    assert_eq!(manager.publish_event(order_event("ord_999")), 0, "the other event does not");
+}
+
+/// A **declared** argument the client omits is not the same defect, and must keep
+/// working: a nullable argument left out means "do not filter on this one". The
+/// runtime skips that condition by design, and that skip is the behaviour the
+/// dangling reference was borrowing.
+#[test]
+fn a_declared_argument_the_client_omits_still_means_no_filter() {
+    let manager = manager_for(subscription_filtering_on("orderId"));
+
+    manager
+        .subscribe("OrderUpdated", serde_json::json!({}), serde_json::json!({}), "conn_1")
+        .expect("omitting an optional argument is not an error");
+
+    assert_eq!(
+        manager.publish_event(order_event("ord_999")),
+        1,
+        "an unsupplied optional filter argument must not filter anything out"
+    );
+}
+
+/// `filter_fields` expands into `argument_paths` at subscribe time, so a name there
+/// is a variable lookup too and dangles exactly the same way. The check runs against
+/// the post-expansion set.
+#[test]
+fn a_filter_fields_entry_naming_an_undeclared_argument_is_refused() {
+    use crate::schema::{ArgumentDefinition, FieldType};
+
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
+        .with_topic("order_created")
+        .with_argument(ArgumentDefinition::optional("userId", FieldType::Id));
+    def.filter_fields = vec!["userId".to_string(), "tenant_id".to_string()];
+
+    let manager = manager_for(def);
+
+    let err = manager
+        .subscribe(
+            "OrderCreated",
+            serde_json::json!({}),
+            serde_json::json!({"userId": "usr_1", "tenant_id": "t_1"}),
+            "conn_1",
+        )
+        .expect_err("a dangling filter_fields entry must be refused like any other");
+    assert!(
+        err.to_string().contains("tenant_id"),
+        "the refusal names the dangling entry: {err}"
+    );
 }

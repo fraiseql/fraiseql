@@ -168,6 +168,18 @@ pub enum SubscriptionError {
     #[error("Invalid subscription variables: {0}")]
     InvalidVariables(String),
 
+    /// A filter references an argument the subscription does not declare (#1262).
+    ///
+    /// The client sends its variables under the declared GraphQL argument names, so
+    /// such a condition can never be matched — and a condition whose variable is
+    /// absent is skipped *by design*, because that is how an unsupplied optional
+    /// argument behaves. Left alone the two are indistinguishable and the
+    /// subscription fails **open**, delivering every event on its topic. Refused at
+    /// subscribe instead. `fraiseql compile` rejects the same shape, so this is
+    /// reachable only through a hand-edited compiled schema.
+    #[error("Subscription filter cannot be applied: {0}")]
+    UnresolvableFilter(String),
+
     /// Subscription already exists.
     #[error("Subscription already exists: {0}")]
     AlreadyExists(String),

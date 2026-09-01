@@ -19,6 +19,17 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **A subscription filter naming an argument the subscription does not declare no longer
+  compiles (#1262).** The reference used to be accepted and then ignored at runtime,
+  delivering every event on the topic to a subscriber that had asked to filter; see
+  `### Fixed` for why the two were indistinguishable. `fraiseql compile` now refuses the
+  schema, naming the unresolvable reference and the arguments that are declared.
+
+  **Migration.** Spell the filter's `argument` exactly as the subscription declares it —
+  in particular the *translated* GraphQL name, `orderId`, not the authoring-language
+  parameter `order_id`. A schema that compiled before and fails now was filtering on
+  nothing.
+
 - **`QueryExecutor::execute_with_security` returns `FraiseQLError`, not `String` (#1201).**
 
   The Arrow Flight executor seam stringified every failure at the trait boundary
@@ -415,6 +426,29 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A subscription filter naming an argument the subscription does not declare is a compile
+  error, and no longer delivers every event on the topic (#1262).**
+
+  `filter.conditions[].argument` was never resolved against the subscription's own arguments.
+  A name that matched none of them compiled clean — no error, not even a warning — and the
+  runtime then failed **open**. The client sends its variables under the *declared* GraphQL
+  argument names, `argument_paths` was keyed by the dangling name, the lookup missed, and the
+  condition contributed nothing: a subscriber that asked to filter received every event on its
+  topic, under a healthy subscription.
+
+  The lookup could not tell that apart from a legitimately unsupplied optional argument, whose
+  condition it skips by design — so a filter that matches nothing and a filter that matches
+  everything were the same thing there, and the symptom was "more rows than asked for" rather
+  than anything an operator would read as a failure.
+
+  `fraiseql compile` now refuses the schema, naming every unresolvable reference and the
+  arguments the subscription does declare — the same treatment `vector_distance` already gave a
+  dangling field reference. `SubscriptionManager::subscribe` refuses it too
+  (`SubscriptionError::UnresolvableFilter`), which is reachable only through a hand-edited
+  compiled schema. Both checks run against the **post-expansion** key set, so a `filter_fields`
+  entry is covered by the same rule. A declared argument the client omits still means "do not
+  filter on this one", unchanged.
+
 - **The Rust test suite runs, and is required, before a merge to `dev` (#1257).**
 
   No gate that ran before a merge executed it. `make preflight` and the

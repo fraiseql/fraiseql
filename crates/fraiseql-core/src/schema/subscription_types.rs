@@ -164,6 +164,75 @@ impl SubscriptionDefinition {
         self
     }
 
+    /// Describe this subscription's unresolvable filter references, or `None` (#1262).
+    ///
+    /// A client sends its variables under the **declared** GraphQL argument names, so a
+    /// filter keyed by any other name can never be matched. The delivery loop cannot tell
+    /// that apart from an unsupplied optional argument, whose condition it skips *by
+    /// design* — so the reference does not fail loudly, it fails **open**: the condition
+    /// contributes nothing and a subscriber that asked to filter receives every event on
+    /// the topic.
+    ///
+    /// Checked against the **post-expansion** key set, since `filter_fields` entries
+    /// become `argument_paths` entries at subscribe time and dangle the same way.
+    ///
+    /// One function so the compiler, the schema load and the subscribe path all refuse
+    /// the same documents and say the same thing about them.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::{
+    ///     ArgumentDefinition, FieldType, SubscriptionDefinition, SubscriptionFilter,
+    /// };
+    ///
+    /// let mut paths = std::collections::HashMap::new();
+    /// paths.insert("order_id".to_string(), "/id".to_string());
+    /// let sub = SubscriptionDefinition::new("orderUpdated", "Order")
+    ///     .with_argument(ArgumentDefinition::optional("orderId", FieldType::Id))
+    ///     .with_filter(SubscriptionFilter { argument_paths: paths, static_filters: vec![] });
+    ///
+    /// // `order_id` is the authoring spelling; the declared argument is `orderId`.
+    /// assert!(sub.filter_violation().unwrap().contains("order_id"));
+    /// ```
+    #[must_use]
+    pub fn filter_violation(&self) -> Option<String> {
+        let declared: std::collections::HashSet<&str> =
+            self.arguments.iter().map(|a| a.name.as_str()).collect();
+
+        // Sorted and deduplicated: `argument_paths` is a HashMap, so a message built from
+        // its iteration order would differ between runs on the same schema.
+        let mut dangling: Vec<&str> = self
+            .filter
+            .iter()
+            .flat_map(|f| f.argument_paths.keys())
+            .chain(self.filter_fields.iter())
+            .map(String::as_str)
+            .filter(|reference| !declared.contains(reference))
+            .collect();
+        if dangling.is_empty() {
+            return None;
+        }
+        dangling.sort_unstable();
+        dangling.dedup();
+
+        let mut available: Vec<&str> = declared.into_iter().collect();
+        available.sort_unstable();
+        let available = if available.is_empty() {
+            "it declares no arguments".to_string()
+        } else {
+            format!("it declares: {}", available.join(", "))
+        };
+
+        Some(format!(
+            "subscription '{}' filters on {}, which it does not declare; {available}. That \
+             filter is not applied at all, so the subscription would deliver every event on \
+             its topic",
+            self.name,
+            dangling.iter().map(|d| format!("'{d}'")).collect::<Vec<_>>().join(", "),
+        ))
+    }
+
     /// Add a field to project from event data.
     #[must_use]
     pub fn with_field(mut self, field: impl Into<String>) -> Self {

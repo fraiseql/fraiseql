@@ -212,7 +212,29 @@ impl CompiledSchema {
                 path:    Some("security.inject_params".to_string()),
             });
         }
+        let violations = self.subscription_filter_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "subscription filters cannot be applied as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("subscriptions.filter".to_string()),
+            });
+        }
         Ok(())
+    }
+
+    /// Subscriptions whose filter names an argument they do not declare (#1262).
+    ///
+    /// `fraiseql compile` refuses to emit such a document, which leaves the hand-edited
+    /// artifact — the case a compile-time check cannot reach, and the reason this is
+    /// checked again on the load path every entry point shares.
+    fn subscription_filter_violations(&self) -> Vec<String> {
+        self.subscriptions
+            .iter()
+            .filter_map(crate::schema::SubscriptionDefinition::filter_violation)
+            .collect()
     }
 
     /// Serialize to JSON string.
