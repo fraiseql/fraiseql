@@ -895,9 +895,60 @@ disagreed, and the promise was the part that was wrong.
   apart again.
 
   Operation names and argument names are the same question one level up, and the fixture
-  spells both in camelCase in all eleven SDKs, so nothing exercises them either. That is
-  #1255, filed rather than folded in: it fails every SDK that turns out not to translate,
-  which is a change of its own.
+  spells both in camelCase in all eleven SDKs, so nothing exercises them either. That was
+  #1255, filed rather than folded in because it fails every SDK that turns out not to
+  translate; it is fixed in the entry below.
+
+- **An operation or argument declared in the language's idiom reaches the API as camelCase
+  (#1255).**
+
+  `schema.query :tenant_orders` in Ruby and `fraiseql_query :tenant_orders` in Elixir
+  published `tenant_orders`, where the same declaration in Python published `tenantOrders`.
+  Elixir disagreed with itself: `fraiseql_mutation` camelCased its name and
+  `fraiseql_query` did not, and nothing compared the two.
+
+  **Why no gate caught it.** The conformance fixture spelled every operation name as a
+  camelCase string or atom — `"tenantOrders"`, `:tenantOrders` — which is not how a Ruby or
+  Elixir author writes an identifier, and Python's fixture carried a `# noqa: N802` to
+  write the camelCase spelling. Every argument name in it was `id`, `email` or `name`: one
+  word each, and therefore the same string in both conventions. The fixture is now authored
+  in each SDK's own idiom with the compiled expectation unchanged, and gains three two-word
+  names on the three paths that had none — an argument on a query, an argument on a
+  mutation, and a field on a hand-authored input type, which is a third registration path
+  distinct from a type's fields and from a `crud` type's generated input objects. Changing
+  the fixture alone reddened nine of the eleven SDKs.
+
+  A related defect fell out of it. Authoring a subscription filter the way the parameter is
+  spelled emitted `argument_paths` keyed by the pre-translation name, against an argument
+  the same call had renamed — a dangling reference the compiler accepts and the runtime
+  **fails open** on, delivering every event on the topic to a subscriber that filtered. The
+  Python SDK no longer produces it; the engine half is #1262 and is still open.
+
+- **The PHP SDK's examples export through the path the compiler can read (#1245).**
+
+  The SDK shipped two exporters. `SchemaExporter` is the live one, and what
+  `bin/fraiseql export` runs. `SchemaFormatter` was the other, and its document was
+  uncompilable by construction: no `name` and no `nullable` on a field (both required by
+  `IntermediateField`, neither with a serde default), a `resolver` and a `phpType` key that
+  type has no member for, fields as a map where the compiler reads a list, and
+  `schema_version` 1.0 where the format is 2.0.0. It had no caller in `src/` — but it is
+  what both of the SDK's examples told an author to run, and both printed "Schema exported
+  successfully!" before returning a document `fraiseql compile` refuses on the first field.
+
+  `SchemaFormatter` is removed and pinned in `tools/check-sdk-dead-surface.sh`. Both
+  examples now export with `SchemaExporter` and write the result to disk — which is what
+  made the defect invisible: `check_examples.sh` compiles every `.json` an example leaves
+  behind and reports "ran; emitted no schema" for one that leaves none, so it had reported
+  both PHP examples ok without ever compiling what they produced. The gate went from 12
+  compiled schemas to 14. `EcommerceSchema.php` also stops building object types *named*
+  `Query` and `Mutation` with `TypeBuilder` — the schema-first idiom of a different engine,
+  which produced two ordinary types with those names and no root fields at all — and
+  declares real queries and mutations instead.
+
+  Two surfaces this exposed are filed rather than folded in: `withResolver()` was read only
+  by the deleted formatter and is now an authoring surface no compile path reads (#1263),
+  and `JsonSchema` — with `Validator`, `CacheKey` and `SchemaCache` — has no producer in the
+  SDK any more (#1264).
 
 - **The fuzz crates are compiled by a merge gate, and two that had stopped compiling are
   repaired (#1254).**
