@@ -284,11 +284,36 @@ to `IntermediateField` but for input types.
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | `string` | Subscription name |
-| `entity_type` | `string` | The entity type being subscribed to |
+| `return_type` | `string` | The entity type being subscribed to |
+| `arguments` | `IntermediateArgument[]` | Arguments the client may supply (default `[]`) |
 | `topic` | `string?` | Pub/sub topic name |
-| `operation` | `string?` | `"created"`, `"updated"`, `"deleted"`, or custom |
-| `filters` | `IntermediateSubscriptionFilter[]?` | Event filters |
+| `filter` | `IntermediateSubscriptionFilter?` | Event filter |
+| `fields` | `string[]` | Fields to project from the event payload; all if omitted |
 | `description` | `string?` | Description |
+| `deprecated` | `IntermediateDeprecation?` | Deprecation info |
+
+This struct denies unknown fields, so a key that is not in this table fails the **whole
+document** at `fraiseql compile` rather than being ignored. In particular there is no
+`entity_type`, no `filters` (it is singular) and no `operation` — the runtime subscription
+model has no operation concept, and emitting one was #1024.
+
+### `IntermediateSubscriptionFilter`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `conditions` | `IntermediateFilterCondition[]` | Argument-to-payload-path bindings |
+
+Each condition is `{"argument": string, "path": string}`, where `argument` is a
+**reference to one of the subscription's own `arguments`** and `path` is a JSON pointer
+into the event payload.
+
+⚠ Spell `argument` exactly as the subscription declares it — the *translated* GraphQL
+name (`orderId`), not the authoring-language parameter (`order_id`). A reference that
+names no declared argument is a compile error (#1262). It used to be accepted and then
+skipped at runtime, because the delivery loop cannot distinguish "this argument does not
+exist" from "the client did not supply this optional argument", which it skips by design
+— so the filter was not applied at all and the subscription delivered every event on its
+topic.
 
 ### `IntermediateObserver`
 
