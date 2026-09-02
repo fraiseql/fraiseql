@@ -12,10 +12,14 @@
 //! TOML emitter and the compile-time check, which is precisely the stretch #1266 was about.
 //!
 //! The fixture spells the join column the same on both sides (`fk_user` declared and
-//! stored). That is deliberate and narrower than it first looks: a `fkUser`/`fk_user`
-//! split does not survive a REST read at all, because `ProjectionMapper` reads the stored
-//! JSONB by the **declared** name while the SQL projection generator and the `where`
-//! parser both snake-case it — a defect of its own (#1271), and not this one.
+//! stored), which keeps this test about the compile path rather than about casing. The
+//! split case — a column `fk_user` published as `fkUser` — used not to survive a REST read
+//! at all (#1271: `ProjectionMapper` read the stored JSONB by the declared name while the
+//! SQL projection generator and the `where` parser both snake-case it, so the key the embed
+//! joins on was missing from the projected row and the embed answered `null`). That is
+//! fixed, and pinned end to end by
+//! `an_embed_follows_a_join_column_published_under_a_camel_case_name` in
+//! `rest_declared_name_stored_key_e2e_pg`.
 //! The compiler's column→field resolution is pinned where it can be tested in isolation:
 //! `a_join_column_resolves_against_a_camel_case_field_name` in `fraiseql-core` and
 //! `a_join_column_resolves_against_the_camel_case_field_it_is_published_as` in the CLI.

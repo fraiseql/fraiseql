@@ -1643,6 +1643,14 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// producer, every embed request against a compiled schema was a 400 reading
 		// "Available: none" — so the four fixes above were made in code no user reached.
 		"cargo test -p fraiseql-server --features rest --test rest_embedding_compiled_schema_e2e_pg -- --test-threads=1",
+		// #1271: a declared field name and the stored JSONB key it reads are two
+		// different strings. The REST runner reads the whole `data` document and
+		// projects in Rust, and that projector took the declared name verbatim
+		// while the SQL projection generator and the `where` parser snake_case it
+		// — so every multi-word camelCase field was absent from a REST 200 while
+		// GraphQL served it correctly. Asserts REST against GraphQL on one seeded
+		// row, which is the only way to see a key that is simply not there.
+		"cargo test -p fraiseql-server --features rest --test rest_declared_name_stored_key_e2e_pg -- --test-threads=1",
 		// #811/#917: exports paginated through `variables`, which the executor ignores —
 		// so every export either truncated to one page or looped forever emitting
 		// duplicates. Needs the export features compiled in: the CSV and XLSX cases are

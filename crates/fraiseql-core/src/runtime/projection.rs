@@ -17,9 +17,20 @@ pub struct FieldMapping {
     pub source:          String,
     /// Output key name (alias if different from source).
     pub output:          String,
-    /// Fallback source key to try when the primary `source` is not found.
-    /// Used for mutation error metadata where the key may be either `camelCase`
-    /// or `snake_case` depending on the backend.
+    /// Fallback stored key, tried when `source` is not present in the row.
+    ///
+    /// Populated by every constructor from `stored_key_candidates`. It is not
+    /// support for `camelCase` *storage* — a view exposes `snake_case` keys and
+    /// columns, and the SQL projection generator has no fallback at all. It is
+    /// there because this projector runs over **two different maps**: the raw
+    /// stored document, whose keys are `snake_case`, and the output of
+    /// `jsonb_build_object`, whose keys are the camelCase *response* names the
+    /// SQL projection already emitted. One mapping has to read both.
+    ///
+    /// Until #1271 this field had **no producer** anywhere in the workspace —
+    /// its documented job was described and never performed, and the primary
+    /// `source` was the declared name verbatim, so the raw-document case was
+    /// simply unreadable.
     pub source_fallback: Option<String>,
     /// For nested object fields, the typename to add.
     /// This enables `__typename` to be added recursively to nested objects.
@@ -45,30 +56,70 @@ pub struct FieldMapping {
     pub declared_scalar: bool,
 }
 
+/// The stored JSONB key a declared field name resolves to, plus the legacy
+/// spelling to fall back on.
+///
+/// **The single definition of the rule**, shared by the two Rust projectors:
+/// [`FieldMapping`]'s constructors resolve it once per query, and
+/// [`lookup_source`] resolves it per lookup for the selection-driven
+/// [`project_entity`]. Before #1271 they were two implementations and only one
+/// of them was right — the mapper read the declared name verbatim, so a
+/// `camelCase` field over a `snake_case` view was silently absent from a 200.
+///
+/// `snake_case` first, because that is the key the SQL projection generator
+/// (`projection_generator::render_field`) and the `where` parser both derive;
+/// the `camelCase` spelling second, for stored rows built with the surface
+/// casing. A single-word name yields the same string twice, so it has no
+/// fallback.
+fn stored_key_candidates(field_name: &str) -> (String, Option<String>) {
+    let snake = to_snake_case(field_name);
+    let camel = to_camel_case(field_name);
+    let fallback = (camel != snake).then_some(camel);
+    (snake, fallback)
+}
+
 impl FieldMapping {
     /// Create a simple field mapping (no alias).
+    ///
+    /// `name` is the **declared field name**; the stored key it reads is
+    /// derived by `stored_key_candidates`, not taken verbatim.
+    ///
+    /// ```rust
+    /// # use fraiseql_core::runtime::FieldMapping;
+    /// let mapping = FieldMapping::simple("fkUser");
+    /// assert_eq!(mapping.source, "fk_user");
+    /// assert_eq!(mapping.output, "fkUser");
+    /// ```
     #[must_use]
     pub fn simple(name: impl Into<String>) -> Self {
         let name = name.into();
+        let (source, source_fallback) = stored_key_candidates(&name);
         Self {
-            source:          name.clone(),
-            output:          name,
-            source_fallback: None,
+            source,
+            output: name,
+            source_fallback,
             nested_typename: None,
-            nested_fields:   None,
+            nested_fields: None,
             declared_scalar: false,
         }
     }
 
     /// Create a field mapping with an alias.
+    ///
+    /// `source` is the **declared field name** and `alias` the response key —
+    /// the same split the SQL projection generator makes, where an aliased
+    /// field `myName: fullName` reads `data->>'full_name'` and is emitted as
+    /// `myName` (#418). The stored key is derived from `source` by
+    /// `stored_key_candidates`.
     #[must_use]
     pub fn aliased(source: impl Into<String>, alias: impl Into<String>) -> Self {
+        let (source, source_fallback) = stored_key_candidates(&source.into());
         Self {
-            source:          source.into(),
-            output:          alias.into(),
-            source_fallback: None,
+            source,
+            output: alias.into(),
+            source_fallback,
             nested_typename: None,
-            nested_fields:   None,
+            nested_fields: None,
             declared_scalar: false,
         }
     }
@@ -93,12 +144,13 @@ impl FieldMapping {
         fields: Vec<FieldMapping>,
     ) -> Self {
         let name = name.into();
+        let (source, source_fallback) = stored_key_candidates(&name);
         Self {
-            source:          name.clone(),
-            output:          name,
-            source_fallback: None,
+            source,
+            output: name,
+            source_fallback,
             nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            nested_fields: Some(fields),
             declared_scalar: false,
         }
     }
@@ -111,12 +163,13 @@ impl FieldMapping {
         typename: impl Into<String>,
         fields: Vec<FieldMapping>,
     ) -> Self {
+        let (source, source_fallback) = stored_key_candidates(&source.into());
         Self {
-            source:          source.into(),
-            output:          alias.into(),
-            source_fallback: None,
+            source,
+            output: alias.into(),
+            source_fallback,
             nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            nested_fields: Some(fields),
             declared_scalar: false,
         }
     }
@@ -133,6 +186,20 @@ impl FieldMapping {
     pub fn with_nested_fields(mut self, fields: Vec<FieldMapping>) -> Self {
         self.nested_fields = Some(fields);
         self
+    }
+
+    /// Read this field's value out of a stored JSONB object.
+    ///
+    /// The primary key first, then [`source_fallback`](Self::source_fallback) —
+    /// both resolved once at construction, so this stays allocation-free on the
+    /// per-row path.
+    #[must_use]
+    pub fn lookup_in<'a>(
+        &self,
+        map: &'a serde_json::Map<String, JsonValue>,
+    ) -> Option<&'a JsonValue> {
+        map.get(&self.source)
+            .or_else(|| self.source_fallback.as_ref().and_then(|fb| map.get(fb)))
     }
 }
 
@@ -282,12 +349,10 @@ impl ProjectionMapper {
             result.insert("__typename".to_string(), JsonValue::String(typename.clone()));
         }
 
-        // Project fields with alias support and optional fallback key
+        // Project fields with alias support, resolving each stored key by the
+        // rule every consumer of a declared field name shares (#1271).
         for field in &self.fields {
-            let value = map
-                .get(&field.source)
-                .or_else(|| field.source_fallback.as_ref().and_then(|fb| map.get(fb)));
-            if let Some(value) = value {
+            if let Some(value) = field.lookup_in(map) {
                 let projected_value = self.project_nested_value(value, field)?;
                 result.insert(field.output.clone(), projected_value);
             }
@@ -309,7 +374,10 @@ impl ProjectionMapper {
                     // If we have nested field mappings, use them; otherwise copy all fields
                     if let Some(ref nested_fields) = field.nested_fields {
                         for nested_field in nested_fields {
-                            if let Some(nested_value) = obj.get(&nested_field.source) {
+                            // #1271: the nested branch reads its own sub-map and
+                            // had its own verbatim lookup, so it needs the rule
+                            // explicitly rather than inheriting it from above.
+                            if let Some(nested_value) = nested_field.lookup_in(obj) {
                                 let projected =
                                     self.project_nested_value(nested_value, nested_field)?;
                                 result.insert(nested_field.output.clone(), projected);
@@ -983,16 +1051,8 @@ fn reinsert_typename_in_order(
 /// Look up a field's stored value: canonical `snake_case` key first, then a
 /// `camelCase` fallback for legacy metadata that used the GraphQL surface casing.
 fn lookup_source<'a>(obj: &'a Map<String, JsonValue>, field_name: &str) -> Option<&'a JsonValue> {
-    let snake = to_snake_case(field_name);
-    if let Some(v) = obj.get(&snake) {
-        return Some(v);
-    }
-    let camel = to_camel_case(field_name);
-    if camel != snake {
-        obj.get(&camel)
-    } else {
-        None
-    }
+    let (snake, camel) = stored_key_candidates(field_name);
+    obj.get(&snake).or_else(|| camel.and_then(|c| obj.get(&c)))
 }
 
 /// Flatten a selection set for a concrete object type: direct fields, plus the

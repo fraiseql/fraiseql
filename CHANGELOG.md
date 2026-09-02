@@ -575,6 +575,53 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A declared `camelCase` field is served over REST instead of being silently dropped
+  (#1271).**
+
+  A declared field name and the stored JSONB key it reads are two different strings, and
+  three consumers derive one from the other: the SQL projection generator and the `where`
+  parser both `to_snake_case` it, and `ProjectionMapper` read it **verbatim**. The REST
+  runner "reads the whole `data` document and projects in Rust"
+  (`ResolvedDirectRead::projection_request`), so it always took the third one — and every
+  multi-word field under the default `camelCase` convention was absent from the response,
+  under a 200, with the validator still naming it as available:
+
+  ```
+  GET /rest/v1/orders                   → 200 {"id":10,"total":100}        # no fkUser
+  GET /rest/v1/orders?select=id,fkUser  → 200 {"id":10}                    # no fkUser
+  GET /rest/v1/orders?select=id,fk_user → 400 Unknown field 'fk_user'. Available: fkUser, id, total
+  ```
+
+  GraphQL was unaffected — it builds an SQL projection hint, so `jsonb_build_object`
+  resolved the `snake_case` key and emitted the camelCase response key. The two surfaces
+  therefore answered the same stored row differently, which is why this survived: each one
+  alone looks healthy. The shipped `examples/basic` had it on five fields (`createdAt`,
+  `authorId`, `authorName`, `authorEmail`).
+
+  There is now **one** definition of the rule — `stored_key_candidates`, `snake_case` first
+  with the camelCase spelling as fallback — shared by `FieldMapping`'s constructors and by
+  `lookup_source`, the two places that previously implemented it separately and disagreed.
+  The fallback is not support for camelCase *storage*: this projector runs over both the raw
+  stored document (`snake_case` keys) and the output of `jsonb_build_object` (camelCase
+  response keys), and one mapping has to read both.
+
+  `FieldMapping::source_fallback` had **no producer anywhere in the workspace** — its
+  documented job, tolerating either spelling, was described and never performed. It now has
+  one, which is the mechanism of the fix.
+
+  A REST **embed** was starved by the same missing key. `extract_join_key` reads the join
+  column off the already-projected parent row under the name that publishes it
+  (`fk_user` → `fkUser`), so while the projector dropped that key,
+  `?select=id,user(name)` answered `"user": null` for an order that has a user —
+  indistinguishable from one that does not. The embed machinery was never wrong; it was
+  reading a row the projector had emptied.
+
+  Why no fixture caught it: every REST fixture in the tree declared names like `fk_author`
+  and `ship_city`, whose `snake_case` form is the name itself, so the declared name and the
+  stored key were the same string and no test could see which rule ran. The regression tests
+  spell the two halves differently on purpose, and assert REST against GraphQL on one seeded
+  row rather than against a literal.
+
 - **A `ManyToOne` REST embed resolves without the client also selecting the foreign key
   (#1230).**
 

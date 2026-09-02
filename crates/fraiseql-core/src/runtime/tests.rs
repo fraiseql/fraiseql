@@ -3465,6 +3465,135 @@ mod projection_tests {
             })
         );
     }
+
+    // ========================================================================
+    // #1271: the stored-key rule
+    //
+    // Three consumers resolve a declared field name to a stored JSONB key: the
+    // SQL projection generator (`to_snake_case`), the `where` parser
+    // (`to_snake_case`), and this projector. When the third read the declared
+    // name verbatim, a multi-word camelCase field — the default naming
+    // convention — was silently absent from the response on every plan that
+    // does not get an SQL projection hint (`full_row`, or an empty projection
+    // field list), under a 200, with the validator still naming it available.
+    //
+    // Both spellings are exercised on purpose. A fixture that spells the
+    // declared name and the stored key the same way (`fk_author`, `ship_city`)
+    // cannot see which rule ran, and every REST fixture in the tree did.
+    // ========================================================================
+
+    #[test]
+    fn a_camel_case_field_reads_the_snake_case_stored_key() {
+        // The raw-blob plan: no SQL projection hint ran, so the stored keys are
+        // the view's own `snake_case` spellings.
+        let mapper = ProjectionMapper::new(vec![
+            "id".to_string(),
+            "fkUser".to_string(),
+            "createdAt".to_string(),
+        ]);
+
+        let jsonb = JsonbValue::new(json!({
+            "id": 10,
+            "fk_user": 1,
+            "created_at": "2026-09-02",
+            "total": 100
+        }));
+
+        assert_eq!(
+            mapper.project(&jsonb).unwrap(),
+            json!({ "id": 10, "fkUser": 1, "createdAt": "2026-09-02" }),
+            "a declared camelCase field must resolve to its snake_case stored key"
+        );
+    }
+
+    #[test]
+    fn a_camel_case_field_still_reads_a_camel_case_stored_key() {
+        // The SQL-projected plan: `jsonb_build_object` emitted the *response*
+        // keys, so the map this projector subsets is already camelCase. This is
+        // the branch that made the defect survivable, and it must not regress.
+        let mapper = ProjectionMapper::new(vec!["id".to_string(), "fkUser".to_string()]);
+
+        let jsonb = JsonbValue::new(json!({ "id": 10, "fkUser": 1 }));
+
+        assert_eq!(
+            mapper.project(&jsonb).unwrap(),
+            json!({ "id": 10, "fkUser": 1 }),
+            "the SQL-projected shape spells the key camelCase and must still resolve"
+        );
+    }
+
+    #[test]
+    fn the_snake_case_stored_key_wins_when_a_row_carries_both_spellings() {
+        // Ties go to `snake_case`, because that is the key the SQL projection
+        // generator and the `where` parser read. Any other answer would make
+        // the two projectors disagree on the same row.
+        let mapper = ProjectionMapper::new(vec!["fkUser".to_string()]);
+
+        let jsonb = JsonbValue::new(json!({ "fk_user": 1, "fkUser": 2 }));
+
+        assert_eq!(mapper.project(&jsonb).unwrap(), json!({ "fkUser": 1 }));
+    }
+
+    #[test]
+    fn a_nested_mapping_resolves_the_stored_key_the_same_way() {
+        // The nested branch reads its own sub-map and had its own verbatim
+        // lookup, so it needed the same rule rather than inheriting it.
+        let mapper = ProjectionMapper::with_mappings(vec![FieldMapping::nested_object(
+            "shipAddress",
+            "Address",
+            vec![FieldMapping::simple("postalCode")],
+        )]);
+
+        let jsonb = JsonbValue::new(json!({
+            "ship_address": { "postal_code": "29680", "city": "Roscoff" }
+        }));
+
+        assert_eq!(
+            mapper.project(&jsonb).unwrap(),
+            json!({
+                "shipAddress": { "__typename": "Address", "postalCode": "29680" }
+            })
+        );
+    }
+
+    #[test]
+    fn the_two_projectors_agree_on_the_same_row() {
+        // The property the whole issue is about: `project_entity` and
+        // `ProjectionMapper` are two projectors over one stored row, and a
+        // response must not depend on which the optimizer picked.
+        use crate::{runtime::project_entity, schema::CompiledSchema};
+
+        let schema: CompiledSchema = serde_json::from_value(json!({
+            "naming_convention": "camelCase",
+            "types": [{
+                "name": "Order",
+                "sql_source": "v_order",
+                "fields": [
+                    { "name": "id", "field_type": "Int" },
+                    { "name": "fkUser", "field_type": "Int" }
+                ]
+            }]
+        }))
+        .unwrap();
+
+        let leaf = |name: &str| FieldSelection {
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![],
+        };
+
+        let row = json!({ "id": 10, "fk_user": 1, "total": 100 });
+
+        let via_entity = project_entity(&row, "Order", &[leaf("id"), leaf("fkUser")], &schema);
+        let via_mapper = ProjectionMapper::new(vec!["id".to_string(), "fkUser".to_string()])
+            .project(&JsonbValue::new(row))
+            .unwrap();
+
+        assert_eq!(via_entity, via_mapper, "the two projectors must agree on one row");
+        assert_eq!(via_mapper, json!({ "id": 10, "fkUser": 1 }));
+    }
 }
 
 mod query_tracing_tests {
