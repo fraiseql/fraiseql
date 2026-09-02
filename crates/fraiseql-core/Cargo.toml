@@ -158,9 +158,6 @@ required-features = ["federation"]
 name = "federation_compliance"
 required-features = ["federation"]
 
-[[test]]
-name = "federation_composition_validation"
-required-features = ["federation"]
 
 [[test]]
 name = "federation_dependency_graph"
@@ -190,9 +187,6 @@ required-features = ["federation"]
 name = "federation_mutation_http"
 required-features = ["federation"]
 
-[[test]]
-name = "federation_observability_integration"
-required-features = ["federation"]
 
 [[test]]
 name = "federation_provides_enforcement"

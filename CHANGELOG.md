@@ -313,6 +313,75 @@ disagreed, and the promise was the part that was wrong.
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
 ### Removed
+- **Twenty-three test binaries that asserted against their own mocks are deleted, and a gate
+  refuses the next one (#1269, #1270).**
+
+  9,633 lines and 273 tests across `fraiseql-cli`, `fraiseql-core` and `fraiseql-server`
+  referenced no FraiseQL crate at all — no `use`, no call, no binary invoked. Each defined its
+  subject in the same file and then asserted against it, so none could ever fail for a reason
+  originating in this project. **Fourteen ran on the required `Dagger — test` leg**: six
+  named in `serverInProcessTests`, which now lists 59 in-process server binaries rather
+  than 65, and eight more reached by that leg's `cargo test --workspace` line, which
+  excludes seven crates but not `fraiseql-cli`. The remaining nine, all in
+  `fraiseql-core/tests/`, ran only in the non-required integration leg.
+
+  What they actually asserted:
+
+  * `security_audit_test.rs` checked that the literal `"' OR '1'='1"` contains a quote, left
+    the comment *"In actual implementation, would verify: input is not concatenated into
+    SQL"*, and printed `✅ SQL injection prevention test passed`. `test_authentication_required`
+    built three cases whose token field was named `_token` — never read — each with
+    `expected_status: 401` hardcoded, then asserted that constant equalled 401. Its
+    `test_password_strength` asserted a minimum length of 8; the real policy
+    (`fraiseql-auth/src/local_password.rs`) is 12.
+  * `mutation_nullability.rs` built `json!({"return_type": "User!"})` and asserted the field
+    equalled `"User!"` and ended with `!`.
+  * `cost_command_tests.rs` defined `calculate_cost` under the comment *"This would call the
+    actual cost command / For testing, we use a simple calculation"* and tested that.
+  * `federation_composition_validation.rs` — 1,035 lines — declared its own `SchemaComposer`,
+    `QueryPlanner` and `TypeRegistry` in an inline `mod harness`.
+  * `integration_performance_validation_test.rs` timed `wrapping_add` loops against each
+    other: `simulate_optimized_query` looped to `size / 5`, `simulate_unoptimized_query` to
+    `size`, and the test asserted the first was faster.
+
+  That last one was also a random red on a required check. Its "cached" and "uncached" loops
+  ran the *same* workload — the simulated cache hit was computed, read and ignored — and it
+  then subtracted two `u64` durations whose order was decided by scheduling noise, so the
+  loser underflowed and the test panicked with `attempt to subtract with overflow` instead of
+  failing an assertion. It fired in two of three full `make test-leg` runs on an unmodified
+  `dev` and reproduced in none of 24 isolated runs.
+
+  No coverage is lost: every genuine subject is exercised elsewhere, by suites that reach the
+  real code. SQL injection has `analytics_injection_e2e_pg.rs`, which drives verbatim
+  exploit payloads through the real handler against a real database; auth has the six suites
+  under `tests/security/`; metrics has `metrics_integration_test.rs`; the CLI commands have
+  the 25 binaries that invoke the actual binary via `cargo_bin`/`CARGO_BIN_EXE`; federation
+  composition and observability have the 411 tests in `fraiseql-federation`, including
+  `composition_validator/tests.rs` and `observability/tests.rs`; and the hardware-sensitive
+  numbers belong to `crates/fraiseql-server/benches/`, where the deleted file's own header
+  already pointed.
+
+  This is worse than absent coverage rather than equal to it: the filenames, the green counts
+  and the checkmarks were a positive claim that pooling, metrics, federation composition and
+  the security controls were exercised before every merge.
+
+  **The gate.** `tools/check-test-subject.py` (preflight, `make lint-test-subject`) requires
+  every binary under `crates/*/tests/` to reference a workspace crate. Two properties keep it
+  honest. Comments do not count — every deleted file carried a header naming the subject it
+  never touched, and a gate reading raw text would have cleared them on their own prose.
+  Included modules do count: `api_schema_tests.rs` names no crate itself and is real coverage,
+  reaching the server through `mod common;`, so module declarations are resolved to disk —
+  including the `mod outer { mod inner; }` harness-root shape — and the whole binary is
+  scanned. A bare `grep -c fraiseql` is a screen, not a verdict.
+
+  Deleting 273 always-green tests cannot be validated by a green run, so the gate's red
+  capability is pinned separately on synthetic trees
+  (`tools/tests/test_subject_test.sh`, `make test-test-subject-gate`): eight cases covering
+  both verdicts, including the three that were live defects while it was written — a
+  comment-only mention clearing a file, `CARGO_BIN_EXE_fraiseql-cli` failing a `\b` match and
+  briefly condemning six suites that drive the real CLI, and a bare `fraiseql` inside
+  `"postgres://localhost/fraiseql"` standing in for a reference.
+
 - **The two ungated copies of the Kubernetes deployment are deleted (#1218).**
 
   `deploy/kubernetes/` shipped a hand-maintained set of plain manifests beside the Helm

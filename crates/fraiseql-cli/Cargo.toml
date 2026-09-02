@@ -104,17 +104,11 @@ required-features = ["functions-invoke"]
 name = "cascade_federation_shareable_e2e"
 required-features = ["federation"]
 
-[[test]]
-name = "cli_federation_validation"
-required-features = ["federation"]
 
 [[test]]
 name = "compile_federation_passthrough"
 required-features = ["federation"]
 
-[[test]]
-name = "federation_cli_advanced"
-required-features = ["federation"]
 
 [[test]]
 name = "federation_cli_compose"
@@ -136,13 +130,7 @@ required-features = ["federation"]
 name = "federation_cross_subgraph_validation_advanced"
 required-features = ["federation"]
 
-[[test]]
-name = "federation_edge_cases"
-required-features = ["federation"]
 
-[[test]]
-name = "federation_graph_tests"
-required-features = ["federation"]
 
 [[test]]
 name = "federation_validation"
