@@ -1,9 +1,36 @@
 """Global schema registry for collecting types, queries, and mutations."""
 
+from __future__ import annotations
+
 import re
-from typing import Any, ClassVar, TypeAlias
+from typing import TYPE_CHECKING, Any, ClassVar, TypeAlias
+
+if TYPE_CHECKING:
+    # `decorators` imports this module, so a runtime import here would be a cycle.
+    # Only the annotation and `.to_dict()` are needed, the same arrangement `types.py`
+    # uses for `FieldConfig`.
+    from fraiseql.decorators import Relationship
 
 SchemaElement: TypeAlias = dict[str, Any]
+
+
+def _subscribable_keys(tables: list[str] | None, pre_image: bool) -> dict[str, Any]:
+    """The `@subscribable` keys a type emits, or nothing (#366).
+
+    One concern, two nested conditions, lifted out of `register_type` so that adding a
+    key there does not push the function past its branch budget — which is what it did
+    when `relationships` arrived (#1266).
+
+    Emitted only when there are tables, and `subscribable_pre_image` only when opted in,
+    so a type using neither produces byte-identical JSON to a pre-#366 schema.
+    """
+    if not tables:
+        return {}
+    keys: dict[str, Any] = {"subscribable_tables": tables}
+    if pre_image:
+        keys["subscribable_pre_image"] = True
+    return keys
+
 
 _CAMEL_RE = re.compile(r"(?<!^)(?=[A-Z])")
 # Underscore boundary = `_` + any alphanumeric. Digits are included so a digit
@@ -135,6 +162,7 @@ class SchemaRegistry:
         subscribable_tables: list[str] | None = None,
         subscribable_pre_image: bool = False,
         embedded: bool = False,
+        relationships: list[Relationship] | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -166,6 +194,9 @@ class SchemaRegistry:
                 suppressed, since that source is exactly what would misclassify a value
                 object as a cascade entity — and ``embedded: true`` is emitted so the
                 compiler exempts it from the ``CascadeNode`` ``id: ID!`` contract.
+            relationships: Relationships to other types, followed by REST resource
+                embedding (#1266). Emitted as ``relationships`` only when non-empty,
+                so a type that declares none is byte-identical to pre-#1266 output.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
@@ -211,15 +242,13 @@ class SchemaRegistry:
         if shareable:
             type_def["shareable"] = True
 
-        # #366: emit only when non-empty (snake_case, like requires_role); the
-        # compiler reads it from the type JSON and aggregates the capture-trigger
-        # declarations into the compiled schema.
-        if subscribable_tables:
-            type_def["subscribable_tables"] = subscribable_tables
-            # Only meaningful alongside tables; emit only when opted in (snake_case,
-            # skip-when-false → byte-identical JSON for the common case).
-            if subscribable_pre_image:
-                type_def["subscribable_pre_image"] = True
+        type_def.update(_subscribable_keys(subscribable_tables, subscribable_pre_image))
+
+        # #1266: emit only when non-empty, like `subscribable_tables` above. The
+        # compiler threads these verbatim onto `TypeDefinition.relationships` and
+        # refuses any it could not follow.
+        if relationships:
+            type_def["relationships"] = [r.to_dict() for r in relationships]
 
         cls._types[name] = type_def
 

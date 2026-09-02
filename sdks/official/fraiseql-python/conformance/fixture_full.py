@@ -28,7 +28,25 @@ from fraiseql.scalars import (  # noqa: TC001 — deferred annotations are resol
 )
 
 
-@fraiseql.type(sql_source="v_user", relay=True)
+# The relationship pair is declared in both directions on purpose (#1266): which join
+# column is read off which side swaps with the cardinality, so a fixture carrying only
+# `OneToMany` would be uniform in exactly the dimension that selects the branch. The keys
+# name SQL **columns** (`fk_user`) while `Order` publishes the field as `fkUser`, so an
+# SDK that emitted the declared field name instead would compile to nothing the executor
+# can follow — and the compiler refuses it rather than serving an empty embed on a 200.
+@fraiseql.type(
+    sql_source="v_user",
+    relay=True,
+    relationships=[
+        fraiseql.Relationship(
+            name="orders",
+            target_type="Order",
+            cardinality="OneToMany",
+            foreign_key="fk_user",
+            referenced_key="id",
+        )
+    ],
+)
 class User:
     id: ID
     email: str
@@ -48,11 +66,26 @@ class User:
     phone_1: str | None = None
 
 
-@fraiseql.type(sql_source="v_order")
+@fraiseql.type(
+    sql_source="v_order",
+    relationships=[
+        fraiseql.Relationship(
+            name="user",
+            target_type="User",
+            cardinality="ManyToOne",
+            foreign_key="fk_user",
+            referenced_key="id",
+        )
+    ],
+)
 class Order:
     id: ID
     total: float
     status: str
+    # The column `User.orders` joins on, published under the naming convention. Its
+    # presence is what lets the compiler resolve `fk_user` to a declared field of the
+    # child side; without it the pair above is a compile error.
+    fk_user: ID
 
 
 # `crud=True` is an authoring-time expansion, not a compiled key: the compiler has no

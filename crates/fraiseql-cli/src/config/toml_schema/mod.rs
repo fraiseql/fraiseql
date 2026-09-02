@@ -708,21 +708,10 @@ impl TomlSchema {
         let mut types_json = serde_json::Map::new();
 
         for (type_name, type_def) in &self.types {
-            let mut fields_json = serde_json::Map::new();
-
-            for (field_name, field_def) in &type_def.fields {
-                fields_json.insert(field_name.clone(), field_def.to_intermediate_json(field_name));
-            }
-
-            types_json.insert(
-                type_name.clone(),
-                serde_json::json!({
-                    "name": type_name,
-                    "sql_source": type_def.sql_source,
-                    "description": type_def.description,
-                    "fields": fields_json,
-                }),
-            );
+            // One emitter for every TOML path (#959, widened to the whole type by #1266).
+            // `merge_values` reshapes the field array back into a map on its object
+            // branch, so emitting the array form here is not a behaviour change.
+            types_json.insert(type_name.clone(), type_def.to_intermediate_json(type_name));
         }
 
         let mut queries_json = serde_json::Map::new();

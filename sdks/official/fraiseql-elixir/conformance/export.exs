@@ -31,7 +31,22 @@ end
 defmodule Conformance.FullSchema do
   use FraiseQL.Schema
 
-  fraiseql_type "User", sql_source: "v_user", relay: true do
+  # Both directions, deliberately (#1266): which join column is read off which side swaps
+  # with the cardinality, so a fixture carrying only `OneToMany` would be uniform in
+  # exactly the dimension that selects the branch. The keys name SQL **columns**
+  # (`fk_user`) while `Order` publishes the field `:fk_user` as `fkUser`.
+  fraiseql_type "User",
+    sql_source: "v_user",
+    relay: true,
+    relationships: [
+      [
+        name: "orders",
+        target_type: "Order",
+        cardinality: "OneToMany",
+        foreign_key: "fk_user",
+        referenced_key: "id"
+      ]
+    ] do
     field(:id, :id, nullable: false)
     field(:email, :string, nullable: false)
     field(:name, :string,
@@ -47,10 +62,22 @@ defmodule Conformance.FullSchema do
     field(:phone_1, :string, nullable: true)
   end
 
-  fraiseql_type "Order", sql_source: "v_order" do
+  fraiseql_type "Order",
+    sql_source: "v_order",
+    relationships: [
+      [
+        name: "user",
+        target_type: "User",
+        cardinality: "ManyToOne",
+        foreign_key: "fk_user",
+        referenced_key: "id"
+      ]
+    ] do
     field(:id, :id, nullable: false)
     field(:total, :float, nullable: false)
     field(:status, :string, nullable: false)
+    # The column `User.orders` joins on, published under the naming convention.
+    field(:fk_user, :id, nullable: false)
   end
 
   # `crud` is an authoring-time expansion the compiler has no concept of, so the only

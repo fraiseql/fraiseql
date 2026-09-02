@@ -695,6 +695,39 @@ pub struct Relationship {
     pub referenced_key: String,
 }
 
+impl Relationship {
+    /// The column an embed of this relationship reads off the **declaring** type's row.
+    ///
+    /// `OneToMany` hangs the foreign key on the child, so the declaring side is its
+    /// `referenced_key` — conventionally `id`, which a client selects anyway, which is
+    /// why #1230 hid here for so long. `ManyToOne`/`OneToOne` hold the key themselves,
+    /// so the declaring side is the `foreign_key` — the one column a client asking for
+    /// `author` has no reason to select.
+    ///
+    /// Stated here rather than in the REST executor because the compile-time and
+    /// load-time checks that a join key names a declared field (#1266) have to ask the
+    /// same question the executor asks; a check with its own copy of this table would
+    /// accept exactly the schemas the executor cannot follow.
+    #[must_use]
+    pub const fn parent_join_column(&self) -> &String {
+        match self.cardinality {
+            Cardinality::ManyToOne | Cardinality::OneToOne => &self.foreign_key,
+            Cardinality::OneToMany => &self.referenced_key,
+        }
+    }
+
+    /// The column the join predicate filters on the **target** row — the mirror of
+    /// [`parent_join_column`](Self::parent_join_column), stated once so the two can
+    /// never drift apart.
+    #[must_use]
+    pub const fn target_join_column(&self) -> &String {
+        match self.cardinality {
+            Cardinality::ManyToOne | Cardinality::OneToOne => &self.referenced_key,
+            Cardinality::OneToMany => &self.foreign_key,
+        }
+    }
+}
+
 /// REST transport configuration (compiled from `[rest]` in `fraiseql.toml`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]

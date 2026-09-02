@@ -52,6 +52,7 @@ class FraiseQLSchema {
     bool isInput = false,
     Object crud = false,
     bool cascade = false,
+    List<Relationship> relationships = const [],
   }) {
     if (isInput && sqlSource != null) {
       throw ArgumentError(
@@ -82,6 +83,23 @@ class FraiseQLSchema {
     if (relay) definition['relay'] = true;
     if (isError) definition['is_error'] = true;
     if (isInput) definition['is_input'] = true;
+    // #1266: emitted only when non-empty, so a type declaring none is byte-identical to
+    // pre-#1266 output.
+    if (relationships.isNotEmpty) {
+      final seen = <String>{};
+      definition['relationships'] = [
+        for (final relationship in relationships)
+          () {
+            if (!seen.add(relationship.name)) {
+              throw ArgumentError(
+                "type '$name': relationship '${relationship.name}' is declared more than "
+                'once; an embed resolves the first and the rest are unreachable.',
+              );
+            }
+            return relationship._toJson();
+          }(),
+      ];
+    }
 
     _types.add(definition);
     if (crud != false) _expandCrud(name, fields, sqlSource, crud, cascade);
@@ -283,6 +301,102 @@ class FraiseQLSchema {
         }(),
     };
   }
+}
+
+/// A relationship to another type, followed by REST resource embedding (#1266).
+///
+/// [name] is what a client writes in `?select=orders(id,total)`, `?select=orders.count`
+/// and `?orders.status=paid`; it is also what the generated client's `relationships`
+/// module and the served OpenAPI document publish.
+///
+/// [foreignKey] and [referencedKey] are SQL **column** names, and which side each is read
+/// from swaps with the cardinality — `OneToMany` reads [referencedKey] off the declaring
+/// type and filters [foreignKey] on the target; `ManyToOne` and `OneToOne` do the
+/// reverse. Under the default `camelCase` naming convention the column `fk_user` is
+/// published as the field `fkUser`, and the compiler resolves one to the other.
+///
+/// Which relationships are *followable* is the compiler's business, not this SDK's: it
+/// refuses a target type it does not declare, a join column no field on that side
+/// publishes, and a target no list query returns. This SDK carries no second copy of
+/// those rules; a copy is what drifts.
+///
+/// ```dart
+/// schema.type('User', sqlSource: 'v_user', relationships: [
+///   Relationship(
+///     name: 'orders',
+///     targetType: 'Order',
+///     cardinality: Cardinality.oneToMany,
+///     foreignKey: 'fk_user',
+///     referencedKey: 'id',
+///   ),
+/// ], fields: {...});
+/// ```
+class Relationship {
+  /// Builds a relationship, rejecting an empty key.
+  Relationship({
+    required this.name,
+    required this.targetType,
+    required this.cardinality,
+    required this.foreignKey,
+    required this.referencedKey,
+  }) {
+    for (final entry in <String, String>{
+      'name': name,
+      'targetType': targetType,
+      'cardinality': cardinality,
+      'foreignKey': foreignKey,
+      'referencedKey': referencedKey,
+    }.entries) {
+      if (entry.value.isEmpty) {
+        throw ArgumentError('relationship ${entry.key} must not be empty.');
+      }
+    }
+    if (!Cardinality.all.contains(cardinality)) {
+      throw ArgumentError(
+        "relationship '$name': cardinality must be one of ${Cardinality.all.join(', ')} "
+        "(got '$cardinality').",
+      );
+    }
+  }
+
+  /// The relationship name — the key in `?select=` and in the response.
+  final String name;
+
+  /// Target type name. Must be a declared type that some **list** query returns:
+  /// an embed sources its rows from that query.
+  final String targetType;
+
+  /// One of the [Cardinality] constants.
+  final String cardinality;
+
+  /// Foreign key **column** on the child table, e.g. `fk_user`.
+  final String foreignKey;
+
+  /// Referenced key **column** on the parent table, e.g. `id`.
+  final String referencedKey;
+
+  Map<String, Object?> _toJson() => {
+        'name': name,
+        'target_type': targetType,
+        'cardinality': cardinality,
+        'foreign_key': foreignKey,
+        'referenced_key': referencedKey,
+      };
+}
+
+/// The cardinalities a [Relationship] may declare.
+abstract final class Cardinality {
+  /// The declaring type is the parent; the foreign key hangs on the target.
+  static const String oneToMany = 'OneToMany';
+
+  /// The declaring type holds the foreign key; the target is the parent.
+  static const String manyToOne = 'ManyToOne';
+
+  /// Exactly one related row, keyed like [manyToOne].
+  static const String oneToOne = 'OneToOne';
+
+  /// Every accepted spelling, in the order the compiler documents them.
+  static const List<String> all = [oneToMany, manyToOne, oneToOne];
 }
 
 /// A field or argument type, with its nullability and access metadata.

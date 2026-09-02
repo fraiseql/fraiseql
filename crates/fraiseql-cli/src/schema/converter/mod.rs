@@ -737,6 +737,15 @@ impl SchemaConverter {
             }
         }
 
+        // Relationships the REST embed executor could not follow (#1266) — an undeclared
+        // target, a join column no field publishes, a target no list query returns.
+        //
+        // Borrowed wholesale from the load-time check rather than restated here: the two
+        // must agree, and the way they stop agreeing is one of them being taught a rule
+        // the other is not. `CompiledSchema::finish_load` runs the same function, which
+        // is what covers the hand-edited artifact this compile-time refusal cannot reach.
+        problems.extend(schema.relationship_violations());
+
         if !problems.is_empty() {
             let count = problems.len();
             let noun = if count == 1 { "problem" } else { "problems" };

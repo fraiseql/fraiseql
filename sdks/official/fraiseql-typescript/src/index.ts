@@ -46,6 +46,8 @@ export type {
   VectorConfig,
   VectorIndexType,
   DistanceMetric,
+  Cardinality,
+  Relationship,
   TypeDefinition,
   QueryDefinition,
   MutationDefinition,

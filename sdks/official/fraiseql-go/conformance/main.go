@@ -59,7 +59,25 @@ func authorFull() error {
 		{Name: "id", Type: "ID", Nullable: false},
 		{Name: "total", Type: "Float", Nullable: false},
 		{Name: "status", Type: "String", Nullable: false},
+		// The column User.orders joins on, published under the naming convention.
+		{Name: "fkUser", Type: "ID", Nullable: false},
 	}, ""); err != nil {
+		return err
+	}
+	// Both directions, deliberately (#1266): which join column is read off which side
+	// swaps with the cardinality, so a fixture carrying only OneToMany would be uniform
+	// in exactly the dimension that selects the branch. The keys name SQL *columns*
+	// (fk_user) while Order publishes the field as fkUser.
+	if err := fraiseql.RegisterTypeRelationships("User", fraiseql.Relationship{
+		Name: "orders", TargetType: "Order", Cardinality: fraiseql.OneToMany,
+		ForeignKey: "fk_user", ReferencedKey: "id",
+	}); err != nil {
+		return err
+	}
+	if err := fraiseql.RegisterTypeRelationships("Order", fraiseql.Relationship{
+		Name: "user", TargetType: "User", Cardinality: fraiseql.ManyToOne,
+		ForeignKey: "fk_user", ReferencedKey: "id",
+	}); err != nil {
 		return err
 	}
 	if err := fraiseql.RegisterErrorType("UserNotFound", []fraiseql.FieldInfo{

@@ -14,9 +14,7 @@ mod tests;
 
 use std::{collections::HashMap, sync::Arc};
 
-use executor::{
-    EmbedCtx, count_related, declared_key, embed_into_rows, embed_into_single, parent_join_column,
-};
+use executor::{EmbedCtx, count_related, declared_key, embed_into_rows, embed_into_single};
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     schema::{CompiledSchema, RestConfig},
@@ -87,7 +85,7 @@ pub fn required_join_keys(
         let Some(rel) = parent_type.relationships.iter().find(|r| r.name == rel_name) else {
             continue;
         };
-        let key = declared_key(schema, parent_type_name, parent_join_column(rel));
+        let key = declared_key(schema, parent_type_name, rel.parent_join_column());
         if !keys.contains(&key) {
             keys.push(key);
         }

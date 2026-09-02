@@ -67,6 +67,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],

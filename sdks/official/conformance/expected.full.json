@@ -319,6 +319,26 @@
   "type_is_error": [
     "UserNotFound"
   ],
+  "type_relationships": {
+    "Order": [
+      {
+        "cardinality": "ManyToOne",
+        "foreign_key": "fk_user",
+        "name": "user",
+        "referenced_key": "id",
+        "target_type": "User"
+      }
+    ],
+    "User": [
+      {
+        "cardinality": "OneToMany",
+        "foreign_key": "fk_user",
+        "name": "orders",
+        "referenced_key": "id",
+        "target_type": "Order"
+      }
+    ]
+  },
   "type_relay": {
     "connection_types_synthesized": [
       "PageInfo",
@@ -350,6 +370,11 @@
           "name": "status",
           "nullable": false,
           "type": "String"
+        },
+        {
+          "name": "fkUser",
+          "nullable": false,
+          "type": "ID"
         }
       ],
       "sql_source": "v_order"

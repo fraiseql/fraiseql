@@ -177,6 +177,66 @@ module SchemaRegistry =
 
     /// Registers a .NET type that carries <see cref="GraphQLTypeAttribute"/>.
     /// Raises <see cref="ArgumentException"/> when the attribute is missing.
+    /// Reads and checks one type's [<GraphQLRelationship>] attributes (#1266).
+    ///
+    /// Only the shape this SDK owns is checked — a blank key, an unknown cardinality, and
+    /// a name declared twice, which no compiler diagnostic can attribute back to an
+    /// attribute. Whether a relationship can be *followed* is checked by the compiler
+    /// against the whole schema, which is the only place that knows.
+    let private reflectRelationships (typeName: string) (t: Type) : RelationshipDefinition list =
+        let attrs =
+            t.GetCustomAttributes(typeof<GraphQLRelationshipAttribute>, false)
+            |> Array.map (fun a -> a :?> GraphQLRelationshipAttribute)
+            |> Array.toList
+
+        let mutable seen = Set.empty
+
+        attrs
+        |> List.map (fun attr ->
+            for label, value in
+                [ "Name", attr.Name
+                  "TargetType", attr.TargetType
+                  "ForeignKey", attr.ForeignKey
+                  "ReferencedKey", attr.ReferencedKey ] do
+                if String.IsNullOrEmpty value then
+                    raise (
+                        ArgumentException(
+                            sprintf "Type '%s': relationship %s must not be empty" typeName label
+                        )
+                    )
+
+            if not (List.contains attr.Cardinality Cardinality.all) then
+                raise (
+                    ArgumentException(
+                        sprintf
+                            "Type '%s': relationship '%s' cardinality must be one of %s (got '%s')"
+                            typeName
+                            attr.Name
+                            (String.Join(", ", Cardinality.all))
+                            attr.Cardinality
+                    )
+                )
+
+            if Set.contains attr.Name seen then
+                raise (
+                    ArgumentException(
+                        sprintf
+                            "Type '%s': relationship '%s' is declared more than once; an embed resolves the first and the rest are unreachable"
+                            typeName
+                            attr.Name
+                    )
+                )
+
+            seen <- Set.add attr.Name seen
+
+            {
+                name = attr.Name
+                target_type = attr.TargetType
+                cardinality = attr.Cardinality
+                foreign_key = attr.ForeignKey
+                referenced_key = attr.ReferencedKey
+            })
+
     let register (t: Type) : unit =
         let attr =
             t.GetCustomAttribute<GraphQLTypeAttribute>()
@@ -201,6 +261,7 @@ module SchemaRegistry =
                 is_input = attr.IsInput
                 relay = attr.Relay
                 is_error = attr.IsError
+                relationships = reflectRelationships name t
             }
 
         types.[name] <- typeDef

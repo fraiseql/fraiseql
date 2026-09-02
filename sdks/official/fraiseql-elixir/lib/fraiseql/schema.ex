@@ -104,6 +104,8 @@ defmodule FraiseQL.Schema do
     * `:is_error` — boolean, marks this as a mutation error shape (default `false`)
     * `:crud` — boolean or list of atoms (e.g. `[:read, :create]`), auto-generates CRUD operations (default `false`)
     * `:cascade` — boolean, when `true` generated CRUD mutations include `cascade: true` (default `false`)
+    * `:relationships` — list of keyword lists, each becoming a `FraiseQL.Relationship`
+      followed by REST resource embedding (#1266). Emitted only when non-empty.
 
   ## Examples
 
@@ -144,7 +146,12 @@ defmodule FraiseQL.Schema do
           relay: unquote(Keyword.get(type_opts, :relay, false)),
           is_error: unquote(Keyword.get(type_opts, :is_error, false)),
           crud: unquote(Keyword.get(type_opts, :crud, false)),
-          cascade: unquote(Keyword.get(type_opts, :cascade, false))
+          cascade: unquote(Keyword.get(type_opts, :cascade, false)),
+          relationships:
+            FraiseQL.Schema.__build_relationships__!(
+              unquote(name),
+              unquote(Keyword.get(type_opts, :relationships, []))
+            )
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_field_buffer)
@@ -163,7 +170,12 @@ defmodule FraiseQL.Schema do
           relay: unquote(Keyword.get(type_opts, :relay, false)),
           is_error: unquote(Keyword.get(type_opts, :is_error, false)),
           crud: unquote(Keyword.get(type_opts, :crud, false)),
-          cascade: unquote(Keyword.get(type_opts, :cascade, false))
+          cascade: unquote(Keyword.get(type_opts, :cascade, false)),
+          relationships:
+            FraiseQL.Schema.__build_relationships__!(
+              unquote(name),
+              unquote(Keyword.get(type_opts, :relationships, []))
+            )
         }
       end
     end
@@ -591,6 +603,28 @@ defmodule FraiseQL.Schema do
       true ->
         :ok
     end
+  end
+
+  @doc false
+  @spec __build_relationships__!(String.t(), list()) :: [FraiseQL.Relationship.t()]
+  def __build_relationships__!(type_name, relationships) do
+    built = Enum.map(relationships, &FraiseQL.Relationship.new!/1)
+
+    duplicates =
+      built
+      |> Enum.frequencies_by(& &1.name)
+      |> Enum.filter(fn {_name, count} -> count > 1 end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.sort()
+
+    if duplicates != [] do
+      raise ArgumentError,
+            "fraiseql_type #{inspect(type_name)}: relationship name(s) " <>
+              "#{inspect(duplicates)} declared more than once; an embed resolves the " <>
+              "first and the rest are unreachable."
+    end
+
+    built
   end
 
   @doc """

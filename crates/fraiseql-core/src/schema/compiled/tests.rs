@@ -2028,3 +2028,148 @@ fn a_compiled_schema_with_a_resolvable_subscription_filter_loads() {
     let filter = schema.subscriptions[0].filter.as_ref().expect("filter survives the load");
     assert_eq!(filter.argument_paths.get("orderId"), Some(&"/id".to_string()));
 }
+
+// ---------------------------------------------------------------------------
+// Relationships: the load-time half of #1266.
+//
+// `fraiseql compile` refuses to emit any of these documents — the same
+// `relationship_violations` call runs in the converter's `validate` — so reaching
+// one means the artifact was hand-edited, which is the case a compile-time check
+// cannot cover. Every branch below is asserted by the message it produces, not by
+// "load failed", so a check that started refusing everything would still be caught.
+// ---------------------------------------------------------------------------
+
+/// The document every case below mutates: `Author.posts` is a followable `OneToMany`.
+fn relationship_fixture() -> serde_json::Value {
+    serde_json::json!({
+      "types": [
+        {"name": "Author", "sql_source": "v_author",
+         "fields": [{"name": "id", "field_type": "Int", "nullable": false},
+                    {"name": "name", "field_type": "String", "nullable": false}],
+         "relationships": [{"name": "posts", "target_type": "Post",
+                            "cardinality": "OneToMany",
+                            "foreign_key": "fk_author", "referenced_key": "id"}]},
+        {"name": "Post", "sql_source": "v_post",
+         "fields": [{"name": "id", "field_type": "Int", "nullable": false},
+                    {"name": "fk_author", "field_type": "Int", "nullable": false}]}
+      ],
+      "queries": [
+        {"name": "authors", "return_type": "Author", "returns_list": true, "sql_source": "v_author"},
+        {"name": "posts", "return_type": "Post", "returns_list": true, "sql_source": "v_post"}
+      ],
+      "mutations": []
+    })
+}
+
+/// Load `fixture` after `mutate` has been applied, expecting a refusal, and return the
+/// message so each case can assert on the part that is its own.
+fn refusal_for(mutate: impl FnOnce(&mut serde_json::Value)) -> String {
+    let mut doc = relationship_fixture();
+    mutate(&mut doc);
+    let err = CompiledSchema::from_json(&doc.to_string(), false)
+        .expect_err("an unfollowable relationship must not load");
+    err.to_string()
+}
+
+/// The positive control. Without it every case below would pass against a check that
+/// refused every schema carrying any relationship at all.
+#[test]
+fn a_followable_relationship_loads_and_survives() {
+    let schema = CompiledSchema::from_json(&relationship_fixture().to_string(), false)
+        .expect("a followable relationship must load");
+    let rels = &schema.find_type("Author").expect("Author loads").relationships;
+    assert_eq!(rels.len(), 1, "the relationship survives the load");
+    assert_eq!(rels[0].target_type, "Post");
+}
+
+/// Asserted on this branch's own wording, not merely on "the load failed". An undeclared
+/// target also has no list query, so the downstream check fires on the same document — a
+/// test asserting only that `'Nope'` appears somewhere passes with this branch deleted,
+/// which is what the mutation loop caught it doing.
+#[test]
+fn a_relationship_targeting_an_undeclared_type_is_refused_at_load() {
+    let message = refusal_for(|d| d["types"][0]["relationships"][0]["target_type"] = "Nope".into());
+    assert!(
+        message.contains("targets type 'Nope', which the schema does not declare"),
+        "the refusal diagnoses the missing type rather than a downstream symptom: {message}"
+    );
+    assert!(message.contains("Author.posts"), "and names the relationship: {message}");
+}
+
+/// The parent side of #1230, one layer earlier: `OneToMany` reads `referenced_key` off
+/// the declaring type's already-projected row, so a column no field publishes is a key
+/// the embed can never find.
+#[test]
+fn a_relationship_whose_parent_join_column_names_no_field_is_refused_at_load() {
+    let message =
+        refusal_for(|d| d["types"][0]["relationships"][0]["referenced_key"] = "no_such".into());
+    assert!(message.contains("'no_such'"), "the refusal names the column: {message}");
+    assert!(message.contains("of 'Author'"), "and the side it is missing from: {message}");
+}
+
+#[test]
+fn a_relationship_whose_target_join_column_names_no_field_is_refused_at_load() {
+    let message =
+        refusal_for(|d| d["types"][0]["relationships"][0]["foreign_key"] = "no_such".into());
+    assert!(message.contains("'no_such'"), "the refusal names the column: {message}");
+    assert!(message.contains("'Post'"), "and the side it is missing from: {message}");
+}
+
+/// Which side each key is read from swaps with the cardinality, so flipping it alone —
+/// touching no column name — must move the verdict. A check that resolved the columns
+/// its own way rather than through `Relationship::parent_join_column` would pass this
+/// document, and the executor would then read `fk_author` off an `Author` row.
+#[test]
+fn flipping_the_cardinality_alone_makes_the_same_columns_unfollowable() {
+    let message =
+        refusal_for(|d| d["types"][0]["relationships"][0]["cardinality"] = "ManyToOne".into());
+    assert!(
+        message.contains("joins on 'fk_author' of 'Author'"),
+        "ManyToOne reads the foreign key off the declaring type: {message}"
+    );
+}
+
+/// `foreign_key` and `referenced_key` carry `#[serde(default)]` on the compiled struct,
+/// so an omitted one is an empty string rather than a parse error.
+#[test]
+fn a_relationship_with_an_empty_join_column_is_refused_at_load() {
+    let message = refusal_for(|d| {
+        d["types"][0]["relationships"][0]
+            .as_object_mut()
+            .expect("relationship is an object")
+            .remove("foreign_key");
+    });
+    assert!(message.contains("`foreign_key`"), "the refusal names the key: {message}");
+}
+
+#[test]
+fn a_type_declaring_one_relationship_name_twice_is_refused_at_load() {
+    let message = refusal_for(|d| {
+        let dup = d["types"][0]["relationships"][0].clone();
+        d["types"][0]["relationships"].as_array_mut().expect("array").push(dup);
+    });
+    assert!(message.contains("more than once"), "the refusal names the shape: {message}");
+}
+
+/// `embed_into_single` sources its rows from the target's list query and sets the empty
+/// default when there is none — before touching the database, so no amount of data makes
+/// it work.
+#[test]
+fn a_relationship_whose_target_has_no_list_query_is_refused_at_load() {
+    let message = refusal_for(|d| d["queries"][1]["returns_list"] = false.into());
+    assert!(message.contains("no list query"), "the refusal names the cause: {message}");
+}
+
+/// The column→field lookup snake-cases both sides, so a schema whose fields are published
+/// in `camelCase` — the default naming convention — resolves the SQL column the executor's
+/// `declared_key` would resolve, and loads.
+#[test]
+fn a_join_column_resolves_against_a_camel_case_field_name() {
+    let mut doc = relationship_fixture();
+    doc["types"][0]["relationships"][0]["cardinality"] = "ManyToOne".into();
+    doc["types"][0]["relationships"][0]["target_type"] = "Post".into();
+    doc["types"][0]["fields"].as_array_mut().expect("array").push(serde_json::json!(
+        {"name": "fkAuthor", "field_type": "Int", "nullable": false}));
+    CompiledSchema::from_json(&doc.to_string(), false)
+        .expect("`fk_author` is published as `fkAuthor`, which is the spelling the executor reads");
+}

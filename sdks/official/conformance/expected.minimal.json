@@ -33,6 +33,7 @@
     "type": {}
   },
   "type_is_error": [],
+  "type_relationships": {},
   "type_relay": {
     "connection_types_synthesized": [],
     "flagged": [],

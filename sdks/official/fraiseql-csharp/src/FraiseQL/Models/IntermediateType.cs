@@ -30,10 +30,16 @@ namespace FraiseQL.Models;
 /// <param name="Fields">Ordered list of fields on this type.</param>
 /// <param name="Relay">Whether this type implements the Relay <c>Node</c> interface.</param>
 /// <param name="IsError">Whether this type is a mutation error variant.</param>
+/// <param name="Relationships">
+/// Relationships followed by REST resource embedding (#1266). Nullable for the same
+/// reason as the two flags above: <c>WhenWritingNull</c> omits it, so a type declaring
+/// none is byte-identical to pre-#1266 output.
+/// </param>
 public record IntermediateType(
-    [property: JsonPropertyName("name")]        string Name,
-    [property: JsonPropertyName("sql_source")]  string SqlSource,
-    [property: JsonPropertyName("description")] string? Description,
-    [property: JsonPropertyName("fields")]      IReadOnlyList<IntermediateField> Fields,
-    [property: JsonPropertyName("relay")]       bool? Relay = null,
-    [property: JsonPropertyName("is_error")]    bool? IsError = null);
+    [property: JsonPropertyName("name")]          string Name,
+    [property: JsonPropertyName("sql_source")]    string SqlSource,
+    [property: JsonPropertyName("description")]   string? Description,
+    [property: JsonPropertyName("fields")]        IReadOnlyList<IntermediateField> Fields,
+    [property: JsonPropertyName("relay")]         bool? Relay = null,
+    [property: JsonPropertyName("is_error")]      bool? IsError = null,
+    [property: JsonPropertyName("relationships")] IReadOnlyList<RelationshipDefinition>? Relationships = null);

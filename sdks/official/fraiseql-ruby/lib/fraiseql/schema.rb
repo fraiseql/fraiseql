@@ -65,6 +65,11 @@ module FraiseQL
     # alternative. This SDK carries no second copy of that table; a copy is what drifts.
     VECTOR_METRICS = %w[cosine l2 inner_product hamming jaccard].freeze
 
+    # Cardinalities a relationship may declare (#1266). Which join column is read off
+    # which side swaps with them: "OneToMany" reads `referenced_key` off the declaring
+    # type and filters `foreign_key` on the target; the other two do the reverse.
+    CARDINALITIES = %w[OneToMany ManyToOne OneToOne].freeze
+
     def initialize
       @types = []
       @enums = []
@@ -78,7 +83,7 @@ module FraiseQL
     # backing relation, so `sql_source` is refused on one — the compiler rejects a type
     # that declares both.
     def type(name, sql_source: nil, description: nil, relay: false, is_error: false, is_input: false,
-             crud: false, cascade: false)
+             crud: false, cascade: false, relationships: [])
       if is_input && sql_source
         raise ArgumentError,
               "type #{name.inspect}: an input type must not declare sql_source — " \
@@ -98,10 +103,54 @@ module FraiseQL
       definition["relay"] = true if relay
       definition["is_error"] = true if is_error
       definition["is_input"] = true if is_input
+      # #1266: emitted only when non-empty, so a type declaring none is byte-identical to
+      # pre-#1266 output.
+      built = build_relationships(name.to_s, relationships)
+      definition["relationships"] = built unless built.empty?
 
       @types << definition
       expand_crud(name.to_s, builder.crud_fields, sql_source, cascade) if crud
       definition
+    end
+
+    # Checks one type's relationships and renders them in the AuthoringIR's spelling.
+    #
+    # Only the shape this SDK owns is checked — a blank key, an unknown cardinality, and a
+    # name declared twice, which no compiler diagnostic can attribute back to a call site.
+    # Whether a relationship can be *followed* is checked by the compiler against the
+    # whole schema, which is the only place that knows.
+    def build_relationships(type_name, relationships)
+      seen = {}
+      relationships.map do |rel|
+        rel = rel.transform_keys(&:to_sym)
+        %i[name target_type foreign_key referenced_key].each do |key|
+          value = rel[key]
+          unless value.is_a?(String) && !value.empty?
+            raise ArgumentError,
+                  "type #{type_name.inspect}: relationship #{key} must be a non-empty string, " \
+                  "got #{value.inspect}"
+          end
+        end
+        unless CARDINALITIES.include?(rel[:cardinality])
+          raise ArgumentError,
+                "type #{type_name.inspect}: relationship #{rel[:name].inspect} cardinality " \
+                "must be one of #{CARDINALITIES.join(', ')} (got #{rel[:cardinality].inspect})"
+        end
+        if seen.key?(rel[:name])
+          raise ArgumentError,
+                "type #{type_name.inspect}: relationship #{rel[:name].inspect} is declared " \
+                "more than once; an embed resolves the first and the rest are unreachable"
+        end
+        seen[rel[:name]] = true
+
+        {
+          "name" => rel[:name],
+          "target_type" => rel[:target_type],
+          "cardinality" => rel[:cardinality],
+          "foreign_key" => rel[:foreign_key],
+          "referenced_key" => rel[:referenced_key]
+        }
+      end
     end
 
     # Merges what `CrudGenerator` produces into the document being built.

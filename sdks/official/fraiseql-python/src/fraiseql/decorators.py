@@ -242,6 +242,40 @@ def _validate_changelog_pre_image(cfg: dict[str, Any], context: str) -> None:
         raise TypeError(msg)
 
 
+def _validate_relationships(relationships: list[Relationship] | None, context: str) -> None:
+    """Validate the `relationships` list a type declares (#1266).
+
+    `Relationship.__post_init__` already checks each entry's own fields; what it cannot
+    see is the list. Two things live here: the container shape, and the one type-scoped
+    rule — a name used twice, which the compiler also refuses because an embed resolves
+    the first and the rest are unreachable, but which it can only report against the
+    compiled type rather than against this declaration.
+
+    Args:
+        relationships: The declared relationships, or ``None``.
+        context: Where to attribute the error, e.g. ``"@fraiseql.type on 'User'"``.
+
+    Raises:
+        TypeError: If it is not a list of :class:`Relationship`.
+        ValueError: If one relationship name is declared more than once.
+    """
+    if relationships is None:
+        return
+    if not isinstance(relationships, list) or not all(
+        isinstance(r, Relationship) for r in relationships
+    ):
+        msg = f"{context}: relationships must be a list of fraiseql.Relationship."
+        raise TypeError(msg)
+    names = [r.name for r in relationships]
+    duplicates = sorted({n for n in names if names.count(n) > 1})
+    if duplicates:
+        msg = (
+            f"{context}: relationship name(s) {duplicates} declared more than once; "
+            "an embed resolves the first and the rest are unreachable."
+        )
+        raise ValueError(msg)
+
+
 def _validate_subscribable(
     subscribable_tables: list[str] | None,
     subscribable_pre_image: bool,
@@ -376,6 +410,87 @@ class VectorConfig:
             "dimensions": self.dimensions,
             "index_type": self.index_type,
             "distance_metric": self.distance_metric,
+        }
+
+
+CARDINALITIES = ("OneToMany", "ManyToOne", "OneToOne")
+
+
+@dataclass(frozen=True)
+class Relationship:
+    """A relationship to another type, followed by REST resource embedding (#1266).
+
+    Carried by ``fraiseql.type(relationships=[...])`` and emitted as an entry of the
+    type's ``relationships`` array. The name is what a client writes in
+    ``?select=orders(id,total)``, ``?select=orders.count`` and ``?orders.status=paid``;
+    it is also what the generated client's ``relationships`` module and the served
+    OpenAPI document publish.
+
+    Attributes:
+        name: Relationship name — the key in ``?select=`` and in the response.
+        target_type: Target GraphQL type name, e.g. ``"Order"``. Must be a declared type
+            that some **list** query returns: an embed sources its rows from that query.
+        cardinality: ``"OneToMany"``, ``"ManyToOne"`` or ``"OneToOne"``.
+        foreign_key: Foreign key **column** on the child table, e.g. ``"fk_user"``.
+        referenced_key: Referenced key **column** on the parent table, e.g. ``"id"``.
+
+    Both keys are SQL column names, and which side each is read from swaps with the
+    cardinality — ``OneToMany`` reads ``referenced_key`` off the declaring type and
+    filters ``foreign_key`` on the target; ``ManyToOne`` and ``OneToOne`` do the reverse.
+    Under the default ``camelCase`` naming convention the column ``fk_user`` is published
+    as the field ``fkUser``, and the compiler resolves one to the other.
+
+    Which relationships are *followable* is the compiler's business, not this SDK's: it
+    refuses a target type it does not declare, a join column no field on that side
+    publishes, and a target no list query returns — the last three being how a relationship
+    would otherwise serve an empty embed under a 200. This SDK carries no second copy of
+    those rules; a copy is what drifts.
+
+    Examples:
+        >>> import fraiseql
+        >>> @fraiseql.type(
+        ...     sql_source="v_user",
+        ...     relationships=[
+        ...         fraiseql.Relationship(
+        ...             name="orders",
+        ...             target_type="Order",
+        ...             cardinality="OneToMany",
+        ...             foreign_key="fk_user",
+        ...             referenced_key="id",
+        ...         )
+        ...     ],
+        ... )
+        ... class User:
+        ...     id: str
+    """
+
+    name: str
+    target_type: str
+    cardinality: str
+    foreign_key: str
+    referenced_key: str
+
+    def __post_init__(self) -> None:
+        for attr in ("name", "target_type", "foreign_key", "referenced_key"):
+            value = getattr(self, attr)
+            if not isinstance(value, str) or not value:
+                msg = f"Relationship {attr} must be a non-empty string (got {value!r})"
+                raise ValueError(msg)
+        if self.cardinality not in CARDINALITIES:
+            msg = (
+                f"Relationship cardinality must be one of {CARDINALITIES} "
+                f"(got {self.cardinality!r})"
+            )
+            raise ValueError(msg)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The relationship entry as the AuthoringIR spells it."""
+        return {
+            "name": self.name,
+            "target_type": self.target_type,
+            "cardinality": self.cardinality,
+            "foreign_key": self.foreign_key,
+            "referenced_key": self.referenced_key,
         }
 
 
@@ -578,6 +693,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     subscribable_tables: list[str] | None = None,
     subscribable_pre_image: bool = False,
     embedded: bool = False,
+    relationships: list[Relationship] | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -629,6 +745,11 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             compiles. Mutually exclusive with ``sql_source`` (a value object has no
             backing view) and with ``cascade`` (a value object cannot originate a
             cascade). Default ``False``.
+        relationships: Relationships to other types, followed by REST resource embedding
+            (#1266) — ``?select=orders(id,total)``, ``?select=orders.count``,
+            ``?orders.status=paid`` — and published in the served OpenAPI document and
+            the generated client's ``relationships`` module. A list of
+            :class:`Relationship`. Emitted only when non-empty.
 
     Returns:
         The original class (unmodified)
@@ -732,6 +853,8 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
                 plural_name, "plural_name", f"@fraiseql.type on {c.__name__!r}"
             )
 
+        _validate_relationships(relationships, f"@fraiseql.type on {c.__name__!r}")
+
         # Register type with schema registry
         SchemaRegistry.register_type(
             name=c.__name__,
@@ -747,6 +870,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             subscribable_tables=subscribable_tables,
             subscribable_pre_image=subscribable_pre_image,
             embedded=embedded,
+            relationships=relationships,
         )
 
         # Generate CRUD operations if requested

@@ -165,6 +165,10 @@ module Dsl =
                 is_input = s.isInput
                 relay = s.relay
                 is_error = s.isError
+                // The computation-expression DSL has no `relationship` operation, so a
+                // type authored this way declares none (#1266). Attribute-authored types
+                // go through `SchemaRegistry.register`, which reads them.
+                relationships = []
             }
 
         /// Sets the SQL view backing this type.

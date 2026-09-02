@@ -41,6 +41,7 @@ let private singleType =
         is_input = false
         relay = false
         is_error = false
+        relationships = []
     }
 
 let private singleQuery: QueryDefinition =

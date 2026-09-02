@@ -12,6 +12,7 @@ mod schema_domain;
 mod schema_lookup;
 mod schema_serde;
 mod type_inject;
+mod type_relationships;
 mod type_roles;
 pub mod validation;
 

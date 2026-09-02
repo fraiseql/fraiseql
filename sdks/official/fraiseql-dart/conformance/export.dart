@@ -38,10 +38,23 @@ FraiseQLSchema authorMinimal() {
 FraiseQLSchema authorFull() {
   final schema = FraiseQLSchema();
 
+  // Both directions, deliberately (#1266): which join column is read off which side
+  // swaps with the cardinality, so a fixture carrying only `OneToMany` would be uniform
+  // in exactly the dimension that selects the branch. The keys name SQL **columns**
+  // (`fk_user`) while `Order` publishes the field as `fkUser`.
   schema.type(
     'User',
     sqlSource: 'v_user',
     relay: true,
+    relationships: [
+      Relationship(
+        name: 'orders',
+        targetType: 'Order',
+        cardinality: Cardinality.oneToMany,
+        foreignKey: 'fk_user',
+        referencedKey: 'id',
+      ),
+    ],
     fields: {
       'id': const FieldType.id(nullable: false),
       'email': const FieldType.string(nullable: false),
@@ -61,10 +74,21 @@ FraiseQLSchema authorFull() {
   schema.type(
     'Order',
     sqlSource: 'v_order',
+    relationships: [
+      Relationship(
+        name: 'user',
+        targetType: 'User',
+        cardinality: Cardinality.manyToOne,
+        foreignKey: 'fk_user',
+        referencedKey: 'id',
+      ),
+    ],
     fields: {
       'id': const FieldType.id(nullable: false),
       'total': const FieldType.float(nullable: false),
       'status': const FieldType.string(nullable: false),
+      // The column `User.orders` joins on, published under the naming convention.
+      'fkUser': const FieldType.id(nullable: false),
     },
   );
 

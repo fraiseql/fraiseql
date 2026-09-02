@@ -41,6 +41,15 @@
           "type": "String",
           "nullable": true
         }
+      ],
+      "relationships": [
+        {
+          "name": "orders",
+          "target_type": "Order",
+          "cardinality": "OneToMany",
+          "foreign_key": "fk_user",
+          "referenced_key": "id"
+        }
       ]
     },
     {
@@ -61,6 +70,20 @@
           "name": "status",
           "type": "String",
           "nullable": false
+        },
+        {
+          "name": "fkUser",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "name": "user",
+          "target_type": "User",
+          "cardinality": "ManyToOne",
+          "foreign_key": "fk_user",
+          "referenced_key": "id"
         }
       ]
     },

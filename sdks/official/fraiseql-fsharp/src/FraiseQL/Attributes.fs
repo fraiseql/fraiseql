@@ -43,6 +43,58 @@ type GraphQLTypeAttribute() =
     /// When true, generated CRUD mutations include cascade support.
     member val Cascade: bool = false with get, set
 
+/// Declares a relationship to another type, followed by REST resource embedding (#1266).
+///
+/// <c>Name</c> is what a client writes in <c>?select=orders(id,total)</c>,
+/// <c>?select=orders.count</c> and <c>?orders.status=paid</c>; it is also what the
+/// generated client's <c>relationships</c> module and the served OpenAPI document publish.
+///
+/// <c>ForeignKey</c> and <c>ReferencedKey</c> are SQL <b>column</b> names, and which side
+/// each is read from swaps with the cardinality — <c>OneToMany</c> reads
+/// <c>ReferencedKey</c> off the declaring type and filters <c>ForeignKey</c> on the target;
+/// <c>ManyToOne</c> and <c>OneToOne</c> do the reverse. Under the default <c>camelCase</c>
+/// naming convention the column <c>fk_user</c> is published as the field <c>fkUser</c>,
+/// and the compiler resolves one to the other.
+///
+/// Which relationships are <i>followable</i> is the compiler's business, not this SDK's:
+/// it refuses a target type it does not declare, a join column no field on that side
+/// publishes, and a target no list query returns. This SDK carries no second copy of
+/// those rules; a copy is what drifts.
+///
+/// Example:
+/// <code>
+/// [&lt;GraphQLType(Name = "User", SqlSource = "v_user")&gt;]
+/// [&lt;GraphQLRelationship(Name = "orders", TargetType = "Order",
+///     Cardinality = "OneToMany", ForeignKey = "fk_user", ReferencedKey = "id")&gt;]
+/// type UserEntity() = class end
+/// </code>
+[<AttributeUsage(AttributeTargets.Class ||| AttributeTargets.Struct, AllowMultiple = true, Inherited = false)>]
+[<Sealed>]
+type GraphQLRelationshipAttribute() =
+    inherit Attribute()
+
+    /// Relationship name — the key in `?select=` and in the response.
+    member val Name: string = "" with get, set
+
+    /// Target GraphQL type name. Must be a declared type that some *list* query returns:
+    /// an embed sources its rows from that query.
+    member val TargetType: string = "" with get, set
+
+    /// One of "OneToMany", "ManyToOne", "OneToOne".
+    member val Cardinality: string = "" with get, set
+
+    /// Foreign key *column* on the child table, e.g. "fk_user".
+    member val ForeignKey: string = "" with get, set
+
+    /// Referenced key *column* on the parent table, e.g. "id".
+    member val ReferencedKey: string = "" with get, set
+
+/// The cardinalities a [<GraphQLRelationship>] may declare.
+[<RequireQualifiedAccess>]
+module Cardinality =
+    /// Every accepted spelling, in the order the compiler documents them.
+    let all = [ "OneToMany"; "ManyToOne"; "OneToOne" ]
+
 /// Marks a property on a GraphQL type as a field to include in the schema.
 /// Apply this attribute to properties on classes decorated with <see cref="GraphQLTypeAttribute"/>.
 ///

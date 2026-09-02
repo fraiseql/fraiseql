@@ -25,7 +25,16 @@ type ConformanceMinimalUser() =
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Email = "" with get, set
 
+// Both directions, deliberately (#1266): which join column is read off which side swaps
+// with the cardinality, so a fixture carrying only `OneToMany` would be uniform in exactly
+// the dimension that selects the branch. The keys name SQL **columns** (`fk_user`) while
+// `Order` publishes the member `FkUser` as the field `fkUser`.
 [<GraphQLType(Name = "User", SqlSource = "v_user", Relay = true)>]
+[<GraphQLRelationship(Name = "orders",
+                      TargetType = "Order",
+                      Cardinality = "OneToMany",
+                      ForeignKey = "fk_user",
+                      ReferencedKey = "id")>]
 type ConformanceUser() =
     [<GraphQLField(Type = "ID", Nullable = false)>]
     member val Id = "" with get, set
@@ -52,6 +61,11 @@ type ConformanceUser() =
     member val Phone1 = "" with get, set
 
 [<GraphQLType(Name = "Order", SqlSource = "v_order")>]
+[<GraphQLRelationship(Name = "user",
+                      TargetType = "User",
+                      Cardinality = "ManyToOne",
+                      ForeignKey = "fk_user",
+                      ReferencedKey = "id")>]
 type ConformanceOrder() =
     [<GraphQLField(Type = "ID", Nullable = false)>]
     member val Id = "" with get, set
@@ -61,6 +75,10 @@ type ConformanceOrder() =
 
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Status = "" with get, set
+
+    // The column `User.orders` joins on, published under the naming convention.
+    [<GraphQLField(Type = "ID", Nullable = false)>]
+    member val FkUser = "" with get, set
 
 // `Crud` is an authoring-time expansion the compiler has no concept of, so the only
 // evidence this SDK implements it is that the operations and input objects appear in the

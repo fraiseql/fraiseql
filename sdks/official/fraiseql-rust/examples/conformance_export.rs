@@ -58,6 +58,11 @@ fn full() -> SchemaRegistry {
             Field::new("id", "ID").with_nullable(false),
             Field::new("total", "Float").with_nullable(false),
             Field::new("status", "String").with_nullable(false),
+            // The column `User.orders` joins on in the other SDKs' fixtures (#1266).
+            // This SDK declares no relationship — see the `type_relationships` gap in
+            // `conformance/manifest.json` — but the field is part of the `types`
+            // construct and is asserted for every SDK.
+            Field::new("fkUser", "ID").with_nullable(false),
         ],
         "v_order",
     );

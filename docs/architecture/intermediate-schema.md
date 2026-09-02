@@ -114,6 +114,63 @@ A GraphQL object type (e.g. `User`, `Post`).
 | `embedded` | `bool` | no | `true` for a value object with no independent identity (#687) |
 | `subscribable_tables` | `string[]?` | no | Base tables whose external writes feed this type's subscriptions (#366) |
 | `subscribable_pre_image` | `bool` | no | Whether those capture triggers also record the pre-image |
+| `relationships` | `IntermediateRelationship[]` | no | Relationships followed by REST resource embedding (#1266); see below |
+
+#### Relationships (#1266)
+
+A relationship declares a sub-resource the REST transport can embed:
+`?select=orders(id,total)`, `?select=orders.count`, `?orders.status=paid`. It is also what
+the served OpenAPI document advertises per type and what the client generator emits as
+`relationships.{ts,rs,go,py}`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | yes | The key in `?select=` and in the response |
+| `target_type` | `string` | yes | A declared type that some **list** query returns |
+| `cardinality` | `"OneToMany" \| "ManyToOne" \| "OneToOne"` | yes | |
+| `foreign_key` | `string` | yes | Foreign key **column** on the child table, e.g. `fk_user` |
+| `referenced_key` | `string` | yes | Referenced key **column** on the parent table, e.g. `id` |
+
+Both keys are SQL **column** names, not declared field names. Which side each is read from
+swaps with the cardinality:
+
+| `cardinality` | key read off the **declaring** type's row | key filtered on the **target** row |
+|---|---|---|
+| `OneToMany` | `referenced_key` | `foreign_key` |
+| `ManyToOne` | `foreign_key` | `referenced_key` |
+| `OneToOne` | `foreign_key` | `referenced_key` |
+
+Under the default `camelCase` naming convention the column `fk_user` is published as the
+field `fkUser`; the compiler resolves one to the other, and the runtime reads the join key
+off the parent row in the declared spelling.
+
+`fraiseql compile` **refuses** a relationship no embed could follow, and
+`CompiledSchema::from_json` refuses it again so a hand-edited compiled artifact cannot
+carry one:
+
+- the target type is not declared;
+- a join column names no field of the side it is read from — the #1230 shape, where the
+  join key the projection omitted made every embed resolve to `null` under a 200;
+- the target type is returned by no list query, which the embed sources its rows from;
+- `foreign_key` or `referenced_key` is empty;
+- one type declares the same relationship name twice.
+
+```json
+{
+  "name": "User",
+  "sql_source": "v_user",
+  "fields": [{ "name": "id", "type": "ID", "nullable": false }],
+  "relationships": [
+    {
+      "name": "orders",
+      "target_type": "Order",
+      "cardinality": "OneToMany",
+      "foreign_key": "fk_user",
+      "referenced_key": "id"
+    }
+  ]
+}
+```
 
 #### Scoping an entity no query returns (#1142)
 

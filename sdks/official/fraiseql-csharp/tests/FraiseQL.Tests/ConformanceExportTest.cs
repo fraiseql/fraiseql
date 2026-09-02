@@ -136,7 +136,13 @@ public class ConformanceExportTest
         public string Email { get; set; } = string.Empty;
     }
 
+    // Both directions, deliberately (#1266): which join column is read off which side
+    // swaps with the cardinality, so a fixture carrying only `OneToMany` would be uniform
+    // in exactly the dimension that selects the branch. The keys name SQL **columns**
+    // (`fk_user`) while `Order` publishes the property `FkUser` as the field `fkUser`.
     [GraphQLType(Name = "User", SqlSource = "v_user", Relay = true)]
+    [GraphQLRelationship(Name = "orders", TargetType = "Order",
+        Cardinality = "OneToMany", ForeignKey = "fk_user", ReferencedKey = "id")]
     private sealed class ConformanceUser
     {
         [GraphQLField(Type = "ID")]
@@ -195,6 +201,8 @@ public class ConformanceExportTest
     }
 
     [GraphQLType(Name = "Order", SqlSource = "v_order")]
+    [GraphQLRelationship(Name = "user", TargetType = "User",
+        Cardinality = "ManyToOne", ForeignKey = "fk_user", ReferencedKey = "id")]
     private sealed class ConformanceOrder
     {
         [GraphQLField(Type = "ID")]
@@ -205,6 +213,10 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "String")]
         public string Status { get; set; } = string.Empty;
+
+        // The column `User.orders` joins on, published under the naming convention.
+        [GraphQLField(Type = "ID")]
+        public string FkUser { get; set; } = string.Empty;
     }
 
     // `Crud` is an authoring-time expansion the compiler has no concept of, so the only

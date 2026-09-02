@@ -1638,6 +1638,11 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// return another parent's children, and nested embeddings were depth-validated
 		// then silently dropped at execution.
 		"cargo test -p fraiseql-server --features rest --test rest_embedding_safety_e2e_pg -- --test-threads=1",
+		// #1266: the same surface, but served from a schema `fraiseql compile` produced
+		// rather than a hand-built CompiledSchema. Until relationships had an authoring
+		// producer, every embed request against a compiled schema was a 400 reading
+		// "Available: none" — so the four fixes above were made in code no user reached.
+		"cargo test -p fraiseql-server --features rest --test rest_embedding_compiled_schema_e2e_pg -- --test-threads=1",
 		// #811/#917: exports paginated through `variables`, which the executor ignores —
 		// so every export either truncated to one page or looped forever emitting
 		// duplicates. Needs the export features compiled in: the CSV and XLSX cases are

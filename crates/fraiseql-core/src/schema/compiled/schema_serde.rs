@@ -181,15 +181,19 @@ impl CompiledSchema {
     /// Today it lowers each type's `requires_role` onto the operations that return
     /// it (#677) and refuses a schema whose role declarations the runtime cannot
     /// honour, then refuses one whose type-level and query-level scoping declarations
-    /// contradict each other (#1142).
+    /// contradict each other (#1142), one whose subscription filter names an argument
+    /// it does not declare (#1262), and one declaring a relationship no embed can
+    /// follow (#1266).
     ///
     /// # Errors
     ///
     /// Returns [`FraiseQLError::Validation`] when a role-gated type is declared in a
     /// shape no execution path can enforce — see
-    /// [`CompiledSchema::type_role_violations`] — or when a type and its backing query
+    /// [`CompiledSchema::type_role_violations`] — when a type and its backing query
     /// scope the same column from different sources, see
-    /// [`CompiledSchema::type_inject_violations`].
+    /// [`CompiledSchema::type_inject_violations`], or when a relationship names a
+    /// target, a join column or a list query the embed executor cannot resolve, see
+    /// [`CompiledSchema::relationship_violations`].
     fn finish_load(&mut self) -> std::result::Result<(), FraiseQLError> {
         self.propagate_type_roles();
         let violations = self.type_role_violations();
@@ -220,6 +224,16 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("subscriptions.filter".to_string()),
+            });
+        }
+        let violations = self.relationship_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "relationships cannot be followed as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("types.relationships".to_string()),
             });
         }
         Ok(())

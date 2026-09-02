@@ -265,6 +265,21 @@ public class SchemaFormatter {
             if (typeInfo.requiresRole != null) {
                 typeNode.put("requires_role", typeInfo.requiresRole);
             }
+            // #1266: emitted only when non-empty, so a type declaring none is
+            // byte-identical to pre-#1266 output.
+            if (!typeInfo.relationships.isEmpty()) {
+                ArrayNode relationshipsNode = mapper.createArrayNode();
+                for (GraphQLRelationship rel : typeInfo.relationships) {
+                    ObjectNode relNode = mapper.createObjectNode();
+                    relNode.put("name", rel.name());
+                    relNode.put("target_type", rel.targetType());
+                    relNode.put("cardinality", rel.cardinality());
+                    relNode.put("foreign_key", rel.foreignKey());
+                    relNode.put("referenced_key", rel.referencedKey());
+                    relationshipsNode.add(relNode);
+                }
+                typeNode.set("relationships", relationshipsNode);
+            }
             if (typeInfo.sqlSource != null) {
                 typeNode.put("sql_source", typeInfo.sqlSource);
             }

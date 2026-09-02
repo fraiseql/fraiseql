@@ -130,7 +130,9 @@ public static class SchemaExporter
             // Emitted only when set, so a schema using neither is byte-identical to what
             // this exporter produced before the flags were carried at all (#849).
             Relay: td.Relay ? true : null,
-            IsError: td.IsError ? true : null);
+            IsError: td.IsError ? true : null,
+            // #1266: omitted when the type declares none, on the same reasoning.
+            Relationships: td.Relationships is { Count: > 0 } ? td.Relationships : null);
     }
 
     /// <summary>

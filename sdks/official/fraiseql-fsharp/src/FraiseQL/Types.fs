@@ -73,6 +73,25 @@ module VectorMetric =
     [<Literal>]
     let jaccard = "jaccard"
 
+/// A relationship to another type, as it appears in schema.json (#1266).
+///
+/// `foreign_key` and `referenced_key` are SQL **column** names; which side each is read
+/// from swaps with the cardinality. See <see cref="GraphQLRelationshipAttribute"/>.
+[<CLIMutable>]
+type RelationshipDefinition =
+    {
+        /// Relationship name — the key in `?select=` and in the response.
+        name: string
+        /// Target GraphQL type name; must be returned by some list query.
+        target_type: string
+        /// "OneToMany", "ManyToOne" or "OneToOne".
+        cardinality: string
+        /// Foreign key column on the child table.
+        foreign_key: string
+        /// Referenced key column on the parent table.
+        referenced_key: string
+    }
+
 /// Represents a single field on a GraphQL type.
 [<CLIMutable>]
 type FieldDefinition =
@@ -150,6 +169,8 @@ type TypeDefinition =
         relay: bool
         /// True if this type models a mutation error response.
         is_error: bool
+        /// Relationships followed by REST resource embedding (#1266).
+        relationships: RelationshipDefinition list
     }
 
 /// Optional REST endpoint annotation for a query or mutation.

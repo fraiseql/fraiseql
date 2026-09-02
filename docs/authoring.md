@@ -108,6 +108,7 @@ class Post:
 | `relay` | `bool` | Enable Relay cursor pagination for this type |
 | `requires_role` | `str \| None` | JWT role required to execute any operation returning this type. Lowered onto every query and mutation whose return type it is, so the operation-level role gate enforces it. A gated type reachable as a field of a type that is not gated the same way is a **compile error** — the containing type's operations would carry no role, leaving the gated type ungated. Does **not** hide the type from GraphQL `__schema` introspection (only the REST `/introspection` route filters on it) |
 | `embedded` | `bool` | Mark an embedded value object (no independent identity, nested under a parent). Declares no `sql_source`; exempt from the cascade `CascadeNode` `id: ID!` contract |
+| `relationships` | `list[Relationship]` | Sub-resources the REST transport can embed — `?select=orders(id,total)`, `?select=orders.count`, `?orders.status=paid`. Also advertised per type in the served OpenAPI document and emitted by the client generator as `relationships.{ts,rs,go,py}` |
 
 ```python
 @fraiseql.type(relay=True, requires_role="admin")
@@ -115,6 +116,50 @@ class AuditLog:
     id: str
     action: str
     created_at: str
+```
+
+**Relationships.** A relationship declares a sub-resource served by *its own* view and
+list query, which is what lets the REST transport filter, count and paginate it
+independently. That is different from a nested object field, which is projected out of the
+parent row's JSONB and cannot be filtered server-side.
+
+```python
+@fraiseql.type(
+    sql_source="v_user",
+    relationships=[
+        fraiseql.Relationship(
+            name="orders",
+            target_type="Order",
+            cardinality="OneToMany",
+            foreign_key="fk_user",     # column on the child table
+            referenced_key="id",       # column on the parent table
+        )
+    ],
+)
+class User:
+    id: str
+```
+
+`foreign_key` and `referenced_key` are SQL **column** names, not declared field names.
+Which side each is read from swaps with the cardinality — `OneToMany` reads
+`referenced_key` off the declaring type and filters `foreign_key` on the target;
+`ManyToOne` and `OneToOne` do the reverse. Under the default `camelCase` naming convention
+the column `fk_user` is published as the field `fkUser`, and the compiler resolves one to
+the other.
+
+A relationship no embed could follow is a **compile error**, not a silent empty result: an
+undeclared `target_type`, a join column no field of that side publishes, a `target_type`
+returned by no list query, an empty key, or one name declared twice. The compiled schema is
+checked again when it loads, so a hand-edited artifact cannot carry one either.
+
+The same declaration in `fraiseql.toml`, for a TOML-declared type:
+
+```toml
+[types.User.relationships.orders]
+target_type = "Order"
+cardinality = "OneToMany"
+foreign_key = "fk_user"
+referenced_key = "id"
 ```
 
 **Embedded value objects.** A type with no independent identity — a `Money` amount, a

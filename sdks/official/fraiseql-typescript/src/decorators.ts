@@ -11,6 +11,7 @@ import {
   Field,
   EnumValue,
   FieldMetadata,
+  Relationship,
   SubscriptionOptions,
 } from "./registry";
 import { CustomScalar } from "./scalars";
@@ -497,6 +498,8 @@ export function registerTypeFields(
     implements?: string[];
     crud?: boolean | string[];
     cascade?: boolean;
+    /** Relationships followed by REST resource embedding (#1266). */
+    relationships?: Relationship[];
   }
 ): void {
   SchemaRegistry.registerType(typeName, fields, description, options);

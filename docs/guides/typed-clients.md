@@ -40,7 +40,7 @@ The command refuses to overwrite an existing generated client without `--force`.
 | `inputs.ts` | input objects as TS interfaces (only if your schema has any) |
 | `queries.ts` | typed query functions, each embedding its GraphQL document |
 | `mutations.ts` | typed mutation functions + `isErrorResult` guard (only if any mutations) |
-| `relationships.ts` | relationship metadata for generic UI/tooling (only if any) |
+| `relationships.ts` | relationship metadata for generic UI/tooling (only if any — see [authoring.md](../authoring.md) for how to declare one) |
 | `client.ts` | a tiny `FraiseqlClient` wrapping `fetch` — zero runtime dependencies |
 | `index.ts` | re-exports everything that was generated |
 

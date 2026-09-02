@@ -27,6 +27,26 @@ disagreed, and the promise was the part that was wrong.
   field; `Vec::new()` is the value for a resolution that has not been through
   `ResolvedGetQuery::with_embed_join_keys`.
 
+- **A relationship no embed could follow no longer compiles, and no longer loads (#1266).**
+
+  `TypeDefinition.relationships` gained an authoring surface in this release (see
+  `### Added`), and with it the checks that surface makes possible. `fraiseql compile`
+  now refuses — and `CompiledSchema::from_json` refuses again, so a hand-edited artifact
+  cannot carry one either — a relationship whose
+
+  * `target_type` names a type the schema does not declare;
+  * join column names no field of the side it is read from;
+  * `target_type` is returned by no **list** query, which the embed sources its rows from;
+  * `foreign_key` or `referenced_key` is empty;
+  * name is declared twice on one type.
+
+  **Migration.** Nothing authored through `fraiseql compile` can have been affected: until
+  this release no authoring path could produce a relationship at all. A **hand-written**
+  `schema.compiled.json` that carried one and now fails to load was carrying a declaration
+  the embed executor could not follow — the request was answered `[]` or `null` under a
+  200, indistinguishable from "there is genuinely nothing related". The refusal names the
+  relationship, the column and the side it is missing from.
+
 - **A subscription filter naming an argument the subscription does not declare no longer
   compiles (#1262).** The reference used to be accepted and then ignored at runtime,
   delivering every event on the topic to a subscriber that had asked to filter; see
@@ -152,6 +172,58 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+- **REST resource embedding becomes reachable: relationships get an authoring surface (#1266).**
+
+  `TypeDefinition.relationships` had **no producer**. Every non-test assignment in the
+  workspace wrote `Vec::new()`, the authoring IR had no field for it — and `deny_unknown_fields`
+  turned an SDK that emitted the key into a refusal of the whole document — and
+  `fraiseql.toml` had no block, despite a code comment and a 2.14.0 CHANGELOG entry both
+  citing a `[[relationships]]` block that never parsed. So `fraiseql compile` always
+  emitted `relationships: []`, and the entire REST embedding surface was reachable only
+  from a hand-written `schema.compiled.json`:
+
+  * `?select=posts(id,title)`, `?select=posts.count`, `?posts.status=published` — every
+    embed request against a compiled schema was a 400 reading `Available: none`;
+  * the OpenAPI relationship properties the served document advertises per type;
+  * the client generator's `relationships.{ts,rs,go,py}` modules, gated on
+    `has_relationships`, which was `false` for every CLI-produced schema — and documented
+    as a generator output in `docs/guides/typed-clients.md`.
+
+  Four silent-wrong-answer fixes — #863, #864, #1170, #1230 — had been made *inside* that
+  surface, each found by hand-building a `CompiledSchema` in a test. The defects were real;
+  what was missing was any way for a user to reach the code they were in.
+
+  Relationships are now authorable three ways, and the same document results from each:
+
+  ```python
+  @fraiseql.type(sql_source="v_user", relationships=[
+      fraiseql.Relationship(name="orders", target_type="Order", cardinality="OneToMany",
+                            foreign_key="fk_user", referenced_key="id"),
+  ])
+  class User: ...
+  ```
+
+  ```toml
+  [types.User.relationships.orders]
+  target_type = "Order"
+  cardinality = "OneToMany"
+  foreign_key = "fk_user"
+  referenced_key = "id"
+  ```
+
+  …and directly in `schema.json`, which is what the eleven official SDKs emit. All eleven
+  author one under the conformance suite's new `type_relationships` construct, except the
+  Rust SDK, whose existing field-level-RBAC scope is a declared gap.
+
+  `foreign_key` and `referenced_key` are SQL **column** names, and which side each is read
+  from swaps with the cardinality. Under the default `camelCase` convention the column
+  `fk_user` is published as the field `fkUser`; the compiler resolves one to the other
+  through the same function the REST executor uses, so the compile-time check cannot accept
+  a schema the runtime would fail to follow. Relationships that *cannot* be followed are
+  refused rather than served empty — see `### Breaking`. That check is the durable half of
+  this change: #1230 was a join key the projection omitted, served as `null` under a 200,
+  and it is now a build failure.
+
 - **The image leg stops rebuilding every layer on a docs-only push, behind a gate (#1215).**
 
   Dagger keys `DockerBuild` on the whole context digest, and `.dagger/image.go`'s three
@@ -1981,8 +2053,8 @@ disagreed, and the promise was the part that was wrong.
   falling through to an unfiltered read.
 
   One internal caller had to be corrected for this: REST's nested-resource embedding built its
-  parent-scoping predicate from `[[relationships]]`, whose `foreign_key`/`referenced_key` are
-  SQL **column** names (`fk_user`). Handing those to the parser would have made the server
+  parent-scoping predicate from a type's declared relationships, whose
+  `foreign_key`/`referenced_key` are SQL **column** names (`fk_user`). Handing those to the parser would have made the server
   refuse its own join predicate. It now resolves the column to the target type's declared field
   name first, the same way full-text search already keyed off the declared name.
 

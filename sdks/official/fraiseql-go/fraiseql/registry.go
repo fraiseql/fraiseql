@@ -22,17 +22,53 @@ type DeprecationInfo struct {
 	Reason string `json:"reason"`
 }
 
+// Cardinality is the shape of a relationship between two types.
+type Cardinality string
+
+// The cardinalities a relationship may declare. Which join column is read off which
+// side swaps with them: OneToMany reads ReferencedKey off the declaring type and filters
+// ForeignKey on the target; ManyToOne and OneToOne do the reverse.
+const (
+	OneToMany Cardinality = "OneToMany"
+	ManyToOne Cardinality = "ManyToOne"
+	OneToOne  Cardinality = "OneToOne"
+)
+
+// Relationship is a relationship to another type, followed by REST resource
+// embedding (#1266).
+//
+// Name is what a client writes in ?select=orders(id,total), ?select=orders.count and
+// ?orders.status=paid; it is also what the generated client's relationships module and
+// the served OpenAPI document publish.
+//
+// ForeignKey and ReferencedKey are SQL *column* names. Under the default camelCase
+// naming convention the column fk_user is published as the field fkUser, and the
+// compiler resolves one to the other.
+//
+// Which relationships are followable is the compiler's business, not this SDK's: it
+// refuses a target type it does not declare, a join column no field on that side
+// publishes, and a target no list query returns. This SDK carries no second copy of
+// those rules; a copy is what drifts.
+type Relationship struct {
+	Name          string      `json:"name"`
+	TargetType    string      `json:"target_type"`
+	Cardinality   Cardinality `json:"cardinality"`
+	ForeignKey    string      `json:"foreign_key"`
+	ReferencedKey string      `json:"referenced_key"`
+}
+
 // TypeDefinition represents a GraphQL type
 type TypeDefinition struct {
-	Name         string      `json:"name"`
-	Fields       []FieldInfo `json:"fields"`
-	Description  string      `json:"description,omitempty"`
-	Relay        bool        `json:"relay,omitempty"`
-	SqlSource    string      `json:"sql_source,omitempty"`
-	JsonbColumn  string      `json:"jsonb_column,omitempty"`
-	IsError      bool        `json:"is_error,omitempty"`
-	RequiresRole string      `json:"requires_role,omitempty"`
-	Implements   []string    `json:"implements,omitempty"`
+	Name          string         `json:"name"`
+	Fields        []FieldInfo    `json:"fields"`
+	Description   string         `json:"description,omitempty"`
+	Relay         bool           `json:"relay,omitempty"`
+	SqlSource     string         `json:"sql_source,omitempty"`
+	JsonbColumn   string         `json:"jsonb_column,omitempty"`
+	IsError       bool           `json:"is_error,omitempty"`
+	RequiresRole  string         `json:"requires_role,omitempty"`
+	Implements    []string       `json:"implements,omitempty"`
+	Relationships []Relationship `json:"relationships,omitempty"`
 }
 
 // QueryDefinition represents a GraphQL query
@@ -322,6 +358,57 @@ func RegisterType(name string, fields []FieldInfo, description string, relay ...
 		Relay:       isRelay,
 		SqlSource:   "v_" + toSnakeCase(name),
 	}
+	return nil
+}
+
+// RegisterTypeRelationships attaches relationships to an already-registered type (#1266).
+//
+// A separate call rather than another RegisterType parameter: RegisterType's last
+// parameter is already variadic, so it cannot take a second optional one.
+//
+// Only the shape this SDK owns is checked — a missing or mis-spelled key, an unknown
+// cardinality, and a name declared twice, which no compiler diagnostic can attribute
+// back to a call site. Whether a relationship can be *followed* is checked by the
+// compiler against the whole schema, which is the only place that knows.
+func RegisterTypeRelationships(typeName string, relationships ...Relationship) error {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	definition, exists := reg.types[typeName]
+	if !exists {
+		return fmt.Errorf("type %q is not registered; declare it before its relationships", typeName)
+	}
+
+	seen := make(map[string]bool, len(relationships))
+	for _, rel := range relationships {
+		for label, value := range map[string]string{
+			"Name":          rel.Name,
+			"TargetType":    rel.TargetType,
+			"ForeignKey":    rel.ForeignKey,
+			"ReferencedKey": rel.ReferencedKey,
+		} {
+			if value == "" {
+				return fmt.Errorf("type %q: relationship %s must not be empty", typeName, label)
+			}
+		}
+		switch rel.Cardinality {
+		case OneToMany, ManyToOne, OneToOne:
+		default:
+			return fmt.Errorf(
+				"type %q: relationship %q cardinality must be one of OneToMany, ManyToOne, OneToOne (got %q)",
+				typeName, rel.Name, rel.Cardinality)
+		}
+		if seen[rel.Name] {
+			return fmt.Errorf(
+				"type %q: relationship %q is declared more than once; an embed resolves the first and the rest are unreachable",
+				typeName, rel.Name)
+		}
+		seen[rel.Name] = true
+	}
+
+	definition.Relationships = append(definition.Relationships, relationships...)
+	reg.types[typeName] = definition
 	return nil
 }
 

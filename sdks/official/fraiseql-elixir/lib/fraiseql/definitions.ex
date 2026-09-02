@@ -151,6 +151,8 @@ defmodule FraiseQL.TypeDefinition do
     * `:is_input` — whether this is a GraphQL input type; defaults to `false`
     * `:relay` — whether this type participates in Relay pagination; defaults to `false`
     * `:is_error` — whether this type represents a mutation error shape; defaults to `false`
+    * `:relationships` — list of `FraiseQL.Relationship` structs followed by REST resource
+      embedding (#1266); defaults to `[]`
   """
 
   @enforce_keys [:name, :sql_source]
@@ -163,7 +165,8 @@ defmodule FraiseQL.TypeDefinition do
     relay: false,
     is_error: false,
     crud: false,
-    cascade: false
+    cascade: false,
+    relationships: []
   ]
 
   @type t :: %__MODULE__{
@@ -175,8 +178,83 @@ defmodule FraiseQL.TypeDefinition do
           relay: boolean(),
           is_error: boolean(),
           crud: boolean() | [atom()],
-          cascade: boolean()
+          cascade: boolean(),
+          relationships: [FraiseQL.Relationship.t()]
         }
+end
+
+defmodule FraiseQL.Relationship do
+  @moduledoc """
+  A relationship to another type, followed by REST resource embedding (#1266).
+
+  `:name` is what a client writes in `?select=orders(id,total)`, `?select=orders.count`
+  and `?orders.status=paid`; it is also what the generated client's `relationships`
+  module and the served OpenAPI document publish.
+
+  `:foreign_key` and `:referenced_key` are SQL **column** names, and which side each is
+  read from swaps with the cardinality — `"OneToMany"` reads `:referenced_key` off the
+  declaring type and filters `:foreign_key` on the target; `"ManyToOne"` and `"OneToOne"`
+  do the reverse. Under the default `camelCase` naming convention the column `fk_user` is
+  published as the field `fkUser`, and the compiler resolves one to the other.
+
+  Which relationships are *followable* is the compiler's business, not this SDK's: it
+  refuses a target type it does not declare, a join column no field on that side
+  publishes, and a target no list query returns. This SDK carries no second copy of those
+  rules; a copy is what drifts.
+
+  ## Fields
+
+    * `:name` — the relationship name
+    * `:target_type` — target type name; must be returned by some **list** query
+    * `:cardinality` — `"OneToMany"`, `"ManyToOne"` or `"OneToOne"`
+    * `:foreign_key` — foreign key column on the child table
+    * `:referenced_key` — referenced key column on the parent table
+  """
+
+  @cardinalities ["OneToMany", "ManyToOne", "OneToOne"]
+
+  @enforce_keys [:name, :target_type, :cardinality, :foreign_key, :referenced_key]
+  defstruct [:name, :target_type, :cardinality, :foreign_key, :referenced_key]
+
+  @type t :: %__MODULE__{
+          name: String.t(),
+          target_type: String.t(),
+          cardinality: String.t(),
+          foreign_key: String.t(),
+          referenced_key: String.t()
+        }
+
+  @doc "The cardinalities a relationship may declare."
+  def cardinalities, do: @cardinalities
+
+  @doc """
+  Build a relationship from a keyword list, raising on a shape this SDK can reject.
+
+  Only the shape this SDK owns is checked — a blank key, an unknown cardinality. Whether
+  the relationship can be *followed* is checked by the compiler against the whole schema,
+  which is the only place that knows.
+  """
+  def new!(opts) do
+    values =
+      for key <- [:name, :target_type, :cardinality, :foreign_key, :referenced_key], into: %{} do
+        value = Keyword.get(opts, key)
+
+        if !is_binary(value) or value == "" do
+          raise ArgumentError,
+                "relationship #{key} must be a non-empty string, got: #{inspect(value)}"
+        end
+
+        {key, value}
+      end
+
+    if values.cardinality not in @cardinalities do
+      raise ArgumentError,
+            "relationship cardinality must be one of #{inspect(@cardinalities)}, " <>
+              "got: #{inspect(values.cardinality)}"
+    end
+
+    struct!(__MODULE__, Map.to_list(values))
+  end
 end
 
 defmodule FraiseQL.QueryDefinition do

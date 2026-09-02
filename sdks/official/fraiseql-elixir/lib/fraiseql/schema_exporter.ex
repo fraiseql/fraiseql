@@ -147,6 +147,23 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put_bool("relay", t.relay)
     |> maybe_put_bool("is_input", t.is_input)
     |> maybe_put_bool("is_error", t.is_error)
+    # #1266: emitted only when non-empty, so a type declaring none is byte-identical to
+    # pre-#1266 output.
+    |> maybe_put("relationships", relationships_to_list(t.relationships))
+  end
+
+  defp relationships_to_list([]), do: nil
+
+  defp relationships_to_list(relationships) do
+    Enum.map(relationships, fn r ->
+      %{
+        "name" => r.name,
+        "target_type" => r.target_type,
+        "cardinality" => r.cardinality,
+        "foreign_key" => r.foreign_key,
+        "referenced_key" => r.referenced_key
+      }
+    end)
   end
 
   defp field_to_map(%FraiseQL.FieldDefinition{} = f) do

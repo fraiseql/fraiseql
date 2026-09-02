@@ -9,7 +9,7 @@ use fraiseql_core::schema::{
 use super::{
     executor::{
         declared_key, extract_join_key, extract_query_data, find_list_query_for_type,
-        parent_join_column, set_empty_embedding, target_join_column,
+        set_empty_embedding,
     },
     project_missing_join_keys, required_join_keys, strip_projected_keys,
 };
@@ -47,7 +47,7 @@ fn embed(relationship: &str) -> EmbeddedSpec {
 mod declared_spelling {
     use super::{Cardinality, declared_key, extract_join_key, rel, schema_declaring};
 
-    /// **The collision this exists to prevent.** `[[relationships]]` names SQL
+    /// **The collision this exists to prevent.** A relationship names SQL
     /// columns (`fk_user`), but since 2.15.0 `where` accepts only the declared
     /// spelling. Handing the raw column to the parser would make the server
     /// refuse its own parent-scoping predicate, and every embedded list would
@@ -140,16 +140,16 @@ fn extract_join_key_missing_field_returns_none() {
 #[test]
 fn the_parent_and_target_columns_are_opposite_ends_of_the_same_relationship() {
     let many_to_one = rel("author", "User", Cardinality::ManyToOne);
-    assert_eq!(parent_join_column(&many_to_one), "fk_user");
-    assert_eq!(target_join_column(&many_to_one), "id");
+    assert_eq!(many_to_one.parent_join_column(), "fk_user");
+    assert_eq!(many_to_one.target_join_column(), "id");
 
     let one_to_many = rel("posts", "Post", Cardinality::OneToMany);
-    assert_eq!(parent_join_column(&one_to_many), "id");
-    assert_eq!(target_join_column(&one_to_many), "fk_user");
+    assert_eq!(one_to_many.parent_join_column(), "id");
+    assert_eq!(one_to_many.target_join_column(), "fk_user");
 
     let one_to_one = rel("profile", "Profile", Cardinality::OneToOne);
-    assert_eq!(parent_join_column(&one_to_one), "fk_user");
-    assert_eq!(target_join_column(&one_to_one), "id");
+    assert_eq!(one_to_one.parent_join_column(), "fk_user");
+    assert_eq!(one_to_one.target_join_column(), "id");
 }
 
 /// #1230: `?select=id,author(name)` must project `fk_user`, because the embed is

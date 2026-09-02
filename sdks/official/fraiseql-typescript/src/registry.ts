@@ -84,6 +84,97 @@ export interface TypeDefinition {
   is_error?: boolean;
   requires_role?: string;
   implements?: string[];
+  relationships?: Relationship[];
+}
+
+/** Cardinalities a relationship may declare. */
+export type Cardinality = "OneToMany" | "ManyToOne" | "OneToOne";
+
+/**
+ * A relationship to another type, followed by REST resource embedding (#1266).
+ *
+ * The name is what a client writes in `?select=orders(id,total)`,
+ * `?select=orders.count` and `?orders.status=paid`; it is also what the generated
+ * client's `relationships` module and the served OpenAPI document publish.
+ *
+ * `foreignKey` and `referencedKey` are SQL **column** names, and which side each is read
+ * from swaps with the cardinality — `OneToMany` reads `referencedKey` off the declaring
+ * type and filters `foreignKey` on the target; `ManyToOne` and `OneToOne` do the reverse.
+ * Under the default `camelCase` naming convention the column `fk_user` is published as
+ * the field `fkUser`, and the compiler resolves one to the other.
+ *
+ * Which relationships are *followable* is the compiler's business, not this SDK's: it
+ * refuses a target type it does not declare, a join column no field on that side
+ * publishes, and a target no list query returns. This SDK carries no second copy of
+ * those rules; a copy is what drifts.
+ *
+ * @example
+ * ```ts
+ * registerTypeFields("User", [{ name: "id", type: "ID", nullable: false }], undefined, {
+ *   sqlSource: "v_user",
+ *   relationships: [
+ *     { name: "orders", targetType: "Order", cardinality: "OneToMany",
+ *       foreignKey: "fk_user", referencedKey: "id" },
+ *   ],
+ * });
+ * ```
+ */
+export interface Relationship {
+  /** Relationship name — the key in `?select=` and in the response. */
+  name: string;
+  /**
+   * Target GraphQL type name. Must be a declared type that some **list** query returns:
+   * an embed sources its rows from that query.
+   */
+  targetType: string;
+  cardinality: Cardinality;
+  /** Foreign key **column** on the child table, e.g. `"fk_user"`. */
+  foreignKey: string;
+  /** Referenced key **column** on the parent table, e.g. `"id"`. */
+  referencedKey: string;
+}
+
+const CARDINALITIES: readonly Cardinality[] = ["OneToMany", "ManyToOne", "OneToOne"];
+
+/**
+ * Check one type's relationships and render them in the AuthoringIR's snake_case spelling.
+ *
+ * Only the shape this SDK owns is checked — a missing or mis-spelled key, and a name
+ * declared twice, which no compiler diagnostic can attribute back to a call site.
+ * Whether a relationship can be *followed* is checked by the compiler against the whole
+ * schema, which is the only place that knows.
+ */
+function projectRelationships(typeName: string, relationships: Relationship[]): unknown[] {
+  const seen = new Set<string>();
+  return relationships.map((rel) => {
+    for (const key of ["name", "targetType", "foreignKey", "referencedKey"] as const) {
+      if (typeof rel[key] !== "string" || rel[key].length === 0) {
+        throw new Error(
+          `registerType('${typeName}'): relationship ${key} must be a non-empty string.`
+        );
+      }
+    }
+    if (!CARDINALITIES.includes(rel.cardinality)) {
+      throw new Error(
+        `registerType('${typeName}'): relationship '${rel.name}' cardinality must be one of ` +
+          `${CARDINALITIES.join(", ")} (got ${JSON.stringify(rel.cardinality)}).`
+      );
+    }
+    if (seen.has(rel.name)) {
+      throw new Error(
+        `registerType('${typeName}'): relationship '${rel.name}' is declared more than once; ` +
+          `an embed resolves the first and the rest are unreachable.`
+      );
+    }
+    seen.add(rel.name);
+    return {
+      name: rel.name,
+      target_type: rel.targetType,
+      cardinality: rel.cardinality,
+      foreign_key: rel.foreignKey,
+      referenced_key: rel.referencedKey,
+    };
+  });
 }
 
 /**
@@ -733,6 +824,7 @@ export class SchemaRegistry {
       isError?: boolean;
       requiresRole?: string;
       implements?: string[];
+      relationships?: Relationship[];
     }
   ): void {
     // `@Type()` registers the name with no fields, because TypeScript erases field
@@ -763,6 +855,14 @@ export class SchemaRegistry {
     if (options?.isError) typeDef.is_error = true;
     if (options?.requiresRole) typeDef.requires_role = options.requiresRole;
     if (options?.implements) typeDef.implements = options.implements;
+    // #1266: emitted only when non-empty, so a type declaring none is byte-identical
+    // to pre-#1266 output.
+    if (options?.relationships?.length) {
+      typeDef.relationships = projectRelationships(
+        name,
+        options.relationships
+      ) as unknown as Relationship[];
+    }
     this.types.set(name, typeDef);
   }
 

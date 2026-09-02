@@ -38,7 +38,7 @@ pub use subscriptions::{
 };
 pub use types::{
     IntermediateDeprecation, IntermediateEnum, IntermediateEnumValue, IntermediateField,
-    IntermediateScalar, IntermediateType,
+    IntermediateRelationship, IntermediateScalar, IntermediateType,
 };
 
 /// Intermediate schema - universal format from all language libraries

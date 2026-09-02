@@ -28,8 +28,8 @@ pub(super) struct EmbedCtx<'a, A: DatabaseAdapter> {
 /// The spelling `type_name` publishes for the storage column `column`.
 ///
 /// A relationship's `foreign_key`/`referenced_key` are SQL **column** names
-/// (`fk_author`, per `[[relationships]]` in `fraiseql.toml`), but neither side of
-/// an embed speaks storage:
+/// (`fk_author`, per `[types.X.relationships]` in `fraiseql.toml` or the SDKs'
+/// `relationships` declaration), but neither side of an embed speaks storage:
 ///
 /// * the join predicate is handed to the same `where` parser a client's filter goes through, and
 ///   since 2.15.0 that parser accepts only the name the schema *declares*;
@@ -45,43 +45,20 @@ pub(super) struct EmbedCtx<'a, A: DatabaseAdapter> {
 /// `f.name`: anything the server composes against the published surface speaks that
 /// surface, and the lowering back to storage happens once, inside the parser.
 ///
+/// The column→field lookup itself lives on
+/// [`TypeDefinition::field_for_column`](fraiseql_core::schema::TypeDefinition::field_for_column),
+/// shared with the load-time check that refuses a relationship whose join key no field
+/// publishes (#1266) — a check resolving the column differently from this function would
+/// pass exactly the schemas this function cannot follow.
+///
 /// Falls back to the column as written when the schema cannot name the type or
-/// declares no field matching it — that level is unadjudicated anyway (#939),
-/// so passing it through is strictly better than inventing a spelling.
+/// declares no field matching it. Since #1266 a compiled schema reaching this point
+/// has been checked, so the fallback covers only the unadjudicated level (#939).
 pub(super) fn declared_key(schema: &CompiledSchema, type_name: &str, column: &str) -> String {
-    let storage = fraiseql_core::utils::to_snake_case(column);
     schema
         .find_type(type_name)
-        .and_then(|td| {
-            td.fields
-                .iter()
-                .find(|f| fraiseql_core::utils::to_snake_case(f.name.as_str()) == storage)
-                .map(|f| f.name.to_string())
-        })
+        .and_then(|td| td.field_for_column(column).map(|f| f.name.to_string()))
         .unwrap_or_else(|| column.to_string())
-}
-
-/// The column an embed of `rel` reads off the **parent** row.
-///
-/// `OneToMany` hangs the foreign key on the child, so the parent side is its
-/// `referenced_key` — conventionally `id`, which a client selects anyway, which is
-/// why #1230 hid here for so long. `ManyToOne`/`OneToOne` hold the key themselves,
-/// so the parent side is the `foreign_key` — the one column a client asking for
-/// `author` has no reason to select.
-pub(super) const fn parent_join_column(rel: &Relationship) -> &String {
-    match rel.cardinality {
-        Cardinality::ManyToOne | Cardinality::OneToOne => &rel.foreign_key,
-        _ => &rel.referenced_key,
-    }
-}
-
-/// The column the join predicate filters on the **target** row — the mirror of
-/// [`parent_join_column`], stated once so the two can never drift apart.
-pub(super) const fn target_join_column(rel: &Relationship) -> &String {
-    match rel.cardinality {
-        Cardinality::ManyToOne | Cardinality::OneToOne => &rel.referenced_key,
-        _ => &rel.foreign_key,
-    }
 }
 
 /// Embed related resources into each row of a parent array.
@@ -122,7 +99,7 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
     // Build WHERE clause for the sub-query: fk_column = parent_key_value.
     let mut join_predicate = serde_json::Map::new();
     join_predicate.insert(
-        declared_key(ctx.schema, &rel.target_type, target_join_column(rel)),
+        declared_key(ctx.schema, &rel.target_type, rel.target_join_column()),
         serde_json::json!({ "eq": parent_key_value }),
     );
 
@@ -223,7 +200,7 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
 
 /// Extract the join key value from a parent row.
 ///
-/// Reads [`parent_join_column`] in the spelling `parent_type` publishes it under,
+/// Reads [`Relationship::parent_join_column`] in the spelling `parent_type` publishes it
 /// because the row was projected under declared names, not storage ones — see
 /// [`declared_key`].
 ///
@@ -237,7 +214,7 @@ pub(super) fn extract_join_key(
     row: &serde_json::Value,
     rel: &Relationship,
 ) -> Option<serde_json::Value> {
-    let key_field = declared_key(schema, parent_type, parent_join_column(rel));
+    let key_field = declared_key(schema, parent_type, rel.parent_join_column());
     row.get(key_field.as_str()).cloned().filter(|v| !v.is_null())
 }
 
@@ -289,7 +266,7 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
 
     let mut join_predicate = serde_json::Map::new();
     join_predicate.insert(
-        declared_key(ctx.schema, &rel.target_type, target_join_column(rel)),
+        declared_key(ctx.schema, &rel.target_type, rel.target_join_column()),
         serde_json::json!({ "eq": parent_key_value }),
     );
 

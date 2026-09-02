@@ -286,6 +286,7 @@ final class StaticAPI
             isError: $builder->getIsError(),
             crud: $builder->getCrud(),
             cascade: $builder->getCascade(),
+            relationships: $builder->getRelationships(),
         );
 
         $types[$builder->getName()] = $typeAttr;

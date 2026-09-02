@@ -206,6 +206,15 @@ final class SchemaExporter
                 if ($typeAttr->isError) {
                     $typeDef['is_error'] = true;
                 }
+
+                // #1266: emitted only when non-empty, so a type declaring none is
+                // byte-identical to pre-#1266 output.
+                if ($typeAttr->relationships !== []) {
+                    $typeDef['relationships'] = array_map(
+                        static fn (\FraiseQL\Relationship $r): array => $r->toArray(),
+                        $typeAttr->relationships,
+                    );
+                }
             }
 
             $types[] = $typeDef;

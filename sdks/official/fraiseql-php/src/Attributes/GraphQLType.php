@@ -33,6 +33,14 @@ final readonly class GraphQLType
      * @param bool $isError Whether this type represents a mutation error type.
      * @param bool $crud When true, auto-generate CRUD queries and mutations for this type.
      * @param bool $cascade When true, generated CRUD mutations include cascade support.
+     * @param list<\FraiseQL\Relationship> $relationships Relationships to other types,
+     *        followed by REST resource embedding (#1266) — `?select=orders(id,total)`,
+     *        `?select=orders.count`, `?orders.status=paid` — and published in the served
+     *        OpenAPI document and the generated client's `relationships` module.
+     *
+     * @throws \FraiseQL\FraiseQLException If a relationship name is declared twice; an
+     *         embed resolves the first and the rest are unreachable, which no compiler
+     *         diagnostic can attribute back to this declaration.
      */
     public function __construct(
         public ?string $name = null,
@@ -43,6 +51,23 @@ final readonly class GraphQLType
         public bool $isError = false,
         public bool $crud = false,
         public bool $cascade = false,
+        public array $relationships = [],
     ) {
+        $seen = [];
+        foreach ($relationships as $relationship) {
+            if (!$relationship instanceof \FraiseQL\Relationship) {
+                throw new \FraiseQL\FraiseQLException(
+                    'relationships must be a list of FraiseQL\Relationship',
+                );
+            }
+            if (isset($seen[$relationship->name])) {
+                throw new \FraiseQL\FraiseQLException(sprintf(
+                    'relationship "%s" is declared more than once; an embed resolves the '
+                        . 'first and the rest are unreachable',
+                    $relationship->name,
+                ));
+            }
+            $seen[$relationship->name] = true;
+        }
     }
 }

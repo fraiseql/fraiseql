@@ -136,6 +136,64 @@ pub struct IntermediateType {
     /// `false`/absent (the default) captures the after-image only.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub subscribable_pre_image: bool,
+
+    /// Relationships to other types, the declarations REST resource embedding follows
+    /// (#1266).
+    ///
+    /// Threaded verbatim to `TypeDefinition.relationships`. Until this key existed the
+    /// compiled field had no producer at all: every converter wrote the empty vector and
+    /// `deny_unknown_fields` above turned an SDK that emitted the key into a refusal of
+    /// the whole document — so `?select=posts(id,title)`, `?select=posts.count`,
+    /// `?posts.status=`, the `OpenAPI` relationship properties and the generated
+    /// `relationships.*` client modules were reachable only from a hand-written
+    /// `schema.compiled.json`.
+    ///
+    /// A relationship the embed executor could not follow — an undeclared target, a join
+    /// column no field publishes, a target no list query returns — is refused at compile
+    /// time and again when the compiled schema loads. That check is the durable half:
+    /// #1230 was a join key the projection omitted, served as `null` under a 200.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<IntermediateRelationship>,
+}
+
+/// A relationship in intermediate format (#1266).
+///
+/// Reuses the compiled-schema [`Cardinality`](fraiseql_core::schema::Cardinality)
+/// directly, for the reason `FieldDefinition::vector` reuses `VectorConfig`: the authored
+/// and compiled shapes cannot then drift.
+///
+/// `foreign_key` and `referenced_key` are SQL **column** names — the foreign key lives on
+/// the child table and the referenced key on the parent, whichever side of the
+/// relationship each happens to be:
+///
+/// | `cardinality` | key read off the **declaring** type | key filtered on the **target** |
+/// |---|---|---|
+/// | `OneToMany` | `referenced_key` | `foreign_key` |
+/// | `ManyToOne` | `foreign_key` | `referenced_key` |
+/// | `OneToOne` | `foreign_key` | `referenced_key` |
+///
+/// Both are required here, unlike the compiled struct where they carry `#[serde(default)]`
+/// — an empty join column is a relationship no embed can compose a predicate for, and an
+/// author who omits one should learn that from the parse error rather than from an empty
+/// array on a 200.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntermediateRelationship {
+    /// Relationship name — the key in `?select=<name>(...)` and in the response.
+    pub name: String,
+
+    /// Target GraphQL type name, e.g. `"Post"`. Must be a declared type that some list
+    /// query returns; the embed sources its rows from that query.
+    pub target_type: String,
+
+    /// `OneToMany`, `ManyToOne` or `OneToOne`.
+    pub cardinality: fraiseql_core::schema::Cardinality,
+
+    /// Foreign key column on the child table, e.g. `fk_author`.
+    pub foreign_key: String,
+
+    /// Referenced key column on the parent table, e.g. `id`.
+    pub referenced_key: String,
 }
 
 /// Field definition in intermediate format

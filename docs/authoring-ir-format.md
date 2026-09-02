@@ -300,6 +300,48 @@ connection already exposes `totalCount` over the same rows.
 }
 ```
 
+## Relationships (#1266)
+
+A type may declare relationships the REST transport embeds — `?select=orders(id,total)`,
+`?select=orders.count`, `?orders.status=paid`. They are also advertised per type in the
+served OpenAPI document and emitted by the client generator as `relationships.{ts,rs,go,py}`.
+
+```json
+{
+  "name": "User",
+  "sql_source": "v_user",
+  "fields": [{ "name": "id", "type": "ID", "nullable": false }],
+  "relationships": [
+    {
+      "name": "orders",
+      "target_type": "Order",
+      "cardinality": "OneToMany",
+      "foreign_key": "fk_user",
+      "referenced_key": "id"
+    }
+  ]
+}
+```
+
+`foreign_key` and `referenced_key` are SQL **column** names, not the declared field names.
+Under the default `camelCase` naming convention the column `fk_user` is published as the
+field `fkUser`, and the compiler resolves one to the other — so a generator that emits the
+declared name here produces a schema no embed can follow.
+
+Which side each key is read from swaps with the cardinality:
+
+| `cardinality` | read off the **declaring** type's row | filtered on the **target** row |
+|---|---|---|
+| `OneToMany` | `referenced_key` | `foreign_key` |
+| `ManyToOne` | `foreign_key` | `referenced_key` |
+| `OneToOne` | `foreign_key` | `referenced_key` |
+
+`fraiseql compile` **refuses** a relationship no embed could follow, rather than emitting
+one that resolves to `[]` or `null` under a 200: an undeclared `target_type`, a join column
+naming no field of the side it is read from, a `target_type` returned by no **list** query,
+an empty key, or one name declared twice on a type. The compiled schema is checked again at
+load, so a hand-edited artifact cannot carry one either.
+
 ## Server-Injected Parameters
 
 Use `inject_params` to pass server-side context (e.g. JWT claims) as SQL parameters

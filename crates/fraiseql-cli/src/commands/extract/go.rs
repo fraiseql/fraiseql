@@ -50,6 +50,10 @@ impl SchemaExtractor for GoExtractor {
                 embedded: false,
                 subscribable_tables: None,
                 subscribable_pre_image: false,
+                // `extract` scrapes source text; no language has a relationship annotation for it
+                // to find, and it already omits `inject_params` and `subscribable_tables` on the
+                // same grounds. Authoring one goes through the SDK or `fraiseql.toml` (#1266).
+                relationships: Vec::new(),
                 inject_params: indexmap::IndexMap::new(),
             });
         }

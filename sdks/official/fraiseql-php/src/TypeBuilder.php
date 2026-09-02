@@ -33,6 +33,9 @@ final class TypeBuilder
     private bool $crudValue = false;
     private bool $cascadeValue = false;
 
+    /** @var list<Relationship> Relationships followed by REST resource embedding (#1266). */
+    private array $relationships = [];
+
     /**
      * Create a new TypeBuilder for a type.
      *
@@ -244,6 +247,31 @@ final class TypeBuilder
      *
      * @return bool
      */
+    /**
+     * Declare a relationship followed by REST resource embedding (#1266).
+     *
+     * Passed through to `#[GraphQLType(relationships: ...)]` when the builder is
+     * registered, because the attribute is what `SchemaExporter` reads — the arrangement
+     * #952 established after `sqlSource` and `isError` were diverted into a side table
+     * no shipped path serialized.
+     */
+    public function relationship(Relationship $relationship): self
+    {
+        $this->relationships[] = $relationship;
+
+        return $this;
+    }
+
+    /**
+     * The relationships declared on this builder (#1266).
+     *
+     * @return list<Relationship>
+     */
+    public function getRelationships(): array
+    {
+        return $this->relationships;
+    }
+
     public function getCrud(): bool
     {
         return $this->crudValue;

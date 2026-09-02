@@ -18,11 +18,18 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use FraiseQL\ActorType;
 use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\Attributes\GraphQLType;
+use FraiseQL\Relationship;
 use FraiseQL\SchemaExporter;
 use FraiseQL\StaticAPI;
 use FraiseQL\VectorConfig;
 
-#[GraphQLType(name: 'User', sqlSource: 'v_user', relay: true)]
+// Both directions, deliberately (#1266): which join column is read off which side swaps
+// with the cardinality, so a fixture carrying only `OneToMany` would be uniform in
+// exactly the dimension that selects the branch. The keys name SQL **columns**
+// (`fk_user`) while `Order` publishes the field as `fkUser`.
+#[GraphQLType(name: 'User', sqlSource: 'v_user', relay: true, relationships: [
+    new Relationship('orders', 'Order', Relationship::ONE_TO_MANY, 'fk_user', 'id'),
+])]
 final class ConformanceUser
 {
     #[GraphQLField(type: 'ID', nullable: false)]
@@ -53,7 +60,9 @@ final class ConformanceUser
     public ?string $phone1;
 }
 
-#[GraphQLType(name: 'Order', sqlSource: 'v_order')]
+#[GraphQLType(name: 'Order', sqlSource: 'v_order', relationships: [
+    new Relationship('user', 'User', Relationship::MANY_TO_ONE, 'fk_user', 'id'),
+])]
 final class ConformanceOrder
 {
     #[GraphQLField(type: 'ID', nullable: false)]
@@ -64,6 +73,10 @@ final class ConformanceOrder
 
     #[GraphQLField(type: 'String', nullable: false)]
     public string $status;
+
+    // The column `User.orders` joins on, published under the naming convention.
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $fkUser;
 }
 
 // `crud` is an authoring-time expansion the compiler has no concept of, so the only

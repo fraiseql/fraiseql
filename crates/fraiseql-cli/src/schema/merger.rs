@@ -338,9 +338,13 @@ impl SchemaMerger {
         enriched_type: &mut Value,
         toml_type: &crate::config::toml_schema::TypeDefinition,
     ) {
-        enriched_type["sql_source"] = json!(toml_type.sql_source);
-        if let Some(desc) = &toml_type.description {
-            enriched_type["description"] = json!(desc);
+        // The overlay half of the shared emitter (#1266): every key TOML contributes to
+        // a type, minus identity and `fields`, which the SDK's `schema.json` owns here.
+        // Written as a merge rather than a replacement for that reason — and reading the
+        // key list from one place is what stops a new TOML type key from reaching the
+        // compiler on the TOML-only path and vanishing on the `--types` one.
+        for (key, value) in toml_type.intermediate_overlay() {
+            enriched_type[key] = value;
         }
     }
 
@@ -565,18 +569,11 @@ impl SchemaMerger {
 
         for (type_name, toml_type) in &toml_schema.types {
             if !existing_type_names.contains(type_name) {
-                types_array.push(json!({
-                    "name": type_name,
-                    "sql_source": toml_type.sql_source,
-                    "description": toml_type.description,
-                    // One emitter, shared with `TomlSchema::to_intermediate_schema`
-                    // (#959): the two hand-built copies had drifted, and the
-                    // symptom of the drift is an authored key that silently does
-                    // nothing on one of the two TOML paths.
-                    "fields": toml_type.fields.iter()
-                        .map(|(fname, fdef)| fdef.to_intermediate_json(fname))
-                        .collect::<Vec<_>>(),
-                }));
+                // One emitter, shared with `TomlSchema::to_intermediate_schema` (#959,
+                // widened from fields to the whole type by #1266): the hand-built copies
+                // had drifted, and the symptom of the drift is an authored key that
+                // silently does nothing on one of the TOML paths.
+                types_array.push(toml_type.to_intermediate_json(type_name));
             }
         }
 

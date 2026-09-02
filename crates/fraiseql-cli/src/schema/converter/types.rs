@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use fraiseql_core::{
     schema::{
         EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy, FieldType,
-        InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
-        UnionDefinition,
+        InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, Relationship,
+        TypeDefinition, UnionDefinition,
     },
     validation::CustomTypeDef,
 };
@@ -61,6 +61,24 @@ impl SchemaConverter {
         // function as the operation path, so an unsupported source is refused here too
         // rather than compiling to a type that declares scoping and carries none.
         let type_name = intermediate.name.clone();
+
+        // Threaded verbatim: the compiled struct is the authored one, field for field
+        // (#1266). Whether the relationship can actually be followed — target declared,
+        // join columns published as fields, target reachable through a list query — needs
+        // the whole schema and so is checked once it is assembled, in
+        // `validate_relationships`.
+        let relationships = intermediate
+            .relationships
+            .into_iter()
+            .map(|r| Relationship {
+                name:           r.name,
+                target_type:    r.target_type,
+                cardinality:    r.cardinality,
+                foreign_key:    r.foreign_key,
+                referenced_key: r.referenced_key,
+            })
+            .collect();
+
         let inject_params = intermediate
             .inject_params
             .into_iter()
@@ -84,7 +102,7 @@ impl SchemaConverter {
             relay: intermediate.relay,
             embedded: intermediate.embedded,
             internal: false,
-            relationships: Vec::new(),
+            relationships,
             inject_params,
             subscription_policy: None,
         })

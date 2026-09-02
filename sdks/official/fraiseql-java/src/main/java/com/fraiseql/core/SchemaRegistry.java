@@ -1,8 +1,10 @@
 package com.fraiseql.core;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -102,6 +104,7 @@ public class SchemaRegistry {
         String annotationSqlSource = null;
         boolean crud = false;
         boolean cascade = false;
+        List<GraphQLRelationship> relationships = Collections.emptyList();
         if (hasGraphQLType) {
             GraphQLType annotation = typeClass.getAnnotation(GraphQLType.class);
             if (annotation.name() != null && !annotation.name().isEmpty()) {
@@ -114,6 +117,7 @@ public class SchemaRegistry {
             }
             crud = annotation.crud();
             cascade = annotation.cascade();
+            relationships = checkRelationships(name, annotation.relationships());
         } else if (hasFactTable) {
             GraphQLFactTable ftAnnotation = typeClass.getAnnotation(GraphQLFactTable.class);
             typeDescription = ftAnnotation.description();
@@ -141,7 +145,8 @@ public class SchemaRegistry {
             relay,
             false,
             requiresRole,
-            sqlSource
+            sqlSource,
+            relationships
         );
 
         types.put(name, typeInfo);
@@ -182,6 +187,48 @@ public class SchemaRegistry {
 
         types.put(name, typeInfo);
     }
+
+    /**
+     * Check one type's relationships and return them in declaration order (#1266).
+     *
+     * <p>Only the shape this SDK owns is checked — a blank key, an unknown cardinality,
+     * and a name declared twice, which no compiler diagnostic can attribute back to an
+     * annotation. Whether a relationship can be <em>followed</em> is checked by the
+     * compiler against the whole schema, which is the only place that knows.
+     */
+    private static List<GraphQLRelationship> checkRelationships(
+            String typeName, GraphQLRelationship[] relationships) {
+        List<GraphQLRelationship> checked = new ArrayList<>(relationships.length);
+        Set<String> seen = new LinkedHashSet<>();
+        for (GraphQLRelationship rel : relationships) {
+            Map<String, String> required = new LinkedHashMap<>();
+            required.put("name", rel.name());
+            required.put("targetType", rel.targetType());
+            required.put("foreignKey", rel.foreignKey());
+            required.put("referencedKey", rel.referencedKey());
+            for (Map.Entry<String, String> entry : required.entrySet()) {
+                if (entry.getValue() == null || entry.getValue().isEmpty()) {
+                    throw new IllegalArgumentException("Type " + typeName + ": relationship "
+                        + entry.getKey() + " must not be empty");
+                }
+            }
+            if (!RELATIONSHIP_CARDINALITIES.contains(rel.cardinality())) {
+                throw new IllegalArgumentException("Type " + typeName + ": relationship "
+                    + rel.name() + " cardinality must be one of " + RELATIONSHIP_CARDINALITIES
+                    + " (got \"" + rel.cardinality() + "\")");
+            }
+            if (!seen.add(rel.name())) {
+                throw new IllegalArgumentException("Type " + typeName + ": relationship "
+                    + rel.name() + " is declared more than once; an embed resolves the first "
+                    + "and the rest are unreachable");
+            }
+            checked.add(rel);
+        }
+        return checked;
+    }
+
+    private static final List<String> RELATIONSHIP_CARDINALITIES =
+        Collections.unmodifiableList(Arrays.asList("OneToMany", "ManyToOne", "OneToOne"));
 
     /** Convert CamelCase to snake_case (e.g. "OrderItem" → "v_order_item"). */
     private static String toSnakeCase(String name) {
@@ -692,6 +739,8 @@ public class SchemaRegistry {
         public final boolean isError;
         public final String requiresRole;
         public final String sqlSource;
+        /** Relationships followed by REST resource embedding (#1266); never null. */
+        public final List<GraphQLRelationship> relationships;
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
                                String description) {
@@ -703,12 +752,20 @@ public class SchemaRegistry {
             this(name, javaClass, fields, description, relay, false, null, null);
         }
 
+        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
+                               String description, boolean relay, boolean isError,
+                               String requiresRole, String sqlSource) {
+            this(name, javaClass, fields, description, relay, isError, requiresRole, sqlSource,
+                 Collections.emptyList());
+        }
+
         /**
          * Creates a GraphQLTypeInfo with the values given.
          */
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
                                String description, boolean relay, boolean isError,
-                               String requiresRole, String sqlSource) {
+                               String requiresRole, String sqlSource,
+                               List<GraphQLRelationship> relationships) {
             this.name = name;
             this.javaClass = javaClass;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
@@ -717,6 +774,7 @@ public class SchemaRegistry {
             this.isError = isError;
             this.requiresRole = requiresRole;
             this.sqlSource = sqlSource;
+            this.relationships = Collections.unmodifiableList(new ArrayList<>(relationships));
         }
 
         @Override

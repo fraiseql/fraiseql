@@ -500,6 +500,7 @@ fn test_convert_type_with_fields() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -625,6 +626,7 @@ fn test_convert_query_with_arguments() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -718,6 +720,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -800,6 +803,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -916,6 +920,7 @@ fn test_convert_field_with_deprecated_directive() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1355,6 +1360,7 @@ fn test_convert_type_implements_interface() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1450,6 +1456,7 @@ fn test_validate_unknown_interface() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1525,6 +1532,7 @@ fn test_validate_missing_interface_field() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1615,6 +1623,7 @@ fn test_convert_union() {
                 subscribable_tables:    None,
                 subscribable_pre_image: false,
                 inject_params:          indexmap::IndexMap::new(),
+                relationships:          Vec::new(),
             },
             IntermediateType {
                 name:                   "Post".to_string(),
@@ -1643,6 +1652,7 @@ fn test_convert_union() {
                 subscribable_tables:    None,
                 subscribable_pre_image: false,
                 inject_params:          indexmap::IndexMap::new(),
+                relationships:          Vec::new(),
             },
         ],
         enums:             vec![],
@@ -1769,6 +1779,7 @@ fn test_convert_field_requires_scope() {
             subscribable_tables:    None,
             subscribable_pre_image: false,
             inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
         }],
         enums:             vec![],
         input_types:       vec![],
@@ -1908,6 +1919,7 @@ mod tenancy_tests {
             subscribable_tables: None,
             subscribable_pre_image: false,
             inject_params: indexmap::IndexMap::new(),
+            relationships: Vec::new(),
         }
     }
 
@@ -3627,4 +3639,108 @@ fn count_sibling_inherits_the_lists_restrictions() {
     let args = count.graphql_arguments(&fraiseql_core::schema::CompiledSchema::default());
     let arg_names: Vec<&str> = args.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(arg_names, vec!["where"], "the exposed surface is `where` alone");
+}
+
+// ── #1266 relationships: the authoring surface, and the refusals it enables ───
+
+/// The whole document as JSON, so each case can mutate one key and re-convert.
+///
+/// Authored as `schema.json` rather than by building `IntermediateType` literally: the
+/// point of #1266 is that the *wire* document may now carry `relationships`, and
+/// `IntermediateType` denies unknown fields — so a document that deserializes at all is
+/// itself part of what is asserted.
+fn relationship_ir() -> serde_json::Value {
+    serde_json::json!({
+      "types": [
+        {"name": "User", "sql_source": "v_user",
+         "fields": [{"name": "id", "type": "ID", "nullable": false}],
+         "relationships": [{"name": "orders", "target_type": "Order",
+                            "cardinality": "OneToMany",
+                            "foreign_key": "fk_user", "referenced_key": "id"}]},
+        {"name": "Order", "sql_source": "v_order",
+         "fields": [{"name": "id", "type": "ID", "nullable": false},
+                    {"name": "fkUser", "type": "ID", "nullable": false}]}
+      ],
+      "queries": [
+        {"name": "users", "return_type": "User", "returns_list": true, "sql_source": "v_user"},
+        {"name": "orders", "return_type": "Order", "returns_list": true, "sql_source": "v_order"}
+      ]
+    })
+}
+
+fn convert_ir(doc: &serde_json::Value) -> anyhow::Result<fraiseql_core::schema::CompiledSchema> {
+    let intermediate: IntermediateSchema =
+        serde_json::from_value(doc.clone()).expect("the fixture must deserialize");
+    SchemaConverter::convert(intermediate)
+}
+
+/// The positive control, and the whole point of the issue: a relationship authored in
+/// `schema.json` reaches `TypeDefinition.relationships` instead of being replaced by the
+/// empty vector every converter used to write.
+#[test]
+fn an_authored_relationship_reaches_the_compiled_schema() {
+    let compiled = convert_ir(&relationship_ir()).expect("a followable relationship compiles");
+    let user = compiled.find_type("User").expect("User compiles");
+    assert_eq!(user.relationships.len(), 1, "the relationship survives the conversion");
+    let rel = &user.relationships[0];
+    assert_eq!(rel.name, "orders");
+    assert_eq!(rel.target_type, "Order");
+    assert_eq!(rel.cardinality, fraiseql_core::schema::Cardinality::OneToMany);
+    assert_eq!(rel.foreign_key, "fk_user");
+    assert_eq!(rel.referenced_key, "id");
+}
+
+/// The column→field resolution is the compiler's, not the author's: `fk_user` is a SQL
+/// column and `Order` publishes it as `fkUser`. A compiler matching literally would refuse
+/// this document, which is why the fixture spells the two differently.
+#[test]
+fn a_join_column_resolves_against_the_camel_case_field_it_is_published_as() {
+    let mut doc = relationship_ir();
+    doc["types"][1]["fields"][1]["name"] = "fk_user".into();
+    convert_ir(&doc).expect("the snake_case spelling of the same column also resolves");
+    convert_ir(&relationship_ir()).expect("and so does the camelCase one");
+}
+
+/// The refusal is the compile-time half of #1266; `finish_load` runs the same check on
+/// the hand-edited artifact this one cannot reach.
+#[test]
+fn a_relationship_targeting_an_undeclared_type_fails_the_compile() {
+    let mut doc = relationship_ir();
+    doc["types"][0]["relationships"][0]["target_type"] = "Nope".into();
+    let err = convert_ir(&doc).expect_err("an undeclared target must not compile");
+    assert!(
+        err.to_string()
+            .contains("targets type 'Nope', which the schema does not declare"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_relationship_whose_join_column_names_no_field_fails_the_compile() {
+    let mut doc = relationship_ir();
+    doc["types"][0]["relationships"][0]["foreign_key"] = "no_such".into();
+    let err = convert_ir(&doc).expect_err("an unresolvable join column must not compile");
+    assert!(err.to_string().contains("'no_such'"), "{err}");
+    assert!(err.to_string().contains("'Order'"), "the side it is missing from: {err}");
+}
+
+/// An embed sources its rows from the target's list query, so a target without one is a
+/// relationship that answers `[]` before touching the database.
+#[test]
+fn a_relationship_whose_target_has_no_list_query_fails_the_compile() {
+    let mut doc = relationship_ir();
+    doc["queries"][1]["returns_list"] = false.into();
+    let err = convert_ir(&doc).expect_err("a target with no list query must not compile");
+    assert!(err.to_string().contains("no list query"), "{err}");
+}
+
+/// Before #1266 this was the *only* outcome: `IntermediateType` denied the key outright,
+/// so an SDK emitting it had its whole document refused. Pinned as the state the issue
+/// left behind, not as a regression risk.
+#[test]
+fn a_type_declaring_no_relationships_compiles_to_an_empty_vector() {
+    let mut doc = relationship_ir();
+    doc["types"][0].as_object_mut().expect("object").remove("relationships");
+    let compiled = convert_ir(&doc).expect("a type with no relationships compiles");
+    assert!(compiled.find_type("User").expect("User").relationships.is_empty());
 }

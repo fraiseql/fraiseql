@@ -57,4 +57,12 @@ public @interface GraphQLType {
      * When true, generated CRUD mutations include cascade support.
      */
     boolean cascade() default false;
+
+    /**
+     * Relationships to other types, followed by REST resource embedding (#1266).
+     *
+     * <p>Emitted as the type's {@code relationships} array, and only when non-empty, so a
+     * type declaring none is byte-identical to pre-#1266 output.
+     */
+    GraphQLRelationship[] relationships() default {};
 }

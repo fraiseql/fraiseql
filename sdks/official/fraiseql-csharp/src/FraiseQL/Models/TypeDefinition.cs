@@ -11,6 +11,7 @@ namespace FraiseQL.Models;
 /// <param name="Relay">Whether this type supports Relay cursor-based pagination.</param>
 /// <param name="IsError">Whether this type is a mutation error variant.</param>
 /// <param name="Fields">Ordered list of fields on this type.</param>
+/// <param name="Relationships">Relationships followed by REST resource embedding (#1266).</param>
 public record TypeDefinition(
     string Name,
     string SqlSource,
@@ -18,4 +19,5 @@ public record TypeDefinition(
     bool IsInput,
     bool Relay,
     bool IsError,
-    IReadOnlyList<FieldDefinition> Fields);
+    IReadOnlyList<FieldDefinition> Fields,
+    IReadOnlyList<RelationshipDefinition>? Relationships = null);

@@ -60,7 +60,23 @@ function authorFull(): void {
       { name: "phone1", type: "String", nullable: true },
     ],
     undefined,
-    { sqlSource: "v_user", relay: true }
+    {
+      sqlSource: "v_user",
+      relay: true,
+      // Both directions, deliberately (#1266): which join column is read off which side
+      // swaps with the cardinality, so a fixture carrying only `OneToMany` would be
+      // uniform in exactly the dimension that selects the branch. The keys name SQL
+      // **columns** (`fk_user`) while `Order` publishes the field as `fkUser`.
+      relationships: [
+        {
+          name: "orders",
+          targetType: "Order",
+          cardinality: "OneToMany",
+          foreignKey: "fk_user",
+          referencedKey: "id",
+        },
+      ],
+    }
   );
 
   registerTypeFields(
@@ -69,9 +85,22 @@ function authorFull(): void {
       { name: "id", type: "ID", nullable: false },
       { name: "total", type: "Float", nullable: false },
       { name: "status", type: "String", nullable: false },
+      // The column `User.orders` joins on, published under the naming convention.
+      { name: "fkUser", type: "ID", nullable: false },
     ],
     undefined,
-    { sqlSource: "v_order" }
+    {
+      sqlSource: "v_order",
+      relationships: [
+        {
+          name: "user",
+          targetType: "User",
+          cardinality: "ManyToOne",
+          foreignKey: "fk_user",
+          referencedKey: "id",
+        },
+      ],
+    }
   );
 
   // `crud` is an authoring-time expansion the compiler has no concept of, so the only

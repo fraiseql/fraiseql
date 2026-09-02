@@ -24,6 +24,8 @@ Run directly:  python3 sdks/official/conformance/selftest.py
 
 from __future__ import annotations
 
+import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -219,6 +221,49 @@ class AnUnknownUnsupportedKeyFails(unittest.TestCase):
                 {"unsupported": {"enums": "no enum surface yet"}},
                 Path("/nonexistent/fraiseql-cli"),
                 {},
+            )
+
+
+class SupportMatrixMatchesTheManifest(unittest.TestCase):
+    """`sdks/official/README.md`'s table agrees with `manifest.json` and `CONSTRUCTS`.
+
+    The conformance README says the declared gap reasons *are* the support matrix in
+    `../README.md`, which makes the table a published claim about eleven SDKs. Nothing
+    checked it, and it had drifted twice by the time #1266 arrived: every row read
+    `N/19` while the fixture carried 23 constructs, and Go's `type_crud` gap was absent
+    from the table entirely — so a reader was told Go implements a construct it declares
+    it does not.
+
+    The score is the only part checked mechanically. The reason text is prose and stays
+    a human's job; what cannot be allowed to rot silently is the arithmetic, which
+    changes every single time a construct is added.
+    """
+
+    ROW = re.compile(
+        r"^\|\s*`fraiseql-(?P<sdk>[a-z]+)/`\s*\|[^|]*\|[^|]*\|\s*"
+        r"(?P<satisfied>\d+)/(?P<total>\d+)\s*\|",
+        re.M,
+    )
+
+    def test_every_row_matches(self) -> None:
+        manifest = json.loads((HERE / "manifest.json").read_text())["sdks"]
+        readme = (HERE.parent / "README.md").read_text()
+
+        rows = {m["sdk"]: m for m in self.ROW.finditer(readme)}
+        self.assertEqual(
+            sorted(rows), sorted(manifest),
+            "the support matrix and the manifest list different SDKs",
+        )
+
+        total = len(project.CONSTRUCTS)
+        for sdk, spec in manifest.items():
+            expected = total - len(spec.get("unsupported", {}))
+            row = rows[sdk]
+            self.assertEqual(
+                (int(row["satisfied"]), int(row["total"])),
+                (expected, total),
+                f"{sdk}: README says {row['satisfied']}/{row['total']}, manifest and "
+                f"CONSTRUCTS say {expected}/{total}",
             )
 
 

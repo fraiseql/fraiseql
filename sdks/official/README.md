@@ -22,17 +22,23 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 
 | Directory | Language | Distribution | Conformance | Declared gaps |
 |-----------|----------|--------------|-------------|---------------|
-| `fraiseql-python/` | Python 3.11+ | PyPI | 19/19 | — |
-| `fraiseql-typescript/` | TypeScript / Node.js | npm | 19/19 | — |
-| `fraiseql-go/` | Go 1.23+ | — (source-only) | 19/19 | — |
-| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 19/19 | — |
-| `fraiseql-java/` | Java 21+ | — (source-only) | 19/19 | — |
-| `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
-| `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
-| `fraiseql-elixir/` | Elixir | — (source-only) | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
-| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
-| `fraiseql-dart/` | Dart / Flutter | — (source-only) | 18/19 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
-| `fraiseql-rust/` | Rust | crates.io | 5/19 | queries, mutations, subscriptions, enums, input types, Relay and error-type flags: the Rust SDK is field-level-RBAC focused and ships no builder for them |
+| `fraiseql-python/` | Python 3.11+ | PyPI | 24/24 | — |
+| `fraiseql-typescript/` | TypeScript / Node.js | npm | 24/24 | — |
+| `fraiseql-go/` | Go 1.23+ | — (source-only) | 23/24 | type_crud: the SDK ships no CRUD generator |
+| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 24/24 | — |
+| `fraiseql-java/` | Java 21+ | — (source-only) | 24/24 | — |
+| `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 23/24 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 23/24 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-elixir/` | Elixir | — (source-only) | 23/24 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 23/24 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-dart/` | Dart / Flutter | — (source-only) | 23/24 | subscriptions: the SDK ships no subscription authoring surface at all (#1024) |
+| `fraiseql-rust/` | Rust | crates.io | 5/24 | queries, mutations, subscriptions, enums, input types, CRUD, relationships, Relay and error-type flags: the Rust SDK is field-level-RBAC focused and ships no builder for them |
+
+The scores and gap counts above are checked against `conformance/manifest.json` by
+`selftest.py`, because they had already drifted: the table read `19/19` when the fixture
+carried 23 constructs, and Go's `type_crud` gap was not listed at all. A support matrix
+nobody checks is a published claim about eleven SDKs that decays every time a construct is
+added.
 
 The TypeScript decorators `@Type`, `@Query`, `@Mutation` and `@Subscription` are **not**
 an authoring path — TypeScript erases the types they would need, so they refuse rather

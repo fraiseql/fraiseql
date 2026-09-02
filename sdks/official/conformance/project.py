@@ -92,6 +92,7 @@ CONSTRUCTS = (
     "field_deprecated",
     "type_relay",
     "type_is_error",
+    "type_relationships",
     "type_crud",
     "input_types",
     "enums",
@@ -243,6 +244,35 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
     observations["type_is_error"] = sorted(
         name for name in AUTHORED_TYPES if types.get(name, {}).get("is_error")
     )
+
+    # Every key is asserted, not merely the relationship's presence, and the reason is
+    # what the compiler had to do to let it through (#1266). A relationship names SQL
+    # **columns**, while the fixture declares the column as the camelCase field `fkUser`;
+    # the compiler resolves one to the other and refuses a join column no field on that
+    # side publishes, a target type that is not declared, and a target no *list* query
+    # returns. So a relationship appearing here is one the compiler resolved `fk_user`
+    # against `Order.fkUser` and `User.id` and found `tenantOrders` behind — not a blob
+    # it copied across.
+    #
+    # Both cardinalities are declared because which key is read off which side swaps with
+    # them: `OneToMany` reads `referenced_key` off the declaring type, `ManyToOne` reads
+    # `foreign_key`. A fixture with one direction only would be uniform in exactly the
+    # dimension that selects the branch.
+    observations["type_relationships"] = {
+        name: [
+            {
+                "name": rel.get("name"),
+                "target_type": rel.get("target_type"),
+                "cardinality": rel.get("cardinality"),
+                "foreign_key": rel.get("foreign_key"),
+                "referenced_key": rel.get("referenced_key"),
+            }
+            for rel in types.get(name, {}).get("relationships", [])
+            if isinstance(rel, dict)
+        ]
+        for name in AUTHORED_TYPES
+        if types.get(name, {}).get("relationships")
+    }
 
     # Asserted as one observation because one declaration produces all of it. The
     # `computed` half is only visible here: the flag itself is never emitted (the compiler

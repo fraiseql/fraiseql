@@ -151,7 +151,14 @@ public class ConformanceExport {
         public String email;
     }
 
-    @GraphQLType(name = "User", sqlSource = "v_user", relay = true)
+    // Both directions, deliberately (#1266): which join column is read off which side
+    // swaps with the cardinality, so a fixture carrying only `OneToMany` would be uniform
+    // in exactly the dimension that selects the branch. The keys name SQL **columns**
+    // (`fk_user`) while `Order` publishes the field as `fkUser`.
+    @GraphQLType(name = "User", sqlSource = "v_user", relay = true, relationships = {
+        @GraphQLRelationship(name = "orders", targetType = "Order",
+            cardinality = "OneToMany", foreignKey = "fk_user", referencedKey = "id")
+    })
     public static class ConformanceUser {
         @GraphQLField(type = "ID")
         public String id;
@@ -177,7 +184,10 @@ public class ConformanceExport {
         public String phone1;
     }
 
-    @GraphQLType(name = "Order", sqlSource = "v_order")
+    @GraphQLType(name = "Order", sqlSource = "v_order", relationships = {
+        @GraphQLRelationship(name = "user", targetType = "User",
+            cardinality = "ManyToOne", foreignKey = "fk_user", referencedKey = "id")
+    })
     public static class ConformanceOrder {
         @GraphQLField(type = "ID")
         public String id;
@@ -187,6 +197,10 @@ public class ConformanceExport {
 
         @GraphQLField(type = "String")
         public String status;
+
+        // The column `User.orders` joins on, published under the naming convention.
+        @GraphQLField(type = "ID")
+        public String fkUser;
     }
 
     // `crud` is an authoring-time expansion the compiler has no concept of, so the only

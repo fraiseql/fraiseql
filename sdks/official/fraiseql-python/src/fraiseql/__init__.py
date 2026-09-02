@@ -50,6 +50,7 @@ from fraiseql.client import (
 )
 from fraiseql.decorators import (
     FieldConfig,
+    Relationship,
     VectorConfig,
     field,
     mutation,
@@ -132,6 +133,7 @@ __all__ = [
     "Json",
     "NetworkError",
     "RateLimitError",
+    "Relationship",
     "RetryConfig",
     "ScalarValidationError",
     "SchemaRegistry",

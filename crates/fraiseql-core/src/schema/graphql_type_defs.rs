@@ -254,6 +254,29 @@ impl TypeDefinition {
         self.fields.iter().find(|f| f.name == name)
     }
 
+    /// Find the field that publishes the SQL column `column`.
+    ///
+    /// A relationship's `foreign_key`/`referenced_key` are **column** names
+    /// (`fk_author`), while everything the server composes against the published
+    /// surface — a `where` predicate, a projected row's keys — speaks the *declared*
+    /// name, which under `naming_convention = "camelCase"` is `fkAuthor`. Matching is
+    /// therefore on the snake-cased forms of both sides.
+    ///
+    /// One lookup, used by two callers that must not drift: the REST embedding
+    /// executor's `declared_key`, which turns a relationship's column into the
+    /// spelling it reads off a row, and
+    /// [`relationship_violations`](super::CompiledSchema::relationship_violations),
+    /// which refuses at load time a relationship whose join key no field publishes
+    /// (#1266). A check that resolved the column differently from the runtime would
+    /// pass exactly the schemas the runtime cannot execute.
+    #[must_use]
+    pub fn field_for_column(&self, column: &str) -> Option<&FieldDefinition> {
+        let storage = crate::utils::to_snake_case(column);
+        self.fields
+            .iter()
+            .find(|f| crate::utils::to_snake_case(f.name.as_str()) == storage)
+    }
+
     /// Find a field by its output name (alias if set, otherwise name).
     ///
     /// Useful for resolving field references in GraphQL queries where

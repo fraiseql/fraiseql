@@ -57,7 +57,8 @@ public sealed class SchemaRegistry
             IsInput: typeAttr.IsInput,
             Relay: typeAttr.Relay,
             IsError: typeAttr.IsError,
-            Fields: fields);
+            Fields: fields,
+            Relationships: BuildRelationships(typeName, type));
 
         lock (_lock)
         {
@@ -93,6 +94,67 @@ public sealed class SchemaRegistry
                 foreach (var m in crudMutations) _mutations.Add(m);
             }
         }
+    }
+
+    /// <summary>
+    /// Reads and checks one type's <c>[GraphQLRelationship]</c> attributes (#1266).
+    /// </summary>
+    /// <param name="typeName">The GraphQL type name, for the message.</param>
+    /// <param name="type">The C# type carrying the attributes.</param>
+    /// <returns>The declared relationships, or <see langword="null"/> when there are none.</returns>
+    /// <remarks>
+    /// Only the shape this SDK owns is checked — a blank key, an unknown cardinality, and
+    /// a name declared twice, which no compiler diagnostic can attribute back to an
+    /// attribute. Whether a relationship can be <i>followed</i> is checked by the compiler
+    /// against the whole schema, which is the only place that knows.
+    /// </remarks>
+    private static IReadOnlyList<RelationshipDefinition>? BuildRelationships(string typeName, Type type)
+    {
+        var attrs = type.GetCustomAttributes<GraphQLRelationshipAttribute>(inherit: false).ToList();
+        if (attrs.Count == 0)
+        {
+            return null;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var relationships = new List<RelationshipDefinition>(attrs.Count);
+        foreach (var attr in attrs)
+        {
+            foreach (var (label, value) in new[]
+                     {
+                         (nameof(attr.Name), attr.Name),
+                         (nameof(attr.TargetType), attr.TargetType),
+                         (nameof(attr.ForeignKey), attr.ForeignKey),
+                         (nameof(attr.ReferencedKey), attr.ReferencedKey),
+                     })
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    throw new InvalidOperationException(
+                        $"Type '{typeName}': relationship {label} must not be empty");
+                }
+            }
+
+            if (!GraphQLRelationshipAttribute.Cardinalities.Contains(attr.Cardinality))
+            {
+                throw new InvalidOperationException(
+                    $"Type '{typeName}': relationship '{attr.Name}' cardinality must be one of "
+                    + $"{string.Join(", ", GraphQLRelationshipAttribute.Cardinalities)} "
+                    + $"(got '{attr.Cardinality}')");
+            }
+
+            if (!seen.Add(attr.Name))
+            {
+                throw new InvalidOperationException(
+                    $"Type '{typeName}': relationship '{attr.Name}' is declared more than once; "
+                    + "an embed resolves the first and the rest are unreachable");
+            }
+
+            relationships.Add(new RelationshipDefinition(
+                attr.Name, attr.TargetType, attr.Cardinality, attr.ForeignKey, attr.ReferencedKey));
+        }
+
+        return relationships;
     }
 
     /// <summary>

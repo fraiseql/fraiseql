@@ -731,3 +731,145 @@ mod mcp_session_state {
         );
     }
 }
+
+/// The `[types.X.relationships.<name>]` block, and the single type emitter it rides on
+/// (#1266, widening #959 from fields to the whole type).
+///
+/// The emitter matters as much as the block: the TOML type shape was hand-built in three
+/// places, and a key reaching the compiler on one path and vanishing on another is
+/// indistinguishable, from the author's side, from a key that does nothing.
+mod relationships {
+    use super::super::*;
+
+    fn schema_with(relationship_block: &str) -> TomlSchema {
+        toml::from_str(&format!(
+            r#"
+[schema]
+name = "app"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.User]
+sql_source = "v_user"
+fields.id = {{ type = "ID" }}
+
+{relationship_block}
+"#
+        ))
+        .expect("the relationship block must parse")
+    }
+
+    const ORDERS: &str = r#"
+[types.User.relationships.orders]
+target_type = "Order"
+cardinality = "OneToMany"
+foreign_key = "fk_user"
+referenced_key = "id"
+"#;
+
+    #[test]
+    fn a_relationship_block_parses_into_the_type() {
+        let schema = schema_with(ORDERS);
+        let rel = schema.types["User"].relationships["orders"].clone();
+        assert_eq!(rel.target_type, "Order");
+        assert_eq!(rel.cardinality, fraiseql_core::schema::Cardinality::OneToMany);
+        assert_eq!(rel.foreign_key, "fk_user");
+        assert_eq!(rel.referenced_key, "id");
+    }
+
+    /// The block is keyed by relationship name, like `fields`, so the name is the table
+    /// header rather than a key inside it.
+    #[test]
+    fn the_table_header_supplies_the_relationship_name() {
+        let json = schema_with(ORDERS).types["User"].to_intermediate_json("User");
+        assert_eq!(json["relationships"][0]["name"], "orders");
+    }
+
+    /// `deny_unknown_fields` on both sides, so a mis-spelled key is refused rather than
+    /// silently ignored — the failure mode the whole issue is about.
+    #[test]
+    fn a_misspelled_relationship_key_is_refused() {
+        let err = toml::from_str::<TomlSchema>(
+            r#"
+[schema]
+name = "app"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.relationships.orders]
+target_type = "Order"
+cardinality = "OneToMany"
+foreign_key = "fk_user"
+referenced_key = "id"
+forgein_key = "typo"
+"#,
+        )
+        .expect_err("an unknown key must not be accepted");
+        assert!(err.to_string().contains("forgein_key"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_cardinality_is_refused() {
+        let err = toml::from_str::<TomlSchema>(
+            r#"
+[schema]
+name = "app"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.relationships.orders]
+target_type = "Order"
+cardinality = "SomeToSome"
+foreign_key = "fk_user"
+referenced_key = "id"
+"#,
+        )
+        .expect_err("an unknown cardinality must not be accepted");
+        assert!(err.to_string().contains("SomeToSome"), "{err}");
+    }
+
+    /// Both TOML paths run the same emitter, so the relationship cannot reach the
+    /// compiler on one and vanish on the other (#959's lesson, one level up).
+    #[test]
+    fn both_toml_paths_emit_the_same_relationships() {
+        let schema = schema_with(ORDERS);
+
+        // `merge_toml_only`'s path.
+        let whole = schema.to_intermediate_schema();
+        let from_schema = whole["types"]["User"]["relationships"].clone();
+
+        // `merge_values`' TOML-only branch, and `enrich_type_from_toml`'s overlay.
+        let from_type = schema.types["User"].to_intermediate_json("User")["relationships"].clone();
+        let from_overlay = schema.types["User"]
+            .intermediate_overlay()
+            .into_iter()
+            .find(|(key, _)| *key == "relationships")
+            .map(|(_, value)| value)
+            .expect("the overlay carries relationships");
+
+        assert_eq!(from_schema, from_type, "to_intermediate_schema vs to_intermediate_json");
+        assert_eq!(from_type, from_overlay, "to_intermediate_json vs intermediate_overlay");
+        assert_eq!(from_schema[0]["foreign_key"], "fk_user");
+    }
+
+    /// A type declaring none emits no key at all, so its document is byte-identical to
+    /// what this emitter produced before the block existed.
+    #[test]
+    fn a_type_with_no_relationships_emits_no_key() {
+        let schema = schema_with("");
+        let json = schema.types["User"].to_intermediate_json("User");
+        assert!(json.get("relationships").is_none(), "{json}");
+        assert!(
+            !schema.types["User"]
+                .intermediate_overlay()
+                .iter()
+                .any(|(key, _)| *key == "relationships")
+        );
+    }
+}
