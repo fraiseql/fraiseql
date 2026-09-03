@@ -136,6 +136,49 @@ pub fn strip_projected_keys(data: &mut serde_json::Value, keys: &[String]) {
     }
 }
 
+/// A sub-select's entries, separated by kind.
+///
+/// The whole of `?select=posts(title,author(name),comments.count)` after the
+/// parser: flat fields, nested embeds, nested counts.
+///
+/// **Why this type exists rather than three `filter_map`s.** A sub-select used
+/// to be read by a single `filter_map` matching `SelectEntry::Field` with
+/// `_ => None` for the rest, so nested embeds and nested counts were parsed,
+/// depth-validated and then silently discarded — the response simply lacked the
+/// key, under a 200, and a client could not tell "nothing related" from "the
+/// server dropped my selection". #864 fixed the embed half and left the count
+/// half in the wildcard, with a comment that named both. #1267 is that second
+/// half, found three releases later.
+///
+/// [`Self::split`] matches **exhaustively**: there is no `_` arm, so a fourth
+/// `SelectEntry` variant cannot be added without this function failing to
+/// compile. That is the point — the two defects above were both a wildcard
+/// quietly absorbing a case nobody had handled.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(super) struct SubSelect {
+    /// Flat field names, in selection order.
+    pub fields: Vec<String>,
+    /// Nested embedded resources, in selection order.
+    pub embeds: Vec<EmbeddedSpec>,
+    /// Nested count-only relationships, in selection order.
+    pub counts: Vec<String>,
+}
+
+impl SubSelect {
+    /// Separate `entries` by kind, preserving selection order within each.
+    pub(super) fn split(entries: &[SelectEntry]) -> Self {
+        let mut out = Self::default();
+        for entry in entries {
+            match entry {
+                SelectEntry::Field(name) => out.fields.push(name.clone()),
+                SelectEntry::Embedded(spec) => out.embeds.push(spec.clone()),
+                SelectEntry::Count(name) => out.counts.push(name.clone()),
+            }
+        }
+        out
+    }
+}
+
 /// Execute embedded resource sub-queries and merge results into parent rows.
 ///
 /// For each [`EmbeddedSpec`] in the select, finds the matching relationship
@@ -186,31 +229,13 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         // Determine output field name (renamed or relationship name).
         let output_name = spec.rename.as_deref().unwrap_or(&spec.relationship);
 
-        // Get sub-select field names.
-        let mut sub_field_names: Vec<String> = spec
-            .fields
-            .iter()
-            .filter_map(|e| match e {
-                SelectEntry::Field(name) => Some(name.clone()),
-                _ => None,
-            })
-            .collect();
-
-        // #864: nested embeddings were parsed, depth-validated against
-        // `max_embedding_depth` (default 3, documented as `?select=posts(comments)`), and
-        // then silently dropped here — this `filter_map` was the only consumer of
-        // `spec.fields`, so `SelectEntry::Embedded` and `SelectEntry::Count` fell into
-        // `_ => None` and their keys simply never appeared in the response. The validator
-        // said yes and the executor forgot; a client could not tell "no comments" from
-        // "the server dropped my selection".
-        let nested: Vec<EmbeddedSpec> = spec
-            .fields
-            .iter()
-            .filter_map(|e| match e {
-                SelectEntry::Embedded(nested_spec) => Some(nested_spec.clone()),
-                _ => None,
-            })
-            .collect();
+        // Every kind of entry the sub-select carries, separated in one exhaustive
+        // pass. See [`SubSelect`] for why this is not three `filter_map`s.
+        let SubSelect {
+            fields: mut sub_field_names,
+            embeds: nested,
+            counts: nested_counts,
+        } = SubSelect::split(&spec.fields);
 
         // A nested embedding joins on a key of the *child* row, so that key has to be
         // projected even when the client did not ask for it. Without this the recursion
@@ -224,7 +249,7 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         // pair of helpers, so the two levels cannot drift.
         let injected = project_missing_join_keys(
             &mut sub_field_names,
-            &required_join_keys(req.schema, &rel.target_type, &nested, &[]),
+            &required_join_keys(req.schema, &rel.target_type, &nested, &nested_counts),
         );
 
         // Execute embedding based on parent data shape (array or single object).
@@ -258,7 +283,11 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
         // Nested filters are not addressable in the `?rel.field=value` syntax (it is flat,
         // one segment deep), so the recursion passes an empty filter map rather than
         // silently reusing the parent's.
-        if !nested.is_empty() {
+        // #1267: the condition is `nested` OR `nested_counts`. Gating on `nested`
+        // alone would leave a count-only sub-select unexecuted *and* leak the join
+        // key this level injected for it — `strip_projected_keys` lives inside this
+        // block, so a branch that skips the recursion also skips the cleanup.
+        if !nested.is_empty() || !nested_counts.is_empty() {
             let nested_req = EmbeddingRequest {
                 executor:         req.executor,
                 schema:           req.schema,
@@ -270,12 +299,16 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
 
             // Each parent row holds its own embedded collection, so the recursion runs
             // per row over the value just written. The join keys this level injected
-            // are stripped only *after* the recursion has read them.
+            // are stripped only *after* the recursion and the counts have read them:
+            // `count_related` extracts the identical key, so stripping between the two
+            // would reintroduce #1230 for counts alone.
             match parent_data {
                 serde_json::Value::Array(rows) => {
                     for row in rows.iter_mut() {
                         if let Some(child) = row.get_mut(output_name) {
                             Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
+                                .await?;
+                            Box::pin(execute_embedding_counts(&nested_req, child, &nested_counts))
                                 .await?;
                             strip_projected_keys(child, &injected);
                         }
@@ -284,6 +317,8 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
                 serde_json::Value::Object(_) => {
                     if let Some(child) = parent_data.get_mut(output_name) {
                         Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
+                            .await?;
+                        Box::pin(execute_embedding_counts(&nested_req, child, &nested_counts))
                             .await?;
                         strip_projected_keys(child, &injected);
                     }

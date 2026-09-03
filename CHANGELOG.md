@@ -575,6 +575,35 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A count inside a sub-select executes instead of being silently discarded (#1267).**
+
+  `?select=id,posts(id,comments.count)` was parsed, depth-validated and then dropped: the
+  response carried no `comments_count` key at all, under a 200. The same count one level
+  up — `?select=id,posts.count` — worked, so the *depth* of a selection silently decided
+  whether it was honoured, and a client could not tell "this post has no comments" from
+  "the server discarded what I asked for".
+
+  This is the half of #864 that its own fix comment named and did not cover. A sub-select
+  was read by `filter_map`s with `_ => None` for everything else, so `SelectEntry::Embedded`
+  and `SelectEntry::Count` were both absorbed by the wildcard; #864 repaired the first and
+  left the second, with a comment still naming both.
+
+  The three kinds of entry are now separated by one `SubSelect::split` whose match is
+  **exhaustive** — no `_` arm — so a fourth `SelectEntry` variant cannot be added without
+  that function failing to compile. Both defects were a wildcard quietly absorbing a case
+  nobody had handled; this makes that a build error rather than a missing key.
+
+  The nested join key moved with it. `required_join_keys` has taken counts since #1230, but
+  the nested call site passed `&[]`, so the key a nested count reads was never projected;
+  and the recursion was gated on nested *embeds* alone, which would have skipped a
+  count-only sub-select **and** leaked the key injected for it, because
+  `strip_projected_keys` runs inside that block. `?select=id,posts(title,comments.count)`
+  now returns exactly `title` and `comments_count`.
+
+  A nested count naming no relationship is now refused with a 400 from the executor, as
+  root counts already were. Nested names reach no parse-time validator — only root ones do
+  — so before this the entry was dropped before anything could object.
+
 - **A declared `camelCase` field is served over REST instead of being silently dropped
   (#1271).**
 

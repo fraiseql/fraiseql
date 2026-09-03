@@ -721,3 +721,119 @@ async fn a_nested_join_key_is_projected_and_then_stripped() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// #1267 — a count *inside* a sub-select
+//
+// #864 read a spec's sub-select for `SelectEntry::Field` and `SelectEntry::Embedded`
+// and left `SelectEntry::Count` in `_ => None`, while its own comment named both. So
+// `?select=id,posts(id,comments.count)` was parsed, depth-validated and relationship-
+// validated, and then discarded: no `comments_count` key anywhere in the response,
+// under a 200. `?select=id,posts.count` — the same count one level up — worked, so the
+// depth of a selection decided silently whether it was honoured.
+// ---------------------------------------------------------------------------
+
+/// The post row with `id == post_id`, from the author row that owns it.
+fn post_of(body: &Value, author_id: i64, post_id: i64) -> Value {
+    posts_of(body, author_id)
+        .into_iter()
+        .find(|p| p.get("id").and_then(Value::as_i64) == Some(post_id))
+        .unwrap_or_else(|| panic!("no post {post_id} under author {author_id}: {body}"))
+}
+
+#[tokio::test]
+async fn a_nested_count_executes_at_the_validated_depth() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=id,posts(id,comments.count)").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    // Post 10 has two comments (100, 101); post 11 has none.
+    assert_eq!(
+        post_of(&body, 1, 10).get("comments_count").and_then(Value::as_i64),
+        Some(2),
+        "post 10 owns 2 comments: {body}"
+    );
+    assert_eq!(
+        post_of(&body, 2, 20).get("comments_count").and_then(Value::as_i64),
+        Some(1),
+        "post 20 owns 1 comment: {body}"
+    );
+}
+
+#[tokio::test]
+async fn a_nested_count_of_zero_is_reported_rather_than_omitted() {
+    // The distinction the defect erased. A dropped selection and a genuine zero were
+    // the same response — no key either way — so a client could not tell "this post
+    // has no comments" from "the server discarded what I asked for".
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=id,posts(id,comments.count)").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    let post_11 = post_of(&body, 1, 11);
+    assert_eq!(
+        post_11.get("comments_count").and_then(Value::as_i64),
+        Some(0),
+        "post 11 has no comments, and must say so with a key: {body}"
+    );
+}
+
+#[tokio::test]
+async fn the_join_key_a_nested_count_needed_is_not_returned() {
+    // `Post.comments` joins on the parent side's `id`, so a sub-select that does not
+    // name `id` still needs it projected — and stripped again afterwards (#1230).
+    //
+    // This is the case that a `if !nested.is_empty()` gate would get wrong twice: a
+    // count-only sub-select has no nested *embed*, so the count would not execute and
+    // the key injected for it would never be stripped. Both halves are asserted here.
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=id,posts(title,comments.count)").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    let posts = posts_of(&body, 1);
+    let post = posts
+        .iter()
+        .find(|p| p.get("title").and_then(Value::as_str) == Some("a-one"))
+        .unwrap_or_else(|| panic!("post 'a-one' missing: {body}"));
+
+    assert_eq!(
+        post.get("comments_count").and_then(Value::as_i64),
+        Some(2),
+        "the count must execute without a sibling nested embed: {body}"
+    );
+    assert_eq!(
+        keys_of(post),
+        vec!["comments_count", "title"],
+        "the parent join key the server projected for the count must not be returned: {body}"
+    );
+}
+
+#[tokio::test]
+async fn a_nested_count_naming_no_relationship_is_refused() {
+    // Nested names are not checked at parse time — only root ones are — so this is
+    // the executor's 400, raised against the *child* type. Before #1267 the entry was
+    // dropped before anything could object, and the client got a 200 describing a
+    // relationship the schema does not have.
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/authors?select=id,posts(id,bogus.count)").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body.to_string().contains("bogus"),
+        "the refusal must name the relationship it could not find: {body}"
+    );
+}

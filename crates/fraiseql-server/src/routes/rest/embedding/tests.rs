@@ -7,13 +7,14 @@ use fraiseql_core::schema::{
 };
 
 use super::{
+    SubSelect,
     executor::{
         declared_key, extract_join_key, extract_query_data, find_list_query_for_type,
         set_empty_embedding,
     },
     project_missing_join_keys, required_join_keys, strip_projected_keys,
 };
-use crate::routes::rest::params::EmbeddedSpec;
+use crate::routes::rest::params::{EmbeddedSpec, SelectEntry};
 
 fn schema_declaring(type_name: &str, fields: &[&str]) -> CompiledSchema {
     let mut schema = CompiledSchema::new();
@@ -344,4 +345,76 @@ fn find_list_query_for_type_returns_list_query() {
 fn find_list_query_for_type_no_match() {
     let schema = fraiseql_core::schema::CompiledSchema::default();
     assert!(find_list_query_for_type(&schema, "Post").is_none());
+}
+
+// ---------------------------------------------------------------------------
+// #1267 — every kind of sub-select entry is collected
+//
+// These run on the required workspace leg. The end-to-end proof of the defect
+// lives in `rest_embedding_safety_e2e_pg`, which needs a database and therefore
+// only runs in the integration shard — so without these, a regression would
+// reach `dev` through a green required leg.
+// ---------------------------------------------------------------------------
+
+fn embedded(name: &str) -> EmbeddedSpec {
+    EmbeddedSpec {
+        relationship: name.to_string(),
+        rename:       None,
+        fields:       vec![],
+    }
+}
+
+#[test]
+fn a_sub_select_separates_fields_embeds_and_counts() {
+    let split = SubSelect::split(&[
+        SelectEntry::Field("id".to_string()),
+        SelectEntry::Embedded(embedded("author")),
+        SelectEntry::Count("comments".to_string()),
+        SelectEntry::Field("title".to_string()),
+    ]);
+
+    assert_eq!(split.fields, vec!["id".to_string(), "title".to_string()]);
+    assert_eq!(split.embeds.len(), 1);
+    assert_eq!(split.embeds[0].relationship, "author");
+    // The half #864 left in the wildcard: before #1267 this was empty for every
+    // input, so the count reached no executor and the key never appeared.
+    assert_eq!(split.counts, vec!["comments".to_string()]);
+}
+
+#[test]
+fn a_count_only_sub_select_yields_a_count_and_no_fields() {
+    // The shape that also decides the recursion gate: there is no nested embed
+    // here, so a gate testing only `embeds` would skip the count *and* skip the
+    // strip of the join key projected for it.
+    let split = SubSelect::split(&[SelectEntry::Count("comments".to_string())]);
+
+    assert!(split.fields.is_empty());
+    assert!(split.embeds.is_empty());
+    assert_eq!(split.counts, vec!["comments".to_string()]);
+}
+
+#[test]
+fn an_empty_sub_select_yields_nothing() {
+    assert_eq!(SubSelect::split(&[]), SubSelect::default());
+}
+
+#[test]
+fn a_nested_count_requires_the_parent_join_key_be_projected() {
+    // `required_join_keys` already took counts (#1230) and the nested call site
+    // passed `&[]`, so the key a nested count reads was never projected. This
+    // pins the argument that call site now supplies.
+    let mut schema = schema_declaring("Post", &["id", "title"]);
+    schema.types[0].relationships = vec![Relationship {
+        name:           "comments".to_string(),
+        target_type:    "Comment".to_string(),
+        cardinality:    Cardinality::OneToMany,
+        foreign_key:    "fk_post".to_string(),
+        referenced_key: "id".to_string(),
+    }];
+
+    let via_count = required_join_keys(&schema, "Post", &[], &["comments".to_string()]);
+    assert_eq!(via_count, vec!["id".to_string()], "a count needs the parent side's key");
+
+    let none_at_all = required_join_keys(&schema, "Post", &[], &[]);
+    assert!(none_at_all.is_empty(), "the argument the call site used to pass");
 }
