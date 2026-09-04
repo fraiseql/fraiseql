@@ -651,7 +651,9 @@ disagreed, and the promise was the part that was wrong.
   The refusal lives in `refuse_unstreamable_request`, applied by
   `resolve_streaming_get_query` alongside the `rest_stream` opt-in (#958) — one function, so
   a fourth representation inherits every rule by resolving through the only function that
-  fits it. That is also the answer to #1230's open note: the join-key widening
+  fits it. It is the single place those rules live; it is not yet a complete statement of
+  them, and its doc comment names the two known gaps (#1273, #1275), both carried over from
+  the validators it replaced. That is also the answer to #1230's open note: the join-key widening
   `ResolvedGetQuery::with_embed_join_keys` performs is still applied by the JSON path alone,
   but now because an export cannot carry a request that needs it, not because the widening
   had to be withheld from a path that would have emitted the extra column as a CSV header.

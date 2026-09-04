@@ -957,23 +957,55 @@ mod export_refusal {
         params::{EmbeddedSpec, ExtractedParams, PaginationParams, RestFieldSpec, SelectEntry},
     };
 
+    /// `RestConfig::default().default_page_size` — the value `parse_offset_pagination`
+    /// and `parse_cursor_pagination` both fill in when the client names no page.
+    const DEFAULT_PAGE: u64 = 100;
+
     /// A request the exports accept: no count, no offset, nothing embedded.
     ///
     /// Every case below is this value with exactly one field changed, so a refusal can
     /// only be attributed to that field. `an_acceptable_request_is_the_baseline` asserts this
     /// value itself passes — without it, "always refuse" would satisfy every other test
     /// here.
+    ///
+    /// ⚠ `pagination` is `Offset { offset: 0 }`, **not** `PaginationParams::None`. `None`
+    /// occurs only when `!is_list` (`RestParamExtractor::extract`), and `rest_stream`
+    /// requires `returns_list` — so no request that reaches an export can ever carry it.
+    /// A suite anchored on `None` is anchored on a shape the code under test never sees,
+    /// which is how the relay case below went unnoticed until #1273.
     fn acceptable() -> ExtractedParams {
         ExtractedParams {
             path_params:       Vec::new(),
             where_clause:      None,
             order_by:          None,
-            pagination:        PaginationParams::None,
+            pagination:        PaginationParams::Offset {
+                limit:  DEFAULT_PAGE,
+                offset: 0,
+            },
             field_selection:   RestFieldSpec::Fields(vec!["id".to_string()]),
             search_query:      None,
             embeddings:        Vec::new(),
             embedding_filters: std::collections::HashMap::new(),
             embedding_counts:  Vec::new(),
+        }
+    }
+
+    /// The shape a **relay** export request actually carries, which is what the offset
+    /// baseline above cannot represent.
+    ///
+    /// `parse_cursor_pagination(None, None, None, None)` does not mean "no pagination" —
+    /// its own default arm fills `first: Some(default_page_size)` — so a bare
+    /// `GET /rest/v1/posts` on a relay route arrives here as `Cursor`, indistinguishable
+    /// from a client that asked for a page.
+    fn relay_with_no_cursor_requested() -> ExtractedParams {
+        ExtractedParams {
+            pagination: PaginationParams::Cursor {
+                first:  Some(DEFAULT_PAGE),
+                after:  None,
+                last:   None,
+                before: None,
+            },
+            ..acceptable()
         }
     }
 
@@ -1049,6 +1081,31 @@ mod export_refusal {
             assert_eq!(err.status, StatusCode::BAD_REQUEST);
             assert!(err.message.contains("pagination not available"), "{}", err.message);
         }
+    }
+
+    /// ⚠ #1273 — **current behaviour, not desired behaviour.**
+    ///
+    /// A relay route answers `400` to an export request carrying *no* cursor parameter,
+    /// naming pagination the client never sent, so a `relay = true` + `rest_stream = true`
+    /// query cannot be exported in any representation. This test pins what the code does
+    /// today so the gap is visible in the suite rather than only in the tracker; #1273
+    /// carries the decision about what it *should* do.
+    ///
+    /// When #1273 is fixed this test fails, which is the point — flip it to `is_ok()` and
+    /// delete this comment.
+    #[test]
+    fn a_bare_relay_request_is_refused_today_see_1273() {
+        let err = refuse_unstreamable_request(
+            &PreferHeader::default(),
+            &relay_with_no_cursor_requested(),
+        )
+        .unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(
+            err.message.contains("pagination not available"),
+            "the refusal a bare relay export currently receives: {}",
+            err.message
+        );
     }
 
     /// #1268: an embed used to be validated here and then dropped by the export, which

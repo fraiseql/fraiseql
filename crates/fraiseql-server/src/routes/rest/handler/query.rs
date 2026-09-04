@@ -23,8 +23,8 @@ use crate::routes::rest::{
 /// Refuse a request carrying a parameter no export representation can honour.
 ///
 /// The three export representations — NDJSON, CSV, XLSX — offer a strict subset of the
-/// JSON envelope's request surface, and this is the whole of what they leave out. It is
-/// one function, called from
+/// JSON envelope's request surface, and this is where every rule about that subset lives.
+/// It is one function, called from
 /// [`RestHandler::resolve_streaming_get_query`](RestHandler::resolve_streaming_get_query),
 /// for the same reason the `rest_stream` opt-in lives there (#958): a fourth
 /// representation inherits every rule by resolving through the only function that fits
@@ -58,6 +58,20 @@ use crate::routes::rest::{
 ///
 /// Returns `RestError::BadRequest` naming the offending parameter. Each branch states its
 /// own diagnosis: a client cannot act on "something in your query string".
+///
+/// # Known gaps
+///
+/// This function is the single place the rules live; it is **not** yet a complete
+/// statement of them:
+///
+/// * **#1273** — the cursor branch refuses a *bare* request on a relay route, because
+///   `parse_cursor_pagination` fills `first: Some(default_page_size)` when the client names no
+///   cursor at all. A `relay = true` + `rest_stream = true` query is therefore not exportable in
+///   any representation. Behaviour carried over verbatim from the three validators this replaced;
+///   `a_bare_relay_request_is_refused_today_see_1273` pins it.
+/// * **#1275** — `params.embedding_filters` is not refused, though since this function refuses
+///   every `?select=` embed an export's filters are now structurally unreachable. The bulk path
+///   already refuses the same parameter for the same reason (`bulk/mod.rs`).
 pub fn refuse_unstreamable_request(
     prefer: &PreferHeader,
     params: &ExtractedParams,
