@@ -19,6 +19,26 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **An export's header row is now the projection, so an unselected export's columns are in
+  declared order and an empty export still writes a header (#1274).**
+
+  CSV and XLSX took their header from a second parse of the raw `?select=` string, and fell
+  back to *the first row's keys, sorted alphabetically* when there was none. Both writers now
+  read `QueryMatch::fields` — the field list the rows are actually projected by. Two visible
+  consequences beyond the fix in `### Fixed`:
+
+  - Without a `?select=`, the columns are the type's **declared** field order rather than
+    alphabetical. Both are deterministic; the projection's is the one the rows are built in.
+  - An export that matches no rows now emits its header row instead of an empty body. The
+    header used to be withheld unless the client sent a `?select=`, on the reasoning that
+    there was otherwise "no column list to write" — which taking it from the projection makes
+    untrue.
+
+  **Migration.** A consumer that reads an export by *column position* and never sent a
+  `?select=` should either send one — which pins the order explicitly, and always did — or
+  read by header name. A consumer that treated a zero-byte body as "no rows" should treat a
+  header-only body as that instead.
+
 - **A streaming export refuses a `?select=` naming an embed or a count (#1268).**
 
   `Accept: application/x-ndjson`, `text/csv` and the XLSX media type now answer `400` to a
@@ -601,6 +621,38 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A repeated `?select=` no longer heads a CSV or XLSX export with a column that is empty
+  in every row (#1274).**
+
+  `GET /rest/v1/posts?select=id&select=title` with `Accept: text/csv` answered `200` with:
+
+  ```
+  id
+  ,
+  ,
+  ```
+
+  The header named `id`; every cell was empty, and the rows had been projected as `title`.
+  The two sides resolved the repeat in opposite directions — `RestParamExtractor::extract`
+  classifies with an assignment (`"select" => select_raw = Some(value)`), so the **last**
+  occurrence became the projection, while `extract_select_columns` searched with `.find`, so
+  the **first** became the header. `write_csv_payload` renders a key the row does not carry
+  as an empty cell, which is indistinguishable from a column that is genuinely `NULL`
+  throughout: a wrong answer under a `200`. This is #1268's shape — a named, permanently
+  empty column — reached by a different route.
+
+  XLSX was worse. `rust_xlsxwriter` omits a row whose every cell is blank, so the workbook
+  came back with a single header cell, `<dimension ref="A1"/>` and **no data rows at all**.
+
+  The header now comes from the projection, in one `helpers::export_columns`. The raw-string
+  parser is deleted rather than corrected: since #1268 an export *refuses* a `?select=`
+  naming an embed or a count, so the paren-awareness it carried handled a syntax the export
+  path no longer accepts, and a second parse of the same input is a second source of truth
+  whichever way it resolves. `extract_select_columns`, `parse_select_top_level`,
+  `push_top_level` and `determine_columns` were additionally duplicated character-for-
+  character between `streaming/csv/mod.rs` and `streaming/xlsx/mod.rs`; the surviving rule
+  lives once, in `streaming/helpers.rs`.
+
 - **The shipped `fraiseql.toml.example` generates a state-encryption key the server can
   actually read.**
 

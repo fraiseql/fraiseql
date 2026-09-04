@@ -1,6 +1,10 @@
-//! Helper functions for NDJSON streaming responses.
+//! Shared internals of the REST export representations.
 //!
-//! Contains utilities for batch serialization, error formatting, and row extraction.
+//! The row source every export opens (`export_rows`, #958), the export-total bound
+//! (`requested_total_limit`), NDJSON batch serialisation and error formatting, and — since
+//! #1274 — the header-column rule that CSV and XLSX both apply (`export_columns`,
+//! `determine_columns`). The column rule lives here because both writers held
+//! byte-identical copies of it, which is one place per writer for it to drift.
 
 use std::sync::Arc;
 
@@ -62,6 +66,74 @@ pub(super) async fn export_rows<A: DatabaseAdapter + 'static>(
         Some(total) => Box::pin(rows.take(usize::try_from(total).unwrap_or(usize::MAX))),
         None => rows,
     })
+}
+
+/// The column list an export writes, taken from the **projection**.
+///
+/// This is the one place either export writer learns its header, and the answer is the
+/// field list the rows are actually projected by — `QueryMatch::fields`, which
+/// `resolve_get_query` builds from `params.field_selection` (expanding `All` to the
+/// type's declared fields, per #886).
+///
+/// # Why not re-parse `?select=`
+///
+/// Both writers used to parse the raw `?select=` string a second time, and the two
+/// parses disagreed (#1274). `RestParamExtractor::extract` classifies with an
+/// assignment, so a repeated `?select=` resolves **last**-wins into the projection;
+/// the header parser searched with `.find`, so it resolved **first**-wins. A request
+/// naming two different fields therefore got a header for one and rows for the other,
+/// and `write_csv_payload` renders a key the row lacks as an empty cell — a named
+/// column, empty in every row, under a `200`.
+///
+/// A second parse of the same input is a second source of truth whichever way it
+/// resolves; the projection is the only list the rows can be guaranteed to fill. It is
+/// also what makes the paren-awareness the old parser carried unnecessary: since #1268
+/// an export *refuses* a `?select=` naming an embed or a count, so no header can be
+/// asked for one.
+///
+/// `None` means "no column list is known" — the projection is empty, which
+/// `resolve_get_query` produces only when the return type is not in the schema. The
+/// writers fall back to the first row's keys there, as they did before.
+#[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+pub(super) fn export_columns(query_match: &QueryMatch) -> Option<Vec<String>> {
+    if query_match.fields.is_empty() {
+        None
+    } else {
+        Some(query_match.fields.clone())
+    }
+}
+
+/// Decide the column ordering an export writes.
+///
+/// Preference:
+/// 1. The projection, via [`export_columns`].
+/// 2. The first row's keys, sorted alphabetically.
+///
+/// The fallback sorts explicitly rather than leaning on `serde_json::Map` iteration
+/// order: that order is alphabetical only for the default (`BTreeMap`) build and becomes
+/// insertion order when any dependency enables the `preserve_order` feature (e.g. under
+/// `--all-features`), which would silently change export column order. Sorting here keeps
+/// the header deterministic regardless of `serde_json`'s feature resolution.
+///
+/// Shared by the CSV and XLSX writers, which held byte-identical copies of this and of
+/// the `?select=` parser it used to take its first branch from (#1274). Two copies of a
+/// header rule are two places for it to drift with no compiler signal.
+#[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+pub(super) fn determine_columns(
+    select_columns: Option<&[String]>,
+    rows: &[serde_json::Value],
+) -> Vec<String> {
+    if let Some(cols) = select_columns {
+        return cols.to_vec();
+    }
+    rows.first()
+        .and_then(serde_json::Value::as_object)
+        .map(|m| {
+            let mut cols: Vec<String> = m.keys().cloned().collect();
+            cols.sort();
+            cols
+        })
+        .unwrap_or_default()
 }
 
 /// The client's explicit `?limit=`, which bounds the export **total**.

@@ -21,6 +21,11 @@ pub mod xlsx;
 #[cfg(test)]
 mod tests;
 
+// #1274: both export writers take their header from the projection. The cases drive
+// `handle_csv_get` and `handle_xlsx_get`, so they need both writers compiled in.
+#[cfg(all(test, feature = "export-csv", feature = "export-xlsx"))]
+mod export_header_tests;
+
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
 use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};

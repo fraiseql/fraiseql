@@ -572,3 +572,55 @@ async fn a_route_without_rest_stream_still_serves_json() {
         "the JSON representation must still return rows: {body}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// #1274: the header names the columns the rows were projected by
+// ---------------------------------------------------------------------------
+
+/// #1274 over the wire: a repeated `?select=` must not head the file with a column no
+/// row can fill.
+///
+/// CSV and XLSX built their header from the raw `?select=` string while the rows were
+/// projected from `params.field_selection`, and the two resolved a repeat in opposite
+/// directions — the extractor assigns (`"select" => select_raw = Some(value)`, last-wins)
+/// and the header parser searched (`.find(|(k, _)| *k == "select")`, first-wins). The
+/// export therefore answered `200` with a header naming `id` over a column that was empty
+/// in every row, indistinguishable from a table where the value is genuinely `NULL`
+/// throughout. The header now comes from the projection, in `helpers::export_columns`.
+///
+/// The unit suite (`routes::rest::streaming::export_header_tests`) drives both writers
+/// directly and on the **required** leg. This case is the one that reproduces the request
+/// as the issue measured it — over HTTP, against real PostgreSQL, through the router's
+/// own `Accept` dispatch — so a regression in *which handler serves `text/csv`* is caught
+/// too, and not only one in the handler itself.
+#[cfg(feature = "export-csv")]
+#[tokio::test]
+async fn a_repeated_select_heads_the_served_csv_with_the_projected_column() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    // Two *different* fields: a repeat naming the same column would agree under either
+    // resolution and prove nothing.
+    let body = export(&server.url, "text/csv", "?select=id&select=label&limit=3").await;
+    let body = body.trim_start_matches('\u{feff}');
+    let mut lines = body.lines();
+
+    assert_eq!(
+        lines.next().expect("CSV export carried no header"),
+        "label",
+        "a repeated `?select=` projects last-wins, so `label` is what the rows carry and \
+         what the header must name; `id` heads a column empty on every row: {body:?}"
+    );
+
+    let data: Vec<&str> = lines.filter(|l| !l.trim().is_empty()).collect();
+    assert_eq!(data.len(), 3, "`?limit=3` bounds the export total: {body:?}");
+    for row in &data {
+        assert!(
+            !row.trim().is_empty() && *row != "\"\"",
+            "every cell under the header must carry the projected value, not the empty \
+             string a missing key renders as: {body:?}"
+        );
+    }
+}

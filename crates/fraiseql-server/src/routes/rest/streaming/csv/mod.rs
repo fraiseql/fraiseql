@@ -7,10 +7,11 @@
 //! Output format:
 //! - Optional UTF-8 BOM (`\u{FEFF}`) at the start, controlled by [`ExportConfig::csv_include_bom`]
 //!   (default `true` — Excel needs it).
-//! - One header row whose columns are the top-level fields of the query result. If `?select=a,b,c`
-//!   is provided the column order matches that list (paren-aware: `posts(id,title)` becomes a
-//!   single `posts` column); otherwise columns are the first row's keys, sorted alphabetically
-//!   (deterministic regardless of `serde_json`'s `preserve_order` feature).
+//! - One header row naming the columns the rows were **projected** by, in that order (#1274). With
+//!   `?select=a,b,c` that is the selection; without one it is the type's declared fields. Only if
+//!   the projection is empty — a return type absent from the schema — does the header fall back to
+//!   the first row's keys, sorted alphabetically (deterministic regardless of `serde_json`'s
+//!   `preserve_order` feature).
 //! - One row per result, RFC 4180 quoting, configurable delimiter via
 //!   [`ExportConfig::csv_delimiter`].
 //!
@@ -31,6 +32,7 @@ use super::{
         handler::{ResolvedGetQuery, RestError, RestHandler, set_request_id},
     },
     guard_formula_injection,
+    helpers::determine_columns,
 };
 
 /// Content type for CSV responses.
@@ -99,6 +101,9 @@ pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
 
     let batch_size = handler.config().ndjson_batch_size.max(1);
 
+    // #1274: the header is the projection, read before `export_rows` consumes the match.
+    let select_columns = super::helpers::export_columns(&query_match);
+
     // One statement for the whole export (#958) — see `helpers::export_rows`.
     let rows = super::helpers::export_rows(
         handler.executor(),
@@ -111,13 +116,13 @@ pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
 
     let csv_stream = stream::unfold(
         CsvStreamState {
-            chunks:         rows.ready_chunks(usize::try_from(batch_size).unwrap_or(usize::MAX)),
-            delimiter:      ascii_delimiter(export_config.csv_delimiter),
-            include_bom:    export_config.csv_include_bom,
-            select_columns: extract_select_columns(query_pairs),
-            columns:        None,
+            chunks: rows.ready_chunks(usize::try_from(batch_size).unwrap_or(usize::MAX)),
+            delimiter: ascii_delimiter(export_config.csv_delimiter),
+            include_bom: export_config.csv_include_bom,
+            select_columns,
+            columns: None,
             header_emitted: false,
-            finished:       false,
+            finished: false,
         },
         |mut state| async move {
             if state.finished {
@@ -181,8 +186,8 @@ struct CsvStreamState {
     chunks:         futures::stream::ReadyChunks<fraiseql_core::runtime::JsonRowStream>,
     delimiter:      u8,
     include_bom:    bool,
-    /// Column order parsed from `?select=`. `None` means "infer from the
-    /// first row's keys (sorted)".
+    /// The projection's columns, from `helpers::export_columns` (#1274). `None` means
+    /// the projection was empty — infer from the first row's keys, sorted.
     select_columns: Option<Vec<String>>,
     /// Column list finalised on the first non-empty group.
     columns:        Option<Vec<String>>,
@@ -199,9 +204,10 @@ struct CsvStreamState {
 /// On the first non-empty group this writes the optional BOM and the header row.
 async fn serialize_next_csv_chunk(state: &mut CsvStreamState) -> Option<Bytes> {
     let Some(chunk) = state.chunks.next().await else {
-        // No rows at all. A header-only body is still a correct CSV export when
-        // the client named its columns, and is what a spreadsheet expects to
-        // open; without a `?select=` there is no column list to write.
+        // No rows at all. A header-only body is still a correct CSV export, and is what
+        // a spreadsheet expects to open. This used to be withheld unless the client sent
+        // a `?select=`, because there was otherwise "no column list to write"; taking the
+        // header from the projection (#1274) means there always is one.
         if !state.header_emitted {
             if let Some(cols) = state.select_columns.clone() {
                 state.columns = Some(cols.clone());
@@ -345,82 +351,6 @@ fn value_to_csv_field(v: &serde_json::Value) -> String {
         serde_json::Value::Number(n) => guard_formula_injection(&n.to_string()),
         serde_json::Value::String(s) => guard_formula_injection(s),
         other => guard_formula_injection(&serde_json::to_string(other).unwrap_or_default()),
-    }
-}
-
-/// Decide column ordering for the CSV output.
-///
-/// Preference:
-/// 1. `?select=` order, when supplied.
-/// 2. First row's keys, sorted alphabetically.
-///
-/// The fallback sorts explicitly rather than leaning on `serde_json::Map`
-/// iteration order: that order is alphabetical only for the default (`BTreeMap`)
-/// build and becomes insertion order when any dependency enables the
-/// `preserve_order` feature (e.g. under `--all-features`), which would silently
-/// change export column order. Sorting here keeps the header deterministic
-/// regardless of `serde_json`'s feature resolution.
-fn determine_columns(select_columns: Option<&[String]>, rows: &[serde_json::Value]) -> Vec<String> {
-    if let Some(cols) = select_columns {
-        return cols.to_vec();
-    }
-    rows.first()
-        .and_then(|v| v.as_object())
-        .map(|m| {
-            let mut cols: Vec<String> = m.keys().cloned().collect();
-            cols.sort();
-            cols
-        })
-        .unwrap_or_default()
-}
-
-/// Extract `?select=` top-level columns from the request's query pairs.
-///
-/// Returns `None` if the parameter is absent, empty, or contains no usable
-/// top-level field names.
-fn extract_select_columns(query_pairs: &[(&str, &str)]) -> Option<Vec<String>> {
-    let raw = query_pairs.iter().find(|(k, _)| *k == "select").map(|(_, v)| *v)?;
-    let cols = parse_select_top_level(raw);
-    if cols.is_empty() { None } else { Some(cols) }
-}
-
-/// Paren-aware split of `?select=` into top-level column names.
-///
-/// `id,name,posts(id,title)` → `["id", "name", "posts"]`.
-fn parse_select_top_level(select_raw: &str) -> Vec<String> {
-    let mut cols = Vec::new();
-    let mut depth = 0_usize;
-    let mut current = String::new();
-    for c in select_raw.chars() {
-        match c {
-            '(' => {
-                depth += 1;
-                current.push(c);
-            },
-            ')' => {
-                depth = depth.saturating_sub(1);
-                current.push(c);
-            },
-            ',' if depth == 0 => {
-                push_top_level(&mut cols, &current);
-                current.clear();
-            },
-            _ => current.push(c),
-        }
-    }
-    push_top_level(&mut cols, &current);
-    cols
-}
-
-fn push_top_level(cols: &mut Vec<String>, current: &str) {
-    let trimmed = current.trim();
-    if trimmed.is_empty() {
-        return;
-    }
-    // For `posts(id,title)` we only want the bare `posts` part.
-    let head = trimmed.split('(').next().unwrap_or("").trim();
-    if !head.is_empty() {
-        cols.push(head.to_string());
     }
 }
 

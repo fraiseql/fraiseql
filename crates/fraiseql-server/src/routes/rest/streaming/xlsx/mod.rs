@@ -30,9 +30,12 @@ use futures::StreamExt as _;
 use rust_xlsxwriter::Workbook;
 use tempfile::NamedTempFile;
 
-use super::super::{
-    export_config::ExportConfig,
-    handler::{ResolvedGetQuery, RestError, RestHandler, set_request_id},
+use super::{
+    super::{
+        export_config::ExportConfig,
+        handler::{ResolvedGetQuery, RestError, RestHandler, set_request_id},
+    },
+    helpers::determine_columns,
 };
 
 /// Content type for XLSX responses.
@@ -113,6 +116,9 @@ pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
             .unwrap_or_else(|_| HeaderValue::from_static("attachment; filename=\"export.xlsx\"")),
     );
 
+    // #1274: the header is the projection, read before `export_rows` consumes the match.
+    let select_columns = super::helpers::export_columns(&query_match);
+
     // One statement for the whole export (#958) — see `helpers::export_rows`.
     let rows = super::helpers::export_rows(
         handler.executor(),
@@ -126,7 +132,7 @@ pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
     let bytes = build_workbook(BuildContext {
         rows,
         max_rows: export_config.xlsx_max_rows,
-        select_columns: extract_select_columns(query_pairs),
+        select_columns,
         temp_dir: export_config.xlsx_temp_dir.clone(),
     })
     .await?;
@@ -181,7 +187,7 @@ struct BuildContext {
     /// The export's rows, from its single statement (#958).
     rows:           JsonRowStream,
     max_rows:       u64,
-    /// Column order from `?select=`, when supplied.
+    /// The projection's columns, from `helpers::export_columns` (#1274).
     select_columns: Option<Vec<String>>,
     /// Optional override for the temp-file directory.
     temp_dir:       Option<std::path::PathBuf>,
@@ -206,9 +212,10 @@ async fn build_workbook(ctx: BuildContext) -> Result<Bytes, RestError> {
     while let Some(row) = rows.next().await {
         let row = row.map_err(|e| RestError::internal(format!("XLSX export failed: {e}")))?;
 
-        // The column list comes from the first row, which is the first point at
-        // which it is known — an export with no `?select=` takes its header from
-        // the data, exactly as the CSV writer does.
+        // Written on the first row rather than before the loop: the header is known up
+        // front now (it is the projection), but the fallback for an empty projection
+        // still needs a row to read its keys from, and an export with no rows must not
+        // produce a sheet at all. Exactly as the CSV writer does.
         if columns.is_none() {
             let cols = determine_columns(ctx.select_columns.as_deref(), std::slice::from_ref(&row));
             write_header_row(worksheet, &cols)?;
@@ -359,80 +366,6 @@ fn too_many_rows_error(max_rows: u64) -> RestError {
              result sets"
         ),
         details: None,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Column selection (mirrors the CSV sibling)
-// ---------------------------------------------------------------------------
-
-/// Decide column ordering for the workbook.
-///
-/// Preference:
-/// 1. `?select=` order, when supplied.
-/// 2. First row's keys, sorted alphabetically.
-///
-/// The fallback sorts explicitly rather than leaning on `serde_json::Map`
-/// iteration order: that order is alphabetical only for the default (`BTreeMap`)
-/// build and becomes insertion order when any dependency enables the
-/// `preserve_order` feature (e.g. under `--all-features`), which would silently
-/// change export column order. Sorting here keeps the header deterministic
-/// regardless of `serde_json`'s feature resolution.
-fn determine_columns(select_columns: Option<&[String]>, rows: &[serde_json::Value]) -> Vec<String> {
-    if let Some(cols) = select_columns {
-        return cols.to_vec();
-    }
-    rows.first()
-        .and_then(|v| v.as_object())
-        .map(|m| {
-            let mut cols: Vec<String> = m.keys().cloned().collect();
-            cols.sort();
-            cols
-        })
-        .unwrap_or_default()
-}
-
-/// Extract `?select=` top-level columns from the request's query pairs.
-fn extract_select_columns(query_pairs: &[(&str, &str)]) -> Option<Vec<String>> {
-    let raw = query_pairs.iter().find(|(k, _)| *k == "select").map(|(_, v)| *v)?;
-    let cols = parse_select_top_level(raw);
-    if cols.is_empty() { None } else { Some(cols) }
-}
-
-/// Paren-aware split of `?select=` into top-level column names.
-fn parse_select_top_level(select_raw: &str) -> Vec<String> {
-    let mut cols = Vec::new();
-    let mut depth = 0_usize;
-    let mut current = String::new();
-    for c in select_raw.chars() {
-        match c {
-            '(' => {
-                depth += 1;
-                current.push(c);
-            },
-            ')' => {
-                depth = depth.saturating_sub(1);
-                current.push(c);
-            },
-            ',' if depth == 0 => {
-                push_top_level(&mut cols, &current);
-                current.clear();
-            },
-            _ => current.push(c),
-        }
-    }
-    push_top_level(&mut cols, &current);
-    cols
-}
-
-fn push_top_level(cols: &mut Vec<String>, current: &str) {
-    let trimmed = current.trim();
-    if trimmed.is_empty() {
-        return;
-    }
-    let head = trimmed.split('(').next().unwrap_or("").trim();
-    if !head.is_empty() {
-        cols.push(head.to_string());
     }
 }
 

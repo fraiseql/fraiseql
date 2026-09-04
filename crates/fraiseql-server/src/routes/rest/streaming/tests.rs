@@ -253,3 +253,75 @@ mod formula_injection {
         assert_eq!(guard_formula_injection(""), "");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Header-column selection (#1274)
+// ---------------------------------------------------------------------------
+
+/// `export_columns` and `determine_columns` live in `helpers` because the CSV and XLSX
+/// writers held byte-identical copies of the column rule and of the `?select=` parser it
+/// used to consult (#1274). Their tests are here for the same reason: two copies of a
+/// test are two places for one of them to be forgotten.
+#[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
+mod export_columns {
+    use fraiseql_core::{runtime::QueryMatch, schema::QueryDefinition};
+    use serde_json::json;
+
+    use super::super::helpers::{determine_columns, export_columns};
+
+    /// A `QueryMatch` whose projection is `fields` — the shape `resolve_get_query` hands
+    /// the export writers.
+    fn match_projecting(fields: &[&str]) -> QueryMatch {
+        QueryMatch::from_operation(
+            QueryDefinition::new("posts", "Post"),
+            fields.iter().map(|f| (*f).to_string()).collect(),
+            std::collections::HashMap::new(),
+            None,
+        )
+        .expect("a QueryMatch over a field list is infallible")
+    }
+
+    #[test]
+    fn the_header_is_the_projection_in_projection_order() {
+        assert_eq!(
+            export_columns(&match_projecting(&["email", "id", "name"])),
+            Some(vec!["email".to_string(), "id".to_string(), "name".to_string()]),
+            "not sorted, not re-derived: the columns the rows were projected by, in order"
+        );
+    }
+
+    /// The only case with no answer. `resolve_get_query` produces an empty projection
+    /// only when the return type is absent from the schema — `RestFieldSpec::All`
+    /// expands to the declared fields (#886), so an ordinary request always has one.
+    #[test]
+    fn an_empty_projection_has_no_header_to_offer() {
+        assert!(export_columns(&match_projecting(&[])).is_none());
+    }
+
+    #[test]
+    fn determine_columns_prefers_the_projection() {
+        let rows = vec![json!({"id": 1, "name": "Alice", "email": "a@b"})];
+        let select = vec!["email".to_string(), "id".to_string()];
+        assert_eq!(determine_columns(Some(&select), &rows), vec!["email", "id"]);
+    }
+
+    #[test]
+    fn determine_columns_falls_back_to_sorted_first_row_keys() {
+        let rows = vec![json!({"id": 1, "name": "Alice"})];
+        assert_eq!(determine_columns(None, &rows), vec!["id", "name"]);
+    }
+
+    /// The fallback sorts explicitly, so the header is alphabetical whatever order the
+    /// keys were inserted in — `serde_json::Map` iterates in insertion order once any
+    /// dependency turns on `preserve_order` (as `--all-features` does).
+    #[test]
+    fn determine_columns_fallback_is_sorted_regardless_of_key_insertion_order() {
+        let rows = vec![json!({"name": "Alice", "email": "a@b", "id": 1})];
+        assert_eq!(determine_columns(None, &rows), vec!["email", "id", "name"]);
+    }
+
+    #[test]
+    fn determine_columns_is_empty_with_no_rows_and_no_projection() {
+        assert!(determine_columns(None, &[]).is_empty());
+    }
+}

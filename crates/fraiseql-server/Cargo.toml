@@ -177,6 +177,10 @@ futures = "0.3"
 # dependency is the optional `redis` above.
 redis = {workspace = true}
 proptest = {workspace = true}
+# Test-only: read back the header row of a generated workbook for the #1274 export-header
+# cases. This is the same crate and version `rust_xlsxwriter` already pulls to WRITE the
+# file, so it adds nothing to the dependency tree — only the read direction.
+zip = {version = "7", default-features = false, features = ["deflate"]}
 # HTTP testing
 reqwest = {workspace = true}
 # Database testing
