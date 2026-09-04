@@ -26,10 +26,7 @@ use bytes::Bytes;
 use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
 use futures::{StreamExt as _, stream};
 
-use super::{
-    handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id},
-    params::PaginationParams,
-};
+use super::handler::{ResolvedGetQuery, RestError, RestHandler, set_request_id};
 
 /// Content type for NDJSON responses.
 pub const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
@@ -44,41 +41,6 @@ pub fn accepts_ndjson(headers: &HeaderMap) -> bool {
     })
 }
 
-/// Validate that NDJSON-incompatible preferences are not set.
-///
-/// Returns `Err(RestError)` if `Prefer: count=exact` or pagination params
-/// (`limit`, `offset`) are present.
-///
-/// # Errors
-///
-/// Returns `RestError::BadRequest` when count or pagination is requested
-/// alongside NDJSON streaming.
-pub fn validate_ndjson_request(
-    prefer: &PreferHeader,
-    pagination: &PaginationParams,
-) -> Result<(), RestError> {
-    // Count is not available for streaming
-    if prefer.count_exact || prefer.count_planned || prefer.count_estimated {
-        return Err(RestError::bad_request("count not available for streaming responses"));
-    }
-
-    // Pagination is not available for streaming
-    if let PaginationParams::Offset { offset, .. } = pagination {
-        if *offset > 0 {
-            return Err(RestError::bad_request(
-                "pagination not available for streaming; use filters to narrow results",
-            ));
-        }
-    }
-    if matches!(pagination, PaginationParams::Cursor { .. }) {
-        return Err(RestError::bad_request(
-            "pagination not available for streaming; use filters to narrow results",
-        ));
-    }
-
-    Ok(())
-}
-
 /// Execute a query and return results as a streaming NDJSON response.
 ///
 /// Rows are fetched in batches from the database and streamed to the client
@@ -86,7 +48,8 @@ pub fn validate_ndjson_request(
 /// is bounded by the configured `ndjson_batch_size` rather than total rows.
 ///
 /// Delegates route resolution and query building to
-/// [`RestHandler::resolve_get_query`].
+/// [`RestHandler::resolve_streaming_get_query`], which is also where every request
+/// rule an export does not share with the JSON envelope is applied.
 ///
 /// # Errors
 ///
@@ -100,10 +63,11 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
 ) -> Result<NdjsonResponse, RestError> {
+    // Every request rule the export representations do not share with the JSON envelope
+    // — count, pagination, and the `?select=` embeds and counts of #1268 — is applied by
+    // `resolve_streaming_get_query`, so a handler cannot serve a request the others
+    // refuse.
     let resolved = handler.resolve_streaming_get_query(relative_path, query_pairs, headers)?;
-
-    let prefer = PreferHeader::from_headers(headers);
-    validate_ndjson_request(&prefer, &resolved.params.pagination)?;
 
     let ResolvedGetQuery {
         query_match,

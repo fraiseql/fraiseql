@@ -774,6 +774,54 @@ fn single_resource_endpoint_does_not_advertise_text_csv() {
     );
 }
 
+/// #1268: no export representation may describe a capability it answers `400` to.
+///
+/// The `text/csv` description used to read "Embedded relationships are serialised as JSON
+/// inside a single cell" — a promise nothing kept, on the representation whose header row
+/// is built from the raw `?select=`, so the export carried a column named after the
+/// relationship that was empty on every row.
+///
+/// Asserted as an absence *and* a presence. The absence alone passes on a document that
+/// dropped the description entirely; the presence is what makes a client's reading of the
+/// shared type `$ref` — which does advertise relationships, correctly, for the JSON
+/// envelope — land somewhere true.
+#[test]
+fn no_export_representation_promises_embedded_relationships() {
+    let spec = generate(&rest_schema());
+    let content = &spec["paths"]["/users"]["get"]["responses"]["200"]["content"];
+
+    let mut checked = 0;
+    for media in [
+        "application/x-ndjson",
+        #[cfg(feature = "export-csv")]
+        "text/csv",
+        #[cfg(feature = "export-xlsx")]
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ] {
+        // A media type missing from the map is `Value::Null`, whose `description` is
+        // absent — which lands here as the empty string and fails by name rather than
+        // passing over a representation the document forgot to advertise.
+        let description = content[media]["description"].as_str().unwrap_or_default();
+        assert!(
+            !description.is_empty(),
+            "{media} must carry a description saying what it does not embed: {content}"
+        );
+        assert!(
+            !description.contains("serialised as JSON inside a single cell"),
+            "{media} still promises to carry an embed: {description}"
+        );
+        assert!(
+            description.contains("are not available on this representation"),
+            "{media} must say the exports do not carry embeds, so the type `$ref` above              is not read as a promise: {description}"
+        );
+        checked += 1;
+    }
+
+    // Guards the reverse of every assertion above: a future edit that narrows the media
+    // list to nothing would otherwise loop zero times and read as a pass.
+    assert!(checked >= 1, "no export representation was checked");
+}
+
 // ---------------------------------------------------------------------------
 // XLSX advertising (gated on the `export-xlsx` feature)
 // ---------------------------------------------------------------------------

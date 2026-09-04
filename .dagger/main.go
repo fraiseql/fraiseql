@@ -1651,6 +1651,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// GraphQL served it correctly. Asserts REST against GraphQL on one seeded
 		// row, which is the only way to see a key that is simply not there.
 		"cargo test -p fraiseql-server --features rest --test rest_declared_name_stored_key_e2e_pg -- --test-threads=1",
+		// #1268: the three export representations accepted a `?select=` naming an embed
+		// or a count, validated it, and emitted rows without it — NDJSON dropped the key,
+		// CSV and XLSX carried a column named after the relationship that was empty on
+		// every row. Same feature requirement as the export-integrity suite below, and
+		// the binary refuses to compile without it rather than dropping those cases.
+		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --test rest_export_embedding_e2e_pg -- --test-threads=1",
 		// #811/#917: exports paginated through `variables`, which the executor ignores —
 		// so every export either truncated to one page or looped forever emitting
 		// duplicates. Needs the export features compiled in: the CSV and XLSX cases are

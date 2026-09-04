@@ -40,6 +40,13 @@ pub struct ResolvedGetQuery {
     /// representation that does not execute embeddings never asks for them, so it
     /// has nothing to take back out. Whoever populates this is responsible for
     /// passing it to [`embedding::strip_projected_keys`] before serialising.
+    ///
+    /// The export representations are the "otherwise": since #1268 they *refuse* a
+    /// request naming an embed rather than dropping it, so a `ResolvedGetQuery` they
+    /// produce carries no `embeddings` and no `embedding_counts` — nothing to widen for
+    /// and nothing to strip. That is a stronger guarantee than the one this field was
+    /// written under, where the widening had to be withheld from a path that would
+    /// otherwise have emitted the extra column as a CSV header.
     pub server_projected_keys: Vec<String>,
 }
 
@@ -47,12 +54,19 @@ impl ResolvedGetQuery {
     /// Add the parent-row keys this request's embeds join on to the projection.
     ///
     /// Applied by the JSON representation only, because it is the only one that
-    /// executes embeddings; the streaming exports drop `?select=` embeds, so adding
-    /// a column they would then emit as a header would be a leak, not a fix. Keeping
-    /// this a step the caller applies — rather than folding it into
-    /// [`super::RestHandler::resolve_get_query`] — is what lets
+    /// executes embeddings. Keeping this a step the caller applies — rather than folding
+    /// it into [`super::RestHandler::resolve_get_query`] — is what lets
     /// [`super::RestHandler::resolve_streaming_get_query`] keep resolving through the
-    /// same function (#958) without inheriting a projection it cannot undo.
+    /// same function (#958) without inheriting a projection it cannot undo, and keeps
+    /// the widening adjacent to the [`embedding::strip_projected_keys`] call that is its
+    /// other half.
+    ///
+    /// When this was written the exports *dropped* `?select=` embeds, so widening for
+    /// them would have emitted a column the client never named — as a CSV header, no
+    /// less. Since #1268 they refuse such a request outright, so there is no longer a
+    /// path that could inherit the widening at all: `required_join_keys` over the empty
+    /// selections an export is allowed to carry returns nothing, and this method is an
+    /// identity.
     ///
     /// See [`embedding::required_join_keys`] for why the server projects a key the
     /// client did not ask for (#1230).

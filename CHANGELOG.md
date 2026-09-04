@@ -19,6 +19,32 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **A streaming export refuses a `?select=` naming an embed or a count (#1268).**
+
+  `Accept: application/x-ndjson`, `text/csv` and the XLSX media type now answer `400` to a
+  request whose `?select=` names an embedded relationship (`?select=id,author(name)`) or an
+  embedded count (`?select=id,posts.count`). They used to accept it, validate it, and emit
+  rows without it; see `### Fixed` for what that looked like.
+
+  **Migration.** Request `Accept: application/json` for a response that carries embedded
+  relationships, or project the related data into the exported view — which is what the
+  view layer is for, and the only shape that keeps an export one statement over one
+  snapshot. A request that worked before was already not returning the embed.
+
+- **`validate_ndjson_request`, `validate_csv_request` and `validate_xlsx_request` are
+  replaced by one `refuse_unstreamable_request` (#1268).**
+
+  Three hand-copied bodies of the same rule became one function, moved to
+  `routes::rest::handler` and applied by `RestHandler::resolve_streaming_get_query` — the
+  single function every export representation already resolves through for its
+  `rest_stream` opt-in (#958). It takes the whole `ExtractedParams` rather than just the
+  pagination, because the rule it was missing is about `?select=`.
+
+  The copies had already drifted: NDJSON and CSV said "streaming responses" where XLSX said
+  "export responses". The shared message keeps XLSX's wording, which is the accurate one for
+  all three — an XLSX workbook is buffered, not streamed. Callers outside this crate are
+  unlikely; the three functions had no caller but their own handler.
+
 - **`ResolvedGetQuery` carries a fifth field, `server_projected_keys` (#1230).**
 
   The REST GET resolver now reports which projection keys it added for the *server's* use —
@@ -575,6 +601,55 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A streaming export no longer answers a validated `?select=` with rows that omit it
+  (#1268).**
+
+  `GET /rest/v1/posts?select=id,author(name)` with `Accept: application/x-ndjson` answered
+  `200` and `{"id":10}` per line. The identical request as JSON answers
+  `{"id":10,"author":{"name":"alice"}}`. The parser had filled `params.embeddings`, the
+  depth validator had bounded it and `validate_embedding_relationship_name` had confirmed
+  the relationship exists — and then all three export handlers destructured
+  `ResolvedGetQuery { query_match, variables, .. }` and dropped the rest of `params`.
+
+  CSV and XLSX were louder, because both build their header row from the raw `?select=`:
+  the export carried a column literally named `author`, empty on every row —
+  indistinguishable from a table where no post has an author. `?select=id,posts.count`
+  produced a `posts.count` header over empty cells. And `?select=author(name)` — a select
+  naming *only* an embed — expands to `RestFieldSpec::All`, so the export answered with
+  every column of the parent and no author at all.
+
+  **Why refuse rather than execute.** The issue framed this as a fork, and the served
+  OpenAPI document had picked the other side: the `text/csv` description read "Embedded
+  relationships are serialised as JSON inside a single cell", a promise nothing kept. It is
+  corrected here, along with the NDJSON and XLSX descriptions, and pinned by a test.
+
+  An export is documented as *one statement over one database portal* — a single snapshot,
+  `O(N)` in row scans, holding one pooled connection from the first row to the last. An
+  embed, as the REST executor resolves one, is a sub-query per parent row issued on a second
+  connection: `embed_into_rows` loops `embed_into_single`, and `execute_embedding_counts`
+  loops `count_related`. Executing embeds on an export would break every one of those
+  properties at once, and unboundedly — `export_rows` removes `limit` because an export
+  means the whole table (#811), where the JSON path's parent rows are bounded by
+  `max_page_size`. Resolving embeds *in SQL*, which would make executing them free and
+  preserve the snapshot, is a real capability and a different piece of work: every embed
+  today passes through `execute_query_direct` / `count_rows`, the chokepoints where
+  `requires_role`, `requires_actor` and field RBAC run, and a lateral join bypasses all
+  three.
+
+  What was not defensible was the third option that had shipped: accept, validate, discard.
+
+  The refusal lives in `refuse_unstreamable_request`, applied by
+  `resolve_streaming_get_query` alongside the `rest_stream` opt-in (#958) — one function, so
+  a fourth representation inherits every rule by resolving through the only function that
+  fits it. That is also the answer to #1230's open note: the join-key widening
+  `ResolvedGetQuery::with_embed_join_keys` performs is still applied by the JSON path alone,
+  but now because an export cannot carry a request that needs it, not because the widening
+  had to be withheld from a path that would have emitted the extra column as a CSV header.
+
+  The `406` for a route without `rest_stream` still comes first: "this route offers no
+  export at all" is the more fundamental refusal, and answering `400` first would tell a
+  client to fix a `?select=` on a route where no `?select=` would have helped.
+
 - **A count inside a sub-select executes instead of being silently discarded (#1267).**
 
   `?select=id,posts(id,comments.count)` was parsed, depth-validated and then dropped: the

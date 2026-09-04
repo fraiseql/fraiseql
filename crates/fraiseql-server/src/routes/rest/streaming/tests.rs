@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::http::{HeaderMap, HeaderValue};
 use serde_json::json;
 
 use super::{
@@ -123,83 +123,6 @@ fn accepts_ndjson_case_insensitive() {
     let mut headers = HeaderMap::new();
     headers.insert("accept", HeaderValue::from_static("Application/X-NDJSON"));
     assert!(accepts_ndjson(&headers));
-}
-
-#[test]
-fn validate_ndjson_rejects_count_exact() {
-    let prefer = PreferHeader {
-        count_exact: true,
-        ..PreferHeader::default()
-    };
-    let pagination = PaginationParams::None;
-    let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-    assert!(err.message.contains("count not available"));
-}
-
-#[test]
-fn validate_ndjson_rejects_count_planned() {
-    let prefer = PreferHeader {
-        count_planned: true,
-        ..PreferHeader::default()
-    };
-    let pagination = PaginationParams::None;
-    let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-}
-
-#[test]
-fn validate_ndjson_rejects_count_estimated() {
-    let prefer = PreferHeader {
-        count_estimated: true,
-        ..PreferHeader::default()
-    };
-    let pagination = PaginationParams::None;
-    let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-}
-
-#[test]
-fn validate_ndjson_rejects_cursor_pagination() {
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::Cursor {
-        first:  Some(10),
-        after:  None,
-        last:   None,
-        before: None,
-    };
-    let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-    assert!(err.message.contains("pagination not available"));
-}
-
-#[test]
-fn validate_ndjson_rejects_offset_pagination() {
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::Offset {
-        limit:  10,
-        offset: 5,
-    };
-    let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-}
-
-#[test]
-fn validate_ndjson_allows_limit_only() {
-    // offset=0 with limit is fine — it's the default, not explicit pagination
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::Offset {
-        limit:  100,
-        offset: 0,
-    };
-    assert!(validate_ndjson_request(&prefer, &pagination).is_ok());
-}
-
-#[test]
-fn validate_ndjson_allows_no_pagination() {
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::None;
-    assert!(validate_ndjson_request(&prefer, &pagination).is_ok());
 }
 
 #[test]

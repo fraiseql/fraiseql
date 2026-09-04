@@ -1098,3 +1098,107 @@ async fn test_get_empty_collection_returns_200_with_empty_data() {
     assert!(json["data"].is_array());
     assert_eq!(json["data"].as_array().unwrap().len(), 0);
 }
+
+// ---------------------------------------------------------------------------
+// #1268: the export refusal, proven through the real router
+// ---------------------------------------------------------------------------
+
+/// `refuse_unstreamable_request` is unit-tested in `routes::rest::handler::tests`, but a
+/// unit test cannot see whether anything *calls* it. When each export handler held its
+/// own validator, the call site was three lines a reader could check; now it is one line
+/// in `resolve_streaming_get_query`, and deleting it would leave every unit test green.
+///
+/// The end-to-end suite that covers all three representations needs real PostgreSQL and
+/// therefore runs only in `Dagger — integration`, which is **not** a required check. This
+/// pair runs on the required `test` leg, against a `FailingAdapter` with canned rows, and
+/// covers the wiring for the one representation that is not behind an export feature.
+mod export_embedding_refusal {
+    use fraiseql_core::schema::{Cardinality, CompiledSchema, FieldType, Relationship, RestConfig};
+
+    use super::*;
+
+    /// A streamable `posts` route whose `Post` declares a `ManyToOne` `author`.
+    fn export_schema() -> CompiledSchema {
+        let mut posts = TestQueryBuilder::new("posts", "Post")
+            .returns_list(true)
+            .with_sql_source("v_post")
+            .build();
+        posts.rest_stream = true;
+
+        let mut post = TestTypeBuilder::new("Post", "v_post")
+            .with_field(TestFieldBuilder::new("pk_post_id", FieldType::Int).build())
+            .with_field(TestFieldBuilder::new("fk_user", FieldType::Int).build())
+            .with_field(TestFieldBuilder::new("title", FieldType::String).build())
+            .build();
+        post.relationships = vec![Relationship {
+            name:           "author".to_string(),
+            target_type:    "User".to_string(),
+            cardinality:    Cardinality::ManyToOne,
+            foreign_key:    "fk_user".to_string(),
+            referenced_key: "pk_user_id".to_string(),
+        }];
+
+        // `User` and its list query come from the shared fixture — an embed sources its
+        // rows from the target type's list query, so `Post.author` needs `users` to exist
+        // for the request to be *valid* rather than refused for a second reason.
+        let mut schema = build_rest_schema();
+        schema.queries.push(posts);
+        schema.types.push(post);
+        schema.rest_config = Some(RestConfig {
+            enabled: true,
+            require_auth: false,
+            ..RestConfig::default()
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    fn export_router() -> axum::Router {
+        let rows = vec![JsonbValue::new(json!({
+            "pk_post_id": 1,
+            "fk_user": 7,
+            "title": "hello",
+        }))];
+        build_router(FailingAdapter::new().with_response("v_post", rows), export_schema())
+    }
+
+    async fn ndjson_get(router: &axum::Router, uri: &str) -> (StatusCode, String) {
+        let request = Request::builder()
+            .uri(uri)
+            .header("accept", "application/x-ndjson")
+            .body(Body::empty())
+            .unwrap();
+        let (status, _headers, body) = send_request(router, request).await;
+        (status, String::from_utf8_lossy(&body).into_owned())
+    }
+
+    #[tokio::test]
+    async fn the_router_refuses_an_embed_on_an_ndjson_export() {
+        let (status, body) =
+            ndjson_get(&export_router(), "/rest/v1/posts?select=pk_post_id,author(name)").await;
+
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "the refusal must reach the wire, not just the unit under test: {body}"
+        );
+        assert!(
+            body.contains("embedded relationship") && body.contains("author"),
+            "and must carry its own diagnosis: {body}"
+        );
+    }
+
+    /// The control that makes the assertion above about the *embed*.
+    ///
+    /// Same route, same representation, same adapter — only the `?select=` differs. A
+    /// `200` here means the request went past the refusal and into execution, so the
+    /// `400` above cannot be "NDJSON is broken on this route".
+    #[tokio::test]
+    async fn the_same_route_streams_when_nothing_is_embedded() {
+        let (status, body) =
+            ndjson_get(&export_router(), "/rest/v1/posts?select=pk_post_id,title").await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(body.contains("\"title\":\"hello\""), "the canned row streamed: {body}");
+    }
+}

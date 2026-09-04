@@ -28,8 +28,7 @@ use futures::{StreamExt as _, stream};
 use super::{
     super::{
         export_config::ExportConfig,
-        handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id},
-        params::PaginationParams,
+        handler::{ResolvedGetQuery, RestError, RestHandler, set_request_id},
     },
     guard_formula_injection,
 };
@@ -47,39 +46,6 @@ pub fn accepts_csv(headers: &HeaderMap) -> bool {
             media.eq_ignore_ascii_case(CSV_CONTENT_TYPE)
         })
     })
-}
-
-/// Validate that CSV-incompatible preferences are not set.
-///
-/// Same constraints as NDJSON: count and pagination are unavailable for
-/// streaming responses.
-///
-/// # Errors
-///
-/// Returns `RestError::BadRequest` when count or pagination is requested
-/// alongside CSV streaming.
-pub fn validate_csv_request(
-    prefer: &PreferHeader,
-    pagination: &PaginationParams,
-) -> Result<(), RestError> {
-    if prefer.count_exact || prefer.count_planned || prefer.count_estimated {
-        return Err(RestError::bad_request("count not available for streaming responses"));
-    }
-
-    if let PaginationParams::Offset { offset, .. } = pagination {
-        if *offset > 0 {
-            return Err(RestError::bad_request(
-                "pagination not available for streaming; use filters to narrow results",
-            ));
-        }
-    }
-    if matches!(pagination, PaginationParams::Cursor { .. }) {
-        return Err(RestError::bad_request(
-            "pagination not available for streaming; use filters to narrow results",
-        ));
-    }
-
-    Ok(())
 }
 
 /// Execute a query and return results as a streaming CSV response.
@@ -103,10 +69,10 @@ pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
 ) -> Result<CsvResponse, RestError> {
+    // Count, pagination and the `?select=` embeds and counts of #1268 are all refused by
+    // `resolve_streaming_get_query`, the one function every export representation
+    // resolves through.
     let resolved = handler.resolve_streaming_get_query(relative_path, query_pairs, headers)?;
-
-    let prefer = PreferHeader::from_headers(headers);
-    validate_csv_request(&prefer, &resolved.params.pagination)?;
 
     let ResolvedGetQuery {
         query_name,

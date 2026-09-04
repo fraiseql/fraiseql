@@ -27,6 +27,7 @@ use fraiseql_core::{
 // Re-export header utilities for cross-module callers (streaming/, bulk/)
 pub(crate) use headers::{set_preference_applied, set_request_id};
 pub use prefer::{CountPreference, HandlingPreference, PreferHeader};
+pub use query::refuse_unstreamable_request;
 pub use response::{RestError, RestResponse};
 pub use routing::{ResolvedGetQuery, ResolvedRoute};
 

@@ -32,8 +32,7 @@ use tempfile::NamedTempFile;
 
 use super::super::{
     export_config::ExportConfig,
-    handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id},
-    params::PaginationParams,
+    handler::{ResolvedGetQuery, RestError, RestHandler, set_request_id},
 };
 
 /// Content type for XLSX responses.
@@ -56,39 +55,6 @@ pub fn accepts_xlsx(headers: &HeaderMap) -> bool {
             media.eq_ignore_ascii_case(XLSX_CONTENT_TYPE)
         })
     })
-}
-
-/// Validate that XLSX-incompatible preferences are not set.
-///
-/// Same constraints as NDJSON / CSV: count and pagination are unavailable
-/// because the workbook is built from the full filtered result set.
-///
-/// # Errors
-///
-/// Returns `RestError::BadRequest` when count or pagination is requested
-/// alongside an XLSX export.
-pub fn validate_xlsx_request(
-    prefer: &PreferHeader,
-    pagination: &PaginationParams,
-) -> Result<(), RestError> {
-    if prefer.count_exact || prefer.count_planned || prefer.count_estimated {
-        return Err(RestError::bad_request("count not available for export responses"));
-    }
-
-    if let PaginationParams::Offset { offset, .. } = pagination {
-        if *offset > 0 {
-            return Err(RestError::bad_request(
-                "pagination not available for export; use filters to narrow results",
-            ));
-        }
-    }
-    if matches!(pagination, PaginationParams::Cursor { .. }) {
-        return Err(RestError::bad_request(
-            "pagination not available for export; use filters to narrow results",
-        ));
-    }
-
-    Ok(())
 }
 
 /// Execute a query and return an XLSX workbook as the response body.
@@ -119,10 +85,10 @@ pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
 ) -> Result<XlsxResponse, RestError> {
+    // Count, pagination and the `?select=` embeds and counts of #1268 are all refused by
+    // `resolve_streaming_get_query`, the one function every export representation
+    // resolves through.
     let resolved = handler.resolve_streaming_get_query(relative_path, query_pairs, headers)?;
-
-    let prefer = PreferHeader::from_headers(headers);
-    validate_xlsx_request(&prefer, &resolved.params.pagination)?;
 
     let ResolvedGetQuery {
         query_name,

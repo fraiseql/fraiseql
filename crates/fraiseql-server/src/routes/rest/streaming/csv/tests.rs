@@ -2,8 +2,6 @@
 
 #![allow(clippy::unwrap_used)] // Reason: tests follow the NDJSON sibling module's convention.
 
-use axum::http::StatusCode;
-
 use super::*;
 
 #[test]
@@ -52,82 +50,6 @@ fn accepts_csv_does_not_match_text_plain() {
     let mut headers = HeaderMap::new();
     headers.insert("accept", HeaderValue::from_static("text/plain"));
     assert!(!accepts_csv(&headers));
-}
-
-#[test]
-fn validate_csv_rejects_count_exact() {
-    let prefer = PreferHeader {
-        count_exact: true,
-        ..PreferHeader::default()
-    };
-    let pagination = PaginationParams::None;
-    let err = validate_csv_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-    assert!(err.message.contains("count not available"));
-}
-
-#[test]
-fn validate_csv_rejects_count_planned() {
-    let prefer = PreferHeader {
-        count_planned: true,
-        ..PreferHeader::default()
-    };
-    let pagination = PaginationParams::None;
-    let err = validate_csv_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-}
-
-#[test]
-fn validate_csv_rejects_count_estimated() {
-    let prefer = PreferHeader {
-        count_estimated: true,
-        ..PreferHeader::default()
-    };
-    let pagination = PaginationParams::None;
-    let err = validate_csv_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-}
-
-#[test]
-fn validate_csv_rejects_cursor_pagination() {
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::Cursor {
-        first:  Some(10),
-        after:  None,
-        last:   None,
-        before: None,
-    };
-    let err = validate_csv_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-    assert!(err.message.contains("pagination not available"));
-}
-
-#[test]
-fn validate_csv_rejects_offset_pagination() {
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::Offset {
-        limit:  10,
-        offset: 5,
-    };
-    let err = validate_csv_request(&prefer, &pagination).unwrap_err();
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-}
-
-#[test]
-fn validate_csv_allows_limit_only() {
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::Offset {
-        limit:  100,
-        offset: 0,
-    };
-    assert!(validate_csv_request(&prefer, &pagination).is_ok());
-}
-
-#[test]
-fn validate_csv_allows_no_pagination() {
-    let prefer = PreferHeader::default();
-    let pagination = PaginationParams::None;
-    assert!(validate_csv_request(&prefer, &pagination).is_ok());
 }
 
 #[test]

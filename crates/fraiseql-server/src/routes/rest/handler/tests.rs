@@ -935,3 +935,235 @@ mod database_text_provenance {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Export request refusal (#1268)
+// ---------------------------------------------------------------------------
+
+/// `refuse_unstreamable_request` is the whole of what the export representations leave
+/// out of the JSON envelope's request surface — count, pagination, and `?select=` embeds
+/// and counts.
+///
+/// It is one function tested once, replacing three hand-copied validators tested three
+/// times over. The copies were already drifting in wording, and the fourth rule that
+/// #1268 is about was missing from all three at once, which is what a copied check buys.
+#[cfg(test)]
+mod export_refusal {
+    use axum::http::StatusCode;
+
+    use super::super::query::refuse_unstreamable_request;
+    use crate::routes::rest::{
+        handler::PreferHeader,
+        params::{EmbeddedSpec, ExtractedParams, PaginationParams, RestFieldSpec, SelectEntry},
+    };
+
+    /// A request the exports accept: no count, no offset, nothing embedded.
+    ///
+    /// Every case below is this value with exactly one field changed, so a refusal can
+    /// only be attributed to that field. `an_acceptable_request_is_the_baseline` asserts this
+    /// value itself passes — without it, "always refuse" would satisfy every other test
+    /// here.
+    fn acceptable() -> ExtractedParams {
+        ExtractedParams {
+            path_params:       Vec::new(),
+            where_clause:      None,
+            order_by:          None,
+            pagination:        PaginationParams::None,
+            field_selection:   RestFieldSpec::Fields(vec!["id".to_string()]),
+            search_query:      None,
+            embeddings:        Vec::new(),
+            embedding_filters: std::collections::HashMap::new(),
+            embedding_counts:  Vec::new(),
+        }
+    }
+
+    fn embed(relationship: &str) -> EmbeddedSpec {
+        EmbeddedSpec {
+            relationship: relationship.to_string(),
+            rename:       None,
+            fields:       vec![SelectEntry::Field("name".to_string())],
+        }
+    }
+
+    #[test]
+    fn an_acceptable_request_is_the_baseline() {
+        assert!(refuse_unstreamable_request(&PreferHeader::default(), &acceptable()).is_ok());
+    }
+
+    #[test]
+    fn a_limit_without_an_offset_is_accepted() {
+        // `?limit=` bounds the export total (#811); it is not a page.
+        let params = ExtractedParams {
+            pagination: PaginationParams::Offset {
+                limit:  100,
+                offset: 0,
+            },
+            ..acceptable()
+        };
+        assert!(refuse_unstreamable_request(&PreferHeader::default(), &params).is_ok());
+    }
+
+    #[test]
+    fn every_count_preference_is_refused() {
+        let cases = [
+            PreferHeader {
+                count_exact: true,
+                ..PreferHeader::default()
+            },
+            PreferHeader {
+                count_planned: true,
+                ..PreferHeader::default()
+            },
+            PreferHeader {
+                count_estimated: true,
+                ..PreferHeader::default()
+            },
+        ];
+        for prefer in cases {
+            let err = refuse_unstreamable_request(&prefer, &acceptable()).unwrap_err();
+            assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            assert!(err.message.contains("count not available"), "{}", err.message);
+        }
+    }
+
+    #[test]
+    fn offset_and_cursor_pagination_are_refused() {
+        let cases = [
+            PaginationParams::Offset {
+                limit:  10,
+                offset: 5,
+            },
+            PaginationParams::Cursor {
+                first:  Some(10),
+                after:  None,
+                last:   None,
+                before: None,
+            },
+        ];
+        for pagination in cases {
+            let params = ExtractedParams {
+                pagination,
+                ..acceptable()
+            };
+            let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+            assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            assert!(err.message.contains("pagination not available"), "{}", err.message);
+        }
+    }
+
+    /// #1268: an embed used to be validated here and then dropped by the export, which
+    /// answered `200` with the relationship simply absent from every row.
+    #[test]
+    fn an_embedded_relationship_is_refused_by_name() {
+        let params = ExtractedParams {
+            embeddings: vec![embed("author")],
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(
+            err.message.contains("embedded relationship"),
+            "the embed branch states its own diagnosis: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("`author`"),
+            "a client cannot act on a refusal that does not name the selection: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("application/json"),
+            "the refusal names the representation that does embed: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn every_embedded_relationship_is_named_in_selection_order() {
+        let params = ExtractedParams {
+            embeddings: vec![embed("author"), embed("comments")],
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert!(
+            err.message.contains("`author`, `comments`"),
+            "naming only the first would leave a client fixing one at a time: {}",
+            err.message
+        );
+    }
+
+    /// A renamed embed (`author:fk_user(name)`) is refused under the **relationship**,
+    /// which is the half of the syntax the schema knows and the parser stores.
+    #[test]
+    fn a_renamed_embed_is_refused_under_its_relationship() {
+        let params = ExtractedParams {
+            embeddings: vec![EmbeddedSpec {
+                relationship: "fk_user".to_string(),
+                rename:       Some("author".to_string()),
+                fields:       vec![SelectEntry::Field("name".to_string())],
+            }],
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert!(err.message.contains("`fk_user`"), "{}", err.message);
+    }
+
+    /// The count half of #1268. `embeddings` and `embedding_counts` are separate fields
+    /// filled by separate `?select=` syntaxes, so the two branches must diagnose
+    /// differently — a shared message would let either be deleted with the suite green.
+    #[test]
+    fn an_embedded_count_is_refused_with_its_own_diagnosis() {
+        let params = ExtractedParams {
+            embedding_counts: vec!["posts".to_string()],
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(
+            err.message.contains("embedded count"),
+            "the count branch must not answer with the embed branch's sentence: {}",
+            err.message
+        );
+        assert!(
+            !err.message.contains("embedded relationship"),
+            "and must not answer with both: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("`posts.count`"),
+            "echoed as the client wrote it, not as the bare relationship: {}",
+            err.message
+        );
+    }
+
+    /// Order of record when a request carries both: the embed is reported.
+    ///
+    /// Stated as a test rather than left to chance because it is the message a client
+    /// sees, and because a reordering would otherwise change the answer silently.
+    #[test]
+    fn an_embed_is_reported_before_a_count() {
+        let params = ExtractedParams {
+            embeddings: vec![embed("author")],
+            embedding_counts: vec!["posts".to_string()],
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert!(err.message.contains("embedded relationship"), "{}", err.message);
+    }
+
+    /// Count and pagination are checked before the selection, which is what keeps the
+    /// three deleted validators' behaviour intact for a request that carries both.
+    #[test]
+    fn count_is_reported_before_an_embed() {
+        let prefer = PreferHeader {
+            count_exact: true,
+            ..PreferHeader::default()
+        };
+        let params = ExtractedParams {
+            embeddings: vec![embed("author")],
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&prefer, &params).unwrap_err();
+        assert!(err.message.contains("count not available"), "{}", err.message);
+    }
+}

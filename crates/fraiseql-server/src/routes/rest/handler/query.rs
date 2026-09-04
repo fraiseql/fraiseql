@@ -15,10 +15,96 @@ use super::{
     search::build_fts_where_clause,
 };
 use crate::routes::rest::{
-    params::{PaginationParams, RestFieldSpec, RestParamExtractor},
+    params::{ExtractedParams, PaginationParams, RestFieldSpec, RestParamExtractor},
     resource::{HttpMethod, RouteSource},
     response::helpers::{check_if_none_match, compute_etag},
 };
+
+/// Refuse a request carrying a parameter no export representation can honour.
+///
+/// The three export representations — NDJSON, CSV, XLSX — offer a strict subset of the
+/// JSON envelope's request surface, and this is the whole of what they leave out. It is
+/// one function, called from
+/// [`RestHandler::resolve_streaming_get_query`](RestHandler::resolve_streaming_get_query),
+/// for the same reason the `rest_stream` opt-in lives there (#958): a fourth
+/// representation inherits every rule by resolving through the only function that fits
+/// it, rather than by someone remembering to copy three checks.
+///
+/// It replaces `validate_ndjson_request` / `validate_csv_request` / `validate_xlsx_request`,
+/// which were three hand-copied bodies of the count and pagination rules — already drifted
+/// in wording ("streaming responses" against "export responses") and, more to the point,
+/// exactly the shape that let a fourth rule be forgotten in all three at once (#1268).
+///
+/// # What is refused, and why
+///
+/// * **`Prefer: count=…`** and **pagination** — an export reads the whole filtered relation in one
+///   pass; there is no page to be on and no total to report alongside a body that has already
+///   begun.
+/// * **`?select=` embedded relationships and counts** — an export is *one statement over one
+///   database portal*: a single snapshot, `O(N)` in row scans, holding one pooled connection from
+///   the first row to the last. An embed, as [`super::super::embedding`] resolves one, is a
+///   sub-query per parent row on a second connection (`embed_into_rows` loops `embed_into_single`;
+///   `execute_embedding_counts` loops `count_related`). Executing embeds here would break every one
+///   of those properties, unbounded — `export_rows` removes `limit` because an export means the
+///   whole table (#811), where the JSON path's parent rows are bounded by `max_page_size`.
+///
+/// Refusing is a change of answer, not a loss of capability: before #1268 all three
+/// representations accepted the selection, validated it, and emitted rows without it. CSV
+/// and XLSX build their header from the raw `?select=`, so an export carried a column named
+/// after the relationship that was empty on every row — indistinguishable from a table
+/// where nothing is related.
+///
+/// # Errors
+///
+/// Returns `RestError::BadRequest` naming the offending parameter. Each branch states its
+/// own diagnosis: a client cannot act on "something in your query string".
+pub fn refuse_unstreamable_request(
+    prefer: &PreferHeader,
+    params: &ExtractedParams,
+) -> Result<(), RestError> {
+    if prefer.count_exact || prefer.count_planned || prefer.count_estimated {
+        return Err(RestError::bad_request("count not available for export responses"));
+    }
+
+    if let PaginationParams::Offset { offset, .. } = params.pagination {
+        if offset > 0 {
+            return Err(RestError::bad_request(
+                "pagination not available for export; use filters to narrow results",
+            ));
+        }
+    }
+    if matches!(params.pagination, PaginationParams::Cursor { .. }) {
+        return Err(RestError::bad_request(
+            "pagination not available for export; use filters to narrow results",
+        ));
+    }
+
+    if !params.embeddings.is_empty() {
+        let named = quoted_list(params.embeddings.iter().map(|spec| spec.relationship.as_str()));
+        return Err(RestError::bad_request(format!(
+            "embedded relationships are not available for export responses: {named}. An export \
+             is one statement over one snapshot; resolving an embed issues a sub-query per row. \
+             Request `Accept: application/json` to embed, or project the related data into the \
+             exported view."
+        )));
+    }
+
+    if !params.embedding_counts.is_empty() {
+        let named = quoted_list(params.embedding_counts.iter().map(|name| format!("{name}.count")));
+        return Err(RestError::bad_request(format!(
+            "embedded counts are not available for export responses: {named}. An export is one \
+             statement over one snapshot; a count issues a sub-query per row. Request \
+             `Accept: application/json` for counts."
+        )));
+    }
+
+    Ok(())
+}
+
+/// `` `a`, `b` `` — the offending names, quoted, in selection order.
+fn quoted_list<S: AsRef<str>>(names: impl Iterator<Item = S>) -> String {
+    names.map(|n| format!("`{}`", n.as_ref())).collect::<Vec<_>>().join(", ")
+}
 
 impl<A: DatabaseAdapter> RestHandler<'_, A> {
     /// Resolve a GET request path for a **streaming representation**, refusing a
@@ -29,6 +115,13 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
     /// flag themselves. That is the point: a fourth representation added later gets
     /// the opt-in by using the only resolution function that fits it, instead of by
     /// someone remembering.
+    ///
+    /// The same argument covers every *other* rule an export representation does not
+    /// share with the JSON envelope, so they all live in
+    /// [`refuse_unstreamable_request`] and are applied here — count, pagination, and
+    /// the `?select=` embeds and counts of #1268. The three handlers used to hold a
+    /// hand-copied validator each, which is how the fourth rule came to be missing
+    /// from all three.
     ///
     /// # Why the opt-in exists
     ///
@@ -42,7 +135,12 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
     ///
     /// Returns `406 Not Acceptable` when the resolved query has `rest_stream = false`
     /// — the representation the client asked for is one this route does not offer —
+    /// then `400 Bad Request` for anything [`refuse_unstreamable_request`] rejects,
     /// plus everything [`resolve_get_query`](Self::resolve_get_query) returns.
+    ///
+    /// The `406` deliberately comes first. "This route offers no export at all" is the
+    /// more fundamental refusal; answering `400` first would tell a client to fix a
+    /// `?select=` on a route where no `?select=` would have helped.
     pub fn resolve_streaming_get_query(
         &self,
         relative_path: &str,
@@ -62,6 +160,8 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
                 resolved.query_name
             )));
         }
+
+        refuse_unstreamable_request(&PreferHeader::from_headers(headers), &resolved.params)?;
 
         Ok(resolved)
     }
