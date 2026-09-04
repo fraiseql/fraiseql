@@ -601,6 +601,16 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **The shipped `fraiseql.toml.example` generates a state-encryption key the server can
+  actually read.**
+
+  It said `openssl rand -base64 32`, in the inline comment on `key_env` and again in the
+  environment-variable reference. That produces 44 characters; `StateEncryptionService::from_hex_key`
+  requires exactly 64 hex characters and answers `KeyError::WrongLength(44)` otherwise. An
+  operator who enabled `[security.state_encryption]` by copying the example and followed its own
+  instruction got a server that refused to boot. Both occurrences now say `openssl rand -hex 32`,
+  which is what `docs/auth/auth0.md` already documented.
+
 - **A streaming export no longer answers a validated `?select=` with rows that omit it
   (#1268).**
 

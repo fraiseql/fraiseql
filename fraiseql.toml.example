@@ -97,7 +97,7 @@ trust_proxy_headers = false             # Trust X-Forwarded-For (set true behind
 enabled = true
 algorithm = "chacha20-poly1305"         # chacha20-poly1305 | aes-256-gcm
 key_source = "env"
-key_env = "STATE_ENCRYPTION_KEY"        # Generate: openssl rand -base64 32
+key_env = "STATE_ENCRYPTION_KEY"        # Generate: openssl rand -hex 32
 
 # --- PKCE ---
 [security.pkce]
@@ -298,7 +298,7 @@ offset = true                           # Auto-add offset parameter
 # ENVIRONMENT VARIABLE REFERENCE
 #
 # DATABASE_URL          — Database connection string
-# STATE_ENCRYPTION_KEY  — PKCE state encryption key (openssl rand -base64 32)
+# STATE_ENCRYPTION_KEY  — PKCE state encryption key (openssl rand -hex 32)
 # OIDC_CLIENT_SECRET    — OAuth2 client secret
 # REDIS_URL             — Redis connection string
 # FRAISEQL_NATS_URL     — NATS connection string
