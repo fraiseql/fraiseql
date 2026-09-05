@@ -211,6 +211,21 @@ the schema author's decision.
 def invoices() -> list[Invoice]: ...
 ```
 
+### What an export refuses
+
+An export answers `400 Bad Request` to anything that asks it to be a page rather than a
+whole result set: `Prefer: count=…`, `?offset=`, any of `?first=`/`?after=`/`?last=`/
+`?before=`, and a `?select=` naming an embedded relationship or an embedded count. Filters,
+sorts and a plain `?select=` are honoured as usual.
+
+`?limit=` is the exception. On an export it bounds the **total** rather than a page, it is
+not clamped to `max_page_size`, and leaving it out means the whole table.
+
+The refusal is about what the *request* asked for, not about how the route paginates: a
+`relay = true` query with `rest_stream = true` exports normally as long as the request names
+no cursor. Relay routes reject `?limit=` (they take `?first=`, not `?limit=`), so an export
+of one is currently always the whole relation.
+
 The two are deliberately different, because the questions differ. An export is one
 transfer of a result set to a file; a `@stream` delivery is an interactive rendering
 that a browser may reconnect to. A snapshot cannot survive a reconnect, and a resume

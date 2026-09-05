@@ -228,6 +228,185 @@ fn first_clamped_to_max_page_size() {
 }
 
 // -----------------------------------------------------------------------
+// Requested vs resolved pagination (#1273)
+//
+// Every case here asserts the two fields on the **same** request. A test reading only
+// one of them cannot see the distinction they exist to draw, which is how the relay
+// export defect survived: `pagination` was correct throughout.
+// -----------------------------------------------------------------------
+
+/// An absent `?limit=` stays absent in what the client asked for, while the plan fills it.
+///
+/// The two mean opposite things to an export: a cap, against "the whole table" (#811).
+/// `streaming::helpers::requested_total_limit` used to recover this from the raw query
+/// pairs; the extractor now records it.
+#[test]
+fn an_absent_limit_is_recorded_as_absent_and_still_planned_as_the_default() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let result = ext.extract(&[], &[]).unwrap();
+
+    assert_eq!(
+        result.pagination,
+        PaginationParams::Offset {
+            limit:  20,
+            offset: 0,
+        },
+        "the plan still serves the default page"
+    );
+    assert_eq!(
+        result.requested_pagination,
+        RequestedPagination::default(),
+        "and the request is recorded as having asked for none of it"
+    );
+}
+
+/// The same, on a relay route — the case #1273 is about.
+///
+/// `resolve_pagination` fills `first` with `default_page_size` when no cursor parameter is
+/// present, so the plan alone cannot say whether the client asked for a page. An export
+/// reading the plan refused every request this route was ever offered.
+#[test]
+fn an_absent_cursor_is_recorded_as_absent_and_still_planned_as_the_default() {
+    let config = test_config();
+    let qd = relay_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let result = ext.extract(&[], &[]).unwrap();
+
+    assert_eq!(
+        result.pagination,
+        PaginationParams::Cursor {
+            first:  Some(20),
+            after:  None,
+            last:   None,
+            before: None,
+        },
+        "the plan still serves the default page"
+    );
+    assert_eq!(
+        result.requested_pagination,
+        RequestedPagination::default(),
+        "and no cursor parameter was sent, which is what an export has to be able to see"
+    );
+}
+
+/// A supplied `?limit=` is recorded **unclamped**, because an export total is not a page.
+///
+/// `max_page_size` bounds one page of an interactive read (#421); `export_rows` applies the
+/// client's total to the stream instead. Clamping what was requested would silently cap
+/// every export at one page — the defect #811 fixed.
+#[test]
+fn a_supplied_limit_is_recorded_unclamped_and_planned_clamped() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let result = ext.extract(&[], &[("limit", "500")]).unwrap();
+
+    assert_eq!(
+        result.pagination,
+        PaginationParams::Offset {
+            limit:  100, // max_page_size
+            offset: 0,
+        },
+        "a page is bounded by `max_page_size`"
+    );
+    assert_eq!(
+        result.requested_pagination.limit,
+        Some(500),
+        "an export total is not a page, so what was asked for is kept whole"
+    );
+}
+
+/// A repeated `?limit=` resolves **once**, so the export and the plan cannot disagree.
+///
+/// `requested_total_limit` searched the raw pairs — `.find`, first-wins — while the
+/// extractor's classification assigns — last-wins. `?limit=5&limit=9` therefore capped an
+/// export at 5 rows while every other consumer of the same request read 9. That is #1274's
+/// shape (one parameter, two parsers, opposite resolutions) reached through a different
+/// parameter, and collapsing the readers is what removes it.
+#[test]
+fn a_repeated_limit_resolves_once_for_the_plan_and_the_request() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let result = ext.extract(&[], &[("limit", "5"), ("limit", "9")]).unwrap();
+
+    assert_eq!(
+        result.requested_pagination.limit,
+        Some(9),
+        "last-wins, the same resolution the projection and the plan use"
+    );
+    assert_eq!(
+        result.pagination,
+        PaginationParams::Offset {
+            limit:  9,
+            offset: 0,
+        },
+        "and the plan agrees, because there is only one reader left"
+    );
+}
+
+/// Cursor parameters are recorded as sent, each in its own field.
+///
+/// `first` is the only one `resolve_pagination` ever supplies, so the other three are the
+/// evidence a fix reading `requested.first` alone would miss.
+#[test]
+fn every_cursor_parameter_is_recorded_as_sent() {
+    let config = test_config();
+    let qd = relay_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let forward = ext.extract(&[], &[("first", "10"), ("after", "abc")]).unwrap();
+    assert_eq!(
+        forward.requested_pagination,
+        RequestedPagination {
+            first: Some(10),
+            after: Some("abc".to_string()),
+            ..RequestedPagination::default()
+        }
+    );
+
+    let backward = ext.extract(&[], &[("last", "7"), ("before", "xyz")]).unwrap();
+    assert_eq!(
+        backward.requested_pagination,
+        RequestedPagination {
+            last: Some(7),
+            before: Some("xyz".to_string()),
+            ..RequestedPagination::default()
+        }
+    );
+}
+
+/// A single-resource route records nothing, because it parses nothing.
+///
+/// `?limit=` on `/users/1` has always been accepted and ignored — it is a known parameter
+/// on a route that applies no pagination — and recording it would be recording a value the
+/// request was not answered under.
+#[test]
+fn a_single_resource_route_records_no_requested_pagination() {
+    let config = test_config();
+    let qd = single_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let uuid = "550e8400-e29b-41d4-a716-446655440000";
+    let result = ext.extract(&[("id", uuid)], &[("limit", "5")]).unwrap();
+
+    assert_eq!(result.pagination, PaginationParams::None);
+    assert_eq!(result.requested_pagination, RequestedPagination::default());
+}
+
+// -----------------------------------------------------------------------
 // Cross-pagination guards
 // -----------------------------------------------------------------------
 

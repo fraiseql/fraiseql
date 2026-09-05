@@ -64,11 +64,12 @@ use crate::routes::rest::{
 /// This function is the single place the rules live; it is **not** yet a complete
 /// statement of them:
 ///
-/// * **#1273** — the cursor branch refuses a *bare* request on a relay route, because
-///   `parse_cursor_pagination` fills `first: Some(default_page_size)` when the client names no
-///   cursor at all. A `relay = true` + `rest_stream = true` query is therefore not exportable in
-///   any representation. Behaviour carried over verbatim from the three validators this replaced;
-///   `a_bare_relay_request_is_refused_today_see_1273` pins it.
+/// * **#1278** — a relay route cannot bound its export **total**. `?limit=` does that on an offset
+///   route, and a relay route rejects `?limit=` outright (the cross-pagination guard in
+///   `RestParamExtractor::extract`) while `?first=` is refused here as a page. So the two route
+///   shapes differ in capability, not only in vocabulary. Giving `?first=` the meaning `?limit=`
+///   has on an export would close it; that is a new answer to a request that is currently refused
+///   rather than a defect in this one, so it is filed, not folded in.
 /// * **#1275** — `params.embedding_filters` is not refused, though since this function refuses
 ///   every `?select=` embed an export's filters are now structurally unreachable. The bulk path
 ///   already refuses the same parameter for the same reason (`bulk/mod.rs`).
@@ -80,14 +81,27 @@ pub fn refuse_unstreamable_request(
         return Err(RestError::bad_request("count not available for export responses"));
     }
 
-    if let PaginationParams::Offset { offset, .. } = params.pagination {
-        if offset > 0 {
-            return Err(RestError::bad_request(
-                "pagination not available for export; use filters to narrow results",
-            ));
-        }
-    }
-    if matches!(params.pagination, PaginationParams::Cursor { .. }) {
+    // Read from what the client **sent**, not from the plan. The plan answers a different
+    // question — it is the page the JSON representation would have served — and this path
+    // discards it anyway: `export_rows` removes `limit` from the query's arguments because
+    // an export total is not a page (#811).
+    //
+    // Reading the plan is what made a `relay = true` route unexportable (#1273): resolving
+    // a request with no cursor parameter still yields `Cursor { first: Some(default_page_size) }`,
+    // so `matches!(.., Cursor { .. })` refused every export the route was ever offered,
+    // naming a parameter no request had carried. The offset branch beside it never had the
+    // defect because `offset > 0` happens to be unreachable by a default — it was already
+    // asking the right question, by luck of the value rather than by construction.
+    //
+    // `?limit=` is deliberately absent from this list. On an export it is not a page but a
+    // bound on the total, applied to the stream by `export_rows`.
+    let requested = &params.requested_pagination;
+    if matches!(requested.offset, Some(offset) if offset > 0)
+        || requested.first.is_some()
+        || requested.after.is_some()
+        || requested.last.is_some()
+        || requested.before.is_some()
+    {
         return Err(RestError::bad_request(
             "pagination not available for export; use filters to narrow results",
         ));

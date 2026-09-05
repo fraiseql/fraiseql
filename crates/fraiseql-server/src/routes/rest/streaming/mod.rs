@@ -26,6 +26,12 @@ mod tests;
 #[cfg(all(test, feature = "export-csv", feature = "export-xlsx"))]
 mod export_header_tests;
 
+// #1273: what an export does with the six pagination parameters — which of them it
+// refuses, and which it applies. The cases drive `handle_csv_get`, so they need the CSV
+// writer compiled in.
+#[cfg(all(test, feature = "export-csv"))]
+mod export_pagination_tests;
+
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
 use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
@@ -77,6 +83,7 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
     let ResolvedGetQuery {
         query_match,
         variables,
+        params,
         ..
     } = resolved;
 
@@ -91,8 +98,10 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
         variables,
         security_context.cloned(),
         // `?limit=` caps the export total; its absence means "the whole table",
-        // which is what an export is for (#811).
-        helpers::requested_total_limit(query_pairs),
+        // which is what an export is for (#811). It is read from what the client sent,
+        // because the resolved plan fills an absent `?limit=` with `default_page_size`
+        // and the two mean opposite things here.
+        params.requested_pagination.limit,
     )
     .await?;
 

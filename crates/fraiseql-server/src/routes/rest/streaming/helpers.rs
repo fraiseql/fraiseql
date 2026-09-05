@@ -1,10 +1,14 @@
 //! Shared internals of the REST export representations.
 //!
-//! The row source every export opens (`export_rows`, #958), the export-total bound
-//! (`requested_total_limit`), NDJSON batch serialisation and error formatting, and — since
-//! #1274 — the header-column rule that CSV and XLSX both apply (`export_columns`,
-//! `determine_columns`). The column rule lives here because both writers held
-//! byte-identical copies of it, which is one place per writer for it to drift.
+//! The row source every export opens (`export_rows`, #958), NDJSON batch serialisation and
+//! error formatting, and — since #1274 — the header-column rule that CSV and XLSX both
+//! apply (`export_columns`, `determine_columns`). The column rule lives here because both
+//! writers held byte-identical copies of it, which is one place per writer for it to drift.
+//!
+//! The export-total bound used to be recovered here too, by `requested_total_limit`
+//! re-reading the raw `?limit=` from the query pairs. It is now
+//! `ExtractedParams::requested_pagination`, which the extractor records alongside the plan
+//! it resolves — a second reader of a query parameter is a second answer to it (#1273).
 
 use std::sync::Arc;
 
@@ -134,19 +138,6 @@ pub(super) fn determine_columns(
             cols
         })
         .unwrap_or_default()
-}
-
-/// The client's explicit `?limit=`, which bounds the export **total**.
-///
-/// Recovered from the raw query pairs because `parse_offset_pagination` collapses an
-/// absent `?limit=` into `default_page_size`, making "the client asked for 100 rows" and
-/// "the client asked for nothing" indistinguishable downstream. On a streaming export
-/// those mean opposite things: the first is a cap, the second is "the whole table".
-pub(super) fn requested_total_limit(query_pairs: &[(&str, &str)]) -> Option<u64> {
-    query_pairs
-        .iter()
-        .find(|(k, _)| *k == "limit")
-        .and_then(|(_, v)| v.parse().ok())
 }
 
 /// Serialise one group of streamed rows as NDJSON bytes.

@@ -134,19 +134,9 @@ fn ndjson_content_type_constant() {
 // The export row source (#811, #958)
 // ---------------------------------------------------------------------------
 
-use super::helpers::requested_total_limit;
-
-/// An absent `?limit=` must stay absent rather than becoming `default_page_size`: the
-/// two mean opposite things to an export, and collapsing them is what made a full export
-/// silently return one page (#811).
-#[test]
-fn requested_total_limit_distinguishes_absent_from_supplied() {
-    assert_eq!(requested_total_limit(&[]), None);
-    assert_eq!(requested_total_limit(&[("select", "id"), ("sort", "id")]), None);
-    assert_eq!(requested_total_limit(&[("limit", "250")]), Some(250));
-    // A malformed value is not a cap — the parameter validator rejects it upstream.
-    assert_eq!(requested_total_limit(&[("limit", "abc")]), None);
-}
+// The export total's "absent is not the default" rule (#811) is now asserted where the
+// distinction is drawn — `params::tests`, against the resolved plan on the same request —
+// rather than against a second reader of the raw query pairs (#1273).
 
 /// One JSON document per line, no envelope.
 #[test]

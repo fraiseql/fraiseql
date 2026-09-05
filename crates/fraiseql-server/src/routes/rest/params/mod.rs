@@ -79,6 +79,28 @@ const RESERVED_PARAMS: &[&str] = &[
     "or", "and", "not",
 ];
 
+/// Parse one numeric pagination parameter, naming it in the refusal.
+///
+/// The four numeric parameters had four hand-written copies of this, differing only in the
+/// name and in whether the expected value was described as positive or non-negative. The
+/// messages are unchanged.
+///
+/// # Errors
+///
+/// Returns a validation error when the value is present and not a `u64`.
+fn parse_page_number(
+    raw: Option<&str>,
+    parameter: &str,
+    expected: &str,
+) -> Result<Option<u64>, FraiseQLError> {
+    raw.map(|s| {
+        s.parse::<u64>().map_err(|_| {
+            validation_error(format!("Invalid `{parameter}` value: '{s}'. Expected {expected}."))
+        })
+    })
+    .transpose()
+}
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -88,23 +110,68 @@ const RESERVED_PARAMS: &[&str] = &[
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct ExtractedParams {
     /// Path parameters (e.g., `[("id", 123)]`).
-    pub path_params:       Vec<(String, serde_json::Value)>,
+    pub path_params:          Vec<(String, serde_json::Value)>,
     /// WHERE clause for the query (merged from simple/bracket/filter/logical params).
-    pub where_clause:      Option<serde_json::Value>,
+    pub where_clause:         Option<serde_json::Value>,
     /// ORDER BY clause (from `?sort=`).
-    pub order_by:          Option<serde_json::Value>,
-    /// Pagination parameters.
-    pub pagination:        PaginationParams,
+    pub order_by:             Option<serde_json::Value>,
+    /// Pagination as the server will **apply** it — the client's values with
+    /// `default_page_size` filled in and `max_page_size` enforced.
+    pub pagination:           PaginationParams,
+    /// Pagination as the client **asked** for it, before any default or clamp.
+    ///
+    /// See [`RequestedPagination`] for why both are recorded.
+    pub requested_pagination: RequestedPagination,
     /// Field selection (from `?select=`).
-    pub field_selection:   RestFieldSpec,
+    pub field_selection:      RestFieldSpec,
     /// Full-text search query (from `?search=`).
-    pub search_query:      Option<String>,
+    pub search_query:         Option<String>,
     /// Embedded resource specifications (from parenthetical select syntax).
-    pub embeddings:        Vec<EmbeddedSpec>,
+    pub embeddings:           Vec<EmbeddedSpec>,
     /// Embedded resource filters (from `?rel.field[op]=value` syntax).
-    pub embedding_filters: HashMap<String, serde_json::Value>,
+    pub embedding_filters:    HashMap<String, serde_json::Value>,
     /// Count-only embeddings (from `?select=id,posts.count`).
-    pub embedding_counts:  Vec<String>,
+    pub embedding_counts:     Vec<String>,
+}
+
+/// The pagination parameters the client actually sent, before any server default or clamp.
+///
+/// [`PaginationParams`] is the *plan*, and only the plan. Resolving a request fills an
+/// absent `?limit=` with `default_page_size` and an absent cursor with
+/// `first: Some(default_page_size)`, so by the time it reaches a consumer "the client asked
+/// to be on a page" and "the server supplied one" are the same value. That is exactly what
+/// the JSON representation wants — it needs the plan and nothing else — and wrong for every
+/// consumer whose question is what the *client* asked:
+///
+/// * an export refuses a request that put itself on a page, and must not refuse one that did not.
+///   Reading the plan meant a `relay = true` route refused every export it was ever offered, naming
+///   a parameter no request had carried (#1273).
+/// * an export's `?limit=` bounds its **total** rather than a page, and an absent one means "the
+///   whole table" (#811) — a distinction `streaming::helpers::requested_total_limit` used to
+///   recover by re-parsing the raw query pairs behind the extractor's back, and resolving a repeat
+///   in the opposite direction while it was there.
+///
+/// Recording both, once, is what makes those consumers stop reconstructing the request.
+/// Values here are exactly as sent: parsed, so an unusable one is still refused with the
+/// message it always had, but never defaulted and never clamped to `max_page_size` — an
+/// export total is not a page (`streaming::helpers::export_rows`).
+///
+/// A single-resource route leaves this empty. It applies no pagination and never parsed
+/// these parameters, so there is nothing it could faithfully record.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RequestedPagination {
+    /// `?limit=` — a page size on a JSON read, an export **total** on a streamed one.
+    pub limit:  Option<u64>,
+    /// `?offset=`.
+    pub offset: Option<u64>,
+    /// `?first=`.
+    pub first:  Option<u64>,
+    /// `?after=`.
+    pub after:  Option<String>,
+    /// `?last=`.
+    pub last:   Option<u64>,
+    /// `?before=`.
+    pub before: Option<String>,
 }
 
 /// Pagination mode and parameters.
@@ -398,13 +465,23 @@ impl<'a> RestParamExtractor<'a> {
             parsed_logical,
         )?;
 
-        // 7. Parse pagination.
-        let pagination = if !is_list {
-            PaginationParams::None
-        } else if is_relay {
-            self.parse_cursor_pagination(first_raw, after_raw, last_raw, before_raw)?
+        // 7. Parse pagination — twice over, deliberately.
+        //
+        // `requested_pagination` is what arrived in the query string; `pagination` is what
+        // the server will apply to it. Collapsing the two is what made a bare export
+        // request on a relay route indistinguishable from one asking for a page (#1273).
+        // See [`RequestedPagination`].
+        //
+        // A single-resource route parses neither: `?limit=abc` on `/users/1` has always
+        // been ignored rather than refused, and this is not the change that revisits it.
+        let (requested_pagination, pagination) = if is_list {
+            let requested = self.parse_requested_pagination(
+                limit_raw, offset_raw, first_raw, after_raw, last_raw, before_raw,
+            )?;
+            let resolved = self.resolve_pagination(&requested, is_relay);
+            (requested, resolved)
         } else {
-            self.parse_offset_pagination(limit_raw, offset_raw)?
+            (RequestedPagination::default(), PaginationParams::None)
         };
 
         // 8. Count total params and enforce limit.
@@ -447,6 +524,7 @@ impl<'a> RestParamExtractor<'a> {
             where_clause,
             order_by,
             pagination,
+            requested_pagination,
             field_selection,
             search_query,
             embeddings,
@@ -836,71 +914,78 @@ impl<'a> RestParamExtractor<'a> {
     // Pagination
     // -----------------------------------------------------------------------
 
-    fn parse_offset_pagination(
+    /// Record the pagination parameters the client sent, parsing each exactly once.
+    ///
+    /// The one place each of these six query parameters is read. `requested_total_limit`
+    /// used to be a second reader of `?limit=`, searching the raw pairs — first-wins —
+    /// while the classification above assigns — last-wins. `?limit=5&limit=9` therefore
+    /// capped an export at 5 rows while every other consumer of the same request read 9:
+    /// #1274's shape (one parameter, two parsers, opposite resolutions) reached through a
+    /// different parameter.
+    ///
+    /// Nothing here is defaulted or clamped; that is [`Self::resolve_pagination`]'s job.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error naming the parameter whose value is not a number. Only
+    /// one pagination family can be present — the cross-pagination guard in
+    /// [`Self::extract`] runs first — so the order in which they are parsed is the order
+    /// within a family, unchanged from when each family had its own function.
+    fn parse_requested_pagination(
         &self,
         limit_raw: Option<&str>,
         offset_raw: Option<&str>,
-    ) -> Result<PaginationParams, FraiseQLError> {
-        let limit = match limit_raw {
-            Some(s) => {
-                let v: u64 = s.parse().map_err(|_| {
-                    validation_error(format!(
-                        "Invalid `limit` value: '{s}'. Expected a positive integer."
-                    ))
-                })?;
-                v.min(self.config.max_page_size)
-            },
-            None => self.config.default_page_size,
-        };
-        let offset = match offset_raw {
-            Some(s) => s.parse().map_err(|_| {
-                validation_error(format!(
-                    "Invalid `offset` value: '{s}'. Expected a non-negative integer."
-                ))
-            })?,
-            None => 0,
-        };
-        Ok(PaginationParams::Offset { limit, offset })
-    }
-
-    fn parse_cursor_pagination(
-        &self,
         first_raw: Option<&str>,
         after_raw: Option<&str>,
         last_raw: Option<&str>,
         before_raw: Option<&str>,
-    ) -> Result<PaginationParams, FraiseQLError> {
-        let first = match first_raw {
-            Some(s) => {
-                let v: u64 = s.parse().map_err(|_| {
-                    validation_error(format!(
-                        "Invalid `first` value: '{s}'. Expected a positive integer."
-                    ))
-                })?;
-                Some(v.min(self.config.max_page_size))
-            },
-            None if after_raw.is_none() && last_raw.is_none() && before_raw.is_none() => {
-                // No cursor params at all — default page size.
-                Some(self.config.default_page_size)
-            },
-            None => None,
-        };
-        let after = after_raw.map(String::from);
-        let last = match last_raw {
-            Some(s) => Some(s.parse().map_err(|_| {
-                validation_error(format!(
-                    "Invalid `last` value: '{s}'. Expected a positive integer."
-                ))
-            })?),
-            None => None,
-        };
-        let before = before_raw.map(String::from);
-        Ok(PaginationParams::Cursor {
-            first,
-            after,
-            last,
-            before,
+    ) -> Result<RequestedPagination, FraiseQLError> {
+        Ok(RequestedPagination {
+            limit:  parse_page_number(limit_raw, "limit", "a positive integer")?,
+            offset: parse_page_number(offset_raw, "offset", "a non-negative integer")?,
+            first:  parse_page_number(first_raw, "first", "a positive integer")?,
+            after:  after_raw.map(String::from),
+            last:   parse_page_number(last_raw, "last", "a positive integer")?,
+            before: before_raw.map(String::from),
         })
+    }
+
+    /// Resolve what the client asked for into the pagination the server will apply.
+    ///
+    /// The only place `default_page_size` and `max_page_size` enter a request. A value
+    /// that has passed through here carries a server policy and can no longer answer
+    /// "did the client ask for this?" — which is why [`ExtractedParams`] keeps the input
+    /// alongside the output rather than only this.
+    ///
+    /// The route's shape picks the family: a relay route with no cursor parameter still
+    /// resolves to `Cursor`, holding the default page it will serve.
+    fn resolve_pagination(
+        &self,
+        requested: &RequestedPagination,
+        is_relay: bool,
+    ) -> PaginationParams {
+        if is_relay {
+            let names_a_cursor =
+                requested.after.is_some() || requested.last.is_some() || requested.before.is_some();
+            PaginationParams::Cursor {
+                first:  match requested.first {
+                    Some(v) => Some(v.min(self.config.max_page_size)),
+                    // No cursor parameter at all — the route's default page.
+                    None if !names_a_cursor => Some(self.config.default_page_size),
+                    None => None,
+                },
+                after:  requested.after.clone(),
+                last:   requested.last,
+                before: requested.before.clone(),
+            }
+        } else {
+            PaginationParams::Offset {
+                limit:  requested
+                    .limit
+                    .map_or(self.config.default_page_size, |v| v.min(self.config.max_page_size)),
+                offset: requested.offset.unwrap_or(0),
+            }
+        }
     }
 
     // -----------------------------------------------------------------------

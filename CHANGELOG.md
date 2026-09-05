@@ -19,6 +19,28 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **`ExtractedParams` carries a sixth field, `requested_pagination` (#1273).**
+
+  `RestParamExtractor::extract` now records what the client asked for alongside what the
+  server will apply. `ExtractedParams::pagination` is unchanged and still the resolved plan
+  — `default_page_size` filled in, `max_page_size` enforced — but it can no longer be read
+  as evidence that the client sent a pagination parameter, because it never could: filling a
+  default is what made a bare relay export request indistinguishable from one asking for a
+  page.
+
+  `RequestedPagination` holds the six parameters exactly as sent — parsed, so an unusable
+  value is refused with the message it always had, but never defaulted and never clamped. A
+  single-resource route leaves it empty; it applies no pagination and parses none.
+
+  `routes::rest::params::{parse_offset_pagination, parse_cursor_pagination}` are replaced by
+  a parse stage (`parse_requested_pagination`) and a resolve stage (`resolve_pagination`),
+  both private. `streaming::helpers::requested_total_limit`, which existed to recover the
+  client's `?limit=` from the raw query pairs behind the extractor's back, is deleted.
+
+  **Migration.** Code constructing an `ExtractedParams` literal adds
+  `requested_pagination: RequestedPagination::default()`, or populates it where the
+  distinction matters. Nothing reading `params.pagination` changes.
+
 - **An export's header row is now the projection, so an unselected export's columns are in
   declared order and an empty export still writes a header (#1274).**
 
@@ -621,6 +643,44 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A `relay = true` route with `rest_stream = true` can be exported (#1273).**
+
+  Every export request on such a route answered `400 pagination not available for export`,
+  including one carrying no pagination parameter at all:
+
+  ```
+  GET /rest/v1/posts   Accept: text/csv   (empty query string)
+    -> 400 {"error":{"code":"BAD_REQUEST",
+            "message":"pagination not available for export; use filters to narrow results"}}
+  ```
+
+  The refusal read `params.pagination` — the pagination the server had *resolved*, not the
+  one the client sent. Resolving a relay request that names no cursor still fills
+  `first: Some(default_page_size)`, so `matches!(.., Cursor { .. })` was true of every
+  request the route ever received, and it named a parameter no client had used. NDJSON, CSV
+  and XLSX were all affected; the route was not exportable in any representation.
+
+  The offset branch beside it never had the defect, and the reason is the fix: it refuses
+  `offset > 0`, so it refuses because the client *asked to be on a page* rather than because
+  the route is paginated. Both branches now read `ExtractedParams::requested_pagination`,
+  the new record of what arrived in the query string before any default or clamp. An export
+  is refused for `?offset=` above zero, `?first=`, `?after=`, `?last=` or `?before=`, and a
+  bare request on either kind of route is served.
+
+  Carried over verbatim from the three validators #1268 consolidated; the consolidation
+  preserved the behaviour exactly rather than introducing it.
+
+- **A repeated `?limit=` no longer cuts an export at a different row count than the rest of
+  the request was answered under (#1273).**
+
+  `?limit=2&limit=4` bounded a CSV, XLSX or NDJSON export at **2** rows while the plan and
+  the projection for the same request were built from **4**. Two readers of one parameter
+  resolved it in opposite directions: `streaming::helpers::requested_total_limit` searched
+  the raw query pairs with `.find` — first-wins — while `RestParamExtractor::extract`
+  classifies with an assignment — last-wins. That is #1274's shape reached through a
+  different parameter. The helper is deleted; the extractor records the client's `?limit=`
+  once, and the export reads that.
+
 - **A repeated `?select=` no longer heads a CSV or XLSX export with a column that is empty
   in every row (#1274).**
 

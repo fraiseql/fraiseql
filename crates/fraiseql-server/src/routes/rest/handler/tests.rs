@@ -954,49 +954,52 @@ mod export_refusal {
     use super::super::query::refuse_unstreamable_request;
     use crate::routes::rest::{
         handler::PreferHeader,
-        params::{EmbeddedSpec, ExtractedParams, PaginationParams, RestFieldSpec, SelectEntry},
+        params::{
+            EmbeddedSpec, ExtractedParams, PaginationParams, RequestedPagination, RestFieldSpec,
+            SelectEntry,
+        },
     };
 
-    /// `RestConfig::default().default_page_size` — the value `parse_offset_pagination`
-    /// and `parse_cursor_pagination` both fill in when the client names no page.
+    /// `RestConfig::default().default_page_size` — the value `resolve_pagination` fills in,
+    /// on either pagination family, when the client names no page.
     const DEFAULT_PAGE: u64 = 100;
 
-    /// A request the exports accept: no count, no offset, nothing embedded.
+    /// A request the exports accept: no count, no page asked for, nothing embedded.
     ///
     /// Every case below is this value with exactly one field changed, so a refusal can
     /// only be attributed to that field. `an_acceptable_request_is_the_baseline` asserts this
     /// value itself passes — without it, "always refuse" would satisfy every other test
     /// here.
     ///
-    /// ⚠ `pagination` is `Offset { offset: 0 }`, **not** `PaginationParams::None`. `None`
-    /// occurs only when `!is_list` (`RestParamExtractor::extract`), and `rest_stream`
-    /// requires `returns_list` — so no request that reaches an export can ever carry it.
-    /// A suite anchored on `None` is anchored on a shape the code under test never sees,
-    /// which is how the relay case below went unnoticed until #1273.
+    /// ⚠ Both pagination fields are set, and they **disagree** — the plan serves a default
+    /// page the request never asked for. That is the shape every export request actually
+    /// carries (`RestParamExtractor::extract` fills a default whenever the client names no
+    /// page), and a fixture whose two fields agree cannot tell which one the code under
+    /// test reads. Reading the plan is what refused every relay export (#1273).
     fn acceptable() -> ExtractedParams {
         ExtractedParams {
-            path_params:       Vec::new(),
-            where_clause:      None,
-            order_by:          None,
-            pagination:        PaginationParams::Offset {
+            path_params:          Vec::new(),
+            where_clause:         None,
+            order_by:             None,
+            pagination:           PaginationParams::Offset {
                 limit:  DEFAULT_PAGE,
                 offset: 0,
             },
-            field_selection:   RestFieldSpec::Fields(vec!["id".to_string()]),
-            search_query:      None,
-            embeddings:        Vec::new(),
-            embedding_filters: std::collections::HashMap::new(),
-            embedding_counts:  Vec::new(),
+            requested_pagination: RequestedPagination::default(),
+            field_selection:      RestFieldSpec::Fields(vec!["id".to_string()]),
+            search_query:         None,
+            embeddings:           Vec::new(),
+            embedding_filters:    std::collections::HashMap::new(),
+            embedding_counts:     Vec::new(),
         }
     }
 
-    /// The shape a **relay** export request actually carries, which is what the offset
-    /// baseline above cannot represent.
+    /// The shape a **relay** export request actually carries when the client named no cursor.
     ///
-    /// `parse_cursor_pagination(None, None, None, None)` does not mean "no pagination" —
-    /// its own default arm fills `first: Some(default_page_size)` — so a bare
-    /// `GET /rest/v1/posts` on a relay route arrives here as `Cursor`, indistinguishable
-    /// from a client that asked for a page.
+    /// Resolving `first`/`after`/`last`/`before` from nothing does not mean "no pagination":
+    /// the default arm fills `first: Some(default_page_size)`. So a bare `GET /rest/v1/posts`
+    /// on a relay route arrives with a `Cursor` **plan** and an empty **request**, and only
+    /// the second of those says whether the client asked for a page.
     fn relay_with_no_cursor_requested() -> ExtractedParams {
         ExtractedParams {
             pagination: PaginationParams::Cursor {
@@ -1006,6 +1009,14 @@ mod export_refusal {
                 before: None,
             },
             ..acceptable()
+        }
+    }
+
+    /// The same relay plan, with the cursor the client actually sent recorded beside it.
+    fn relay_with_cursor_requested(requested: RequestedPagination) -> ExtractedParams {
+        ExtractedParams {
+            requested_pagination: requested,
+            ..relay_with_no_cursor_requested()
         }
     }
 
@@ -1024,11 +1035,17 @@ mod export_refusal {
 
     #[test]
     fn a_limit_without_an_offset_is_accepted() {
-        // `?limit=` bounds the export total (#811); it is not a page.
+        // `?limit=` bounds the export total (#811); it is not a page. This is the one
+        // pagination parameter a client may send an export, so it is set on the *request*
+        // here — setting only the plan would pass whether or not the rule reads it.
         let params = ExtractedParams {
             pagination: PaginationParams::Offset {
                 limit:  100,
                 offset: 0,
+            },
+            requested_pagination: RequestedPagination {
+                limit: Some(100),
+                ..RequestedPagination::default()
             },
             ..acceptable()
         };
@@ -1058,52 +1075,122 @@ mod export_refusal {
         }
     }
 
+    /// Every parameter that puts the client on a page is refused, one at a time.
+    ///
+    /// One case per field, because the rule is a disjunction and a single case leaves the
+    /// other four provable by an `always false` arm. `?limit=` is deliberately not here —
+    /// it is the total bound, asserted accepted above.
     #[test]
-    fn offset_and_cursor_pagination_are_refused() {
+    fn every_pagination_parameter_a_client_can_send_is_refused() {
         let cases = [
-            PaginationParams::Offset {
-                limit:  10,
-                offset: 5,
-            },
-            PaginationParams::Cursor {
-                first:  Some(10),
-                after:  None,
-                last:   None,
-                before: None,
-            },
+            (
+                "offset",
+                RequestedPagination {
+                    offset: Some(5),
+                    ..RequestedPagination::default()
+                },
+            ),
+            (
+                "first",
+                RequestedPagination {
+                    first: Some(10),
+                    ..RequestedPagination::default()
+                },
+            ),
+            (
+                "after",
+                RequestedPagination {
+                    after: Some("Y3Vyc29yOjE=".to_string()),
+                    ..RequestedPagination::default()
+                },
+            ),
+            (
+                "last",
+                RequestedPagination {
+                    last: Some(10),
+                    ..RequestedPagination::default()
+                },
+            ),
+            (
+                "before",
+                RequestedPagination {
+                    before: Some("Y3Vyc29yOjE=".to_string()),
+                    ..RequestedPagination::default()
+                },
+            ),
         ];
-        for pagination in cases {
+        for (parameter, requested) in cases {
             let params = ExtractedParams {
-                pagination,
+                requested_pagination: requested,
                 ..acceptable()
             };
             let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
-            assert_eq!(err.status, StatusCode::BAD_REQUEST);
-            assert!(err.message.contains("pagination not available"), "{}", err.message);
+            assert_eq!(err.status, StatusCode::BAD_REQUEST, "?{parameter}=");
+            assert!(
+                err.message.contains("pagination not available"),
+                "?{parameter}= is refused with its own diagnosis: {}",
+                err.message
+            );
         }
     }
 
-    /// ⚠ #1273 — **current behaviour, not desired behaviour.**
+    /// `?offset=0` is not a page, and was never refused as one.
     ///
-    /// A relay route answers `400` to an export request carrying *no* cursor parameter,
-    /// naming pagination the client never sent, so a `relay = true` + `rest_stream = true`
-    /// query cannot be exported in any representation. This test pins what the code does
-    /// today so the gap is visible in the suite rather than only in the tracker; #1273
-    /// carries the decision about what it *should* do.
-    ///
-    /// When #1273 is fixed this test fails, which is the point — flip it to `is_ok()` and
-    /// delete this comment.
+    /// The offset branch has always asked `offset > 0` rather than "is there an offset",
+    /// which is why it alone escaped #1273 — it happened to be asking what the client
+    /// requested rather than what the server planned. Pinning it keeps a rewrite of the
+    /// rule in terms of `is_some()` from quietly refusing a request that names the first
+    /// row.
     #[test]
-    fn a_bare_relay_request_is_refused_today_see_1273() {
+    fn an_explicit_zero_offset_is_not_a_page() {
+        let params = ExtractedParams {
+            requested_pagination: RequestedPagination {
+                offset: Some(0),
+                ..RequestedPagination::default()
+            },
+            ..acceptable()
+        };
+        assert!(refuse_unstreamable_request(&PreferHeader::default(), &params).is_ok());
+    }
+
+    /// #1273: a relay route's export is refused for a cursor, not for being relay-shaped.
+    ///
+    /// The plan here is `Cursor { first: Some(default_page_size) }` — the page the JSON
+    /// representation would have served — while the request named nothing. Refusing on the
+    /// plan made a `relay = true` + `rest_stream = true` query unexportable in all three
+    /// representations, naming a parameter the client never sent.
+    #[test]
+    fn a_relay_request_that_named_no_cursor_is_accepted() {
+        assert!(
+            refuse_unstreamable_request(
+                &PreferHeader::default(),
+                &relay_with_no_cursor_requested(),
+            )
+            .is_ok(),
+            "a bare request on a relay route asked for no page, so there is none to refuse"
+        );
+    }
+
+    /// The other half: the same relay plan, with a cursor the client did send.
+    ///
+    /// Paired with the case above, this is what distinguishes the fix from deleting the
+    /// cursor rule — the two differ only in `requested_pagination`.
+    #[test]
+    fn a_relay_request_that_named_a_cursor_is_still_refused() {
+        let requested = RequestedPagination {
+            first: Some(10),
+            after: Some("Y3Vyc29yOjE=".to_string()),
+            ..RequestedPagination::default()
+        };
         let err = refuse_unstreamable_request(
             &PreferHeader::default(),
-            &relay_with_no_cursor_requested(),
+            &relay_with_cursor_requested(requested),
         )
         .unwrap_err();
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
         assert!(
             err.message.contains("pagination not available"),
-            "the refusal a bare relay export currently receives: {}",
+            "the refusal states its own diagnosis: {}",
             err.message
         );
     }

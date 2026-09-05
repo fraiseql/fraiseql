@@ -97,6 +97,7 @@ pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
         query_name,
         query_match,
         variables,
+        params,
         ..
     } = resolved;
 
@@ -125,7 +126,9 @@ pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
         query_match,
         variables,
         security_context.cloned(),
-        super::helpers::requested_total_limit(query_pairs),
+        // `?limit=` caps the export total, read from what the client sent rather than
+        // from the resolved plan, which fills an absent one with `default_page_size` (#811).
+        params.requested_pagination.limit,
     )
     .await?;
 

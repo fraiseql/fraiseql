@@ -105,6 +105,19 @@ fn build_schema() -> CompiledSchema {
         .build();
     plain.rest_path = Some("/plain".to_string());
 
+    // #1273: the same rows again behind a **relay** route that did opt in. Every export
+    // this route was offered used to be refused, so nothing had ever executed one — and a
+    // handler-level test over a canned adapter cannot say whether the SQL a relay route's
+    // direct read builds actually runs.
+    let mut relay = TestQueryBuilder::new("relayExports", "P13Relay")
+        .returns_list(true)
+        .relay(true)
+        .relay_cursor_column("id")
+        .with_sql_source(VIEW)
+        .rest_stream(true)
+        .build();
+    relay.rest_path = Some("/relay".to_string());
+
     let mut schema = TestSchemaBuilder::new()
         .with_type(
             TestTypeBuilder::new("P13Export", VIEW)
@@ -118,8 +131,15 @@ fn build_schema() -> CompiledSchema {
                 .with_field(TestFieldBuilder::new("label", FieldType::String).build())
                 .build(),
         )
+        .with_type(
+            TestTypeBuilder::new("P13Relay", VIEW)
+                .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                .with_field(TestFieldBuilder::new("label", FieldType::String).build())
+                .build(),
+        )
         .with_query(query)
         .with_query(plain)
+        .with_query(relay)
         .build();
 
     schema.rest_config = Some(RestConfig {
@@ -621,6 +641,77 @@ async fn a_repeated_select_heads_the_served_csv_with_the_projected_column() {
             !row.trim().is_empty() && *row != "\"\"",
             "every cell under the header must carry the projected value, not the empty \
              string a missing key renders as: {body:?}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Relay routes (#1273)
+// ---------------------------------------------------------------------------
+
+/// #1273: a `relay = true` route with `rest_stream = true` exports the whole relation.
+///
+/// Every export this route was offered answered `400 pagination not available for export`,
+/// including one carrying no pagination parameter — the refusal read the *resolved* plan,
+/// and resolving a relay request that names no cursor still fills `first` with
+/// `default_page_size`. So no relay export had ever executed, and the handler-level pair
+/// that proves the refusal is lifted runs over a canned adapter: it cannot say whether the
+/// SQL a relay route's direct read builds is valid. This is the half that does.
+///
+/// `ROWS`, not `PAGE`: an export is the whole relation, and the plan this used to be
+/// refused for was one page of it. The two numbers differ by two orders of magnitude, so a
+/// regression that quietly served the plan is a failure here rather than a rounding error.
+#[tokio::test]
+async fn a_relay_route_exports_every_row_exactly_once() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = request_export(&server.url, "/relay", "application/x-ndjson").await;
+    assert_eq!(
+        status,
+        reqwest::StatusCode::OK,
+        "a bare export request on a relay route names no cursor, so there is no page to \
+         refuse it for: {body}"
+    );
+
+    let ids = ndjson_ids(&body);
+    assert_eq!(ids.len(), ROWS, "a relay route's export is the whole relation, not one page");
+    assert_eq!(
+        ids.iter().copied().collect::<HashSet<i64>>().len(),
+        ROWS,
+        "the relay export re-emitted rows"
+    );
+}
+
+/// The half that must not move: a cursor the client actually sent is still refused.
+///
+/// Differs from the case above by one query parameter. Without it, deleting the cursor rule
+/// outright would satisfy the suite.
+#[tokio::test]
+async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    for query in [
+        "?first=10",
+        "?after=Y3Vyc29yOjE%3D",
+        "?last=10",
+        "?before=Y3Vyc29yOjE%3D",
+    ] {
+        let (status, body) =
+            request_export(&server.url, &format!("/relay{query}"), "application/x-ndjson").await;
+        assert_eq!(
+            status,
+            reqwest::StatusCode::BAD_REQUEST,
+            "{query} asks to be on a page, which an export cannot honour: {body}"
+        );
+        assert!(
+            body.contains("pagination not available"),
+            "{query}: the refusal states its own diagnosis: {body}"
         );
     }
 }
