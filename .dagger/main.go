@@ -432,6 +432,13 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-test-imports.sh",
 		"bash tools/check-route-syntax.sh",
 		"bash tools/check-guard-parity.sh",
+		// The test side of the same rule (#1272): a test that asserts a guard's
+		// behaviour must take the temp_env lock, or it races the sibling that sets
+		// the bypass and reads the guard as disabled. Four vault tests did; the
+		// three asserting a refusal reddened this leg at random, and the one
+		// asserting Ok passed with the SSRF guard refusing every address.
+		"python3 tools/check-guard-test-lock.py",
+		"bash tools/tests/guard_test_lock_test.sh",
 		"bash tools/check-deploy-security.sh",
 		// Deploy artifacts must name the version being released, and the chart's
 		// default image must be one this project publishes (#1129).

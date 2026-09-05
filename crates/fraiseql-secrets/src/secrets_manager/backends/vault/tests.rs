@@ -349,89 +349,6 @@ async fn test_renew_token_403_returns_connection_error() {
     );
 }
 
-// --- validate_vault_addr SSRF tests (S9-2) ---
-
-#[test]
-fn test_vault_addr_scheme_must_be_http() {
-    let result = validate_vault_addr("file:///etc/passwd");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "file scheme should be rejected: {result:?}"
-    );
-    let result = validate_vault_addr("ftp://vault.example.com:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "ftp scheme should be rejected: {result:?}"
-    );
-    let result = validate_vault_addr("vault.example.com:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "no scheme should be rejected: {result:?}"
-    );
-}
-
-#[test]
-fn test_vault_addr_blocks_loopback() {
-    let result = validate_vault_addr("http://localhost:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "localhost should be blocked: {result:?}"
-    );
-    let result = validate_vault_addr("http://127.0.0.1:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "127.0.0.1 should be blocked: {result:?}"
-    );
-    let result = validate_vault_addr("http://[::1]:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "::1 should be blocked: {result:?}"
-    );
-}
-
-#[test]
-fn test_vault_addr_blocks_private_ranges() {
-    let result = validate_vault_addr("http://10.0.0.1:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "10.x should be blocked: {result:?}"
-    );
-    let result = validate_vault_addr("http://172.16.0.1:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "172.16.x should be blocked: {result:?}"
-    );
-    let result = validate_vault_addr("http://192.168.1.1:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "192.168.x should be blocked: {result:?}"
-    );
-    // AWS metadata service
-    let result = validate_vault_addr("http://169.254.169.254:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "169.254.x should be blocked: {result:?}"
-    );
-    // CGNAT range
-    let result = validate_vault_addr("http://100.64.0.1:8200");
-    assert!(
-        matches!(result, Err(SecretsError::ValidationError(_))),
-        "100.64.x should be blocked: {result:?}"
-    );
-}
-
-#[test]
-fn test_vault_addr_allows_public_addresses() {
-    validate_vault_addr("https://vault.example.com:8200")
-        .unwrap_or_else(|e| panic!("public vault addr should pass: {e}"));
-    // Not 203.0.113.x: that is TEST-NET-3, an RFC 5737 documentation range the shared
-    // guard refuses because it is not globally routable.
-    validate_vault_addr("https://93.184.216.34:8200")
-        .unwrap_or_else(|e| panic!("public IP vault addr should pass: {e}"));
-    validate_vault_addr("http://vault.local:8200")
-        .unwrap_or_else(|e| panic!("vault.local should pass: {e}"));
-}
-
 // ── S30: Vault HTTP body-size guards ──────────────────────────────────────────
 
 /// Vault secret fetch must reject responses larger than `MAX_VAULT_RESPONSE_BYTES`.
@@ -678,6 +595,16 @@ fn vault_backend_has_rotation_locks_field() {
 // ── The shared outbound corpus, at this crate's entry point ───────────────────
 
 /// Clear the bypass and the posture markers so the guard is actually exercised.
+///
+/// Every test in this section goes through this helper or through
+/// [`with_bypass_requested`], and that is not a style preference. `temp_env`
+/// serialises through a global mutex, so a lock-free reader races whichever sibling
+/// is inside `with_bypass_requested`, and in that window `validate_vault_addr`
+/// returns `Ok(())` from the bypass before the guard runs at all. Four tests here
+/// read lock-free and reddened `Dagger — test` at random (#1272) — and the one of
+/// them that asserted `Ok` reddened nothing: it passed with the SSRF guard refusing
+/// every address, which is the direction that stays silent forever.
+/// `tools/check-guard-test-lock.py` is the gate.
 fn with_guard_engaged<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> T {
     let mut out = None;
     temp_env::with_vars(
@@ -715,6 +642,46 @@ fn vault_addr_permits_every_allowed_corpus_entry() {
             let url = format!("https://{}:8200", url_host(addr));
             assert!(validate_vault_addr(&url).is_ok(), "must permit {addr}");
         }
+    });
+}
+
+/// The scheme rule is this crate's own: the shared corpus classifies *hosts*, so no
+/// entry in it reaches `file://`, `ftp://`, or a bare `host:port`. Measured — with the
+/// scheme branch deleted both corpus tests above stay green and only this one reddens.
+#[test]
+fn test_vault_addr_scheme_must_be_http() {
+    with_guard_engaged(|| {
+        for addr in [
+            "file:///etc/passwd",
+            "ftp://vault.example.com:8200",
+            "vault.example.com:8200",
+        ] {
+            assert!(
+                matches!(validate_vault_addr(addr), Err(SecretsError::ValidationError(_))),
+                "scheme must be http(s): {addr}"
+            );
+        }
+    });
+}
+
+/// The counterweight for *hostnames*, which nothing else reaches from this entry point:
+/// `vault_addr_permits_every_allowed_corpus_entry` iterates `MUST_ALLOW`, every row of
+/// which is an IP literal, and `MUST_ALLOW_HOSTS` is consumed by no dependent crate in
+/// the workspace (#1280). Measured — block every non-literal host and both corpus
+/// tests stay green while this one reddens. `http://vault.local:8200` also keeps the
+/// `http` + explicit-port shape covered; `url_host` builds corpus URLs as `https`
+/// without a port.
+#[test]
+fn test_vault_addr_allows_public_addresses() {
+    with_guard_engaged(|| {
+        validate_vault_addr("https://vault.example.com:8200")
+            .unwrap_or_else(|e| panic!("public vault addr should pass: {e}"));
+        // Not 203.0.113.x: that is TEST-NET-3, an RFC 5737 documentation range the shared
+        // guard refuses because it is not globally routable.
+        validate_vault_addr("https://93.184.216.34:8200")
+            .unwrap_or_else(|e| panic!("public IP vault addr should pass: {e}"));
+        validate_vault_addr("http://vault.local:8200")
+            .unwrap_or_else(|e| panic!("vault.local should pass: {e}"));
     });
 }
 

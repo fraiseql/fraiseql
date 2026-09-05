@@ -663,6 +663,51 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **Four vault SSRF-guard tests asserted against a guard that had not run (#1272).**
+
+  `crates/fraiseql-secrets`' `validate_vault_addr` suite called the guard with no
+  `temp_env` wrapper while two sibling helpers in the same test binary set
+  `FRAISEQL_VAULT_ALLOW_INSECURE` and `FRAISEQL_ENV` process-globally. `temp_env`
+  serialises through a global `ReentrantMutex`, which is deterministic only if *both*
+  sides take it, so inside that window `validate_vault_addr` returned `Ok(())` from the
+  bypass before the guard ran at all.
+
+  Reproduced by holding the exact environment the sibling publishes:
+
+  ```
+  FRAISEQL_VAULT_ALLOW_INSECURE=1 FRAISEQL_ENV=development \
+    cargo test -p fraiseql-secrets --lib vault::tests::test_vault_addr
+    -> 1 passed; 3 failed        # `10.x should be blocked: Ok(())`
+  ```
+
+  The three failures are the harmless direction — they reddened `Dagger — test` at
+  random and named themselves. The one that passed is the defect:
+  `test_vault_addr_allows_public_addresses` asserts `Ok`, so it survived the race
+  silently. Measured with
+  the SSRF predicate mutated to refuse *every* address, it still passed under that
+  environment while failing without it — a security test that could not fail for a
+  reason originating in the guard it named.
+
+  Two of the four are gone rather than wrapped. `test_vault_addr_blocks_loopback` and
+  `test_vault_addr_blocks_private_ranges` were a hand-rolled vector list of exactly the
+  kind `fraiseql_guard::net::vectors` exists to replace, sitting in the same file as the
+  corpus test that replaced it — and being that leftover is why these two alone never
+  got the wrapper their neighbours have. Their eight vectors were each un-blocked in
+  turn, and `vault_addr_refuses_every_blocked_corpus_entry` — which already runs under
+  the lock, over all 52 corpus vectors — went red on every one, so removing them loses
+  no coverage. The scheme rule and the hostname counterweight are not in the corpus, so
+  those two tests remain, now under `with_guard_engaged`.
+
+  `tools/check-guard-test-lock.py` is the recurrence gate — the test-side complement to
+  `check-guard-parity.sh`. In any test binary that mutates deployment environment, a
+  `#[test]` calling a guard entry point must take the lock. Entry points are discovered
+  from the `insecure_bypass` / `env_opt_in` / `is_production` chokepoint on each run, so
+  a new guard is covered when it is written. It matches a call to the function enclosing
+  the chokepoint and nothing above it: widening by one hop of a name-based call graph was
+  measured at 3 150 flagged tests, because `new` and `build` reach a guard somewhere in
+  most crates. So a test reaching a guard indirectly — the shape of the OIDC precedent that
+  shipped this defect first — is out of scope, and the gate says so.
+
 - **A `relay = true` route with `rest_stream = true` can be exported (#1273).**
 
   Every export request on such a route answered `400 pagination not available for export`,

@@ -15,6 +15,11 @@
 # guard, and it drifts from its siblings over the following year". So this gate does not
 # check quality; it checks that there is only one.
 #
+# The test side of this rule lives in tools/check-guard-test-lock.py: a test that asserts
+# a guard's behaviour must take the `temp_env` lock, or it races the sibling that sets the
+# bypass and reads the guard as disabled (#1272). This gate skips test files entirely, so
+# it cannot see that; the two are complements.
+#
 # If you are adding an outbound guard: call `fraiseql_guard::net::{is_blocked_ip,
 # blocked_host_reason}`. If you need the deployment posture: call
 # `fraiseql_guard::deployment::is_production`. If the shared guard is missing a range you
