@@ -47,6 +47,9 @@ use crate::routes::rest::{
 ///   `execute_embedding_counts` loops `count_related`). Executing embeds here would break every one
 ///   of those properties, unbounded — `export_rows` removes `limit` because an export means the
 ///   whole table (#811), where the JSON path's parent rows are bounded by `max_page_size`.
+/// * **`?rel.field=value` embedding filters** — the filters on those embeds, arriving by a
+///   different syntax and a different producer. An export carries no embed for them to narrow, and
+///   their only consumer belongs to the JSON path (#1275).
 ///
 /// Refusing is a change of answer, not a loss of capability: before #1268 all three
 /// representations accepted the selection, validated it, and emitted rows without it. CSV
@@ -70,9 +73,6 @@ use crate::routes::rest::{
 ///   shapes differ in capability, not only in vocabulary. Giving `?first=` the meaning `?limit=`
 ///   has on an export would close it; that is a new answer to a request that is currently refused
 ///   rather than a defect in this one, so it is filed, not folded in.
-/// * **#1275** — `params.embedding_filters` is not refused, though since this function refuses
-///   every `?select=` embed an export's filters are now structurally unreachable. The bulk path
-///   already refuses the same parameter for the same reason (`bulk/mod.rs`).
 pub fn refuse_unstreamable_request(
     prefer: &PreferHeader,
     params: &ExtractedParams,
@@ -126,12 +126,78 @@ pub fn refuse_unstreamable_request(
         )));
     }
 
+    // #1275: the filters on those embeds, which arrive by a different syntax and a different
+    // producer, and which no export could honour even before the two branches above existed.
+    //
+    // The field is *reachable* — `extract_embedding_filters` reads every query pair
+    // unconditionally, whether or not `?select=` named an embed, so a bare `?author.name=alice`
+    // fills it. What is unreachable is its effect: the only consumer is
+    // `embedding::execute_embeddings`, which the export path never calls and which, since the
+    // embed branch above, could not be reached from here in principle. Accepted, never honoured,
+    // and answered `200` with the whole unfiltered relation — the accept / validate / discard
+    // shape #1268 removed from this path, left behind on it.
+    //
+    // `bulk/mod.rs` refuses the same parameter, and this is not that rule copied: it refuses
+    // because a filter contributing no `WHERE` clause would mutate rows the caller did not
+    // select, and this refuses because an export carries no embed to filter. The JSON path
+    // honours these filters and must keep accepting them, so there is no third site the two
+    // could collapse into.
+    if !params.embedding_filters.is_empty() {
+        let named = quoted_list(embedding_filter_parameters(&params.embedding_filters));
+        return Err(RestError::bad_request(format!(
+            "embedded-relationship filters are not available for export responses: {named}. A \
+             dotted parameter filters an embedded relationship, and an export carries no embed \
+             to filter. Narrow the exported rows themselves with `?field=value`, or request \
+             `Accept: application/json` to embed and filter."
+        )));
+    }
+
     Ok(())
 }
 
-/// `` `a`, `b` `` — the offending names, quoted, in selection order.
-fn quoted_list<S: AsRef<str>>(names: impl Iterator<Item = S>) -> String {
-    names.map(|n| format!("`{}`", n.as_ref())).collect::<Vec<_>>().join(", ")
+/// The `rel.field` parameters behind an `embedding_filters` map, in a stable order.
+///
+/// The map is a `HashMap` keyed by relationship, so it carries no order of its own and this has
+/// to impose one: an iteration-order message would name the same request differently on
+/// consecutive runs, which is not a contract a client or a test can hold. Sorted, therefore —
+/// not "as sent", which the map cannot answer.
+///
+/// The operator is deliberately not echoed. `?author.name=alice` and `?author.name[eq]=alice`
+/// are stored identically (`{"name": {"eq": "alice"}}`), so reconstructing the bracket would
+/// mean guessing which form the client wrote. The field path identifies the parameter under
+/// either.
+///
+/// Nothing here has been checked against the schema. `extract_embedding_filters` classifies on
+/// the dot alone — `?nonsense.field=x` is stored just as quietly as `?author.name=x` — so this
+/// echoes what was sent rather than describing a relationship the type is known to have.
+fn embedding_filter_parameters(filters: &HashMap<String, serde_json::Value>) -> Vec<String> {
+    let mut named: Vec<String> = filters
+        .iter()
+        .flat_map(|(relationship, fields)| match fields.as_object() {
+            Some(obj) if !obj.is_empty() => {
+                obj.keys().map(|field| format!("{relationship}.{field}")).collect::<Vec<_>>()
+            },
+            // The producer only ever inserts a non-empty object. Any other shape would
+            // otherwise vanish from the refusal that exists to name it, leaving a `400` whose
+            // message names no parameter at all.
+            _ => vec![relationship.clone()],
+        })
+        .collect();
+    named.sort();
+    named
+}
+
+/// `` `a`, `b` `` — the offending names, quoted, in the order the caller supplies.
+///
+/// That order is the caller's statement, not this function's: the two `?select=` branches pass
+/// selection order, and the filter branch passes a sort, because its source is a `HashMap` with
+/// no order to preserve.
+fn quoted_list<S: AsRef<str>>(names: impl IntoIterator<Item = S>) -> String {
+    names
+        .into_iter()
+        .map(|n| format!("`{}`", n.as_ref()))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 impl<A: DatabaseAdapter> RestHandler<'_, A> {

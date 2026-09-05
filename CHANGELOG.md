@@ -73,6 +73,26 @@ disagreed, and the promise was the part that was wrong.
   view layer is for, and the only shape that keeps an export one statement over one
   snapshot. A request that worked before was already not returning the embed.
 
+- **A streaming export refuses a `?rel.field=value` embedding filter (#1275).**
+
+  `Accept: application/x-ndjson`, `text/csv` and the XLSX media type now answer `400` to a
+  request carrying a dotted query parameter — `?author.name=alice` — which the extractor
+  classifies as a filter on an embedded relationship. They used to accept it and drop it; see
+  `### Fixed` for what that looked like. The refusal names every such parameter, sorted, so a
+  client fixes them in one pass.
+
+  It does not depend on the name being a relationship the type declares, because nothing
+  checks that: `extract_embedding_filters` classifies on the dot alone, so `?nonsense.field=x`
+  was stored and discarded just as quietly and is refused the same way.
+
+  The three export descriptions in the served OpenAPI document name this syntax alongside the
+  embed and count syntaxes they already disclaimed.
+
+  **Migration.** Request `Accept: application/json` and select the embed the filter applies to
+  — the only shape that ever honoured it — or narrow the exported rows themselves with
+  `?field=value`, which an export applies as it always did. A request that worked before was
+  not being filtered.
+
 - **`validate_ndjson_request`, `validate_csv_request` and `validate_xlsx_request` are
   replaced by one `refuse_unstreamable_request` (#1268).**
 
@@ -764,8 +784,9 @@ disagreed, and the promise was the part that was wrong.
   `resolve_streaming_get_query` alongside the `rest_stream` opt-in (#958) — one function, so
   a fourth representation inherits every rule by resolving through the only function that
   fits it. It is the single place those rules live; it is not yet a complete statement of
-  them, and its doc comment names the two known gaps (#1273, #1275), both carried over from
-  the validators it replaced. That is also the answer to #1230's open note: the join-key widening
+  them, and its doc comment names the gaps that remain. The two it named when #1268 shipped —
+  #1273 and #1275, both carried over from the validators it replaced — are closed in this
+  release; #1278 is what the comment names now. That is also the answer to #1230's open note: the join-key widening
   `ResolvedGetQuery::with_embed_join_keys` performs is still applied by the JSON path alone,
   but now because an export cannot carry a request that needs it, not because the widening
   had to be withheld from a path that would have emitted the extra column as a CSV header.
@@ -773,6 +794,36 @@ disagreed, and the promise was the part that was wrong.
   The `406` for a route without `rest_stream` still comes first: "this route offers no
   export at all" is the more fundamental refusal, and answering `400` first would tell a
   client to fix a `?select=` on a route where no `?select=` would have helped.
+
+- **A streaming export no longer accepts a `?rel.field=value` filter it cannot apply
+  (#1275).**
+
+  `GET /rest/v1/posts?author.name=alice` with `Accept: application/x-ndjson` answered `200`
+  with every row — alice's and everyone else's — and said nothing about the filter.
+
+  The parameter reaches the export path *populated*: `extract_embedding_filters` runs over
+  every query pair unconditionally, whether or not `?select=` named an embed, so the query
+  string alone fills the field. What an export cannot do is honour it. The only consumer is
+  `embedding::execute_embeddings`, which belongs to the JSON path and which #1268's embed
+  refusal put out of reach from here in principle. So the field is not dead code and deleting
+  it would have been the wrong reading of the same evidence; it is an accepted parameter with
+  no effect, which is the accept / validate / discard shape #1268 removed from this path and
+  left behind on it.
+
+  `routes::rest::bulk` had already settled the same parameter the other way, with a comment
+  naming the exact shape: "silently dropping them is what let `?search=x` and `?rel.field=v`
+  pass for filters". This is not that rule copied into a second place — bulk refuses because a
+  filter contributing no `WHERE` clause would mutate rows the caller did not select, and an
+  export refuses because it carries no embed to filter. The JSON path honours these filters
+  and still accepts them, so there is no third site for the two to collapse into.
+
+  The regression cases run at both levels for a reason. The unit suite over
+  `refuse_unstreamable_request` can prove the rule but not that any request a client can send
+  fills the field it reads; every case in `streaming::export_embedding_filter_tests` starts
+  from a query string instead, and `rest_export_embedding_e2e_pg` measures the same requests
+  over the wire — including the control that the identical filter still narrows a real embed
+  on the JSON representation, without which the refusal would read just as well on a build
+  where embedding filters did nothing anywhere.
 
 - **A count inside a sub-select executes instead of being silently discarded (#1267).**
 

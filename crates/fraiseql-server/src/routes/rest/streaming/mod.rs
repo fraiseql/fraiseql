@@ -32,6 +32,11 @@ mod export_header_tests;
 #[cfg(all(test, feature = "export-csv"))]
 mod export_pagination_tests;
 
+// #1275: the `?rel.field=value` filters an export accepts but can never honour. The cases
+// drive `handle_csv_get`, so they need the CSV writer compiled in.
+#[cfg(all(test, feature = "export-csv"))]
+mod export_embedding_filter_tests;
+
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
 use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};

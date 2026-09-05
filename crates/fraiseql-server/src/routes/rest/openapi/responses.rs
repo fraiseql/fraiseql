@@ -52,7 +52,8 @@ impl OpenApiGenerator<'_> {
                         }),
                     );
                     // #1268: every export representation says, in its own description,
-                    // that it does not carry `?select=` embeds or counts. The schema
+                    // that it does not carry `?select=` embeds or counts — nor, since
+                    // #1275, the `?rel.field=value` filters on them. The schema
                     // `$ref` is the type's, and a type's schema advertises its
                     // relationships as properties — accurately, for the JSON envelope
                     // above. Saying nothing here would leave that `$ref` reading as a
@@ -60,7 +61,7 @@ impl OpenApiGenerator<'_> {
                     content.insert(
                         "application/x-ndjson".to_string(),
                         json!({
-                            "description": "Newline-delimited JSON stream (one object per line, no envelope). Embedded relationships and counts (?select=rel(fields), ?select=rel.count) are not available on this representation; request application/json for those.",
+                            "description": "Newline-delimited JSON stream (one object per line, no envelope). Embedded relationships, counts and their filters (?select=rel(fields), ?select=rel.count, ?rel.field=value) are not available on this representation; request application/json for those.",
                             "schema": { "$ref": type_ref }
                         }),
                     );
@@ -68,7 +69,7 @@ impl OpenApiGenerator<'_> {
                     content.insert(
                         "text/csv".to_string(),
                         json!({
-                            "description": "RFC 4180 CSV. Header row + one row per record. Embedded relationships and counts (?select=rel(fields), ?select=rel.count) are not available on this representation; request application/json for those.",
+                            "description": "RFC 4180 CSV. Header row + one row per record. Embedded relationships, counts and their filters (?select=rel(fields), ?select=rel.count, ?rel.field=value) are not available on this representation; request application/json for those.",
                             "schema": { "type": "string", "format": "binary" }
                         }),
                     );
@@ -76,7 +77,7 @@ impl OpenApiGenerator<'_> {
                     content.insert(
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string(),
                         json!({
-                            "description": "Office Open XML workbook (.xlsx). Header row + one row per record. Capped at the server-configured xlsx_max_rows (default 100_000); larger exports must use text/csv. Embedded relationships and counts (?select=rel(fields), ?select=rel.count) are not available on this representation; request application/json for those.",
+                            "description": "Office Open XML workbook (.xlsx). Header row + one row per record. Capped at the server-configured xlsx_max_rows (default 100_000); larger exports must use text/csv. Embedded relationships, counts and their filters (?select=rel(fields), ?select=rel.count, ?rel.field=value) are not available on this representation; request application/json for those.",
                             "schema": { "type": "string", "format": "binary" }
                         }),
                     );

@@ -638,6 +638,17 @@ impl<'a> RestParamExtractor<'a> {
     /// Extract embedding filters from dot-prefixed query params.
     ///
     /// E.g., `?posts.status=published` or `?posts.status[eq]=published`.
+    ///
+    /// **No validation happens here**, and #1279 is what that costs on the JSON path: the
+    /// classification loop above skips every key containing a `.`, so a dotted parameter
+    /// never reaches the unknown-parameter refusal, and this stores it whatever it names.
+    /// `execute_embeddings` then reads the map once per *selected* embed, so an entry naming
+    /// a relationship no `?select=` asked for — or no relationship at all — is dropped in
+    /// silence. `?nonsense=x` is a `400`; `?nonsense.field=x` is a `200`.
+    ///
+    /// The export representations refuse the whole parameter (#1275), because there no entry
+    /// could ever be honoured. The JSON path honours some of them, which is why the same
+    /// answer does not fit and the question is still open.
     fn extract_embedding_filters(
         &self,
         query_pairs: &[(&str, &str)],

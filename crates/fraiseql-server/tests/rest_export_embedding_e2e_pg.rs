@@ -492,6 +492,120 @@ async fn a_csv_export_without_an_embed_still_streams() {
     assert!(res.body.contains("10,a-one"), "first data row: {}", res.body);
 }
 
+// ---------------------------------------------------------------------------
+// #1275: the `?rel.field=value` filters on those embeds
+// ---------------------------------------------------------------------------
+
+/// The filter syntax was accepted by every export and dropped without a word.
+///
+/// It reaches the export path populated — `extract_embedding_filters` reads every query pair
+/// unconditionally, whether or not `?select=` named an embed — while its only consumer,
+/// `execute_embeddings`, belongs to the JSON path. So `?author.name=alice` answered `200`
+/// with all four posts, alice's two and bob's two alike, and the client had no way to tell.
+#[tokio::test]
+async fn an_ndjson_export_refuses_an_embedding_filter() {
+    let rig = rig_or_skip!();
+
+    let res = rig.get("/rest/v1/posts?select=id,title&author.name=alice", NDJSON).await;
+
+    assert_eq!(
+        res.status,
+        StatusCode::BAD_REQUEST,
+        "#1275: the filter cannot be applied, so it must not be accepted: {}",
+        res.body
+    );
+    assert!(
+        res.ctype.contains("application/json"),
+        "the refusal precedes the stream, so it is an ordinary error document: {}",
+        res.ctype
+    );
+    assert!(
+        res.message().contains("`author.name`"),
+        "the refusal names the parameter the client sent: {}",
+        res.message()
+    );
+}
+
+#[tokio::test]
+#[cfg(feature = "export-csv")]
+async fn a_csv_export_refuses_an_embedding_filter() {
+    let rig = rig_or_skip!();
+
+    let res = rig.get("/rest/v1/posts?select=id,title&author.name=alice", CSV).await;
+
+    assert_eq!(res.status, StatusCode::BAD_REQUEST, "{}", res.body);
+    assert!(
+        !res.body.starts_with("id,title"),
+        "a refusal must not arrive as a header row over unfiltered data: {}",
+        res.body
+    );
+    assert!(res.message().contains("`author.name`"), "{}", res.message());
+}
+
+/// No dotted key is checked against the schema before it is stored.
+///
+/// The extractor classifies on the dot alone, so a name `Post` does not have is routed to
+/// `embedding_filters` just as quietly as a real one — and, before this, discarded just as
+/// quietly. It is refused by the same branch, named as sent.
+#[tokio::test]
+async fn an_export_refuses_a_dotted_parameter_that_names_no_relationship() {
+    let rig = rig_or_skip!();
+
+    let res = rig.get("/rest/v1/posts?nonsense.field=x", NDJSON).await;
+
+    assert_eq!(res.status, StatusCode::BAD_REQUEST, "{}", res.body);
+    assert!(res.message().contains("`nonsense.field`"), "{}", res.message());
+}
+
+/// The control: the same syntax still narrows a real embed on the JSON representation.
+///
+/// Without it the refusal above reads just as well on a build where embedding filters do
+/// nothing anywhere — which is the state the export path was in, and precisely what must not
+/// be mistaken for a fix. `alice` has two posts and this asks for one of them, so a filter
+/// that was dropped here would answer with both.
+#[tokio::test]
+async fn the_same_filter_still_narrows_an_embed_on_the_json_representation() {
+    let rig = rig_or_skip!();
+
+    let res = rig
+        .get("/rest/v1/authors?select=id,posts(title)&posts.title=a-one", "application/json")
+        .await;
+
+    assert_eq!(res.status, StatusCode::OK, "JSON still filters an embed: {}", res.body);
+    let body: Value = serde_json::from_str(&res.body).expect("JSON body");
+    let rows = body["data"].as_array().expect("data array").clone();
+    let alice = rows.iter().find(|r| r["id"].as_i64() == Some(1)).expect("author 1").clone();
+    let titles: Vec<&str> = alice["posts"]
+        .as_array()
+        .expect("posts")
+        .iter()
+        .filter_map(|p| p["title"].as_str())
+        .collect();
+    assert_eq!(
+        titles,
+        vec!["a-one"],
+        "alice wrote a-one and a-two; the filter names one of them: {body}"
+    );
+}
+
+/// An ordinary field filter is not a dotted one, and the export still applies it.
+///
+/// The pair with the cases above: a refusal keyed on "the request carries a filter" rather
+/// than on the dotted syntax would fail here, and a fix that simply stopped filtering
+/// exports would too.
+#[tokio::test]
+async fn an_export_still_applies_a_plain_field_filter() {
+    let rig = rig_or_skip!();
+
+    let res = rig.get("/rest/v1/posts?select=id,title&title=a-one", NDJSON).await;
+
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    let lines: Vec<&str> = res.body.trim_end().split('\n').filter(|l| !l.is_empty()).collect();
+    assert_eq!(lines.len(), 1, "one post is titled a-one: {}", res.body);
+    let only: Value = serde_json::from_str(lines[0]).expect("NDJSON line");
+    assert_eq!(only["title"], json!("a-one"), "{}", res.body);
+}
+
 /// A field whose *name* merely contains an embedded relationship's name is not an embed.
 ///
 /// The refusal reads `params.embeddings` / `params.embedding_counts`, which the extractor

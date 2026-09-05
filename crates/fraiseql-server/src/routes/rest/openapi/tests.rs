@@ -811,6 +811,11 @@ fn no_export_representation_promises_embedded_relationships() {
             "{media} still promises to carry an embed: {description}"
         );
         assert!(
+            description.contains("?rel.field=value"),
+            "{media} refuses the filters on an embed too (#1275); a document naming only the \
+             embed leaves a client expecting its filter to apply: {description}"
+        );
+        assert!(
             description.contains("are not available on this representation"),
             "{media} must say the exports do not carry embeds, so the type `$ref` above              is not read as a promise: {description}"
         );

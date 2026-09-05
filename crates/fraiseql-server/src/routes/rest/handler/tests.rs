@@ -1020,6 +1020,20 @@ mod export_refusal {
         }
     }
 
+    /// `embedding_filters` as `extract_embedding_filters` builds it: keyed by relationship,
+    /// each value an object of field -> `{op: value}`.
+    fn filters(spec: &[(&str, &[&str])]) -> std::collections::HashMap<String, serde_json::Value> {
+        spec.iter()
+            .map(|(relationship, fields)| {
+                let obj = fields
+                    .iter()
+                    .map(|f| ((*f).to_string(), serde_json::json!({ "eq": "x" })))
+                    .collect::<serde_json::Map<_, _>>();
+                ((*relationship).to_string(), serde_json::Value::Object(obj))
+            })
+            .collect()
+    }
+
     fn embed(relationship: &str) -> EmbeddedSpec {
         EmbeddedSpec {
             relationship: relationship.to_string(),
@@ -1293,6 +1307,93 @@ mod export_refusal {
         };
         let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
         assert!(err.message.contains("embedded relationship"), "{}", err.message);
+    }
+
+    /// #1275: `?rel.field=value` filters were accepted and dropped by every export.
+    ///
+    /// The field arrives populated whether or not `?select=` named an embed — the producer
+    /// (`extract_embedding_filters`) reads every query pair unconditionally — while its only
+    /// consumer, `execute_embeddings`, belongs to the JSON path. `bulk/mod.rs` already
+    /// refuses the same parameter, for its own reason.
+    #[test]
+    fn an_embedding_filter_is_refused_by_name() {
+        let params = ExtractedParams {
+            embedding_filters: filters(&[("author", &["name"])]),
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(
+            err.message.contains("filters are not available"),
+            "the filter branch must not answer with the embed branch's sentence: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("`author.name`"),
+            "echoed as the client wrote it — relationship and field: {}",
+            err.message
+        );
+    }
+
+    /// The rendered list is sorted, and the assertion is on the whole of it.
+    ///
+    /// `embedding_filters` is a `HashMap`, so it carries no order and the refusal has to
+    /// impose one; asserting a substring of the list would pass over an iteration-order
+    /// message that names the same request differently on consecutive runs.
+    #[test]
+    fn every_embedding_filter_parameter_is_named_in_a_stable_order() {
+        let params = ExtractedParams {
+            embedding_filters: filters(&[("comments", &["status"]), ("author", &["name", "age"])]),
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert!(
+            err.message.contains("`author.age`, `author.name`, `comments.status`"),
+            "every parameter, sorted, so a client fixes them in one pass: {}",
+            err.message
+        );
+    }
+
+    /// A stored value the producer cannot emit still names its relationship.
+    ///
+    /// `extract_embedding_filters` only ever inserts a non-empty object, so this is the arm
+    /// no request reaches — and exactly the arm where a `filter_map` over the fields would
+    /// yield nothing, leaving a refusal that names no parameter at all. It names the
+    /// relationship instead.
+    #[test]
+    fn a_filter_with_no_field_names_its_relationship() {
+        let mut embedding_filters = std::collections::HashMap::new();
+        embedding_filters.insert("author".to_string(), serde_json::Value::Null);
+        let params = ExtractedParams {
+            embedding_filters,
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert!(
+            err.message.contains("`author`"),
+            "a refusal that exists to name the parameter must name something: {}",
+            err.message
+        );
+    }
+
+    /// Order of record when a request carries both: the embed is reported.
+    ///
+    /// The embed is the more fundamental refusal — an export cannot embed at all, which is
+    /// *why* the filter has nothing to narrow — so a client told about the filter first would
+    /// remove it and be refused again for the `?select=`.
+    #[test]
+    fn an_embed_is_reported_before_a_filter_on_it() {
+        let params = ExtractedParams {
+            embeddings: vec![embed("author")],
+            embedding_filters: filters(&[("author", &["name"])]),
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert!(
+            err.message.contains("embedded relationships are not available"),
+            "the embed is the root refusal and is stated first: {}",
+            err.message
+        );
     }
 
     /// Count and pagination are checked before the selection, which is what keeps the

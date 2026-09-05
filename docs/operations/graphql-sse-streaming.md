@@ -215,8 +215,14 @@ def invoices() -> list[Invoice]: ...
 
 An export answers `400 Bad Request` to anything that asks it to be a page rather than a
 whole result set: `Prefer: count=…`, `?offset=`, any of `?first=`/`?after=`/`?last=`/
-`?before=`, and a `?select=` naming an embedded relationship or an embedded count. Filters,
-sorts and a plain `?select=` are honoured as usual.
+`?before=`, and a `?select=` naming an embedded relationship or an embedded count. Ordinary
+field filters, sorts and a plain `?select=` are honoured as usual.
+
+It also refuses `?rel.field=value`, the filter syntax for an embedded relationship, because
+an export carries no embed for it to narrow. That refusal does not depend on the name being
+a relationship the type declares — nothing checks, so `?nonsense.field=x` is refused the same
+way. Filter the exported rows themselves with `?field=value`, or request
+`Accept: application/json` to embed and filter.
 
 `?limit=` is the exception. On an export it bounds the **total** rather than a page, it is
 not clamped to `max_page_size`, and leaving it out means the whole table.
