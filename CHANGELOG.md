@@ -19,6 +19,46 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **A dotted query parameter no longer exempts itself from the unknown-parameter rule (#1279).**
+
+  `?nonsense=x` was refused by name; `?nonsense.field=x` was not. The classification loop in
+  `RestParamExtractor::extract` `continue`s on any key containing a `.` before every check that
+  could refuse one, and `extract_embedding_filters` then stored it with no validation at all —
+  not the relationship name, not the field. So adding a dot to a misspelled parameter turned a
+  `400` into a silent `200`, and `execute_embeddings`, which reads that map by relationship,
+  never looked at the entry.
+
+  What makes that a defect rather than a design choice is `Prefer: handling=lenient`. The
+  extractor already has an answer for an unrecognised parameter — refuse by default, ignore on
+  request, and `tracing::debug!` when ignoring, because a dropped parameter the caller believed
+  was a filter is exactly the quiet widening this program removes. A dotted key got the lenient
+  behaviour **without** the opt-in and without the log line.
+
+  A dotted parameter whose relationship the type does not declare is now refused by name,
+  naming the relationships the type does have, in both spellings (`?rel.field=` and
+  `?rel.field[op]=`), and is ignored-and-logged under `handling=lenient` like any other unknown
+  parameter. This is not a new rule about dots; it is the existing rule reaching the one
+  spelling that had been skipping it.
+
+  **Migration.** A request carrying a dotted parameter that names no relationship now answers
+  `400` instead of `200`. Correct the parameter, or send `Prefer: handling=lenient` to keep the
+  previous ignoring behaviour — now with a log line saying what was dropped.
+
+  An undeclared relationship therefore no longer reaches the export gate, which changes which
+  layer answers on an export and improves the diagnosis: `?nonsense.field=x` is wrong on every
+  representation, and a client told only "not available for export responses" would have carried
+  the same broken parameter to the JSON path.
+  `an_undeclared_relationship_is_refused_before_the_export_rule_is_reached` pins both halves —
+  the undeclared name refused for being undeclared, the declared one still refused by #1275's
+  export rule with its own diagnosis.
+
+  **Not fixed here:** a filter naming a relationship the type *does* declare, sent without a
+  `?select=` that embeds it, is still accepted and still dropped by the consumer (#1285). The
+  refusal it needs depends on the representation — an export cannot be told to add the embed to
+  `?select=`, since #1268 refuses that too — so it belongs after a representation is chosen,
+  and the extractor does not know which one is being served. Pinned meanwhile by
+  `a_filter_on_an_unselected_relationship_is_still_accepted_for_now`.
+
 - **`ExtractedParams` carries a sixth field, `requested_pagination` (#1273).**
 
   `RestParamExtractor::extract` now records what the client asked for alongside what the

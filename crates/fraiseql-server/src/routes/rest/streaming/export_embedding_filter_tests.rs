@@ -85,6 +85,18 @@ fn export_schema() -> CompiledSchema {
         foreign_key:    "fk_author".to_string(),
         referenced_key: "id".to_string(),
     });
+    // A second **declared** relationship, for `every_dotted_filter_parameter_is_named_in_a_
+    // stable_order`. It used to reach two keys of the outer map with one declared name and one
+    // invented one (`nonsense`), which #1279 now refuses at the extractor — an undeclared
+    // relationship no longer reaches this gate at all. Two real ones keep the outer `HashMap`
+    // exercised without depending on a parameter that is refused earlier.
+    post.relationships.push(Relationship {
+        name:           "comments".to_string(),
+        target_type:    "Comment".to_string(),
+        cardinality:    Cardinality::OneToMany,
+        foreign_key:    "fk_post".to_string(),
+        referenced_key: "id".to_string(),
+    });
 
     let mut schema = CompiledSchema::new();
     schema.queries.push(posts);
@@ -183,18 +195,47 @@ async fn an_export_refuses_the_bracket_form_of_a_dotted_filter() {
 
 /// The `⚠` of #1275: no dotted key is validated against the schema before it is stored.
 ///
-/// The classification loop routes on the dot alone, so `?nonsense.field=x` is stored under a
-/// relationship `Post` does not have. It is refused by the same branch and named the same
-/// way — the refusal describes what was *sent*, not something the type is known to have.
+/// #1279 changed which layer answers this, and that is the point of the case.
+///
+/// It used to assert that an **undeclared** relationship was refused by this gate "the same
+/// way" as a declared one — true only because `extract_embedding_filters` validated no
+/// relationship name at all, so the dot alone routed `?nonsense.field=x` into
+/// `params.embedding_filters`. The producer now applies the unknown-parameter rule the undotted
+/// spelling always had, so an undeclared relationship never reaches the export gate.
+///
+/// That is a better answer, not merely a different one: `?nonsense.field=x` is wrong on every
+/// representation, and a client told only "not available for export responses" would carry the
+/// same broken parameter to the JSON path, where it would be dropped in silence.
+///
+/// The pair below is what the two rules now look like, and they must not collapse into one:
+/// the undeclared name is refused for *being undeclared*, the declared one for *being an embed
+/// filter on an export*. Each states its own diagnosis.
 #[tokio::test]
-async fn a_filter_naming_no_declared_relationship_is_refused_the_same_way() {
+async fn an_undeclared_relationship_is_refused_before_the_export_rule_is_reached() {
     let err = match csv_export(&[("nonsense.field", "x")]).await {
-        Ok(body) => panic!("an undeclared dotted key is stored just as quietly: {body:?}"),
+        Ok(body) => panic!("an undeclared dotted key must not be accepted: {body:?}"),
         Err(err) => err,
     };
 
     assert_eq!(err.status, StatusCode::BAD_REQUEST);
-    assert!(err.message.contains("`nonsense.field`"), "{}", err.message);
+    assert!(
+        err.message.contains("no relationship 'nonsense'"),
+        "refused for naming a relationship the type does not declare (#1279), not for being \
+         an export: {}",
+        err.message
+    );
+
+    // The other half, one query pair apart: a relationship the type *does* declare reaches the
+    // export gate and is refused there, with the export's own diagnosis.
+    let declared = match csv_export(&[("author.name", "alice")]).await {
+        Ok(body) => panic!("a declared embed filter is still unhonourable by an export: {body:?}"),
+        Err(err) => err,
+    };
+    assert!(
+        declared.message.contains("not available for export responses"),
+        "the export rule still owns the declared case (#1275): {}",
+        declared.message
+    );
 }
 
 /// Every parameter is named, so a client is not left fixing them one request at a time.
@@ -207,7 +248,7 @@ async fn a_filter_naming_no_declared_relationship_is_refused_the_same_way() {
 #[tokio::test]
 async fn every_dotted_filter_parameter_is_named_in_a_stable_order() {
     let err = csv_export(&[
-        ("nonsense.field", "x"),
+        ("comments.status", "published"),
         ("author.name", "alice"),
         ("author.age", "40"),
     ])
@@ -215,7 +256,7 @@ async fn every_dotted_filter_parameter_is_named_in_a_stable_order() {
     .expect_err("three dotted parameters, none of them honourable by an export");
 
     assert!(
-        err.message.contains("`author.age`, `author.name`, `nonsense.field`"),
+        err.message.contains("`author.age`, `author.name`, `comments.status`"),
         "all three are named, sorted — an iteration-order message would name the same \
          request differently on consecutive runs: {}",
         err.message

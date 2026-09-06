@@ -649,6 +649,68 @@ impl<'a> RestParamExtractor<'a> {
     /// The export representations refuse the whole parameter (#1275), because there no entry
     /// could ever be honoured. The JSON path honours some of them, which is why the same
     /// answer does not fit and the question is still open.
+    /// Is `rel_name` a relationship this type declares — and if not, is the parameter
+    /// refused or ignored?
+    ///
+    /// `Ok(true)` to store the filter, `Ok(false)` to drop it under
+    /// `Prefer: handling=lenient`, `Err` to refuse the request.
+    ///
+    /// # Why this exists (#1279)
+    ///
+    /// A dotted key reaches this function *because* the classification loop skipped it: it
+    /// `continue`s on any key containing a `.` before every check that could refuse one. Until
+    /// now nothing downstream checked either — no relationship name, no field name — so
+    /// `?nonsense.field=x` became a `params.embedding_filters` entry as quietly as
+    /// `?author.name=x`, and `execute_embeddings`, which reads the map by relationship, never
+    /// looked at it.
+    ///
+    /// The comparison that makes that a defect rather than a design choice is the undotted
+    /// spelling. `?nonsense=x` is refused by name, and `Prefer: handling=lenient` exists to
+    /// grant exactly that exemption deliberately — refusing by default, ignoring on request,
+    /// and logging when it ignores, because "a dropped parameter the caller believed was a
+    /// filter is exactly the kind of quiet widening this program exists to remove". A dot bought
+    /// the lenient behaviour without the opt-in and without the log line.
+    ///
+    /// So this is not a new rule about dotted keys. It is the existing unknown-parameter rule,
+    /// reaching the one spelling that had been skipping it.
+    ///
+    /// # What it does not decide
+    ///
+    /// A relationship the type *does* declare, filtered without being selected, is still
+    /// accepted here and still dropped by the consumer — that is #1285. The refusal it needs
+    /// depends on the representation (an export cannot be told to add the embed to `?select=`;
+    /// #1268 refuses that too), and this function does not know which one is being served.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Validation` naming the relationship and the ones the type has.
+    fn embedding_relationship_is_known(
+        &self,
+        key: &str,
+        rel_name: &str,
+    ) -> Result<bool, FraiseQLError> {
+        // Without a type definition there is nothing to check against, and `is_valid_field`
+        // takes the same permissive view for the undotted spelling.
+        if self.type_def.is_none() {
+            return Ok(true);
+        }
+
+        match self.validate_embedding_relationship_name(rel_name) {
+            Ok(()) => Ok(true),
+            Err(e) if self.lenient => {
+                tracing::debug!(
+                    parameter = %key,
+                    relationship = %rel_name,
+                    "ignoring REST query parameter naming an unknown relationship \
+                     (Prefer: handling=lenient)"
+                );
+                let _ = e;
+                Ok(false)
+            },
+            Err(e) => Err(e),
+        }
+    }
+
     fn extract_embedding_filters(
         &self,
         query_pairs: &[(&str, &str)],
@@ -661,6 +723,9 @@ impl<'a> RestParamExtractor<'a> {
                 if let Some(dot_pos) = full_field.find('.') {
                     let rel_name = &full_field[..dot_pos];
                     let field_name = &full_field[dot_pos + 1..];
+                    if !self.embedding_relationship_is_known(key, rel_name)? {
+                        continue;
+                    }
                     let entry = filters
                         .entry(rel_name.to_string())
                         .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
@@ -676,6 +741,9 @@ impl<'a> RestParamExtractor<'a> {
                 if !RESERVED_PARAMS.contains(&key) {
                     let rel_name = &key[..dot_pos];
                     let field_name = &key[dot_pos + 1..];
+                    if !self.embedding_relationship_is_known(key, rel_name)? {
+                        continue;
+                    }
                     let entry = filters
                         .entry(rel_name.to_string())
                         .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));

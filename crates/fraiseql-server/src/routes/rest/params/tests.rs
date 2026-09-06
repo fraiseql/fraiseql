@@ -1399,3 +1399,120 @@ fn the_openapi_bracket_operator_list_matches_the_validator() {
         "the OpenAPI description and the request validator must name one set"
     );
 }
+
+// -----------------------------------------------------------------------
+// #1279: a dot must not exempt a parameter from the unknown-parameter rule
+// -----------------------------------------------------------------------
+
+/// The comparison that makes #1279 a defect: the same misspelling, with and without a dot.
+///
+/// `?nonsense=x` is refused by name. `?nonsense.field=x` is not — the classification loop
+/// `continue`s on any key containing a dot before every check that could refuse it, and
+/// `extract_embedding_filters` then stores it with no validation at all. So adding a dot to a
+/// misspelled parameter converts a 400 into a silent 200.
+#[test]
+fn a_dotted_parameter_naming_no_relationship_is_refused() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_with_relationships();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let undotted = ext.extract(&[], &[("nonsense", "x")]).unwrap_err();
+    assert!(
+        undotted.to_string().contains("nonsense"),
+        "the control: an unknown parameter is refused by name: {undotted}"
+    );
+
+    let dotted = ext
+        .extract(&[], &[("nonsense.field", "x")])
+        .expect_err("a dot must not exempt a parameter from the unknown-parameter rule");
+    assert!(
+        dotted.to_string().contains("nonsense"),
+        "the refusal names the relationship the type does not have: {dotted}"
+    );
+}
+
+/// The bracket spelling of the same thing: `?nonsense.field[eq]=x`.
+///
+/// It takes a different branch — `parse_bracket_key` splits it first, and both the
+/// classification loop and `extract_embedding_filters` handle it separately from the simple
+/// form. A fix applied to one spelling and not the other leaves the exemption intact.
+#[test]
+fn a_dotted_bracket_parameter_naming_no_relationship_is_refused() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_with_relationships();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let err = ext
+        .extract(&[], &[("nonsense.field[eq]", "x")])
+        .expect_err("the bracket spelling is exempt by the same mechanism");
+    assert!(err.to_string().contains("nonsense"), "the refusal names it: {err}");
+}
+
+/// `Prefer: handling=lenient` is the opt-in that grants the exemption deliberately, and a
+/// dotted parameter must need it like any other unknown parameter.
+///
+/// This is the half that says the fix is "apply the existing rule" rather than "refuse dotted
+/// keys": under the opt-in the request succeeds and the parameter is dropped, exactly as an
+/// unknown undotted parameter is.
+#[test]
+fn a_dotted_parameter_is_ignored_under_lenient_handling() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_with_relationships();
+    let ext = extractor_list(&config, &qd, &td).with_lenient_handling(true);
+
+    let params = ext
+        .extract(&[], &[("nonsense.field", "x")])
+        .expect("lenient handling ignores an unknown parameter rather than refusing it");
+    assert!(
+        params.embedding_filters.is_empty(),
+        "an ignored parameter must not survive as a filter: {:?}",
+        params.embedding_filters
+    );
+}
+
+/// A relationship the type *does* declare, filtered without being selected.
+///
+/// **This pins current behaviour, which is known-wrong.** `execute_embeddings` reads
+/// `embedding_filters.get(&spec.relationship)` once per **selected** embed (nested embeds are
+/// passed `&no_filters`), so a filter on a relationship no `?select=` named is never read by
+/// anything: accepted, and dropped under a 200.
+///
+/// It is deliberately **not** fixed here with #1279's other half. The right refusal depends on
+/// the representation, and the extractor does not know it: on an export the answer is #1275's
+/// ("an export carries no embed to filter; request `Accept: application/json` to embed and
+/// filter"), and refusing earlier in the extractor would hand an export client the JSON path's
+/// advice — "add `author(...)` to `?select=`" — which #1268 refuses. So the rule belongs after a
+/// representation is chosen, and it is filed as #1285 rather than folded in.
+///
+/// ⚠ When #1285 is taken, flip this assertion: the extract should become an `expect_err`.
+#[test]
+fn a_filter_on_an_unselected_relationship_is_still_accepted_for_now() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_with_relationships();
+    let ext = extractor_list(&config, &qd, &td);
+
+    let params = ext
+        .extract(&[], &[("posts.status", "published")])
+        .expect("current behaviour: a declared relationship needs no `?select=` to be filtered");
+    assert_eq!(
+        params.embedding_filters.len(),
+        1,
+        "pinned so #1285 is a visible change rather than a silent one"
+    );
+
+    // The half that must keep working under either answer: the same filter, embed selected.
+    let ok = ext
+        .extract(
+            &[],
+            &[
+                ("select", "id,posts(id,title)"),
+                ("posts.status", "published"),
+            ],
+        )
+        .expect("a filter on a selected embed is the supported request");
+    assert_eq!(ok.embedding_filters.len(), 1);
+}
