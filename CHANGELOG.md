@@ -663,6 +663,35 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **Two fraiseql-wire suites asserted against a view no test created (#1229).**
+
+  `wire_direct_test::test_direct_v_user_query` and
+  `wire_view_query_test::test_query_v_users_view` provisioned nothing: both opened a
+  connection and immediately queried `public.v_user`, which exists only because
+  `tests/sql/postgres/init.sql` seeds it into the shared schema at container init.
+  `test_direct_v_user_query` went further and asserted `count == 5` — the row count of
+  that shared seed — so adding a sixth user to init.sql would have reddened a wire
+  protocol smoke test.
+
+  The measured writer is `docker/e2e/init-postgres.sql`, the fixture behind release-smoke
+  and the compose/chart rigs. It declares the same unqualified name with an incompatible
+  shape — `CREATE TABLE IF NOT EXISTS tb_user (id SERIAL, name TEXT)` — so loading it into
+  a database first makes init.sql's own `IF NOT EXISTS` a no-op, its
+  `CREATE OR REPLACE VIEW v_user AS SELECT id, data FROM tb_user` then fails on the missing
+  `data` column, and both suites fail with `relation "v_user" does not exist (42P01)` — a
+  failure that reads as a regression in whatever change is being tested. A database seeded
+  by that file alone reproduces the reported state exactly: `tb_user(id integer, name text)`,
+  no `v_user`, and a `v_users`.
+
+  Each test now creates and owns a uniquely-named fixture — `v_wire_direct_user` and
+  `v_wire_view_query_user`, each a real view over its own table, so the suites still query
+  a *view*. That is the convention `crates/fraiseql-db/tests/seed_fixture_integrity.rs`
+  already states: the shared fixtures are read-only, and a suite needing its own relations
+  names them uniquely. The DDL goes through `PostgresAdapter`, because `FraiseWireAdapter`'s
+  `execute_raw_query` always returns an error by design — the wire path supports only
+  `SELECT data FROM v_*`. Both suites now pass against a database carrying only the e2e
+  shape, and every assertion is about rows the test itself seeded.
+
 - **Four vault SSRF-guard tests asserted against a guard that had not run (#1272).**
 
   `crates/fraiseql-secrets`' `validate_vault_addr` suite called the guard with no
