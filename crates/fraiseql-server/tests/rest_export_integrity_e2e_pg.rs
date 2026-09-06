@@ -118,6 +118,20 @@ fn build_schema() -> CompiledSchema {
         .build();
     relay.rest_path = Some("/relay".to_string());
 
+    // #1282: the same rows behind a route that declares `auto_params.has_where`.
+    //
+    // That flag is what gates a client's filters — and therefore the full-text clause
+    // `?search=` builds — reaching the SQL at all: `resolve_direct_read` reads
+    // `arguments["where"]` only when it is set. The three routes above leave it at its
+    // default `false`, so none of them can express what `?search=` does.
+    let mut searchable = TestQueryBuilder::new("searchExports", "P13Export")
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .rest_stream(true)
+        .build();
+    searchable.rest_path = Some("/searchable".to_string());
+    searchable.auto_params.has_where = true;
+
     let mut schema = TestSchemaBuilder::new()
         .with_type(
             TestTypeBuilder::new("P13Export", VIEW)
@@ -140,6 +154,7 @@ fn build_schema() -> CompiledSchema {
         .with_query(query)
         .with_query(plain)
         .with_query(relay)
+        .with_query(searchable)
         .build();
 
     schema.rest_config = Some(RestConfig {
@@ -714,4 +729,68 @@ async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
             "{query}: the refusal states its own diagnosis: {body}"
         );
     }
+}
+
+/// #1282: `?search=` is honoured by an export — the half of that claim only a database can
+/// answer.
+///
+/// The exhaustive destructure in `refuse_unstreamable_request` forced a disposition for every
+/// field of `ExtractedParams`, and `search_query` was the one that could not be settled by
+/// reading: parsed and validated by the extractor, with no export-path consumer visible at the
+/// gate and no refusal branch. That is exactly the shape `embedding_filters` had until #1275,
+/// so "no issue names it" was not an answer.
+///
+/// It resolves to *honoured*: `resolve_get_query` builds the full-text clause
+/// (`build_fts_where_clause`) into `arguments["where"]` before a representation is chosen, and
+/// `export_rows` streams that same `QueryMatch`, removing only `limit`. Nothing pinned that —
+/// the suite's only previous mention of the field was `search_query: None` in a fixture.
+///
+/// **Why `row-42` discriminates.** Measured against this fixture:
+/// `to_tsvector(label) @@ websearch_to_tsquery('row-42')` matches exactly one of the 10,000
+/// seeded labels, id 42. So a dropped `?search=` yields `ROWS` ids and an honoured one yields
+/// `[42]` — two orders of magnitude apart. (A bare `websearch_to_tsquery('42')` matches none of
+/// them, which is why the term carries its prefix.)
+///
+/// **Why the route is `/searchable` and not `/exports`.** The clause reaches the SQL only on a
+/// query declaring `auto_params.has_where` (`resolve_direct_read`); on the other routes here it
+/// is dropped and the whole relation comes back under a 200. That drop is its own defect
+/// (#1283) — on this test it would be a fixture that agrees with a broken engine.
+///
+/// **Why `&sort=id` is present.** Without an explicit sort, `?search=` is a 400 on every
+/// representation today: the implicit relevance ordering emits `[{"_relevance":"desc"}]`, which
+/// no consumer parses (#1284). Pinning the search clause and pinning that defect are two
+/// different tests, and this is the first.
+///
+/// One representation is enough for the clause itself: it is merged before a representation is
+/// chosen, so NDJSON, CSV and XLSX cannot differ on it. The JSON control is there to show the
+/// narrowing is the query's, not the export writer's.
+#[tokio::test]
+async fn a_search_narrows_an_export() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) =
+        request_export(&server.url, "/searchable?search=row-42&sort=id", "application/x-ndjson")
+            .await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the export should succeed: {body}");
+    assert_eq!(
+        ndjson_ids(&body),
+        vec![42],
+        "an export must honour `?search=`; emitting the whole relation instead is the \
+         accept-validate-discard shape #1268, #1273, #1274 and #1275 each were"
+    );
+
+    let (json_status, json_body) =
+        request_export(&server.url, "/searchable?search=row-42&sort=id", "application/json").await;
+    assert_eq!(
+        json_status,
+        reqwest::StatusCode::OK,
+        "the JSON control should succeed: {json_body}"
+    );
+    assert!(
+        json_body.contains("row-42") && !json_body.contains("row-1\""),
+        "the same search narrows the JSON representation to the same single row: {json_body}"
+    );
 }

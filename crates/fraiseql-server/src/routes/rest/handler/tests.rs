@@ -1066,6 +1066,33 @@ mod export_refusal {
         assert!(refuse_unstreamable_request(&PreferHeader::default(), &params).is_ok());
     }
 
+    /// #1282: a `?search=` reaches an export and is **honoured**, so this gate must not
+    /// refuse it.
+    ///
+    /// `search_query` was the one field the exhaustiveness audit could not classify by
+    /// reading: parsed and validated by the extractor, with no consumer visible from the
+    /// export path and no refusal branch — which is the shape `embedding_filters` had until
+    /// #1275, and the shape three of the four defects on this path shared. It resolves the
+    /// other way. `resolve_get_query` merges the full-text clause into `arguments["where"]`
+    /// before a representation is chosen, and `export_rows` streams that same `QueryMatch`,
+    /// removing only `limit`.
+    ///
+    /// This half pins the gate's answer, and it is the half the required test leg can run.
+    /// That the clause actually narrows the rows needs a database:
+    /// `a_search_narrows_an_export` in `tests/rest_export_integrity_e2e_pg.rs`, which
+    /// self-skips off the leg that has none.
+    #[test]
+    fn a_search_is_not_refused_because_an_export_honours_it() {
+        let params = ExtractedParams {
+            search_query: Some("row-42".to_string()),
+            ..acceptable()
+        };
+        assert!(
+            refuse_unstreamable_request(&PreferHeader::default(), &params).is_ok(),
+            "`?search=` narrows the rows an export emits; refusing it would remove a              capability the export path already has"
+        );
+    }
+
     #[test]
     fn every_count_preference_is_refused() {
         let cases = [

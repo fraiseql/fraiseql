@@ -260,6 +260,36 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+- **`refuse_unstreamable_request` destructures `ExtractedParams` exhaustively (#1282).**
+
+  The rule set an export applies was a sequence of field reads with nothing requiring it to have
+  an opinion about every field, and its own docstring said so: "the single place the rules live
+  … **not** yet a complete statement of them". A field added later would be honoured by the JSON
+  path and dropped by the export path with no diagnostic anywhere — the shape of all four
+  defects this path has had (#1268, #1273, #1274, #1275), each found by a reader rather than by
+  the compiler.
+
+  The read is now a struct pattern with no `..`, so an eleventh field on `ExtractedParams` does
+  not compile until this function states what an export does with it (`error[E0027]: pattern
+  does not mention field …`, a hard error rather than a lint). Each of the ten bindings carries
+  its disposition, `pagination` included: it is bound and deliberately unread, because reading
+  the resolved plan in place of the request is #1273 exactly.
+
+  The audit the guard forced settled `search_query` — the one field with no export-path consumer
+  visible at the gate and no refusal branch, which is the shape `embedding_filters` had until
+  #1275. It is **honoured**: `resolve_get_query` merges the full-text clause into
+  `arguments["where"]` before a representation is chosen, and `export_rows` streams that same
+  `QueryMatch`, removing only `limit`. Nothing had pinned that — the suite's only mention of the
+  field was `search_query: None` in a fixture. `a_search_narrows_an_export`
+  (`crates/fraiseql-server/tests/rest_export_integrity_e2e_pg.rs`) now pins it against a search
+  matching exactly one of 10,000 rows, and `a_search_is_not_refused_because_an_export_honours_it`
+  pins the gate's own answer on the leg that has no database.
+
+  Two defects the audit surfaced are filed rather than folded in: a REST filter is accepted,
+  validated and dropped on a query declaring no `where` auto-param (#1283), and `?search=`
+  without `?sort=` is a 400 on every representation because the implicit relevance ordering
+  emits an `orderBy` nothing parses and no `ts_rank` exists to receive (#1284).
+
 - **`tools/check-workflow-job-reachability.py` refuses a nested `.github/workflows/` (#1233).**
 
   The gate already proved every job- and step-level condition reachable under its own

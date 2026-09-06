@@ -62,10 +62,24 @@ use crate::routes::rest::{
 /// Returns `RestError::BadRequest` naming the offending parameter. Each branch states its
 /// own diagnosis: a client cannot act on "something in your query string".
 ///
-/// # Known gaps
+/// # Completeness
 ///
-/// This function is the single place the rules live; it is **not** yet a complete
-/// statement of them:
+/// The read is an **exhaustive destructure** — no `..` — so this is a complete statement of
+/// the rules over the fields that exist, and stays one: adding a field to
+/// [`ExtractedParams`] does not compile until this function says what an export does with it
+/// (`error[E0027]: pattern does not mention field ...`, a hard error rather than a lint).
+///
+/// That guard is what the four accept-validate-discard defects on this path had in common —
+/// #1268, #1273, #1274 and #1275 were each a field this function held no opinion about, found
+/// by a reader rather than by the compiler. It is the same forcing function the wildcard-arm
+/// class needed twice, three releases apart (#864, #1267): enumerate, and let the new case
+/// fail to build.
+///
+/// It forces a decision at this site; it does not check that the decision is right.
+/// Exhaustiveness fires on a field's *absence from the pattern*, so a field mentioned and
+/// mis-disposed is still a defect this cannot see (#1282).
+///
+/// # Known gaps
 ///
 /// * **#1278** — a relay route cannot bound its export **total**. `?limit=` does that on an offset
 ///   route, and a relay route rejects `?limit=` outright (the cross-pagination guard in
@@ -77,6 +91,43 @@ pub fn refuse_unstreamable_request(
     prefer: &PreferHeader,
     params: &ExtractedParams,
 ) -> Result<(), RestError> {
+    // Exhaustive by construction: no `..`. An eleventh field on `ExtractedParams` does not
+    // compile until this function states what an export does with it (E0027, a hard error
+    // rather than a lint), which is what turns the prose above into a rule. Each binding
+    // carries its disposition; the four already-fixed defects on this path were each a
+    // field nothing here had an opinion about.
+    let ExtractedParams {
+        // Honoured: the route's own identity, folded into the `QueryMatch` arguments.
+        path_params: _,
+        // Honoured: `resolve_get_query` builds it into `arguments["where"]`.
+        where_clause: _,
+        // Honoured: `arguments["orderBy"]`.
+        order_by: _,
+        // Deliberately NOT read. This is the plan — the page the JSON representation would
+        // have served — and reading it here in place of the request is #1273 exactly. The
+        // binding exists to be seen and skipped, not to be used.
+        pagination: _,
+        // Refused below, as sent.
+        requested_pagination,
+        // Honoured: the projection, which is also the column list CSV and XLSX write their
+        // header from (`export_columns`, #1274).
+        field_selection: _,
+        // Honoured. `resolve_get_query` turns it into a full-text `WHERE` clause
+        // (`build_fts_where_clause`) and merges it into `arguments["where"]`; `export_rows`
+        // streams that same `QueryMatch`, removing only `limit`. So `?search=` narrows an
+        // export exactly as it narrows a JSON read, and the extractor has already refused it
+        // where the type declares no searchable field. Pinned by
+        // `a_search_is_not_refused_because_an_export_honours_it` (this gate's answer) and
+        // `a_search_narrows_an_export` (that the clause reaches the rows, #1282).
+        search_query: _,
+        // Refused below (#1268).
+        embeddings,
+        // Refused below (#1275).
+        embedding_filters,
+        // Refused below (#1268).
+        embedding_counts,
+    } = params;
+
     if prefer.count_exact || prefer.count_planned || prefer.count_estimated {
         return Err(RestError::bad_request("count not available for export responses"));
     }
@@ -95,20 +146,19 @@ pub fn refuse_unstreamable_request(
     //
     // `?limit=` is deliberately absent from this list. On an export it is not a page but a
     // bound on the total, applied to the stream by `export_rows`.
-    let requested = &params.requested_pagination;
-    if matches!(requested.offset, Some(offset) if offset > 0)
-        || requested.first.is_some()
-        || requested.after.is_some()
-        || requested.last.is_some()
-        || requested.before.is_some()
+    if matches!(requested_pagination.offset, Some(offset) if offset > 0)
+        || requested_pagination.first.is_some()
+        || requested_pagination.after.is_some()
+        || requested_pagination.last.is_some()
+        || requested_pagination.before.is_some()
     {
         return Err(RestError::bad_request(
             "pagination not available for export; use filters to narrow results",
         ));
     }
 
-    if !params.embeddings.is_empty() {
-        let named = quoted_list(params.embeddings.iter().map(|spec| spec.relationship.as_str()));
+    if !embeddings.is_empty() {
+        let named = quoted_list(embeddings.iter().map(|spec| spec.relationship.as_str()));
         return Err(RestError::bad_request(format!(
             "embedded relationships are not available for export responses: {named}. An export \
              is one statement over one snapshot; resolving an embed issues a sub-query per row. \
@@ -117,8 +167,8 @@ pub fn refuse_unstreamable_request(
         )));
     }
 
-    if !params.embedding_counts.is_empty() {
-        let named = quoted_list(params.embedding_counts.iter().map(|name| format!("{name}.count")));
+    if !embedding_counts.is_empty() {
+        let named = quoted_list(embedding_counts.iter().map(|name| format!("{name}.count")));
         return Err(RestError::bad_request(format!(
             "embedded counts are not available for export responses: {named}. An export is one \
              statement over one snapshot; a count issues a sub-query per row. Request \
@@ -142,8 +192,8 @@ pub fn refuse_unstreamable_request(
     // select, and this refuses because an export carries no embed to filter. The JSON path
     // honours these filters and must keep accepting them, so there is no third site the two
     // could collapse into.
-    if !params.embedding_filters.is_empty() {
-        let named = quoted_list(embedding_filter_parameters(&params.embedding_filters));
+    if !embedding_filters.is_empty() {
+        let named = quoted_list(embedding_filter_parameters(embedding_filters));
         return Err(RestError::bad_request(format!(
             "embedded-relationship filters are not available for export responses: {named}. A \
              dotted parameter filters an embedded relationship, and an export carries no embed \
