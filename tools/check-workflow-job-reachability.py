@@ -755,6 +755,45 @@ def check_workflow(path: Path, yaml) -> tuple[list[Finding], int]:
     return findings, conditional
 
 
+# Third-party trees. A dependency ships its own `.github/workflows` for its own
+# repository; those are not this repository's to delete, and walking them is
+# most of the cost of the scan. Path-based rather than `git ls-files`: the
+# ShellGates container has no git index — `git ls-files` returns NOTHING there,
+# and a gate that filters on it would pass by scanning nothing.
+NESTED_SCAN_SKIP = frozenset(
+    {".git", ".venv", "__pycache__", "dist", "node_modules", "target", "vendor"}
+)
+
+
+def nested_workflow_dirs(root: Path) -> list[Path]:
+    """Every `.github/workflows` directory BELOW the repository root.
+
+    GitHub Actions reads workflows only from `.github/workflows/` at the
+    repository root, so a nested one is unreachable by construction: it cannot
+    run, cannot be dispatched, and cannot even be reported as skipped. It is the
+    #1206/#1207 class — an artifact that reads as CI coverage and provides none
+    — and the two found when this check was added had never run once.
+
+    Both were the furniture of a repository that had been merged in:
+    `crates/fraiseql-wire` (four workflows, triggers naming `main`/`develop`
+    when this trunk is `dev`) and `sdks/official/fraiseql-php` (one, a weaker
+    unpinned copy of the root's own `php-sdk.yml`) — #1233.
+    """
+    root_workflows = (root / ".github" / "workflows").resolve()
+    found: list[Path] = []
+
+    for dirpath, dirnames, _filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in NESTED_SCAN_SKIP]
+        here = Path(dirpath)
+        if here.name != "workflows" or here.parent.name != ".github":
+            continue
+        if here.resolve() == root_workflows:
+            continue
+        found.append(here)
+
+    return sorted(found)
+
+
 def main() -> int:
     yaml = _yaml_module()
     root = scan_root()
@@ -768,6 +807,30 @@ def main() -> int:
     # the exact failure mode it exists to catch.
     if not paths:
         print(f"FATAL: no workflows found under {directory}", file=sys.stderr)
+        return 1
+
+    nested = nested_workflow_dirs(root)
+    if nested:
+        print(
+            "Nested `.github/workflows` directories — GitHub Actions reads workflows only\n"
+            "from the repository root, so nothing below has ever run or can run:\n"
+        )
+        unreachable = 0
+        for directory_path in nested:
+            for workflow in sorted(directory_path.glob("*.yml")) + sorted(
+                directory_path.glob("*.yaml")
+            ):
+                print(f"  {workflow.relative_to(root)}")
+                unreachable += 1
+            if not any(directory_path.iterdir()):
+                print(f"  {directory_path.relative_to(root)}  (empty)")
+        print(
+            f"\n{unreachable} unreachable workflow file(s) in "
+            f"{len(nested)} nested directory(ies).\n"
+            "Delete them, or move the workflow to .github/workflows/ at the repository\n"
+            "root and give it triggers this repository actually delivers. Keeping one\n"
+            "where it is, is choosing an artifact that reads as coverage and provides none."
+        )
         return 1
 
     findings: list[Finding] = []

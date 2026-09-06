@@ -470,7 +470,63 @@ NOTHING="$WORK/nothing"
 mkdir -p "$NOTHING"
 expect "a missing workflow directory is not a pass" 1 "$NOTHING" "no workflow directory"
 
-# ── 19. The real tree is green ──────────────────────────────────────────
+# ── 19. Nested `.github/workflows` (#1233) ──────────────────────────────
+#
+# GitHub reads workflows only from the repository root, so a file below it can
+# never run, can never be dispatched, and is never reported as skipped. Both
+# directions need pinning: it must be FLAGGED wherever it is first-party, and it
+# must NOT be flagged inside a vendored tree, whose workflows belong to the
+# repository that ships them and are not this one's to delete.
+#
+# The skip is by PATH, not by `git ls-files`: ShellGates runs `git init -q .` over
+# a tree declared `+ignore=[".git"]`, so a git-filtered walk finds nothing there
+# and passes by scanning nothing.
+
+# A root workflow the gate can actually parse, so these cases fail on the nested
+# check and not on the fixture.
+ROOT_WF="$(cat <<'YML'
+name: Root
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+YML
+)"
+
+NESTED="$WORK/nested"
+mkdir -p "$NESTED/.github/workflows" "$NESTED/crates/some-crate/.github/workflows"
+printf "%s\n" "$ROOT_WF" >"$NESTED/.github/workflows/probe.yml"
+printf 'name: Fossil\non:\n  push:\n    branches: [main]\n' \
+    >"$NESTED/crates/some-crate/.github/workflows/ci.yml"
+expect "a nested workflow directory is flagged" 1 "$NESTED" \
+    "crates/some-crate/.github/workflows/ci.yml"
+
+# The same shape one level deeper, so the walk is not accidentally depth-limited.
+DEEP="$WORK/deep"
+mkdir -p "$DEEP/.github/workflows" "$DEEP/sdks/official/a-sdk/.github/workflows"
+printf "%s\n" "$ROOT_WF" >"$DEEP/.github/workflows/probe.yml"
+printf 'name: Fossil\non:\n  push:\n' >"$DEEP/sdks/official/a-sdk/.github/workflows/sdk.yaml"
+expect "a deeply nested workflow is flagged, .yaml included" 1 "$DEEP" \
+    "sdks/official/a-sdk/.github/workflows/sdk.yaml"
+
+# A dependency's own CI is not this repository's to delete. If this stops being
+# skipped the gate becomes unusable in any tree with installed dependencies —
+# which is every checkout that has run `npm install` or `composer install`.
+VENDORED="$WORK/vendored"
+mkdir -p "$VENDORED/.github/workflows" \
+    "$VENDORED/sdks/ts/node_modules/dep/.github/workflows" \
+    "$VENDORED/sdks/php/vendor/dep/.github/workflows"
+printf "%s\n" "$ROOT_WF" >"$VENDORED/.github/workflows/probe.yml"
+printf 'name: Dep\non:\n  push:\n' \
+    >"$VENDORED/sdks/ts/node_modules/dep/.github/workflows/ci.yml"
+printf 'name: Dep\non:\n  push:\n' \
+    >"$VENDORED/sdks/php/vendor/dep/.github/workflows/ci.yml"
+expect "a vendored dependency's workflows are not flagged" 0 "$VENDORED" "every one can run"
+
+# ── 20. The real tree is green ──────────────────────────────────────────
 #
 # Runs the gate against this repository, so the self-test cannot pass while the
 # checked-in workflows are red.

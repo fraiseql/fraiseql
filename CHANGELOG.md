@@ -260,6 +260,21 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+- **`tools/check-workflow-job-reachability.py` refuses a nested `.github/workflows/` (#1233).**
+
+  The gate already proved every job- and step-level condition reachable under its own
+  workflow's triggers, but it read only the root workflow directory. A workflow file
+  *below* the root was invisible to it — and is unreachable by construction, since it
+  cannot run, cannot be dispatched, and cannot even be reported as skipped. It now walks
+  the tree first and fails naming every such file, which is how the fifth one, under
+  `sdks/official/fraiseql-php`, was found.
+
+  Third-party trees (`node_modules`, `vendor`, `.venv`, `target`, …) are skipped by path
+  rather than by `git ls-files`: the ShellGates container runs `git init -q .` over a tree
+  declared `+ignore=[".git"]`, so `git ls-files` returns nothing there and a check filtering
+  on it would pass by scanning nothing — the fabricated-success shape these gates exist to
+  prevent.
+
 - **REST resource embedding becomes reachable: relationships get an authoring surface (#1266).**
 
   `TypeDefinition.relationships` had **no producer**. Every non-test assignment in the
@@ -473,6 +488,42 @@ disagreed, and the promise was the part that was wrong.
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
 ### Removed
+- **`crates/fraiseql-wire` and `sdks/official/fraiseql-php` no longer carry their pre-merge
+  repositories' unreachable CI (#1233).**
+
+  Deleted: `crates/fraiseql-wire/.github/` — four workflows totalling 1,226 lines plus
+  `publishing.md` — `crates/fraiseql-wire/.cargo/config.toml`, and
+  `sdks/official/fraiseql-php/.github/workflows/php-sdk.yml`.
+
+  GitHub Actions reads workflows only from `.github/workflows/` at the repository root, so
+  none of the five had ever run or could. Their own triggers say the same thing out loud:
+  `branches: [main, develop]`, when this repository's trunk is `dev`. The issue named the
+  four under fraiseql-wire; the gate added with this change found the fifth — a weaker,
+  unpinned copy of the root's own `php-sdk.yml` that additionally swallowed PHPStan
+  failures with `|| true`, against a root workflow that runs a PHP matrix, `--strict-psr`
+  and PHPStan level 8.
+
+  **`publishing.md` was worse than dead.** It instructed a reader to publish fraiseql-wire
+  by pushing a `v0.2.0` tag, against `github.com/fraiseql/fraiseql-wire`. In this
+  repository a `v*` tag drives `.github/workflows/release.yml`, which publishes nineteen
+  crates in a fixed order; a tag pushed on that advice fires the real release pipeline.
+
+  **`.cargo/config.toml` was not inert.** Cargo discovers config from the current directory
+  upward, so it applied to any cargo invocation made from inside the crate — including the
+  crate's own `Makefile`. It set `rustflags = ["-C", "link-arg=-fuse-ld=lld"]` where the
+  root config deliberately keeps its linker override commented out for GitHub-runner
+  compatibility, and fails outright where `lld` is absent. It did not even do what it reads
+  as: a `[target.<triple>].rustflags` *replaces* `[build].rustflags` rather than merging
+  with it, so its `-D warnings` never applied on `x86_64-unknown-linux-gnu` at all.
+
+  **Kept, against the issue's framing, and why.** `SECURITY.md` is not a duplicate of the
+  root's: the root document is a disclosure and RUSTSEC risk policy, this one is a
+  deployment-hardening guide for users of the crate, and the crate README links it as such.
+  The four loose docs (`advanced-filtering.md`, `benchmarking.md`, `connection-pooling.md`,
+  `docker-setup.md`), `CONTRIBUTING.md`, and the `Makefile` / `Dockerfile` /
+  `docker-compose.yml` dev stack are all reachable documentation the crate README points
+  at; where they sit is a layout preference, not an artifact that reads as coverage.
+
 - **Twenty-three test binaries that asserted against their own mocks are deleted, and a gate
   refuses the next one (#1269, #1270).**
 

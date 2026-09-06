@@ -467,7 +467,6 @@ All core features implemented with comprehensive CI validation:
 | [docs/operators.md](docs/operators.md) | WHERE clause operator reference |
 | [docs/collation.md](docs/collation.md) | Sorting and collation reference |
 | [benches/comparison-guide.md](benches/comparison-guide.md) | Benchmark comparison guide |
-| [.github/publishing.md](.github/publishing.md) | crates.io publishing workflow |
 
 ### Examples
 
