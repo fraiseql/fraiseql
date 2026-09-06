@@ -33,10 +33,7 @@ async fn setup_pg() -> (PgPool, fraiseql_test_support::Service) {
     // hand-written `CREATE TABLE`, so every assertion here was made against a
     // schema no deployment runs — a column added to the migration would not
     // have reddened a single metadata test.
-    sqlx::raw_sql(crate::migrations::storage_migration_sql())
-        .execute(&pool)
-        .await
-        .unwrap();
+    crate::migrations::run_storage_migration(&pool).await.unwrap();
     sqlx::query("TRUNCATE _fraiseql_storage_objects").execute(&pool).await.unwrap();
     (pool, svc)
 }

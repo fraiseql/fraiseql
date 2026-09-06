@@ -108,12 +108,7 @@ async fn rig(bucket: &str) -> Rig {
         .await
         .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
     let pool = PgPool::connect(svc.url()).await.unwrap();
-    for stmt in fraiseql_storage::migrations::storage_migration_sql().split(';') {
-        let trimmed = stmt.trim();
-        if !trimmed.is_empty() {
-            sqlx::query(trimmed).execute(&pool).await.unwrap();
-        }
-    }
+    fraiseql_storage::migrations::run_storage_migration(&pool).await.unwrap();
     // Start from no stored policy *for this bucket*, so a previous run of this
     // same test cannot decide it. Scoped rather than a whole-table DELETE: the
     // tests run in parallel, and truncating the table removed rows the siblings

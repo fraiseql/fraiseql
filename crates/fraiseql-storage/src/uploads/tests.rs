@@ -11,12 +11,7 @@ use super::{NewUploadSession, UploadSessionRepo};
 async fn repo() -> Option<(UploadSessionRepo, PgPool, fraiseql_test_support::Service)> {
     let svc = fraiseql_test_support::postgres().await?;
     let pool = PgPool::connect(svc.url()).await.unwrap();
-    for stmt in crate::migrations::storage_migration_sql().split(';') {
-        let trimmed = stmt.trim();
-        if !trimmed.is_empty() {
-            sqlx::query(trimmed).execute(&pool).await.unwrap();
-        }
-    }
+    crate::migrations::run_storage_migration(&pool).await.unwrap();
     sqlx::query("TRUNCATE _fraiseql_storage_uploads").execute(&pool).await.unwrap();
     Some((UploadSessionRepo::new(pool.clone()), pool, svc))
 }

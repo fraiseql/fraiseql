@@ -122,8 +122,7 @@ mod minio_tests {
         .expect("create_backend must build the S3 backend");
 
         let pool = sqlx::PgPool::connect(pg.url()).await.expect("connect to PostgreSQL");
-        sqlx::raw_sql(fraiseql_storage::migrations::storage_migration_sql())
-            .execute(&pool)
+        fraiseql_storage::migrations::run_storage_migration(&pool)
             .await
             .expect("ensure the object-metadata table");
         sqlx::query("TRUNCATE _fraiseql_storage_objects")

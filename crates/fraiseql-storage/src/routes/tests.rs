@@ -34,13 +34,7 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
     let pool = PgPool::connect(svc.url()).await.unwrap();
 
     // Create metadata table
-    let ddl = crate::migrations::storage_migration_sql();
-    for stmt in ddl.split(';') {
-        let trimmed = stmt.trim();
-        if !trimmed.is_empty() {
-            sqlx::query(trimmed).execute(&pool).await.unwrap();
-        }
-    }
+    crate::migrations::run_storage_migration(&pool).await.unwrap();
     sqlx::query("TRUNCATE _fraiseql_storage_objects").execute(&pool).await.unwrap();
     sqlx::query("TRUNCATE _fraiseql_storage_uploads").execute(&pool).await.unwrap();
 

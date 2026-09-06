@@ -215,8 +215,10 @@ pub async fn build_storage_state(config: &ServerConfig) -> Result<Option<Storage
             format!("storage: failed to connect to PostgreSQL for object metadata: {e}")
         })?;
 
-    sqlx::raw_sql(fraiseql_storage::migrations::storage_migration_sql())
-        .execute(&pool)
+    // Serialized against concurrent runners (#1286): the DDL is idempotent under repetition
+    // but not under concurrency, and two instances booting at once against a database that has
+    // not been migrated yet would race — one of them failing to start on a catalogue error.
+    fraiseql_storage::migrations::run_storage_migration(&pool)
         .await
         .map_err(|e| format!("storage: failed to ensure the object-metadata table exists: {e}"))?;
 

@@ -13,13 +13,65 @@
 //! over the admin API — one row per bucket, replacing that bucket's configured
 //! policy wholesale. See [`crate::policy::store`] for the precedence rule.
 
+/// The advisory-lock key the storage migration serializes on.
+///
+/// A fixed `i64`, chosen once: the ASCII bytes of `FSTORAGE`. It must never be derived from a
+/// version string, a table name or anything else a later migration might edit — two runners
+/// queue behind each other only if they pick the **same** number, so a computed key would
+/// silently stop serializing on the day its input changed.
+///
+/// The value is deliberately below `i64::MAX` rather than a pattern with the high bit set:
+/// `pg_advisory_xact_lock` takes a signed `bigint`, and a literal that needs wrapping to fit
+/// is a literal someone will later "correct".
+const STORAGE_MIGRATION_LOCK_KEY: i64 = 0x_4653_544f_5241_4745;
+
+/// Run the storage migration, serialized against every concurrent runner (#1286).
+///
+/// [`storage_migration_sql`] is idempotent under repetition; it is **not** safe to run
+/// concurrently. PostgreSQL evaluates `IF NOT EXISTS` and the create as separate steps, so two
+/// sessions running the DDL at once against a database that does not yet carry the objects both
+/// observe "absent" and both create. The loser gets a raw catalogue error — `23505` on
+/// `pg_type_typname_nsp_index` or `pg_class_relname_nsp_index`, or `42P07 relation already
+/// exists`.
+///
+/// Measured, not hypothesised: on a cold database this failed 5 of the 7
+/// `storage_policy_admin_tests`, which each ran the migration in parallel. The failure then
+/// **self-heals** — the run that fails leaves the objects behind, so every later run against
+/// that database passes — which is why it read as flaky infrastructure for as long as it did.
+/// The same DDL runs at server boot (`fraiseql_server::server_config::storage`), where a lost
+/// race is not a flaky test but a server that does not start.
+///
+/// `pg_advisory_xact_lock` taken in the same transaction as the DDL makes concurrent runners
+/// queue. Transaction-scoped deliberately: the commit or rollback releases it, so there is no
+/// unlock to leak on an error path, and no way for a panicking caller to wedge every future
+/// boot behind a lock nobody holds a handle to.
+///
+/// # Errors
+///
+/// Returns the underlying [`sqlx::Error`] if the transaction cannot be opened, the lock cannot
+/// be taken, or the DDL fails.
+pub async fn run_storage_migration(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(STORAGE_MIGRATION_LOCK_KEY)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::raw_sql(storage_migration_sql()).execute(&mut *tx).await?;
+    tx.commit().await
+}
+
 #[cfg(test)]
 mod tests;
 
 /// Returns the SQL DDL to create the storage metadata table and indexes.
 ///
-/// The DDL uses `IF NOT EXISTS` for idempotency — running it multiple times
-/// is safe and produces no errors.
+/// The DDL uses `IF NOT EXISTS`, which makes it idempotent under **repetition**: running it
+/// again, after it has finished, is safe and produces no errors.
+///
+/// That is not the same as being safe under **concurrency**, and this function does nothing
+/// about the latter — use [`run_storage_migration`] to execute it, which serializes runners
+/// against each other (#1286). This returns the text, for `fraiseql-cli migrate up` and for
+/// tests that assert on the DDL rather than run it.
 ///
 /// # Table Schema
 ///

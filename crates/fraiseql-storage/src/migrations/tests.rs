@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code; panics are acceptable and the skip diagnostic goes to stderr
 
 use sqlx::PgPool;
 
@@ -96,4 +96,95 @@ async fn test_migration_is_idempotent() {
     // Run twice — second run must not error
     execute_ddl(&pool, ddl).await;
     execute_ddl(&pool, ddl).await;
+}
+
+/// #1286: several runners migrating the same cold database at once all succeed.
+///
+/// The DDL carries `IF NOT EXISTS` on every statement, which made it look safe to run from
+/// anywhere. PostgreSQL evaluates the existence check and the create separately, so concurrent
+/// runners against a database that does not yet carry the objects all observe "absent" and all
+/// create; the losers get `23505` on `pg_type_typname_nsp_index` /
+/// `pg_class_relname_nsp_index`, or `42P07 relation already exists`.
+///
+/// **Why this test builds its own database.** The defect self-heals: the first run that fails
+/// leaves the objects behind, so every later run against that database passes. A test against
+/// the shared harness database would therefore pass on a warm rig whatever the code did — it
+/// would be a fixture that agrees with a broken engine. Only a *cold* database can express it,
+/// so this creates one, uses it, and drops it.
+///
+/// Measured before the fix, on this shape: 5 of 7 sibling tests failed. With
+/// `run_storage_migration` taking `pg_advisory_xact_lock` in the DDL's own transaction, the
+/// runners queue.
+/// Multi-threaded deliberately: on the default current-thread runtime the runners would
+/// interleave at await points rather than genuinely overlap, and the window this defect lives
+/// in is between one session's existence check and its create.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_migrations_against_a_cold_database_all_succeed() {
+    /// Fixed rather than random: this test owns the name, drops it first, and drops it after.
+    const SCRATCH_DB: &str = "fraiseql_storage_migration_race_test";
+    /// Enough runners to lose the race reliably. At 2 the losers were intermittent.
+    const RUNNERS: usize = 8;
+
+    let Some(svc) = fraiseql_test_support::postgres().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    // Rebuild the URL against the scratch database, preserving any query string.
+    let base = svc.url();
+    let (prefix, tail) = base.rsplit_once('/').expect("a PostgreSQL URL carries a database path");
+    let query = tail.find('?').map_or("", |i| &tail[i..]);
+    let scratch_url = format!("{prefix}/{SCRATCH_DB}{query}");
+
+    let admin = PgPool::connect(base).await.unwrap();
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
+        .execute(&admin)
+        .await
+        .unwrap();
+    sqlx::query(&format!("CREATE DATABASE {SCRATCH_DB}"))
+        .execute(&admin)
+        .await
+        .unwrap();
+
+    // The pool is built before the runners start, so the race is over the DDL and not over
+    // connection setup.
+    let pool = PgPool::connect(&scratch_url).await.unwrap();
+    // `tokio::join!` rather than `spawn`: a spawned task must be `'static`, and the borrow
+    // `sqlx` takes of the transaction inside `run_storage_migration` is not
+    // (`implementation of Executor is not general enough`). These are polled concurrently on
+    // one task, so each runner's statements are in flight while the others wait on the server
+    // — which is the overlap this defect needs. The mutation check is what proves that is
+    // enough: removing the lock must redden this test.
+    let r = tokio::join!(
+        super::run_storage_migration(&pool),
+        super::run_storage_migration(&pool),
+        super::run_storage_migration(&pool),
+        super::run_storage_migration(&pool),
+        super::run_storage_migration(&pool),
+        super::run_storage_migration(&pool),
+        super::run_storage_migration(&pool),
+        super::run_storage_migration(&pool),
+    );
+    // Typed rather than `assert_eq!(len, RUNNERS)`: adding a `join!` arm without bumping
+    // `RUNNERS` is then a compile error instead of a runtime one.
+    let results: [Result<(), sqlx::Error>; RUNNERS] = r.into();
+
+    let failures: Vec<String> = results
+        .iter()
+        .filter_map(|r| r.as_ref().err())
+        .map(ToString::to_string)
+        .collect();
+
+    pool.close().await;
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
+        .execute(&admin)
+        .await
+        .unwrap();
+
+    assert!(
+        failures.is_empty(),
+        "{} of {RUNNERS} concurrent migrations failed against a cold database; the DDL is \
+         serialized by an advisory lock precisely so none can: {failures:?}",
+        failures.len()
+    );
 }

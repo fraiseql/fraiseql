@@ -814,6 +814,38 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **The storage migration is serialized against concurrent runners (#1286).**
+
+  `storage_migration_sql` carries `IF NOT EXISTS` on every statement and was documented as
+  idempotent — "running it multiple times is safe and produces no errors". That is true under
+  **repetition** and false under **concurrency**: PostgreSQL evaluates the existence check and
+  the create as separate steps, so two sessions running the DDL against a database that does not
+  yet carry the objects both see "absent" and both create. The loser gets a raw catalogue error
+  — `23505` on `pg_type_typname_nsp_index` or `pg_class_relname_nsp_index`, or `42P07 relation
+  already exists`.
+
+  Measured on a cold database: 5 of the 7 `storage_policy_admin_tests` failed, each having run
+  the migration in parallel. It **self-heals**, which is why it survived so long — the run that
+  fails leaves the objects behind, so every later run against that database passes and a single
+  catalogue error reads as flaky infrastructure.
+
+  The same DDL runs at server boot (`server_config::storage`), where the error is not a flaky
+  test but an instance that does not start. Two servers coming up together against an
+  unmigrated database — a rolling deploy into a fresh environment, a scale-up from zero — race
+  the same way.
+
+  `migrations::run_storage_migration` now takes `pg_advisory_xact_lock` in the DDL's own
+  transaction, so runners queue; the commit releases it, leaving no unlock to leak on an error
+  path. All nine executing call sites go through it, including three byte-identical
+  `split(';')` loops and a fourth copy hidden behind an `execute_ddl` helper — a rule with four
+  homes had none. `storage_migration_sql` remains public for `fraiseql-cli migrate up` and for
+  the tests that assert on the DDL text rather than run it, and its doc comment now says what is
+  actually true.
+
+  Pinned by `concurrent_migrations_against_a_cold_database_all_succeed`, which builds its own
+  cold database because the defect cannot be expressed against a warm one. With the lock removed
+  it fails 7 of 8.
+
 - **Two fraiseql-wire suites asserted against a view no test created (#1229).**
 
   `wire_direct_test::test_direct_v_user_query` and
