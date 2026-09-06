@@ -217,9 +217,14 @@ impl PostgresAdapter {
         // hand-rolled builder that used to live here did none of that, so a
         // relay `orderBy` extracted a key that does not exist — NULL on every
         // row, every row tied, sort silently dropped.
-        let order_sql = if let Some(columns) =
-            crate::order_by::render_order_by_columns(order_by, DatabaseType::PostgreSQL)?
+        // #1284: a relevance-ranked read cannot be paged by cursor; the rule
+        // and its reasoning live with the ordering itself, next to the renderer
+        // this builder cannot use for it.
+        crate::order_by::refuse_relevance_under_cursor_pagination(order_by)?;
+        let order_sql = if let Some(rendered) =
+            crate::order_by::render_order_by_columns(order_by, DatabaseType::PostgreSQL, 1)?
         {
+            let columns = rendered.columns;
             let primary_dir = if forward { "ASC" } else { "DESC" };
             format!(" ORDER BY {columns}, {quoted_col} {primary_dir}")
         } else {

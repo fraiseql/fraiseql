@@ -110,8 +110,13 @@ fn export_config() -> ExportConfig {
 }
 
 /// Drive the real `handle_csv_get` on the relay route and return what it answered.
+///
+/// Boxed for the same reason `TestServer::start` boxes its delegate: nesting the
+/// inner future inside this one puts the whole schema-plus-server state machine on
+/// the caller's stack, which `clippy::large_futures` (pedantic, denied) rejects at
+/// every call site.
 async fn csv_export(query_pairs: &[(&str, &str)]) -> Result<String, RestError> {
-    csv_export_over(relay_export_schema(), canned_rows(1), query_pairs).await
+    Box::pin(csv_export_over(relay_export_schema(), canned_rows(1), query_pairs)).await
 }
 
 /// The same, over a caller-supplied route and row set.
@@ -126,14 +131,15 @@ async fn csv_export_over(
     let rest_config = schema.rest_config.clone().unwrap();
     let handler = RestHandler::new(&executor, &schema, &rest_config, &route_table);
 
-    let response = csv::handle_csv_get(
+    // Boxed for the same reason as `csv_export` above.
+    let response = Box::pin(csv::handle_csv_get(
         &handler,
         &export_config(),
         "/posts",
         query_pairs,
         &HeaderMap::new(),
         None,
-    )
+    ))
     .await?;
 
     let csv::CsvBody::Stream(mut stream) = response.body;

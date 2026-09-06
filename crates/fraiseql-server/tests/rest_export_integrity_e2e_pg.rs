@@ -760,10 +760,12 @@ async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
 /// is dropped and the whole relation comes back under a 200. That drop is its own defect
 /// (#1283) — on this test it would be a fixture that agrees with a broken engine.
 ///
-/// **Why `&sort=id` is present.** Without an explicit sort, `?search=` is a 400 on every
-/// representation today: the implicit relevance ordering emits `[{"_relevance":"desc"}]`, which
-/// no consumer parses (#1284). Pinning the search clause and pinning that defect are two
-/// different tests, and this is the first.
+/// **Why no `?sort=` is named.** This used to carry `&sort=id` as a workaround: without an
+/// explicit sort, `?search=` answered 400 on every representation, because the implicit
+/// relevance ordering emitted `[{"_relevance":"desc"}]`, which no consumer parses (#1284).
+/// That is fixed — the default path ranks by `ts_rank` — so the case now exercises the
+/// spelling a client actually writes. It asserts nothing about the *order*, which is
+/// `rest_search_relevance_e2e_pg`'s subject; one row matches, so there is no order to see.
 ///
 /// One representation is enough for the clause itself: it is merged before a representation is
 /// chosen, so NDJSON, CSV and XLSX cannot differ on it. The JSON control is there to show the
@@ -776,8 +778,7 @@ async fn a_search_narrows_an_export() {
     };
 
     let (status, body) =
-        request_export(&server.url, "/searchable?search=row-42&sort=id", "application/x-ndjson")
-            .await;
+        request_export(&server.url, "/searchable?search=row-42", "application/x-ndjson").await;
     assert_eq!(status, reqwest::StatusCode::OK, "the export should succeed: {body}");
     assert_eq!(
         ndjson_ids(&body),
@@ -787,7 +788,7 @@ async fn a_search_narrows_an_export() {
     );
 
     let (json_status, json_body) =
-        request_export(&server.url, "/searchable?search=row-42&sort=id", "application/json").await;
+        request_export(&server.url, "/searchable?search=row-42", "application/json").await;
     assert_eq!(
         json_status,
         reqwest::StatusCode::OK,

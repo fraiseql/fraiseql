@@ -48,6 +48,23 @@ pub struct QueryMatch {
     /// GraphQL document has no syntax that reaches this field.
     pub scope_where: Option<serde_json::Value>,
 
+    /// The **server's own** relevance ordering, derived from a `?search=`
+    /// request, or `None` when the read was not a full-text search (#1284).
+    ///
+    /// Kept apart from `arguments["orderBy"]` for the same reason
+    /// [`scope_where`](Self::scope_where) is kept apart from
+    /// `arguments["where"]`: the argument map is the *client's* surface, and
+    /// this is not something a client can spell. The previous attempt did put it
+    /// there — as `[{"_relevance": "desc"}]` — and it type-checked at the
+    /// handler, at `serde_json`, and at the argument map, failing only in the
+    /// ORDER BY parser three layers down, which is how the documented default
+    /// path of full-text search answered `400` on every representation.
+    ///
+    /// The transport sets this only when the client named no sort of its own, so
+    /// an explicit `?sort=` always wins — which is what the generated `OpenAPI`
+    /// document promises ("ranked by relevance unless `sort` is specified").
+    pub search_relevance: Option<crate::db::RelevanceOrder>,
+
     /// The parsed query (for access to fragments, variables, etc.).
     pub parsed_query: ParsedQuery,
 }
@@ -129,6 +146,7 @@ impl QueryMatch {
             arguments,
             operation_name: None,
             scope_where: None,
+            search_relevance: None,
             parsed_query,
         })
     }
@@ -141,6 +159,16 @@ impl QueryMatch {
     #[must_use]
     pub fn with_scope_where(mut self, scope_where: serde_json::Value) -> Self {
         self.scope_where = Some(scope_where);
+        self
+    }
+
+    /// Attach the relevance ordering a `?search=` request implies (#1284).
+    ///
+    /// See [`search_relevance`](Self::search_relevance) for why this is not
+    /// another entry in `arguments`.
+    #[must_use]
+    pub fn with_search_relevance(mut self, relevance: crate::db::RelevanceOrder) -> Self {
+        self.search_relevance = Some(relevance);
         self
     }
 }
@@ -373,6 +401,9 @@ impl QueryMatcher {
             // A GraphQL document cannot carry one: server scoping is attached by
             // the transport that owns it, never parsed from client input.
             scope_where: None,
+            // Nor a relevance ordering: `?search=` is a REST parameter, and the
+            // ranking it implies is derived by that transport (#1284).
+            search_relevance: None,
             parsed_query: parsed,
         })
     }

@@ -146,6 +146,16 @@ impl SqlDialect for PostgresDialect {
         Ok(format!("to_tsvector({expr}) @@ websearch_to_tsquery({param})"))
     }
 
+    fn fts_rank_sql(
+        &self,
+        document_expr: &str,
+        query_param: &str,
+    ) -> Result<String, UnsupportedOperator> {
+        Ok(format!(
+            "ts_rank(to_tsvector({document_expr}), websearch_to_tsquery({query_param}))"
+        ))
+    }
+
     fn regex_sql(
         &self,
         lhs: &str,

@@ -14,6 +14,8 @@ pub mod routing;
 pub mod search;
 
 #[cfg(test)]
+mod search_relevance_tests;
+#[cfg(test)]
 mod tests;
 
 // Re-export public types from submodules for external use

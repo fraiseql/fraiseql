@@ -814,6 +814,60 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`?search=` without `?sort=` now ranks by relevance instead of answering `400` (#1284).**
+
+  The documented default path of full-text search was the one spelling that could not succeed.
+  When a search was active and the client had named no sort, `RestHandler::resolve_get_query`
+  added an implicit ordering of its own:
+
+  ```
+  arguments["orderBy"] = [{"_relevance": "desc"}]
+  ```
+
+  `OrderByClause::from_graphql_json`'s array branch requires `{"field": …}`, so that shape fails
+  to parse and every representation answered `400 Validation error: orderBy item missing 'field'
+  string` — JSON, NDJSON, CSV and XLSX alike. `?search=x&sort=field` worked. The OpenAPI document
+  this server generates has meanwhile always told clients "Results are ranked by relevance unless
+  `sort` is specified".
+
+  Had the shape parsed it would still not have ranked. There was **no `ts_rank` anywhere in the
+  workspace**: the producer, its own comments and that OpenAPI sentence were the entire set of
+  matches for `relevance|ts_rank`. `_relevance` passes `validate_graphql_identifier` (a leading
+  `_` is legal), so a parseable spelling would have reached the SQL as an ordinary field and
+  emitted `ORDER BY data->>'_relevance' DESC` — NULL on every row, no ordering at all, under a
+  `200`. The malformed shape is what turned a silent non-feature into a loud one.
+
+  Relevance ordering is now implemented rather than removed, because a generated contract that
+  describes a capability the engine does not have is the worse long-term state, and ranking is
+  the point of a search parameter. `ORDER BY ts_rank(to_tsvector(<searchable fields, each
+  coalesced and concatenated>), websearch_to_tsquery($n)) DESC`, over exactly the fields and the
+  storage keys the search predicate matched on — both are built from one
+  `searchable_fields()` call, so the ranking and the filter cannot describe different documents.
+
+  It is a **type**, not a better string. `OrderByClause` gained a `relevance` operand beside the
+  vector-distance one #386 added, and the ordering travels on `QueryMatch::search_relevance`
+  rather than in `arguments`, for the reason #1170 keeps `scope_where` out of
+  `arguments["where"]`: the argument map is the client's surface, and `_relevance` is not
+  something a client can spell. The old spelling type-checked at the handler, at `serde_json`
+  and at the argument map, and failed three layers below the line that wrote it.
+
+  The search text is **bound**, never interpolated: `ORDER BY` had no parameter channel at all,
+  which is why the term had nowhere to go, so `append_order_by`/`render_order_by_columns` now
+  take the next free placeholder index and return what they bound. The two builders with no such
+  channel refuse a relevance ordering by name — the relay keyset query, because a rank is not a
+  resumable sort key, and the fraiseql-wire adapter, which assembles raw SQL and already refuses
+  every full-text predicate for the same reason.
+
+  A client's `?sort=` still wins, exactly as documented. Pinned by
+  `rest_search_relevance_e2e_pg` (ranking, filtering, all three representations, and a hostile
+  search term answered as a term), and on the database-free leg by
+  `routes::rest::handler::search_relevance_tests` and the renderer's own cases. The fixture's
+  ranked answer is the exact reverse of its id order, so a repair that merely stopped the `400`
+  by dropping the implicit ordering fails it.
+
+  **Not fixed here:** a rank is not unique, so a rank-ordered page boundary is not deterministic
+  — the same hazard any low-cardinality `?sort=` has, and the engine tie-breaks neither (#1287).
+
 - **The storage migration is serialized against concurrent runners (#1286).**
 
   `storage_migration_sql` carries `IF NOT EXISTS` on every statement and was documented as

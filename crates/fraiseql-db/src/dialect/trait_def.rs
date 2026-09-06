@@ -326,6 +326,32 @@ pub trait SqlDialect: Send + Sync + 'static {
         })
     }
 
+    /// SQL for the full-text *relevance* of a document against a web-search
+    /// query — the ordering half of `?search=` (#1284).
+    ///
+    /// `document_expr` is a text expression; `query_param` is a placeholder for
+    /// the search text, which is arbitrary client input and is therefore bound
+    /// rather than interpolated. Lives beside
+    /// [`fts_websearch_query_sql`](Self::fts_websearch_query_sql) so the
+    /// text-search configuration the two resolve against cannot drift: a rank
+    /// computed under a different configuration from the predicate that matched
+    /// would order rows by a document nothing searched.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support
+    /// full-text ranking.
+    fn fts_rank_sql(
+        &self,
+        _document_expr: &str,
+        _query_param: &str,
+    ) -> Result<String, UnsupportedOperator> {
+        Err(UnsupportedOperator {
+            dialect:  self.name(),
+            operator: "Relevance",
+        })
+    }
+
     // ── Regex (returns Err if not supported) ───────────────────────────────────
 
     /// SQL for POSIX-style regex match.

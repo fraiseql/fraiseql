@@ -89,6 +89,40 @@ pub struct OrderByClause {
     /// value would defeat every vector index and re-parse per row).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vector:        Option<VectorDistanceOrder>,
+    /// Full-text relevance ordering (#1284): when set, this clause orders by
+    /// `ts_rank(to_tsvector(document), websearch_to_tsquery($n))`, where the
+    /// document is built from the searchable fields the same `?search=`
+    /// predicate matched on.
+    ///
+    /// [`field`](Self::field) is **not read** for such a clause — there is no
+    /// single field a relevance rank belongs to — and is empty by construction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relevance:     Option<RelevanceOrder>,
+}
+
+/// The full-text operand of an ORDER BY clause (#1284).
+///
+/// Carries the search text as a *value*, not as SQL: unlike
+/// [`VectorDistanceOrder`], whose literal is built from parsed numbers and is
+/// therefore safe to interpolate, this is arbitrary client input and is bound
+/// as a parameter by the renderer.
+///
+/// # Why the fields are storage keys
+///
+/// The rank has to be computed over the same expression the search predicate
+/// matched on, or the ordering describes a different document from the one that
+/// was searched. `build_fts_where_clause` emits a `WhereClause::Field`, whose
+/// path `WhereClause::from_graphql_json` lowers to the snake_case storage key
+/// and the generator renders as `data->>'key'` — so these are storage keys and
+/// the renderer extracts them the same way.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelevanceOrder {
+    /// The snake_case storage keys of the searchable fields the rank is computed
+    /// over, in the order the predicate ORs them. Never empty — a rank over no
+    /// document is refused at render time.
+    pub fields: Vec<String>,
+    /// The raw `websearch_to_tsquery` text, exactly as the client sent it.
+    pub query:  String,
 }
 
 /// The vector-distance operand of an ORDER BY clause (#386).
@@ -188,7 +222,42 @@ impl OrderByClause {
             field_type: ScalarFieldType::default(),
             native_column: None,
             vector: None,
+            relevance: None,
         }
+    }
+
+    /// A clause that orders by full-text relevance, most relevant first (#1284).
+    ///
+    /// [`field`](Self::field) is left empty deliberately. A relevance rank is
+    /// computed over several fields at once, so naming one of them would be a
+    /// lie, and naming a sentinel like `_relevance` would put the sort kind back
+    /// into a string — which is the defect this constructor exists to replace:
+    /// `[{"_relevance": "desc"}]` type-checked at every layer that touched it
+    /// and failed only in the ORDER BY parser, three layers below the handler
+    /// that wrote it.
+    #[must_use]
+    pub fn by_relevance(relevance: RelevanceOrder) -> Self {
+        Self {
+            field:         String::new(),
+            direction:     OrderDirection::Desc,
+            field_type:    ScalarFieldType::default(),
+            native_column: None,
+            vector:        None,
+            relevance:     Some(relevance),
+        }
+    }
+
+    /// Whether rendering this clause binds a SQL parameter.
+    ///
+    /// True only for full-text relevance (#1284), whose operand is arbitrary
+    /// client text and is therefore bound rather than interpolated. A SQL
+    /// builder that assembles `ORDER BY` as a bare string — the relay keyset
+    /// query, the fraiseql-wire adapter — asks this before rendering, so that
+    /// "this ordering cannot be expressed here" is a named refusal instead of a
+    /// dropped sort or an escaped literal.
+    #[must_use]
+    pub const fn binds_parameter(&self) -> bool {
+        self.relevance.is_some()
     }
 
     /// Convert the GraphQL camelCase field name to the JSONB snake_case storage key.

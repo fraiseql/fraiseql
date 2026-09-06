@@ -18,6 +18,33 @@ use super::{
     wire_pool::WireClientFactory,
 };
 
+/// The bare `ORDER BY` column list for the wire builder, or a named refusal.
+///
+/// This adapter assembles raw SQL — `WhereSqlGenerator` escapes values into the
+/// string because the wire protocol path has no bind parameters, and that
+/// generator's own documentation says not to use it in new code for exactly
+/// that reason. So an ordering that binds a value has nowhere to put it here.
+///
+/// Today that is full-text relevance (#1284), and the refusal is consistent
+/// with the WHERE side: this backend already refuses every full-text *operator*
+/// (`where_sql_generator.rs`), so a `?search=` request cannot reach this
+/// function in the first place. It is refused rather than escaped because the
+/// alternative — interpolating a client's search string into an `ORDER BY` —
+/// is the one thing the parameter channel exists to prevent.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` when a clause binds a parameter, or when
+/// field-name validation fails.
+fn order_by_columns(order_by: Option<&[OrderByClause]>) -> Result<Option<String>> {
+    if order_by.is_some_and(|cs| cs.iter().any(OrderByClause::binds_parameter)) {
+        return Err(FraiseQLError::validation(
+            "full-text relevance ordering binds the search text as a parameter, which the              fraiseql-wire adapter cannot supply: it assembles raw SQL. This backend already              refuses full-text search predicates for the same reason.",
+        ));
+    }
+    Ok(render_order_by_columns(order_by, DatabaseType::PostgreSQL, 1)?.map(|r| r.columns))
+}
+
 /// FraiseQL-Wire database adapter.
 ///
 /// Uses fraiseql-wire for streaming JSON queries with bounded memory usage.
@@ -152,7 +179,7 @@ impl FraiseWireAdapter {
 
         // FraiseWire is PostgreSQL-only (see `database_type`); render the bare ORDER BY
         // column list (the wire builder supplies the `ORDER BY` keyword itself).
-        if let Some(columns) = render_order_by_columns(order_by, DatabaseType::PostgreSQL)? {
+        if let Some(columns) = order_by_columns(order_by)? {
             builder = builder.order_by(columns);
         }
 
@@ -249,7 +276,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
 
         // Honor ORDER BY (audit #442: previously dropped — relay/keyset pagination over the
         // wire backend silently returned DB-native order). FraiseWire is PostgreSQL-only.
-        if let Some(columns) = render_order_by_columns(order_by, DatabaseType::PostgreSQL)? {
+        if let Some(columns) = order_by_columns(order_by)? {
             builder = builder.order_by(columns);
         }
 

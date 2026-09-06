@@ -395,6 +395,14 @@ name = "admin_sql_console_e2e_pg"
 # see the manifest form.
 required-features = ["admin-sql"]
 
+# #1284: the relevance-ordering proof drives JSON, NDJSON and CSV, because the
+# defect answered `400` on all three. Declared here rather than with a file-level
+# `#![cfg(feature = "export-csv")]`: the inner form compiles to an empty binary
+# that reports 0 tests and reads green in a leg that lacks the feature (#1082).
+[[test]]
+name = "rest_search_relevance_e2e_pg"
+required-features = ["rest", "export-csv"]
+
 [[test]]
 name = "secrets_manager_integration_test"
 required-features = ["secrets"]

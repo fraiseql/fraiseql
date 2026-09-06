@@ -8,7 +8,7 @@ array-size-threshold = 65536
 # Cognitive complexity threshold
 cognitive-complexity-threshold = 30
 # Documentation
-doc-valid-idents = ["FraiseQL", "GraphQL", "PostgreSQL", "MySQL", "SQLite", "SQLServer", "JSON", "JSONB", "UUID", "CDC", "APQ", "RBAC", "JWT", "OAuth"]
+doc-valid-idents = ["FraiseQL", "GraphQL", "PostgreSQL", "MySQL", "SQLite", "SQLServer", "JSON", "JSONB", "UUID", "CDC", "APQ", "RBAC", "JWT", "OAuth", "OpenAPI"]
 # Enum variant names
 enum-variant-name-threshold = 3
 max-fn-params-bools = 3

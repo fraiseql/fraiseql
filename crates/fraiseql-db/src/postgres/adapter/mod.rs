@@ -1538,8 +1538,14 @@ pub(super) fn build_where_select_sql_ordered(
     };
     let mut param_count = typed_params.len();
 
-    // ORDER BY must come before LIMIT/OFFSET in SQL.
-    append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL)?;
+    // ORDER BY must come before LIMIT/OFFSET in SQL — and so must its
+    // parameters. A relevance ordering (#1284) binds the search text, so the
+    // placeholders run WHERE → ORDER BY → LIMIT/OFFSET, which is the order the
+    // fragments are appended in.
+    for bound in append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL, param_count + 1)? {
+        param_count += 1;
+        typed_params.push(QueryParam::Text(bound));
+    }
 
     // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT).
     // Reason (expect below): fmt::Write for String is infallible.
@@ -1599,8 +1605,12 @@ pub(super) fn build_projection_select_sql(
     };
     let mut param_count = typed_params.len();
 
-    // ORDER BY must come before LIMIT/OFFSET in SQL.
-    append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL)?;
+    // ORDER BY must come before LIMIT/OFFSET in SQL — and so must its
+    // parameters (#1284); see `build_where_select_sql_ordered`.
+    for bound in append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL, param_count + 1)? {
+        param_count += 1;
+        typed_params.push(QueryParam::Text(bound));
+    }
 
     // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
     // Reason (expect below): fmt::Write for String is infallible.

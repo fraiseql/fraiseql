@@ -1472,3 +1472,82 @@ mod explicit_arg_recasing {
         assert_eq!(path, vec!["status".to_string()]);
     }
 }
+
+// ── mod search_relevance: #1284, the ordering a `?search=` implies ────────
+//
+// `?search=` without `?sort=` answered 400 on every REST representation: the
+// transport wrote `[{"_relevance":"desc"}]` into `arguments["orderBy"]`, a shape
+// no consumer parses, and no relevance ordering existed to signal. The ordering
+// now travels as a typed field on the `QueryMatch` — for the same reason
+// `scope_where` does (#1170) — and is lowered here.
+mod search_relevance {
+    use super::*;
+    use crate::db::RelevanceOrder;
+
+    fn users_match() -> crate::runtime::matcher::QueryMatch {
+        crate::runtime::QueryMatcher::new(test_schema())
+            .match_query("{ users { id name } }", None)
+            .unwrap()
+    }
+
+    fn relevance() -> RelevanceOrder {
+        RelevanceOrder {
+            fields: vec!["name".to_string()],
+            query:  "ada".to_string(),
+        }
+    }
+
+    /// The control that makes the case below mean something: with no search, the
+    /// direct read orders by nothing at all.
+    #[tokio::test]
+    async fn a_read_with_no_search_orders_by_nothing() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+
+        executor.execute_query_direct(&users_match(), None, None).await.unwrap();
+
+        assert_eq!(adapter.captured_order_by(), None);
+    }
+
+    /// A search with no client sort is ranked.
+    #[tokio::test]
+    async fn a_search_relevance_becomes_the_ordering() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+        let qm = users_match().with_search_relevance(relevance());
+
+        executor.execute_query_direct(&qm, None, None).await.unwrap();
+
+        let captured = adapter.captured_order_by().expect("the read must be ordered");
+        assert_eq!(captured.len(), 1, "one ordering, the rank: {captured:?}");
+        assert_eq!(captured[0].relevance.as_ref(), Some(&relevance()));
+        assert_eq!(captured[0].direction, crate::db::OrderDirection::Desc, "most relevant first");
+    }
+
+    /// A client's own sort wins, which is what the generated OpenAPI document
+    /// promises: "ranked by relevance unless `sort` is specified".
+    ///
+    /// The transport already declines to attach a relevance order when the
+    /// client named a sort, so this is the second of two locks — and the one
+    /// that decides what happens if a future producer forgets the first.
+    #[tokio::test]
+    async fn an_explicit_ordering_wins_over_the_rank() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+        let mut qm = users_match().with_search_relevance(relevance());
+        qm.arguments.insert(
+            "orderBy".to_string(),
+            serde_json::json!([{ "field": "name", "direction": "ASC" }]),
+        );
+
+        executor.execute_query_direct(&qm, None, None).await.unwrap();
+
+        let captured = adapter.captured_order_by().expect("the read must be ordered");
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].field, "name");
+        assert!(
+            captured[0].relevance.is_none(),
+            "the client's sort must not carry a ranking: {captured:?}"
+        );
+    }
+}

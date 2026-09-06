@@ -91,8 +91,8 @@ pub use traits::{
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
     sql_hints::{
-        OrderByClause, OrderDirection, ScalarFieldType, SqlProjectionHint, VectorDistanceOrder,
-        VectorOperandKind,
+        OrderByClause, OrderDirection, RelevanceOrder, ScalarFieldType, SqlProjectionHint,
+        VectorDistanceOrder, VectorOperandKind,
     },
 };
 /// The `uuid` this crate's public API is built against (#1198).

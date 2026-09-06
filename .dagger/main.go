@@ -1669,6 +1669,13 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// duplicates. Needs the export features compiled in: the CSV and XLSX cases are
 		// `#[cfg]`-gated, and under `--features rest` alone they would silently not run.
 		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --test rest_export_integrity_e2e_pg -- --test-threads=1",
+		// #1284: `?search=` with no `?sort=` answered 400 on every representation —
+		// the implicit relevance ordering emitted a shape no consumer parses, and no
+		// `ts_rank` existed to signal. The handler-level half runs on the required
+		// test leg; whether the SQL it builds actually ORDERS rows is a question only
+		// a database answers, and it is the assertion that separates ranking from
+		// merely no longer refusing.
+		"cargo test -p fraiseql-server --features rest,export-csv --test rest_search_relevance_e2e_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes

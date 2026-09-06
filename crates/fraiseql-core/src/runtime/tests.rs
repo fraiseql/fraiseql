@@ -2597,7 +2597,7 @@ mod planner_tests {
 
     fn test_query_match() -> QueryMatch {
         QueryMatch {
-            query_def:      QueryDefinition {
+            query_def:        QueryDefinition {
                 requires_actor:      Vec::new(),
                 returns_count:       false,
                 name:                "users".to_string(),
@@ -2623,8 +2623,8 @@ mod planner_tests {
                 rest_stream:         false,
                 native_columns:      HashMap::new(),
             },
-            fields:         vec!["id".to_string(), "name".to_string()],
-            selections:     vec![FieldSelection {
+            fields:           vec!["id".to_string(), "name".to_string()],
+            selections:       vec![FieldSelection {
                 name:          "users".to_string(),
                 alias:         None,
                 arguments:     vec![],
@@ -2646,10 +2646,11 @@ mod planner_tests {
                 ],
                 directives:    vec![],
             }],
-            arguments:      HashMap::new(),
-            operation_name: Some("users".to_string()),
-            scope_where:    None,
-            parsed_query:   ParsedQuery {
+            arguments:        HashMap::new(),
+            operation_name:   Some("users".to_string()),
+            scope_where:      None,
+            search_relevance: None,
+            parsed_query:     ParsedQuery {
                 operation_type: "query".to_string(),
                 operation_name: Some("users".to_string()),
                 root_field:     "users".to_string(),

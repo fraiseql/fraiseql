@@ -12,7 +12,7 @@ use super::{
     prefer::{CountPreference, PreferHeader},
     response::{RestError, RestResponse},
     routing::ResolvedGetQuery,
-    search::build_fts_where_clause,
+    search::plan_search,
 };
 use crate::routes::rest::{
     params::{ExtractedParams, PaginationParams, RestFieldSpec, RestParamExtractor},
@@ -409,10 +409,11 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         }
 
         // WHERE clause — merge regular filters with full-text search if present.
-        let fts_where = params
-            .search_query
-            .as_deref()
-            .and_then(|query| build_fts_where_clause(query, type_def));
+        //
+        // The plan carries the ORDER BY too (#1284): the rows a search matches
+        // and the order they come back in are one decision over one field list.
+        let search = params.search_query.as_deref().and_then(|query| plan_search(query, type_def));
+        let fts_where = search.as_ref().map(|plan| plan.where_clause.clone());
 
         match (&params.where_clause, &fts_where) {
             (Some(regular), Some(fts)) => {
@@ -428,15 +429,23 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
             (None, None) => {},
         }
 
-        // ORDER BY — use ts_rank relevance ordering when search is active
-        // and no explicit sort was provided.
-        if let Some(ref order_by) = params.order_by {
+        // ORDER BY — the client's sort, or the relevance ranking a search implies.
+        //
+        // The ranking does NOT go into `arguments`. It is not a value a client
+        // can spell, and the argument map is the client's surface — the same
+        // separation `scope_where` makes for server-composed predicates (#1170).
+        // Writing it there as `[{"_relevance": "desc"}]` is exactly what #1284
+        // was: a shape no consumer parses, type-checked by every layer that
+        // touched it, so the documented default path of `?search=` — the one
+        // this server's own OpenAPI document promises is "ranked by relevance
+        // unless `sort` is specified" — answered 400 on every representation.
+        let relevance = if let Some(ref order_by) = params.order_by {
             arguments.insert("orderBy".to_string(), order_by.clone());
-        } else if fts_where.is_some() {
-            // Implicit relevance ordering: `ts_rank DESC` is signalled to the
-            // executor as a special `_relevance` sort key.
-            arguments.insert("orderBy".to_string(), json!([{ "_relevance": "desc" }]));
-        }
+            // The client named a sort, so it wins, exactly as documented.
+            None
+        } else {
+            search.map(|plan| plan.relevance)
+        };
 
         // Offset pagination into arguments (non-relay)
         if let PaginationParams::Offset { limit, offset } = &params.pagination {
@@ -477,8 +486,11 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         let variables_json = serde_json::Value::Object(variables);
 
         // Build QueryMatch
-        let query_match =
+        let mut query_match =
             QueryMatch::from_operation(query_def.clone(), field_names, arguments, type_def)?;
+        if let Some(relevance) = relevance {
+            query_match = query_match.with_search_relevance(relevance);
+        }
 
         Ok(ResolvedGetQuery {
             query_name: query_name.to_string(),

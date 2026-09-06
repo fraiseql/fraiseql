@@ -36,6 +36,14 @@ pub struct CapturingMockAdapter {
     pub captured_where:                  std::sync::Mutex<Option<WhereClause>>,
     pub captured_limit:                  std::sync::Mutex<Option<u32>>,
     pub captured_offset:                 std::sync::Mutex<Option<u32>>,
+    /// The ORDER BY the last read resolved to.
+    ///
+    /// `execute_with_projection` used to drop its `order_by` on the floor and
+    /// call `execute_where_query` with `None`, so the mock could not have
+    /// witnessed an ordering even if something had recorded it — a test
+    /// asserting on the sort would have been green against an engine that
+    /// emitted none (#1284).
+    pub captured_order_by:               std::sync::Mutex<Option<Vec<OrderByClause>>>,
     pub captured_aggregate_sql:          std::sync::Mutex<Option<String>>,
     pub captured_aggregate_params:       std::sync::Mutex<Option<Vec<serde_json::Value>>>,
     pub captured_aggregate_session_vars: std::sync::Mutex<Option<Vec<(String, String)>>>,
@@ -49,6 +57,7 @@ impl CapturingMockAdapter {
             captured_where: std::sync::Mutex::new(None),
             captured_limit: std::sync::Mutex::new(None),
             captured_offset: std::sync::Mutex::new(None),
+            captured_order_by: std::sync::Mutex::new(None),
             captured_aggregate_sql: std::sync::Mutex::new(None),
             captured_aggregate_params: std::sync::Mutex::new(None),
             captured_aggregate_session_vars: std::sync::Mutex::new(None),
@@ -88,6 +97,10 @@ impl CapturingMockAdapter {
         *self.captured_offset.lock().unwrap()
     }
 
+    pub fn captured_order_by(&self) -> Option<Vec<OrderByClause>> {
+        self.captured_order_by.lock().unwrap().clone()
+    }
+
     pub fn captured_aggregate_sql(&self) -> Option<String> {
         self.captured_aggregate_sql.lock().unwrap().clone()
     }
@@ -116,9 +129,9 @@ impl DatabaseAdapter for CapturingMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, offset, None).await
+        self.execute_where_query(view, where_clause, limit, offset, order_by).await
     }
 
     async fn execute_where_query(
@@ -127,11 +140,12 @@ impl DatabaseAdapter for CapturingMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         *self.captured_where.lock().unwrap() = where_clause.cloned();
         *self.captured_limit.lock().unwrap() = limit;
         *self.captured_offset.lock().unwrap() = offset;
+        *self.captured_order_by.lock().unwrap() = order_by.map(<[OrderByClause]>::to_vec);
         Ok(self.mock_results.clone())
     }
 

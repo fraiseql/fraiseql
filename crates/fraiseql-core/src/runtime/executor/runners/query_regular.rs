@@ -1230,6 +1230,27 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             (limit, order_by_clauses)
         };
 
+        // Full-text relevance (#1284): a `?search=` request with no sort of its
+        // own is ranked by `ts_rank`, which is what the OpenAPI document this
+        // server generates has always told clients it does.
+        //
+        // Lowered here rather than parsed out of `arguments["orderBy"]` because
+        // it is not a client value: `QueryMatch::search_relevance` is a typed
+        // field for the same reason `scope_where` is one (#1170). The previous
+        // spelling — a `{"_relevance": "desc"}` entry the transport wrote into
+        // the argument map — is why the default path answered 400.
+        //
+        // `order_by_clauses.is_none()` is a second lock, not the rule: the
+        // transport already declines to set this when the client named a sort.
+        // A clause list that exists wins, so a client's `?sort=` can never be
+        // silently replaced by a ranking it did not ask for.
+        let order_by_clauses = match (order_by_clauses, query_match.search_relevance.as_ref()) {
+            (None, Some(relevance)) => {
+                Some(vec![crate::db::OrderByClause::by_relevance(relevance.clone())])
+            },
+            (existing, _) => existing,
+        };
+
         // Convert explicit arguments to WHERE conditions.
         let user_where = combine_explicit_arg_where(
             user_where,
