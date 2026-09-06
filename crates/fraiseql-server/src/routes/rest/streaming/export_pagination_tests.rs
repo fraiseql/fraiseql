@@ -166,21 +166,42 @@ async fn a_relay_route_exports_a_request_that_named_no_cursor() {
     assert!(body.contains("row-1"), "and the rows are the view's rows: {body:?}");
 }
 
-/// The half that must not move: a cursor the client actually sent is still refused.
+/// #1278: `?first=` bounds a relay export's **total**, exactly as `?limit=` bounds an
+/// offset export's.
 ///
-/// Differs from the case above by one query pair. Without it, deleting the cursor branch
-/// outright would pass the suite.
+/// This case used to assert the opposite, and the rule it was written against was misstated.
+/// The export gate is usually described as "an export cannot be on a page", but look at what
+/// it has always permitted on the offset family: `?limit=` — a **count** — bounds the export
+/// total (#811), while `?offset=` — a **position** — is refused. The rule is therefore *a
+/// count bounds an export; a position or a direction cannot mean anything to one*, because an
+/// export starts at the beginning of the relation and there is nothing for a position to move.
+///
+/// `?first=` is the cursor family's count. Refusing it left a relay export bounded by nothing
+/// — `?limit=` is refused on a relay route by the cross-pagination guard as the wrong
+/// vocabulary, and `?first=` was refused here as a page — so the two route shapes differed in
+/// **capability**, not just in spelling. `?after=`, `?before=` and `?last=` stay refused, and
+/// the three cases below are what keeps that from collapsing.
+///
+/// 25 rows, bounded to 10: unbounded would answer 25 and a page would answer
+/// `default_page_size`. Three distinguishable numbers, so neither "the bound was ignored" nor
+/// "the bound was clamped to a page" can pass.
 #[tokio::test]
-async fn a_relay_route_refuses_an_export_that_named_a_page_size() {
-    let err = csv_export(&[("first", "10")])
+async fn a_relay_route_export_is_bounded_by_first() {
+    let body = csv_export_over(relay_export_schema(), canned_rows(25), &[("first", "10")])
         .await
-        .expect_err("`?first=10` asks to be on a page, which an export cannot honour");
+        .unwrap_or_else(|err| {
+            panic!(
+                "`?first=10` bounds an export total on a relay route, as `?limit=10` does on an \
+                 offset one. Answered {}: {}",
+                err.status, err.message
+            )
+        });
 
-    assert_eq!(err.status, StatusCode::BAD_REQUEST);
-    assert!(
-        err.message.contains("pagination not available"),
-        "the refusal states its own diagnosis: {}",
-        err.message
+    let data_rows = body.lines().skip(1).filter(|l| !l.trim().is_empty()).count();
+    assert_eq!(
+        data_rows, 10,
+        "the export is bounded by the count the client sent, unclamped by max_page_size \
+         (`export_rows` applies it to the stream): {body:?}"
     );
 }
 

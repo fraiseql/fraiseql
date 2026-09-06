@@ -81,12 +81,9 @@ use crate::routes::rest::{
 ///
 /// # Known gaps
 ///
-/// * **#1278** — a relay route cannot bound its export **total**. `?limit=` does that on an offset
-///   route, and a relay route rejects `?limit=` outright (the cross-pagination guard in
-///   `RestParamExtractor::extract`) while `?first=` is refused here as a page. So the two route
-///   shapes differ in capability, not only in vocabulary. Giving `?first=` the meaning `?limit=`
-///   has on an export would close it; that is a new answer to a request that is currently refused
-///   rather than a defect in this one, so it is filed, not folded in.
+/// None recorded. #1278 — a relay route unable to bound its export total — was the last one, and
+/// is closed: `?first=` now bounds the total exactly as `?limit=` does on an offset route, which
+/// is the count/position rule stated above rather than a special case for relay.
 pub fn refuse_unstreamable_request(
     prefer: &PreferHeader,
     params: &ExtractedParams,
@@ -107,7 +104,8 @@ pub fn refuse_unstreamable_request(
         // have served — and reading it here in place of the request is #1273 exactly. The
         // binding exists to be seen and skipped, not to be used.
         pagination: _,
-        // Refused below, as sent.
+        // Read below, as sent: its positions and directions are refused, its counts
+        // (`limit`, `first`) bound the export total via `export_total` (#811, #1278).
         requested_pagination,
         // Honoured: the projection, which is also the column list CSV and XLSX write their
         // header from (`export_columns`, #1274).
@@ -144,10 +142,26 @@ pub fn refuse_unstreamable_request(
     // defect because `offset > 0` happens to be unreachable by a default — it was already
     // asking the right question, by luck of the value rather than by construction.
     //
-    // `?limit=` is deliberately absent from this list. On an export it is not a page but a
-    // bound on the total, applied to the stream by `export_rows`.
+    // `?limit=` and `?first=` are deliberately absent from this list, and the reason is the
+    // rule rather than an exception to it (#1278).
+    //
+    // What an export refuses is not "pagination". It is a **position** or a **direction**: an
+    // export starts at the beginning of the relation and reads to the end, so there is nothing
+    // for `?offset=`, `?after=`, `?before=` or `?last=` to modify. A **count** is different —
+    // it bounds how much of that relation is emitted, which an export can honour exactly, and
+    // `export_rows` applies it to the stream rather than to the query so `max_page_size` never
+    // clamps it (#811).
+    //
+    // Each pagination family has one count. The offset family's is `?limit=`, permitted here
+    // since #811. The cursor family's is `?first=`, and refusing it left a relay export
+    // bounded by nothing at all: `?limit=` is refused on a relay route by the cross-pagination
+    // guard in `RestParamExtractor::extract`, as the wrong vocabulary for the route, so the two
+    // route shapes differed in capability and not merely in spelling.
+    //
+    // That guard stays as it is. Accepting `?limit=` on a relay route for exports only would
+    // make it representation-dependent, and it lives in the extractor, which does not know the
+    // representation — the same reason #1285 is not fixed there.
     if matches!(requested_pagination.offset, Some(offset) if offset > 0)
-        || requested_pagination.first.is_some()
         || requested_pagination.after.is_some()
         || requested_pagination.last.is_some()
         || requested_pagination.before.is_some()

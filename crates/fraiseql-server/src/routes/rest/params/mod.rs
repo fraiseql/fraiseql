@@ -174,6 +174,34 @@ pub struct RequestedPagination {
     pub before: Option<String>,
 }
 
+impl RequestedPagination {
+    /// The bound this request puts on an **export's total**, or `None` for the whole relation.
+    ///
+    /// One helper rather than a read at each of the three export representations: NDJSON, CSV
+    /// and XLSX each open their rows through `streaming::helpers::export_rows`, and three
+    /// hand-copied bodies of one rule is exactly how a fourth rule came to be missing from all
+    /// three at once (#1268), in this same subsystem.
+    ///
+    /// # Why `limit` *or* `first`
+    ///
+    /// Each pagination family has exactly one **count**, and an export honours the count while
+    /// refusing every position and direction (`refuse_unstreamable_request`). The offset
+    /// family's count is `?limit=` (#811); the cursor family's is `?first=` (#1278).
+    ///
+    /// The `or` is total rather than a precedence choice: at most one of the two can be set on
+    /// any request that reaches here, because the cross-pagination guard in
+    /// [`RestParamExtractor::extract`] refuses `?first=` on an offset route and `?limit=` on a
+    /// relay one before an export is ever resolved. Should that guard ever be relaxed, this
+    /// would need a stated rule instead of an `or`.
+    ///
+    /// Values are as the client sent them — never defaulted, never clamped to `max_page_size`,
+    /// because an export total is not a page and `export_rows` applies it to the stream.
+    #[must_use]
+    pub fn export_total(&self) -> Option<u64> {
+        self.limit.or(self.first)
+    }
+}
+
 /// Pagination mode and parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

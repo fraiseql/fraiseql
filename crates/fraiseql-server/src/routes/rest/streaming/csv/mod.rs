@@ -113,7 +113,7 @@ pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
         security_context.cloned(),
         // `?limit=` caps the export total, read from what the client sent rather than
         // from the resolved plan, which fills an absent one with `default_page_size` (#811).
-        params.requested_pagination.limit,
+        params.requested_pagination.export_total(),
     )
     .await?;
 

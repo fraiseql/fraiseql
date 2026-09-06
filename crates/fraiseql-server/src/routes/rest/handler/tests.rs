@@ -1093,6 +1093,53 @@ mod export_refusal {
         );
     }
 
+    /// #1278: `?first=` bounds a relay export's total, as `?limit=` bounds an offset one's.
+    ///
+    /// Set on the **request** and not on the plan: a relay plan carries
+    /// `first: Some(default_page_size)` whenever the client named no cursor, so asserting on
+    /// the plan would pass whether or not the rule reads what was sent (#1273).
+    ///
+    /// The pair that matters is this against `every_pagination_parameter_a_client_can_send_is_
+    /// refused`: `first` alone is accepted, `first` with a cursor position is not — the count
+    /// is honoured, the position is what an export cannot answer.
+    #[test]
+    fn the_cursor_familys_count_bounds_an_export_like_the_offset_familys() {
+        let params = ExtractedParams {
+            pagination: PaginationParams::Cursor {
+                first:  Some(10),
+                after:  None,
+                last:   None,
+                before: None,
+            },
+            requested_pagination: RequestedPagination {
+                first: Some(10),
+                ..RequestedPagination::default()
+            },
+            ..acceptable()
+        };
+        assert!(
+            refuse_unstreamable_request(&PreferHeader::default(), &params).is_ok(),
+            "`?first=` is the cursor family's count; refusing it left a relay export bounded \
+             by nothing, since `?limit=` is refused on a relay route as the wrong vocabulary"
+        );
+
+        // The half that must not move: the same count, with a position beside it.
+        let with_cursor = ExtractedParams {
+            requested_pagination: RequestedPagination {
+                first: Some(10),
+                after: Some("Y3Vyc29yOjE=".to_string()),
+                ..RequestedPagination::default()
+            },
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &with_cursor).unwrap_err();
+        assert!(
+            err.message.contains("pagination not available"),
+            "a cursor position is still refused even when a count is present: {}",
+            err.message
+        );
+    }
+
     #[test]
     fn every_count_preference_is_refused() {
         let cases = [
@@ -1116,11 +1163,18 @@ mod export_refusal {
         }
     }
 
-    /// Every parameter that puts the client on a page is refused, one at a time.
+    /// Every parameter naming a **position** or a **direction** is refused, one at a time.
     ///
     /// One case per field, because the rule is a disjunction and a single case leaves the
-    /// other four provable by an `always false` arm. `?limit=` is deliberately not here —
-    /// it is the total bound, asserted accepted above.
+    /// others provable by an `always false` arm.
+    ///
+    /// Neither **count** is here, and that is the rule rather than two exceptions to it
+    /// (#1278): an export starts at the beginning of the relation and reads to the end, so a
+    /// position has nothing to modify, while a count bounds how much is emitted — which an
+    /// export honours exactly. `?limit=` is the offset family's count (#811) and `?first=` is
+    /// the cursor family's; both are asserted *accepted*, by
+    /// `a_limit_without_an_offset_is_accepted` and
+    /// `the_cursor_familys_count_bounds_an_export_like_the_offset_familys`.
     #[test]
     fn every_pagination_parameter_a_client_can_send_is_refused() {
         let cases = [
@@ -1128,13 +1182,6 @@ mod export_refusal {
                 "offset",
                 RequestedPagination {
                     offset: Some(5),
-                    ..RequestedPagination::default()
-                },
-            ),
-            (
-                "first",
-                RequestedPagination {
-                    first: Some(10),
                     ..RequestedPagination::default()
                 },
             ),

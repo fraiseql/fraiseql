@@ -700,10 +700,15 @@ async fn a_relay_route_exports_every_row_exactly_once() {
     );
 }
 
-/// The half that must not move: a cursor the client actually sent is still refused.
+/// The half that must not move: a cursor **position** the client actually sent is refused.
 ///
 /// Differs from the case above by one query parameter. Without it, deleting the cursor rule
 /// outright would satisfy the suite.
+///
+/// `?first=` left this list in #1278. It is the cursor family's **count**, and a count bounds
+/// an export's total rather than asking for a page — see
+/// `a_relay_export_is_bounded_by_the_count_the_client_sent` below, which is the case that keeps
+/// the two halves apart.
 #[tokio::test]
 async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
     let Some(server) = start().await else {
@@ -712,7 +717,6 @@ async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
     };
 
     for query in [
-        "?first=10",
         "?after=Y3Vyc29yOjE%3D",
         "?last=10",
         "?before=Y3Vyc29yOjE%3D",
@@ -792,5 +796,49 @@ async fn a_search_narrows_an_export() {
     assert!(
         json_body.contains("row-42") && !json_body.contains("row-1\""),
         "the same search narrows the JSON representation to the same single row: {json_body}"
+    );
+}
+
+/// #1278: a relay export can be bounded, by the cursor family's count.
+///
+/// Before this, it could not be bounded at all: `?limit=` is refused on a relay route by the
+/// cross-pagination guard as the wrong vocabulary, and `?first=` was refused by the export gate
+/// as a page request. So an offset export could be sampled and a relay export was the whole
+/// relation or nothing — a difference in capability between the two route shapes rather than in
+/// spelling.
+///
+/// The rule the export gate actually applies, stated properly, is *a count bounds an export; a
+/// position or a direction cannot mean anything to one*. `?limit=` (offset family) has been the
+/// count since #811; `?first=` is the cursor family's.
+///
+/// **Why 10 discriminates.** `ROWS` is 10,000 and `PAGE` is 100, so an ignored bound answers
+/// 10,000 and a bound clamped to a page answers 100. Three orders of magnitude apart, and the
+/// clamped case is the one that matters: `export_rows` applies the total to the *stream*, not to
+/// the query, precisely so `max_page_size` cannot cap an export.
+#[tokio::test]
+async fn a_relay_export_is_bounded_by_the_count_the_client_sent() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) =
+        request_export(&server.url, "/relay?first=10", "application/x-ndjson").await;
+    assert_eq!(
+        status,
+        reqwest::StatusCode::OK,
+        "`?first=10` bounds a relay export's total, as `?limit=10` does an offset one's: {body}"
+    );
+
+    let ids = ndjson_ids(&body);
+    assert_eq!(
+        ids.len(),
+        10,
+        "bounded by the count as sent — not the whole relation ({ROWS}) and not one page ({PAGE})"
+    );
+    assert_eq!(
+        ids.iter().copied().collect::<HashSet<i64>>().len(),
+        10,
+        "and the bounded export still emits each row once"
     );
 }

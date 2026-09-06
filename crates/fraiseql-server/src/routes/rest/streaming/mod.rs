@@ -102,11 +102,12 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
         query_match,
         variables,
         security_context.cloned(),
-        // `?limit=` caps the export total; its absence means "the whole table",
+        // The export total: `?limit=` on an offset route, `?first=` on a relay one
+        // (#1278 — each family's count). Absence means "the whole table",
         // which is what an export is for (#811). It is read from what the client sent,
         // because the resolved plan fills an absent `?limit=` with `default_page_size`
         // and the two mean opposite things here.
-        params.requested_pagination.limit,
+        params.requested_pagination.export_total(),
     )
     .await?;
 

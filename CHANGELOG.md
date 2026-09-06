@@ -300,6 +300,36 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+- **A relay route's export can be bounded: `?first=` bounds the total (#1278).**
+
+  It could not be bounded at all before. `?limit=` bounds an export's **total** on an offset
+  route (#811), and on a relay route it is refused by the cross-pagination guard as the wrong
+  vocabulary, while `?first=` was refused by the export gate as a page request. Neither rule was
+  written with the other in mind, and between them the two route shapes differed in
+  **capability**, not merely in spelling: an offset export could be sampled and a relay export
+  was the whole relation or nothing.
+
+  The rule the export gate applies has been restated rather than excepted. What an export
+  refuses is not "pagination" — it is a **position** or a **direction**: an export starts at the
+  beginning of the relation and reads to the end, so `?offset=`, `?after=`, `?before=` and
+  `?last=` have nothing to modify. A **count** is different: it bounds how much of that relation
+  is emitted, which an export honours exactly. Each family has one count — `?limit=` for offset,
+  `?first=` for cursor — and both are now permitted, unclamped by `max_page_size` because
+  `export_rows` applies the bound to the stream rather than to the query.
+
+  `RequestedPagination::export_total()` is the one place the two counts resolve, rather than a
+  read at each of NDJSON, CSV and XLSX: three hand-copied bodies of one rule is how a fourth
+  rule came to be missing from all three at once (#1268), in this same subsystem. At most one
+  count can be set on any request that reaches it, because the cross-pagination guard refuses
+  `?first=` on an offset route and `?limit=` on a relay one.
+
+  **The cross-pagination guard is unchanged.** Accepting `?limit=` on a relay route for exports
+  only was the alternative, and it would make that guard representation-dependent — it lives in
+  `RestParamExtractor::extract`, which does not know the representation. `?limit=` remains the
+  wrong vocabulary for a relay route on every representation.
+
+  This closes the last entry under `refuse_unstreamable_request`'s `# Known gaps`.
+
 - **`refuse_unstreamable_request` destructures `ExtractedParams` exhaustively (#1282).**
 
   The rule set an export applies was a sequence of field reads with nothing requiring it to have
