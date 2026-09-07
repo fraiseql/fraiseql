@@ -96,7 +96,10 @@ pub fn refuse_unstreamable_request(
     let ExtractedParams {
         // Honoured: the route's own identity, folded into the `QueryMatch` arguments.
         path_params: _,
-        // Honoured: `resolve_get_query` builds it into `arguments["where"]`.
+        // Honoured: `resolve_get_query` builds it into `arguments["where"]`, and the read
+        // path composes it — or refuses it, on a query compiled with `where_clause = false`
+        // (#1283), which is a rule about the *query* rather than about this representation
+        // and so is not restated here.
         where_clause: _,
         // Honoured: `arguments["orderBy"]`.
         order_by: _,

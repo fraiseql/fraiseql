@@ -115,10 +115,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     ///
     /// Unconditional by construction (#1170). The predicate REST resource
     /// embedding builds to scope a relation to its parent used to travel in
-    /// `arguments["where"]`, which every read path composes **only** when the
-    /// target query's `auto_params.has_where` is set — so a project that turned
-    /// off a query's client filter argument also turned off relation scoping for
-    /// every parent that embedded it. No error, no warning: each parent's `posts`
+    /// `arguments["where"]`, which no read path composed unless the target
+    /// query's `auto_params.has_where` was set — so a project that turned off a
+    /// query's client filter argument also turned off relation scoping for every
+    /// parent that embedded it. No error, no warning: each parent's `posts`
     /// became the whole `posts` table, each `posts_count` the whole table's
     /// count, and the `ManyToOne` branch — which takes the *first* row of the
     /// target's result — attributed every child to one arbitrary parent.
