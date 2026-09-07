@@ -66,4 +66,7 @@ required = [
   # `paths:` filter was removed in #1289 for exactly that reason: a filtered workflow
   # cannot be required.
   "Generated clients compile (tsc --strict / ty / go / cargo)",
+  # dagger-feature-matrix.yml:matrix — clippy under narrow feature sets, which no
+  # other gate lints. Required as of #1296.
+  "feature matrix",
 ]

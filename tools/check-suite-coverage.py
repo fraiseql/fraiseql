@@ -1447,14 +1447,12 @@ def _push_reaches_working_branches(autos: dict) -> bool:
 class LegGate:
     """One leg's answer to "can a failure here stop a merge?"."""
 
-    __slots__ = ("leg", "contexts", "gating_contexts", "blockers")
+    __slots__ = ("leg", "contexts", "gating_contexts")
 
     def __init__(self, leg: str):
         self.leg = leg
         self.contexts: set[str] = set()
         self.gating_contexts: set[str] = set()
-        # context -> why it cannot gate, for the ones that are required but unusable
-        self.blockers: list[str] = []
 
 
 def extract_leg_gating(
@@ -1485,6 +1483,10 @@ def extract_leg_gating(
     }
     legs: dict[str, LegGate] = {}
     findings: list[str] = []
+    # Required contexts whose workflow cannot report before a merge. Kept per
+    # CONTEXT rather than per leg (see below): a context produced by a workflow
+    # that runs no test suite belongs to no leg, and used to escape the check.
+    ungateable: list[str] = []
     produced: dict[str, str] = {}  # context -> "<workflow>:<job>"
 
     def leg_for(name: str) -> LegGate:
@@ -1587,22 +1589,32 @@ def extract_leg_gating(
                         if dispatch[key] in known_legs:
                             names.add(dispatch[key])
 
-                for name in names:
-                    lg = leg_for(name)
-                    lg.contexts.add(context)
-                    if context not in required:
-                        continue
+                # Whether a required context can EVER report is a property of the
+                # workflow, not of the legs it happens to run. This used to live
+                # inside the `for name in names:` loop below, where `names` is
+                # populated only from `cargo` commands and `dagger call`s naming a
+                # known *test* leg — so a required context produced by a workflow
+                # that runs no tests was never checked at all. `feature matrix`
+                # (#1296) is the first such context, and listing it with the old
+                # `branches: [dev]` trigger passed this gate silently: exactly the
+                # "requiring one would block every unrelated push forever" case
+                # `tools/required-checks.toml` says is enforced here.
+                if context in required:
                     if not branch_ok:
-                        lg.blockers.append(
+                        ungateable.append(
                             f"`{context}` is required but its workflow ({wf.name}) does not run "
                             f"on a push to a working branch, so it reports nothing before a merge"
                         )
                     elif path_filtered:
-                        lg.blockers.append(
+                        ungateable.append(
                             f"`{context}` is required but {wf.name} is `paths:`-filtered, so a "
                             f"push it does not match reports nothing and blocks forever"
                         )
-                    else:
+
+                for name in names:
+                    lg = leg_for(name)
+                    lg.contexts.add(context)
+                    if context in required and branch_ok and not path_filtered:
                         lg.gating_contexts.add(context)
 
     for context in sorted(required):
@@ -1611,9 +1623,8 @@ def extract_leg_gating(
                 f"STALE REQUIRED CONTEXT `{context}`: tools/required-checks.toml names it, but no "
                 f"workflow job produces a check by that name — the ruleset is gating on nothing"
             )
-    for lg in legs.values():
-        for blocker in lg.blockers:
-            findings.append(f"UNGATEABLE REQUIRED CONTEXT {blocker}")
+    for blocker in ungateable:
+        findings.append(f"UNGATEABLE REQUIRED CONTEXT {blocker}")
     return legs, sorted(set(findings))
 
 

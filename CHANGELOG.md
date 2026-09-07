@@ -930,6 +930,34 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`Dagger — feature matrix` can now fail a merge, and the gate that guards that can see it (#1296).**
+
+  It triggered on `push: branches: [dev]` and was not required, so a combo it failed could not
+  block anything — the last heavy leg that ran without gating, after #1257 and #1289 fixed the
+  same shape for `Dagger — test` and `Dagger — integration`. What it holds is not held anywhere
+  else: `preflight` lints `--all-features`, where a `not(feature)` arm compiles to nothing, and
+  its narrow-feature pass is `cargo check`, which runs no lints. Clippy under any narrower
+  feature set had no pre-merge gate at all. `94e7b5558` reached `dev` with `make preflight`
+  exit 0 and 4 of 47 combos red.
+
+  The cost was measured rather than estimated: over the last eight `dev` runs the job's own
+  work is **6.5 min** (median; 4.5–6.6, n=8), and the 5:31–51:31 spread in the run list is
+  queueing on the single runner, not work. It is one job — the combos fan across lanes inside
+  it — so a branch push gains one runner slot of ~6.5 min against the ~2h22m it already costs,
+  about 4.6%.
+
+  ⚠ **Making it required exposed a hole in the gate that is supposed to make that safe.**
+  `tools/required-checks.toml` states that `check-suite-coverage.py` enforces "a context may
+  only be listed here if its workflow runs on a push to every in-repo working branch" by
+  reading the workflow's own `on:` block. It did not, for a whole class: that check lived
+  inside a per-*leg* loop, and a leg is only created by a `cargo test` or a `dagger call`
+  naming a test leg. A required context produced by a job that runs no tests — which is
+  exactly `feature matrix` — belonged to no leg and was never asked the question. Listing it
+  while its trigger was still `branches: [dev]` passed the gate silently, which is the
+  "blocks every unrelated push forever" case the file says is prevented. The check is now made
+  per context, and two new cases in `suite_coverage_gating_test.sh` differ in the trigger and
+  nothing else.
+
 - **Three `RedisStateStore` tests stop dialling a hardcoded address and start running (#1295).**
 
   `test_redis_state_store_basic`, `test_redis_state_replay_prevention` and

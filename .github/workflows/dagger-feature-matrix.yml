@@ -21,9 +21,27 @@ name: Dagger — feature matrix
 #
 # push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
 # runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+#
+# Runs on a push to every in-repo branch, not only `dev` (#1296). It was
+# `branches: [dev]`, which is the third time this repository has had to undo that
+# shape — #1257 for `Dagger — test`, #1289 for `Dagger — integration` — and for the
+# same reason: a leg that runs only after the merge cannot fail one. This leg holds
+# something no other gate does. `preflight`'s clippy pass is `--all-features`, where
+# a `not(feature)` arm compiles to nothing, and its narrow-feature pass is
+# `cargo check`, which runs no lints; their intersection — clippy under anything but
+# `--all-features` — had no pre-merge gate at all. `94e7b5558` reached `dev` with
+# `make preflight` exit 0 and 4 of 47 combos red, and #1291's warning lived in a
+# build no gate lints.
+#
+# The cost was measured before making it required rather than estimated: over the
+# last eight `dev` runs the job's own work is 6.5 min (median; 4.5–6.6, n=8), and
+# the 5:31–51:31 spread in the run list is queueing on the single runner, not work.
+# One job, not a `strategy.matrix` — the combos fan across lanes inside it — so a
+# branch push gains one runner slot of ~6.5 min against the ~2h22m it already
+# costs, about 4.6%.
 on:
   push:
-    branches: [dev]
+    branches-ignore: ['dependabot/**', 'gh-readonly-queue/**']
   workflow_dispatch:
 
 # packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image

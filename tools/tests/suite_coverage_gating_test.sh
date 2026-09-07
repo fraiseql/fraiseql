@@ -27,13 +27,17 @@ TESTS_FAILED=0
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# make_fixture <dir> <workflow-yaml> <required-toml> [<exemptions-toml>]
+# make_fixture <dir> <workflow-yaml> <required-toml> [<exemptions-toml>] [<second-workflow-yaml>]
 #
 # A minimal repo: one crate with one plain test binary, a Dagger module whose
 # `Test` leg runs it, and the workflow + mirror under test. The suite is always
 # COVERED, so every verdict below is about gating and nothing else.
+#
+# The optional fifth argument writes a SECOND workflow, which the cases below use
+# to build a job that runs no test leg at all — the shape whose required context
+# escaped the trigger check entirely (#1296).
 make_fixture() {
-    local dir="$1" workflow="$2" mirror="$3" exemptions="${4:-}"
+    local dir="$1" workflow="$2" mirror="$3" exemptions="${4:-}" workflow2="${5:-}"
     mkdir -p "$dir/tools" "$dir/.dagger" "$dir/crates/demo/tests" "$dir/.github/workflows"
     cp "$GATE" "$dir/tools/check-suite-coverage.py"
 
@@ -85,6 +89,9 @@ func (m *FraiseqlCi) integrationBeta() string { return "nothing" }
 GO
 
     printf '%s\n' "$workflow" >"$dir/.github/workflows/probe.yml"
+    if [ -n "$workflow2" ]; then
+        printf '%s\n' "$workflow2" >"$dir/.github/workflows/probe2.yml"
+    fi
     printf '%s\n' "$mirror" >"$dir/tools/required-checks.toml"
     if [ -n "$exemptions" ]; then
         printf '%s\n' "$exemptions" >"$dir/tools/suite-coverage-exemptions.toml"
@@ -154,6 +161,44 @@ expect "a dev-only leg cannot carry a required check" 1 "$WORK/devonly" \
 # the first; a reader wondering what is unprotected needs the second, and #1289
 # is precisely the case where nobody could answer the second question.
 expect "...and names the suite left unprotected" 1 "$WORK/devonly" "UNGATED demo::probe"
+
+# ── 3b. The same defect in a job that runs NO test leg ─────────────────────
+#
+# `required-checks.toml` says this gate "enforces the first half by reading the
+# workflow's own `on:` block". It did not, for a whole class: the trigger check
+# lived inside the per-leg loop, and `names` is populated only from cargo
+# commands and `dagger call`s naming a known TEST leg. A job that runs neither
+# belongs to no leg, so its required context was never asked the question.
+#
+# `feature matrix` (#1296) is the first such context in the tree — clippy under
+# narrow feature sets, no `cargo test` anywhere in it — and listing it while its
+# workflow was still `branches: [dev]` passed the gate silently. These two cases
+# differ in the trigger and nothing else, so the verdict is attributable to it.
+NON_TEST_JOB_STEPS="jobs:
+  lint:
+    name: lint only
+    runs-on: ubuntu-latest
+    steps:
+      - run: make lint
+"
+
+make_fixture "$WORK/nontestdevonly" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests", "lint only"]' "" \
+    "name: Lint
+on:
+  push:
+    branches: [dev]
+$NON_TEST_JOB_STEPS"
+expect "a dev-only NON-TEST job cannot carry a required check either" 1 \
+    "$WORK/nontestdevonly" "\`lint only\` is required but its workflow"
+
+make_fixture "$WORK/nontestbranch" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests", "lint only"]' "" \
+    "name: Lint
+on:
+  push:
+$NON_TEST_JOB_STEPS"
+expect "...and the same job on every branch does gate" 0 "$WORK/nontestbranch"
 
 # ── 4. A catch-all branch list is a branch trigger ──────────────────────────
 #
