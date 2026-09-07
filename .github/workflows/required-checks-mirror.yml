@@ -1,0 +1,64 @@
+name: Required-checks mirror
+
+# `tools/required-checks.toml` is a MIRROR of GitHub ruleset 18506494, and until
+# #1294 nothing in CI diffed it against the original (#1289 ran the diff by hand
+# when the file landed, and nothing has since).
+#
+# Why that matters more than a stale comment would: the mirror is what
+# `tools/check-suite-coverage.py` reads to refuse a test suite whose only coverage
+# is a leg that cannot fail a merge. Drift is silent, and one direction is actively
+# dangerous — a context declared here but not required on `dev` makes that gate
+# report a merge gate that does not exist, which is the #1289 class one level up.
+# The other direction under-counts what protects the branch and produces false
+# UNGATED findings whose obvious "fix" is to weaken a real gate.
+#
+# Why it is not a Dagger leg: the authority is a GitHub ruleset, so reading it needs
+# a network and a token. The Dagger legs have neither, and `preflight` declares
+# `+ignore=[".git"]` besides. `changelog-check.yml` is the precedent for exactly
+# this — a check that needs something the offline legs cannot have — and this is a
+# GitHub-hosted job for the same reason. It costs no self-hosted runner time, so the
+# cost argument that applies to the heavy legs does not apply here at all.
+#
+# No `pull_request:` trigger: `dev` is reached by a fast-forward push, so a push
+# trigger is what puts the context on the commit being merged. That is also the rule
+# `tools/required-checks.toml` states for anything it lists.
+on:
+  push:
+  workflow_dispatch:
+
+# `gh api` needs a token even for a public repository's endpoints. Read-only:
+# nothing here writes.
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: required-checks mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # The script's exit codes are split so a harness cannot read "could not run"
+      # as "found nothing": 0 agree, 1 disagree, 2 could not run. Both non-zero
+      # cases fail this job — a job that silently degraded to "could not check"
+      # would be worse than the manual `make lint-required-checks`, which at least
+      # cannot be mistaken for having run. The `case` exists to say WHICH in the
+      # log, not to change the verdict.
+      #
+      # ⚠ Called directly, not through `make`: GNU make reports any recipe failure
+      # as exit 2, which would collapse "disagree" into "could not run" and destroy
+      # the very split this step depends on.
+      - name: The mirror agrees with the live dev ruleset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rc=0
+          bash tools/check-required-checks.sh || rc=$?
+          case "$rc" in
+            0) echo "mirror and ruleset agree" ;;
+            1) echo "::error::the mirror and the live ruleset DISAGREE — see the diff above" ;;
+            2) echo "::error::the check COULD NOT RUN (no gh, no auth, or the API refused). Failing rather than reporting nothing" ;;
+            *) echo "::error::unexpected exit $rc from tools/check-required-checks.sh" ;;
+          esac
+          exit "$rc"

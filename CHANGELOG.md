@@ -930,6 +930,32 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A CI job now diffs the required-checks mirror against the live ruleset (#1294).**
+
+  `tools/required-checks.toml` is a mirror of GitHub ruleset 18506494, and nothing in CI diffed
+  it against the original — the diff existed as `make lint-required-checks` and was run by hand
+  when #1289 landed. Drift was silent in both directions, and one of them is dangerous: a
+  context declared but not required makes `check-suite-coverage.py` report a merge gate that
+  does not exist, which is the class #1289 was filed about one level up.
+
+  `required-checks-mirror.yml` runs the diff on every push and is itself a required context. It
+  is GitHub-hosted, like `changelog-check.yml`, because the authority is a GitHub ruleset and
+  the offline Dagger legs have neither a network nor a token — so it costs no self-hosted runner
+  time.
+
+  The token question #1294 raised was answered by probe rather than assumed: both
+  `GET /repos/{o}/{r}/rulesets/{id}` and the lower-privilege
+  `GET /repos/{o}/{r}/rules/branches/{branch}` return `200` **unauthenticated** on this public
+  repository, so the default `GITHUB_TOKEN` needs no elevation and no fallback endpoint is
+  warranted. The ruleset endpoint is kept because it is the only one carrying the `conditions`
+  and `enforcement` fields the script already checks — a ruleset that stopped targeting `dev`,
+  or was set to `evaluate`, would otherwise diff clean while gating nothing.
+
+  A job that cannot read the ruleset fails rather than reporting nothing: the script splits
+  exit 2 (cannot run) from exit 1 (disagreement), both verified, and the step reports which
+  before re-raising the code. ⚠ It calls the script directly, never `make` — GNU make reports
+  every recipe failure as exit 2, which would collapse the two.
+
 - **`Dagger — feature matrix` can now fail a merge, and the gate that guards that can see it (#1296).**
 
   It triggered on `push: branches: [dev]` and was not required, so a combo it failed could not

@@ -12,7 +12,13 @@
 # diffs this list against the live ruleset over the API and is the only thing that
 # proves the two agree; it needs a network and a token, so it cannot run in the
 # offline Dagger legs. Run it whenever this file or the ruleset changes, and before
-# cutting a release. The residual — that no CI job runs it automatically — is filed.
+# cutting a release. Since #1294 `required-checks-mirror.yml` also runs it on every
+# push and is itself required, so drift now fails a merge rather than waiting for
+# someone to remember the target.
+#
+# ⚠ Call the script, never `make lint-required-checks`, from anything that reads the
+# exit code: GNU make reports every recipe failure as exit 2, which collapses the
+# script's "they disagree" (1) into its "could not run" (2).
 #
 # To ADD a context: change the ruleset first (`gh api --method PUT
 # repos/fraiseql/fraiseql/rulesets/18506494 …`), then add the line here, then run
@@ -69,4 +75,9 @@ required = [
   # dagger-feature-matrix.yml:matrix — clippy under narrow feature sets, which no
   # other gate lints. Required as of #1296.
   "feature matrix",
+  # required-checks-mirror.yml:mirror — the job that diffs THIS FILE against the
+  # live ruleset (#1294). Required for the same reason as everything above it: a
+  # drift check that cannot fail a merge is a check nobody has to answer. It is a
+  # GitHub-hosted job, so it costs no self-hosted runner time.
+  "required-checks mirror",
 ]
