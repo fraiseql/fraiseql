@@ -92,6 +92,22 @@ pub struct RestMountConfig {
 /// Returns `None` (with a warning log) if the route table cannot be derived.
 fn derive_rest_context<A>(
     state: &AppState<A>,
+    // `mount` is read only by the export writers' concurrency limits below, each behind an
+    // `export-*` cfg, so a `rest`-without-export build warned that it is unused (#1291).
+    // Silenced on the parameter rather than by making the arity depend on features:
+    // `derive_rest_context` is called by both router constructors, and a signature that
+    // changed shape would push the cfg out to every call site. Not `_mount` either — the
+    // name is read in this function under other configurations, and an underscore would
+    // have to be undone the moment a third reader appears.
+    //
+    // ⚠ The warning stood because no gate denied warnings in this configuration: preflight
+    // lints `--all-features` (where the export cfgs are compiled in and `mount` IS used),
+    // and the feature-matrix combos that build it run `cargo check`. The
+    // `server-rest` combo in `.dagger/feature-combos.go` is clippy-enabled for that reason.
+    #[cfg_attr(
+        not(any(feature = "export-csv", feature = "export-xlsx")),
+        allow(unused_variables)
+    )]
     mount: &RestMountConfig,
 ) -> Option<(String, Arc<RestRouteTable>, RestState<A>)>
 where

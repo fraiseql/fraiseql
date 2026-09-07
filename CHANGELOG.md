@@ -930,6 +930,33 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A `rest`-without-export build no longer warns, and a combo now lints that build (#1291).**
+
+  `derive_rest_context`'s `mount` parameter is read only inside `export-csv`/`export-xlsx`
+  blocks, so any build with `rest` and neither export feature warned `unused variable: mount`.
+  The warning is benign; that nothing turned it red is not. `preflight` lints
+  `--all-features`, where the export cfgs are compiled in and the parameter *is* read; the two
+  combos that build this shape (`server-functions-rest-testing`, `server-rest-arrow`) run
+  `cargo check`, which emits no clippy lints — so this is a configuration no gate read, which
+  is the state a real defect would hide in.
+
+  Silenced on the parameter rather than by making the arity feature-dependent:
+  `derive_rest_context` is called by both router constructors, and a signature that changed
+  shape would push the cfg out to every call site.
+
+  **The gate matters more than the fix.** `.dagger/feature-combos.go` gains `server-rest` —
+  `rest` with neither export feature, default features on, clippy under `-D warnings`, the
+  configuration that reproduces. Proved red by deleting the `cfg_attr` (`error: unused
+  variable: mount`, exit 101) and green again on restore. It immediately found a second
+  instance the issue predicted (*"a parameter used only under a `cfg` is a shape, not a
+  one-off"*): `no_export_representation_promises_embedded_relationships` loops over a media-type
+  array whose length is feature-dependent — three entries under `--all-features`, one here — so
+  `single_element_loop` fired, and its suggested rewrite would have deleted the other two cases.
+
+  ⚠ `Dagger — feature matrix` still triggers on `push: branches: [dev]` and is not a required
+  check, so this combo cannot fail a merge either; `make lint-feature-matrix` is the gate that
+  runs before a push. Filed as #1296.
+
 - **`TestQueryBuilder` gives a query the auto-params the compiler gives it (#1290).**
 
   `TestQueryBuilder::returns_list(true)` left `AutoParams` at `Default` — every flag `false` —

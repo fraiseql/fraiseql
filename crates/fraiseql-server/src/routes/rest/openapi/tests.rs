@@ -828,6 +828,12 @@ fn no_export_representation_promises_embedded_relationships() {
     let content = &spec["paths"]["/users"]["get"]["responses"]["200"]["content"];
 
     let mut checked = 0;
+    // Reason: the array's length is feature-dependent — three entries under
+    // `--all-features`, one in a `rest`-without-export build. clippy sees only the
+    // configuration it is compiling, so `single_element_loop` fires in that build and
+    // its suggested rewrite would delete the other two cases (#1291). The `checked >= 1`
+    // assertion below is what guards the degenerate end of the same range.
+    #[allow(clippy::single_element_loop)]
     for media in [
         "application/x-ndjson",
         #[cfg(feature = "export-csv")]

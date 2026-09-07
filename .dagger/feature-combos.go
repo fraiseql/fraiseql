@@ -137,6 +137,16 @@ var featureCombos = []featureCombo{
 	// nothing and was deleted in 2.15.0 (#1012). Parquet is `fraiseql-arrow`'s, over Flight.)
 	{name: "server-rest-export-xlsx", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-xlsx"}},
 	{name: "server-rest-export-csv", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-csv"}},
+	// #1291: `rest` with NEITHER export feature, and the only combo of the three that
+	// clippies. It is the shape a REST deployment that wants no CSV/XLSX writer compiles,
+	// and the one where a `mount` parameter read solely under `export-*` cfgs is unused —
+	// a warning that stood because nothing denied warnings here. preflight lints
+	// `--all-features`, where those cfgs ARE compiled and the parameter IS read; the two
+	// combos above are `--no-default-features`, where it does not warn either; and the two
+	// combos that do build this shape (`server-functions-rest-testing`, `server-rest-arrow`)
+	// run `cargo check`, which emits no clippy lints and is not run under `-D warnings`.
+	// Default features stay ON deliberately: that is the configuration that reproduces.
+	{name: "server-rest", crate: "fraiseql-server", clippy: true, features: []string{"rest"}},
 
 	// ── core: database-matrix (cargo check -p fraiseql-core --no-default-features) ──
 	{name: "core-postgres", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres"}},
