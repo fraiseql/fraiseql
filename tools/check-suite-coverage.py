@@ -1430,6 +1430,18 @@ def _push_reaches_working_branches(autos: dict) -> bool:
     A required check has to produce a run on the branch being merged. A `push:`
     with a fixed `branches:` allow-list does not, unless the list is a catch-all —
     `branches: [dev]` is exactly the shape #1289 is about.
+
+    A `push:` filtered by ref KIND does not either. GitHub's rule is that defining
+    only `tags`/`tags-ignore` leaves branches undefined, and the workflow then does
+    not run for events affecting branches at all; `release.yml` demonstrates it here,
+    with 30 of its last 30 runs on a `v*` tag and none on a branch. Reading the
+    absence of a `branches:` key as "no branch restriction" made this answer True for
+    the sixteen publish contexts `release.yml` and `docker-build.yml` produce, any of
+    which would have wedged `dev` permanently — worse than the `branches: [dev]` case,
+    which at least reports after the merge (#1298).
+
+    The test is "a tag key AND no branch key", not "a tag key": a `push:` naming both
+    runs on the branches it names, exactly as before.
     """
     if "push" not in autos:
         return False
@@ -1441,6 +1453,10 @@ def _push_reaches_working_branches(autos: dict) -> bool:
         if not isinstance(pats, list):
             raise WorkflowUnresolvable(f"`push.branches` is not a list: {pats!r}")
         return any(str(p) in ("*", "**") for p in pats)
+    if "branches-ignore" in cfg:
+        return True  # an exclusion list still leaves ordinary branches reachable
+    if "tags" in cfg or "tags-ignore" in cfg:
+        return False
     return True
 
 

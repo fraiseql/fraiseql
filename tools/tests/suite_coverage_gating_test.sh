@@ -200,6 +200,80 @@ on:
 $NON_TEST_JOB_STEPS"
 expect "...and the same job on every branch does gate" 0 "$WORK/nontestbranch"
 
+# ── 3c. A tags-only push trigger reaches no branch at all ──────────────────
+#
+# `on: push: tags: ['v*']` starts the workflow for a TAG ref and for nothing
+# else — GitHub's rule is that defining only `tags`/`tags-ignore` stops the
+# workflow running for events affecting branches, and this repository's own
+# `release.yml` demonstrates it: 30 of its last 30 runs are `v*` tag refs, none
+# a branch, across hundreds of branch pushes.
+#
+# The predicate read the ABSENCE of a `branches:` key as "no branch restriction"
+# and answered True, so it would have waved through any of the sixteen publish
+# contexts `release.yml` and `docker-build.yml` produce (#1298). Each one would
+# have wedged `dev` permanently: a required check that reports on no branch push
+# is strictly worse than the `branches: [dev]` case above, which at least
+# reports after the merge.
+make_fixture "$WORK/tagsonly" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests", "lint only"]' "" \
+    "name: Lint
+on:
+  push:
+    tags: ['v*']
+$NON_TEST_JOB_STEPS"
+expect "a tags-only trigger cannot carry a required check" 1 \
+    "$WORK/tagsonly" "\`lint only\` is required but its workflow"
+
+# ── 3d. ...but a push carrying BOTH keys still answers on the branch half ───
+#
+# The rule has to be "tags present AND no branch key", not "tags present": a
+# workflow that names `branches:` as well runs on those branches exactly as it
+# always did, and refusing it would be a false failure on a real merge gate.
+make_fixture "$WORK/tagsandbranches" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests", "lint only"]' "" \
+    "name: Lint
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+$NON_TEST_JOB_STEPS"
+expect "...and a branches+tags push still gates on the branch half" 0 "$WORK/tagsandbranches"
+
+# ── 3e. `tags-ignore:` alone is the same shape ─────────────────────────────
+#
+# The undefined-ref rule is symmetric: defining only `tags-ignore` leaves
+# branches undefined, so the workflow runs for no branch push either. Nothing in
+# the tree has this trigger today, which is exactly why it needs a case — the
+# `tags:` half was also latent until it was not.
+make_fixture "$WORK/tagsignore" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests", "lint only"]' "" \
+    "name: Lint
+on:
+  push:
+    tags-ignore: ['v*']
+$NON_TEST_JOB_STEPS"
+expect "a tags-ignore-only trigger cannot carry a required check either" 1 \
+    "$WORK/tagsignore" "\`lint only\` is required but its workflow"
+
+# ── 3f. ...and an EXCLUSION list beside `tags:` still reaches branches ─────
+#
+# `branches-ignore:` names branches, so a push carrying it is not ref-kind
+# filtered however many tag keys sit beside it. Both keys are present on purpose:
+# `branches-ignore:` alone answers True whether or not the predicate handles it —
+# the final fallthrough gets there anyway — so a case without `tags:` could not
+# fail under any mutation, and would be a pin that pins nothing. This one is the
+# input that discriminates.
+make_fixture "$WORK/branchesignore" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests", "lint only"]' "" \
+    "name: Lint
+on:
+  push:
+    branches-ignore: ['dependabot/**']
+    tags: ['v*']
+$NON_TEST_JOB_STEPS"
+expect "a branches-ignore list beside tags still reaches working branches" 0 \
+    "$WORK/branchesignore"
+
 # ── 4. A catch-all branch list is a branch trigger ──────────────────────────
 #
 # `branches-ignore:` and a bare `push:` both reach every branch; so does
