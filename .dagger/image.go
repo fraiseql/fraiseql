@@ -257,4 +257,3 @@ func (m *FraiseqlCi) ImageTarball(
 		MediaTypes: dagger.ImageMediaTypesDockerMediaTypes,
 	}), nil
 }
-
