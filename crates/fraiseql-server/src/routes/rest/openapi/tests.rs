@@ -634,6 +634,43 @@ fn non_fts_resource_has_no_search_param() {
     assert!(search_param.is_none(), "Non-FTS resource should not have search param");
 }
 
+/// #1283: a query that accepts no client filter advertises no `?search=` either.
+///
+/// The filter block has always been gated on `auto_params.has_where`; the search
+/// parameter, added later, was not — so a list query compiled with
+/// `where_clause = false` published a full-text parameter over a relation that came
+/// back whole, and now publishes one the route answers `400` to.
+///
+/// The type is `User`, which the FTS test above uses to show the parameter *is*
+/// published: the two cases differ only in the flag.
+#[test]
+fn a_query_that_accepts_no_filter_has_no_search_param() {
+    let mut schema = rest_schema();
+    let users = schema
+        .queries
+        .iter_mut()
+        .find(|q| q.name == "users")
+        .expect("the fixture's list query");
+    users.auto_params.has_where = false;
+    schema.build_indexes();
+
+    let spec = generate(&schema);
+    let params = spec["paths"]["/users"]["get"]["parameters"].as_array().unwrap();
+    let names: Vec<&str> = params.iter().filter_map(|p| p["name"].as_str()).collect();
+    assert!(
+        !names.contains(&"search"),
+        "`?search=` is a filter, and this query accepts none: {names:?}"
+    );
+    assert!(
+        !names.contains(&"filter") && !names.contains(&"or"),
+        "nor the filter parameters it was always beside: {names:?}"
+    );
+    assert!(
+        names.contains(&"limit"),
+        "pagination is not filtering and is still published: {names:?}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // format.rs tests
 // ---------------------------------------------------------------------------

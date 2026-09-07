@@ -756,9 +756,11 @@ async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
 /// them, which is why the term carries its prefix.)
 ///
 /// **Why the route is `/searchable` and not `/exports`.** The clause reaches the SQL only on a
-/// query declaring `auto_params.has_where` (`resolve_direct_read`); on the other routes here it
-/// is dropped and the whole relation comes back under a 200. That drop is its own defect
-/// (#1283) — on this test it would be a fixture that agrees with a broken engine.
+/// query declaring `auto_params.has_where` (`resolve_direct_read`). On the other routes here it
+/// used to be dropped, and the whole relation came back under a 200 — a fixture that agrees
+/// with a broken engine. Since #1283 those routes answer `400` instead, which is why this case
+/// still cannot use one: see
+/// `a_route_that_declares_no_where_refuses_a_filter_rather_than_dropping_it`.
 ///
 /// **Why no `?sort=` is named.** This used to carry `&sort=id` as a workaround: without an
 /// explicit sort, `?search=` answered 400 on every representation, because the implicit
@@ -842,4 +844,71 @@ async fn a_relay_export_is_bounded_by_the_count_the_client_sent() {
         10,
         "and the bounded export still emits each row once"
     );
+}
+
+/// #1283: a client filter a route cannot apply is **refused**, not dropped.
+///
+/// `resolve_direct_read` composes `arguments["where"]` only when the query declares
+/// `auto_params.has_where`. The REST extractor has already confirmed the field exists on
+/// the return type and coerced the value to its type by then, so on a query without the
+/// flag a filter passes every check a client can observe and is discarded by one it
+/// cannot see — `200`, and the whole relation, with nothing in the body, the headers or
+/// the logs to say so.
+///
+/// **Why the two routes discriminate.** `/searchable` and `/exports` are the same view,
+/// the same type and the same server; they differ in `auto_params.has_where` and in
+/// nothing else. So a repair that merely stops the error cannot pass this: the control
+/// has to keep narrowing to one row while the case answers `400`.
+///
+/// **Why NDJSON and not the JSON envelope.** A dropped filter on the JSON path is capped
+/// at `PAGE` (100) rows and `row-42` is inside the first page, so the unfiltered answer
+/// *contains* the row that was asked for — the two outcomes differ only in a count. An
+/// export applies no page bound, so a dropped filter answers `ROWS` (10,000) and an
+/// honoured one answers 1. The JSON case is asserted too, on the status rather than the
+/// body, because the refusal is representation-independent: it is the same read.
+///
+/// **Why `?search=` is in the list.** It is a client filter that reaches the SQL as a
+/// `where` argument (`build_fts_where_clause`, merged in `resolve_get_query`), so it is
+/// governed by the same flag and was dropped in the same way — see
+/// `a_search_narrows_an_export`, which has to use `/searchable` for exactly this reason.
+#[tokio::test]
+async fn a_route_that_declares_no_where_refuses_a_filter_rather_than_dropping_it() {
+    let Some(server) = start().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    // The control, on the route that declares the flag: the filter narrows.
+    let (status, body) =
+        request_export(&server.url, "/searchable?label=row-42", "application/x-ndjson").await;
+    assert_eq!(status, reqwest::StatusCode::OK, "the control export should succeed: {body}");
+    assert_eq!(
+        ndjson_ids(&body),
+        vec![42],
+        "control: a route declaring `has_where` applies the filter it accepted"
+    );
+
+    // The case: the same filters, the same rows, a route that declares no `where`.
+    for query in [
+        "?label=row-42",
+        "?label[eq]=row-42",
+        "?filter=%7B%22label%22%3A%7B%22eq%22%3A%22row-42%22%7D%7D",
+        "?search=row-42",
+    ] {
+        for accept in ["application/x-ndjson", "application/json"] {
+            let (status, body) =
+                request_export(&server.url, &format!("/exports{query}"), accept).await;
+            assert_eq!(
+                status,
+                reqwest::StatusCode::BAD_REQUEST,
+                "{accept} {query}: a filter this query cannot apply must be refused, not \
+                 dropped under a 200 carrying the whole relation: {body}"
+            );
+            assert!(
+                body.contains("exports"),
+                "{accept} {query}: the refusal names the query whose configuration refuses \
+                 it, so the operator knows where to look: {body}"
+            );
+        }
+    }
 }

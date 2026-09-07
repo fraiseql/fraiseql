@@ -1486,3 +1486,139 @@ mod export_refusal {
         assert!(err.message.contains("count not available"), "{}", err.message);
     }
 }
+
+// ---------------------------------------------------------------------------
+// #1283: a filter the route cannot apply
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod unapplicable_filter {
+    use std::sync::Arc;
+
+    use axum::http::{HeaderMap, StatusCode};
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{CompiledSchema, FieldType, RestConfig},
+    };
+    use fraiseql_test_utils::{
+        failing_adapter::FailingAdapter,
+        schema_builder::{TestFieldBuilder, TestQueryBuilder, TestTypeBuilder},
+    };
+
+    use crate::routes::rest::{handler::RestHandler, resource::RestRouteTable};
+
+    /// Two routes over one view and one type, differing **only** in
+    /// `auto_params.has_where`.
+    ///
+    /// That is the whole fixture design: any assertion below can be attributed to the
+    /// flag, because there is nothing else for it to be attributed to.
+    fn two_routes() -> CompiledSchema {
+        let mut filterable = TestQueryBuilder::new("rows", "Row")
+            .returns_list(true)
+            .with_sql_source("v_row")
+            .build();
+        filterable.rest_path = Some("/filterable".to_string());
+        filterable.auto_params.has_where = true;
+
+        let mut fixed = TestQueryBuilder::new("fixedRows", "Row")
+            .returns_list(true)
+            .with_sql_source("v_row")
+            .build();
+        fixed.rest_path = Some("/fixed".to_string());
+        fixed.auto_params.has_where = false;
+
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(filterable);
+        schema.queries.push(fixed);
+        schema.types.push(
+            TestTypeBuilder::new("Row", "v_row")
+                .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                .with_field(TestFieldBuilder::new("label", FieldType::String).build())
+                .build(),
+        );
+        schema.rest_config = Some(RestConfig {
+            enabled: true,
+            require_auth: false,
+            ..RestConfig::default()
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// The status a GET on `path` answers with, or `None` when it succeeds.
+    ///
+    /// The adapter is a non-failing [`FailingAdapter`], so a read that reaches the
+    /// database succeeds with no rows. That is what makes the refusal discriminating:
+    /// a `400` here can only have come from the engine refusing the request, never
+    /// from the read going wrong.
+    async fn get_status(path: &str, query_pairs: &[(&str, &str)]) -> Option<(StatusCode, String)> {
+        let schema = two_routes();
+        let adapter = Arc::new(FailingAdapter::new());
+        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        let route_table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+        let rest_config = schema.rest_config.clone().unwrap();
+        let handler = RestHandler::new(&executor, &schema, &rest_config, &route_table);
+
+        handler
+            .handle_get(path, query_pairs, &HeaderMap::new(), None)
+            .await
+            .err()
+            .map(|e| (e.status, e.message))
+    }
+
+    /// The control: the same filter, on the route that accepts one, is not refused.
+    ///
+    /// Without it, refusing every filter everywhere would satisfy the case below.
+    #[tokio::test]
+    async fn a_filter_is_accepted_where_the_route_declares_it() {
+        assert!(
+            get_status("/filterable", &[("label", "row-42")]).await.is_none(),
+            "a route declaring `has_where` applies the filter it accepted"
+        );
+    }
+
+    /// The defect (#1283): accepted by the extractor — which confirmed `label` is a field
+    /// of `Row` and coerced the value to its type — and then dropped by a flag the client
+    /// cannot see, answering `200` with the whole relation.
+    ///
+    /// Every spelling that becomes a `where` argument is here, including `?search=`: the
+    /// full-text clause is merged into `arguments["where"]` by `resolve_get_query`, so it
+    /// is governed by the same flag and was dropped in the same way.
+    #[tokio::test]
+    async fn a_filter_is_refused_where_the_route_declares_none() {
+        for query_pairs in [
+            vec![("label", "row-42")],
+            vec![("label[eq]", "row-42")],
+            vec![("filter", r#"{"label":{"eq":"row-42"}}"#)],
+            vec![("search", "row-42")],
+        ] {
+            let refusal = get_status("/fixed", &query_pairs).await;
+            assert!(
+                refusal.is_some(),
+                "{query_pairs:?}: a filter that cannot be applied must be refused, not dropped"
+            );
+            let (status, message) = refusal.unwrap();
+            assert_eq!(
+                status,
+                StatusCode::BAD_REQUEST,
+                "{query_pairs:?}: the client sent a bad request, not the server a bad read: \
+                 {message}"
+            );
+            assert!(
+                message.contains("fixedRows"),
+                "{query_pairs:?}: the refusal names the query whose configuration refuses it: \
+                 {message}"
+            );
+        }
+    }
+
+    /// The flag gates filtering, not reading: an unfiltered request on the same route is
+    /// served.
+    #[tokio::test]
+    async fn a_route_that_accepts_no_filter_still_serves_an_unfiltered_read() {
+        assert!(
+            get_status("/fixed", &[]).await.is_none(),
+            "`where_clause = false` refuses a filter, not the query"
+        );
+    }
+}

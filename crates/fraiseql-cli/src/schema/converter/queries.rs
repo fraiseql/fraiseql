@@ -281,21 +281,50 @@ impl SchemaConverter {
     ///
     /// Called for non-relay list queries after resolving their final `AutoParams`.
     pub(super) fn warn_auto_params(name: &str, params: &AutoParams) {
+        for message in Self::auto_param_warnings(name, params) {
+            warn!(query = name, "{message}");
+        }
+    }
+
+    /// What [`warn_auto_params`](Self::warn_auto_params) has to say about a resolved
+    /// `AutoParams`, as values.
+    ///
+    /// Split from the emission so the rules can be asserted. A `tracing::warn!` is a
+    /// side effect no test in this crate observes, and all three of these warnings are
+    /// about a configuration that compiles cleanly and misbehaves at request time —
+    /// exactly the kind that must not be able to go missing unnoticed.
+    pub(super) fn auto_param_warnings(name: &str, params: &AutoParams) -> Vec<String> {
+        let mut warnings = Vec::new();
         if !params.has_limit {
-            warn!(
-                query = name,
+            warnings.push(format!(
                 "List query '{name}' has limit disabled and is not a Relay query. \
                  This query is unbounded and may scan the full table. \
                  Consider a SQL-level LIMIT in the view, or use relay=true."
-            );
+            ));
         }
         if params.has_limit && !params.has_order_by {
-            warn!(
-                query = name,
+            warnings.push(format!(
                 "List query '{name}' paginates (limit=true) without ordering \
                  (order_by=false). Results may be non-deterministic across pages. \
                  Enable order_by or add ORDER BY in the SQL view."
-            );
+            ));
         }
+        // #1283: the configuration is legal, and the REST surface it produces is a list
+        // route that accepts no filter at all. Worth saying at compile time because the
+        // author is the only one who can see the setting: a client discovers it as a
+        // `400` on every filter parameter, and before the refusal existed it discovered
+        // nothing — the filter was validated, dropped, and the whole relation returned
+        // under a `200`.
+        if !params.has_where {
+            warnings.push(format!(
+                "List query '{name}' accepts no client filter (where_clause = false). \
+                 Over REST every filter parameter — `?field=value`, `?field[op]=value`, \
+                 `?filter=`, `?or=`/`?and=`/`?not=` and `?search=` — is refused with 400, \
+                 and the generated OpenAPI document publishes none of them; over GraphQL \
+                 the query exposes no `where` argument. Set where_clause = true to make \
+                 this query filterable."
+            ));
+        }
+        warnings
     }
 }

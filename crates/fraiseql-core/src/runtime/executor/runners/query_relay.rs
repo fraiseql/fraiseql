@@ -6,12 +6,11 @@ use super::{
     super::resolve_inject_value,
     query::QueryRunner,
     query_params::{
-        coerce_pagination_arg, compute_projection_reduction, enforce_max_page_size,
-        inject_param_where_clause,
+        client_where_argument, coerce_pagination_arg, compute_projection_reduction,
+        enforce_max_page_size, inject_param_where_clause,
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, selections_contain_field,
-        where_field_types,
     },
 };
 use crate::{
@@ -262,17 +261,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // unbounded `first` (when max_page_size is disabled) cannot overflow to LIMIT 0.
         let fetch_limit = page_size.saturating_add(1);
 
-        // Parse optional `where` filter.
-        let user_where_clause = if query_def.auto_params.has_where {
-            args.get("where")
-                .map(|w| {
-                    let types = where_field_types(&self.ctx.schema, &query_def.return_type);
-                    WhereClause::from_graphql_json(w, &types)
-                })
-                .transpose()?
-        } else {
-            None
-        };
+        // The client's `where`, refused rather than dropped when this query does not
+        // accept one (#1283). A relay query always declares `has_where`, so the refusal
+        // is unreachable from here — the call is what keeps this path from being a
+        // sixth private copy of the rule when that stops being true.
+        let user_where_clause = client_where_argument(&self.ctx.schema, query_def, args)?;
 
         // Compose final WHERE: security (RLS + inject) AND user-supplied WHERE.
         // Security conditions always come first so they cannot be bypassed.

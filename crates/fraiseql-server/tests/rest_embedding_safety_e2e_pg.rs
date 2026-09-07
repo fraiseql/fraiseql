@@ -497,11 +497,19 @@ async fn the_same_embeds_are_scoped_when_the_target_does_accept_a_client_where()
 
 /// #1170, the narrowing direction, and the reason the fix is *not* "ignore
 /// `has_where` for the whole `where` argument": a client filter on a target that
-/// forbids one must still be refused, not quietly applied through the scoping
-/// slot. Author 1 owns `a-one` and `a-two`; a filter that would narrow to one of
-/// them must not take effect here.
+/// forbids one must not be quietly applied through the scoping slot.
+///
+/// #1283 settles what happens instead. This case used to assert the filter was
+/// **inert** — `200`, and author 1's `a-one` *and* `a-two` — which is the answer that
+/// cannot be told apart from a filter that matched both rows. The embed sub-query
+/// reaches `resolve_direct_read` with the client's filter in `arguments["where"]`
+/// exactly as a top-level read does, so it is refused there for the same reason, and
+/// the refusal names the *target* query whose configuration produced it.
+///
+/// The scoping half is unaffected and is still asserted by the three cases above: the
+/// join predicate rides on `QueryMatch::scope_where`, which no flag gates.
 #[tokio::test]
-async fn a_client_filter_is_still_inert_on_a_target_that_forbids_a_client_where() {
+async fn a_client_filter_is_refused_on_a_target_that_forbids_a_client_where() {
     let Some(rig) = rig_with(false).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
@@ -510,13 +518,16 @@ async fn a_client_filter_is_still_inert_on_a_target_that_forbids_a_client_where(
     let (status, body) = rig
         .get("/rest/v1/authors?select=id,posts(id,title)&posts.title[eq]=a-one")
         .await;
-    assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
-
     assert_eq!(
-        titles(&posts_of(&body, 1)),
-        vec!["a-one", "a-two"],
-        "the target does not publish a `where` argument, so the client filter does not \
-         apply — but the parent scoping still does: {body}"
+        status,
+        StatusCode::BAD_REQUEST,
+        "a filter the embed's target cannot apply is refused, not dropped: {body}"
+    );
+
+    let message = body["error"]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("posts") && message.contains("where_clause = false"),
+        "the refusal names the target query and the setting behind it: {body}"
     );
 }
 

@@ -621,3 +621,76 @@ fn a_metric_of_the_other_vector_kind_is_refused() {
         "got: {err}"
     );
 }
+
+// ── #1283: a client filter the query does not accept ─────────────────────────
+
+/// A list query over `Row`, accepting a client `where` argument or not.
+fn filterable(accepts: bool) -> crate::schema::QueryDefinition {
+    let mut query = crate::schema::QueryDefinition::new("exports", "Row").returning_list();
+    query.auto_params.has_where = accepts;
+    query
+}
+
+/// The filter a REST `?label=row-42` becomes by the time it reaches the executor.
+fn a_filter() -> HashMap<String, serde_json::Value> {
+    let mut arguments = HashMap::new();
+    arguments.insert("where".to_string(), serde_json::json!({ "label": { "eq": "row-42" } }));
+    arguments
+}
+
+/// The accepted case still parses, so the refusal below is about the flag and not
+/// about the argument's shape.
+#[test]
+fn a_filter_a_query_accepts_is_parsed() {
+    let clause = client_where_argument(
+        &crate::schema::CompiledSchema::new(),
+        &filterable(true),
+        &a_filter(),
+    )
+    .expect("an accepted `where` argument parses")
+    .expect("and yields a clause");
+    assert_eq!(single_field_path(&clause), vec!["label".to_string()]);
+}
+
+/// The defect: `has_where = false` used to answer `None` here, and the read ran over
+/// the whole relation under a `200`.
+#[test]
+fn a_filter_a_query_does_not_accept_is_refused_not_dropped() {
+    let err = client_where_argument(
+        &crate::schema::CompiledSchema::new(),
+        &filterable(false),
+        &a_filter(),
+    )
+    .expect_err("a filter that cannot be applied is refused");
+
+    match err {
+        crate::FraiseQLError::Validation { message, path } => {
+            assert!(
+                message.contains("exports"),
+                "the refusal names the query whose configuration refuses it: {message}"
+            );
+            assert!(
+                message.contains("where_clause = false"),
+                "and the setting that produced it, which is the operator's fix: {message}"
+            );
+            assert_eq!(path.as_deref(), Some("where"));
+        },
+        other => panic!("expected Validation, got {other:?}"),
+    }
+}
+
+/// A request that carries no filter is unaffected on either setting — the flag is not
+/// a gate on reading the query, only on filtering it.
+#[test]
+fn no_filter_is_accepted_whatever_the_flag_says() {
+    let schema = crate::schema::CompiledSchema::new();
+    let empty = HashMap::new();
+    for accepts in [true, false] {
+        assert!(
+            client_where_argument(&schema, &filterable(accepts), &empty)
+                .expect("no filter, nothing to refuse")
+                .is_none(),
+            "has_where = {accepts}"
+        );
+    }
+}

@@ -469,6 +469,68 @@ pub fn compute_projection_reduction(projected_field_count: usize) -> u32 {
     percent.clamp(10, 90)
 }
 
+/// Resolve the client's `where` argument into a [`WhereClause`], refusing one the
+/// query does not accept (#1283).
+///
+/// This is the **only** reader of `arguments["where"]`. Every execution path had its
+/// own copy of the same five lines — the two GraphQL regular runners, the direct read
+/// behind the whole REST surface, `count_rows`, and the relay runner — each gating the
+/// parse on `auto_params.has_where` and each answering `None` when the flag was off.
+///
+/// # Why the flag cannot mean "drop it"
+///
+/// `has_where` governs the **client-facing filter surface**: a project that turns it
+/// off is saying *clients may not filter this query* (#1170). Answering `None` turns
+/// that into *clients may ask, and be told nothing* — the request is accepted, the
+/// filter is validated against the return type, and the read runs over the whole
+/// relation under a `200`, with nothing in the body, the headers or the logs to say a
+/// filter was ignored. On a bulk selection the same drop chooses the rows to mutate.
+///
+/// Refusing is also the answer the rest of the engine already gives. A GraphQL document
+/// carrying `where` on such a query is refused by `validate_argument_names` (#1154),
+/// because `graphql_arguments` omits the argument the flag turns off — so this error is
+/// reachable only from a producer that builds a [`QueryMatch`] directly, which is every
+/// REST path: the GET resolver, the three exports, the embedding sub-query and the bulk
+/// row selection. That is why the message names REST spellings: they are the only ones
+/// that can reach it.
+///
+/// [`QueryMatch`]: crate::runtime::QueryMatch
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] when the argument is present and the query
+/// declares `auto_params.has_where = false`, and when a present-and-accepted argument
+/// does not parse as a `where` document.
+pub fn client_where_argument(
+    schema: &crate::schema::CompiledSchema,
+    query_def: &crate::schema::QueryDefinition,
+    arguments: &std::collections::HashMap<String, serde_json::Value>,
+) -> Result<Option<WhereClause>> {
+    // Absent is the common case, and the one that must stay free: with `has_where`
+    // on by default, every list query would otherwise pay for a map it never reads.
+    let Some(raw) = arguments.get("where") else {
+        return Ok(None);
+    };
+
+    if !query_def.auto_params.has_where {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "Query '{}' does not accept a `where` argument (`where_clause = \
+                 false`), so the filter in this request cannot be applied. Over REST \
+                 that is a `?field=value`, `?field[op]=value`, `?filter=`, \
+                 `?or=`/`?and=`/`?not=` or `?search=` parameter. The request is refused \
+                 rather than answered with the whole unfiltered relation; enable \
+                 `where_clause` on this query to filter it.",
+                query_def.name
+            ),
+            path:    Some("where".to_string()),
+        });
+    }
+
+    let types = super::query_projection::where_field_types(schema, &query_def.return_type);
+    WhereClause::from_graphql_json(raw, &types).map(Some)
+}
+
 /// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into
 /// WHERE equality conditions and AND them onto `existing`.
 ///

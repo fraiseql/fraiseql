@@ -19,6 +19,69 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **A filter a query cannot apply is refused instead of dropped (#1283).**
+
+  A REST list route whose query declares `auto_params.has_where = false` accepted a client's
+  `?field=value`, validated it against the return type, coerced the value to the field's type,
+  built the `WHERE` clause — and then discarded it. The response was `200` carrying the **whole
+  relation**, with nothing in the body, the headers or the logs to say a filter had been ignored.
+  Measured over a 10,000-row view, two routes differing only in that flag:
+
+  ```
+  GET /rest/v1/searchable?label=row-42   has_where = true    -> 200  1 row
+  GET /rest/v1/exports?label=row-42      has_where = false   -> 200  10,000 rows
+  ```
+
+  `?limit=` was honoured on both — `resolve_direct_read` reads it unconditionally and gated only
+  `where` — so the response looked paginated *and* filtered while only the pagination had
+  happened. Every spelling that becomes a `where` argument was affected, `?search=` included: the
+  full-text clause is merged into `arguments["where"]` before a representation is chosen, so a
+  search on such a route returned the whole relation too, and since #1284 returned it ranked.
+
+  The engine already answers this correctly one layer up. A GraphQL document writing
+  `users(where: …)` on the same query is refused by `validate_argument_names` (#1154), because
+  `graphql_arguments` omits the argument the flag turns off. What had no equivalent was the
+  path REST takes, which builds a `QueryMatch` directly: the GET resolver, the three export
+  representations, the embedding sub-query and the bulk row selection.
+
+  `has_where` governs the **client-facing filter surface** — a project that turns it off is
+  saying *clients may not filter this query* (#1170), not *clients may ask and be told nothing*.
+  So the argument is now refused, with `400` naming the query and the setting:
+
+  ```
+  Query 'exports' does not accept a `where` argument (`where_clause = false`), so the filter
+  in this request cannot be applied. …
+  ```
+
+  There is no `Prefer: handling=lenient` escape hatch, deliberately. `lenient` covers a
+  parameter the server does not *recognise*; this one is recognised, understood, and impossible
+  to honour — the same posture the export representations take for the parameters they cannot
+  serve (#1268, #1275).
+
+  The rule is stated once. The five hand-copied `if has_where { … } else { None }` blocks — the
+  two GraphQL regular runners, the direct read behind the whole REST surface, `count_rows`, and
+  the relay runner — are now one function, `client_where_argument`, which is the only reader of
+  `arguments["where"]` in the engine. The relay call site is unreachable (a relay query always
+  declares `has_where`) and is there so the path cannot become a sixth private copy.
+
+  Two consequences beyond the read path:
+
+  - **The generated OpenAPI document no longer publishes `?search=` on such a route.** The
+    filter parameters had always been gated on the flag; the search parameter, added later,
+    was not — so the document advertised full-text search over a relation that came back
+    whole. It is the parameter that made the drop worth finding.
+  - **The compiler warns.** `where_clause = false` on a list query is legal and invisible to
+    the client until it sends a filter, so `SchemaConverter` now says at compile time that
+    every filter parameter on that route will be refused. `warn_auto_params` was split into
+    `auto_param_warnings`, which returns the messages as values: all three rules — including
+    the two that predate this — were emitted through `tracing::warn!` and asserted by nothing.
+
+  Reachable only through an explicit opt-out: `has_where` defaults to `true`, so this needs
+  `[query_defaults] where_clause = false` or a per-query `where_clause = false`. On the GraphQL
+  side the reachable spelling is a bare `where` **variable** (`match_query` seeds the argument
+  map from the variables), which is now refused for the same reason; the inline spelling was
+  already refused by #1154.
+
 - **A dotted query parameter no longer exempts itself from the unknown-parameter rule (#1279).**
 
   `?nonsense=x` was refused by name; `?nonsense.field=x` was not. The classification loop in

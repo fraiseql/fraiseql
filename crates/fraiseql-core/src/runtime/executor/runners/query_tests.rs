@@ -260,8 +260,21 @@ mod auto_params {
         assert!(captured.is_some(), "expected WHERE clause to be passed to adapter");
     }
 
+    /// #1283: a filter a query does not accept is **refused**, and the read does not run.
+    ///
+    /// This case used to assert the opposite — that the adapter received no WHERE clause
+    /// — which is what "the whole relation, under a 200" looks like from inside. The
+    /// caller cannot tell that answer from a filter that matched every row, and on the
+    /// REST surface, where the filter arrives as `?name=Alice` and is validated against
+    /// the type before it is discarded, it cannot tell it from a filter that worked.
+    ///
+    /// The variables spelling is the reachable one on this path: a bare `where` variable
+    /// becomes `arguments["where"]` (`match_query` seeds the argument map from the
+    /// variables), while the inline spelling — `users(where: …)` — is already refused one
+    /// step earlier by `validate_argument_names` (#1154), because `graphql_arguments`
+    /// omits the argument this flag turns off.
     #[tokio::test]
-    async fn test_has_where_false_ignores_user_filter() {
+    async fn test_has_where_false_refuses_user_filter() {
         let schema = schema_with_auto_params(AutoParams {
             has_limit:    false,
             has_offset:   false,
@@ -274,11 +287,18 @@ mod auto_params {
         let vars = serde_json::json!({
             "where": {"name": {"eq": "Alice"}}
         });
-        let _result = executor.execute("{ users { id name } }", Some(&vars)).await.unwrap();
+        let err = executor
+            .execute("{ users { id name } }", Some(&vars))
+            .await
+            .expect_err("a filter this query cannot apply is refused");
+        let message = err.to_string();
+        assert!(message.contains("users"), "the refusal names the query: {message}");
+        assert!(
+            message.contains("where_clause = false"),
+            "and the setting that produced it: {message}"
+        );
 
-        // WHERE clause should NOT be passed when has_where is false
-        let captured = adapter.captured_where();
-        assert!(captured.is_none(), "expected no WHERE clause when has_where is false");
+        assert!(adapter.captured_where().is_none(), "and the read never reached the database");
     }
 
     #[tokio::test]

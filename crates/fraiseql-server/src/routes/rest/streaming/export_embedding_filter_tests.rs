@@ -73,6 +73,13 @@ fn export_schema() -> CompiledSchema {
         .with_sql_source("v_post")
         .build();
     posts.rest_stream = true;
+    // The compiler gives a list query `where_clause = true`; `TestQueryBuilder` leaves
+    // `AutoParams` all-false (#1290). It matters to
+    // `an_export_without_a_dotted_parameter_still_streams`, whose whole subject is a plain
+    // `?title=` filter surviving this gate: without the flag that filter was accepted,
+    // dropped by the read path and answered with the unfiltered view, so the case passed
+    // over the behaviour it exists to protect — and since #1283 it is refused outright.
+    posts.auto_params.has_where = true;
 
     let mut post = TestTypeBuilder::new("Post", "v_post")
         .with_field(TestFieldBuilder::new("title", FieldType::String).build())

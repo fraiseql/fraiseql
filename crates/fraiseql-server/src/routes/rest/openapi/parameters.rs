@@ -231,9 +231,19 @@ impl OpenApiGenerator<'_> {
             }
         }
 
-        // Full-text search parameter (only when type has searchable fields).
+        // Full-text search parameter — when the type has searchable fields **and** the
+        // query accepts a client filter.
+        //
+        // `?search=` is one: `resolve_get_query` lowers it to a full-text `WHERE` clause
+        // and merges it into `arguments["where"]`, which a query compiled with
+        // `where_clause = false` does not accept and now refuses (#1283). Publishing it
+        // there would document a parameter this route answers `400` to — and it is the
+        // parameter that made the drop worth finding, because the filter block above has
+        // always been gated on the flag while this one, added later, was not. So for a
+        // list query with `where_clause = false` the generated document advertised
+        // full-text search over a relation that came back whole.
         if let Some(td) = type_def {
-            if !td.searchable_fields().is_empty() {
+            if query_def.auto_params.has_where && !td.searchable_fields().is_empty() {
                 let searchable_names: Vec<&str> =
                     td.searchable_fields().iter().map(|f| f.name.as_str()).collect();
                 params.push(json!({

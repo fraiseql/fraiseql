@@ -3744,3 +3744,47 @@ fn a_type_declaring_no_relationships_compiles_to_an_empty_vector() {
     let compiled = convert_ir(&doc).expect("a type with no relationships compiles");
     assert!(compiled.find_type("User").expect("User").relationships.is_empty());
 }
+
+// ── #1283: what the compiler says about a list query's auto-params ───────────
+
+/// The three rules, as values, on the `AutoParams` each one is about.
+///
+/// `warn_auto_params` emitted these through `tracing::warn!` and nothing in this crate
+/// observed them, so all three were unasserted — including the two that predate #1283.
+#[test]
+fn auto_param_warnings_state_each_rule_on_the_configuration_that_earns_it() {
+    use fraiseql_core::schema::AutoParams;
+
+    let warn = |params| SchemaConverter::auto_param_warnings("things", &params);
+
+    // Everything on: nothing to say.
+    assert!(warn(AutoParams::all()).is_empty());
+
+    // #1283: a list route that accepts no filter, which is legal and invisible to the
+    // client until it sends one.
+    let no_filter = AutoParams {
+        has_where: false,
+        ..AutoParams::all()
+    };
+    let messages = warn(no_filter);
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    assert!(messages[0].contains("where_clause = false"), "{}", messages[0]);
+    assert!(
+        messages[0].contains("refused with 400"),
+        "the warning states the consequence a client sees, not just the setting: {}",
+        messages[0]
+    );
+
+    // The two that came before, still each on their own configuration.
+    let unbounded = AutoParams {
+        has_limit: false,
+        ..AutoParams::all()
+    };
+    assert!(warn(unbounded)[0].contains("unbounded"));
+
+    let unordered = AutoParams {
+        has_order_by: false,
+        ..AutoParams::all()
+    };
+    assert!(warn(unordered)[0].contains("non-deterministic"));
+}

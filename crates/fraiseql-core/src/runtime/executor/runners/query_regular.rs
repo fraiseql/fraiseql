@@ -9,8 +9,9 @@ use super::{
     super::{null_masked_fields, resolve_inject_value},
     query::QueryRunner,
     query_params::{
-        coerce_pagination_arg, combine_explicit_arg_where, compute_projection_reduction,
-        enforce_max_page_size, inject_param_where_clause, nearest_order_and_limit,
+        client_where_argument, coerce_pagination_arg, combine_explicit_arg_where,
+        compute_projection_reduction, enforce_max_page_size, inject_param_where_clause,
+        nearest_order_and_limit,
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, merge_computed_fields,
@@ -124,8 +125,10 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     ///
     /// It belongs here, beside RLS and `inject_params`, because it is the same
     /// kind of thing: a condition the server imposes, not one the client asked
-    /// for. The client's own `where` is still gated by `has_where` below, which
-    /// is what that flag is actually for.
+    /// for. The client's own `where` is still governed by `has_where` below —
+    /// which is what that flag is actually for — and since #1283 a client filter
+    /// the flag turns off is refused rather than dropped, so neither predicate
+    /// can go missing under a `200` any more.
     ///
     /// # Errors
     ///
@@ -459,34 +462,24 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         };
 
-        // 5b. Compose user-supplied WHERE from GraphQL arguments when has_where is enabled.
-        //     Security conditions (RLS + inject) are always first so they cannot be bypassed.
+        // 5b. Compose the client's WHERE onto the security conditions, which are always
+        //     first so they cannot be bypassed. A filter this query does not accept is
+        //     refused by `client_where_argument`, never dropped (#1283).
         // #1170: the server's own parent scoping is composed here, with RLS and
         //     inject and *before* the client-filter gate below — it is not client
         //     input and must not ride on the client filter surface.
         let combined_where = self.and_scope_where(combined_where, &query_match)?;
 
-        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
-            // Built only when the request actually carries a filter: with
-            // `has_where` on by default, every list query would otherwise pay
-            // for a map it never reads.
-            let user_where = query_match
-                .arguments
-                .get("where")
-                .map(|w| {
-                    let types =
-                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
-                    WhereClause::from_graphql_json(w, &types)
-                })
-                .transpose()?;
-            match (combined_where, user_where) {
-                (None, None) => None,
-                (Some(sec), None) => Some(sec),
-                (None, Some(user)) => Some(user),
-                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
-            }
-        } else {
-            combined_where
+        let user_where = client_where_argument(
+            &self.ctx.schema,
+            &query_match.query_def,
+            &query_match.arguments,
+        )?;
+        let combined_where: Option<WhereClause> = match (combined_where, user_where) {
+            (None, None) => None,
+            (Some(sec), None) => Some(sec),
+            (None, Some(user)) => Some(user),
+            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
         };
 
         // 5c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
@@ -865,19 +858,11 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         })?;
 
         // 3b. Extract auto_params (limit, offset, where, order_by) from arguments
-        let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
-            query_match
-                .arguments
-                .get("where")
-                .map(|w| {
-                    let types =
-                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
-                    WhereClause::from_graphql_json(w, &types)
-                })
-                .transpose()?
-        } else {
-            None
-        };
+        let user_where = client_where_argument(
+            &self.ctx.schema,
+            &query_match.query_def,
+            &query_match.arguments,
+        )?;
 
         // 3c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
         let user_where = combine_explicit_arg_where(
@@ -1176,20 +1161,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             security_context,
         )?;
 
-        // Extract auto_params from arguments.
-        let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
-            query_match
-                .arguments
-                .get("where")
-                .map(|w| {
-                    let types =
-                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
-                    WhereClause::from_graphql_json(w, &types)
-                })
-                .transpose()?
-        } else {
-            None
-        };
+        // The client's filter, refused rather than dropped when this query does not
+        // accept one (#1283). Every REST read arrives here — the GET resolver, the
+        // three exports, the embedding sub-query and the bulk row selection — and none
+        // of them passes through the GraphQL argument validation that refuses the same
+        // argument on the same query (#1154).
+        let user_where = client_where_argument(
+            &self.ctx.schema,
+            &query_match.query_def,
+            &query_match.arguments,
+        )?;
 
         // The top-level page size is capped (#421: unbounded-pagination DoS guard).
         let limit = enforce_max_page_size(
@@ -1582,33 +1563,22 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             }
         };
 
-        // 3b. Compose user-supplied WHERE when has_where is enabled (same as execute_from_match).
+        // 3b. Compose the client's WHERE (same as `execute_regular_query_with_security`).
         // #1170: the server's own parent scoping is composed here, with RLS and
         //     inject and *before* the client-filter gate below — it is not client
         //     input and must not ride on the client filter surface.
         let combined_where = self.and_scope_where(combined_where, query_match)?;
 
-        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
-            // Built only when the request actually carries a filter: with
-            // `has_where` on by default, every list query would otherwise pay
-            // for a map it never reads.
-            let user_where = query_match
-                .arguments
-                .get("where")
-                .map(|w| {
-                    let types =
-                        where_field_types(&self.ctx.schema, &query_match.query_def.return_type);
-                    WhereClause::from_graphql_json(w, &types)
-                })
-                .transpose()?;
-            match (combined_where, user_where) {
-                (None, None) => None,
-                (Some(sec), None) => Some(sec),
-                (None, Some(user)) => Some(user),
-                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
-            }
-        } else {
-            combined_where
+        let user_where = client_where_argument(
+            &self.ctx.schema,
+            &query_match.query_def,
+            &query_match.arguments,
+        )?;
+        let combined_where: Option<WhereClause> = match (combined_where, user_where) {
+            (None, None) => None,
+            (Some(sec), None) => Some(sec),
+            (None, Some(user)) => Some(user),
+            (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
         };
 
         // 4. Execute COUNT query via adapter, pinning session variables to the read's connection so

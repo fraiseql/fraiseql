@@ -433,11 +433,16 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             id_fields
         };
 
-        // A filter the row-selection query cannot apply is worse than no filter: the
-        // executor reads `arguments["where"]` only when the query declares
-        // `auto_params.has_where`, so on a query without it the WHERE clause is dropped
-        // and the selection becomes the first `max_affected` rows of the *whole view* —
-        // rows the caller never asked for, mutated under a filter it believes applied.
+        // Bulk needs a *filterable* query, which is a stronger precondition than the
+        // executor's: since #1283 `client_where_argument` refuses a `where` argument this
+        // query does not accept, so a filtered bulk request would be refused there anyway
+        // — but a bulk request with no filter at all would then fall to the guard below
+        // and be reported as a missing filter, when the route could not have applied one
+        // whatever the caller sent. This says so first, and names the reason.
+        //
+        // Before that refusal existed, the drop was silent: the selection became the
+        // first `max_affected` rows of the *whole view* — rows the caller never asked
+        // for, mutated under a filter it believed applied.
         if !query_def.auto_params.has_where {
             return Err(RestError::bad_request(format!(
                 "Query '{query_name}' does not accept a `where` argument, so a bulk filter \
