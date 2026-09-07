@@ -21,6 +21,13 @@
 //! currently caps #862's blast radius: repairing the loop without the guard turns
 //! `?filter={}` into an unfiltered mass update or delete. The guard lands first.
 //!
+//! **#1293** the bulk path refuses a request whose only extra parameter is an
+//! embedded-relationship filter, because such a filter contributes no WHERE clause. That
+//! branch had shipped untested: it sits behind three guards in the same function, and the
+//! one case that looked like its test was answered by the second of them. Reaching it needs
+//! a fixture that can *declare* a relationship, which is why `P13Item.notes` and `P13Note`
+//! exist here.
+//!
 //! **Why a real database.** Every assertion here is about rows that changed or did not
 //! change. `affected_rows` is precisely the number #913 fabricates, so a test that
 //! asserts the reported count — which is all a mock adapter could offer — passes against
@@ -42,8 +49,9 @@ use fraiseql_core::{
     prelude::DatabaseAdapter as _,
     runtime::Executor,
     schema::{
-        ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, MutationDefinition,
-        MutationOperation, QueryDefinition, RestConfig, TypeDefinition,
+        ArgumentDefinition, Cardinality, CompiledSchema, FieldDefinition, FieldType,
+        MutationDefinition, MutationOperation, QueryDefinition, Relationship, RestConfig,
+        TypeDefinition,
     },
 };
 use fraiseql_server::routes::{
@@ -65,6 +73,13 @@ const ARCHIVED: usize = 2;
 /// The operator's cap. Deliberately **below** `ACTIVE` so a request over the active set
 /// exceeds it, which is what makes the #916 clamp observable.
 const MAX_BULK_AFFECTED: u64 = 2;
+
+/// The `kind` every seeded note carries — the value a dotted filter would name.
+const NOTE_KIND: &str = "urgent";
+
+/// The relationship `P13Item` declares. Named in the dotted key of the #1293 case, so the
+/// extractor stores it rather than refusing it by name (#1279).
+const NOTE_REL: &str = "notes";
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -112,6 +127,33 @@ async fn seed(adapter: &PostgresAdapter) {
         "CREATE VIEW {SCHEMA}.v_item AS SELECT id, jsonb_build_object('id', id, 'status', \
          status, 'label', label) AS data FROM {SCHEMA}.tb_item ORDER BY label"
     ));
+
+    // A second table, so `P13Item` can declare a relationship (#1293). The bulk path's
+    // `embedding_filters` refusal needs a request carrying *both* a plain field filter and
+    // a dotted key naming a relationship the type really has; with the single flat type
+    // this fixture used to have, #1279's extractor rule refused the dotted key by name
+    // first and the bulk guard was unreachable. Nothing here executes an embed — the
+    // request is refused before any join is composed — but the relationship is declared in
+    // the shape `relationship_violations` accepts, and a test below asserts that, so the
+    // case is reached through a schema a compiler could really emit.
+    stmts.push(format!(
+        "CREATE TABLE {SCHEMA}.tb_note (id uuid PRIMARY KEY, fk_item uuid NOT NULL \
+         REFERENCES {SCHEMA}.tb_item(id) ON DELETE CASCADE, kind text NOT NULL)"
+    ));
+    for n in 0..(ACTIVE + ARCHIVED) {
+        stmts.push(format!(
+            "INSERT INTO {SCHEMA}.tb_note VALUES ('{}', '{}', '{NOTE_KIND}')",
+            note_uuid_for(n),
+            uuid_for(n)
+        ));
+    }
+    // `fkItem` is published under the stored key `fk_item` — the declared-name/stored-key
+    // split #1271 is about. Spelling them alike here would make the fixture agree with
+    // itself by accident.
+    stmts.push(format!(
+        "CREATE VIEW {SCHEMA}.v_note AS SELECT id, jsonb_build_object('id', id, 'fk_item', \
+         fk_item, 'kind', kind) AS data FROM {SCHEMA}.tb_note ORDER BY kind"
+    ));
     // Positional call: the compiled argument names need not match these parameter names.
     stmts.push(format!(
         "CREATE OR REPLACE FUNCTION {SCHEMA}.fn_update_item(p_id uuid, p_status text) \
@@ -145,6 +187,11 @@ fn uuid_for(n: usize) -> String {
     format!("00000000-0000-0000-0000-{n:012}")
 }
 
+/// A stable UUID per seeded note, in a range that cannot collide with [`uuid_for`].
+fn note_uuid_for(n: usize) -> String {
+    format!("00000000-0000-0000-0001-{n:012}")
+}
+
 /// Opt every fixture mutation out of the change-log outbox.
 ///
 /// These suites are about REST write semantics, not the change spine. Left on (the
@@ -168,7 +215,25 @@ fn schema() -> CompiledSchema {
         FieldDefinition::new("status", FieldType::String),
         FieldDefinition::new("label", FieldType::String),
     ];
+    // Declared so a dotted key naming it survives #1279's extractor rule and reaches the
+    // bulk path, which is the only way its `embedding_filters` refusal can be exercised
+    // (#1293). `OneToMany` joins on `P13Item.id` (declared above) and `P13Note.fkItem`.
+    item.relationships = vec![Relationship {
+        name:           NOTE_REL.to_string(),
+        target_type:    "P13Note".to_string(),
+        cardinality:    Cardinality::OneToMany,
+        foreign_key:    "fk_item".to_string(),
+        referenced_key: "id".to_string(),
+    }];
     schema.types.push(item);
+
+    let mut note = TypeDefinition::new("P13Note", format!("{SCHEMA}.v_note"));
+    note.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::new("fkItem", FieldType::Id),
+        FieldDefinition::new("kind", FieldType::String),
+    ];
+    schema.types.push(note);
 
     // `has_where` is load-bearing: `execute_query_direct` reads `arguments["where"]`
     // only when the query declares it, so a list query without it silently ignores the
@@ -179,6 +244,16 @@ fn schema() -> CompiledSchema {
     items.auto_params.has_where = true;
     items.auto_params.has_limit = true;
     schema.queries.push(items);
+
+    // An embed sources its rows from the target's list query, so `relationship_violations`
+    // refuses a relationship whose target no list query returns. Declaring it keeps the
+    // fixture loadable rather than merely constructible.
+    let mut notes = QueryDefinition::new("notes", "P13Note")
+        .returning_list()
+        .with_sql_source(format!("{SCHEMA}.v_note"));
+    notes.auto_params.has_where = true;
+    notes.auto_params.has_limit = true;
+    schema.queries.push(notes);
 
     // Argument names match the REST body keys; `id` is what the bulk path must inject
     // per matched row.
@@ -334,9 +409,11 @@ async fn an_empty_filter_object_is_refused() {
 /// ⚠ The bulk path's own `embedding_filters` refusal (`bulk/mod.rs`, "Embedded-relationship
 /// filters … are not supported on bulk operations") is therefore not what answers here — and
 /// never was, since the missing-filter guard preceded it. Reaching it needs a dotted key
-/// naming a relationship the type *does* declare, which this fixture's single flat
-/// `P13Item` cannot express ("Available: none"). Filed as #1293 rather than widened into
-/// this file.
+/// naming a relationship the type *does* declare, alongside a plain field filter; that is
+/// #1293, and it is now
+/// [`a_declared_relationship_filter_is_refused_by_the_bulk_path_itself`] at the end of this
+/// file, which the fixture's `P13Item.notes` relationship exists to make expressible. This
+/// case keeps its own subject: the unknown-relationship refusal, by name.
 #[tokio::test]
 async fn a_dotted_key_that_contributes_no_where_clause_is_refused() {
     let Some(rig) = rig().await else {
@@ -549,5 +626,123 @@ async fn a_tx_rollback_bulk_delete_does_not_delete() {
             || msg.to_lowercase().contains("unsupported"),
         "tx=rollback must be honoured or explicitly refused, not incidentally failed: \
          {status} {msg}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #1293 — the bulk path's own embedded-relationship refusal
+// ---------------------------------------------------------------------------
+
+/// The fixture's relationship is one the loader would accept.
+///
+/// `schema()` is hand-built, so nothing otherwise checks that `P13Item.notes` is a shape a
+/// compiled schema could really carry — and a relationship the loader would reject is a
+/// fixture no server can produce, which would make the two cases below prove nothing about
+/// a request any deployment can send. `relationship_violations` is the same function
+/// `finish_load` calls, so this asserts the fixture against the real admission rule rather
+/// than against a restatement of it.
+///
+/// Needs no database: it is a property of the schema document alone.
+#[test]
+fn the_fixture_declares_a_relationship_the_loader_would_accept() {
+    let schema = schema();
+
+    let item = schema.find_type("P13Item").expect("P13Item must be declared");
+    assert!(
+        item.relationships.iter().any(|r| r.name == NOTE_REL),
+        "the #1293 cases need `P13Item` to declare '{NOTE_REL}'; it declares {:?}",
+        item.relationships.iter().map(|r| r.name.as_str()).collect::<Vec<_>>()
+    );
+
+    assert_eq!(
+        schema.relationship_violations(),
+        Vec::<String>::new(),
+        "the fixture must be a schema the load path admits, or these cases describe a \
+         request no server could receive"
+    );
+}
+
+/// A dotted key naming a **declared** relationship, alongside a plain field filter, is
+/// refused by the bulk path's own guard — and mutates nothing.
+///
+/// **This is the first case to reach that guard (#1293).** The refusal at
+/// `bulk/mod.rs`'s `!params.embedding_filters.is_empty()` arm sits behind three
+/// predecessors in the same function, and every earlier attempt at this case died on one
+/// of them:
+///
+/// 1. `!auto_params.has_where` — not reached: `items` declares `where`.
+/// 2. `where_clause is None` — this is why `?nonsense.field=x` alone never got here; a dotted key
+///    contributes no WHERE clause, so `status[eq]=archived` is load-bearing.
+/// 3. `search_query.is_some()` — not reached: no `?search=`.
+/// 4. `!embedding_filters.is_empty()` — **this one**, reached because `notes` is declared and so
+///    survives #1279's extractor rule instead of being refused by name.
+///
+/// The assertion names `Embedded-relationship filters`, which is the single occurrence of
+/// that phrase in the tree: no predecessor, and not #1279's `has no relationship
+/// '<name>'`, can satisfy it. That is what stops this passing on someone else's message —
+/// the exact way its ancestor
+/// [`a_dotted_key_that_contributes_no_where_clause_is_refused`] read as covering this
+/// branch for two releases without ever entering it.
+///
+/// The row count is the invariant that outlives the message: `archived` is exactly at the
+/// cap, so with the guard removed this request **succeeds and deletes those rows** — the
+/// blast radius being guarded is a caller who believed `notes.kind` had narrowed the set.
+#[tokio::test]
+async fn a_declared_relationship_filter_is_refused_by_the_bulk_path_itself() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let before = rig.row_count().await;
+
+    let (status, body) = rig
+        .send(
+            "DELETE",
+            &format!("/rest/v1/items?status[eq]=archived&{NOTE_REL}.kind={NOTE_KIND}"),
+            None,
+            json!({}),
+        )
+        .await;
+
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "a bulk delete carrying an embedded-relationship filter must be refused, got \
+         {status} {body}"
+    );
+    let msg = Rig::message(&body);
+    assert!(
+        msg.contains("Embedded-relationship filters"),
+        "the refusal must be the bulk path's own embedded-relationship guard, not one of \
+         the three that precede it and not #1279's unknown-relationship rule: {msg}"
+    );
+    assert_eq!(rig.row_count().await, before, "a refused bulk delete must remove nothing");
+}
+
+/// The control: the same request **without** the dotted key deletes the matched rows.
+///
+/// Without this, the case above is satisfied by any reason the request could not run —
+/// an unfilterable query, a cap, a fixture that never mounted the route. Dropping one
+/// parameter is the only difference between the two, so this is what makes the refusal
+/// attributable to `notes.kind` rather than to the request being unrunnable.
+#[tokio::test]
+async fn the_same_bulk_delete_without_the_dotted_key_removes_the_matched_rows() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) =
+        rig.send("DELETE", "/rest/v1/items?status[eq]=archived", None, json!({})).await;
+
+    assert!(
+        status.is_success(),
+        "the same filter without the dotted key must run, got {status} {body}"
+    );
+    assert_eq!(
+        rig.row_count().await,
+        ACTIVE,
+        "the archived rows — and only those — must be gone"
     );
 }

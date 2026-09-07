@@ -930,6 +930,29 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **The bulk path's embedded-relationship refusal is now reached by a test (#1293).**
+
+  `build_filter_query_match` refuses a bulk `PATCH`/`DELETE` carrying `rel.field=value`,
+  because such a parameter contributes no WHERE clause and the mutation would run against
+  every row the plain filter matched. **No test had ever entered that branch.** It is the
+  fourth of four guards in the same function, and the case that looked like its test —
+  `a_dotted_key_that_contributes_no_where_clause_is_refused` — was answered by the second
+  (the missing-filter guard) until #1279, and by #1279's unknown-relationship rule after.
+  Both refusals are correct; neither is this one.
+
+  Reaching it needs a request carrying *both* a plain field filter, so `where_clause` is
+  `Some`, *and* a dotted key naming a relationship the type declares, so the extractor stores
+  it instead of refusing it by name. The `rest_bulk_safety_e2e_pg` fixture was a single flat
+  type that could express neither half at once, so it gains a second table, a `P13Note` type
+  and a declared `P13Item.notes` relationship — checked against `relationship_violations`,
+  the function `finish_load` calls, so the case describes a schema a server would actually
+  admit rather than one only a test can build.
+
+  No behaviour changed: the guard was already correct. What changed is that it is now
+  falsifiable. With the branch deleted, the new case answers `200` and **deletes every
+  archived row** — the request a caller believed `notes.kind` had narrowed — while the other
+  nine cases in the file stay green, which is the measurement showing nothing else covers it.
+
 - **A `rest`-without-export build no longer warns, and a combo now lints that build (#1291).**
 
   `derive_rest_context`'s `mount` parameter is read only inside `export-csv`/`export-xlsx`
