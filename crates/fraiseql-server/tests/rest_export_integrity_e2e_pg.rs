@@ -37,7 +37,7 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
-    schema::{CompiledSchema, FieldType, RestConfig},
+    schema::{AutoParams, CompiledSchema, FieldType, RestConfig},
 };
 use fraiseql_server::server_config::ServerConfig;
 use fraiseql_test_support::try_database_url;
@@ -118,19 +118,39 @@ fn build_schema() -> CompiledSchema {
         .build();
     relay.rest_path = Some("/relay".to_string());
 
-    // #1282: the same rows behind a route that declares `auto_params.has_where`.
+    // #1282: a second streamable route on the same rows, named by the `?search=` cases.
     //
-    // That flag is what gates a client's filters — and therefore the full-text clause
-    // `?search=` builds — reaching the SQL at all: `resolve_direct_read` reads
-    // `arguments["where"]` only when it is set. The three routes above leave it at its
-    // default `false`, so none of them can express what `?search=` does.
+    // It used to carry `searchable.auto_params.has_where = true` and a note that "the three
+    // routes above leave it at its default `false`". That default was the fixture builder's,
+    // not the compiler's — #1290 corrected it, so a list query now declares `has_where` the
+    // way every compiled one does and the assignment is gone. The route stays because
+    // `a_search_narrows_an_export` and the refusal control below name its path.
     let mut searchable = TestQueryBuilder::new("searchExports", "P13Export")
         .returns_list(true)
         .with_sql_source(VIEW)
         .rest_stream(true)
         .build();
     searchable.rest_path = Some("/searchable".to_string());
-    searchable.auto_params.has_where = true;
+
+    // #1283/#1290: the same rows behind a route that declares NO `where`, stated rather
+    // than inherited.
+    //
+    // `[query_defaults] where = false`, or a per-query `auto_params.where = false`, compiles
+    // to exactly this — a list query that pages and sorts and accepts no client filter. It is
+    // the case half of `a_route_that_declares_no_where_refuses_a_filter_rather_than_dropping_it`,
+    // and it has to be spelled out: while the builder defaulted every flag to `false`, this
+    // shape was what every fixture in the file accidentally had, so the test that needed it
+    // could not say so and the other 24 were describing a route no project compiles.
+    let mut unfiltered = TestQueryBuilder::new("unfilteredExports", "P13Export")
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .rest_stream(true)
+        .auto_params(AutoParams {
+            has_where: false,
+            ..AutoParams::all()
+        })
+        .build();
+    unfiltered.rest_path = Some("/unfiltered".to_string());
 
     let mut schema = TestSchemaBuilder::new()
         .with_type(
@@ -155,6 +175,7 @@ fn build_schema() -> CompiledSchema {
         .with_query(plain)
         .with_query(relay)
         .with_query(searchable)
+        .with_query(unfiltered)
         .build();
 
     schema.rest_config = Some(RestConfig {
@@ -755,11 +776,12 @@ async fn a_relay_route_refuses_an_export_that_asked_for_a_page() {
 /// `[42]` — two orders of magnitude apart. (A bare `websearch_to_tsquery('42')` matches none of
 /// them, which is why the term carries its prefix.)
 ///
-/// **Why the route is `/searchable` and not `/exports`.** The clause reaches the SQL only on a
-/// query declaring `auto_params.has_where` (`resolve_direct_read`). On the other routes here it
-/// used to be dropped, and the whole relation came back under a 200 — a fixture that agrees
-/// with a broken engine. Since #1283 those routes answer `400` instead, which is why this case
-/// still cannot use one: see
+/// **Why the route is `/searchable`.** The clause reaches the SQL only on a query declaring
+/// `auto_params.has_where` (`resolve_direct_read`). Every list route here declares it now that
+/// the fixture builder follows the compiler (#1290), so `/exports` would serve this case just
+/// as well; `/searchable` is kept because this test and the refusal control below name it, and
+/// moving them would change what two suites are about for no gain. The one route that would
+/// still fail is `/unfiltered`, which declares no `where` on purpose — see
 /// `a_route_that_declares_no_where_refuses_a_filter_rather_than_dropping_it`.
 ///
 /// **Why no `?sort=` is named.** This used to carry `&sort=id` as a workaround: without an
@@ -855,10 +877,19 @@ async fn a_relay_export_is_bounded_by_the_count_the_client_sent() {
 /// cannot see — `200`, and the whole relation, with nothing in the body, the headers or
 /// the logs to say so.
 ///
-/// **Why the two routes discriminate.** `/searchable` and `/exports` are the same view,
+/// **Why the two routes discriminate.** `/searchable` and `/unfiltered` are the same view,
 /// the same type and the same server; they differ in `auto_params.has_where` and in
 /// nothing else. So a repair that merely stops the error cannot pass this: the control
 /// has to keep narrowing to one row while the case answers `400`.
+///
+/// ⚠ The case route used to be `/exports`, which had `has_where = false` **by accident**:
+/// `TestQueryBuilder` left every auto-param at `Default` while the compiler gives a list
+/// query all four (#1290). So this test read as "the ordinary route refuses" when what it
+/// actually showed was "a route no project compiles refuses", and every other case in this
+/// file was describing that same impossible route. `/unfiltered` now declares the
+/// restriction — the shape `[query_defaults] where = false` really does emit — and this is
+/// the only test in the leg whose answer moved when the default was corrected, which is
+/// what identified it.
 ///
 /// **Why NDJSON and not the JSON envelope.** A dropped filter on the JSON path is capped
 /// at `PAGE` (100) rows and `row-42` is inside the first page, so the unfiltered answer
@@ -897,7 +928,7 @@ async fn a_route_that_declares_no_where_refuses_a_filter_rather_than_dropping_it
     ] {
         for accept in ["application/x-ndjson", "application/json"] {
             let (status, body) =
-                request_export(&server.url, &format!("/exports{query}"), accept).await;
+                request_export(&server.url, &format!("/unfiltered{query}"), accept).await;
             assert_eq!(
                 status,
                 reqwest::StatusCode::BAD_REQUEST,
@@ -905,7 +936,7 @@ async fn a_route_that_declares_no_where_refuses_a_filter_rather_than_dropping_it
                  dropped under a 200 carrying the whole relation: {body}"
             );
             assert!(
-                body.contains("exports"),
+                body.contains("unfilteredExports"),
                 "{accept} {query}: the refusal names the query whose configuration refuses \
                  it, so the operator knows where to look: {body}"
             );

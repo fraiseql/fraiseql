@@ -3788,3 +3788,167 @@ fn auto_param_warnings_state_each_rule_on_the_configuration_that_earns_it() {
     };
     assert!(warn(unordered)[0].contains("non-deterministic"));
 }
+
+// ── #1290 the fixture builder and the compiler agree on auto-params ──────────
+
+/// `TestQueryBuilder` and `SchemaConverter` must resolve the same `AutoParams` for
+/// the same authored query.
+///
+/// **Why this is a test and not a comment.** A fixture's job is to stand in for what
+/// the compiler emits. `TestQueryBuilder::returns_list(true)` left `auto_params` at
+/// `Default` — every flag `false` — while the compiler gives a list query every flag
+/// `true`, and nothing compared the two. The divergence was only discoverable by
+/// reading both defaults, and 34 call sites across 22 files were built on it.
+///
+/// The direction mattered: all-false is the *permissive* shape for an assertion about
+/// filtering. A `?field=value` sent to a query without `has_where` was accepted by the
+/// extractor, validated against the return type, built into `arguments["where"]` and
+/// dropped by `resolve_direct_read` — answering `200` with the whole relation. Three
+/// tests passed that way, one of them (`an_export_without_a_dotted_parameter_still_streams`)
+/// existing precisely to show that a plain filter survives a gate it was not surviving.
+///
+/// So the two producers are compared here rather than each asserted against a literal:
+/// two literals that agree today are two literals, and #1268 is this repository's
+/// record of what happens when a rule is written down three times.
+mod auto_params_parity_tests {
+    use fraiseql_core::schema::AutoParams;
+    use fraiseql_test_utils::schema_builder::TestQueryBuilder;
+
+    use super::*;
+
+    /// The compiler's answer for one authored shape, with everything else minimal.
+    ///
+    /// `query_defaults: None` on purpose: the divergence is about what a project that
+    /// configures *nothing* gets, which is the case every fixture stands in for.
+    fn compiled_auto_params(returns_list: bool, relay: bool) -> AutoParams {
+        let intermediate = IntermediateSchema {
+            grpc_config:       None,
+            security:          None,
+            auth:              None,
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:                   "Item".to_string(),
+                sql_source:             Some("v_item".to_string()),
+                fields:                 vec![],
+                description:            None,
+                implements:             vec![],
+                requires_role:          None,
+                is_error:               false,
+                is_input:               false,
+                relay:                  false,
+                embedded:               false,
+                subscribable_tables:    None,
+                subscribable_pre_image: false,
+                inject_params:          IndexMap::new(),
+                relationships:          Vec::new(),
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                requires_actor: Vec::new(),
+                count: false,
+                name: "items".to_string(),
+                return_type: "Item".to_string(),
+                returns_list: returns_list || relay,
+                nullable: false,
+                arguments: vec![],
+                description: None,
+                sql_source: Some("v_item".to_string()),
+                auto_params: None,
+                deprecated: None,
+                jsonb_column: None,
+                relay,
+                inject: IndexMap::default(),
+                read_routing: fraiseql_core::db::types::ReadRouting::default(),
+                cache_ttl_seconds: None,
+                additional_views: vec![],
+                requires_role: None,
+                relay_cursor_type: None,
+                rest: None,
+                rest_stream: false,
+            }],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+
+            sources:              None,
+            custom_scalars:       None,
+            observers_config:     None,
+            subscriptions_config: None,
+            validation_config:    None,
+            federation_config:    None,
+            debug_config:         None,
+            mcp_config:           None,
+            rest_config:          None,
+            query_defaults:       None,
+            inject_defaults:      None,
+            naming_convention:    NamingConvention::default(),
+            session_variables:    None,
+            hierarchies_config:   None,
+            changelog_config:     None,
+        };
+        SchemaConverter::convert(intermediate).expect("test schema converts").queries[0]
+            .auto_params
+            .clone()
+    }
+
+    /// The fixture builder's answer for the same shape.
+    fn fixture_auto_params(returns_list: bool, relay: bool) -> AutoParams {
+        TestQueryBuilder::new("items", "Item")
+            .returns_list(returns_list || relay)
+            .relay(relay)
+            .with_sql_source("v_item")
+            .build()
+            .auto_params
+    }
+
+    #[test]
+    fn a_list_query_gets_the_same_auto_params_from_both_producers() {
+        assert_eq!(
+            fixture_auto_params(true, false),
+            compiled_auto_params(true, false),
+            "TestQueryBuilder must describe the route a list query actually compiles to"
+        );
+    }
+
+    #[test]
+    fn a_single_item_query_gets_the_same_auto_params_from_both_producers() {
+        assert_eq!(fixture_auto_params(false, false), compiled_auto_params(false, false));
+    }
+
+    #[test]
+    fn a_relay_query_gets_the_same_auto_params_from_both_producers() {
+        assert_eq!(
+            fixture_auto_params(false, true),
+            compiled_auto_params(false, true),
+            "a connection is paged by first/after; limit and offset are a second, \
+             unsynchronised cursor"
+        );
+    }
+
+    /// The three shapes are genuinely different, so the equalities above cannot all be
+    /// satisfied by one constant.
+    ///
+    /// Without this, a builder that returned `AutoParams::all()` unconditionally would
+    /// fail two of the three — but a builder that returned `AutoParams::default()`
+    /// unconditionally, which is exactly the defect, would fail only one, and a reader
+    /// could not tell from a green run that the cases discriminate.
+    #[test]
+    fn the_three_shapes_do_not_collapse_to_one_answer() {
+        let list = compiled_auto_params(true, false);
+        let single = compiled_auto_params(false, false);
+        let relay = compiled_auto_params(false, true);
+        assert_ne!(list, single);
+        assert_ne!(list, relay);
+        assert_ne!(single, relay);
+        assert_eq!(list, AutoParams::all());
+        assert_eq!(single, AutoParams::none());
+        assert_eq!(relay, AutoParams::relay());
+    }
+}

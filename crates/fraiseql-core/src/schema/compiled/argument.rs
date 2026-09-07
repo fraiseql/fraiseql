@@ -138,4 +138,25 @@ impl AutoParams {
     pub fn none() -> Self {
         Self::default()
     }
+
+    /// The shape the Relay spec mandates: filter and sort, but no `limit`/`offset`.
+    ///
+    /// A connection is paged by `first`/`after` — offering `limit` and `offset` beside
+    /// them would be a second, unsynchronised way to move the same cursor. The compiler
+    /// applies this unconditionally to a relay query, ahead of the list defaults
+    /// (`QueryConverter::convert_query`).
+    ///
+    /// Named rather than written out at each site because the shape is authored twice —
+    /// once by the compiler, once by `TestQueryBuilder` — and a fixture that disagrees
+    /// with the compiler about a flag is a test asserting over a parameter the engine
+    /// would have dropped (#1290).
+    #[must_use]
+    pub const fn relay() -> Self {
+        Self {
+            has_where:    true,
+            has_order_by: true,
+            has_limit:    false,
+            has_offset:   false,
+        }
+    }
 }

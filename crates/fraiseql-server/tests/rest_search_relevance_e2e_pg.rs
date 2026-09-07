@@ -106,10 +106,12 @@ async fn seed(adapter: &PostgresAdapter) {
 ///
 /// That flag is what lets a client filter — and therefore lets the full-text
 /// clause `?search=` builds reach the SQL at all (`resolve_direct_read` reads
-/// `arguments["where"]` only when it is set). `TestQueryBuilder` leaves
-/// `AutoParams::default()`, every field `false`, so a route that forgets it
-/// accepts the search, validates it, drops it, and answers the whole relation
-/// under a `200` — a fixture that would agree with a broken engine.
+/// `arguments["where"]` only when it is set). It arrives from the builder: a list
+/// query gets all four auto-params, the way the compiler resolves one. The flag
+/// used to be written out below, because `TestQueryBuilder` left `AutoParams` at
+/// `Default` — every field `false` — so a route that forgot it accepted the search,
+/// validated it, dropped it, and answered the whole relation under a `200`. That
+/// divergence between fixture and compiler is #1290.
 fn build_schema() -> CompiledSchema {
     let mut ranked = TestQueryBuilder::new("rankedDocs", "P17Doc")
         .returns_list(true)
@@ -117,7 +119,6 @@ fn build_schema() -> CompiledSchema {
         .rest_stream(true)
         .build();
     ranked.rest_path = Some("/ranked".to_string());
-    ranked.auto_params.has_where = true;
 
     let mut schema = TestSchemaBuilder::new()
         .with_type(

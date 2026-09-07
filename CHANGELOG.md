@@ -930,6 +930,39 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`TestQueryBuilder` gives a query the auto-params the compiler gives it (#1290).**
+
+  `TestQueryBuilder::returns_list(true)` left `AutoParams` at `Default` — every flag `false` —
+  while `SchemaConverter::convert_query` gives a list query every flag `true`
+  (`[query_defaults]`, whose own default is all-true) and a relay query
+  `{where, order_by}` without `limit`/`offset`. So the fixture 34 call sites across 22 files
+  build described a route shape no project compiles, and the direction was the dangerous one:
+  all-false is the *permissive* shape for an assertion about filtering. A `?field=value` on a
+  query without `has_where` was accepted by the extractor, validated against the return type,
+  built into `arguments["where"]` and dropped by `resolve_direct_read` — `200`, with the whole
+  relation. Three tests passed that way, one of them
+  (`an_export_without_a_dotted_parameter_still_streams`) existing precisely to show that a
+  plain filter survives a gate it was not surviving.
+
+  The builder now mirrors `convert_query`'s chain — relay, then list, then single-item — and
+  `.auto_params(AutoParams)` describes a restricted route deliberately.
+  `AutoParams::relay()` names the Relay shape, which was written out at both producers.
+
+  **What moved.** Re-running the whole `integration (server)` leg against the corrected
+  default: 446 passed, **1** changed answer —
+  `rest_export_integrity_e2e_pg::a_route_that_declares_no_where_refuses_a_filter_rather_than_dropping_it`,
+  whose case route had `has_where = false` *by accident*. It now has `/unfiltered`, a route
+  that declares the restriction the way `[query_defaults] where = false` compiles it, so the
+  test says what it means and the other 24 cases in that file stop describing an impossible
+  route. Five now-redundant `q.auto_params.has_* = true` workarounds were removed with the
+  comments that explained them.
+
+  **What holds it.** `converter::tests::auto_params_parity_tests` compares what the builder
+  emits against what the compiler emits, for each of the three authored shapes, plus a case
+  asserting the three answers differ — so a builder returning one constant cannot satisfy them.
+  Comparing the two producers is the point: asserting each against its own literal is how they
+  drifted.
+
 - **The service-bound integration suites can now fail a merge, and a gate says which suites can
   (#1289).**
 

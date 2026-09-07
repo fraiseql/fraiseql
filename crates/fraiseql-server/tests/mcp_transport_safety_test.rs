@@ -24,9 +24,7 @@ use std::sync::Arc;
 
 use fraiseql_core::{
     runtime::Executor,
-    schema::{
-        ArgumentDefinition, AutoParams, CompiledSchema, FieldType, McpConfig, NamingConvention,
-    },
+    schema::{ArgumentDefinition, CompiledSchema, FieldType, McpConfig, NamingConvention},
 };
 use fraiseql_server::{
     config::ErrorSanitizer,
@@ -60,7 +58,6 @@ fn build_schema(naming: NamingConvention) -> CompiledSchema {
         .with_sql_source(ALLOWED_VIEW)
         .build();
     users.arguments.push(ArgumentDefinition::optional("filter", FieldType::Json));
-    users.auto_params = AutoParams::all();
 
     let api_keys = TestQueryBuilder::new("api_keys", "ApiKey")
         .returns_list(true)

@@ -127,12 +127,7 @@ impl SchemaConverter {
         //   2. Single-item: always all-false (no auto-params)
         //   3. List:        resolve per-query override on top of TOML defaults
         let auto_params = if intermediate.relay {
-            AutoParams {
-                has_where:    true,
-                has_order_by: true,
-                has_limit:    false,
-                has_offset:   false,
-            }
+            AutoParams::relay()
         } else if intermediate.returns_list {
             let resolved = Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults);
             Self::warn_auto_params(&intermediate.name, &resolved);

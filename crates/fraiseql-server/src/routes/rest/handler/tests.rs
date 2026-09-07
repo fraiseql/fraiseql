@@ -1498,7 +1498,7 @@ mod unapplicable_filter {
     use axum::http::{HeaderMap, StatusCode};
     use fraiseql_core::{
         runtime::Executor,
-        schema::{CompiledSchema, FieldType, RestConfig},
+        schema::{AutoParams, CompiledSchema, FieldType, RestConfig},
     };
     use fraiseql_test_utils::{
         failing_adapter::FailingAdapter,
@@ -1518,14 +1518,21 @@ mod unapplicable_filter {
             .with_sql_source("v_row")
             .build();
         filterable.rest_path = Some("/filterable".to_string());
-        filterable.auto_params.has_where = true;
 
+        // Only `has_where` differs, and it is the *restricted* side that has to say so
+        // now (#1290): the builder gives a list query the four flags the compiler gives
+        // it, so `filterable` needs no declaration and `fixed` needs an explicit one.
+        // `[query_defaults] where = false` compiles to exactly this — pages and sorts,
+        // accepts no client filter — so the fixture still describes a real route.
         let mut fixed = TestQueryBuilder::new("fixedRows", "Row")
             .returns_list(true)
             .with_sql_source("v_row")
+            .auto_params(AutoParams {
+                has_where: false,
+                ..AutoParams::all()
+            })
             .build();
         fixed.rest_path = Some("/fixed".to_string());
-        fixed.auto_params.has_where = false;
 
         let mut schema = CompiledSchema::new();
         schema.queries.push(filterable);

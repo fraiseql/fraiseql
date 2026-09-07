@@ -28,8 +28,8 @@
 //! ```
 
 use fraiseql_core::schema::{
-    CompiledSchema, CursorType, DeprecationInfo, FieldDefinition, FieldDenyPolicy, FieldType,
-    MutationDefinition, QueryDefinition, SecurityConfig, TypeDefinition,
+    AutoParams, CompiledSchema, CursorType, DeprecationInfo, FieldDefinition, FieldDenyPolicy,
+    FieldType, MutationDefinition, QueryDefinition, SecurityConfig, TypeDefinition,
 };
 
 // ============================================================================
@@ -201,6 +201,7 @@ pub struct TestQueryBuilder {
     relay_cursor_column: Option<String>,
     relay_cursor_type:   CursorType,
     rest_stream:         bool,
+    auto_params:         Option<AutoParams>,
 }
 
 impl TestQueryBuilder {
@@ -224,6 +225,7 @@ impl TestQueryBuilder {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             rest_stream:         false,
+            auto_params:         None,
         }
     }
 
@@ -321,12 +323,56 @@ impl TestQueryBuilder {
         self
     }
 
+    /// Override the auto-params the shape would otherwise imply.
+    ///
+    /// The default follows the compiler (see [`Self::build`]), which is what a fixture
+    /// is for. Use this only to describe a route the compiler really can emit — a list
+    /// query whose project set `[query_defaults] where = false`, say — and never to
+    /// make a test pass. A test that sends `?field=value` to a query without
+    /// `has_where` is testing the refusal, not the filter.
+    #[must_use = "builder method returns modified builder"]
+    pub const fn auto_params(mut self, params: AutoParams) -> Self {
+        self.auto_params = Some(params);
+        self
+    }
+
     /// Build the `QueryDefinition`.
     ///
     /// Uses `QueryDefinition::new()` so new fields are picked up automatically.
+    ///
+    /// # Auto-params follow the compiler, not the struct default (#1290)
+    ///
+    /// `QueryDefinition::new()` leaves `auto_params` at `Default` — every flag
+    /// `false` — and for a long time this builder left it there. The compiler never
+    /// emits that for a list query: `QueryConverter::convert_query` resolves a relay
+    /// query to [`AutoParams::relay`], a single-item query to all-false, and a list
+    /// query to the `[query_defaults]` table, whose own default is **all-true**. So
+    /// `returns_list(true)` described a route shape no project could compile.
+    ///
+    /// All-false is the *permissive* shape for an assertion about filtering: nothing
+    /// is applied, so nothing can contradict. Three tests were found sending a filter
+    /// to a fixture that could not carry one, each passing over a `WHERE` clause the
+    /// read path dropped — including one whose whole subject was that the filter
+    /// survived (`an_export_without_a_dotted_parameter_still_streams`, #1282).
+    ///
+    /// The chain below mirrors `convert_query`'s, in the same order and for the same
+    /// reasons; `converter::tests::auto_params_parity_tests` in `fraiseql-cli` asserts they agree
+    /// for each authored shape, so the mirror cannot drift silently. Pass
+    /// [`Self::auto_params`] to describe a restricted route deliberately.
     #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> QueryDefinition {
         let mut q = QueryDefinition::new(&self.name, &self.return_type);
+
+        // Before any `if let Some(...)` consumes the fields it reads.
+        q.auto_params = self.auto_params.clone().unwrap_or_else(|| {
+            if self.relay {
+                AutoParams::relay()
+            } else if self.returns_list {
+                AutoParams::all()
+            } else {
+                AutoParams::none()
+            }
+        });
 
         if !self.no_source {
             let src = self.sql_source.unwrap_or_else(|| format!("v_{}", self.name));

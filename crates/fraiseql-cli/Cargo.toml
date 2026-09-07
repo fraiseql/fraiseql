@@ -60,6 +60,10 @@ tempfile = "3.25"
 [dev-dependencies]
 assert_cmd = "2"
 fraiseql-test-support = {path = "../fraiseql-test-support"}
+# #1290: `converter::tests::auto_params_parity_tests` compares what `TestQueryBuilder`
+# emits against what `SchemaConverter` emits for the same authored query. Comparing the
+# two producers is the point — asserting each against its own literal is how they drifted.
+fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 http-body-util = "0.1"
 insta = {version = "1", features = ["yaml"]}
 predicates = "3"

@@ -3727,6 +3727,7 @@ dependencies = [
  "fraiseql-observers",
  "fraiseql-server",
  "fraiseql-test-support",
+ "fraiseql-test-utils",
  "glob",
  "hex",
  "http-body-util",

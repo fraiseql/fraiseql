@@ -131,17 +131,17 @@ fn build_rest_schema() -> fraiseql_core::schema::CompiledSchema {
         arg("email", FieldType::String),
     ];
 
-    // The compiler gives a list query `where_clause = true` by default
-    // (`IntermediateQueryDefaults`), and `TestQueryBuilder` leaves `AutoParams` at
-    // `Default` — every field `false`. Declared here because this fixture's routes are
-    // filtered: until #1283 the difference was invisible, since a filter on a query
-    // without the flag was built, validated and then dropped, so
-    // `test_get_collection_with_filter_sort_select` passed over an unfiltered read.
-    let mut users = TestQueryBuilder::new("users", "User")
+    // `test_get_collection_with_filter_sort_select` sends `?name[eq]=Alice`, so this route
+    // has to declare `auto_params.has_where`. It does, from the builder: #1290 made
+    // `returns_list(true)` follow the compiler, which gives a list query all four flags.
+    // The declaration used to be written out here (#1283) because the builder left them
+    // all `false` — and until #1283 that difference was invisible, since a filter on a
+    // query without the flag was built, validated and then dropped, so this test passed
+    // over an unfiltered read.
+    let users = TestQueryBuilder::new("users", "User")
         .returns_list(true)
         .with_sql_source("v_user")
         .build();
-    users.auto_params.has_where = true;
 
     let mut schema = TestSchemaBuilder::new()
         .with_query(users)
