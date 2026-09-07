@@ -930,6 +930,39 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`integration (server)` stops discarding the output of the suite that fails it (#1276).**
+
+  Twice now that leg has exited `101` with **no failing test anywhere in its log** — #1276's
+  `graphql_sse_e2e_pg`, where 95,700 lines held zero `test result: FAILED`, and
+  `rest_bulk_safety_e2e_pg` two runs later. The cause is the leg's own instrumentation.
+
+  `suiteCountPrelude` shadows `cargo` with a shell function that buffers the run into `$out`
+  so the `SUITE-RAN` marker can quote the suite's `test result:` counts. Written as
+  `out="$(…)"; rc=$?`, that assignment is a simple command carrying the substitution's exit
+  status, so under the script's `set -e` a **failing** cargo kills the shell at that line —
+  before `printf '%s\n' "$out"`. The failing suite's entire output is discarded: no test
+  names, no `test result: FAILED`, no panic, no backtrace. The prelude is injected into
+  exactly one leg, and both silent aborts happened in it.
+
+  Measured on a real failing suite: **0 lines of output before the fix, 36 after**, same exit
+  101. `|| rc=$?` protects the assignment; `set -e` still aborts the script at the call site,
+  so the leg stops at the same suite it always did — the log now says why. A `SUITE-START`
+  marker pairs with `SUITE-RAN` so the boundary is never inferred from an absent line again,
+  and so a suite killed by the leg timeout — which produces no cargo exit, hence no output and
+  no `SUITE-RAN` — still names itself.
+
+  ⚠ This revises #1276's own reading. It concluded from the silence that "exit 101 with no
+  assertion output is an abort or hang, not a test failure". A plain assertion failure has
+  exactly that signature in this leg, and the second incident was one:
+  `a_dotted_key_that_contributes_no_where_clause_is_refused` was asserting a refusal message
+  #1279 had moved, and #1288 fixed it. The original `graphql_sse_e2e_pg` incident cannot be
+  retro-diagnosed — the log was structurally incapable of recording the cause — and re-running
+  it would prove nothing. What changes is that the next one is self-diagnosing.
+
+  A per-suite timeout, #1276's second suggestion, is deliberately not added. `SUITE-START`
+  already names a hung suite, and a per-suite budget on a single RAM-bound runner whose
+  measured queueing dwarfs its work would be a new source of red on a green leg.
+
 - **A CI job now diffs the required-checks mirror against the live ruleset (#1294).**
 
   `tools/required-checks.toml` is a mirror of GitHub ruleset 18506494, and nothing in CI diffed

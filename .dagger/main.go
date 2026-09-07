@@ -99,9 +99,40 @@ const (
 // via printf with `%s` placeholders. The format string in the echoed source therefore
 // never matches a search for a resolved line, and `grep '^SUITE-RAN'` on the log yields
 // exactly the suites that actually executed, with their counts.
+//
+// ⚠⚠ THE CAPTURE MUST NOT LET `set -e` FIRE BEFORE THE OUTPUT IS PRINTED (#1276).
+//
+// Buffering into `$out` is what lets the SUITE-RAN line quote the suite's own
+// `test result:` counts — but written as `out="$(…)"; rc=$?`, the assignment IS a
+// simple command whose status is the substitution's, so under the script's `set -e`
+// a FAILING cargo kills the shell right there. `printf '%s\n' "$out"` never runs and
+// **the entire output of the failing suite is discarded**: no test names, no
+// `test result: FAILED`, no panic message, no backtrace. Just the container's
+// exit 101.
+//
+// That is not hypothetical, and it is not cheap. This prelude is injected into
+// exactly ONE leg — `integrationServer` — and BOTH recorded "exit 101 with no failing
+// test anywhere in the log" incidents happened in that leg: #1276's
+// `graphql_sse_e2e_pg`, where 95,700 log lines held zero `test result: FAILED`, and
+// the `rest_bulk_safety_e2e_pg` abort two runs later. #1276 concluded from the silence
+// that the cause must be "an abort or hang, not a test failure". It could not have
+// concluded otherwise, and a plain assertion failure produces exactly the same
+// signature here. Measured on a real failing suite: 0 lines of output before, 36
+// after, same exit 101.
+//
+// `|| rc=$?` is what protects the assignment; `rc=0` is its initialiser. `set -e`
+// still aborts the script at the CALL SITE, so the leg stops at the same suite it
+// always did — the only thing that changes is that the log says why.
+//
+// SUITE-START pairs with SUITE-RAN so the boundary never has to be inferred from an
+// ABSENT line again. It is what a HANG leaves behind: a suite killed by the leg
+// timeout produces no cargo exit at all, so `$out` is never printed and SUITE-RAN
+// never fires — the last SUITE-START names it. Constructed at runtime for the same
+// reason SUITE-RAN is.
 const suiteCountPrelude = `cargo() {
-  local out rc
-  out="$(command cargo "$@" 2>&1)"; rc=$?
+  local out rc=0
+  printf 'SUITE-START %s\n' "$*"
+  out="$(command cargo "$@" 2>&1)" || rc=$?
   printf '%s\n' "$out"
   printf 'SUITE-RAN %s :: %s\n' "$*" "$(printf '%s' "$out" | grep '^test result:' | tr '\n' '|')"
   return $rc
@@ -531,6 +562,12 @@ func (m *FraiseqlCi) ShellGates(
 		// a gate over a tree it just emptied is green for the wrong reason.
 		"python3 tools/check-test-subject.py",
 		"bash tools/tests/test_subject_test.sh",
+		// The prelude THIS FILE injects into `integrationServer`, pinned against
+		// the regression that made two of that leg's aborts undiagnosable
+		// (#1276): a failing suite whose output `set -e` discarded before it was
+		// printed. Reads `suiteCountPrelude` out of main.go and runs it against a
+		// fake `cargo`, so it pins the shipped constant rather than a copy.
+		"bash tools/tests/suite_marker_prelude_test.sh",
 		// Snapshot pairing, both directions (#986): every .snap registered, no
 		// stale registry rows. Was a pre-commit-only hook that ran nowhere.
 		"bash tools/check-snapshot-pairing.sh",
