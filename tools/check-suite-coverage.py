@@ -1473,7 +1473,7 @@ class LegGate:
 
 def extract_leg_gating(
     main_go: str, required: set[str], known_legs: set[str]
-) -> tuple[dict[str, LegGate], list[str]]:
+) -> tuple[dict[str, LegGate], list[str], dict[str, str]]:
     """Map every leg to the check contexts that carry it, and score each as gating.
 
     `known_legs` is the set of legs Phase B1/B2 found `cargo test` lines in; a
@@ -1482,8 +1482,12 @@ def extract_leg_gating(
     naming a function `.dagger/main.go` does not define is FATAL — a typo there
     would otherwise read as "that leg runs no tests".
 
-    Returns the map and a list of findings about the *declaration* itself: a
-    required context no job produces, or one whose workflow can never report it.
+    Returns the map, a list of findings about the *declaration* itself (a required
+    context no job produces, or one whose workflow can never report it), and the
+    contexts that COULD carry a required check — every job name produced by a
+    workflow that runs on a push to any working branch and is not `paths:`
+    filtered. main() asks the complementary question of that last set: which of
+    them is required by nothing (#1299).
     """
     dispatch = dagger_suite_dispatch(main_go)
     # Every `.dagger/*.go`, not just main.go: the module is one Go package, so
@@ -1504,6 +1508,11 @@ def extract_leg_gating(
     # that runs no test suite belongs to no leg, and used to escape the check.
     ungateable: list[str] = []
     produced: dict[str, str] = {}  # context -> "<workflow>:<job>"
+    # The subset of `produced` a ruleset could actually require. A context from a
+    # `workflow_dispatch:`-only, `branches: [dev]` or `paths:`-filtered workflow
+    # has no remedy, so asking why it is not required would be asking for a reason
+    # nobody can give.
+    gateable: dict[str, str] = {}
 
     def leg_for(name: str) -> LegGate:
         return legs.setdefault(name, LegGate(name))
@@ -1560,6 +1569,8 @@ def extract_leg_gating(
                         die(str(e))
                     context = f"{job_id} (unresolved name; workflow cannot gate)"
                 produced[context] = where
+                if could_gate:
+                    gateable[context] = where
 
                 # Which legs does this job run? A direct `cargo test` makes the job
                 # its own leg (Phase B2's naming); a `dagger call` names one in
@@ -1641,7 +1652,7 @@ def extract_leg_gating(
             )
     for blocker in ungateable:
         findings.append(f"UNGATEABLE REQUIRED CONTEXT {blocker}")
-    return legs, sorted(set(findings))
+    return legs, sorted(set(findings)), gateable
 
 
 # ── Phase C: coverage ─────────────────────────────────────────────────────────
@@ -1755,6 +1766,18 @@ def load_exemptions() -> dict[str, str]:
     return _load_exemption_table("exempt")
 
 
+def load_unrequired_exemptions() -> dict[str, str]:
+    """Check contexts allowed to run on every branch without being required.
+
+    A third table, for the same reason `[[ungated]]` is not `[[exempt]]`: "this
+    suite runs nowhere", "this suite runs where nothing can fail a merge" and
+    "this CHECK runs and nothing requires it" are three different claims with
+    three different remedies, and a shared table would let the cheapest one answer
+    the others' question. The rows here name a check context, not a test target.
+    """
+    return _load_exemption_table("unrequired")
+
+
 def load_ungated_exemptions() -> dict[str, str]:
     """Suites allowed to run only in a leg that cannot fail a merge.
 
@@ -1786,8 +1809,9 @@ def main() -> int:
     invocations = dagger_invocations + workflow_invocations
     exemptions = load_exemptions()
     ungated_exemptions = load_ungated_exemptions()
+    unrequired_exemptions = load_unrequired_exemptions()
     required_contexts = load_required_contexts()
-    leg_gating, gating_findings = extract_leg_gating(
+    leg_gating, gating_findings, gateable_contexts = extract_leg_gating(
         main_go, required_contexts, {inv.leg for inv in invocations}
     )
     gating_legs = {name for name, lg in leg_gating.items() if lg.gating_contexts}
@@ -1813,6 +1837,34 @@ def main() -> int:
 
     failures: list[str] = list(gating_findings)
     used_exemptions: set[str] = set()
+    used_unrequired: set[str] = set()
+
+    # Direction E: does every check that CAN gate actually gate? (#1299)
+    #
+    # The mirror image of the STALE REQUIRED CONTEXT check above, and the question
+    # nothing asked through four instances of the same family — #1257
+    # (`Dagger — test`), #1289 (`Dagger — integration`), #1296 (`feature matrix`),
+    # #1299 (`Changelog Completeness`, `Author → export → compile → observe`). Each
+    # was a real check, running on every push, unable to stop anything, and each was
+    # found by a person noticing rather than by a gate. `Changelog Completeness` is
+    # the sharpest: it was revived in #1127 *because* 48 closed issues had gone
+    # undocumented while it sat dispatch-only, and it was given back its trigger
+    # without being given the ability to fail a merge.
+    #
+    # A context here is either required, or carries a row saying why it is not.
+    for context in sorted(gateable_contexts):
+        if context in required_contexts:
+            continue
+        if context in unrequired_exemptions:
+            used_unrequired.add(context)
+            continue
+        failures.append(
+            f"UNREQUIRED CONTEXT `{context}` ({gateable_contexts[context]}) runs on a push to "
+            f"every working branch and no rule requires it, so a failure there cannot stop a "
+            f"merge — add it to the ruleset tools/required-checks.toml names and to that file, "
+            f"or add an "
+            f"[[unrequired]] row saying why it must not gate"
+        )
     used_ungated: set[str] = set()
 
     def check_gating(target_id: str, legs: list[str], what: str) -> None:
@@ -1897,6 +1949,17 @@ def main() -> int:
     for target in exemptions:
         if target not in all_ids:
             failures.append(f"STALE EXEMPTION {target}: no such target exists any more")
+    for target in unrequired_exemptions:
+        if target in required_contexts:
+            failures.append(
+                f"STALE [[unrequired]] EXEMPTION {target}: the ruleset requires this context "
+                f"now — delete the row rather than leaving a granted exemption nothing needs"
+            )
+        elif target not in used_unrequired:
+            failures.append(
+                f"STALE [[unrequired]] EXEMPTION {target}: no workflow produces a check by that "
+                f"name on a push to a working branch any more"
+            )
     for target in ungated_exemptions:
         if target not in all_ids:
             failures.append(f"STALE [[ungated]] EXEMPTION {target}: no such target exists any more")

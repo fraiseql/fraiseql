@@ -274,6 +274,64 @@ $NON_TEST_JOB_STEPS"
 expect "a branches-ignore list beside tags still reaches working branches" 0 \
     "$WORK/branchesignore"
 
+# ── 3g. A context that runs on every branch and is required by nothing ─────
+#
+# The complement of case 5, and the question nothing asked until #1299: not
+# "does every required context report?" but "does every reporting context
+# gate?". `Changelog Completeness` and sdk-conformance's
+# `Author → export → compile → observe` both ran on every push and could fail no
+# merge — the fourth instance of the #1257/#1289/#1296 family, and the third
+# found by a survey rather than by a check.
+#
+# The claim is deliberately narrow: only a context whose workflow COULD carry a
+# required check is asked. A `workflow_dispatch:`-only job, a `branches: [dev]`
+# leg and a `paths:`-filtered one are all unrequirable, so demanding a reason for
+# them would be demanding a reason for something with no remedy.
+make_fixture "$WORK/unrequired" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests"]' "" \
+    "name: Lint
+on:
+  push:
+$NON_TEST_JOB_STEPS"
+expect "a branch-reaching context nothing requires is reported" 1 "$WORK/unrequired" \
+    "UNREQUIRED CONTEXT \`lint only\`"
+
+# ── 3h. ...and the published opt-out for one that cannot be required ────────
+make_fixture "$WORK/unrequiredexempt" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests"]' '[[unrequired]]
+target = "lint only"
+reason = "third-party rate limits make it flaky; tracked in #0000"
+' "name: Lint
+on:
+  push:
+$NON_TEST_JOB_STEPS"
+expect "an [[unrequired]] row with a reason is the opt-out" 0 "$WORK/unrequiredexempt"
+
+# ── 3i. ...and the row rots when the context becomes required ──────────────
+make_fixture "$WORK/unrequiredstale" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests", "lint only"]' '[[unrequired]]
+target = "lint only"
+reason = "third-party rate limits make it flaky; tracked in #0000"
+' "name: Lint
+on:
+  push:
+$NON_TEST_JOB_STEPS"
+expect "an [[unrequired]] row a ruleset change made unnecessary is stale" 1 \
+    "$WORK/unrequiredstale" "STALE [[unrequired]] EXEMPTION lint only"
+
+# ── 3j. ...and a job that cannot be required is not asked for a reason ─────
+#
+# The discriminating input for the `could_gate` half: the same job, the same
+# absent `[[unrequired]]` row, and a trigger that makes requiring it impossible.
+make_fixture "$WORK/unrequirabledevonly" "$WF_EVERY_BRANCH" \
+    'required = ["workspace tests"]' "" \
+    "name: Lint
+on:
+  push:
+    branches: [dev]
+$NON_TEST_JOB_STEPS"
+expect "...but an unrequirable context is not asked for one" 0 "$WORK/unrequirabledevonly"
+
 # ── 4. A catch-all branch list is a branch trigger ──────────────────────────
 #
 # `branches-ignore:` and a bare `push:` both reach every branch; so does
@@ -321,9 +379,16 @@ expect "a paths-filtered workflow cannot be required" 1 "$WORK/pathfilter" \
 # `[[ungated]]` is a separate table from `[[exempt]]` on purpose: "runs nowhere"
 # and "runs somewhere that cannot block a merge" have different remedies, and one
 # claim must never answer the other's question.
+# The `[[unrequired]]` row is not incidental: with `required = []` the workflow's
+# own context is a branch-reaching check nothing requires, which case 3g refuses.
+# Carrying it keeps this case about `[[ungated]]` and nothing else.
 make_fixture "$WORK/exempted" "$WF_EVERY_BRANCH" 'required = []' '[[ungated]]
 target = "demo::probe"
 reason = "needs a networked runner; tracked in #0000"
+
+[[unrequired]]
+target = "workspace tests"
+reason = "the fixture requires nothing; see the note above"
 '
 expect "an [[ungated]] row with a reason is the opt-out" 0 "$WORK/exempted"
 

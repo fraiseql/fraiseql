@@ -1,8 +1,23 @@
 # Exemptions for the no-orphan-suites gate (tools/check-suite-coverage.py).
 #
-# Every row is a suite that deliberately runs in no CI leg, with the published
-# reason — opt-out is visible, never silent. A row whose target stops existing
-# fails the gate (stale exemptions rot the ledger).
+# Every row is a deliberate opt-out with a published reason — visible, never
+# silent. A row whose target stops existing fails the gate (stale exemptions rot
+# the ledger), and so does one the tree has made unnecessary.
+#
+# THREE tables, and they are not interchangeable. Each names a different claim
+# with a different remedy, and a shared table would let the cheapest one silently
+# answer the others' question:
+#
+#   [[exempt]]      a test suite that runs in NO leg.  target = a suite id.
+#   [[ungated]]     a suite that runs only where nothing can fail a merge (#1289).
+#                   target = a suite id.
+#   [[unrequired]]  a CHECK CONTEXT produced on every branch push that no rule
+#                   requires (#1299).  target = a check context name, e.g.
+#                   "Changelog Completeness" — not a suite id.
+#
+# There are no `[[unrequired]]` rows today: both contexts the gate found are
+# required as of #1299. A row here is for a check that must run and must NOT
+# gate — a flaky third-party probe, say — and the reason has to say which.
 
 # ── Arrow Flight DB-backed binaries — pending gate G1 (#908 → P05) ───────────
 # The Flight write/query surface itself is under a user decision (gate or
